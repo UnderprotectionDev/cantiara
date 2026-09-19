@@ -17,7 +17,10 @@ import {
 } from "vitest";
 
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
-import { WorkTypeImpactPreviewRequiredError } from "./work-lifecycle";
+import {
+  WorkFeatureExitBlockedError,
+  WorkTypeImpactPreviewRequiredError,
+} from "./work-lifecycle";
 import { createDatabaseWorkLifecycle } from "./work-lifecycle-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -641,5 +644,334 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       revision: 3,
       status: "In Progress",
     });
+  });
+
+  test("merges Work atomically, resolves the retired identity, and undoes only merge-attributed changes", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Payment App",
+      shortCode: "PAY",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const surviving = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "merge-surviving",
+      description: "Canonical payment failure flow",
+      projectId: project.id,
+      title: "Investigate payment failures",
+      type: "Research",
+    });
+    const duplicate = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "merge-duplicate",
+      description: "Captured payment failure flow",
+      projectId: project.id,
+      title: "Investigate payment failure",
+      type: "Research",
+    });
+    const relationId = `relation-${crypto.randomUUID()}`;
+    await database.insert(workRelation).values({
+      id: relationId,
+      kind: "Related",
+      sourceWorkId: duplicate.id,
+      targetLabel: "External payment evidence",
+      targetProjectId: project.id,
+      targetRecordId: "external-payment-evidence",
+    });
+
+    const preview = await workLifecycle.previewMerge(accountId, {
+      duplicateWorkId: duplicate.id,
+      survivingWorkId: surviving.id,
+    });
+    expect(preview?.relations).toEqual([
+      expect.objectContaining({
+        action: "Rewrite source",
+        id: relationId,
+      }),
+    ]);
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+
+    const merged = await workLifecycle.merge(accountId, {
+      baseRevision: surviving.revision,
+      clientIdempotencyKey: "merge-confirm",
+      duplicateRevision: duplicate.revision,
+      duplicateWorkId: duplicate.id,
+      fieldResolutions: {
+        description: "surviving",
+        title: "duplicate",
+      },
+      previewId: preview.previewId,
+      survivingWorkId: surviving.id,
+    });
+    expect(merged).toMatchObject({
+      retiredIdentity: {
+        id: duplicate.id,
+        key: duplicate.key,
+        origin: { id: duplicate.id, key: duplicate.key },
+      },
+      work: { id: surviving.id, title: duplicate.title },
+    });
+    await expect(
+      workLifecycle.find(accountId, duplicate.id),
+    ).resolves.toBeNull();
+    await expect(
+      workLifecycle.resolve(accountId, {
+        key: duplicate.key,
+        projectId: project.id,
+      }),
+    ).resolves.toMatchObject({
+      identity: {
+        id: duplicate.id,
+        origin: { key: duplicate.key },
+        survivingWork: { id: surviving.id, title: duplicate.title },
+      },
+      kind: "Retired",
+    });
+    const edited = await workLifecycle.updateType(accountId, {
+      baseRevision: merged.work.revision,
+      clientIdempotencyKey: "merge-unrelated-edit",
+      type: "Bug",
+      workId: surviving.id,
+    });
+    const undone = await workLifecycle.undoMerge(accountId, {
+      baseRevision: edited.revision,
+      clientIdempotencyKey: "merge-undo",
+      mergeId: merged.mergeId,
+      survivingWorkId: surviving.id,
+    });
+    expect(undone).toMatchObject({
+      description: surviving.description,
+      title: surviving.title,
+      type: "Bug",
+    });
+    await expect(
+      workLifecycle.find(accountId, duplicate.id),
+    ).resolves.toMatchObject({
+      id: duplicate.id,
+      key: duplicate.key,
+      title: duplicate.title,
+    });
+    await expect(
+      workLifecycle.previewMerge(accountId, {
+        duplicateWorkId: duplicate.id,
+        survivingWorkId: surviving.id,
+      }),
+    ).resolves.toMatchObject({
+      relations: [
+        expect.objectContaining({
+          action: "Rewrite source",
+          id: relationId,
+        }),
+      ],
+    });
+  });
+
+  test("re-points retired identity redirects across chained merges and restores them on Undo", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Chained Payment App",
+      shortCode: "CHAIN",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const firstSurvivor = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "chain-first-survivor",
+      projectId: project.id,
+      title: "Investigate payment failures",
+    });
+    const chainedDuplicate = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "chain-duplicate",
+      projectId: project.id,
+      title: "Investigate payment failure",
+    });
+    const finalSurvivor = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "chain-final-survivor",
+      projectId: project.id,
+      title: "Investigate payment failures",
+      type: "Bug",
+    });
+
+    const mergeInto = async (
+      duplicateId: string,
+      duplicateRevision: number,
+      survivorId: string,
+      survivorRevision: number,
+      clientIdempotencyKey: string,
+    ) => {
+      const preview = await workLifecycle.previewMerge(accountId, {
+        duplicateWorkId: duplicateId,
+        survivingWorkId: survivorId,
+      });
+      if (!preview) {
+        throw new Error("Expected a Work Merge Preview.");
+      }
+      return workLifecycle.merge(accountId, {
+        baseRevision: survivorRevision,
+        clientIdempotencyKey,
+        duplicateRevision,
+        duplicateWorkId: duplicateId,
+        fieldResolutions: Object.fromEntries(
+          preview.fields
+            .filter((field) => field.conflict)
+            .map((field) => [field.key, "surviving"]),
+        ),
+        previewId: preview.previewId,
+        survivingWorkId: survivorId,
+      });
+    };
+
+    const firstMerge = await mergeInto(
+      chainedDuplicate.id,
+      chainedDuplicate.revision,
+      firstSurvivor.id,
+      firstSurvivor.revision,
+      "chain-first-merge",
+    );
+    await expect(
+      workLifecycle.resolve(accountId, { workId: chainedDuplicate.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: firstSurvivor.id } },
+      kind: "Retired",
+    });
+
+    const secondMerge = await mergeInto(
+      firstSurvivor.id,
+      firstMerge.work.revision,
+      finalSurvivor.id,
+      finalSurvivor.revision,
+      "chain-second-merge",
+    );
+
+    await expect(
+      workLifecycle.resolve(accountId, { workId: firstSurvivor.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: finalSurvivor.id } },
+      kind: "Retired",
+    });
+    await expect(
+      workLifecycle.resolve(accountId, { workId: chainedDuplicate.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: finalSurvivor.id } },
+      kind: "Retired",
+    });
+
+    await workLifecycle.undoMerge(accountId, {
+      baseRevision: secondMerge.work.revision,
+      clientIdempotencyKey: "chain-second-undo",
+      mergeId: secondMerge.mergeId,
+      survivingWorkId: finalSurvivor.id,
+    });
+
+    await expect(
+      workLifecycle.resolve(accountId, { workId: firstSurvivor.id }),
+    ).resolves.toMatchObject({ kind: "Active" });
+    await expect(
+      workLifecycle.resolve(accountId, { workId: chainedDuplicate.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: firstSurvivor.id } },
+      kind: "Retired",
+    });
+  });
+
+  test("blocks merge Undo that would leave included Work on a non-Feature survivor", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Undo Block Payment App",
+      shortCode: "UBLOCK",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const survivor = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "undo-block-survivor",
+      projectId: project.id,
+      title: "Keep this record",
+      type: "Task",
+    });
+    const duplicate = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "undo-block-duplicate",
+      projectId: project.id,
+      title: "Canonical feature",
+      type: "Feature",
+    });
+
+    const preview = await workLifecycle.previewMerge(accountId, {
+      duplicateWorkId: duplicate.id,
+      survivingWorkId: survivor.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+    const merged = await workLifecycle.merge(accountId, {
+      baseRevision: survivor.revision,
+      clientIdempotencyKey: "undo-block-merge",
+      duplicateRevision: duplicate.revision,
+      duplicateWorkId: duplicate.id,
+      fieldResolutions: { title: "surviving", type: "duplicate" },
+      previewId: preview.previewId,
+      survivingWorkId: survivor.id,
+    });
+    expect(merged.work.type).toBe("Feature");
+
+    const child = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "undo-block-child",
+      projectId: project.id,
+      title: "Included child",
+    });
+    await workLifecycle.includeWork(accountId, {
+      baseRevision: child.revision,
+      clientIdempotencyKey: "undo-block-include",
+      featureId: merged.work.id,
+      workId: child.id,
+    });
+
+    let undoError: unknown;
+    try {
+      await workLifecycle.undoMerge(accountId, {
+        baseRevision: merged.work.revision,
+        clientIdempotencyKey: "undo-block-undo",
+        mergeId: merged.mergeId,
+        survivingWorkId: survivor.id,
+      });
+    } catch (error) {
+      undoError = error;
+    }
+    // The commit path surfaces the apply error unwrapped; staged mutations
+    // would wrap it in MutationApplyFailedError instead.
+    expect(
+      undoError instanceof WorkFeatureExitBlockedError ||
+        (undoError as { cause?: unknown }).cause instanceof
+          WorkFeatureExitBlockedError,
+    ).toBe(true);
+
+    await expect(
+      workLifecycle.find(accountId, survivor.id),
+    ).resolves.toMatchObject({ type: "Feature" });
+    await expect(
+      workLifecycle.find(accountId, child.id),
+    ).resolves.toMatchObject({ primaryFeatureId: merged.work.id });
+    await expect(
+      workLifecycle.resolve(accountId, { workId: duplicate.id }),
+    ).resolves.toMatchObject({ kind: "Retired" });
   });
 });

@@ -511,7 +511,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başarısız | `Failed` | Bir seçilen İşin görünür başarısızlık sonucu |
 | Hayatta kalan kayıt | `Surviving record` | Birleştirmede kalacak kanonik İş |
 | Alan çatışmaları | `Field conflicts` | Birleştirmede kullanıcı çözümü isteyen ayrışan alanlar |
+| Birleştirme değeri | `Choose a value` | Alan çatışmasında hayatta kalan veya kopya değeri seçen kontrol |
+| Hayatta kalanın değeri | `Use surviving record` | Çatışan alanda hayatta kalan kaydın değerini koruma seçimi |
+| Kopyanın değeri | `Use duplicate` | Çatışan alanda kopya kaydın değerini taşıma seçimi |
+| Çakışmayan alanlar | `Fields without conflicts` | Önizlemede kullanıcı çözümü gerektirmeyen, aynı kalan alanlar |
+| Kapanış gerekçesi | `Closure reason` | Birleştirme önizlemesinde kapanış gerekçesi alanının görünümü; kapanış adımındaki `Reason` değerinin kendisidir |
+| Yakalama köken izi | `Capture provenance` | Yakalamadan dönüşen İşte korunan dönüşüm kökeni bilgisi; `Origin` ilişkisi değildir |
+| Seçimi düzenle | `Edit selection` | Güncel Merge Preview onaylanmadan alan seçimlerini yeniden açma |
 | İlişkiler | `Relations` | Birleştirmede hayatta kalana yazılacak ilişkiler |
+| Kaynağı yeniden yaz | `Rewrite source` | Kopya kaydın kaynak ucunu hayatta kalan kayda yönlendirme |
+| Hedefi yeniden yaz | `Rewrite target` | Kopya kayda giden hedef ucunu hayatta kalan kayda yönlendirme |
+| Kendine ilişkiyi kaldır | `Remove self relation` | Birleştirme sonrası hayatta kalan kayda dönen ilişkiyi kaldırma |
+| Included in bağını yeniden yaz | `Rewrite Included in` | Kopya Feature altındaki Work bağını hayatta kalan Feature’a taşıma |
 | Köken | `Origin` | Emekli kimliğin hayatta kalan kayda görünür yönlendirmesi |
 | İlgili | `Related` | Anlamsal bağ; kendiliğinden birleştirme değildir |
 | Satır içi kayıt referansı | `Inline reference` | Belge gövdesindeki kullanım bağı; standart ilişki değildir |

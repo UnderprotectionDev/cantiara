@@ -52,7 +52,9 @@ function createWorkLifecycleStub(
     includeWork: vi.fn(),
     list: vi.fn(),
     scopeTree: vi.fn(),
+    merge: vi.fn(),
     previewClose: vi.fn(),
+    previewMerge: vi.fn(),
     previewRecreate: vi.fn(),
     previewTypeChange: vi.fn(),
     recordFeatureHealth: vi.fn(),
@@ -62,6 +64,8 @@ function createWorkLifecycleStub(
     updateType: vi.fn(),
     unarchive: vi.fn(),
     recreate: vi.fn(),
+    resolve: vi.fn(),
+    undoMerge: vi.fn(),
     ...overrides,
   };
 }
@@ -140,6 +144,43 @@ describe("Work Lifecycle RPC", () => {
       projectId: "project-2",
       recreatedFrom: { id: work.id, key: work.key },
     });
+    const previewMerge = vi.fn().mockResolvedValue({
+      duplicateWork: {
+        id: "work-duplicate",
+        key: "CANT-2",
+        revision: 1,
+        title: "Duplicate Work",
+      },
+      fields: [],
+      previewId: "work-merge:preview-1",
+      relations: [],
+      survivingWork: {
+        id: work.id,
+        key: work.key,
+        revision: work.revision,
+        title: work.title,
+      },
+    });
+    const merge = vi.fn().mockResolvedValue({
+      mergeId: "merge-1",
+      receiptId: "receipt-1",
+      retiredIdentity: {
+        id: "work-duplicate",
+        key: "CANT-2",
+        kind: "Retired identity",
+        origin: { id: "work-duplicate", key: "CANT-2" },
+        projectId: work.projectId,
+        retiredAt: work.updatedAt,
+        survivingWork: {
+          id: work.id,
+          key: work.key,
+          title: work.title,
+        },
+      },
+      work,
+    });
+    const resolve = vi.fn().mockResolvedValue({ kind: "Active", work });
+    const undoMerge = vi.fn().mockResolvedValue(work);
     const workLifecycle = createWorkLifecycleStub({
       archive,
       close,
@@ -159,6 +200,7 @@ describe("Work Lifecycle RPC", () => {
       includeWork: vi.fn().mockResolvedValue(work),
       list,
       scopeTree,
+      merge,
       previewClose: vi.fn().mockResolvedValue({
         closureCheck: {
           activeBlockers: [],
@@ -168,6 +210,7 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
       previewRecreate,
+      previewMerge,
       previewTypeChange: vi.fn().mockResolvedValue({
         currentType: "Task",
         featureExitBlockers: null,
@@ -178,11 +221,13 @@ describe("Work Lifecycle RPC", () => {
       }),
       recordFeatureHealth: vi.fn().mockResolvedValue(work),
       recreate,
+      resolve,
       updateFeaturePrimarySpec: vi.fn().mockResolvedValue(work),
       reopen,
       updateStatus,
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
       unarchive,
+      undoMerge,
     });
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -250,6 +295,56 @@ describe("Work Lifecycle RPC", () => {
       selectedRelationIds: [],
       sourceWorkId: work.id,
       targetProjectId: "project-2",
+    });
+    await expect(
+      client.workMergePreview({
+        duplicateWorkId: "work-duplicate",
+        survivingWorkId: work.id,
+      }),
+    ).resolves.toMatchObject({ previewId: "work-merge:preview-1" });
+    await expect(
+      client.mergeWork({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "merge-1",
+        duplicateRevision: 1,
+        duplicateWorkId: "work-duplicate",
+        fieldResolutions: {},
+        previewId: "work-merge:preview-1",
+        survivingWorkId: work.id,
+      }),
+    ).resolves.toMatchObject({ mergeId: "merge-1" });
+    await expect(
+      client.resolveWorkIdentity({ workId: "work-duplicate" }),
+    ).resolves.toMatchObject({ kind: "Active" });
+    await expect(
+      client.undoWorkMerge({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "undo-merge-1",
+        mergeId: "merge-1",
+        survivingWorkId: work.id,
+      }),
+    ).resolves.toEqual(work);
+    expect(previewMerge).toHaveBeenCalledWith("account-1", {
+      duplicateWorkId: "work-duplicate",
+      survivingWorkId: work.id,
+    });
+    expect(merge).toHaveBeenCalledWith("account-1", {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "merge-1",
+      duplicateRevision: 1,
+      duplicateWorkId: "work-duplicate",
+      fieldResolutions: {},
+      previewId: "work-merge:preview-1",
+      survivingWorkId: work.id,
+    });
+    expect(resolve).toHaveBeenCalledWith("account-1", {
+      workId: "work-duplicate",
+    });
+    expect(undoMerge).toHaveBeenCalledWith("account-1", {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "undo-merge-1",
+      mergeId: "merge-1",
+      survivingWorkId: work.id,
     });
     await expect(
       client.updateWorkType({

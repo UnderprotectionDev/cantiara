@@ -11,6 +11,7 @@ import {
   type FeatureExitBlockers,
   type FeatureProgress,
   includeWorkInputSchema,
+  mergeWorkInputSchema,
   recordFeatureHealthInputSchema,
   recreateWorkInputSchema,
   reopenWorkInputSchema,
@@ -18,22 +19,34 @@ import {
   type ScopeTreeNode,
   type ScopeTreeReference,
   type ScopeTreeWork,
+  undoWorkMergeInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   type WorkClosePreview,
   type WorkClosureContextItem,
+  type WorkIdentityInput,
+  type WorkIdentityResolution,
   type WorkLifecycleAccess,
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
+  type WorkMergeField,
+  type WorkMergeInclusionSnapshot,
+  type WorkMergePreview,
+  type WorkMergeRelationPreview,
+  type WorkMergeRelationSnapshot,
+  type WorkMergeResult,
   type WorkProfile,
   type WorkRecreateFieldPreview,
   type WorkRecreatePreview,
+  type WorkRetiredIdentity,
   type WorkType,
   type WorkTypeChangePreview,
   type WorkVisibleUserInitiator,
   workArchiveMutationInputSchema,
   workClosePreviewInputSchema,
+  workIdentityInputSchema,
+  workMergePreviewInputSchema,
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
@@ -74,10 +87,19 @@ export interface WorkLifecycleStore {
     projectId: string,
     clientIdempotencyKey: string,
   ) => Promise<WorkCreationRecord | null>;
+  findByKey?: (
+    accountId: string,
+    projectId: string,
+    key: string,
+  ) => Promise<WorkProfile | null>;
   findProject: (
     accountId: string,
     projectId: string,
   ) => Promise<{ id: string; name: string } | null>;
+  findRetiredIdentity?: (
+    accountId: string,
+    input: WorkIdentityInput,
+  ) => Promise<WorkRetiredIdentity | null>;
   hasProjectDocument?: (
     accountId: string,
     projectId: string,
@@ -92,6 +114,10 @@ export interface WorkLifecycleStore {
     accountId: string,
     featureId: string,
   ) => Promise<WorkProfile[]>;
+  listRetiredIdentityIdsBySurvivor?: (
+    accountId: string,
+    survivingWorkId: string,
+  ) => Promise<string[]>;
   reserveCreate: (
     accountId: string,
     projectId: string,
@@ -273,7 +299,85 @@ export class WorkRecreateFieldRequiredError extends Error {
   }
 }
 
+export class WorkMergePreviewRequiredError extends Error {
+  readonly code = "WORK_MERGE_PREVIEW_REQUIRED" as const;
+
+  constructor() {
+    super("A current Merge Preview is required before confirming.");
+    this.name = "WorkMergePreviewRequiredError";
+  }
+}
+
+export class WorkMergeConflictError extends Error {
+  readonly code = "WORK_MERGE_CONFLICT" as const;
+
+  constructor(message = "The selected Work merge is no longer available.") {
+    super(message);
+    this.name = "WorkMergeConflictError";
+  }
+}
+
+function workMergeResultFromReceipt(receipt: {
+  committedAt: string;
+  id: string;
+  nextValue: WorkLifecycleMutationValue;
+}): WorkMergeResult {
+  const { merge, work: mergedWork } = receipt.nextValue;
+  if (!(mergedWork && merge && merge.operation === "merge")) {
+    throw new WorkMergeConflictError();
+  }
+  const { duplicateWork } = merge;
+  return {
+    mergeId: receipt.id,
+    receiptId: receipt.id,
+    retiredIdentity: {
+      id: duplicateWork.id,
+      key: duplicateWork.key,
+      kind: "Retired identity",
+      origin: { id: duplicateWork.id, key: duplicateWork.key },
+      projectId: duplicateWork.projectId,
+      retiredAt: receipt.committedAt,
+      survivingWork: {
+        id: mergedWork.id,
+        key: mergedWork.key,
+        title: mergedWork.title,
+      },
+    },
+    work: mergedWork,
+  };
+}
+
+export class WorkMergeResolutionRequiredError extends Error {
+  readonly code = "WORK_MERGE_RESOLUTION_REQUIRED" as const;
+  readonly fields: WorkMergeField[];
+
+  constructor(fields: WorkMergeField[]) {
+    super("Resolve every Field conflict before confirming the merge.");
+    this.name = "WorkMergeResolutionRequiredError";
+    this.fields = fields;
+  }
+}
+
+export class WorkMergeUnsupportedError extends Error {
+  readonly code = "WORK_MERGE_UNSUPPORTED" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkMergeUnsupportedError";
+  }
+}
+
+export class WorkMergeUndoUnavailableError extends Error {
+  readonly code = "WORK_MERGE_UNDO_UNAVAILABLE" as const;
+
+  constructor() {
+    super("This Work merge is no longer available for Undo.");
+    this.name = "WorkMergeUndoUnavailableError";
+  }
+}
+
 const WORK_CREATE_TARGET_PREFIX = "work-create:";
+const WORK_MERGE_TARGET_PREFIX = "work-merge:";
 const WORK_TYPE_IMPACT_PREVIEW_PREFIX = "work-type-impact:";
 const WORK_RECREATE_PREVIEW_PREFIX = "work-recreate:";
 
@@ -456,6 +560,244 @@ async function buildRecreatePreview(
     },
     targetProject,
   };
+}
+
+const WORK_MERGE_FIELD_LABELS: Record<
+  WorkMergeField,
+  WorkMergePreview["fields"][number]["label"]
+> = {
+  archivedAt: "Archive",
+  captureProvenance: "Capture provenance",
+  checklist: "Checklist",
+  closureReason: "Closure reason",
+  closureResult: "Closure result",
+  description: "Description",
+  featureHealthHistory: "Feature health",
+  primaryFeatureId: "Included in",
+  primarySpecId: "Primary spec",
+  status: "Status",
+  title: "Title",
+  type: "Type",
+};
+
+function workMergeFieldValue(work: WorkProfile, field: WorkMergeField) {
+  return work[field];
+}
+
+function mergeValuesEqual(left: unknown, right: unknown) {
+  return (
+    canonicalizeMutationPayload(left as MutationPayload) ===
+    canonicalizeMutationPayload(right as MutationPayload)
+  );
+}
+
+function workMergeFieldPreviews(
+  survivingWork: WorkProfile,
+  duplicateWork: WorkProfile,
+) {
+  return (Object.keys(WORK_MERGE_FIELD_LABELS) as WorkMergeField[]).map(
+    (key) => {
+      const survivingValue = workMergeFieldValue(survivingWork, key);
+      const duplicateValue = workMergeFieldValue(duplicateWork, key);
+      return {
+        conflict: !mergeValuesEqual(survivingValue, duplicateValue),
+        duplicateValue,
+        key,
+        label: WORK_MERGE_FIELD_LABELS[key],
+        survivingValue,
+      };
+    },
+  );
+}
+
+function workMergeRelationPreviews(
+  duplicateWorkId: string,
+  relations: WorkMergeRelationSnapshot[],
+) {
+  return relations
+    .filter(
+      (relation) =>
+        relation.sourceWorkId === duplicateWorkId ||
+        relation.targetRecordId === duplicateWorkId,
+    )
+    .map((relation) => {
+      const rewritesSource = relation.sourceWorkId === duplicateWorkId;
+      const rewritesTarget = relation.targetRecordId === duplicateWorkId;
+      let action: WorkMergeRelationPreview["action"];
+      if (rewritesSource && rewritesTarget) {
+        action = "Remove self relation";
+      } else if (rewritesSource) {
+        action = "Rewrite source";
+      } else {
+        action = "Rewrite target";
+      }
+      return {
+        ...relation,
+        action,
+      } satisfies WorkMergeRelationPreview;
+    });
+}
+
+function workMergeInclusionPreviews(inclusions: WorkMergeInclusionSnapshot[]) {
+  return inclusions.map((inclusion) => ({
+    ...inclusion,
+    action: "Rewrite Included in" as const,
+  }));
+}
+
+function workMergeRelationSnapshots(
+  survivingWorkId: string,
+  duplicateWorkId: string,
+  relations: WorkMergeRelationSnapshot[],
+) {
+  return relations
+    .filter(
+      (relation) =>
+        relation.sourceWorkId === duplicateWorkId ||
+        relation.targetRecordId === duplicateWorkId,
+    )
+    .map((relation) => {
+      const mergedSourceWorkId =
+        relation.sourceWorkId === duplicateWorkId
+          ? survivingWorkId
+          : relation.sourceWorkId;
+      const mergedTargetRecordId =
+        relation.targetRecordId === duplicateWorkId
+          ? survivingWorkId
+          : relation.targetRecordId;
+      return {
+        ...relation,
+        ...(mergedSourceWorkId === survivingWorkId &&
+        mergedTargetRecordId === survivingWorkId
+          ? { removedByMerge: true }
+          : {}),
+      };
+    });
+}
+
+async function buildMergePreview(
+  relations: WorkRelations,
+  store: WorkLifecycleStore,
+  accountId: string,
+  survivingWorkId: string,
+  duplicateWorkId: string,
+): Promise<WorkMergePreview | null> {
+  if (survivingWorkId === duplicateWorkId) {
+    return null;
+  }
+  const [survivingWork, duplicateWork] = await Promise.all([
+    store.find(accountId, survivingWorkId),
+    store.find(accountId, duplicateWorkId),
+  ]);
+  if (
+    !(survivingWork && duplicateWork) ||
+    survivingWork.projectId !== duplicateWork.projectId
+  ) {
+    return null;
+  }
+
+  const [mergeRelations, inclusions] = await Promise.all([
+    relations.listMergeRelations
+      ? relations.listMergeRelations(
+          accountId,
+          survivingWork.id,
+          duplicateWork.id,
+        )
+      : [],
+    relations.listMergeInclusions
+      ? relations.listMergeInclusions(
+          accountId,
+          survivingWork.id,
+          duplicateWork.id,
+        )
+      : [],
+  ]);
+  const fields = workMergeFieldPreviews(survivingWork, duplicateWork);
+  const previewId = `${WORK_MERGE_TARGET_PREFIX}${await fingerprintMutationPayload(
+    {
+      duplicateWork,
+      fields,
+      inclusions,
+      relations: mergeRelations,
+      survivingWork,
+    } as unknown as MutationPayload,
+  )}`;
+  return {
+    duplicateWork: {
+      id: duplicateWork.id,
+      key: duplicateWork.key,
+      revision: duplicateWork.revision,
+      title: duplicateWork.title,
+    },
+    fields,
+    inclusions: workMergeInclusionPreviews(inclusions),
+    previewId,
+    relations: workMergeRelationPreviews(duplicateWork.id, mergeRelations),
+    survivingWork: {
+      id: survivingWork.id,
+      key: survivingWork.key,
+      revision: survivingWork.revision,
+      title: survivingWork.title,
+    },
+  };
+}
+
+function buildMergedWork(
+  survivingWork: WorkProfile,
+  duplicateWork: WorkProfile,
+  inclusions: WorkMergeInclusionSnapshot[],
+  fieldResolutions: Partial<Record<WorkMergeField, "surviving" | "duplicate">>,
+) {
+  const fields = workMergeFieldPreviews(survivingWork, duplicateWork);
+  const missingFields = fields
+    .filter((field) => field.conflict && !fieldResolutions[field.key])
+    .map((field) => field.key);
+  if (missingFields.length > 0) {
+    throw new WorkMergeResolutionRequiredError(missingFields);
+  }
+
+  const mergedWork = { ...survivingWork };
+  const attributedValueKeys: WorkMergeField[] = [];
+  for (const field of fields) {
+    const resolution = fieldResolutions[field.key] ?? "surviving";
+    const nextValue =
+      resolution === "duplicate" ? field.duplicateValue : field.survivingValue;
+    if (!mergeValuesEqual(field.survivingValue, nextValue)) {
+      (mergedWork as Record<string, unknown>)[field.key] = nextValue;
+      attributedValueKeys.push(field.key);
+    }
+  }
+
+  if (mergedWork.status === "Closed" && mergedWork.closureResult === null) {
+    throw new WorkMergeUnsupportedError(
+      "Closed requires an explicit Completed or Abandoned result.",
+    );
+  }
+  if (
+    mergedWork.status !== "Closed" &&
+    (mergedWork.closureResult !== null || mergedWork.closureReason !== null)
+  ) {
+    throw new WorkMergeUnsupportedError(
+      "Open Work cannot retain a closure result or reason.",
+    );
+  }
+  if (mergedWork.type === "Feature" && mergedWork.primaryFeatureId !== null) {
+    throw new WorkMergeUnsupportedError(
+      "Feature Work cannot be included in another Feature.",
+    );
+  }
+  if (
+    mergedWork.type !== "Feature" &&
+    (mergedWork.featureHealthHistory.length > 0 ||
+      mergedWork.primarySpecId !== null ||
+      inclusions.length > 0)
+  ) {
+    throw new WorkMergeUnsupportedError(
+      "Detach Feature health, Primary spec, and included Work before merging out of Feature.",
+    );
+  }
+
+  return { attributedValueKeys, mergedWork };
 }
 
 async function createWork(
@@ -977,6 +1319,148 @@ export function createWorkLifecycle({
       };
     },
 
+    async merge(accountId, rawInput) {
+      const input = mergeWorkInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const mergeMutationId = `work-merge-id:${(
+        await fingerprintMutationPayload({
+          duplicateWorkId: input.duplicateWorkId,
+          fieldResolutions: input.fieldResolutions,
+          previewId: input.previewId,
+          survivingWorkId: input.survivingWorkId,
+        })
+      ).slice(0, 48)}`;
+      const payload = {
+        duplicateWorkId: input.duplicateWorkId,
+        duplicateWorkRevision: input.duplicateRevision,
+        fieldResolutions: input.fieldResolutions,
+        mergeId: mergeMutationId,
+        previewId: input.previewId,
+        survivingWorkId: input.survivingWorkId,
+      };
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload,
+        targetId: input.survivingWorkId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        return workMergeResultFromReceipt(replay);
+      }
+
+      const preview = await buildMergePreview(
+        relations,
+        store,
+        accountId,
+        input.survivingWorkId,
+        input.duplicateWorkId,
+      );
+      if (
+        !preview ||
+        preview.previewId !== input.previewId ||
+        preview.survivingWork.revision !== input.baseRevision ||
+        preview.duplicateWork.revision !== input.duplicateRevision
+      ) {
+        throw new WorkMergePreviewRequiredError();
+      }
+
+      const [survivingWork, duplicateWork] = await Promise.all([
+        store.find(accountId, input.survivingWorkId),
+        store.find(accountId, input.duplicateWorkId),
+      ]);
+      if (!(survivingWork && duplicateWork)) {
+        throw new WorkNotFoundError(
+          survivingWork ? input.duplicateWorkId : input.survivingWorkId,
+        );
+      }
+      const [mergeRelations, inclusions, retiredRedirectIds] =
+        await Promise.all([
+          relations.listMergeRelations
+            ? relations.listMergeRelations(
+                accountId,
+                survivingWork.id,
+                duplicateWork.id,
+              )
+            : [],
+          relations.listMergeInclusions
+            ? relations.listMergeInclusions(
+                accountId,
+                survivingWork.id,
+                duplicateWork.id,
+              )
+            : [],
+          // Earlier merges may already redirect retired identities to the
+          // Work being retired now; they are re-pointed to the new survivor
+          // so the redirect stays permanent across chained merges.
+          store.listRetiredIdentityIdsBySurvivor
+            ? store
+                .listRetiredIdentityIdsBySurvivor(accountId, duplicateWork.id)
+                .then((ids) => [...ids].sort())
+            : [],
+        ]);
+      const relationSnapshots = workMergeRelationSnapshots(
+        survivingWork.id,
+        duplicateWork.id,
+        mergeRelations,
+      );
+      const { attributedValueKeys, mergedWork } = buildMergedWork(
+        survivingWork,
+        duplicateWork,
+        inclusions,
+        input.fieldResolutions,
+      );
+      const receipt = await mutation.mutate(
+        command,
+        ({ currentRevision, currentValue }) => {
+          if (!currentValue.work || currentValue.work.id !== survivingWork.id) {
+            throw new WorkNotFoundError(survivingWork.id);
+          }
+          const timestamp = new Date().toISOString();
+          return {
+            merge: {
+              attributedRelationIds: relationSnapshots.map(
+                (relation) => relation.id,
+              ),
+              attributedValueKeys,
+              duplicateWork,
+              duplicateWorkId: duplicateWork.id,
+              duplicateWorkRevision: duplicateWork.revision,
+              inclusions,
+              mergeId: mergeMutationId,
+              operation: "merge",
+              relations: relationSnapshots,
+              retiredRedirectIds,
+            },
+            work: {
+              ...mergedWork,
+              revision: currentRevision + 1,
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+        {
+          undo: {
+            kind: "merge",
+            merge: {
+              attributedRelationIds: relationSnapshots.map(
+                (relation) => relation.id,
+              ),
+              attributedValueKeys: attributedValueKeys.map(
+                (field) => `work.${field}`,
+              ),
+              mergeId: mergeMutationId,
+              retiredTargetId: duplicateWork.id,
+            },
+            scope: "$",
+          },
+        },
+      );
+      return workMergeResultFromReceipt(receipt);
+    },
+
     previewRecreate(accountId, rawInput) {
       const input = workRecreatePreviewInputSchema.parse(rawInput);
       return buildRecreatePreview(
@@ -985,6 +1469,17 @@ export function createWorkLifecycle({
         accountId,
         input.sourceWorkId,
         input.targetProjectId,
+      );
+    },
+
+    previewMerge(accountId, rawInput) {
+      const input = workMergePreviewInputSchema.parse(rawInput);
+      return buildMergePreview(
+        relations,
+        store,
+        accountId,
+        input.survivingWorkId,
+        input.duplicateWorkId,
       );
     },
 
@@ -1106,6 +1601,32 @@ export function createWorkLifecycle({
           };
         },
       );
+    },
+
+    async resolve(accountId, rawInput) {
+      const input = workIdentityInputSchema.parse(rawInput);
+      let activeWork: WorkProfile | null = null;
+      if ("workId" in input) {
+        activeWork = await store.find(accountId, input.workId);
+      } else if (store.findByKey) {
+        activeWork = await store.findByKey(
+          accountId,
+          input.projectId,
+          input.key,
+        );
+      }
+      if (activeWork) {
+        return {
+          kind: "Active",
+          work: activeWork,
+        } satisfies WorkIdentityResolution;
+      }
+      const retiredIdentity = store.findRetiredIdentity
+        ? await store.findRetiredIdentity(accountId, input)
+        : null;
+      return retiredIdentity
+        ? { identity: retiredIdentity, kind: "Retired" }
+        : null;
     },
 
     async previewTypeChange(accountId, rawInput) {
@@ -1287,6 +1808,71 @@ export function createWorkLifecycle({
       );
       if (!receipt.nextValue.work) {
         throw new WorkNotFoundError(input.workId);
+      }
+      return receipt.nextValue.work;
+    },
+
+    async undoMerge(accountId, rawInput) {
+      const input = undoWorkMergeInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      if (!(mutation.findReceiptById && mutation.undo)) {
+        throw new WorkMergeUndoUnavailableError();
+      }
+      const sourceReceipt = await mutation.findReceiptById(input.mergeId);
+      if (
+        !sourceReceipt ||
+        sourceReceipt.targetId !== input.survivingWorkId ||
+        sourceReceipt.undo?.kind !== "merge" ||
+        !sourceReceipt.undo.merge ||
+        !sourceReceipt.nextValue.merge ||
+        sourceReceipt.nextValue.merge.operation !== "merge"
+      ) {
+        throw new WorkMergeUndoUnavailableError();
+      }
+      const mergeMetadata = sourceReceipt.undo.merge;
+      const mergeMutation = sourceReceipt.nextValue.merge;
+      if (mergeMetadata.retiredTargetId !== mergeMutation.duplicateWorkId) {
+        throw new WorkMergeUndoUnavailableError();
+      }
+
+      const receipt = await mutation.undo(
+        sourceReceipt,
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: {
+            mergeId: input.mergeId,
+            retiredTargetId: mergeMetadata.retiredTargetId,
+          },
+          targetId: input.survivingWorkId,
+        },
+        ({ currentRevision, currentValue, previousValue }) => {
+          if (!(currentValue.work && previousValue.work)) {
+            throw new WorkMergeUndoUnavailableError();
+          }
+          const restoredWork = { ...currentValue.work };
+          for (const attributedKey of mergeMetadata.attributedValueKeys) {
+            const field = attributedKey.startsWith("work.")
+              ? attributedKey.slice("work.".length)
+              : attributedKey;
+            (restoredWork as Record<string, unknown>)[field] = (
+              previousValue.work as unknown as Record<string, unknown>
+            )[field];
+          }
+          return {
+            merge: { ...mergeMutation, operation: "undo" },
+            work: {
+              ...restoredWork,
+              revision: currentRevision + 1,
+              updatedAt: new Date().toISOString(),
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkMergeUndoUnavailableError();
       }
       return receipt.nextValue.work;
     },

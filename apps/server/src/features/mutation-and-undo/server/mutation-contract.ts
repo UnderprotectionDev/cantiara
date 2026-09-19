@@ -414,6 +414,19 @@ function mutationUndoScopeSnapshotEqual(
   );
 }
 
+function mutationMergeAttributedValuesEqual(
+  currentValue: unknown,
+  afterValue: unknown,
+  attributedValueKeys: readonly string[],
+) {
+  return attributedValueKeys.every((key) =>
+    mutationUndoScopeSnapshotEqual(
+      mutationUndoScopeSnapshot(currentValue, key),
+      mutationUndoScopeSnapshot(afterValue, key),
+    ),
+  );
+}
+
 function isEmptyUndoObject(value: unknown): boolean {
   return (
     value !== null &&
@@ -903,12 +916,18 @@ export function createMutationContract<TValue, TTransaction = unknown>({
         currentValue,
         metadata.scope,
       );
-      if (
-        !mutationUndoScopeSnapshotEqual(currentScope, {
-          present: metadata.afterPresent,
-          value: metadata.after,
-        })
-      ) {
+      const undoScopeMatches =
+        metadata.kind === "merge" && metadata.merge
+          ? mutationMergeAttributedValuesEqual(
+              currentValue,
+              sourceReceipt.nextValue,
+              metadata.merge.attributedValueKeys,
+            )
+          : mutationUndoScopeSnapshotEqual(currentScope, {
+              present: metadata.afterPresent,
+              value: metadata.after,
+            });
+      if (!undoScopeMatches) {
         throw new MutationUndoConflictError(
           current,
           sourceReceipt.id,
@@ -1136,6 +1155,7 @@ export function createMutationContract<TValue, TTransaction = unknown>({
     cancel,
     cleanupExpired,
     finalize,
+    findReceiptById: (receiptId: string) => store.findReceiptById(receiptId),
     mutate,
     replay,
     stage,

@@ -125,6 +125,39 @@ export const workRelations = relations(work, ({ one }) => ({
   }),
 }));
 
+/**
+ * A merged Work no longer remains a live row. Its immutable id and key stay
+ * here as a contentless redirect to the surviving Work. The survivor is
+ * always resolved from the live `work` row, so a chained merge re-points
+ * these rows instead of losing them.
+ */
+export const workRetiredIdentity = pgTable(
+  "work_retired_identity",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    mergeId: text("merge_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    retiredAt: timestamp("retired_at").defaultNow().notNull(),
+    survivingWorkId: text("surviving_work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("work_retired_identity_survivor_idx").on(table.survivingWorkId),
+    uniqueIndex("work_retired_identity_project_key_uidx").on(
+      table.projectId,
+      table.key,
+    ),
+    check(
+      "work_retired_identity_key_check",
+      sql`length(btrim(${table.key})) > 0`,
+    ),
+  ],
+);
+
 export const workKeyAllocationRelations = relations(
   workKeyAllocation,
   ({ one }) => ({

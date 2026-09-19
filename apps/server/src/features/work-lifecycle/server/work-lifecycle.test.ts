@@ -4,6 +4,7 @@ import type {
   MutationContract,
   MutationPayload,
   MutationReceipt,
+  MutationUndoApply,
 } from "@cantiara/api/mutation-and-undo";
 import { canonicalizeMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
@@ -11,14 +12,20 @@ import {
   WORK_TYPE_OPTIONS,
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
+  type WorkMergeInclusionSnapshot,
+  type WorkMergeRelationSnapshot,
   type WorkProfile,
   type WorkRecreateField,
   type WorkRecreateRelation,
+  type WorkRetiredIdentity,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
 import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
-import type { WorkRelations } from "../../relations/server/work-relations";
+import type {
+  WorkRelations,
+  WorkRelationsMutationAdapter,
+} from "../../relations/server/work-relations";
 import {
   createWorkLifecycle,
   WorkClosureCheckRequiredError,
@@ -29,6 +36,8 @@ import {
   WorkFeatureExitBlockedError,
   WorkInclusionConflictError,
   type WorkLifecycleStore,
+  WorkMergePreviewRequiredError,
+  WorkMergeResolutionRequiredError,
   WorkPrimarySpecNotFoundError,
   WorkTypeImpactPreviewRequiredError,
   WorkVisibleUserInitiatorRequiredError,
@@ -36,6 +45,7 @@ import {
 
 const PROJECT_ID = "project-1";
 const VISIBLE_USER = { kind: "Visible user" } as const;
+const WORK_MERGE_PREVIEW_PATTERN = /^work-merge:/;
 
 function createMemoryWorkLifecycle(
   options: {
@@ -47,6 +57,8 @@ function createMemoryWorkLifecycle(
     enforceStaleRevision?: boolean;
     failNextCommit?: boolean;
     initialWorks?: WorkProfile[];
+    mergeInclusions?: WorkMergeInclusionSnapshot[];
+    mergeRelations?: WorkMergeRelationSnapshot[];
     projectDocuments?: ReadonlyArray<{ id: string; projectId: string }>;
     recreateRelations?: WorkRecreateRelation[];
     scopeTreeRelations?: ReadonlyArray<{
@@ -63,12 +75,22 @@ function createMemoryWorkLifecycle(
     options.initialWorks?.map((work) => [work.id, work] as const),
   );
   const reservations = new Map<string, WorkCreationReservation>();
+  const retiredIdentities = new Map<
+    string,
+    { id: string; key: string; projectId: string; survivingWorkId: string }
+  >();
+  const mergeInclusions = options.mergeInclusions ?? [];
+  const mergeRelations = options.mergeRelations ?? [];
   const updateReceipts = new Map<
     string,
     {
       payload: string;
       receipt: MutationReceipt<WorkLifecycleMutationValue>;
     }
+  >();
+  const receiptsById = new Map<
+    string,
+    MutationReceipt<WorkLifecycleMutationValue>
   >();
   const {
     beforeUpdateApply,
@@ -88,6 +110,10 @@ function createMemoryWorkLifecycle(
 
   const store: WorkLifecycleStore = {
     find: async (_accountId, workId) => works.get(workId) ?? null,
+    findByKey: async (_accountId, projectId, key) =>
+      [...works.values()].find(
+        (work) => work.projectId === projectId && work.key === key,
+      ) ?? null,
     findProject: (_accountId, projectId) => {
       const projects = new Map([
         [PROJECT_ID, "Cantiara"],
@@ -107,6 +133,53 @@ function createMemoryWorkLifecycle(
           : null,
       );
     },
+    findRetiredIdentity: (_accountId, input) => {
+      const resolve = (identity?: {
+        id: string;
+        key: string;
+        projectId: string;
+        survivingWorkId: string;
+      }) => {
+        // The surviving Work is read live so a renamed survivor never serves
+        // a stale title through the permanent redirect.
+        const survivor = identity ? works.get(identity.survivingWorkId) : null;
+        if (!(identity && survivor)) {
+          return null;
+        }
+        return {
+          id: identity.id,
+          key: identity.key,
+          kind: "Retired identity",
+          origin: { id: identity.id, key: identity.key },
+          projectId: identity.projectId,
+          retiredAt: new Date(0).toISOString(),
+          survivingWork: {
+            id: survivor.id,
+            key: survivor.key,
+            title: survivor.title,
+          },
+        } satisfies WorkRetiredIdentity;
+      };
+      if ("workId" in input) {
+        return Promise.resolve(resolve(retiredIdentities.get(input.workId)));
+      }
+      return Promise.resolve(
+        resolve(
+          [...retiredIdentities.values()].find(
+            (identity) =>
+              identity.projectId === input.projectId &&
+              identity.key === input.key,
+          ),
+        ),
+      );
+    },
+    listRetiredIdentityIdsBySurvivor: (_accountId, survivingWorkId) =>
+      Promise.resolve(
+        [...retiredIdentities.values()]
+          .filter((identity) => identity.survivingWorkId === survivingWorkId)
+          .map((identity) => identity.id)
+          .sort(),
+      ),
     list: async (_accountId, projectId, listOptions) =>
       [...works.values()]
         .filter(
@@ -149,10 +222,293 @@ function createMemoryWorkLifecycle(
     },
   };
 
-  const relations: WorkRelations = {
+  const relations = {
+    listMergeInclusions: async () =>
+      mergeInclusions.map((inclusion) => ({ ...inclusion })),
+    listMergeRelations: async () =>
+      mergeRelations.map((relation) => ({ ...relation })),
     listRecreateRelations: async () => recreateRelations,
     listScopeTreeRelations: async () => scopeTreeRelations,
-  };
+    persistMergedRelations: (
+      _executor,
+      _committedAt,
+      survivingWork,
+      duplicateWorkId,
+      relationsToMerge,
+    ) => {
+      for (const relation of relationsToMerge) {
+        const sourceWorkId =
+          relation.sourceWorkId === duplicateWorkId
+            ? survivingWork.id
+            : relation.sourceWorkId;
+        const targetRecordId =
+          relation.targetRecordId === duplicateWorkId
+            ? survivingWork.id
+            : relation.targetRecordId;
+        if (
+          sourceWorkId === survivingWork.id &&
+          targetRecordId === survivingWork.id
+        ) {
+          const index = mergeRelations.findIndex(
+            (candidate) => candidate.id === relation.id,
+          );
+          if (index >= 0) {
+            mergeRelations.splice(index, 1);
+          }
+          continue;
+        }
+        const current = mergeRelations.find(
+          (candidate) => candidate.id === relation.id,
+        );
+        if (current) {
+          current.sourceWorkId = sourceWorkId;
+          current.targetRecordId = targetRecordId;
+          if (relation.targetRecordId === duplicateWorkId) {
+            current.targetLabel = survivingWork.key;
+          }
+        }
+      }
+      return Promise.resolve();
+    },
+    persistMergedInclusions: (
+      _executor,
+      _committedAt,
+      survivingWork,
+      duplicateWorkId,
+      inclusions,
+    ) => {
+      for (const inclusion of inclusions) {
+        const child = works.get(inclusion.childWorkId);
+        if (
+          child?.primaryFeatureId !== duplicateWorkId ||
+          child.revision !== inclusion.childWorkRevision
+        ) {
+          return Promise.resolve(false);
+        }
+        works.set(child.id, {
+          ...child,
+          primaryFeatureId: survivingWork.id,
+          revision: child.revision + 1,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return Promise.resolve(true);
+    },
+    restoreMergedRelations: (
+      _executor,
+      _committedAt,
+      survivingWork,
+      duplicateWorkId,
+      relationsToRestore,
+    ) => {
+      for (const relation of relationsToRestore) {
+        const mergedSourceWorkId =
+          relation.sourceWorkId === duplicateWorkId
+            ? survivingWork.id
+            : relation.sourceWorkId;
+        const mergedTargetRecordId =
+          relation.targetRecordId === duplicateWorkId
+            ? survivingWork.id
+            : relation.targetRecordId;
+        const currentIndex = mergeRelations.findIndex(
+          (candidate) => candidate.id === relation.id,
+        );
+        const current =
+          currentIndex >= 0 ? mergeRelations[currentIndex] : undefined;
+        if (!current) {
+          if (relation.removedByMerge) {
+            mergeRelations.push({ ...relation });
+          }
+          continue;
+        }
+        if (
+          current.sourceWorkId === mergedSourceWorkId &&
+          current.targetRecordId === mergedTargetRecordId &&
+          current.targetLabel ===
+            (relation.targetRecordId === duplicateWorkId
+              ? survivingWork.key
+              : relation.targetLabel)
+        ) {
+          mergeRelations[currentIndex] = { ...relation };
+        }
+      }
+      return Promise.resolve();
+    },
+    restoreMergedInclusions: (
+      _executor,
+      _committedAt,
+      survivingWork,
+      duplicateWorkId,
+      inclusions,
+    ) => {
+      for (const inclusion of inclusions) {
+        const child = works.get(inclusion.childWorkId);
+        if (child?.primaryFeatureId !== survivingWork.id) {
+          continue;
+        }
+        works.set(child.id, {
+          ...child,
+          primaryFeatureId: duplicateWorkId,
+          revision: child.revision + 1,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return Promise.resolve();
+    },
+  } as WorkRelations &
+    Pick<
+      WorkRelationsMutationAdapter,
+      | "persistMergedInclusions"
+      | "persistMergedRelations"
+      | "restoreMergedInclusions"
+      | "restoreMergedRelations"
+    >;
+
+  function undoMetadataFromOptions(mutationOptions: unknown) {
+    if (!mutationOptions || typeof mutationOptions !== "object") {
+      return;
+    }
+    let candidate: unknown;
+    if ("kind" in mutationOptions) {
+      candidate = mutationOptions;
+    } else if ("undo" in mutationOptions) {
+      candidate = mutationOptions.undo;
+    }
+    if (
+      !candidate ||
+      typeof candidate !== "object" ||
+      !("kind" in candidate) ||
+      candidate.kind !== "merge" ||
+      !("merge" in candidate)
+    ) {
+      return;
+    }
+    return {
+      after: {},
+      afterPresent: true,
+      before: {},
+      beforePresent: true,
+      kind: "merge" as const,
+      merge: candidate.merge,
+      scope: "$",
+    } as MutationReceipt<WorkLifecycleMutationValue>["undo"];
+  }
+
+  async function applyMergedState(
+    nextValue: WorkLifecycleMutationValue,
+    committedAt: string,
+  ) {
+    if (!(nextValue.work && nextValue.merge)) {
+      if (nextValue.work) {
+        works.set(nextValue.work.id, nextValue.work);
+      }
+      return;
+    }
+    if (nextValue.merge.operation === "merge") {
+      works.set(nextValue.work.id, nextValue.work);
+      works.delete(nextValue.merge.duplicateWorkId);
+      retiredIdentities.set(nextValue.merge.duplicateWorkId, {
+        id: nextValue.merge.duplicateWork.id,
+        key: nextValue.merge.duplicateWork.key,
+        projectId: nextValue.merge.duplicateWork.projectId,
+        survivingWorkId: nextValue.work.id,
+      });
+      // Redirects that already pointed at the retired Work follow the new
+      // survivor so chained merges keep every redirect permanent.
+      for (const redirectId of nextValue.merge.retiredRedirectIds) {
+        const redirect = retiredIdentities.get(redirectId);
+        if (redirect?.survivingWorkId === nextValue.merge.duplicateWorkId) {
+          redirect.survivingWorkId = nextValue.work.id;
+        }
+      }
+      await relations.persistMergedRelations?.(
+        undefined as never,
+        new Date(committedAt),
+        {
+          id: nextValue.work.id,
+          key: nextValue.work.key,
+          projectId: nextValue.work.projectId,
+        },
+        nextValue.merge.duplicateWorkId,
+        nextValue.merge.relations,
+      );
+      await relations.persistMergedInclusions?.(
+        undefined as never,
+        new Date(committedAt),
+        {
+          id: nextValue.work.id,
+          key: nextValue.work.key,
+          projectId: nextValue.work.projectId,
+        },
+        nextValue.merge.duplicateWorkId,
+        nextValue.merge.inclusions,
+      );
+      return;
+    }
+
+    // The restored combination must satisfy the Feature exit contract: Work
+    // included after the merge stays with the survivor, so reverting its type
+    // away from Feature is blocked exactly like an explicit type change.
+    const restoredChildIds = new Set(
+      nextValue.merge.inclusions.map((inclusion) => inclusion.childWorkId),
+    );
+    const remainingIncludedWork = [...works.values()].filter(
+      (candidate) =>
+        candidate.primaryFeatureId === nextValue.work?.id &&
+        !restoredChildIds.has(candidate.id),
+    );
+    if (
+      nextValue.work &&
+      nextValue.work.type !== "Feature" &&
+      (remainingIncludedWork.length > 0 ||
+        nextValue.work.featureHealthHistory.length > 0 ||
+        nextValue.work.primarySpecId !== null)
+    ) {
+      throw new WorkFeatureExitBlockedError({
+        featureHealthUpdateCount: nextValue.work.featureHealthHistory.length,
+        hasPrimarySpec: nextValue.work.primarySpecId !== null,
+        includedWorkCount: remainingIncludedWork.length,
+      });
+    }
+
+    works.set(nextValue.work.id, nextValue.work);
+    works.set(nextValue.merge.duplicateWork.id, {
+      ...nextValue.merge.duplicateWork,
+      revision: nextValue.merge.duplicateWork.revision + 1,
+      updatedAt: committedAt,
+    });
+    retiredIdentities.delete(nextValue.merge.duplicateWorkId);
+    // Redirects that this merge re-pointed to the survivor follow the
+    // restored duplicate back.
+    for (const redirectId of nextValue.merge.retiredRedirectIds) {
+      const redirect = retiredIdentities.get(redirectId);
+      if (redirect?.survivingWorkId === nextValue.work.id) {
+        redirect.survivingWorkId = nextValue.merge.duplicateWorkId;
+      }
+    }
+    await relations.restoreMergedRelations?.(
+      undefined as never,
+      new Date(committedAt),
+      {
+        id: nextValue.work.id,
+        key: nextValue.work.key,
+        projectId: nextValue.work.projectId,
+      },
+      nextValue.merge.duplicateWorkId,
+      nextValue.merge.relations,
+    );
+    await relations.restoreMergedInclusions?.(
+      undefined as never,
+      new Date(committedAt),
+      {
+        id: nextValue.work.id,
+        key: nextValue.work.key,
+        projectId: nextValue.work.projectId,
+      },
+      nextValue.merge.duplicateWorkId,
+      nextValue.merge.inclusions,
+    );
+  }
 
   const mutationContracts: WorkLifecycleMutationContracts = {
     create: () =>
@@ -219,6 +575,7 @@ function createMemoryWorkLifecycle(
         mutate: async <TPayload extends MutationPayload>(
           command: MutationCommand<TPayload>,
           apply: MutationApply<WorkLifecycleMutationValue, TPayload>,
+          mutationOptions?: unknown,
         ) => {
           if (command.kind !== "human") {
             throw new Error("Expected a human Work command.");
@@ -270,8 +627,53 @@ function createMemoryWorkLifecycle(
             previousValue,
             revision: nextValue.work.revision,
             targetId: command.targetId,
+            undo: undoMetadataFromOptions(mutationOptions),
           } satisfies MutationReceipt<WorkLifecycleMutationValue>;
+          await applyMergedState(nextValue, nextValue.work.updatedAt);
           updateReceipts.set(receiptKey, { payload, receipt });
+          receiptsById.set(receipt.id, receipt);
+          return receipt;
+        },
+        findReceiptById: async (receiptId: string) =>
+          receiptsById.get(receiptId) ?? null,
+        undo: async (
+          sourceReceipt: MutationReceipt<WorkLifecycleMutationValue>,
+          command: MutationCommand<MutationPayload>,
+          applyUndo: MutationUndoApply<WorkLifecycleMutationValue>,
+        ) => {
+          if (!applyUndo || command.kind !== "human") {
+            throw new Error(
+              "A Work merge Undo requires a human apply callback.",
+            );
+          }
+          const currentWork = works.get(command.targetId) ?? null;
+          const nextValue = await applyUndo({
+            currentRevision: currentWork?.revision ?? 0,
+            currentValue: { work: currentWork },
+            nextValue: sourceReceipt.nextValue,
+            previousValue: sourceReceipt.previousValue,
+            undo: sourceReceipt.undo as NonNullable<typeof sourceReceipt.undo>,
+          });
+          if (!nextValue.work) {
+            throw new Error("A Work Undo must return a Work.");
+          }
+          const receipt = {
+            actor: command.actor,
+            committedAt: nextValue.work.updatedAt,
+            id: `receipt-${nextValue.work.id}-${nextValue.work.revision}`,
+            nextValue,
+            origin: {
+              clientIdempotencyKey: command.clientIdempotencyKey,
+              kind: "human" as const,
+            },
+            payloadFingerprint: "0".repeat(64),
+            previousValue: { work: currentWork },
+            revision: nextValue.work.revision,
+            targetId: command.targetId,
+            undoOf: sourceReceipt.id,
+          } satisfies MutationReceipt<WorkLifecycleMutationValue>;
+          await applyMergedState(nextValue, nextValue.work.updatedAt);
+          receiptsById.set(receipt.id, receipt);
           return receipt;
         },
       }) as MutationContract<WorkLifecycleMutationValue>,
@@ -301,6 +703,603 @@ function createInput(
 }
 
 describe("Work Lifecycle seam", () => {
+  test("previews an explicitly selected surviving Work without auto-merging similar titles", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const survivingWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-survivor", {
+        description: "The canonical payment failure flow.",
+        title: "Investigate payment failures",
+        type: "Research",
+      }),
+    );
+    const duplicateWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-duplicate", {
+        description: "The same payment failure flow from capture.",
+        title: "Investigate payment failure",
+        type: "Research",
+      }),
+    );
+
+    const preview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: duplicateWork.id,
+      survivingWorkId: survivingWork.id,
+    });
+
+    expect(preview).toMatchObject({
+      duplicateWork: {
+        id: duplicateWork.id,
+        key: duplicateWork.key,
+        revision: duplicateWork.revision,
+      },
+      survivingWork: {
+        id: survivingWork.id,
+        key: survivingWork.key,
+        revision: survivingWork.revision,
+      },
+    });
+    expect(preview?.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          conflict: true,
+          key: "title",
+          survivingValue: "Investigate payment failures",
+          duplicateValue: "Investigate payment failure",
+        }),
+      ]),
+    );
+    expect(preview?.previewId).toMatch(WORK_MERGE_PREVIEW_PATTERN);
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(2);
+  });
+
+  test("merges a selected duplicate into one survivor, redirects its identity, rewrites relations, and safely undoes", async () => {
+    const duplicateRelation: WorkMergeRelationSnapshot = {
+      createdAt: "2026-09-18T09:01:00.000Z",
+      id: "relation-duplicate-origin",
+      kind: "Origin",
+      sourceWorkId: `${PROJECT_ID}-work-2`,
+      targetLabel: "CANT-9",
+      targetProjectId: PROJECT_ID,
+      targetRecordId: "external-record-1",
+    };
+    const workLifecycle = createMemoryWorkLifecycle({
+      mergeRelations: [duplicateRelation],
+    });
+    const survivingWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-survivor-record", {
+        description: "The canonical payment failure flow.",
+        title: "Investigate payment failures",
+        type: "Research",
+      }),
+    );
+    const duplicateWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-duplicate-record", {
+        description: "The same payment failure flow from capture.",
+        title: "Investigate payment failure",
+        type: "Research",
+      }),
+    );
+
+    const preview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: duplicateWork.id,
+      survivingWorkId: survivingWork.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+    expect(preview.relations).toEqual([
+      expect.objectContaining({
+        action: "Rewrite source",
+        id: duplicateRelation.id,
+      }),
+    ]);
+
+    await expect(
+      workLifecycle.merge("account-1", {
+        baseRevision: survivingWork.revision,
+        clientIdempotencyKey: "merge-without-preview",
+        duplicateRevision: duplicateWork.revision,
+        duplicateWorkId: duplicateWork.id,
+        fieldResolutions: {
+          description: "surviving",
+          title: "duplicate",
+        },
+        previewId: "work-merge:stale",
+        survivingWorkId: survivingWork.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkMergePreviewRequiredError);
+
+    await expect(
+      workLifecycle.merge("account-1", {
+        baseRevision: survivingWork.revision,
+        clientIdempotencyKey: "merge-without-field-resolution",
+        duplicateRevision: duplicateWork.revision,
+        duplicateWorkId: duplicateWork.id,
+        fieldResolutions: {},
+        previewId: preview.previewId,
+        survivingWorkId: survivingWork.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkMergeResolutionRequiredError);
+
+    const merged = await workLifecycle.merge("account-1", {
+      baseRevision: survivingWork.revision,
+      clientIdempotencyKey: "merge-selected-duplicate",
+      duplicateRevision: duplicateWork.revision,
+      duplicateWorkId: duplicateWork.id,
+      fieldResolutions: {
+        description: "surviving",
+        title: "duplicate",
+      },
+      previewId: preview.previewId,
+      survivingWorkId: survivingWork.id,
+    });
+    expect(merged).toMatchObject({
+      retiredIdentity: {
+        id: duplicateWork.id,
+        key: duplicateWork.key,
+        kind: "Retired identity",
+        origin: { id: duplicateWork.id, key: duplicateWork.key },
+        survivingWork: {
+          id: survivingWork.id,
+          key: survivingWork.key,
+          title: duplicateWork.title,
+        },
+      },
+      work: {
+        id: survivingWork.id,
+        title: duplicateWork.title,
+      },
+    });
+    await expect(
+      workLifecycle.find("account-1", duplicateWork.id),
+    ).resolves.toBeNull();
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(1);
+    await expect(
+      workLifecycle.resolve("account-1", { workId: duplicateWork.id }),
+    ).resolves.toMatchObject({
+      kind: "Retired",
+      identity: {
+        origin: { id: duplicateWork.id, key: duplicateWork.key },
+        survivingWork: { id: survivingWork.id, title: duplicateWork.title },
+      },
+    });
+    await expect(
+      workLifecycle.resolve("account-1", {
+        key: duplicateWork.key,
+        projectId: PROJECT_ID,
+      }),
+    ).resolves.toMatchObject({ kind: "Retired" });
+
+    await expect(
+      workLifecycle.merge("account-1", {
+        baseRevision: survivingWork.revision,
+        clientIdempotencyKey: "merge-selected-duplicate",
+        duplicateRevision: duplicateWork.revision,
+        duplicateWorkId: duplicateWork.id,
+        fieldResolutions: {
+          description: "surviving",
+          title: "duplicate",
+        },
+        previewId: preview.previewId,
+        survivingWorkId: survivingWork.id,
+      }),
+    ).resolves.toMatchObject({
+      mergeId: merged.mergeId,
+      receiptId: merged.receiptId,
+      work: { id: survivingWork.id, title: duplicateWork.title },
+    });
+
+    const changedAfterMerge = await workLifecycle.updateType("account-1", {
+      baseRevision: merged.work.revision,
+      clientIdempotencyKey: "edit-after-merge",
+      type: "Bug",
+      workId: survivingWork.id,
+    });
+    const undone = await workLifecycle.undoMerge("account-1", {
+      baseRevision: changedAfterMerge.revision,
+      clientIdempotencyKey: "undo-selected-duplicate",
+      mergeId: merged.mergeId,
+      survivingWorkId: survivingWork.id,
+    });
+    expect(undone).toMatchObject({
+      description: survivingWork.description,
+      title: survivingWork.title,
+      type: "Bug",
+    });
+    await expect(
+      workLifecycle.find("account-1", duplicateWork.id),
+    ).resolves.toMatchObject({
+      id: duplicateWork.id,
+      key: duplicateWork.key,
+      title: duplicateWork.title,
+    });
+    await expect(
+      workLifecycle.resolve("account-1", { workId: duplicateWork.id }),
+    ).resolves.toMatchObject({ kind: "Active" });
+    await expect(
+      workLifecycle.previewMerge("account-1", {
+        duplicateWorkId: duplicateWork.id,
+        survivingWorkId: survivingWork.id,
+      }),
+    ).resolves.toMatchObject({
+      relations: [expect.objectContaining({ id: duplicateRelation.id })],
+    });
+  });
+
+  test("keeps retired identity redirects permanent across chained merges and restores them on Undo", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const firstSurvivor = await workLifecycle.create(
+      "account-1",
+      createInput("chain-first-survivor", {
+        title: "Investigate payment failures",
+      }),
+    );
+    const chainedDuplicate = await workLifecycle.create(
+      "account-1",
+      createInput("chain-duplicate", {
+        title: "Investigate payment failure",
+      }),
+    );
+    const finalSurvivor = await workLifecycle.create(
+      "account-1",
+      createInput("chain-final-survivor", {
+        title: "Investigate payment failures",
+        type: "Bug",
+      }),
+    );
+
+    const firstPreview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: chainedDuplicate.id,
+      survivingWorkId: firstSurvivor.id,
+    });
+    if (!firstPreview) {
+      throw new Error("Expected the first Work Merge Preview.");
+    }
+    const firstMergeFieldResolutions = Object.fromEntries(
+      firstPreview.fields
+        .filter((field) => field.conflict)
+        .map((field) => [field.key, "surviving"]),
+    );
+    const firstMerge = await workLifecycle.merge("account-1", {
+      baseRevision: firstSurvivor.revision,
+      clientIdempotencyKey: "chain-first-merge",
+      duplicateRevision: chainedDuplicate.revision,
+      duplicateWorkId: chainedDuplicate.id,
+      fieldResolutions: firstMergeFieldResolutions,
+      previewId: firstPreview.previewId,
+      survivingWorkId: firstSurvivor.id,
+    });
+
+    await expect(
+      workLifecycle.resolve("account-1", { workId: chainedDuplicate.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: firstSurvivor.id } },
+      kind: "Retired",
+    });
+
+    const secondPreview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: firstSurvivor.id,
+      survivingWorkId: finalSurvivor.id,
+    });
+    if (!secondPreview) {
+      throw new Error("Expected the second Work Merge Preview.");
+    }
+    const secondMerge = await workLifecycle.merge("account-1", {
+      baseRevision: finalSurvivor.revision,
+      clientIdempotencyKey: "chain-second-merge",
+      duplicateRevision: firstMerge.work.revision,
+      duplicateWorkId: firstSurvivor.id,
+      fieldResolutions: Object.fromEntries(
+        secondPreview.fields
+          .filter((field) => field.conflict)
+          .map((field) => [field.key, "surviving"]),
+      ),
+      previewId: secondPreview.previewId,
+      survivingWorkId: finalSurvivor.id,
+    });
+
+    await expect(
+      workLifecycle.resolve("account-1", { workId: firstSurvivor.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: finalSurvivor.id } },
+      kind: "Retired",
+    });
+    await expect(
+      workLifecycle.resolve("account-1", { workId: chainedDuplicate.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: finalSurvivor.id } },
+      kind: "Retired",
+    });
+
+    await workLifecycle.undoMerge("account-1", {
+      baseRevision: secondMerge.work.revision,
+      clientIdempotencyKey: "chain-second-undo",
+      mergeId: secondMerge.mergeId,
+      survivingWorkId: finalSurvivor.id,
+    });
+
+    await expect(
+      workLifecycle.resolve("account-1", { workId: firstSurvivor.id }),
+    ).resolves.toMatchObject({ kind: "Active" });
+    await expect(
+      workLifecycle.resolve("account-1", { workId: chainedDuplicate.id }),
+    ).resolves.toMatchObject({
+      identity: { survivingWork: { id: firstSurvivor.id } },
+      kind: "Retired",
+    });
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(2);
+  });
+
+  test("blocks merge Undo that would leave included Work on a non-Feature survivor", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const survivor = await workLifecycle.create(
+      "account-1",
+      createInput("undo-block-survivor", {
+        title: "Keep this record",
+        type: "Task",
+      }),
+    );
+    const duplicate = await workLifecycle.create(
+      "account-1",
+      createInput("undo-block-duplicate", {
+        title: "Canonical feature",
+        type: "Feature",
+      }),
+    );
+
+    const preview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: duplicate.id,
+      survivingWorkId: survivor.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+    const merged = await workLifecycle.merge("account-1", {
+      baseRevision: survivor.revision,
+      clientIdempotencyKey: "undo-block-merge",
+      duplicateRevision: duplicate.revision,
+      duplicateWorkId: duplicate.id,
+      fieldResolutions: { title: "surviving", type: "duplicate" },
+      previewId: preview.previewId,
+      survivingWorkId: survivor.id,
+    });
+    expect(merged.work.type).toBe("Feature");
+
+    const child = await workLifecycle.create(
+      "account-1",
+      createInput("undo-block-child", { title: "Included child" }),
+    );
+    await workLifecycle.includeWork("account-1", {
+      baseRevision: child.revision,
+      clientIdempotencyKey: "undo-block-include",
+      featureId: merged.work.id,
+      workId: child.id,
+    });
+    await expect(
+      workLifecycle.find("account-1", child.id),
+    ).resolves.toMatchObject({ primaryFeatureId: merged.work.id });
+
+    await expect(
+      workLifecycle.undoMerge("account-1", {
+        baseRevision: merged.work.revision,
+        clientIdempotencyKey: "undo-block-undo",
+        mergeId: merged.mergeId,
+        survivingWorkId: survivor.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkFeatureExitBlockedError);
+
+    await expect(
+      workLifecycle.find("account-1", survivor.id),
+    ).resolves.toMatchObject({ type: "Feature" });
+    await expect(
+      workLifecycle.find("account-1", child.id),
+    ).resolves.toMatchObject({ primaryFeatureId: merged.work.id });
+  });
+
+  test("consolidates Included in relations and restores them on Undo", async () => {
+    const workLifecycle = createMemoryWorkLifecycle({
+      mergeInclusions: [
+        {
+          childWorkId: `${PROJECT_ID}-work-3`,
+          childWorkKey: "CANT-3",
+          childWorkRevision: 2,
+          childWorkTitle: "Document payment behavior",
+          duplicateFeatureId: `${PROJECT_ID}-work-2`,
+        },
+      ],
+    });
+    const survivingFeature = await workLifecycle.create(
+      "account-1",
+      createInput("merge-inclusion-survivor", {
+        title: "Payment flow feature",
+        type: "Feature",
+      }),
+    );
+    const duplicateFeature = await workLifecycle.create(
+      "account-1",
+      createInput("merge-inclusion-duplicate", {
+        title: "Payment flow capture",
+        type: "Feature",
+      }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-inclusion-child", {
+        title: "Document payment behavior",
+      }),
+    );
+    await workLifecycle.includeWork("account-1", {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "include-before-merge",
+      featureId: duplicateFeature.id,
+      workId: includedWork.id,
+    });
+
+    const preview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: duplicateFeature.id,
+      survivingWorkId: survivingFeature.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+    expect(preview.inclusions).toEqual([
+      expect.objectContaining({
+        action: "Rewrite Included in",
+        childWorkId: includedWork.id,
+      }),
+    ]);
+
+    const merged = await workLifecycle.merge("account-1", {
+      baseRevision: survivingFeature.revision,
+      clientIdempotencyKey: "merge-inclusion-confirm",
+      duplicateRevision: duplicateFeature.revision,
+      duplicateWorkId: duplicateFeature.id,
+      fieldResolutions: { title: "duplicate" },
+      previewId: preview.previewId,
+      survivingWorkId: survivingFeature.id,
+    });
+    await expect(
+      workLifecycle.find("account-1", includedWork.id),
+    ).resolves.toMatchObject({ primaryFeatureId: survivingFeature.id });
+
+    await workLifecycle.undoMerge("account-1", {
+      baseRevision: merged.work.revision,
+      clientIdempotencyKey: "undo-inclusion-merge",
+      mergeId: merged.mergeId,
+      survivingWorkId: survivingFeature.id,
+    });
+    await expect(
+      workLifecycle.find("account-1", includedWork.id),
+    ).resolves.toMatchObject({ primaryFeatureId: duplicateFeature.id });
+  });
+
+  test("does not restore a relation deleted after merge", async () => {
+    const mergeRelations: WorkMergeRelationSnapshot[] = [
+      {
+        createdAt: "2026-09-18T09:01:00.000Z",
+        id: "relation-deleted-after-merge",
+        kind: "Related",
+        sourceWorkId: `${PROJECT_ID}-work-2`,
+        targetLabel: "External payment evidence",
+        targetProjectId: PROJECT_ID,
+        targetRecordId: "external-payment-evidence",
+      },
+    ];
+    const workLifecycle = createMemoryWorkLifecycle({ mergeRelations });
+    const survivingWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-relation-delete-survivor", {
+        title: "Canonical payment flow",
+      }),
+    );
+    const duplicateWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-relation-delete-duplicate", {
+        title: "Captured payment flow",
+      }),
+    );
+    const preview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: duplicateWork.id,
+      survivingWorkId: survivingWork.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+
+    const merged = await workLifecycle.merge("account-1", {
+      baseRevision: survivingWork.revision,
+      clientIdempotencyKey: "merge-relation-delete-confirm",
+      duplicateRevision: duplicateWork.revision,
+      duplicateWorkId: duplicateWork.id,
+      fieldResolutions: { title: "duplicate" },
+      previewId: preview.previewId,
+      survivingWorkId: survivingWork.id,
+    });
+    mergeRelations.length = 0;
+
+    await workLifecycle.undoMerge("account-1", {
+      baseRevision: merged.work.revision,
+      clientIdempotencyKey: "undo-relation-delete-merge",
+      mergeId: merged.mergeId,
+      survivingWorkId: survivingWork.id,
+    });
+    await expect(
+      workLifecycle.previewMerge("account-1", {
+        duplicateWorkId: duplicateWork.id,
+        survivingWorkId: survivingWork.id,
+      }),
+    ).resolves.toMatchObject({ relations: [] });
+  });
+
+  test("restores a self relation removed by merge", async () => {
+    const mergeRelations: WorkMergeRelationSnapshot[] = [
+      {
+        createdAt: "2026-09-18T09:01:00.000Z",
+        id: "relation-merge-self",
+        kind: "Related",
+        sourceWorkId: `${PROJECT_ID}-work-2`,
+        targetLabel: "Canonical payment flow",
+        targetProjectId: PROJECT_ID,
+        targetRecordId: `${PROJECT_ID}-work-1`,
+      },
+    ];
+    const workLifecycle = createMemoryWorkLifecycle({ mergeRelations });
+    const survivingWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-self-survivor", {
+        title: "Canonical payment flow",
+      }),
+    );
+    const duplicateWork = await workLifecycle.create(
+      "account-1",
+      createInput("merge-self-duplicate", {
+        title: "Captured payment flow",
+      }),
+    );
+    const preview = await workLifecycle.previewMerge("account-1", {
+      duplicateWorkId: duplicateWork.id,
+      survivingWorkId: survivingWork.id,
+    });
+    if (!preview) {
+      throw new Error("Expected a Work Merge Preview.");
+    }
+
+    const merged = await workLifecycle.merge("account-1", {
+      baseRevision: survivingWork.revision,
+      clientIdempotencyKey: "merge-self-confirm",
+      duplicateRevision: duplicateWork.revision,
+      duplicateWorkId: duplicateWork.id,
+      fieldResolutions: { title: "duplicate" },
+      previewId: preview.previewId,
+      survivingWorkId: survivingWork.id,
+    });
+    expect(mergeRelations).toHaveLength(0);
+
+    await workLifecycle.undoMerge("account-1", {
+      baseRevision: merged.work.revision,
+      clientIdempotencyKey: "undo-self-merge",
+      mergeId: merged.mergeId,
+      survivingWorkId: survivingWork.id,
+    });
+    await expect(
+      workLifecycle.previewMerge("account-1", {
+        duplicateWorkId: duplicateWork.id,
+        survivingWorkId: survivingWork.id,
+      }),
+    ).resolves.toMatchObject({
+      relations: [expect.objectContaining({ id: "relation-merge-self" })],
+    });
+  });
+
   test("allows only one primary Feature to include a Work", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
     const firstFeature = await workLifecycle.create(

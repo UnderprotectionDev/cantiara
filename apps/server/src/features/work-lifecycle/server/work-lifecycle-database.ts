@@ -5,7 +5,9 @@ import type {
 import {
   featureHealthUpdateSchema,
   type WorkLifecycleMutationValue,
+  type WorkMergeMutation,
   type WorkProfile,
+  type WorkRetiredIdentity,
   workCaptureProvenanceSchema,
   workChecklistSchema,
   workClosureResultSchema,
@@ -14,9 +16,14 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import { project, work, workKeyAllocation } from "@cantiara/db/schema/index";
+import {
+  project,
+  work,
+  workKeyAllocation,
+  workRetiredIdentity,
+} from "@cantiara/db/schema/index";
 import type { SQL } from "drizzle-orm";
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -34,12 +41,14 @@ import {
   WorkFeatureExitBlockedError,
   WorkInclusionConflictError,
   type WorkLifecycleStore,
+  WorkMergeConflictError,
   WorkProjectNotFoundError,
   WorkRecreatePreviewRequiredError,
 } from "./work-lifecycle";
 
 type WorkDatabaseRecord = typeof work.$inferSelect;
 type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
+type WorkRetiredIdentityRecord = typeof workRetiredIdentity.$inferSelect;
 
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
   return {
@@ -88,6 +97,25 @@ function toReservation(record: WorkKeyAllocationRecord) {
     shortCode: record.shortCode,
     workId: record.workId,
   } satisfies WorkCreationReservation;
+}
+
+function toRetiredIdentity(
+  record: WorkRetiredIdentityRecord,
+  survivingWork: Pick<WorkDatabaseRecord, "id" | "key" | "title">,
+): WorkRetiredIdentity {
+  return {
+    id: record.id,
+    key: record.key,
+    kind: "Retired identity",
+    origin: { id: record.id, key: record.key },
+    projectId: record.projectId,
+    retiredAt: record.retiredAt.toISOString(),
+    survivingWork: {
+      id: survivingWork.id,
+      key: survivingWork.key,
+      title: survivingWork.title,
+    },
+  };
 }
 
 async function findWorkspaceId(
@@ -166,6 +194,35 @@ function featureIdFromMutationPayload(payload: MutationPayload | undefined) {
   const record = payload as Record<string, unknown>;
   const featureId = record.featureId ?? record.primaryFeatureId;
   return typeof featureId === "string" ? featureId : null;
+}
+
+function mergeWorkIdFromMutationPayload(
+  payload: MutationPayload | undefined,
+  field: "duplicateWorkId" | "retiredTargetId",
+) {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    return null;
+  }
+  const value = (payload as Record<string, unknown>)[field];
+  return typeof value === "string" ? value : null;
+}
+
+async function lockOwnedWorksInOrder(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  workIds: string[],
+  index = 0,
+): Promise<void> {
+  const workId = workIds[index];
+  if (workId === undefined) {
+    return;
+  }
+  await findOwnedWork(executor, accountId, workId, true);
+  await lockOwnedWorksInOrder(executor, accountId, workIds, index + 1);
 }
 
 async function selectRecreateSelection(
@@ -357,12 +414,346 @@ async function assertFeatureExitReady(
   }
 }
 
+function workRecordValues(
+  nextWork: WorkProfile,
+  revision: number,
+  updatedAt: Date,
+) {
+  return {
+    archivedAt: nextWork.archivedAt ? new Date(nextWork.archivedAt) : null,
+    captureProvenance: nextWork.captureProvenance,
+    checklist: nextWork.checklist,
+    closureReason: nextWork.closureReason,
+    closureResult: nextWork.closureResult,
+    createdAt: new Date(nextWork.createdAt),
+    description: nextWork.description,
+    featureHealthHistory: nextWork.featureHealthHistory,
+    id: nextWork.id,
+    key: nextWork.key,
+    number: nextWork.number,
+    primaryFeatureId: nextWork.primaryFeatureId,
+    primarySpecId: nextWork.primarySpecId,
+    projectId: nextWork.projectId,
+    recreatedFromWorkId: nextWork.recreatedFrom?.id,
+    recreatedFromWorkKey: nextWork.recreatedFrom?.key,
+    revision,
+    status: nextWork.status,
+    title: nextWork.title,
+    type: nextWork.type,
+    updatedAt,
+  };
+}
+
+async function updateWorkForMerge(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  relations: WorkRelationsMutationAdapter,
+  input: Parameters<
+    NonNullable<
+      MutationDatabaseTargetAdapter<WorkLifecycleMutationValue>["update"]
+    >
+  >[1],
+  mutation: WorkMergeMutation,
+) {
+  const nextWork = input.nextValue.work;
+  if (!nextWork || nextWork.id !== input.targetId) {
+    return null;
+  }
+  const survivingWork = await findOwnedWork(
+    executor,
+    accountId,
+    input.targetId,
+    true,
+  );
+  const duplicateWork = await findOwnedWork(
+    executor,
+    accountId,
+    mutation.duplicateWorkId,
+    true,
+  );
+  if (
+    !(survivingWork && duplicateWork) ||
+    duplicateWork.revision !== mutation.duplicateWorkRevision ||
+    duplicateWork.projectId !== survivingWork.projectId ||
+    mutation.duplicateWork.id !== duplicateWork.id ||
+    mutation.duplicateWork.key !== duplicateWork.key
+  ) {
+    throw new WorkMergeConflictError();
+  }
+  if (
+    mutation.operation !== "merge" ||
+    !relations.persistMergedRelations ||
+    (mutation.inclusions.length > 0 && !relations.persistMergedInclusions)
+  ) {
+    throw new WorkMergeConflictError();
+  }
+  await assertValidPrimaryFeature(executor, accountId, nextWork);
+  await assertFeatureExitReady(executor, survivingWork, nextWork);
+  if (
+    nextWork.type !== "Feature" &&
+    (nextWork.featureHealthHistory.length > 0 ||
+      nextWork.primarySpecId !== null ||
+      mutation.inclusions.length > 0)
+  ) {
+    throw new WorkFeatureExitBlockedError({
+      featureHealthUpdateCount: nextWork.featureHealthHistory.length,
+      hasPrimarySpec: nextWork.primarySpecId !== null,
+      includedWorkCount: mutation.inclusions.length,
+    });
+  }
+
+  const [updated] = await executor
+    .update(work)
+    .set(
+      workRecordValues(nextWork, input.expectedRevision + 1, input.committedAt),
+    )
+    .where(
+      and(
+        eq(work.id, input.targetId),
+        eq(work.revision, input.expectedRevision),
+      ),
+    )
+    .returning();
+  if (!updated) {
+    return null;
+  }
+
+  await relations.persistMergedRelations(
+    executor,
+    input.committedAt,
+    {
+      id: survivingWork.id,
+      key: survivingWork.key,
+      projectId: survivingWork.projectId,
+    },
+    duplicateWork.id,
+    mutation.relations,
+  );
+  if (relations.persistMergedInclusions) {
+    const inclusionsPersisted = await relations.persistMergedInclusions(
+      executor,
+      input.committedAt,
+      {
+        id: survivingWork.id,
+        key: survivingWork.key,
+        projectId: survivingWork.projectId,
+      },
+      duplicateWork.id,
+      mutation.inclusions,
+    );
+    if (!inclusionsPersisted) {
+      throw new WorkMergeConflictError(
+        "Merged Work inclusion is no longer available.",
+      );
+    }
+  }
+  // Retired identities that already redirect to the Work being retired are
+  // re-pointed to the new survivor so chained merges never lose a permanent
+  // redirect to the row deletion cascade.
+  if (mutation.retiredRedirectIds.length > 0) {
+    await executor
+      .update(workRetiredIdentity)
+      .set({ survivingWorkId: updated.id })
+      .where(
+        and(
+          inArray(workRetiredIdentity.id, mutation.retiredRedirectIds),
+          eq(workRetiredIdentity.survivingWorkId, duplicateWork.id),
+        ),
+      );
+  }
+  const [retired] = await executor
+    .insert(workRetiredIdentity)
+    .values({
+      id: duplicateWork.id,
+      key: duplicateWork.key,
+      mergeId: mutation.mergeId,
+      projectId: duplicateWork.projectId,
+      retiredAt: input.committedAt,
+      survivingWorkId: updated.id,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (!retired) {
+    throw new WorkMergeConflictError();
+  }
+  await executor
+    .delete(work)
+    .where(
+      and(
+        eq(work.id, duplicateWork.id),
+        eq(work.revision, duplicateWork.revision),
+      ),
+    );
+  return {
+    id: updated.id,
+    revision: updated.revision,
+    value: { work: toWorkProfile(updated) },
+  };
+}
+
+async function updateWorkForMergeUndo(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  relations: WorkRelationsMutationAdapter,
+  input: Parameters<
+    NonNullable<
+      MutationDatabaseTargetAdapter<WorkLifecycleMutationValue>["update"]
+    >
+  >[1],
+  mutation: WorkMergeMutation,
+) {
+  const nextWork = input.nextValue.work;
+  if (!nextWork || nextWork.id !== input.targetId) {
+    return null;
+  }
+  const survivingWork = await findOwnedWork(
+    executor,
+    accountId,
+    input.targetId,
+    true,
+  );
+  if (
+    !survivingWork ||
+    mutation.operation !== "undo" ||
+    mutation.duplicateWork.id !== mutation.duplicateWorkId
+  ) {
+    throw new WorkMergeConflictError();
+  }
+  const [retired] = await executor
+    .select()
+    .from(workRetiredIdentity)
+    .where(
+      and(
+        eq(workRetiredIdentity.id, mutation.duplicateWorkId),
+        eq(workRetiredIdentity.mergeId, mutation.mergeId),
+        eq(workRetiredIdentity.survivingWorkId, survivingWork.id),
+      ),
+    )
+    .limit(1);
+  if (
+    !(
+      retired &&
+      relations.restoreMergedRelations &&
+      (mutation.inclusions.length === 0 || relations.restoreMergedInclusions)
+    )
+  ) {
+    throw new WorkMergeConflictError();
+  }
+
+  const { duplicateWork } = mutation;
+  const [restored] = await executor
+    .insert(work)
+    .values(
+      workRecordValues(
+        duplicateWork,
+        duplicateWork.revision + 1,
+        input.committedAt,
+      ),
+    )
+    .onConflictDoNothing()
+    .returning();
+  if (!restored) {
+    throw new WorkMergeConflictError();
+  }
+  await relations.restoreMergedRelations(
+    executor,
+    input.committedAt,
+    {
+      id: survivingWork.id,
+      key: survivingWork.key,
+      projectId: survivingWork.projectId,
+    },
+    duplicateWork.id,
+    mutation.relations,
+  );
+  await relations.restoreMergedInclusions?.(
+    executor,
+    input.committedAt,
+    {
+      id: survivingWork.id,
+      key: survivingWork.key,
+      projectId: survivingWork.projectId,
+    },
+    duplicateWork.id,
+    mutation.inclusions,
+  );
+  // Redirects that this merge re-pointed to the current survivor follow the
+  // restored duplicate back, so undoing a chained merge restores the redirect
+  // chain exactly as it was.
+  if (mutation.retiredRedirectIds.length > 0) {
+    await executor
+      .update(workRetiredIdentity)
+      .set({ survivingWorkId: duplicateWork.id })
+      .where(
+        and(
+          inArray(workRetiredIdentity.id, mutation.retiredRedirectIds),
+          eq(workRetiredIdentity.survivingWorkId, survivingWork.id),
+        ),
+      );
+  }
+  await executor
+    .delete(workRetiredIdentity)
+    .where(eq(workRetiredIdentity.id, duplicateWork.id));
+
+  // The restored combination must satisfy the same Feature exit contract as
+  // an explicit type change: inclusions moved back to the duplicate above are
+  // no longer counted, while Work included after the merge still blocks.
+  await assertValidPrimaryFeature(executor, accountId, nextWork);
+  if (nextWork.type !== "Feature") {
+    const includedWork = await executor
+      .select({ id: work.id })
+      .from(work)
+      .where(eq(work.primaryFeatureId, survivingWork.id))
+      .for("update");
+    const blockers = {
+      featureHealthUpdateCount: nextWork.featureHealthHistory.length,
+      hasPrimarySpec: nextWork.primarySpecId !== null,
+      includedWorkCount: includedWork.length,
+    };
+    if (
+      blockers.includedWorkCount > 0 ||
+      blockers.featureHealthUpdateCount > 0 ||
+      blockers.hasPrimarySpec
+    ) {
+      throw new WorkFeatureExitBlockedError(blockers);
+    }
+  }
+
+  const [updated] = await executor
+    .update(work)
+    .set(
+      workRecordValues(nextWork, input.expectedRevision + 1, input.committedAt),
+    )
+    .where(
+      and(
+        eq(work.id, input.targetId),
+        eq(work.revision, input.expectedRevision),
+      ),
+    )
+    .returning();
+  return updated
+    ? {
+        id: updated.id,
+        revision: updated.revision,
+        value: { work: toWorkProfile(updated) },
+      }
+    : null;
+}
+
 function createWorkUpdateMutationTarget(
   accountId: string,
+  relations: WorkRelationsMutationAdapter,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     async find(executor, targetId, lock, context) {
       if (lock) {
+        const mergeParticipantId =
+          mergeWorkIdFromMutationPayload(context?.payload, "duplicateWorkId") ??
+          mergeWorkIdFromMutationPayload(context?.payload, "retiredTargetId");
+        if (mergeParticipantId && mergeParticipantId !== targetId) {
+          const participantIds = [targetId, mergeParticipantId].sort();
+          await lockOwnedWorksInOrder(executor, accountId, participantIds);
+        }
         const featureId = featureIdFromMutationPayload(context?.payload);
         if (featureId && featureId !== targetId) {
           // Mutations involving included Work lock the parent Feature before
@@ -384,6 +775,26 @@ function createWorkUpdateMutationTarget(
       const nextWork = input.nextValue.work;
       if (!nextWork || nextWork.id !== input.targetId) {
         return null;
+      }
+
+      const mergeMutation = input.nextValue.merge;
+      if (mergeMutation?.operation === "merge") {
+        return updateWorkForMerge(
+          executor,
+          accountId,
+          relations,
+          input,
+          mergeMutation,
+        );
+      }
+      if (mergeMutation?.operation === "undo") {
+        return updateWorkForMergeUndo(
+          executor,
+          accountId,
+          relations,
+          input,
+          mergeMutation,
+        );
       }
 
       const currentWork = await findOwnedWork(
@@ -485,6 +896,71 @@ export function createDatabaseWorkLifecycle(
         .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
         .limit(1);
       return result ? toWorkProfile(result.record) : null;
+    },
+
+    async findByKey(accountId, projectId, key) {
+      const workspaceId = await findWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return null;
+      }
+      const [result] = await database
+        .select({ record: work })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(work.key, key),
+            eq(work.projectId, projectId),
+            eq(project.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      return result ? toWorkProfile(result.record) : null;
+    },
+
+    async findRetiredIdentity(accountId, input) {
+      const workspaceId = await findWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return null;
+      }
+      const conditions = [eq(project.workspaceId, workspaceId)];
+      if ("workId" in input) {
+        conditions.push(eq(workRetiredIdentity.id, input.workId));
+      } else {
+        conditions.push(
+          eq(workRetiredIdentity.projectId, input.projectId),
+          eq(workRetiredIdentity.key, input.key),
+        );
+      }
+      // The surviving Work is joined live so a renamed survivor never serves
+      // a stale title through the permanent redirect.
+      const [result] = await database
+        .select({ record: workRetiredIdentity, survivor: work })
+        .from(workRetiredIdentity)
+        .innerJoin(project, eq(workRetiredIdentity.projectId, project.id))
+        .innerJoin(work, eq(workRetiredIdentity.survivingWorkId, work.id))
+        .where(and(...conditions))
+        .limit(1);
+      return result ? toRetiredIdentity(result.record, result.survivor) : null;
+    },
+
+    async listRetiredIdentityIdsBySurvivor(accountId, survivingWorkId) {
+      const workspaceId = await findWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return [];
+      }
+      const records = await database
+        .select({ id: workRetiredIdentity.id })
+        .from(workRetiredIdentity)
+        .innerJoin(project, eq(workRetiredIdentity.projectId, project.id))
+        .where(
+          and(
+            eq(workRetiredIdentity.survivingWorkId, survivingWorkId),
+            eq(project.workspaceId, workspaceId),
+          ),
+        )
+        .orderBy(asc(workRetiredIdentity.id));
+      return records.map((record) => record.id);
     },
 
     async findProject(accountId, projectId) {
@@ -677,7 +1153,7 @@ export function createDatabaseWorkLifecycle(
         }),
       update: (accountId) =>
         createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
-          target: createWorkUpdateMutationTarget(accountId),
+          target: createWorkUpdateMutationTarget(accountId, relations),
         }),
     },
     relations,
