@@ -106,6 +106,37 @@ test("creates Work with a Project key, type, and protected start status", async 
     page.getByText("Work PAY-2 created.", { exact: true }),
   ).toBeVisible();
 
+  const duplicateWork = page.getByRole("listitem").filter({
+    hasText: "PAY-2 Document the payment flow",
+  });
+  await duplicateWork
+    .getByRole("button", { name: "Merge as duplicate" })
+    .click();
+  const merge = duplicateWork.getByRole("region", {
+    name: "Merge PAY-2",
+  });
+  await merge
+    .getByLabel("Surviving record")
+    .selectOption({ label: "PAY-1 — Investigate payment failures" });
+  await merge.getByRole("button", { name: "Preview" }).click();
+  await expect(merge.getByLabel("Merge Preview")).toContainText(
+    "Surviving record: PAY-1",
+  );
+  await Promise.all(
+    ["Title", "Type", "Status"].map((field) =>
+      merge
+        .getByLabel(`${field} resolution for PAY-2`)
+        .selectOption("surviving"),
+    ),
+  );
+  await merge.getByRole("button", { name: "Confirm" }).click();
+  await expect(duplicateWork).not.toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByRole("status").filter({ hasText: "Origin: PAY-2 → PAY-1" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(duplicateWork).toBeVisible({ timeout: 20_000 });
+
   await page.reload();
   const workListItems = page
     .getByRole("list", { name: "Work list" })
@@ -148,6 +179,12 @@ test("creates Work with a Project key, type, and protected start status", async 
   await page.getByRole("link", { name: "Create Project" }).click();
   await page.getByLabel("Project Name").fill("Orders");
   await page.getByRole("button", { name: "Create Project" }).click();
+  const ordersLink = page.getByRole("link", { name: "Orders", exact: true });
+  await expect(ordersLink).toBeVisible();
+  const ordersProjectUrl = await ordersLink.getAttribute("href");
+  if (!ordersProjectUrl) {
+    throw new Error("Orders project link did not expose an href.");
+  }
   await page.getByRole("link", { name: "Payment App", exact: true }).click();
 
   const sourceWork = page
@@ -182,8 +219,7 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(sourceWork).toContainText("Feature");
   await expect(sourceWork).toContainText("Not Started");
 
-  await page.goto("/projects");
-  await page.getByRole("link", { name: "Orders", exact: true }).click();
+  await page.goto(ordersProjectUrl);
   const recreatedWork = page.getByRole("listitem").filter({
     hasText: "ORD-1 Investigate payment failures",
   });

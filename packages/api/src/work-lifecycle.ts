@@ -301,6 +301,79 @@ export type WorkRecreatePreviewInput = z.input<
 >;
 export type RecreateWorkInput = z.input<typeof recreateWorkInputSchema>;
 
+export const WORK_MERGE_FIELD_OPTIONS = [
+  "title",
+  "type",
+  "description",
+  "checklist",
+  "featureHealthHistory",
+  "status",
+  "closureResult",
+  "closureReason",
+  "archivedAt",
+  "captureProvenance",
+  "primaryFeatureId",
+  "primarySpecId",
+] as const;
+
+export type WorkMergeField = (typeof WORK_MERGE_FIELD_OPTIONS)[number];
+
+export const workMergeFieldSchema = z.enum(WORK_MERGE_FIELD_OPTIONS);
+
+export const WORK_MERGE_RESOLUTION_OPTIONS = [
+  "surviving",
+  "duplicate",
+] as const;
+
+export type WorkMergeResolution =
+  (typeof WORK_MERGE_RESOLUTION_OPTIONS)[number];
+
+export const workMergeResolutionSchema = z.enum(WORK_MERGE_RESOLUTION_OPTIONS);
+
+export const workMergePreviewInputSchema = z
+  .object({
+    duplicateWorkId: identifierSchema,
+    survivingWorkId: identifierSchema,
+  })
+  .strict();
+
+export const mergeWorkInputSchema = workMergePreviewInputSchema
+  .extend({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    duplicateRevision: z.number().int().nonnegative().safe(),
+    fieldResolutions: z.partialRecord(
+      workMergeFieldSchema,
+      workMergeResolutionSchema,
+    ),
+    previewId: identifierSchema,
+  })
+  .strict();
+
+export const undoWorkMergeInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    mergeId: identifierSchema,
+    survivingWorkId: identifierSchema,
+  })
+  .strict();
+
+export const workIdentityInputSchema = z.union([
+  z.object({ workId: identifierSchema }).strict(),
+  z
+    .object({
+      key: identifierSchema,
+      projectId: identifierSchema,
+    })
+    .strict(),
+]);
+
+export type WorkMergePreviewInput = z.input<typeof workMergePreviewInputSchema>;
+export type MergeWorkInput = z.input<typeof mergeWorkInputSchema>;
+export type UndoWorkMergeInput = z.input<typeof undoWorkMergeInputSchema>;
+export type WorkIdentityInput = z.input<typeof workIdentityInputSchema>;
+
 export interface WorkRecreateFieldPreview {
   key: WorkRecreateField;
   label: "Title" | "Type" | "Description" | "Checklist";
@@ -314,6 +387,83 @@ export interface WorkRecreatePreview {
   relations: WorkRecreateRelation[];
   sourceWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
   targetProject: { id: string; name: string };
+}
+
+export interface WorkMergeFieldPreview {
+  conflict: boolean;
+  duplicateValue: unknown;
+  key: WorkMergeField;
+  label:
+    | "Title"
+    | "Type"
+    | "Description"
+    | "Checklist"
+    | "Status"
+    | "Closure result"
+    | "Closure reason"
+    | "Archive"
+    | "Capture provenance"
+    | "Feature health"
+    | "Included in"
+    | "Primary spec";
+  survivingValue: unknown;
+}
+
+export interface WorkMergeRelationSnapshot {
+  createdAt: string;
+  id: string;
+  kind: WorkRecreateRelationKind;
+  removedByMerge?: boolean;
+  sourceWorkId: string;
+  targetLabel: string;
+  targetProjectId: string;
+  targetRecordId: string;
+}
+
+export interface WorkMergeRelationPreview extends WorkMergeRelationSnapshot {
+  action: "Rewrite source" | "Rewrite target" | "Remove self relation";
+}
+
+export interface WorkMergeInclusionSnapshot {
+  childWorkId: string;
+  childWorkKey: string;
+  childWorkRevision: number;
+  childWorkTitle: string;
+  duplicateFeatureId: string;
+}
+
+export interface WorkMergeInclusionPreview extends WorkMergeInclusionSnapshot {
+  action: "Rewrite Included in";
+}
+
+export interface WorkMergePreview {
+  duplicateWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+  fields: WorkMergeFieldPreview[];
+  inclusions: WorkMergeInclusionPreview[];
+  previewId: string;
+  relations: WorkMergeRelationPreview[];
+  survivingWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+}
+
+export interface WorkRetiredIdentity {
+  id: string;
+  key: string;
+  kind: "Retired identity";
+  origin: { id: string; key: string };
+  projectId: string;
+  retiredAt: string;
+  survivingWork: Pick<WorkProfile, "id" | "key" | "title">;
+}
+
+export type WorkIdentityResolution =
+  | { kind: "Active"; work: WorkProfile }
+  | { identity: WorkRetiredIdentity; kind: "Retired" };
+
+export interface WorkMergeResult {
+  mergeId: string;
+  receiptId: string;
+  retiredIdentity: WorkRetiredIdentity;
+  work: WorkProfile;
 }
 
 export type IncludeWorkInput = z.input<typeof includeWorkInputSchema>;
@@ -414,7 +564,21 @@ export interface WorkProfile {
   updatedAt: string;
 }
 
+export interface WorkMergeMutation {
+  attributedRelationIds: string[];
+  attributedValueKeys: WorkMergeField[];
+  duplicateWork: WorkProfile;
+  duplicateWorkId: string;
+  duplicateWorkRevision: number;
+  inclusions: WorkMergeInclusionSnapshot[];
+  mergeId: string;
+  operation: "merge" | "undo";
+  relations: WorkMergeRelationSnapshot[];
+  retiredRedirectIds: string[];
+}
+
 export interface WorkLifecycleMutationValue {
+  merge?: WorkMergeMutation;
   recreate?: {
     selectedRelationIds: string[];
     sourceWorkId: string;
@@ -515,10 +679,15 @@ export interface WorkLifecycleAccess {
     projectId: string,
     options?: WorkListOptions,
   ) => Promise<WorkProfile[]>;
+  merge: (accountId: string, input: MergeWorkInput) => Promise<WorkMergeResult>;
   previewClose: (
     accountId: string,
     input: WorkClosePreviewInput,
   ) => Promise<WorkClosePreview | null>;
+  previewMerge: (
+    accountId: string,
+    input: WorkMergePreviewInput,
+  ) => Promise<WorkMergePreview | null>;
   previewRecreate: (
     accountId: string,
     input: WorkRecreatePreviewInput,
@@ -540,10 +709,18 @@ export interface WorkLifecycleAccess {
     input: ReopenWorkInput,
     initiator: WorkVisibleUserInitiator,
   ) => Promise<WorkProfile>;
+  resolve: (
+    accountId: string,
+    input: WorkIdentityInput,
+  ) => Promise<WorkIdentityResolution | null>;
   scopeTree: (accountId: string, projectId: string) => Promise<ScopeTree>;
   unarchive: (
     accountId: string,
     input: WorkArchiveMutationInput,
+  ) => Promise<WorkProfile>;
+  undoMerge: (
+    accountId: string,
+    input: UndoWorkMergeInput,
   ) => Promise<WorkProfile>;
   updateFeaturePrimarySpec: (
     accountId: string,

@@ -3,6 +3,7 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
+  type WorkMergeResult,
   type WorkProfile,
   type WorkType,
   type WorkTypeChangePreview,
@@ -20,6 +21,7 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/views/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import WorkMergeForm from "../ui/forms/work-merge-form";
 import WorkRecreateForm from "../ui/forms/work-recreate-form";
 import WorkStatusForm from "../ui/forms/work-status-form";
 
@@ -31,11 +33,54 @@ export default function ProjectWorkList({
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const [showArchived, setShowArchived] = useState(false);
+  const [lastMergeResult, setLastMergeResult] =
+    useState<WorkMergeResult | null>(null);
+  const [mergeUndoError, setMergeUndoError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const query = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: showArchived, projectId },
     }),
   );
+  const undoMerge = useMutation({
+    mutationFn: async () => {
+      if (!lastMergeResult) {
+        throw new Error("This Work merge is no longer available for Undo.");
+      }
+      const currentWork = await client.work({
+        workId: lastMergeResult.work.id,
+      });
+      return runOnlineOnlyWrite(() =>
+        client.undoWorkMerge({
+          baseRevision: currentWork.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          mergeId: lastMergeResult.mergeId,
+          survivingWorkId: lastMergeResult.work.id,
+        }),
+      );
+    },
+    onError: (error) => {
+      setMergeUndoError(
+        mutationErrorMessage(error, "Work merge could not be undone."),
+      );
+    },
+    onSuccess: async () => {
+      setMergeUndoError(null);
+      setLastMergeResult(null);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.queryOptions({
+            input: { archived: false, projectId },
+          }).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectWorks.queryOptions({
+            input: { archived: true, projectId },
+          }).queryKey,
+        }),
+      ]);
+    },
+  });
 
   if (query.isPending) {
     return <p className="mt-2 text-muted-foreground text-sm">Loading Work…</p>;
@@ -60,6 +105,28 @@ export default function ProjectWorkList({
       >
         Archived
       </Button>
+      {lastMergeResult ? (
+        <div className="flex flex-wrap items-center gap-2 border-primary border-l-2 pl-3 text-muted-foreground text-sm">
+          <p role="status">
+            Origin: {lastMergeResult.retiredIdentity.key} →{" "}
+            {lastMergeResult.work.key}
+          </p>
+          <Button
+            disabled={undoMerge.isPending}
+            onClick={() => undoMerge.mutate()}
+            size="xs"
+            type="button"
+            variant="outline"
+          >
+            Undo
+          </Button>
+          {mergeUndoError ? (
+            <p className="text-destructive text-xs" role="alert">
+              {mergeUndoError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {query.data.length === 0 ? (
         <p className="text-muted-foreground text-sm/relaxed">
           {showArchived ? "No archived Work." : "No Work yet."}
@@ -90,6 +157,13 @@ export default function ProjectWorkList({
                   workStatusLabels={workStatusLabels}
                 />
                 <WorkArchiveAction work={work} />
+                <WorkMergeForm
+                  candidates={query.data.filter(
+                    (candidate) => candidate.id !== work.id,
+                  )}
+                  onMerged={setLastMergeResult}
+                  work={work}
+                />
                 <WorkRecreateForm work={work} />
               </div>
             </li>

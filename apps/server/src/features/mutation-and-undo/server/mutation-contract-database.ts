@@ -50,7 +50,7 @@ type MutationTargetRecord = typeof mutationTarget.$inferSelect;
 
 export type MutationDatabaseExecutor = Pick<
   Database,
-  "insert" | "select" | "update"
+  "delete" | "insert" | "select" | "update"
 >;
 
 export interface MutationDatabaseTargetAdapter<TValue> {

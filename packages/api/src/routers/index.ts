@@ -54,14 +54,18 @@ import {
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
   includeWorkInputSchema,
+  mergeWorkInputSchema,
   recordFeatureHealthInputSchema,
   recreateWorkInputSchema,
   reopenWorkInputSchema,
+  undoWorkMergeInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
   workClosePreviewInputSchema,
+  workIdentityInputSchema,
+  workMergePreviewInputSchema,
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
@@ -352,6 +356,48 @@ function mapWorkLifecycleError(
         data: { code: error.code },
         defined: true,
         message: "Review the current recreate preview before confirming.",
+      });
+    case "WORK_MERGE_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Review the current Merge Preview before confirming.",
+      });
+    case "WORK_MERGE_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "The selected Work merge is no longer available.",
+      });
+    case "WORK_MERGE_RESOLUTION_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: {
+          code: error.code,
+          ...(Array.isArray(error.fields) ? { fields: error.fields } : {}),
+        },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "Resolve every Field conflict before confirming the merge.",
+      });
+    case "WORK_MERGE_UNSUPPORTED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "This Work merge is not supported.",
+      });
+    case "WORK_MERGE_UNDO_UNAVAILABLE":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This Work merge is no longer available for Undo.",
       });
     case "WORK_RELATION_NOT_PORTABLE":
     case "WORK_RECREATE_FIELD_REQUIRED":
@@ -796,6 +842,42 @@ export const appRouter = {
       }
       return preview;
     }),
+  workMergePreview: protectedProcedure
+    .input(workMergePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(context).previewMerge(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The selected Work records are unavailable.",
+        });
+      }
+      return preview;
+    }),
+  mergeWork: protectedProcedure
+    .input(mergeWorkInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).merge(context.session.user.id, input),
+      ),
+    ),
+  resolveWorkIdentity: protectedProcedure
+    .input(workIdentityInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).resolve(context.session.user.id, input),
+      ),
+    ),
+  undoWorkMerge: protectedProcedure
+    .input(undoWorkMergeInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).undoMerge(context.session.user.id, input),
+      ),
+    ),
   recreateWork: protectedProcedure
     .input(recreateWorkInputSchema)
     .handler(({ context, input }) =>
