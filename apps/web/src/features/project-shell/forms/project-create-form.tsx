@@ -206,7 +206,7 @@ export default function ProjectCreateForm() {
     <form className="space-y-8" noValidate onSubmit={handleSubmit}>
       {formError ? (
         <div
-          className="border border-destructive/25 bg-destructive/5 p-4"
+          className="rounded-lg border border-destructive/25 bg-destructive/5 p-4"
           role="alert"
         >
           <p className="font-medium text-sm">{formError}</p>
@@ -217,8 +217,12 @@ export default function ProjectCreateForm() {
       ) : null}
 
       <section aria-labelledby="project-profile-heading" className="space-y-5">
-        <div className="border-b pb-3">
-          <h2 className="font-medium text-sm" id="project-profile-heading">
+        <div className="border-border/70 border-b pb-4">
+          <p className="surface-kicker">Project profile</p>
+          <h2
+            className="mt-2 font-semibold text-lg tracking-tight"
+            id="project-profile-heading"
+          >
             Project profile
           </h2>
           <p className="mt-1 text-muted-foreground text-xs/relaxed">
@@ -306,8 +310,8 @@ export default function ProjectCreateForm() {
         </FieldGroup>
       </section>
 
-      <details className="border-y py-4">
-        <summary className="cursor-pointer font-medium text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring">
+      <details className="rounded-lg border border-border/70 bg-card/45 px-4 py-4">
+        <summary className="cursor-pointer font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           Optional profile details
         </summary>
         <FieldGroup className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2">
@@ -390,7 +394,7 @@ export default function ProjectCreateForm() {
         </FieldGroup>
       </details>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-t pt-5">
         <Link className={buttonVariants({ variant: "ghost" })} to="/projects">
           <ArrowLeft aria-hidden="true" />
           Cancel

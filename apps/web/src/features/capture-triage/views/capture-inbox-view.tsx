@@ -21,6 +21,13 @@ import {
 } from "@cantiara/api/capture-triage";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Input } from "@cantiara/ui/components/input";
 import {
   NativeSelect,
@@ -298,7 +305,7 @@ function CaptureConversionPreviewPanel({
   return (
     <section
       aria-label="Conversion Preview"
-      className="space-y-4 border border-primary/35 bg-primary/5 p-4"
+      className="space-y-4 rounded-lg border border-primary/35 bg-primary/5 p-4 shadow-sm"
       role="dialog"
     >
       <div>
@@ -381,7 +388,7 @@ function CaptureAttachPreviewPanel({
   return (
     <section
       aria-label="Attach Preview"
-      className="space-y-4 border border-primary/35 bg-primary/5 p-4"
+      className="space-y-4 rounded-lg border border-primary/35 bg-primary/5 p-4 shadow-sm"
       role="dialog"
     >
       <div>
@@ -438,7 +445,7 @@ function CaptureUndoPreviewPanel({
   return (
     <section
       aria-label="Undo Preview"
-      className="space-y-4 border border-primary/35 bg-primary/5 p-4"
+      className="space-y-4 rounded-lg border border-primary/35 bg-primary/5 p-4 shadow-sm"
       role="dialog"
     >
       <div>
@@ -1112,7 +1119,7 @@ function BulkSenseMakingView({
   return (
     <section
       aria-label="Bulk sense-making"
-      className="space-y-5 border border-primary/35 bg-primary/5 p-4 sm:p-5"
+      className="space-y-5 rounded-lg border border-primary/35 bg-primary/5 p-4 shadow-sm sm:p-5"
     >
       <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
         <div>
@@ -1369,7 +1376,7 @@ function SequentialTriageView({
       </header>
       <article
         aria-label="Sequential triage item"
-        className="space-y-4 border border-primary/30 bg-primary/5 p-5"
+        className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-5 shadow-sm"
       >
         <CaptureSourceSummary
           formattingPreferences={formattingPreferences}
@@ -1428,7 +1435,7 @@ function CaptureInboxGroupView({
     <section
       aria-label={group.label}
       aria-labelledby={headingId}
-      className={`overflow-hidden border ${surfaceClass}`}
+      className={`overflow-hidden rounded-lg border ${surfaceClass}`}
     >
       <div
         className={`flex items-start justify-between gap-4 border-b px-4 py-4 ${headerClass}`}
@@ -1552,6 +1559,7 @@ function CaptureInboxListView({
   formattingPreferences,
   groups,
   items,
+  onOpenCaptureComposer,
   onStartSequentialTriage,
   onToggleBulkView,
   onUndoPreview,
@@ -1563,6 +1571,7 @@ function CaptureInboxListView({
   formattingPreferences: AccountPreferences;
   groups: CaptureInboxGroup[];
   items: CaptureInboxItem[];
+  onOpenCaptureComposer: () => void;
   onStartSequentialTriage: () => void;
   onToggleBulkView: () => void;
   onUndoPreview: (state: UndoPreviewState) => void;
@@ -1618,63 +1627,56 @@ function CaptureInboxListView({
   }
 
   return (
-    <div className="grid gap-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
-      <div className="lg:sticky lg:top-6">
-        <CaptureInboxForm accountId={accountId} />
+    <section aria-labelledby="capture-list-title" className="min-w-0 space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-border/70 border-b pb-4">
+        <div>
+          <p className="surface-kicker">Capture Library</p>
+          <h2
+            className="mt-2 font-semibold text-xl tracking-tight"
+            id="capture-list-title"
+          >
+            Saved captures
+          </h2>
+          <p className="mt-2 max-w-2xl text-muted-foreground text-sm/6">
+            Review temporary captures here. Open Capture Inbox when you are
+            ready to save a new thought or choose its next destination.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {groups.length > 0 ? (
+            <span className="shrink-0 text-muted-foreground text-xs">
+              {captureCountLabel(
+                groups.reduce((count, group) => count + group.items.length, 0),
+              )}
+            </span>
+          ) : null}
+          <Button onClick={onOpenCaptureComposer} type="button">
+            New capture
+          </Button>
+          {groups.length > 0 && triageAvailable ? (
+            <Button
+              onClick={onStartSequentialTriage}
+              type="button"
+              variant="outline"
+            >
+              Sequential triage
+            </Button>
+          ) : null}
+          {groups.length > 0 ? (
+            <Button
+              aria-pressed={viewMode === "bulk"}
+              onClick={onToggleBulkView}
+              type="button"
+              variant={viewMode === "bulk" ? "default" : "outline"}
+            >
+              Bulk sense-making
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <section
-        aria-labelledby="capture-list-title"
-        className="min-w-0 space-y-5"
-      >
-        <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-4">
-          <div>
-            <h2
-              className="font-semibold text-xl tracking-tight"
-              id="capture-list-title"
-            >
-              Saved captures
-            </h2>
-            <p className="mt-2 max-w-md text-muted-foreground text-sm/6">
-              Capture Inbox groups are shown here after you save.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {groups.length > 0 ? (
-              <span className="shrink-0 text-muted-foreground text-xs">
-                {captureCountLabel(
-                  groups.reduce(
-                    (count, group) => count + group.items.length,
-                    0,
-                  ),
-                )}
-              </span>
-            ) : null}
-            {groups.length > 0 && triageAvailable ? (
-              <Button
-                onClick={onStartSequentialTriage}
-                type="button"
-                variant="outline"
-              >
-                Sequential triage
-              </Button>
-            ) : null}
-            {groups.length > 0 ? (
-              <Button
-                aria-pressed={viewMode === "bulk"}
-                onClick={onToggleBulkView}
-                type="button"
-                variant={viewMode === "bulk" ? "default" : "outline"}
-              >
-                Bulk sense-making
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        {renderCaptureList()}
-      </section>
-    </div>
+      {renderCaptureList()}
+    </section>
   );
 }
 
@@ -1686,6 +1688,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const queryClient = useQueryClient();
   const shell = useClientShell();
   const [undoPreview, setUndoPreview] = useState<UndoPreviewState | null>(null);
+  const [captureComposerOpen, setCaptureComposerOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"inbox" | "bulk">("inbox");
   const [sequentialTriageState, setSequentialTriageState] =
     useState<SequentialTriageState>({ mode: "list" });
@@ -1734,7 +1737,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   );
   if (inbox.isPending) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+      <main className="surface-frame max-w-7xl">
         {clientShellStatus}
         <h1 className="font-semibold text-3xl tracking-tight">Capture Inbox</h1>
         <p className="mt-3 text-muted-foreground text-sm">Loading captures…</p>
@@ -1744,7 +1747,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
 
   if (inbox.isError || !inbox.data) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+      <main className="surface-frame max-w-7xl">
         {clientShellStatus}
         <h1 className="font-semibold text-3xl tracking-tight">Capture Inbox</h1>
         <p
@@ -1800,9 +1803,9 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
   const inSequentialTriage = sequentialTriageState.mode !== "list";
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-10 px-5 py-10 sm:px-8 sm:py-14">
+    <main className="surface-frame max-w-7xl space-y-10">
       {clientShellStatus}
-      <header className="max-w-3xl border-b pb-8">
+      <header className="surface-header max-w-3xl">
         <h1 className="font-semibold text-3xl tracking-tight">Capture Inbox</h1>
         <p className="mt-3 text-muted-foreground text-sm/6">
           Save a thought before you know which permanent record it belongs to.
@@ -1819,6 +1822,23 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
           preview={undoPreview.preview}
         />
       ) : null}
+
+      <Dialog onOpenChange={setCaptureComposerOpen} open={captureComposerOpen}>
+        <DialogContent className="max-h-[calc(100svh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
+          <DialogHeader className="pr-8">
+            <DialogTitle className="text-lg">New capture</DialogTitle>
+            <DialogDescription>
+              Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
+              directly when a Project is set.
+            </DialogDescription>
+          </DialogHeader>
+          <CaptureInboxForm
+            accountId={accountId}
+            onSaved={() => setCaptureComposerOpen(false)}
+            showHeader={false}
+          />
+        </DialogContent>
+      </Dialog>
 
       {inSequentialTriage ? (
         <SequentialTriageSurface
@@ -1842,6 +1862,7 @@ export default function CaptureInboxView({ accountId }: { accountId: string }) {
           formattingPreferences={formattingPreferences}
           groups={groups}
           items={items}
+          onOpenCaptureComposer={() => setCaptureComposerOpen(true)}
           onStartSequentialTriage={startSequentialTriage}
           onToggleBulkView={() =>
             setViewMode((current) => (current === "bulk" ? "inbox" : "bulk"))

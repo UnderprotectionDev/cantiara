@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const DARK_CLASS_PATTERN = /dark/;
-const DASHBOARD_URL_PATTERN = /\/dashboard$/;
+const PROJECTS_URL_PATTERN = /\/projects$/;
 const ROOT_URL_PATTERN = /\/$/;
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const SUPPORT_REFERENCE_PATTERN =
@@ -40,10 +40,10 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
   };
   await context.addCookies([setup.cookie]);
 
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(DASHBOARD_URL_PATTERN);
+  await page.goto("/projects");
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
   await expect(
-    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
 
   await page.goto("/account/preferences");

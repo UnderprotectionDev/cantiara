@@ -95,18 +95,21 @@ export default function ProjectWorkList({
   }
 
   return (
-    <div className="mt-4 space-y-3">
-      <Button
-        aria-pressed={showArchived}
-        onClick={() => setShowArchived((current) => !current)}
-        size="sm"
-        type="button"
-        variant={showArchived ? "secondary" : "outline"}
-      >
-        Archived
-      </Button>
+    <div className="mt-5 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-b pb-3">
+        <h3 className="font-medium text-sm">Work records</h3>
+        <Button
+          aria-pressed={showArchived}
+          onClick={() => setShowArchived((current) => !current)}
+          size="sm"
+          type="button"
+          variant={showArchived ? "secondary" : "outline"}
+        >
+          Archived
+        </Button>
+      </div>
       {lastMergeResult ? (
-        <div className="flex flex-wrap items-center gap-2 border-primary border-l-2 pl-3 text-muted-foreground text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-muted-foreground text-sm">
           <p role="status">
             Origin: {lastMergeResult.retiredIdentity.key} →{" "}
             {lastMergeResult.work.key}
@@ -135,36 +138,40 @@ export default function ProjectWorkList({
         <ul aria-label={showArchived ? "Archived Work list" : "Work list"}>
           {query.data.map((work) => (
             <li
-              className="mb-2 flex flex-wrap items-center justify-between gap-3 border bg-background px-3 py-3 last:mb-0"
+              className="mb-3 grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4 transition-colors last:mb-0 hover:bg-card"
               id={`work-${work.id}`}
               key={work.id}
             >
-              <div className="min-w-0">
-                <p className="font-medium text-sm">
+              <div className="flex min-w-0 items-start justify-between gap-4">
+                <p className="min-w-0 font-medium text-sm">
                   <span className="text-muted-foreground">{work.key}</span>{" "}
                   {work.title}
                 </p>
+              </div>
+              <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
                 {work.recreatedFrom ? (
-                  <p className="mt-1 text-muted-foreground text-xs">
+                  <p className="basis-full text-muted-foreground text-xs">
                     Origin: {work.recreatedFrom.key}
                   </p>
                 ) : null}
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
-                <WorkTypeEditor work={work} />
-                <WorkStatusForm
-                  work={work}
-                  workStatusLabels={workStatusLabels}
-                />
-                <WorkArchiveAction work={work} />
-                <WorkMergeForm
-                  candidates={query.data.filter(
-                    (candidate) => candidate.id !== work.id,
-                  )}
-                  onMerged={setLastMergeResult}
-                  work={work}
-                />
-                <WorkRecreateForm work={work} />
+                <div className="flex flex-wrap items-end gap-3">
+                  <WorkTypeEditor work={work} />
+                  <WorkStatusForm
+                    work={work}
+                    workStatusLabels={workStatusLabels}
+                  />
+                </div>
+                <div className="flex basis-full flex-wrap items-center gap-2 border-border/70 border-t pt-3 sm:basis-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
+                  <WorkArchiveAction work={work} />
+                  <WorkMergeForm
+                    candidates={query.data.filter(
+                      (candidate) => candidate.id !== work.id,
+                    )}
+                    onMerged={setLastMergeResult}
+                    work={work}
+                  />
+                  <WorkRecreateForm work={work} />
+                </div>
               </div>
             </li>
           ))}
@@ -356,10 +363,18 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
   const isPending = previewTypeChange.isPending || updateType.isPending;
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex min-w-40 flex-col items-start gap-1">
+      <label
+        className="text-muted-foreground text-xs"
+        htmlFor={`work-type-${work.id}`}
+      >
+        Type
+      </label>
       <NativeSelect
         aria-label={`Type for ${work.key}`}
+        className="w-full"
         disabled={connection === "offline" || isPending}
+        id={`work-type-${work.id}`}
         onChange={(event) => handleTypeChange(event.target.value as WorkType)}
         value={selectedType}
       >
@@ -377,7 +392,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
       {preview ? (
         <div
           aria-label="Impact preview"
-          className="w-full space-y-2 border bg-muted/20 p-3 text-left text-xs"
+          className="mt-2 w-full space-y-2 border bg-muted/20 p-3 text-left text-xs"
           role="status"
         >
           <p className="font-medium text-sm">Impact preview</p>

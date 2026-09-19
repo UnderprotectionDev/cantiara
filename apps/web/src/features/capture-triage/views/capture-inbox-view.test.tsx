@@ -13,10 +13,7 @@ import {
 } from "@/features/web-macos-client/views/client-shell";
 import { captureInboxQueryOptions, projectsQueryOptions } from "@/utils/orpc";
 
-import {
-  CREATE_BUG_UNAVAILABLE_MESSAGE,
-  captureDestination,
-} from "../forms/capture-inbox-form";
+import { captureDestination } from "../forms/capture-inbox-form";
 import CaptureInboxView, { bulkSenseMakingColumns } from "./capture-inbox-view";
 import {
   advanceSequentialTriageAfterExit,
@@ -82,26 +79,11 @@ describe("Capture Inbox view", () => {
     });
 
     expect(html).toContain(">Capture Inbox</h1>");
-    expect(html).toContain("Project");
-    expect(html).toContain(
-      "Leave empty to save to the Workspace Capture Inbox.",
-    );
-    expect(html).toContain("Destination");
-    expect(html).toContain(
-      "This capture will appear here until you choose what happens next.",
-    );
-    expect(html).toContain("Bug Capture");
-    expect(html).toContain("Feedback Capture");
-    expect(html).toContain("Research Fragment");
+    expect(html).toContain(">Capture Library</p>");
     expect(html).toContain(">Saved captures</h2>");
-    expect(html).toContain(
-      "Capture Inbox groups are shown here after you save.",
-    );
+    expect(html).toContain("Review temporary captures here.");
+    expect(html).toContain(">New capture</button>");
     expect(html).toContain("No captures in this Inbox.");
-    expect(html).toContain(">Save</button>");
-    expect(html).toContain(">Create Bug</button>");
-    expect(html).toContain(CREATE_BUG_UNAVAILABLE_MESSAGE);
-    expect(html).toContain('disabled=""');
     expect(html).not.toContain(">Sequential triage</button>");
   });
 
@@ -230,7 +212,7 @@ describe("Capture Inbox view", () => {
     });
   });
 
-  test("lets the founder choose a Project without entering an internal id", () => {
+  test("opens capture creation from the library without exposing an internal id", () => {
     const html = renderCaptureInbox({
       bulkSenseMaking: { clusters: [], placements: [], revision: 0 },
       groups: [],
@@ -238,9 +220,8 @@ describe("Capture Inbox view", () => {
       triageAvailable: false,
     });
 
-    expect(html).toContain('id="capture-project"');
-    expect(html).toContain(">Workspace Capture Inbox</option>");
-    expect(html).toContain('value="project-1">Payment App (PAY)</option>');
+    expect(html).toContain(">New capture</button>");
+    expect(html).not.toContain("project-1");
     expect(html).not.toContain('placeholder="Leave empty for Workspace"');
   });
 
@@ -297,8 +278,6 @@ describe("Capture Inbox view", () => {
       },
     );
 
-    expect(html).toContain("nothing is queued locally.");
-    expect(html).toContain('disabled=""');
     expect(html).toContain("You’re offline");
     expect(html).toContain("Last saved");
     expect(html).toContain("16 Sept 2026, 12:00");

@@ -30,7 +30,7 @@ export default function UserMenu() {
   }, [navigate]);
 
   if (isPending) {
-    return <Skeleton className="h-9 w-24" />;
+    return <Skeleton className="h-9 w-9 rounded-full sm:w-24" />;
   }
 
   if (!session) {
@@ -43,8 +43,14 @@ export default function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" />}>
-        {session.user.name}
+      <DropdownMenuTrigger
+        aria-label={session.user.name}
+        render={<Button className="rounded-full px-3" variant="outline" />}
+      >
+        <span className="hidden sm:inline">{session.user.name}</span>
+        <span className="sm:hidden">
+          {session.user.name.slice(0, 1).toUpperCase()}
+        </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="bg-card">
         <DropdownMenuGroup>

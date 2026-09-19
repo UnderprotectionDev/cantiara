@@ -23,18 +23,31 @@ test("keeps Sequential triage focused until a confirmed exit", async ({
     page.getByRole("heading", { name: "Capture Inbox", level: 1 }),
   ).toBeVisible();
   const savedCaptures = page.getByRole("region", { name: "Saved captures" });
-  const projectSelect = page.getByLabel("Project", { exact: true });
-  const projectOption = projectSelect
-    .locator("option")
-    .filter({ hasText: "Capture Project" })
-    .first();
-  await expect(projectOption).toHaveCount(1);
-  const captureProjectId = await projectOption.getAttribute("value");
-  expect(captureProjectId).toBe(setup.projectId);
+
+  async function openComposer() {
+    await page
+      .getByRole("button", { name: "New capture", exact: true })
+      .click();
+    const composer = page.getByRole("dialog");
+    await composer
+      .getByRole("heading", { name: "New capture", exact: true })
+      .waitFor();
+    const projectSelect = composer.getByLabel("Project", { exact: true });
+    const projectOption = projectSelect
+      .locator("option")
+      .filter({ hasText: "Capture Project" })
+      .first();
+    await expect(projectOption).toHaveCount(1);
+    const captureProjectId = await projectOption.getAttribute("value");
+    expect(captureProjectId).toBe(setup.projectId);
+    return composer;
+  }
 
   async function saveCapture(content: string) {
-    await page.getByLabel("Capture", { exact: true }).fill(content);
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const composer = await openComposer();
+    await composer.getByLabel("Capture", { exact: true }).fill(content);
+    await composer.getByRole("button", { name: "Save", exact: true }).click();
+    await composer.waitFor({ state: "hidden" });
     await expect(
       savedCaptures.getByText(content, { exact: true }),
     ).toBeVisible();

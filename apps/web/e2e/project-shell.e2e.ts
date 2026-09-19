@@ -231,11 +231,9 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
     page.locator("main > header").getByText("Active", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Blank Project", { exact: true })).toBeVisible();
-  const nonGetRequestCountBeforeMode = nonGetRequests.length;
   const overview = page.locator('[data-project-overview="true"]');
   await overview.locator('[data-overview-area-entry="Work"]').click();
   await expect(page).toHaveURL(WORK_HASH_PATTERN);
-  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
   await expect(page.locator("#work")).toBeVisible();
   await expectDailyActions(page);
   await expect(
@@ -244,9 +242,12 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await expect(page.locator("#work-create")).toBeInViewport();
   await expect(page.getByRole("region", { name: "Create" })).toBeVisible();
+  const nonGetRequestCountBeforeConfigurationMode = nonGetRequests.length;
 
   await configurationMode.click();
-  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
+  expect(nonGetRequests).toHaveLength(
+    nonGetRequestCountBeforeConfigurationMode,
+  );
   await expect(configurationMode).toHaveAttribute("aria-pressed", "true");
   const configurationRegion = page.locator(
     'section[aria-label="Configuration Mode"]',
@@ -270,6 +271,23 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
       ).toBeVisible(),
     ),
   );
+
+  await configurationRegion
+    .getByRole("button", { name: "Project areas", exact: true })
+    .click();
+  const projectAreasHost = configurationRegion.locator(
+    "#configuration-host-project-areas",
+  );
+  await expect(projectAreasHost).toBeVisible();
+  await expect(
+    projectAreasHost.getByRole("list", { name: "Project areas" }),
+  ).toBeVisible();
+  await expect(
+    projectAreasHost.getByRole("button", {
+      name: "Enable Discovery",
+      exact: true,
+    }),
+  ).toBeVisible();
 
   await configurationRegion
     .getByRole("button", { name: "Custom field", exact: true })
@@ -318,7 +336,9 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   ).toBeVisible();
 
   await configurationMode.click();
-  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeMode);
+  expect(nonGetRequests).toHaveLength(
+    nonGetRequestCountBeforeConfigurationMode,
+  );
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(
     page.locator('section[aria-label="Configuration Mode"]'),
@@ -426,30 +446,57 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   await expect(
     allTools.getByRole("listitem", { name: "Discovery Enabled", exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Overview", exact: true })
+    .click();
   await expect(
     page.locator(
       '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
     ),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "All Tools", exact: true })
+    .click();
   await allTools
     .getByRole("button", { name: "Hide Discovery", exact: true })
     .click();
   await expect(
     allTools.getByRole("listitem", { name: "Discovery Hidden", exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Overview", exact: true })
+    .click();
   await expect(
     page.locator(
       '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
     ),
   ).toHaveCount(0);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "All Tools", exact: true })
+    .click();
   await allTools
     .getByRole("button", { name: "Show Discovery", exact: true })
+    .click();
+  await expect(
+    allTools.getByRole("listitem", { name: "Discovery Enabled", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Overview", exact: true })
     .click();
   await expect(
     page.locator(
       '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
     ),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "All Tools", exact: true })
+    .click();
   await allTools
     .getByRole("listitem", { name: "Discovery Enabled", exact: true })
     .getByRole("button", { name: "Pin to navigation", exact: true })

@@ -52,8 +52,8 @@ export default function SessionsView({ accountId }: { accountId: string }) {
     accountPreferences.data ?? DEFAULT_ACCOUNT_PREFERENCES;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
-      <header className="flex flex-col gap-5 border-b pb-7 sm:flex-row sm:items-end sm:justify-between">
+    <main className="surface-frame max-w-4xl">
+      <header className="surface-header flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-xl space-y-2">
           <div className="flex items-center gap-2">
             <ShieldCheck aria-hidden="true" className="size-5" />
@@ -74,7 +74,7 @@ export default function SessionsView({ accountId }: { accountId: string }) {
         />
       </header>
 
-      <section aria-labelledby="active-sessions-heading" className="pt-7">
+      <section aria-labelledby="active-sessions-heading" className="pt-9">
         <div className="mb-3 flex items-baseline justify-between gap-4">
           <h2 className="font-medium text-sm" id="active-sessions-heading">
             Active sessions
@@ -97,14 +97,14 @@ export default function SessionsView({ accountId }: { accountId: string }) {
           </div>
         ) : null}
         {sessions.data ? (
-          <ul className="divide-y border-y">
+          <ul className="divide-y rounded-lg border border-border/70 bg-card/45">
             {sessions.data.map((productSession) => (
               <li
-                className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 px-5 py-5 first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
                 key={productSession.id}
               >
                 <div className="flex min-w-0 items-start gap-3">
-                  <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center bg-muted">
+                  <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                     <Monitor aria-hidden="true" className="size-4" />
                   </div>
                   <div className="min-w-0">
@@ -195,8 +195,8 @@ function WebCaptureLinksSection({
   );
 
   return (
-    <section aria-labelledby="extension-links-heading" className="pt-10">
-      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <section aria-labelledby="extension-links-heading" className="pt-12">
+      <div className="flex flex-col gap-3 border-border/70 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-medium text-sm" id="extension-links-heading">
             Extension links
@@ -217,7 +217,10 @@ function WebCaptureLinksSection({
       </div>
 
       {pairingCode ? (
-        <div className="border-b bg-muted/30 px-4 py-4" role="status">
+        <div
+          className="rounded-md border border-primary/25 bg-primary/5 px-4 py-4"
+          role="status"
+        >
           <p className="text-muted-foreground text-xs">
             This pairing code expires in five minutes and can be used once.
           </p>
@@ -253,10 +256,10 @@ function WebCaptureLinksSection({
         </p>
       ) : null}
       {links.data && links.data.length > 0 ? (
-        <ul className="divide-y border-b">
+        <ul className="divide-y rounded-lg border border-border/70 bg-card/45">
           {links.data.map((link) => (
             <li
-              className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-4 px-5 py-4 first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
               key={link.id}
             >
               <div className="grid gap-1 text-sm">

@@ -48,11 +48,11 @@ export default function ProjectOverviewView({
   return (
     <section
       aria-labelledby="project-overview-heading"
-      className="mt-10 space-y-8"
+      className="space-y-8"
       data-project-overview="true"
       id="overview"
     >
-      <header className="max-w-3xl border-b pb-6">
+      <header className="surface-header max-w-3xl">
         <h2
           className="text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
           id="project-overview-heading"
@@ -65,7 +65,7 @@ export default function ProjectOverviewView({
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-px overflow-hidden rounded-lg border border-border/70 bg-border/70 sm:grid-cols-2">
         <OverviewSummary
           emptyMessage="No Purpose recorded yet."
           label="Purpose"
@@ -76,7 +76,7 @@ export default function ProjectOverviewView({
 
       <EnabledProjectAreas areas={overview.enabledAreas} />
 
-      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-start overflow-hidden rounded-lg border border-border/70 bg-border/70 md:grid-cols-2">
         {overview.modules.map((module) => (
           <OverviewModule
             formattingPreferences={formattingPreferences}
@@ -112,11 +112,7 @@ function OverviewSummary({
   value: string | null;
 }) {
   return (
-    <section
-      aria-labelledby={`overview-summary-${slug(label)}-heading`}
-      className="border-primary/60 border-l-2 bg-muted/20 px-5 py-5"
-      data-overview-module={label}
-    >
+    <div className="bg-card px-5 py-5" data-overview-module={label}>
       <h3
         className="font-medium text-muted-foreground text-xs uppercase tracking-[0.16em]"
         id={`overview-summary-${slug(label)}-heading`}
@@ -126,16 +122,13 @@ function OverviewSummary({
       <p className="mt-3 text-pretty font-medium text-base/relaxed">
         {value ?? emptyMessage ?? EMPTY_SOURCE_MESSAGE}
       </p>
-    </section>
+    </div>
   );
 }
 
 function EnabledProjectAreas({ areas }: { areas: readonly ProjectArea[] }) {
   return (
-    <section
-      aria-labelledby="overview-project-areas-heading"
-      className="border-y py-5"
-    >
+    <div className="border-border/70 border-y py-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3
           className="font-medium text-base"
@@ -161,7 +154,7 @@ function EnabledProjectAreas({ areas }: { areas: readonly ProjectArea[] }) {
           No Project areas are visible yet.
         </p>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -176,7 +169,7 @@ function ProjectAreaEntry({ area }: { area: ProjectArea }) {
     <li data-overview-area={area}>
       <a
         {...linkProps}
-        className="block border bg-background px-3 py-1.5 text-sm underline-offset-4 hover:border-foreground hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="block rounded-md border border-border/80 bg-background/70 px-3 py-2 text-sm underline-offset-4 hover:border-foreground/30 hover:bg-muted hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         data-overview-area-entry={area}
       >
         {area}
@@ -199,13 +192,12 @@ function OverviewModule({
   const emptyMessage = emptyModuleMessage(module.name);
 
   return (
-    <section
-      aria-labelledby={`${moduleId}-heading`}
-      className="flex min-h-44 flex-col border bg-card/40 p-5"
+    <div
+      className="flex min-h-0 flex-col bg-card p-4"
       data-overview-module={module.name}
       id={moduleId}
     >
-      <header className="flex items-baseline justify-between gap-3 border-b pb-3">
+      <header className="flex items-baseline justify-between gap-3 border-b pb-2">
         <h3 className="font-medium text-base" id={`${moduleId}-heading`}>
           {module.sourceHref ? (
             <a
@@ -239,11 +231,11 @@ function OverviewModule({
           ))}
         </ul>
       ) : (
-        <p className="mt-5 text-muted-foreground text-sm/relaxed">
+        <p className="mt-3 pb-1 text-muted-foreground text-sm/relaxed">
           {emptyMessage}
         </p>
       )}
-    </section>
+    </div>
   );
 }
 

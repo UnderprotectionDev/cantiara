@@ -23,9 +23,9 @@ test("shows the online-only empty state after the connection is lost", async ({
     };
   };
   await context.addCookies([setup.cookie]);
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await expect(
-    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
 
   await context.setOffline(true);
@@ -39,7 +39,7 @@ test("shows the online-only empty state after the connection is lost", async ({
   await expect(offlineState).toContainText("Last saved");
   await expect(offlineState).not.toContainText("Unsaved changes may be lost");
   await expect(
-    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toHaveCount(0);
   await expect(page.getByText("Welcome Founder")).toHaveCount(0);
 
@@ -49,6 +49,6 @@ test("shows the online-only empty state after the connection is lost", async ({
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(offlineState).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
 });

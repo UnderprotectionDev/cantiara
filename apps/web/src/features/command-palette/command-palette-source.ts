@@ -12,7 +12,7 @@ import {
 
 export type CommandPaletteProviderSource = CommandPaletteCommandSource;
 
-type DashboardNavigation = (destination: "/dashboard") => void;
+type ProjectsNavigation = (destination: "/projects") => void;
 
 export function createEmptyCommandPaletteSource(): CommandPaletteProviderSource {
   return {
@@ -85,7 +85,7 @@ function createUnsupportedReferenceCommand(): CommandPaletteCommand {
 }
 
 export function createReferenceCommandPaletteSource(
-  navigate: DashboardNavigation,
+  navigate: ProjectsNavigation,
 ): CommandPaletteProviderSource {
   return {
     authorizedProjects: createReferenceProjects(),
@@ -109,9 +109,9 @@ export function createReferenceCommandPaletteSource(
         visibleCounterpart: "Create menu",
       },
     ],
-    onCreate: () => navigate("/dashboard"),
-    onOpenRecord: () => navigate("/dashboard"),
-    onSwitchProject: () => navigate("/dashboard"),
+    onCreate: () => navigate("/projects"),
+    onOpenRecord: () => navigate("/projects"),
+    onSwitchProject: () => navigate("/projects"),
   };
 }
 

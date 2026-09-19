@@ -167,7 +167,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
   return (
     <section aria-label={`Recreate ${work.key}`}>
       <form
-        className="w-full space-y-3 border bg-muted/20 p-3 text-left text-xs"
+        className="w-full space-y-3 rounded-md border bg-muted/20 p-3 text-left text-xs"
         noValidate
         onSubmit={handleSubmit}
       >

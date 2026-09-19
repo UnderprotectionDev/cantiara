@@ -13,7 +13,7 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
 
   if (preferences.isPending) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
+      <main className="surface-frame max-w-5xl">
         <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>
         <p className="mt-3 text-muted-foreground text-sm">
           Loading preferences…
@@ -24,7 +24,7 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
 
   if (preferences.isError) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
+      <main className="surface-frame max-w-5xl">
         <h1 className="font-semibold text-3xl tracking-tight">Preferences</h1>
         <div
           className="mt-8 border-y bg-destructive/5 px-4 py-6 text-sm"
@@ -47,8 +47,8 @@ export default function PreferencesView({ accountId }: { accountId: string }) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
-      <header className="max-w-2xl border-b pb-8">
+    <main className="surface-frame max-w-5xl">
+      <header className="surface-header max-w-2xl">
         <h1 className="text-balance font-semibold text-3xl tracking-tight">
           Preferences
         </h1>

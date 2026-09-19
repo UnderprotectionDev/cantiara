@@ -145,6 +145,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Logo | `Logo` | İsteğe bağlı Proje logosu; Proje rengi, CSS veya font değildir |
 | Proje oluştur | `Create Project` | Yeni Projeyi kaydeden eylem |
 | Projeler | `Projects` | Çalışma Alanındaki Proje listesi |
+| Projeleri aç | `Open Projects` | Komut Paletinden Çalışma Alanının Projeler yüzeyine gitme eylemi |
 | Kısa kodu kaydet | `Save Short code` | İlk İşten önce kısa kodu güncelleme eylemi |
 | Yükleniyor | `Loading…` | Proje kabuğu okuma durumu |
 | Proje kullanılamıyor | `Project is unavailable.` | Proje kabuğu okuma hatası |
@@ -230,6 +231,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dizinde kayıt yok | `No records in this index.` | Hazır tür dizini boş durumu |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
 | Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
+| Proje gezinmesi | `Project navigation` | Proje kabuğunda Overview, Work, All Tools ve etkin Proje alanları arasında geçiş sağlayan kalıcı gezinme bölgesi |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
 | Belge şablonu | `Document Template` | Proje veya Kişisel Wiki kapsamında tekrar kullanılan Belge başlangıç iskeleti; İş şablonu veya şablon pazarı değildir |
@@ -692,6 +694,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeniden deneme | `Do not retry.` | Yazılmış başarısız akışta yeniden denemenin güvensiz olduğunu bildirir |
 | Bu eylem tamamlanamadı | `This action could not be completed.` | Secret taşıyan veya beklenmeyen hatanın kullanıcıya gösterilen nedeni |
 | Yakalama Gelen Kutusu | `Capture Inbox` | Kaydedilmiş fakat henüz kalıcı kayda dönüşmemiş geçici girdi yüzeyi; ana kayıt, Taslak veya kaydedilmiş bookmark değildir |
+| Yakalama kütüphanesi | `Capture Library` | Workspace ve Project Capture Inbox öğelerini tek listede gösteren yüzey; yeni yakalama formu modal olarak açılır ve ayrı bir kayıt türü değildir |
 | Çalışma alanı Yakalama Gelen Kutusu | `Workspace Capture Inbox` | Proje bilinmediğinde geçici yakalamaların durduğu Inbox |
 | Workspace Capture Inbox’a kaydet | `Leave empty to save to the Workspace Capture Inbox.` | Project alanı boşken Save’in Workspace Capture Inbox’a yazacağını söyleyen metin |
 | Proje Yakalama Gelen Kutusu | `Project Capture Inbox` | Proje bilindiğinde o projenin geçici yakalamalarının durduğu Inbox |

@@ -18,7 +18,7 @@ import {
   ChevronLeft,
   Command as CommandIcon,
   FileText,
-  LayoutDashboard,
+  FolderKanban,
   LoaderCircle,
   Monitor,
   Plus,
@@ -99,6 +99,7 @@ export default function CommandPalette({
   >([]);
   const [failureReason, setFailureReason] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [recordsReady, setRecordsReady] = useState(false);
   const [query, setQuery] = useState(initialQuery);
   const commandInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,7 +129,7 @@ export default function CommandPalette({
   );
   const sourceRecordCommands = useMemo(
     () =>
-      open && commandStack.length === 0
+      open && recordsReady && commandStack.length === 0
         ? buildCommandPaletteRecordCommands(
             authorizedRecords,
             onOpenRecord,
@@ -136,7 +137,14 @@ export default function CommandPalette({
             COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
           )
         : [],
-    [authorizedRecords, commandStack.length, onOpenRecord, open, query],
+    [
+      authorizedRecords,
+      commandStack.length,
+      onOpenRecord,
+      open,
+      query,
+      recordsReady,
+    ],
   );
   const recordCommandsFromCommandList = useMemo(
     () =>
@@ -167,10 +175,12 @@ export default function CommandPalette({
 
   useEffect(() => {
     if (!open) {
+      setRecordsReady(false);
       return;
     }
 
     const frame = requestAnimationFrame(() => {
+      setRecordsReady(true);
       commandInputRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
@@ -415,8 +425,8 @@ function PaletteCommandIcon({ command }: { command: CommandPaletteCommand }) {
   }
   if (command.kind === "navigation") {
     switch (command.target) {
-      case "Dashboard":
-        return <LayoutDashboard aria-hidden="true" className="size-4" />;
+      case "Projects":
+        return <FolderKanban aria-hidden="true" className="size-4" />;
       case "Sessions":
         return <Monitor aria-hidden="true" className="size-4" />;
       case "Preferences":
@@ -469,14 +479,14 @@ export function CommandPaletteTrigger() {
       aria-haspopup="dialog"
       aria-keyshortcuts="Control+K Meta+K"
       aria-label={`Open Command Palette (${shortcut})`}
-      className="gap-2 border-border/80 bg-background/60"
+      className="h-8 gap-2 border-border/80 bg-background/60 px-2.5 sm:px-3"
       onClick={handleClick}
       type="button"
       variant="outline"
     >
       <CommandIcon aria-hidden="true" />
-      <span>Command Palette</span>
-      <Kbd>{shortcut}</Kbd>
+      <span className="hidden sm:inline">Command Palette</span>
+      <Kbd className="hidden sm:inline-flex">{shortcut}</Kbd>
     </Button>
   );
 }
@@ -500,7 +510,7 @@ export function CommandPaletteQuickActions() {
   return (
     <div className="flex flex-wrap items-center gap-1 border-border border-l pl-2">
       <Button
-        className="border border-transparent hover:border-border"
+        className="h-8 border border-transparent px-2 hover:border-border"
         onClick={handleSwitchProjectClick}
         type="button"
         variant="ghost"
@@ -508,7 +518,7 @@ export function CommandPaletteQuickActions() {
         Switch Project
       </Button>
       <Button
-        className="border border-transparent hover:border-border"
+        className="h-8 border border-transparent px-2 hover:border-border"
         onClick={handleCreateClick}
         type="button"
         variant="ghost"
@@ -564,7 +574,7 @@ export function CommandPaletteProvider({
       label: string;
       scope: string;
       target: string;
-      to: "/dashboard" | "/account" | "/account/preferences";
+      to: "/projects" | "/account" | "/account/preferences";
     }): CommandPaletteCommand => ({
       id,
       keywords,
@@ -580,12 +590,12 @@ export function CommandPaletteProvider({
 
     return [
       navigationCommand({
-        id: "open-dashboard",
-        keywords: ["open", "dashboard"],
-        label: "Open Dashboard",
+        id: "open-projects",
+        keywords: ["open", "projects", "workspace"],
+        label: "Open Projects",
         scope: "Workspace",
-        target: "Dashboard",
-        to: "/dashboard",
+        target: "Projects",
+        to: "/projects",
       }),
       navigationCommand({
         id: "open-sessions",
