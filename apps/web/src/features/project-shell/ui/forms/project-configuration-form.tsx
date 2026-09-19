@@ -16,7 +16,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { type FormEvent, useCallback, useState } from "react";
-
+import CustomFieldEditor from "@/features/custom-fields/ui/components/custom-field-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
 import {
@@ -205,6 +205,7 @@ export default function ProjectConfigurationForm({
                 onChange={mutation.mutate}
                 onEnableProjectArea={requestEnableProjectArea}
                 onReorderPinnedArea={requestReorderPinnedArea}
+                projectId={projectId}
               />
             ) : (
               <div className="flex min-h-32 items-center">
@@ -257,6 +258,7 @@ function ConfigurationHostPanel({
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
+  projectId,
 }: {
   configuration: ProjectShellConfiguration;
   disabled: boolean;
@@ -265,6 +267,7 @@ function ConfigurationHostPanel({
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
+  projectId: string;
 }) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
@@ -293,6 +296,7 @@ function ConfigurationHostPanel({
         onChange={onChange}
         onEnableProjectArea={onEnableProjectArea}
         onReorderPinnedArea={onReorderPinnedArea}
+        projectId={projectId}
       />
     </section>
   );
@@ -307,6 +311,7 @@ function ConfigurationHostContent({
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
+  projectId,
 }: {
   configuration: ProjectShellConfiguration;
   disabled: boolean;
@@ -316,6 +321,7 @@ function ConfigurationHostContent({
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
+  projectId: string;
 }) {
   switch (label) {
     case "Stages":
@@ -349,7 +355,7 @@ function ConfigurationHostContent({
         />
       );
     case "Custom field":
-      return <CustomFieldEditorHost message={message} />;
+      return <CustomFieldEditor disabled={disabled} projectId={projectId} />;
     case "Work Context Card layout":
       return <WorkContextCardLayoutEditorHost message={message} />;
     default:
@@ -708,17 +714,6 @@ function WorkStatusesConfiguration({
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function CustomFieldEditorHost({ message }: { message: string }) {
-  return (
-    <div
-      className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3"
-      data-configuration-editor-host="custom-field"
-    >
-      <p>{message}</p>
     </div>
   );
 }

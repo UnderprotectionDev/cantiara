@@ -8,6 +8,10 @@ import {
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
   TAURI_CONFIRM_GITHUB_IDENTITY_CALLBACK_URL,
 } from "@cantiara/api/context";
+import type {
+  CustomFieldMutationContracts,
+  CustomFieldsAccess,
+} from "@cantiara/api/custom-fields";
 import {
   DEFAULT_DESKTOP_API_COMPATIBILITY_WINDOW,
   DESKTOP_API_CONTRACT_HEADER,
@@ -92,6 +96,8 @@ export interface AppDependencies {
   auth: AccountAccessAuth;
   captureInbox?: CaptureInboxAccess;
   corsOrigin: string;
+  customFieldMutationContracts?: CustomFieldMutationContracts;
+  customFields?: CustomFieldsAccess;
   database: Database;
   desktopApiNow?: () => Date;
   desktopApiWindow?: DesktopApiCompatibilityWindow;
@@ -889,6 +895,8 @@ export function createApp(dependencies: AppDependencies) {
         dependencies.accountPreferencesMutationContract,
       auth: dependencies.auth,
       captureInbox: dependencies.captureInbox,
+      customFields: dependencies.customFields,
+      customFieldMutationContracts: dependencies.customFieldMutationContracts,
       context: c,
       database: dependencies.database,
       githubAvailability: dependencies.githubAvailability,

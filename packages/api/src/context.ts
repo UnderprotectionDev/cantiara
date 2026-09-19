@@ -8,6 +8,10 @@ import type {
   Appearance,
 } from "./account-preferences";
 import type { CaptureInboxAccess } from "./capture-triage";
+import type {
+  CustomFieldMutationContracts,
+  CustomFieldsAccess,
+} from "./custom-fields";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type {
   ProjectShellAccess,
@@ -107,6 +111,8 @@ export interface Context {
   captureInbox?: CaptureInboxAccess;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;
+  customFieldMutationContracts?: CustomFieldMutationContracts;
+  customFields?: CustomFieldsAccess;
   db: Database;
   desktopApiContract?: string;
   githubAvailability: GitHubAvailability;

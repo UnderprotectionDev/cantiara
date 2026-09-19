@@ -9,6 +9,8 @@ import {
   accountSessionAccess,
   auth,
   captureInbox,
+  customFieldMutationContracts,
+  customFields,
   getDb,
   githubAvailability,
   githubIdentityConfirmation,
@@ -34,6 +36,8 @@ export default createApp({
   accountPreferencesMutationContract,
   auth,
   captureInbox,
+  customFields,
+  customFieldMutationContracts,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
     previousContract: env.CANTIARA_DESKTOP_API_PREVIOUS_CONTRACT,
