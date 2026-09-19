@@ -47,7 +47,6 @@ export default function ProjectShellView({
 
   return (
     <main className="surface-frame max-w-[1440px]">
-      <ClientShellStatus accountFormattingPreferences={formattingPreferences} />
       <ProjectShellSurface
         accountFormattingPreferences={formattingPreferences}
         project={projectQuery.data}

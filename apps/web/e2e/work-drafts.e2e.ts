@@ -49,6 +49,15 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
     hasText: "You’re offline",
   });
   await expect(offlineState).toBeVisible();
+  await expect(
+    workCreate.getByRole("status").filter({ hasText: "You’re offline" }),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator("main > [role='status']")
+      .filter({ hasText: "You’re offline" }),
+  ).toHaveCount(0);
+  await expect(workCreate.getByText("Ready", { exact: true })).toHaveCount(0);
   await title.fill("Unsaved offline change");
   await expect(offlineState).toContainText("Last saved");
   await expect(offlineState).toContainText("Unsaved changes may be lost");

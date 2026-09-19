@@ -1,5 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Draft fields close over the current form state and save seam.
 
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import { type WorkDraft, workDraftFormSchema } from "@cantiara/api/work-drafts";
 import {
   createWorkInputSchema,
@@ -35,6 +39,7 @@ import {
   useClientShell,
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
+import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
 interface WorkDraftFormValues {
@@ -65,7 +70,13 @@ function draftValues(draft: WorkDraft): WorkDraftFormValues {
   };
 }
 
-export default function WorkDraftForm({ projectId }: { projectId: string }) {
+export default function WorkDraftForm({
+  accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
+  projectId,
+}: {
+  accountFormattingPreferences?: AccountPreferences;
+  projectId: string;
+}) {
   const shell = useClientShell();
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
@@ -376,6 +387,10 @@ export default function WorkDraftForm({ projectId }: { projectId: string }) {
 
   return (
     <div className="mt-4 space-y-6 border-t pt-4">
+      <ClientShellStatus
+        accountFormattingPreferences={accountFormattingPreferences}
+        presentation="inline"
+      />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h5 className="font-medium text-foreground">Draft</h5>
@@ -384,7 +399,7 @@ export default function WorkDraftForm({ projectId }: { projectId: string }) {
             Draft into one Work.
           </p>
         </div>
-        {activeDraftId ? (
+        {activeDraftId && connection === "online" ? (
           <span className="rounded-full border border-border/70 px-2 py-1 text-muted-foreground text-xs">
             {isSaving ? "Saving…" : "Ready"}
           </span>
