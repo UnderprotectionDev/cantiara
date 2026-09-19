@@ -33,10 +33,10 @@ export default function ProjectsView() {
   const projects = useQuery(projectsQueryOptions());
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
-      <header className="flex flex-col gap-6 border-b pb-6 sm:flex-row sm:items-start sm:justify-between">
+    <main className="surface-frame max-w-6xl">
+      <header className="surface-header flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-2xl">
-          <h1 className="text-balance font-semibold text-3xl tracking-tight">
+          <h1 className="mt-2 text-balance font-semibold text-3xl tracking-tight">
             Projects
           </h1>
           <p className="mt-3 text-pretty text-muted-foreground text-sm/6">
@@ -50,9 +50,12 @@ export default function ProjectsView() {
         </Link>
       </header>
 
-      <section aria-labelledby="projects-list-heading" className="pt-8">
-        <div className="mb-3 flex items-baseline justify-between gap-4">
-          <h2 className="font-medium text-sm" id="projects-list-heading">
+      <section aria-labelledby="projects-list-heading" className="pt-9">
+        <div className="mb-4 flex items-baseline justify-between gap-4">
+          <h2
+            className="font-semibold text-lg tracking-tight"
+            id="projects-list-heading"
+          >
             Your Projects
           </h2>
           {projects.data ? (
@@ -74,7 +77,7 @@ export default function ProjectsView() {
         ) : null}
         {projects.data?.length === 0 ? <ProjectsEmptyState /> : null}
         {projects.data && projects.data.length > 0 ? (
-          <ul className="divide-y border-y">
+          <ul className="divide-y rounded-lg border border-border/70 bg-card/50">
             {projects.data.map((project) => (
               <ProjectRow key={project.id} project={project} />
             ))}
@@ -148,7 +151,7 @@ function ProjectRow({ project }: { project: ProjectProfile }) {
   }
 
   return (
-    <li className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
+    <li className="grid gap-6 px-5 py-5 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-muted/35 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate font-medium">
@@ -172,7 +175,7 @@ function ProjectRow({ project }: { project: ProjectProfile }) {
           </p>
         ) : null}
       </div>
-      <div className="border-l pl-5 lg:border-l lg:pl-5">
+      <div className="border-border/70 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
         <form className="space-y-2" onSubmit={saveShortCode}>
           <label
             className="font-medium text-xs"
@@ -239,9 +242,9 @@ function ProjectRow({ project }: { project: ProjectProfile }) {
 
 function ProjectsEmptyState() {
   return (
-    <div className="border-y bg-muted/20 px-5 py-10 sm:px-6">
+    <div className="rounded-lg border border-border/80 border-dashed bg-card/45 px-5 py-10 sm:px-6">
       <div className="flex max-w-2xl items-start gap-4">
-        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center border bg-background">
+        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border bg-background">
           <FolderOpen aria-hidden="true" className="size-4" />
         </div>
         <div>

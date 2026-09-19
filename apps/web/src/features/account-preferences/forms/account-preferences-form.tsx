@@ -149,9 +149,9 @@ function AccountPreferencesSaveStatus({
   const StatusIcon = isOnline ? CircleAlert : WifiOff;
 
   return (
-    <aside
+    <div
       aria-live="polite"
-      className="flex gap-3 border border-destructive/25 bg-destructive/5 p-4"
+      className="flex gap-3 rounded-lg border border-destructive/25 bg-destructive/5 p-4"
       role="status"
     >
       <StatusIcon
@@ -233,7 +233,7 @@ function AccountPreferencesSaveStatus({
           </div>
         ) : null}
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -347,8 +347,8 @@ export default function AccountPreferencesForm({
   return (
     <form className="space-y-6" noValidate onSubmit={handleSubmit}>
       {snapshot.isSaved ? null : (
-        <aside
-          className="flex gap-3 border border-border bg-muted/35 p-4"
+        <div
+          className="flex gap-3 rounded-lg border border-border/70 bg-card/45 p-4"
           role="status"
         >
           <Globe2
@@ -371,7 +371,7 @@ export default function AccountPreferencesForm({
               Use suggested locale and time zone
             </Button>
           </div>
-        </aside>
+        </div>
       )}
 
       <form.Subscribe selector={selectIsDirty}>
@@ -582,7 +582,7 @@ export default function AccountPreferencesForm({
             return (
               <section
                 aria-labelledby="account-preferences-preview"
-                className="border bg-muted/20 p-5 lg:sticky lg:top-4 lg:row-span-2"
+                className="rounded-lg border border-border/70 bg-card/45 p-5 shadow-sm lg:sticky lg:top-20 lg:row-span-2"
               >
                 <div className="flex items-baseline justify-between gap-4">
                   <h2

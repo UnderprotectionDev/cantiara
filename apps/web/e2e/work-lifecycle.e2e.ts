@@ -30,6 +30,10 @@ test("creates Work with a Project key, type, and protected start status", async 
   await page.getByRole("link", { name: "Payment App", exact: true }).click();
   await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
 
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill("Investigate payment failures");
   await page.getByLabel("Type").selectOption("Research");

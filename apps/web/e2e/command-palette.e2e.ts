@@ -7,7 +7,7 @@ import {
   test,
 } from "@playwright/test";
 
-const DASHBOARD_URL_PATTERN = /\/dashboard$/;
+const PROJECTS_URL_PATTERN = /\/projects$/;
 const PREFERENCES_URL_PATTERN = /\/account\/preferences$/;
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const COMMAND_PALETTE_VISIBLE_BUDGET_MS = {
@@ -41,8 +41,8 @@ async function establishFounderSession(
     };
   };
   await context.addCookies([setup.cookie]);
-  await page.goto("/dashboard");
-  await expect(page).toHaveURL(DASHBOARD_URL_PATTERN);
+  await page.goto("/projects");
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
 }
 
 function measureVisibilitySamples(
@@ -123,10 +123,10 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
         await page.setExtraHTTPHeaders({
           "x-forwarded-for": `198.51.100.${offset + pageIndex + 1}`,
         });
-        await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-        await expect(page).toHaveURL(DASHBOARD_URL_PATTERN);
+        await page.goto("/projects", { waitUntil: "domcontentloaded" });
+        await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
         await expect(
-          page.getByRole("heading", { name: "Dashboard", level: 1 }),
+          page.getByRole("heading", { name: "Projects", level: 1 }),
         ).toBeVisible();
         await page.waitForSelector(COMMAND_PALETTE_TRIGGER_SELECTOR);
         return page;
@@ -170,9 +170,9 @@ test("opens the founder Command Palette across contexts and keeps it off public 
     page.getByRole("dialog", { name: "Command Palette" }),
   ).toHaveCount(0);
 
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await expect(
-    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
   const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
   await expect(
@@ -278,9 +278,9 @@ test("completes the Command Palette journey with keyboard input only", async ({
   request,
 }) => {
   await establishFounderSession(page, context, request);
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await expect(
-    page.getByRole("heading", { name: "Dashboard", level: 1 }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
 
   const palette = page.locator('[role="dialog"]:visible');
@@ -325,7 +325,7 @@ test("measures Command Palette visibility at the reference workspace scale", asy
 }) => {
   test.setTimeout(300_000);
   await establishFounderSession(page, context, request);
-  await page.goto("/dashboard");
+  await page.goto("/projects");
 
   const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
   const palette = page.getByRole("dialog", { name: "Command Palette" });
@@ -373,7 +373,7 @@ test("keeps the Command Palette accessible to keyboard and assistive technology"
   request,
 }) => {
   await establishFounderSession(page, context, request);
-  await page.goto("/dashboard");
+  await page.goto("/projects");
 
   const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
   const palette = page.getByRole("dialog", { name: "Command Palette" });
@@ -400,7 +400,7 @@ test("keeps the Command Palette accessible to keyboard and assistive technology"
   const commandInput = palette.getByRole("combobox", {
     name: "Filter Command Palette commands",
   });
-  await commandInput.fill("Open Dashboard");
+  await commandInput.fill("Open Projects");
   await page.keyboard.press("Enter");
   await expect(palette).toHaveCount(0);
   await expect(trigger).toBeFocused();

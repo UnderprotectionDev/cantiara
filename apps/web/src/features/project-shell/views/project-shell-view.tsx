@@ -42,7 +42,7 @@ type NavigationSurface =
   | (typeof ALWAYS_REACHABLE_SURFACES)[number]
   | ProjectArea;
 const NAVIGATION_LINK_BASE =
-  "relative -mb-px px-0.5 py-3 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+  "relative inline-flex min-w-max items-center rounded-md px-3 py-2 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full";
 const PROJECT_SHELL_EXPLANATION_STORAGE_PREFIX =
   "cantiara:project-shell:explanation-dismissed:";
 
@@ -66,7 +66,7 @@ const CONFIGURATION_HOSTS = [
       "Open the host for enabled Project areas. Overview and All Tools stay reachable.",
     label: "Project areas",
     message:
-      "Use All Tools below to enable a ready Project area without creating records.",
+      "Enable, hide, and pin ready Project areas without creating records.",
   },
   {
     description:
@@ -221,9 +221,24 @@ export default function ProjectShellView({
     setConfigurationHost(null);
   }, [projectId]);
 
+  useEffect(() => {
+    if (!activeHash || typeof window === "undefined") {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(activeHash)?.scrollIntoView({
+        block: "start",
+        behavior: "auto",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeHash]);
+
   if (projectQuery.isPending) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
+      <main className="surface-frame max-w-[1440px]">
         <div aria-label="Loading…" role="status">
           Loading…
         </div>
@@ -233,7 +248,7 @@ export default function ProjectShellView({
 
   if (projectQuery.isError) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
+      <main className="surface-frame max-w-[1440px]">
         <div className="border-y py-8 text-sm" role="alert">
           <p className="font-medium">Project is unavailable.</p>
           <p className="mt-1 text-muted-foreground">
@@ -269,9 +284,72 @@ export default function ProjectShellView({
     });
   }
 
+  const projectSurface = (() => {
+    if (activeHash === "all-tools" || activeHash.startsWith("project-area-")) {
+      return (
+        <AllToolsSection
+          baseRevision={revision}
+          configuration={configuration}
+          configurationMode={configurationMode}
+          projectId={projectId}
+        />
+      );
+    }
+
+    if (activeHash === "work" || activeHash.startsWith("work-")) {
+      return (
+        <ProjectWorkSurface
+          activeAction={dailyAction}
+          configuration={configuration}
+          projectId={projectId}
+        />
+      );
+    }
+
+    return (
+      <>
+        <ProjectOverviewView
+          accountFormattingPreferences={accountFormattingPreferences}
+          project={projectQuery.data}
+        />
+
+        <ScopeTreeSection query={scopeTreeQuery} />
+
+        <section
+          aria-label="Project Shell configuration summary"
+          className="space-y-8 border-border/70 border-t pt-8"
+          id="project-shell-configuration-summary"
+        >
+          <div className="grid items-start gap-x-10 gap-y-8 lg:grid-cols-2">
+            <ConfigurationList
+              emptyMessage="No stages prepared."
+              items={configuration.preparedStages.map((stage) => stage.name)}
+              label="Stages"
+            />
+            <ConfigurationList
+              items={configuration.workStatusLabels.map(
+                (workStatus) => workStatus.label,
+              )}
+              label="Work statuses"
+            />
+            <ConfigurationList
+              items={configuration.preparedWorkViews}
+              label="Saved views"
+            />
+            <EnabledAreasList
+              areas={configuration.enabledAreas.filter(
+                (area) => !configuration.hiddenAreas.includes(area),
+              )}
+            />
+          </div>
+        </section>
+      </>
+    );
+  })();
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-      <header className="border-b pb-8">
+    <main className="surface-frame max-w-[1440px]">
+      <header className="surface-header">
         <Link
           className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3`}
           to="/projects"
@@ -279,7 +357,7 @@ export default function ProjectShellView({
           <ArrowLeft aria-hidden="true" />
           Projects
         </Link>
-        <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-8">
+        <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-10">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-balance font-semibold text-3xl tracking-tight">
@@ -287,11 +365,11 @@ export default function ProjectShellView({
               </h1>
               <Badge variant="secondary">{status}</Badge>
             </div>
-            <p className="mt-3 max-w-xl text-muted-foreground text-sm/relaxed">
+            <p className="mt-2 max-w-xl text-muted-foreground text-sm/relaxed">
               A durable home for this Project’s work and context.
             </p>
           </div>
-          <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5">
+          <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
             <div>
               <dt className="text-muted-foreground text-xs">Short code</dt>
               <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
@@ -306,7 +384,7 @@ export default function ProjectShellView({
             </div>
           </dl>
         </div>
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
           <div>
             <p className="font-medium text-sm">Configuration Mode</p>
             <p className="mt-1 text-muted-foreground text-xs/relaxed">
@@ -328,7 +406,7 @@ export default function ProjectShellView({
       {showExplanation ? (
         <aside
           aria-label="Starter Configuration explanation"
-          className="mt-5 flex items-start gap-3 border bg-muted/20 p-4"
+          className="mt-5 flex items-start gap-3 rounded-lg border border-border/70 bg-card/55 p-4 shadow-sm"
         >
           <CircleHelp
             aria-hidden="true"
@@ -347,101 +425,84 @@ export default function ProjectShellView({
         </aside>
       ) : null}
 
-      <ProjectNavigation
-        enabledAreas={configuration.enabledAreas}
-        extraPinnedAreas={configuration.extraPinnedAreas}
-        hiddenAreas={configuration.hiddenAreas}
-      />
-
-      {configurationMode ? (
-        <ConfigurationModePanel
-          baseRevision={revision}
-          configuration={configuration}
-          configurationHost={configurationHost}
-          onConfigurationHostChange={setConfigurationHost}
-          projectId={projectId}
-          starterConfiguration={starterConfiguration}
+      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
+        <ProjectNavigation
+          enabledAreas={configuration.enabledAreas}
+          extraPinnedAreas={configuration.extraPinnedAreas}
+          hiddenAreas={configuration.hiddenAreas}
         />
-      ) : null}
 
-      <ProjectOverviewView
-        accountFormattingPreferences={accountFormattingPreferences}
-        project={projectQuery.data}
-      />
+        <div className="min-w-0 space-y-10">
+          {configurationMode ? (
+            <ConfigurationModePanel
+              baseRevision={revision}
+              configuration={configuration}
+              configurationHost={configurationHost}
+              onConfigurationHostChange={setConfigurationHost}
+              projectId={projectId}
+              starterConfiguration={starterConfiguration}
+            />
+          ) : null}
 
-      <ScopeTreeSection query={scopeTreeQuery} />
+          {projectSurface}
+        </div>
+      </div>
+    </main>
+  );
+}
 
-      <section
-        aria-label="Project Shell configuration summary"
-        className="mt-10 space-y-10"
-        id="project-shell-configuration-summary"
-      >
-        <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-2">
-          <ConfigurationList
-            emptyMessage="No stages prepared."
-            items={configuration.preparedStages.map((stage) => stage.name)}
-            label="Stages"
-          />
-          <ConfigurationList
-            items={configuration.workStatusLabels.map(
-              (workStatus) => workStatus.label,
-            )}
-            label="Work statuses"
-          />
-          <ConfigurationList
-            items={configuration.preparedWorkViews}
-            label="Saved views"
-          />
-          <EnabledAreasList
-            areas={configuration.enabledAreas.filter(
-              (area) => !configuration.hiddenAreas.includes(area),
-            )}
+function ProjectWorkSurface({
+  activeAction,
+  configuration,
+  projectId,
+}: {
+  activeAction: DailyAction | null;
+  configuration: ProjectShellConfiguration;
+  projectId: string;
+}) {
+  return (
+    <section
+      aria-labelledby="work-surface-heading"
+      className="space-y-8"
+      id="work"
+    >
+      <header className="surface-header max-w-3xl">
+        <p className="surface-kicker">Work</p>
+        <h2
+          className="mt-2 text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
+          id="work-surface-heading"
+        >
+          Work
+        </h2>
+        <p className="mt-3 text-muted-foreground text-sm/relaxed">
+          Daily actions stay separate from Overview source records. Start, edit,
+          and review this Project’s Work here.
+        </p>
+      </header>
+
+      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-10">
+        <div className="min-w-0">
+          <DailyWorkActions activeAction={activeAction} projectId={projectId} />
+          <ProjectWorkList
+            projectId={projectId}
+            workStatusLabels={configuration.workStatusLabels}
           />
         </div>
-
-        <section
-          className="grid gap-6 border-y py-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-8"
-          id="work-actions"
-        >
-          <div>
-            <h2 className="font-medium text-lg">Work</h2>
-            <ProjectWorkList
-              projectId={projectId}
-              workStatusLabels={configuration.workStatusLabels}
-            />
-            <p className="mt-2 text-muted-foreground text-sm/relaxed">
-              Daily actions stay separate from Overview source records.
-            </p>
-            <DailyWorkActions
-              activeAction={dailyAction}
-              projectId={projectId}
-            />
-          </div>
-          <div className="lg:border-l lg:pl-6">
-            <p className="font-medium text-muted-foreground text-xs">
-              Saved views
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {configuration.preparedWorkViews.map((view) => (
-                <span
-                  className="border bg-background px-3 py-1.5 text-sm"
-                  key={view}
-                >
-                  {view}
-                </span>
-              ))}
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <AllToolsSection
-        baseRevision={revision}
-        configuration={configuration}
-        configurationMode={configurationMode}
-        projectId={projectId}
-      />
-    </main>
+        <aside className="border-border/70 border-t pt-5 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
+          <p className="surface-kicker">Saved views</p>
+          <ul aria-label="Saved views" className="mt-3 space-y-1">
+            {configuration.preparedWorkViews.map((view) => (
+              <li
+                className="rounded-md px-2.5 py-2 text-muted-foreground text-sm"
+                key={view}
+              >
+                {view}
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
+    </section>
   );
 }
 
@@ -493,11 +554,11 @@ function DailyWorkActions({
   projectId: string;
 }) {
   return (
-    <section aria-labelledby="daily-actions-heading" className="mt-5">
+    <section aria-labelledby="daily-actions-heading" className="mb-6">
       <h3 className="sr-only" id="daily-actions-heading">
         Daily actions
       </h3>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 border-border/70 border-b pb-4">
         {DAILY_ACTIONS.map((action) => (
           <DailyActionLink
             action={action}
@@ -530,11 +591,27 @@ function DailyActionLink({
     <a
       {...linkProps}
       aria-current={activeAction === action ? "location" : undefined}
-      className={buttonVariants({ size: "xs", variant: "outline" })}
+      className={buttonVariants({
+        size: "xs",
+        variant: dailyActionVariant(action, activeAction),
+      })}
     >
       {action}
     </a>
   );
+}
+
+function dailyActionVariant(
+  action: DailyAction,
+  activeAction: DailyAction | null,
+) {
+  if (activeAction === action) {
+    return "secondary" as const;
+  }
+  if (action === "Create") {
+    return "default" as const;
+  }
+  return "outline" as const;
 }
 
 function DailyActionHost({
@@ -549,7 +626,7 @@ function DailyActionHost({
   return (
     <section
       aria-labelledby={`${hostId}-heading`}
-      className="mt-4 border bg-muted/20 p-3 text-muted-foreground text-sm"
+      className="mt-4 rounded-md border border-border/70 bg-card/45 p-4 text-muted-foreground text-sm"
       id={hostId}
     >
       <h4 className="font-medium text-foreground" id={`${hostId}-heading`}>
@@ -586,15 +663,75 @@ function ConfigurationModePanel({
   const [restorePreviewOpen, setRestorePreviewOpen] = useState(false);
   const defaultPinnedAreas =
     getStarterConfigurationDefinition(starterConfiguration).extraPinnedAreas;
+  const queryClient = useQueryClient();
+  const projectQueryKey = orpc.project.queryOptions({
+    input: { projectId },
+  }).queryKey;
+  const [enableError, setEnableError] = useState<string | null>(null);
+  const enableProjectArea = useMutation({
+    mutationFn: (area: ProjectArea) =>
+      runOnlineOnlyWrite(() =>
+        client.enableProjectArea({
+          area,
+          baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          projectId,
+        }),
+      ),
+    onError: () => {
+      setEnableError("Project area could not be enabled. Try again.");
+    },
+    onSuccess: async (nextProject) => {
+      setEnableError(null);
+      queryClient.setQueryData(projectQueryKey, nextProject);
+      await queryClient.invalidateQueries({ queryKey: projectQueryKey });
+    },
+  });
+  const requestEnableProjectArea = useCallback(
+    (area: ProjectArea) => {
+      setEnableError(null);
+      enableProjectArea.mutate(area);
+    },
+    [enableProjectArea],
+  );
+  const requestConfigurationChange = useCallback(
+    (change: ProjectShellConfigurationChange) => {
+      mutation.mutate(change);
+    },
+    [mutation],
+  );
+  const requestReorderPinnedArea = useCallback(
+    (area: ProjectArea, direction: -1 | 1) => {
+      const currentIndex = configuration.extraPinnedAreas.indexOf(area);
+      const nextIndex = currentIndex + direction;
+      if (
+        currentIndex < 0 ||
+        nextIndex < 0 ||
+        nextIndex >= configuration.extraPinnedAreas.length
+      ) {
+        return;
+      }
+      const areas = [...configuration.extraPinnedAreas];
+      const [moved] = areas.splice(currentIndex, 1);
+      if (!moved) {
+        return;
+      }
+      areas.splice(nextIndex, 0, moved);
+      requestConfigurationChange({ kind: "reorder-pinned-areas", areas });
+    },
+    [configuration.extraPinnedAreas, requestConfigurationChange],
+  );
+  const combinedError = enableError ?? error;
+  const disabled = enableProjectArea.isPending || mutation.isPending;
 
   return (
     <section
       aria-label="Configuration Mode"
-      className="mt-6 space-y-8 border border-primary/30 bg-primary/5 p-5 sm:p-6"
+      className="mt-6 space-y-6 rounded-lg border border-border/80 bg-card/55 p-5 shadow-sm sm:p-6"
     >
-      <header className="max-w-3xl">
+      <header className="max-w-3xl border-border/70 border-b pb-5">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge>Configuration Mode</Badge>
+          <Badge variant="secondary">Configuration Mode</Badge>
         </div>
         <h2 className="mt-3 font-semibold text-xl tracking-tight">
           Configuration Mode
@@ -606,7 +743,7 @@ function ConfigurationModePanel({
         </p>
       </header>
 
-      <section aria-labelledby="configuration-project-areas-heading">
+      <div>
         <h3
           className="font-medium text-base"
           id="configuration-project-areas-heading"
@@ -614,12 +751,13 @@ function ConfigurationModePanel({
           Project areas
         </h3>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm/relaxed">
-          Enable a ready Project area from All Tools below. Enabling an area
-          changes presentation metadata only and does not create records.
+          Enable and arrange ready Project areas from the selected host below.
+          These controls change presentation metadata only and do not create
+          records.
         </p>
         <Button
           className="mt-4"
-          disabled={mutation.isPending}
+          disabled={disabled}
           onClick={() => setRestorePreviewOpen(true)}
           type="button"
           variant="outline"
@@ -640,10 +778,10 @@ function ConfigurationModePanel({
             <p className="text-muted-foreground">
               Default pinned areas: {defaultPinnedAreas.join(", ") || "None"}
             </p>
-            <ConfigurationMutationError error={error} />
+            <ConfigurationMutationError error={combinedError} />
             <div className="flex flex-wrap gap-2">
               <Button
-                disabled={mutation.isPending}
+                disabled={disabled}
                 onClick={() =>
                   mutation.mutate(
                     { kind: "restore-default-navigation" },
@@ -656,7 +794,7 @@ function ConfigurationModePanel({
                 Confirm
               </Button>
               <Button
-                disabled={mutation.isPending}
+                disabled={disabled}
                 onClick={() => setRestorePreviewOpen(false)}
                 size="xs"
                 type="button"
@@ -667,42 +805,55 @@ function ConfigurationModePanel({
             </div>
           </div>
         ) : null}
-      </section>
+      </div>
 
-      <section aria-labelledby="configuration-entry-points-heading">
+      <div>
         <h3
-          className="font-medium text-base"
+          className="font-medium text-sm"
           id="configuration-entry-points-heading"
         >
           Configuration Mode
         </h3>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {CONFIGURATION_HOSTS.map(({ description, label }) => {
-            const isOpen = configurationHost === label;
-            return (
-              <div className="border bg-background p-4" key={label}>
+        <div className="mt-3 grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
+          <nav
+            aria-label="Configuration Mode"
+            className="grid gap-1 rounded-md border border-border/70 bg-background/55 p-1"
+          >
+            {CONFIGURATION_HOSTS.map(({ description, label }) => (
+              <div className="group" key={label}>
                 <ConfigurationHostButton
-                  isOpen={isOpen}
+                  isOpen={configurationHost === label}
                   label={label}
                   onChange={onConfigurationHostChange}
                 />
-                <p className="mt-2 text-muted-foreground text-xs/relaxed">
+                <p className="px-3 pb-2 text-[0.68rem]/relaxed text-muted-foreground lg:hidden">
                   {description}
                 </p>
-                {isOpen ? (
-                  <ConfigurationHostPanel
-                    configuration={configuration}
-                    disabled={mutation.isPending}
-                    error={error}
-                    label={label}
-                    onChange={mutation.mutate}
-                  />
-                ) : null}
               </div>
-            );
-          })}
+            ))}
+          </nav>
+          <div className="min-w-0 rounded-md border border-border/70 bg-background/55 p-4 sm:p-5">
+            {configurationHost ? (
+              <ConfigurationHostPanel
+                configuration={configuration}
+                disabled={disabled}
+                error={combinedError}
+                label={configurationHost}
+                onChange={mutation.mutate}
+                onEnableProjectArea={requestEnableProjectArea}
+                onReorderPinnedArea={requestReorderPinnedArea}
+              />
+            ) : (
+              <div className="flex min-h-32 items-center">
+                <p className="max-w-md text-muted-foreground text-sm/relaxed">
+                  Choose a surface to inspect its Project-level controls. Daily
+                  Work editing stays outside this mode.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      </section>
+      </div>
     </section>
   );
 }
@@ -725,9 +876,10 @@ function ConfigurationHostButton({
     <Button
       aria-controls={isOpen ? configurationHostId(label) : undefined}
       aria-expanded={isOpen}
+      className="w-full justify-start"
       onClick={handleClick}
       type="button"
-      variant="ghost"
+      variant={isOpen ? "secondary" : "ghost"}
     >
       {label}
     </Button>
@@ -740,12 +892,16 @@ function ConfigurationHostPanel({
   error,
   label,
   onChange,
+  onEnableProjectArea,
+  onReorderPinnedArea,
 }: {
   configuration: ProjectShellConfiguration;
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
   onChange: (change: ProjectShellConfigurationChange) => void;
+  onEnableProjectArea: (area: ProjectArea) => void;
+  onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
 }) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
@@ -772,6 +928,8 @@ function ConfigurationHostPanel({
         label={label}
         message={host.message}
         onChange={onChange}
+        onEnableProjectArea={onEnableProjectArea}
+        onReorderPinnedArea={onReorderPinnedArea}
       />
     </section>
   );
@@ -784,6 +942,8 @@ function ConfigurationHostContent({
   label,
   message,
   onChange,
+  onEnableProjectArea,
+  onReorderPinnedArea,
 }: {
   configuration: ProjectShellConfiguration;
   disabled: boolean;
@@ -791,6 +951,8 @@ function ConfigurationHostContent({
   label: ConfigurationHost;
   message: string;
   onChange: (change: ProjectShellConfigurationChange) => void;
+  onEnableProjectArea: (area: ProjectArea) => void;
+  onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
 }) {
   switch (label) {
     case "Stages":
@@ -811,6 +973,18 @@ function ConfigurationHostContent({
           onChange={onChange}
         />
       );
+    case "Project areas":
+      return (
+        <ProjectAreasConfiguration
+          configuration={configuration}
+          disabled={disabled}
+          error={error}
+          message={message}
+          onChange={onChange}
+          onEnableProjectArea={onEnableProjectArea}
+          onReorderPinnedArea={onReorderPinnedArea}
+        />
+      );
     case "Custom field":
       return <CustomFieldEditorHost message={message} />;
     case "Work Context Card layout":
@@ -818,6 +992,67 @@ function ConfigurationHostContent({
     default:
       return <p className="mt-1">{message}</p>;
   }
+}
+
+function ProjectAreasConfiguration({
+  configuration,
+  disabled,
+  error,
+  message,
+  onChange,
+  onEnableProjectArea,
+  onReorderPinnedArea,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
+  message: string;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+  onEnableProjectArea: (area: ProjectArea) => void;
+  onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-4">
+      <p className="text-muted-foreground text-xs/relaxed">{message}</p>
+      <ConfigurationMutationError error={error} />
+      <ul
+        aria-label="Project areas"
+        className="grid divide-y rounded-md border border-border/70 bg-card/45 lg:grid-cols-2 lg:divide-y-0"
+      >
+        {ALL_PROJECT_AREAS.map((area) => {
+          const enabled = configuration.enabledAreas.includes(area);
+          const hidden = configuration.hiddenAreas.includes(area);
+          const pinned =
+            !isProjectCoreArea(area) &&
+            configuration.extraPinnedAreas.includes(area);
+          const pinnedIndex = configuration.extraPinnedAreas.indexOf(area);
+
+          return (
+            <li
+              aria-label={`${area} ${projectAreaAvailabilityLabel(enabled, hidden)}`}
+              className="flex items-center justify-between border-border/70 border-b px-3 py-3 text-sm last:border-b-0 lg:[&:nth-child(odd)]:border-r lg:[&:nth-last-child(-n+2)]:border-b-0"
+              key={area}
+            >
+              <span>{area}</span>
+              <ProjectAreaAvailability
+                area={area}
+                configurationMode
+                disabled={disabled}
+                enabled={enabled}
+                hidden={hidden}
+                onChange={onChange}
+                onEnable={onEnableProjectArea}
+                onReorder={onReorderPinnedArea}
+                pinned={pinned}
+                pinnedCount={configuration.extraPinnedAreas.length}
+                pinnedIndex={pinnedIndex}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 function ConfigurationMutationError({ error }: { error: string | null }) {
@@ -1117,7 +1352,7 @@ function WorkStatusesConfiguration({
 function CustomFieldEditorHost({ message }: { message: string }) {
   return (
     <div
-      className="mt-3 border-l-2 pl-3"
+      className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3"
       data-configuration-editor-host="custom-field"
     >
       <p>{message}</p>
@@ -1128,7 +1363,7 @@ function CustomFieldEditorHost({ message }: { message: string }) {
 function WorkContextCardLayoutEditorHost({ message }: { message: string }) {
   return (
     <div
-      className="mt-3 border-l-2 pl-3"
+      className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3"
       data-configuration-editor-host="work-context-card-layout"
     >
       <p>{message}</p>
@@ -1167,42 +1402,47 @@ function ProjectNavigation({
   );
 
   return (
-    <nav
-      aria-label="Project navigation"
-      className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1 border-b"
-    >
-      {ALWAYS_REACHABLE_SURFACES.map((surface) => (
-        <ProjectNavigationLink
-          activeSurface={activeSurface}
-          hash={navigationHash(surface)}
-          key={surface}
-          surface={surface}
-        />
-      ))}
-      {visibleCoreAreas.map((area) => (
-        <ProjectNavigationLink
-          activeSurface={activeSurface}
-          hash={navigationHash(area)}
-          key={area}
-          surface={area}
-        />
-      ))}
-      {visiblePinnedAreas.length > 0 ? (
-        <span
-          aria-hidden="true"
-          className="mx-1 hidden h-4 w-px bg-border sm:block"
-        />
-      ) : null}
-      {visiblePinnedAreas.map((area) => (
-        <ProjectNavigationLink
-          activeSurface={activeSurface}
-          hash={projectAreaHash(area)}
-          key={area}
-          pinned
-          surface={area}
-        />
-      ))}
-    </nav>
+    <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
+      <div className="mb-3 hidden px-2 lg:block">
+        <p className="surface-kicker">Project navigation</p>
+      </div>
+      <nav
+        aria-label="Project navigation"
+        className="flex min-w-0 gap-1 overflow-x-auto border-border/70 border-b pb-2 lg:flex-col lg:overflow-visible lg:border-b-0 lg:pb-0"
+      >
+        {ALWAYS_REACHABLE_SURFACES.map((surface) => (
+          <ProjectNavigationLink
+            activeSurface={activeSurface}
+            hash={navigationHash(surface)}
+            key={surface}
+            surface={surface}
+          />
+        ))}
+        {visibleCoreAreas.map((area) => (
+          <ProjectNavigationLink
+            activeSurface={activeSurface}
+            hash={navigationHash(area)}
+            key={area}
+            surface={area}
+          />
+        ))}
+        {visiblePinnedAreas.length > 0 ? (
+          <span
+            aria-hidden="true"
+            className="mx-1 hidden h-px bg-border lg:my-2 lg:block"
+          />
+        ) : null}
+        {visiblePinnedAreas.map((area) => (
+          <ProjectNavigationLink
+            activeSurface={activeSurface}
+            hash={projectAreaHash(area)}
+            key={area}
+            pinned
+            surface={area}
+          />
+        ))}
+      </nav>
+    </aside>
   );
 }
 
@@ -1228,7 +1468,7 @@ function ProjectNavigationLink({
     <a
       {...linkProps}
       aria-current={isActive ? "location" : undefined}
-      className={`${NAVIGATION_LINK_BASE} ${pinned ? "border-b border-dashed" : "border-b-2 font-medium"} ${navigationLinkStateClass(isActive)}`}
+      className={`${NAVIGATION_LINK_BASE} ${pinned ? "border-l border-dashed" : "border-l-2 font-medium"} ${navigationLinkStateClass(isActive)}`}
     >
       {surface}
     </a>
@@ -1237,8 +1477,8 @@ function ProjectNavigationLink({
 
 function navigationLinkStateClass(isActive: boolean) {
   return isActive
-    ? "border-foreground text-foreground"
-    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground";
+    ? "border-primary bg-accent text-accent-foreground"
+    : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/70 hover:text-foreground";
 }
 
 function navigationSurfaceFromHash(
@@ -1254,7 +1494,7 @@ function navigationSurfaceFromHash(
     return "All Tools";
   }
   if (
-    hash === "work" &&
+    (hash === "work" || hash.startsWith("work-")) &&
     enabledAreas.includes("Work") &&
     !hiddenAreas.includes("Work")
   ) {
@@ -1321,7 +1561,7 @@ function ConfigurationList({
   return (
     <section
       aria-labelledby={`${label.toLowerCase().replaceAll(" ", "-")}-heading`}
-      className="border-t pt-5"
+      className="border-border/70 border-t pt-5"
     >
       <h2
         className="font-medium text-base"
@@ -1329,9 +1569,15 @@ function ConfigurationList({
       >
         {label}
       </h2>
-      <ul aria-label={label} className="mt-3 divide-y border-y">
+      <ul
+        aria-label={label}
+        className="mt-3 divide-y rounded-md border border-border/70 bg-card/45"
+      >
         {items.map((item) => (
-          <li className="px-3 py-2.5 text-sm" key={item}>
+          <li
+            className="px-3 py-2.5 text-sm first:rounded-t-md last:rounded-b-md"
+            key={item}
+          >
             {item}
           </li>
         ))}
@@ -1347,14 +1593,20 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
   return (
     <section
       aria-labelledby="enabled-project-areas-heading"
-      className="border-t pt-5"
+      className="border-border/70 border-t pt-5"
     >
       <h2 className="font-medium text-base" id="enabled-project-areas-heading">
         Project areas
       </h2>
-      <ul aria-label="Enabled Project areas" className="mt-3 divide-y border-y">
+      <ul
+        aria-label="Enabled Project areas"
+        className="mt-3 divide-y rounded-md border border-border/70 bg-card/45"
+      >
         {areas.map((area) => (
-          <li className="px-3 py-2.5 text-sm" key={area}>
+          <li
+            className="px-3 py-2.5 text-sm first:rounded-t-md last:rounded-b-md"
+            key={area}
+          >
             {area}
           </li>
         ))}
@@ -1444,9 +1696,12 @@ function AllToolsSection({
     enableProjectArea.isPending || configurationMutation.isPending;
 
   return (
-    <section className="border-y py-6" id="all-tools">
+    <section
+      className="rounded-lg border border-border/70 bg-card/35 py-6"
+      id="all-tools"
+    >
       <div className="max-w-2xl">
-        <h2 className="font-medium text-lg">All Tools</h2>
+        <h2 className="font-semibold text-xl tracking-tight">All Tools</h2>
         <p className="mt-2 text-muted-foreground text-sm/relaxed">
           Every ready Project area stays discoverable here. Enabling an area
           does not create records or change another Project.
@@ -1459,7 +1714,7 @@ function AllToolsSection({
       ) : null}
       <ul
         aria-label="All Project areas"
-        className="mt-5 grid gap-x-8 border-y lg:grid-cols-2"
+        className="mt-5 grid gap-x-8 border-border/70 border-y lg:grid-cols-2"
       >
         {ALL_PROJECT_AREAS.map((area) => {
           const enabled = configuration.enabledAreas.includes(area);
@@ -1471,7 +1726,7 @@ function AllToolsSection({
           return (
             <li
               aria-label={`${area} ${projectAreaAvailabilityLabel(enabled, hidden)}`}
-              className="flex items-center justify-between border-b px-3 py-2.5 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
+              className="flex items-center justify-between border-border/70 border-b px-3 py-3 text-sm last:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b-0"
               id={projectAreaCatalogAnchor(area).slice(1)}
               key={area}
             >

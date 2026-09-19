@@ -162,7 +162,7 @@ export default function WorkMergeForm({
   return (
     <section aria-label={`Merge ${work.key}`} className="w-full">
       <form
-        className="w-full space-y-3 border border-foreground/15 bg-muted/20 p-3 text-left text-xs"
+        className="w-full space-y-3 rounded-md border border-foreground/15 bg-muted/20 p-3 text-left text-xs"
         noValidate
         onSubmit={handleSubmit}
       >
@@ -229,7 +229,7 @@ export default function WorkMergeForm({
                   className="space-y-3"
                   role="status"
                 >
-                  <div className="border-primary border-l-2 pl-3">
+                  <div className="rounded-md border border-primary/25 bg-primary/5 p-3">
                     <p className="font-medium text-sm">Merge Preview</p>
                     <p className="mt-1">
                       Surviving record: {preview.survivingWork.key} —{" "}
@@ -252,7 +252,7 @@ export default function WorkMergeForm({
                         ) : (
                           conflictFields.map((conflictField) => (
                             <label
-                              className="grid gap-1 border border-border/70 p-2"
+                              className="grid gap-1 rounded-sm border border-border/70 p-2"
                               htmlFor={`merge-field-${work.id}-${conflictField.key}`}
                               key={conflictField.key}
                             >

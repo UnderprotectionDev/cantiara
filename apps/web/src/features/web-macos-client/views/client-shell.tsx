@@ -351,11 +351,11 @@ function ClientShellOfflineState({
     <section
       aria-labelledby="client-shell-offline-title"
       aria-live="polite"
-      className="w-full max-w-2xl border-destructive border-l-2 py-2 pl-6 sm:pl-8"
+      className="w-full max-w-2xl rounded-lg border border-destructive/35 bg-destructive/5 p-5 shadow-sm"
       role="status"
     >
       <div className="flex items-start gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center border border-destructive/50 bg-destructive/15 text-destructive">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-destructive/35 bg-destructive/15 text-destructive">
           <WifiOff aria-hidden="true" className="size-6" strokeWidth={2} />
         </div>
         <div className="min-w-0 pt-0.5">
@@ -386,7 +386,7 @@ function ClientShellOfflineState({
       </dl>
 
       {state.hasUnsavedChanges ? (
-        <p className="mt-6 border border-destructive/40 bg-destructive/10 px-4 py-3 font-medium text-destructive text-sm">
+        <p className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 font-medium text-destructive text-sm">
           Unsaved changes may be lost
         </p>
       ) : null}
@@ -419,7 +419,7 @@ function ClientShellUpdateRequiredState({
     <section
       aria-labelledby="client-shell-update-required-title"
       aria-live="assertive"
-      className="w-full max-w-2xl border-destructive border-l-2 py-2 pl-6 sm:pl-8"
+      className="w-full max-w-2xl rounded-lg border border-destructive/35 bg-destructive/5 p-5 shadow-sm"
       role="status"
     >
       <h1

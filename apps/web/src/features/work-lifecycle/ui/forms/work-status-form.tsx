@@ -221,10 +221,18 @@ export default function WorkStatusForm({
     reopenWork.isPending;
 
   return (
-    <div className="flex min-w-52 flex-col items-end gap-2">
+    <div className="flex min-w-44 flex-col items-start gap-1">
+      <label
+        className="text-muted-foreground text-xs"
+        htmlFor={`work-status-${work.id}`}
+      >
+        Status
+      </label>
       <NativeSelect
         aria-label={`Status for ${work.key}`}
+        className="w-full"
         disabled={connection === "offline" || isPending}
+        id={`work-status-${work.id}`}
         onChange={(event) =>
           handleStatusChange(event.target.value as WorkStatus)
         }
@@ -254,7 +262,7 @@ export default function WorkStatusForm({
       {closePreview ? (
         <form
           aria-label={`Close ${work.key}`}
-          className="w-full space-y-3 border bg-muted/20 p-3 text-left"
+          className="w-full space-y-3 rounded-md border bg-muted/20 p-3 text-left"
           onSubmit={handleCloseSubmit}
           role="dialog"
         >
@@ -347,7 +355,7 @@ export default function WorkStatusForm({
       {reopenTarget ? (
         <div
           aria-label={`Reopen ${work.key}`}
-          className="w-full space-y-3 border bg-muted/20 p-3 text-left text-xs"
+          className="w-full space-y-3 rounded-md border bg-muted/20 p-3 text-left text-xs"
           role="dialog"
         >
           <p>

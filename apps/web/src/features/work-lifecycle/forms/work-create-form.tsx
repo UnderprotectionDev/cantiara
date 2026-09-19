@@ -116,7 +116,7 @@ export default function WorkCreateForm({ projectId }: { projectId: string }) {
     <div className="mt-4 border-t pt-4">
       {formError ? (
         <div
-          className="mb-4 border border-destructive/25 bg-destructive/5 p-3"
+          className="mb-4 rounded-md border border-destructive/25 bg-destructive/5 p-3"
           role="alert"
         >
           {formError}
@@ -124,7 +124,7 @@ export default function WorkCreateForm({ projectId }: { projectId: string }) {
       ) : null}
       {createdWorkKey ? (
         <p
-          className="mb-4 border border-primary/25 bg-primary/5 p-3"
+          className="mb-4 rounded-md border border-primary/25 bg-primary/5 p-3"
           role="status"
         >
           Work {createdWorkKey} created.
@@ -132,14 +132,14 @@ export default function WorkCreateForm({ projectId }: { projectId: string }) {
       ) : null}
       {connection === "offline" ? (
         <p
-          className="mb-4 border border-destructive/40 bg-destructive/5 p-3 text-destructive"
+          className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-destructive"
           role="status"
         >
           Work creation needs an active internet connection.
         </p>
       ) : null}
       <form className="space-y-5" noValidate onSubmit={handleSubmit}>
-        <FieldGroup>
+        <FieldGroup className="sm:grid sm:grid-cols-[minmax(0,1fr)_12rem]">
           <form.Field name="title">
             {(field) => (
               <Field>

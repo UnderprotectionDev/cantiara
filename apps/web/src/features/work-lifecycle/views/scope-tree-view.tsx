@@ -10,12 +10,15 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
   return (
     <section
       aria-labelledby="scope-tree-heading"
-      className="mt-10 space-y-4 border-y py-6"
+      className="mt-10 space-y-4 rounded-lg border border-border/70 bg-card/35 p-5"
       data-scope-tree-read-only="true"
       id="scope-tree"
     >
       <header>
-        <h2 className="font-medium text-lg" id="scope-tree-heading">
+        <h2
+          className="font-semibold text-xl tracking-tight"
+          id="scope-tree-heading"
+        >
           Scope Tree
         </h2>
         <p className="mt-1 max-w-2xl text-muted-foreground text-sm/relaxed">
@@ -30,7 +33,7 @@ export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
         {scopeTree.features.length > 0 ? (
           <ul
             aria-label="Scope Tree records"
-            className="mt-3 space-y-3 border-l pl-4"
+            className="mt-3 space-y-3 border-border/70 border-l pl-4"
           >
             {scopeTree.features.map((feature) => (
               <FeatureTreeNode
@@ -80,7 +83,7 @@ function FeatureTreeNode({
           />
         </div>
         {feature.includedWork.length > 0 ? (
-          <ul className="mt-3 space-y-2 border-l pl-4">
+          <ul className="mt-3 space-y-2 border-border/70 border-l pl-4">
             {feature.includedWork.map((node) => (
               <WorkTreeNode
                 key={node.work.id}

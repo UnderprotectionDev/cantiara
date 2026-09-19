@@ -125,7 +125,15 @@ export function captureFormValuesEqual(
   );
 }
 
-export default function CaptureInboxForm({ accountId }: { accountId: string }) {
+export default function CaptureInboxForm({
+  accountId,
+  onSaved,
+  showHeader = true,
+}: {
+  accountId: string;
+  onSaved?: () => void;
+  showHeader?: boolean;
+}) {
   const queryClient = useQueryClient();
   const projects = useQuery(projectsQueryOptions());
   const shell = useClientShell();
@@ -181,6 +189,7 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
       await createCapture.mutateAsync(captureInput(value, key));
       if (captureFormValuesEqual(value, form.state.values)) {
         form.reset();
+        onSaved?.();
       } else {
         shell.markUnsavedChanges();
       }
@@ -213,6 +222,7 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
       .then(() => {
         if (captureFormValuesEqual(values, form.state.values)) {
           form.reset();
+          onSaved?.();
         } else {
           shell.markUnsavedChanges();
         }
@@ -222,25 +232,32 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
 
   return (
     <section
-      aria-labelledby="new-capture-title"
-      className="w-full space-y-6 border border-border/70 p-5 sm:p-6"
+      aria-label={showHeader ? undefined : "New capture form"}
+      aria-labelledby={showHeader ? "new-capture-title" : undefined}
+      className={
+        showHeader
+          ? "w-full space-y-6 rounded-lg border border-border/70 bg-card/45 p-5 shadow-sm sm:p-6"
+          : "w-full space-y-6"
+      }
     >
-      <div>
-        <h2
-          className="font-semibold text-xl tracking-tight"
-          id="new-capture-title"
-        >
-          New capture
-        </h2>
-        <p className="mt-2 text-muted-foreground text-sm">
-          Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
-          directly when a Project is set.
-        </p>
-      </div>
+      {showHeader ? (
+        <div>
+          <h2
+            className="font-semibold text-xl tracking-tight"
+            id="new-capture-title"
+          >
+            New capture
+          </h2>
+          <p className="mt-2 text-muted-foreground text-sm">
+            Save keeps a Capture in the Inbox; Create Bug creates a Bug Work
+            directly when a Project is set.
+          </p>
+        </div>
+      ) : null}
 
       {connection === "offline" ? (
         <p
-          className="border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm"
+          className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm"
           role="status"
         >
           Capture writes need an active internet connection; nothing is queued
@@ -248,7 +265,10 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
         </p>
       ) : null}
       {actionMessage ? (
-        <p className="border bg-muted/35 px-4 py-3 text-sm" role="status">
+        <p
+          className="rounded-md border bg-muted/35 px-4 py-3 text-sm"
+          role="status"
+        >
           {actionMessage}
         </p>
       ) : null}
@@ -327,7 +347,7 @@ export default function CaptureInboxForm({ accountId }: { accountId: string }) {
               return (
                 <div
                   aria-live="polite"
-                  className="border border-primary/25 bg-primary/5 px-4 py-3"
+                  className="rounded-md border border-primary/25 bg-primary/5 px-4 py-3"
                 >
                   <p className="text-muted-foreground text-xs">Destination</p>
                   <p className="mt-1 font-medium text-sm">
