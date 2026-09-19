@@ -107,24 +107,27 @@ test("creates Work with a Project key, type, and protected start status", async 
   ).toBeVisible();
 
   await page.reload();
+  const workListItems = page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem");
   await expect(
-    page.getByRole("listitem").filter({
+    workListItems.filter({
       hasText: "PAY-1 Investigate payment failures",
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("listitem").filter({
+    workListItems.filter({
       hasText: "PAY-2 Document the payment flow",
     }),
   ).toContainText("Task");
 
-  const secondWork = page.getByRole("listitem").filter({
+  const secondWork = workListItems.filter({
     hasText: "PAY-2 Document the payment flow",
   });
   await secondWork.getByRole("button", { name: "Archive" }).click();
   await expect(secondWork).not.toBeVisible();
   await page.getByRole("button", { name: "Archived" }).click();
-  const archivedWork = page.getByRole("listitem").filter({
+  const archivedWork = workListItems.filter({
     hasText: "PAY-2 Document the payment flow",
   });
   await expect(archivedWork).toContainText("Not Started");
@@ -132,7 +135,7 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(archivedWork).not.toBeVisible();
   await page.getByRole("button", { name: "Archived" }).click();
   await expect(
-    page.getByRole("listitem").filter({
+    workListItems.filter({
       hasText: "PAY-2 Document the payment flow",
     }),
   ).toContainText("PAY-2");
