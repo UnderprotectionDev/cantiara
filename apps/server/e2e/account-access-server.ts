@@ -68,21 +68,29 @@ const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
 const githubAvailability = createGitHubAvailability();
+const authOptions = createAuthOptions(
+  {
+    BETTER_AUTH_SECRET: secret,
+    BETTER_AUTH_URL: serverOrigin,
+    CORS_ORIGIN: webOrigin,
+    GITHUB_CLIENT_ID: "e2e-github-client",
+    GITHUB_CLIENT_SECRET: "e2e-github-secret",
+    TRUSTED_PROXY_IPS: [],
+  },
+  database,
+  accountAdmission,
+  [],
+  githubAvailability,
+);
 const auth = betterAuth({
-  ...createAuthOptions(
-    {
-      BETTER_AUTH_SECRET: secret,
-      BETTER_AUTH_URL: serverOrigin,
-      CORS_ORIGIN: webOrigin,
-      GITHUB_CLIENT_ID: "e2e-github-client",
-      GITHUB_CLIENT_SECRET: "e2e-github-secret",
-      TRUSTED_PROXY_IPS: [],
+  ...authOptions,
+  rateLimit: {
+    ...authOptions.rateLimit,
+    customRules: {
+      ...authOptions.rateLimit?.customRules,
+      "/get-session": false,
     },
-    database,
-    accountAdmission,
-    [],
-    githubAvailability,
-  ),
+  },
   plugins: [testUtils()],
 });
 const accountSessionAccess = createDatabaseAccountSessionAccess(
