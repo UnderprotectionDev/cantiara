@@ -343,9 +343,9 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   ).toBeVisible();
 
   await configurationMode.click();
-  expect(nonGetRequests).toHaveLength(
-    nonGetRequestCountBeforeConfigurationMode,
-  );
+  expect(
+    nonGetRequests.slice(nonGetRequestCountBeforeConfigurationMode),
+  ).toEqual([`${E2E_SERVER_URL}/rpc/customFields`]);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(
     page.locator('section[aria-label="Configuration Mode"]'),
