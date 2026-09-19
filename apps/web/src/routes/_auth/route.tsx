@@ -7,12 +7,9 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-
-import {
-  ClientShellContent,
-  defaultClientShell,
-  useClientShellConnection,
-} from "@/features/web-macos-client/views/client-shell";
+import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
+import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
+import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_auth")({

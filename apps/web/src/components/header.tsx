@@ -2,7 +2,7 @@ import { Link, useMatches } from "@tanstack/react-router";
 import {
   CommandPaletteQuickActions,
   CommandPaletteTrigger,
-} from "@/features/command-palette/components/command-palette";
+} from "@/features/command-palette/ui/components/command-palette";
 
 import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";

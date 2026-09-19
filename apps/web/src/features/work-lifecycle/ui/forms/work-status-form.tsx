@@ -21,11 +21,8 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
-
-import {
-  runOnlineOnlyWrite,
-  useClientShellConnection,
-} from "@/features/web-macos-client/views/client-shell";
+import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
 function mutationErrorMessage(error: unknown) {

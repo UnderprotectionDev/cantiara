@@ -3,12 +3,15 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { env } from "../env";
-import { createTauriBearerHeaders } from "../features/account-access/tauri-session";
-import { createClientShellQueryClient } from "../features/web-macos-client/client-shell";
-import { defaultClientShell } from "../features/web-macos-client/views/client-shell";
+import { createTauriBearerHeaders } from "../features/account-access/lib/tauri-session";
+import { createClientShellQueryClient } from "../features/web-macos-client/lib/client-shell";
+import { defaultClientShell } from "../features/web-macos-client/store/client-shell";
+import { presentSupportReferenceFailure } from "../features/web-macos-client/ui/components/support-reference";
 
 export function createQueryClient() {
-  const queryClient = createClientShellQueryClient();
+  const queryClient = createClientShellQueryClient(
+    presentSupportReferenceFailure,
+  );
   queryClient.setDefaultOptions({
     mutations: {
       networkMode: "always",

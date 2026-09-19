@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import CaptureInboxView from "@/features/capture-triage/views/capture-inbox-view";
+import CaptureInboxView from "@/features/capture-triage/ui/views/capture-inbox-view";
 
 export const Route = createFileRoute("/_auth/capture/")({
   component: RouteComponent,

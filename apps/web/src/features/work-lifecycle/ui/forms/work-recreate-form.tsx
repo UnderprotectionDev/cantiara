@@ -13,11 +13,8 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-
-import {
-  runOnlineOnlyWrite,
-  useClientShellConnection,
-} from "@/features/web-macos-client/views/client-shell";
+import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectsQueryOptions } from "@/utils/orpc";
 
 function recreateErrorMessage(error: unknown) {
