@@ -305,10 +305,17 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   ).toBeVisible();
   await expect(
     customFieldHost.locator('[data-configuration-editor-host="custom-field"]'),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
-    customFieldHost.getByText("No schema is defined here.", { exact: true }),
+    customFieldHost.getByRole("form", { name: "Add custom field" }),
   ).toBeVisible();
+  await expect(customFieldHost.getByLabel("Type")).toBeVisible();
+  await expect(
+    customFieldHost.getByText("Lookup", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    customFieldHost.getByText("Formula", { exact: true }),
+  ).toHaveCount(0);
   await configurationRegion
     .getByRole("button", { name: "Work Context Card layout", exact: true })
     .click();

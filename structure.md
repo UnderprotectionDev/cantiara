@@ -76,6 +76,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── custom-fields/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── mutation-and-undo/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
@@ -104,6 +106,7 @@
 │       │   ├── capture-inbox.e2e.ts
 │       │   ├── client-shell.e2e.ts
 │       │   ├── command-palette.e2e.ts
+│       │   ├── custom-fields.e2e.ts
 │       │   ├── project-shell.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
 │       │   └── work-lifecycle.e2e.ts
@@ -180,6 +183,13 @@
 │       │   │   │       └── components/
 │       │   │   │           ├── command-palette.test.tsx
 │       │   │   │           └── command-palette.tsx
+│       │   │   ├── custom-fields/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-custom-fields.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── custom-field-editor.test.tsx
+│       │   │   │           └── custom-field-editor.tsx
 │       │   │   ├── project-overview/
 │       │   │   │   ├── lib/
 │       │   │   │   │   └── project-overview.ts
@@ -295,6 +305,8 @@
 │   │   │   ├── account-preferences.ts
 │   │   │   ├── capture-triage.ts
 │   │   │   ├── context.ts
+│   │   │   ├── custom-fields.test.ts
+│   │   │   ├── custom-fields.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
 │   │   │   ├── index.ts
@@ -323,6 +335,7 @@
 │   │   │   ├── schema/
 │   │   │   │   ├── auth.ts
 │   │   │   │   ├── capture-triage.ts
+│   │   │   │   ├── custom-fields.ts
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts

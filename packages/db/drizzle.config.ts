@@ -6,6 +6,7 @@ export default defineConfig({
   schema: [
     "./src/schema/auth.ts",
     "./src/schema/mutation.ts",
+    "./src/schema/custom-fields.ts",
     "./src/schema/project.ts",
     "./src/schema/capture-triage.ts",
     "./src/schema/work.ts",

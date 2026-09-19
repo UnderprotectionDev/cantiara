@@ -25,6 +25,11 @@ import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type Context,
 } from "../context";
+import {
+  type CustomFieldMutationValue,
+  createCustomFieldInputSchema,
+  createCustomFieldMutationInputSchema,
+} from "../custom-fields";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   humanMutationEnvelopeSchema,
@@ -124,6 +129,24 @@ function requireProjectShell(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectShell;
+}
+
+function requireCustomFields(context: Context) {
+  if (!context.customFields) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.customFields;
+}
+
+function requireCustomFieldMutationContract(
+  context: Context,
+  accountId: string,
+) {
+  const contracts = context.customFieldMutationContracts;
+  if (!contracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return contracts.create(accountId);
 }
 
 function requireProjectShellMutationContract(
@@ -685,6 +708,65 @@ function rethrowProjectShellMutationError(
   rethrowProjectShellError(error);
 }
 
+function rethrowCustomFieldMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowCustomFieldMutationError(error.cause, targetId);
+  }
+
+  if (
+    error.code === "CUSTOM_FIELD_PROJECT_NOT_FOUND" ||
+    error.code === "TARGET_NOT_FOUND"
+  ) {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Project is unavailable.",
+    });
+  }
+
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+
+  if (error.code === "CUSTOM_FIELD_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "A Custom field with this name already exists in this Project.",
+    });
+  }
+
+  if (error.code === "STALE_BASE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(typeof error.currentRevision === "number"
+          ? { currentRevision: error.currentRevision }
+          : {}),
+        label: MUTATION_UI_LABELS.currentValue,
+        targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+
+  throw error;
+}
+
 function nullableProjectValue(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
@@ -713,6 +795,21 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return project;
+    }),
+  customFields: protectedProcedure
+    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      const fields = await requireCustomFields(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!fields) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return fields;
     }),
   projectWorks: protectedProcedure
     .input(
@@ -1034,6 +1131,52 @@ export const appRouter = {
         defined: true,
         message: "Short code could not be suggested.",
       });
+    }),
+  createCustomField: protectedProcedure
+    .input(createCustomFieldMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...createInput } = input;
+      const parsed = createCustomFieldInputSchema.parse(createInput);
+      const mutation = requireCustomFieldMutationContract(
+        context,
+        context.session.user.id,
+      );
+
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId: clientIdempotencyKey,
+          },
+          ({ currentRevision, payload }) => {
+            const timestamp = new Date().toISOString();
+            return {
+              field: {
+                createdAt: timestamp,
+                id: crypto.randomUUID(),
+                name: payload.name,
+                options: payload.options,
+                projectId: payload.projectId,
+                recordTypes: payload.recordTypes,
+                revision: currentRevision + 1,
+                type: payload.type,
+                updatedAt: timestamp,
+              },
+            } satisfies CustomFieldMutationValue;
+          },
+        );
+        const { field } = receipt.nextValue;
+        if (!field) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return field;
+      } catch (error) {
+        rethrowCustomFieldMutationError(error, clientIdempotencyKey);
+      }
     }),
   updateProjectShortCode: protectedProcedure
     .input(updateProjectShortCodeInputSchema)

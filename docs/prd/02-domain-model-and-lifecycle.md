@@ -304,6 +304,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Değerlendirilmedi | `Not evaluated` | Proje bazlı özel alanda boş veya ayarlanmamış değer; Boolean false veya seçim değeri değildir |
 | Tek seçim | `Single select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
 | Çoklu seçim | `Multi select` | Proje bazlı özel alan türü; seçenekler tanımda Proje-yereldir |
+| Özel alan adı | `Field name` | Yapılandırma modunda tanımlanan Proje bazlı özel alanın kullanıcı adı |
+| Tür | `Type` | Proje bazlı özel alanın kapalı tür kataloğundaki seçimi |
+| Seçenekler | `Options` | Tek seçim veya çoklu seçim tanımına ait Proje-yerel seçenekler |
+| Kayıt türleri | `Record types` | Proje bazlı özel alanın görüneceği desteklenen kayıt türleri |
+| Özel alanlar | `Custom fields` | Geçerli Projedeki özel alan tanımlarının listesi |
+| Özel alan ekle | `Add custom field` | Yeni Proje bazlı özel alan tanımını kaydetme eylemi |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
 | Özel bölüm ekle | `Add custom section` | Desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolüyle adlandırılmış İş Bağlam Kartı bölümü ekleme; serbest sorgu değildir |
 | Göster | `Show` | Yapılandırma modunda gizlenen İş Bağlam Kartı bölümünü yeniden gösterme |

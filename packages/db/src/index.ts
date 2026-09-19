@@ -36,6 +36,7 @@ import {
   captureInboxItem,
   captureInboxOperation,
 } from "./schema/capture-triage";
+import { customFieldDefinition } from "./schema/custom-fields";
 import {
   mutationHistory,
   mutationReceipt,
@@ -54,6 +55,7 @@ const schema = {
   captureInboxOperation,
   captureExtensionLink,
   captureExtensionPairingCode,
+  customFieldDefinition,
   mutationHistory,
   mutationReceipt,
   mutationStaging,

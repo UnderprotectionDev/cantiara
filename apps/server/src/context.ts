@@ -9,6 +9,10 @@ import type {
   Context as ApiContext,
   GitHubAvailability,
 } from "@cantiara/api/context";
+import type {
+  CustomFieldMutationContracts,
+  CustomFieldsAccess,
+} from "@cantiara/api/custom-fields";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
 import type {
   MutationContract,
@@ -40,6 +44,8 @@ export interface CreateContextOptions {
   auth: AccountAccessAuth;
   captureInbox?: CaptureInboxAccess;
   context: HonoContext;
+  customFieldMutationContracts?: CustomFieldMutationContracts;
+  customFields?: CustomFieldsAccess;
   database: Database;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
@@ -65,6 +71,8 @@ export async function createContext({
   accountPreferencesMutationContract,
   auth,
   captureInbox,
+  customFields,
+  customFieldMutationContracts,
   context,
   database,
   githubAvailability,
@@ -98,6 +106,8 @@ export async function createContext({
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
     captureInbox,
+    customFields,
+    customFieldMutationContracts,
     desktopApiContract:
       context.req.raw.headers.get(DESKTOP_API_CONTRACT_HEADER) ?? undefined,
     db: database,
