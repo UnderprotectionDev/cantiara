@@ -618,14 +618,17 @@ export function CommandPaletteProvider({
 
   const paletteCommands = useMemo(
     () =>
-      buildCommandPaletteCommands({
-        authorizedProjects,
-        commands: [...navigationCommands, ...(commands ?? [])],
-        createOptions,
-        onCreate,
-        onOpenRecord,
-        onSwitchProject,
-      }),
+      buildCommandPaletteCommands(
+        {
+          authorizedProjects,
+          commands: [...navigationCommands, ...(commands ?? [])],
+          createOptions,
+          onCreate,
+          onOpenRecord,
+          onSwitchProject,
+        },
+        { includeAuthorizedRecords: false },
+      ),
     [
       authorizedProjects,
       commands,

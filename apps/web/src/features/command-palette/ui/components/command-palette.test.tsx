@@ -31,6 +31,23 @@ function ignoreOpenChange(_open: boolean) {
 }
 
 describe("Command Palette command interface", () => {
+  test("can defer authorized record command materialization", () => {
+    const records = {
+      [Symbol.iterator]() {
+        throw new Error("Authorized records must stay lazy.");
+      },
+    };
+
+    const commands = buildCommandPaletteCommands(
+      { authorizedRecords: records },
+      { includeAuthorizedRecords: false },
+    );
+
+    expect(commands.some((command) => command.kind === "open-record")).toBe(
+      false,
+    );
+  });
+
   test("only exposes authorized records and projects with preview metadata", () => {
     const commands = buildCommandPaletteCommands({
       authorizedProjects: [

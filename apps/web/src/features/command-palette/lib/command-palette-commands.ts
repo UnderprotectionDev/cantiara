@@ -62,6 +62,10 @@ export interface CommandPaletteCommandSource {
   onSwitchProject?: (project: CommandPaletteProject) => void | Promise<void>;
 }
 
+export interface BuildCommandPaletteCommandsOptions {
+  includeAuthorizedRecords?: boolean;
+}
+
 function commandSearchValues(command: CommandPaletteCommand) {
   return [
     command.id,
@@ -361,9 +365,13 @@ function createCreateCommand(
 
 export function buildCommandPaletteCommands(
   source: CommandPaletteCommandSource = {},
+  options: BuildCommandPaletteCommandsOptions = {},
 ): CommandPaletteCommand[] {
   const projects = authorizedEntries(source.authorizedProjects);
-  const records = authorizedEntries(source.authorizedRecords);
+  const records =
+    options.includeAuthorizedRecords === false
+      ? []
+      : authorizedEntries(source.authorizedRecords);
   const createOptions = authorizedEntries(source.createOptions);
 
   return [
