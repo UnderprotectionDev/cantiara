@@ -4,6 +4,7 @@ const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ??
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const TYPE_FIELD_PATTERN = /Type:/;
+const WORK_HASH_PATTERN = /#work-/;
 
 test.setTimeout(60_000);
 
@@ -106,24 +107,27 @@ test("creates Work with a Project key, type, and protected start status", async 
   ).toBeVisible();
 
   await page.reload();
+  const workListItems = page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem");
   await expect(
-    page.getByRole("listitem").filter({
+    workListItems.filter({
       hasText: "PAY-1 Investigate payment failures",
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("listitem").filter({
+    workListItems.filter({
       hasText: "PAY-2 Document the payment flow",
     }),
   ).toContainText("Task");
 
-  const secondWork = page.getByRole("listitem").filter({
+  const secondWork = workListItems.filter({
     hasText: "PAY-2 Document the payment flow",
   });
   await secondWork.getByRole("button", { name: "Archive" }).click();
   await expect(secondWork).not.toBeVisible();
   await page.getByRole("button", { name: "Archived" }).click();
-  const archivedWork = page.getByRole("listitem").filter({
+  const archivedWork = workListItems.filter({
     hasText: "PAY-2 Document the payment flow",
   });
   await expect(archivedWork).toContainText("Not Started");
@@ -131,7 +135,7 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(archivedWork).not.toBeVisible();
   await page.getByRole("button", { name: "Archived" }).click();
   await expect(
-    page.getByRole("listitem").filter({
+    workListItems.filter({
       hasText: "PAY-2 Document the payment flow",
     }),
   ).toContainText("PAY-2");
@@ -146,9 +150,10 @@ test("creates Work with a Project key, type, and protected start status", async 
   await page.getByRole("button", { name: "Create Project" }).click();
   await page.getByRole("link", { name: "Payment App", exact: true }).click();
 
-  const sourceWork = page.getByRole("listitem").filter({
-    hasText: "PAY-1 Investigate payment failures",
-  });
+  const sourceWork = page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem")
+    .filter({ hasText: "PAY-1 Investigate payment failures" });
   await sourceWork
     .getByRole("button", { name: "Recreate in another Project" })
     .click();
@@ -185,4 +190,57 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(recreatedWork).toContainText("Task");
   await expect(recreatedWork).toContainText("Not Started");
   await expect(recreatedWork).toContainText("Origin: PAY-1");
+});
+
+test("walks the read-only Scope Tree and opens a source record", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=scope-tree`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto(`/projects/${setup.projectId}`);
+  const scopeTree = page.locator('[data-scope-tree-read-only="true"]');
+  await expect(
+    scopeTree.getByRole("heading", { name: "Scope Tree" }),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(scopeTree).toContainText("Scope Tree Project");
+  await expect(scopeTree).toContainText("Checkout Feature");
+  await expect(scopeTree).toContainText("Verify provider callback");
+  await expect(scopeTree).toContainText("Blocked by");
+  await expect(scopeTree).toContainText("Wait for provider access");
+  await expect(scopeTree).toContainText("Private beta");
+
+  const nonGetRequests: string[] = [];
+  page.on("request", (pageRequest) => {
+    if (pageRequest.method() !== "GET") {
+      nonGetRequests.push(pageRequest.url());
+    }
+  });
+  const nonGetRequestCountBeforeDrag = nonGetRequests.length;
+  await scopeTree.locator("li").first().dragTo(scopeTree.locator("li").last());
+  expect(nonGetRequests).toHaveLength(nonGetRequestCountBeforeDrag);
+
+  const featureDetails = scopeTree.locator("details").nth(1);
+  await featureDetails.locator("summary").click();
+  await expect(
+    scopeTree.getByText("Verify provider callback", { exact: true }),
+  ).toBeHidden();
+  await featureDetails.locator("summary").click();
+  await scopeTree
+    .getByRole("link", { name: "Open source record" })
+    .last()
+    .click();
+  await expect(page).toHaveURL(WORK_HASH_PATTERN);
+  expect(
+    await scopeTree.locator('[draggable="false"]').count(),
+  ).toBeGreaterThan(0);
 });

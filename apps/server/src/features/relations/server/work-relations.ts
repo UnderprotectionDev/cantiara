@@ -1,7 +1,13 @@
 import {
+  SCOPE_TREE_RELATION_KIND_OPTIONS,
+  type ScopeTreeRelationKind,
+  type ScopeTreeWork,
+  scopeTreeRelationKindSchema,
   type WorkRecreateRelation,
   type WorkRecreateRelationKind,
   workRecreateRelationKindSchema,
+  workStatusSchema,
+  workTypeSchema,
 } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -36,11 +42,24 @@ export interface RecreateRelationSelection {
   sourceWork: WorkRelationSource;
 }
 
+export interface ScopeTreeRelation {
+  id: string;
+  kind: ScopeTreeRelationKind;
+  sourceProjectId: string;
+  sourceWork: ScopeTreeWork;
+  targetLabel: string;
+  targetRecordId: string;
+}
+
 export interface WorkRelations {
   listRecreateRelations: (
     accountId: string,
     workId: string,
   ) => Promise<WorkRecreateRelation[]>;
+  listScopeTreeRelations: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<readonly ScopeTreeRelation[]>;
 }
 
 export interface WorkRelationsMutationAdapter extends WorkRelations {
@@ -178,6 +197,53 @@ export function createDatabaseWorkRelations(
             ),
         ),
       ].sort((left, right) => left.id.localeCompare(right.id));
+    },
+
+    async listScopeTreeRelations(accountId, projectId) {
+      const workspaceId = await findOwnedWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return [];
+      }
+
+      const records = await database
+        .select({
+          id: workRelation.id,
+          kind: workRelation.kind,
+          sourceProjectId: project.id,
+          sourceWorkId: work.id,
+          sourceWorkKey: work.key,
+          sourceWorkStatus: work.status,
+          sourceWorkTitle: work.title,
+          sourceWorkType: work.type,
+          targetLabel: workRelation.targetLabel,
+          targetRecordId: workRelation.targetRecordId,
+        })
+        .from(workRelation)
+        .innerJoin(work, eq(workRelation.sourceWorkId, work.id))
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(project.workspaceId, workspaceId),
+            eq(workRelation.targetProjectId, projectId),
+            inArray(workRelation.kind, SCOPE_TREE_RELATION_KIND_OPTIONS),
+          ),
+        )
+        .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
+
+      return records.map((record) => ({
+        id: record.id,
+        kind: scopeTreeRelationKindSchema.parse(record.kind),
+        sourceProjectId: record.sourceProjectId,
+        sourceWork: {
+          id: record.sourceWorkId,
+          key: record.sourceWorkKey,
+          status: workStatusSchema.parse(record.sourceWorkStatus),
+          title: record.sourceWorkTitle,
+          type: workTypeSchema.parse(record.sourceWorkType),
+        },
+        targetLabel: record.targetLabel,
+        targetRecordId: record.targetRecordId,
+      }));
     },
 
     async selectRecreateRelations(executor, accountId, workspaceId, input) {

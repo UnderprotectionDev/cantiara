@@ -399,6 +399,13 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       title: "Independent Bug",
       type: "Bug",
     });
+    const blocker = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "database-scope-tree-blocker",
+      projectId: project.id,
+      title: "Provider access",
+      type: "Research",
+    });
 
     const included = await workLifecycle.includeWork(accountId, {
       baseRevision: independentWork.revision,
@@ -413,6 +420,24 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       workId: independentWork.id,
     });
     expect(replayedInclusion).toEqual(included);
+    await database.insert(workRelation).values([
+      {
+        id: `database-scope-tree-block-${crypto.randomUUID()}`,
+        kind: "Blocks",
+        sourceWorkId: blocker.id,
+        targetLabel: included.key,
+        targetProjectId: project.id,
+        targetRecordId: included.id,
+      },
+      {
+        id: `database-scope-tree-milestone-${crypto.randomUUID()}`,
+        kind: "Contributes to Milestone",
+        sourceWorkId: included.id,
+        targetLabel: "Private beta",
+        targetProjectId: project.id,
+        targetRecordId: "milestone-1",
+      },
+    ]);
     const withHealth = await workLifecycle.recordFeatureHealth(accountId, {
       baseRevision: feature.revision,
       clientIdempotencyKey: "database-feature-health",
@@ -451,6 +476,24 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       featureHealthHistory: [expect.objectContaining({ health: "On Track" })],
       primarySpecId: "document-1",
       status: "Not Started",
+    });
+    await expect(
+      workLifecycle.scopeTree(accountId, project.id),
+    ).resolves.toMatchObject({
+      features: [
+        {
+          includedWork: [
+            {
+              blockers: [{ id: blocker.id, key: blocker.key }],
+              milestones: [{ id: "milestone-1", label: "Private beta" }],
+              work: { id: included.id },
+            },
+          ],
+          progress: { includedWorkCount: 1 },
+          work: { id: feature.id, status: "Not Started" },
+        },
+      ],
+      project: { id: project.id, name: "Feature Project" },
     });
   });
 

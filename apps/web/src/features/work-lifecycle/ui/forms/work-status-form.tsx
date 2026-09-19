@@ -69,6 +69,9 @@ export default function WorkStatusForm({
   const workQueryKey = orpc.work.queryOptions({
     input: { workId: work.id },
   }).queryKey;
+  const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
+    input: { projectId: work.projectId },
+  }).queryKey;
 
   useEffect(() => {
     setSelectedStatus(work.status);
@@ -80,6 +83,7 @@ export default function WorkStatusForm({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: worksQueryKey }),
       queryClient.invalidateQueries({ queryKey: workQueryKey }),
+      queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
     ]);
   }
 

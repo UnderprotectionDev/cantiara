@@ -69,6 +69,7 @@ export default function ProjectWorkList({
           {query.data.map((work) => (
             <li
               className="mb-2 flex flex-wrap items-center justify-between gap-3 border bg-background px-3 py-3 last:mb-0"
+              id={`work-${work.id}`}
               key={work.id}
             >
               <div className="min-w-0">
@@ -151,6 +152,11 @@ function WorkArchiveAction({ work }: { work: WorkProfile }) {
             input: { workId: work.id },
           }).queryKey,
         }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.scopeTree.queryOptions({
+            input: { projectId: work.projectId },
+          }).queryKey,
+        }),
       ]);
     },
   });
@@ -190,6 +196,9 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
   const workQueryKey = orpc.work.queryOptions({
     input: { workId: work.id },
   }).queryKey;
+  const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
+    input: { projectId: work.projectId },
+  }).queryKey;
 
   useEffect(() => {
     setSelectedType(work.type);
@@ -214,6 +223,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: workQueryKey }),
+        queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
       ]);
     },
   });

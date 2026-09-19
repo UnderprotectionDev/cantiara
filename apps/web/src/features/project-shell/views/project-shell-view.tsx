@@ -11,6 +11,7 @@ import {
   type ProjectShellConfigurationChange,
   type StarterConfiguration,
 } from "@cantiara/api/project-shell";
+import type { ScopeTree } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -31,6 +32,7 @@ import {
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/views/client-shell";
 import WorkCreateForm from "@/features/work-lifecycle/forms/work-create-form";
 import ProjectWorkList from "@/features/work-lifecycle/views/project-work-list";
+import ScopeTreeView from "@/features/work-lifecycle/views/scope-tree-view";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 
 const ALWAYS_REACHABLE_SURFACES = ["Overview", "All Tools"] as const;
@@ -199,6 +201,9 @@ export default function ProjectShellView({
   const projectQuery = useQuery({
     ...projectQueryOptions,
   });
+  const scopeTreeQuery = useQuery(
+    orpc.scopeTree.queryOptions({ input: { projectId } }),
+  );
   const accountPreferencesQuery = useQuery(
     accountPreferencesQueryOptions(accountId),
   );
@@ -364,6 +369,8 @@ export default function ProjectShellView({
         project={projectQuery.data}
       />
 
+      <ScopeTreeSection query={scopeTreeQuery} />
+
       <section
         aria-label="Project Shell configuration summary"
         className="mt-10 space-y-10"
@@ -436,6 +443,46 @@ export default function ProjectShellView({
       />
     </main>
   );
+}
+
+function ScopeTreeSection({
+  query,
+}: {
+  query: {
+    data: ScopeTree | undefined;
+    isError: boolean;
+    isPending: boolean;
+  };
+}) {
+  if (query.isPending) {
+    return (
+      <section aria-labelledby="scope-tree-heading" className="mt-10">
+        <h2 className="sr-only" id="scope-tree-heading">
+          Scope Tree
+        </h2>
+        <p className="text-muted-foreground text-sm">Loading Scope Tree…</p>
+      </section>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <section aria-labelledby="scope-tree-heading" className="mt-10">
+        <h2 className="sr-only" id="scope-tree-heading">
+          Scope Tree
+        </h2>
+        <p className="text-destructive text-sm" role="alert">
+          Scope Tree is unavailable. Try loading this page again.
+        </p>
+      </section>
+    );
+  }
+
+  if (!query.data) {
+    return null;
+  }
+
+  return <ScopeTreeView scopeTree={query.data} />;
 }
 
 function DailyWorkActions({
