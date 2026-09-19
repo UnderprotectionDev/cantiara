@@ -36,9 +36,9 @@ import {
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
+import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
-import WorkCreateForm from "@/features/work-lifecycle/ui/forms/work-create-form";
 
 export default function ProjectShellSurface({
   accountFormattingPreferences,
@@ -453,7 +453,7 @@ function DailyActionHost({
         {action}
       </h4>
       {action === "Create" ? (
-        <WorkCreateForm projectId={projectId} />
+        <WorkDraftForm projectId={projectId} />
       ) : (
         <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
       )}

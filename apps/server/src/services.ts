@@ -29,6 +29,7 @@ import {
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 
 const db = createDb(env);
@@ -49,6 +50,11 @@ export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
 export const workLifecycle = createDatabaseWorkLifecycle(db);
+export const workDrafts = createDatabaseWorkDrafts(
+  db,
+  workLifecycle,
+  projectShell,
+);
 export const captureInboxMutationContract =
   createDatabaseMutationContract<MutationPayload>(db, {
     target: captureInboxMutationTarget,

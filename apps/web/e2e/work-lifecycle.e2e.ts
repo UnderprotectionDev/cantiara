@@ -37,7 +37,7 @@ test("creates Work with a Project key, type, and protected start status", async 
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill("Investigate payment failures");
   await page.getByLabel("Type").selectOption("Research");
-  await page.getByRole("button", { name: "Create Work" }).click();
+  await page.getByRole("button", { name: "Create" }).click();
 
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
@@ -105,7 +105,7 @@ test("creates Work with a Project key, type, and protected start status", async 
 
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill("Document the payment flow");
-  await page.getByRole("button", { name: "Create Work" }).click();
+  await page.getByRole("button", { name: "Create" }).click();
   await expect(
     page.getByText("Work PAY-2 created.", { exact: true }),
   ).toBeVisible();

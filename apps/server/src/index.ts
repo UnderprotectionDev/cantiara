@@ -18,6 +18,7 @@ import {
   replaySecurityRevocations,
   tauriSessionAccess,
   webCapture,
+  workDrafts,
   workLifecycle,
 } from "./services";
 
@@ -52,5 +53,6 @@ export default createApp({
   tauriSessionAccess,
   trustedProxyIps: env.TRUSTED_PROXY_IPS,
   webCapture,
+  workDrafts,
   workLifecycle,
 });

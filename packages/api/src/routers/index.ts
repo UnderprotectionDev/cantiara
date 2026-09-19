@@ -49,6 +49,14 @@ import {
 } from "../project-shell";
 import type { WebCaptureAccess } from "../web-capture";
 import {
+  deleteWorkDraftInputSchema,
+  finalizeWorkDraftInputSchema,
+  saveWorkDraftInputSchema,
+  type WorkDraftsAccess,
+  workDraftInputSchema,
+  workDraftsInputSchema,
+} from "../work-drafts";
+import {
   closeWorkInputSchema,
   createWorkMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
@@ -143,6 +151,13 @@ function requireWorkLifecycle(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.workLifecycle;
+}
+
+function requireWorkDrafts(context: Context): WorkDraftsAccess {
+  if (!context.workDrafts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workDrafts;
 }
 
 function requireCaptureInbox(context: Context): CaptureInboxAccess {
@@ -621,6 +636,77 @@ function rethrowWorkLifecycleError(error: unknown): never {
   throw error;
 }
 
+function mapWorkDraftError(
+  error: Record<string, unknown>,
+): ORPCError<string, unknown> | null {
+  switch (error.code) {
+    case "WORK_DRAFT_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Draft is unavailable.",
+      });
+    case "WORK_DRAFT_PROJECT_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Project is unavailable.",
+      });
+    case "WORK_DRAFT_CONSUMED":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This Draft has already been created.",
+      });
+    case "WORK_DRAFT_FINALIZING":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This Draft is already being created.",
+      });
+    case "STALE_BASE_REVISION":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: {
+          code: error.code,
+          ...(typeof error.currentRevision === "number"
+            ? { currentRevision: error.currentRevision }
+            : {}),
+          ...(isRecord(error.currentValue)
+            ? { currentValue: error.currentValue }
+            : {}),
+        },
+        defined: true,
+        message: "Draft has changed. Reload and try again.",
+      });
+    case "TARGET_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "Draft is unavailable.",
+      });
+    default:
+      return mapWorkLifecycleError(error);
+  }
+}
+
+function rethrowWorkDraftError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  const workDraftError = mapWorkDraftError(error);
+  if (workDraftError) {
+    throw workDraftError;
+  }
+
+  throw error;
+}
+
+async function runWorkDraftOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowWorkDraftError(error);
+  }
+}
+
 async function runWorkLifecycleOperation<T>(operation: () => Promise<T>) {
   try {
     return await operation();
@@ -728,6 +814,44 @@ export const appRouter = {
         context.session.user.id,
         input.projectId,
         { archived: input.archived },
+      ),
+    ),
+  workDrafts: protectedProcedure
+    .input(workDraftsInputSchema)
+    .handler(({ context, input }) =>
+      runWorkDraftOperation(() =>
+        requireWorkDrafts(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  workDraft: protectedProcedure
+    .input(workDraftInputSchema)
+    .handler(({ context, input }) =>
+      runWorkDraftOperation(() =>
+        requireWorkDrafts(context).find(context.session.user.id, input.draftId),
+      ),
+    ),
+  saveWorkDraft: protectedProcedure
+    .input(saveWorkDraftInputSchema)
+    .handler(({ context, input }) =>
+      runWorkDraftOperation(() =>
+        requireWorkDrafts(context).save(context.session.user.id, input),
+      ),
+    ),
+  deleteWorkDraft: protectedProcedure
+    .input(deleteWorkDraftInputSchema)
+    .handler(({ context, input }) =>
+      runWorkDraftOperation(() =>
+        requireWorkDrafts(context).delete(context.session.user.id, input),
+      ),
+    ),
+  finalizeWorkDraft: protectedProcedure
+    .input(finalizeWorkDraftInputSchema)
+    .handler(({ context, input }) =>
+      runWorkDraftOperation(() =>
+        requireWorkDrafts(context).finalize(context.session.user.id, input),
       ),
     ),
   scopeTree: protectedProcedure

@@ -19,6 +19,7 @@ import type {
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
+import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
@@ -48,6 +49,7 @@ export interface CreateContextOptions {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   trustedProxyIps: readonly string[];
   webCapture?: WebCaptureAccess;
+  workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
 }
 
@@ -74,6 +76,7 @@ export async function createContext({
   projectShellMutationContracts,
   trustedProxyIps,
   webCapture,
+  workDrafts,
   workLifecycle,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
@@ -109,6 +112,7 @@ export async function createContext({
     auth: null,
     session,
     webCapture,
+    workDrafts,
     workLifecycle,
   };
 }

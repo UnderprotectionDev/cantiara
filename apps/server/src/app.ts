@@ -30,6 +30,7 @@ import {
   webCapturePairingInputSchema,
   webCaptureSendInputSchema,
 } from "@cantiara/api/web-capture";
+import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
@@ -109,6 +110,7 @@ export interface AppDependencies {
   tauriSessionAccess?: TauriSessionAccess;
   trustedProxyIps: readonly string[];
   webCapture?: WebCaptureAccess;
+  workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
 }
 
@@ -898,6 +900,7 @@ export function createApp(dependencies: AppDependencies) {
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       trustedProxyIps: dependencies.trustedProxyIps,
       webCapture: dependencies.webCapture,
+      workDrafts: dependencies.workDrafts,
       workLifecycle: dependencies.workLifecycle,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
