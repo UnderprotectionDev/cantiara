@@ -218,7 +218,7 @@ describeDatabase("Project Custom Fields PostgreSQL integration", () => {
     expect(cleared?.value).toBeNull();
   });
 
-  test("trash hides a definition from record surfaces and permanent delete removes its values", async () => {
+  test("trash hides a definition and restore reveals its stored values", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
@@ -306,7 +306,7 @@ describeDatabase("Project Custom Fields PostgreSQL integration", () => {
       }),
     ).resolves.toEqual([]);
 
-    const restored = await contracts.restore(accountId).mutate(
+    await contracts.restore(accountId).mutate(
       {
         actor: { actorId: accountId, type: "User" },
         baseRevision: trashed.revision,
@@ -343,11 +343,92 @@ describeDatabase("Project Custom Fields PostgreSQL integration", () => {
       kind: "text",
       text: "Founders",
     });
+  });
+
+  test("permanent delete removes a trashed definition and its values", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectId = `project-${crypto.randomUUID()}`;
+    await database.insert(project).values({
+      id: projectId,
+      name: "Delete Project",
+      shortCode: `DELETE-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
+
+    const customFields = createDatabaseCustomFields(database);
+    const contracts = createDatabaseCustomFieldMutationContracts(database);
+    const definition = await customFields.create(accountId, {
+      name: "Audience",
+      projectId,
+      recordTypes: ["Work"],
+      type: "Text",
+    });
+
+    await contracts.setValue(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: 0,
+        clientIdempotencyKey: `set-delete-${definition.id}`,
+        kind: "human",
+        payload: {
+          definitionId: definition.id,
+          payload: { kind: "text", text: "Founders" },
+          recordId: "work-1",
+          recordType: "Work",
+        },
+        targetId: `${definition.id}:work-1`,
+      },
+      ({ currentValue, currentRevision }) => {
+        const timestamp = new Date().toISOString();
+        return {
+          value: {
+            createdAt: currentValue.value?.createdAt ?? timestamp,
+            definitionId: definition.id,
+            id: currentValue.value?.id ?? crypto.randomUUID(),
+            recordId: "work-1",
+            recordType: "Work" as const,
+            revision: currentRevision + 1,
+            updatedAt: timestamp,
+            value: { kind: "text" as const, text: "Founders" },
+          },
+        };
+      },
+    );
+
+    const trashed = await contracts.trash(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: definition.revision,
+        clientIdempotencyKey: `trash-delete-${definition.id}`,
+        kind: "human",
+        payload: {},
+        targetId: definition.id,
+      },
+      ({ currentValue, currentRevision }) => {
+        const timestamp = new Date().toISOString();
+        const current = currentValue.field;
+        if (!current) {
+          throw new Error("Custom field was not found.");
+        }
+        return {
+          field: {
+            ...current,
+            revision: currentRevision + 1,
+            trashedAt: timestamp,
+            updatedAt: timestamp,
+          },
+        };
+      },
+    );
 
     await contracts.delete(accountId).mutate(
       {
         actor: { actorId: accountId, type: "User" },
-        baseRevision: restored.revision,
+        baseRevision: trashed.revision,
         clientIdempotencyKey: `delete-${definition.id}`,
         kind: "human",
         payload: {},

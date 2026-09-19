@@ -3,6 +3,7 @@ import {
   type CustomFieldMutationValue,
   type CustomFieldType,
   type CustomFieldValueMutationValue,
+  clearCustomFieldValueInputSchema,
   createCustomFieldInputSchema,
   customFieldDefinitionSchema,
   customFieldNameKey,
@@ -49,6 +50,9 @@ type CustomFieldMutationUpdateInput = Parameters<
 
 type DefinitionOperation = "delete" | "restore" | "trash" | "update";
 type ValueOperation = "clear" | "set";
+type ParsedValueMutationInput =
+  | ReturnType<typeof clearCustomFieldValueInputSchema.parse>
+  | ReturnType<typeof setCustomFieldValueInputSchema.parse>;
 
 function emptyTarget(
   targetId: string,
@@ -389,55 +393,80 @@ function assertDefinitionAcceptsValue(
   assertValueMatchesDefinition(toCustomFieldDefinition(record), payload);
 }
 
+async function findValueMutationTarget(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  targetId: string,
+  lock: boolean,
+  input: ParsedValueMutationInput,
+) {
+  if (valueTargetId(input.definitionId, input.recordId) !== targetId) {
+    return null;
+  }
+  const record = await findOwnedDefinition(
+    executor,
+    accountId,
+    input.definitionId,
+    { lock },
+  );
+  if (!record) {
+    return null;
+  }
+  if ("payload" in input) {
+    assertDefinitionAcceptsValue(record, input.recordType, input.payload);
+  } else if (!record.recordTypes.includes(input.recordType)) {
+    throw new CustomFieldRecordTypeNotBoundError(
+      record.id,
+      input.recordType as never,
+    );
+  }
+
+  const valueRow = await findValueRow(
+    executor,
+    input.definitionId,
+    input.recordId,
+    lock,
+  );
+  return {
+    id: targetId,
+    revision: valueRow?.revision ?? 0,
+    value: { value: valueRow ? toCustomFieldValueRecord(valueRow) : null },
+  } satisfies MutationTarget<CustomFieldValueMutationValue>;
+}
+
 function createValueMutationTarget(
   accountId: string,
   operation: ValueOperation,
 ): MutationDatabaseTargetAdapter<CustomFieldValueMutationValue> {
   return {
-    async find(executor, targetId, lock, context) {
-      const parsed = setCustomFieldValueInputSchema.safeParse(context?.payload);
-      if (!parsed.success) {
-        return null;
-      }
-      if (
-        valueTargetId(parsed.data.definitionId, parsed.data.recordId) !==
-        targetId
-      ) {
-        return null;
-      }
-      const record = await findOwnedDefinition(
-        executor,
-        accountId,
-        parsed.data.definitionId,
-        { lock },
-      );
-      if (!record) {
-        return null;
-      }
+    find(executor, targetId, lock, context) {
       if (operation === "set") {
-        assertDefinitionAcceptsValue(
-          record,
-          parsed.data.recordType,
-          parsed.data.payload,
+        const parsed = setCustomFieldValueInputSchema.safeParse(
+          context?.payload,
         );
-      } else if (!record.recordTypes.includes(parsed.data.recordType)) {
-        throw new CustomFieldRecordTypeNotBoundError(
-          record.id,
-          parsed.data.recordType as never,
-        );
+        return parsed.success
+          ? findValueMutationTarget(
+              executor,
+              accountId,
+              targetId,
+              lock,
+              parsed.data,
+            )
+          : Promise.resolve(null);
       }
 
-      const valueRow = await findValueRow(
-        executor,
-        parsed.data.definitionId,
-        parsed.data.recordId,
-        lock,
+      const parsed = clearCustomFieldValueInputSchema.safeParse(
+        context?.payload,
       );
-      return {
-        id: targetId,
-        revision: valueRow?.revision ?? 0,
-        value: { value: valueRow ? toCustomFieldValueRecord(valueRow) : null },
-      } satisfies MutationTarget<CustomFieldValueMutationValue>;
+      return parsed.success
+        ? findValueMutationTarget(
+            executor,
+            accountId,
+            targetId,
+            lock,
+            parsed.data,
+          )
+        : Promise.resolve(null);
     },
 
     async update(executor, input) {
