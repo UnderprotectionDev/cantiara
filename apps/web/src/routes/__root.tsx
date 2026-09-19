@@ -12,9 +12,9 @@ import type { ReactNode } from "react";
 
 import Header from "@/components/header";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
-import { useFounderCommandPaletteSource } from "@/features/command-palette/command-palette-source";
-import { CommandPaletteProvider } from "@/features/command-palette/components/command-palette";
-import { ClientShellProvider } from "@/features/web-macos-client/views/client-shell";
+import { useFounderCommandPaletteSource } from "@/features/command-palette/hooks/use-command-palette-source";
+import { CommandPaletteProvider } from "@/features/command-palette/ui/components/command-palette";
+import { ClientShellProvider } from "@/features/web-macos-client/ui/components/client-shell";
 import type { orpc } from "@/utils/orpc";
 
 import "../index.css";

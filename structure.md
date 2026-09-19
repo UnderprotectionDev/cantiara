@@ -1,5 +1,7 @@
 # structure.md
 
+> This tree records source-backed ownership boundaries. Future feature names remain in specs until source exists, and generated files are omitted.
+
 ```text
 .
 ├── .github/
@@ -54,6 +56,7 @@
 │   │   │   ├── components/
 │   │   │   │   └── mdx.tsx
 │   │   │   └── lib/
+│   │   │       ├── cn.ts
 │   │   │       ├── layout.shared.tsx
 │   │   │       ├── shared.ts
 │   │   │       └── source.ts
@@ -69,169 +72,19 @@
 │   │   │   ├── features/
 │   │   │   │   ├── account-access/
 │   │   │   │   │   └── server/
-│   │   │   │   ├── account-closure/
-│   │   │   │   │   └── server/
 │   │   │   │   ├── account-preferences/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── attention-signals/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── backlog/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── blockers/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── build-in-public/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── bulk-editing/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
-│   │   │   │   ├── completion-effects/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── contact-and-company/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── custom-fields/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── daily-focus/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── data-export/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── data-import/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── decisions/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── documents/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── evidence/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── external-handoffs/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── external-surface-management/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── favorites/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── feedback/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── file-attachments/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── focus-period/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── github-integration/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── goals/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── kanban/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── link-sharing/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── moodboards/
-│   │   │   │   │   └── server/
 │   │   │   │   ├── mutation-and-undo/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── operator-backup-and-alarms/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── personal-data/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── personal-reminders/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── personal-wiki/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── priority/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── product-gaps/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── production-incidents/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── project-closure-summary/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── project-history/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── project-overview/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── project-retirement/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
-│   │   │   │   ├── project-updates/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── project-wall/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── record-actions/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── record-discovery/
-│   │   │   │   │   └── server/
 │   │   │   │   ├── relations/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── release-communication/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── release-evidence/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── release-planning/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── research-sessions/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── return-to-work/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── risks/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── roadmap-horizon/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── schema-artifacts/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── screens-and-wireframes/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── security-redaction/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── smart-collections/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── sources-and-freshness/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── spec-change-review/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── tags/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── technical-diagrams/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── test-assessments/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── test-gaps/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── test-plan-and-handoff/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── test-report-acceptance/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── test-review-and-follow-up/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── trash/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── uncertainty-records/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── unified-calendar/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── user-flow/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── validation-records/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── value-chain/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── web-macos-client/
 │   │   │   │   │   └── server/
-│   │   │   │   ├── wiki-publishing/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── work-automation/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── work-checklists/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── work-context/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── work-drafts/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── work-lifecycle/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── work-templates/
-│   │   │   │   │   └── server/
-│   │   │   │   ├── workspace-exit/
-│   │   │   │   │   └── server/
-│   │   │   │   └── workspace-overview/
+│   │   │   │   └── work-lifecycle/
 │   │   │   │       └── server/
 │   │   │   ├── app.test.ts
 │   │   │   ├── app.ts
@@ -252,468 +105,147 @@
 │       │   ├── client-shell.e2e.ts
 │       │   ├── command-palette.e2e.ts
 │       │   ├── project-shell.e2e.ts
-│       │   └── web-capture-extension.e2e.ts
+│       │   ├── web-capture-extension.e2e.ts
+│       │   └── work-lifecycle.e2e.ts
 │       ├── src/
 │       │   ├── components/
 │       │   │   ├── header.tsx
 │       │   │   ├── loader.tsx
 │       │   │   ├── mode-toggle.tsx
+│       │   │   ├── theme-provider.test.ts
 │       │   │   ├── theme-provider.tsx
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
 │       │   │   ├── account-access/
 │       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-account-sessions.ts
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── github-sign-in-url.test.ts
+│       │   │   │   │   ├── github-sign-in-url.ts
+│       │   │   │   │   ├── tauri-session.test.ts
+│       │   │   │   │   └── tauri-session.ts
 │       │   │   │   └── ui/
 │       │   │   │       ├── components/
+│       │   │   │       │   ├── github-waiting-status.test.tsx
+│       │   │   │       │   ├── github-waiting-status.tsx
+│       │   │   │       │   ├── revoke-confirmation.tsx
+│       │   │   │       │   ├── sessions-section.tsx
+│       │   │   │       │   └── sessions-skeleton.tsx
 │       │   │   │       ├── forms/
+│       │   │   │       │   └── github-sign-in.tsx
 │       │   │   │       └── views/
-│       │   │   ├── account-closure/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
+│       │   │   │           ├── account-view.test.tsx
+│       │   │   │           └── account-view.tsx
 │       │   │   ├── account-preferences/
-│       │   │   │   ├── hooks/
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── account-preferences-format.test.ts
+│       │   │   │   │   ├── account-preferences-format.ts
+│       │   │   │   │   ├── account-preferences-mutation-error.test.ts
+│       │   │   │   │   ├── account-preferences-mutation-error.ts
+│       │   │   │   │   ├── browser-preference-suggestion.test.ts
+│       │   │   │   │   └── browser-preference-suggestion.ts
 │       │   │   │   └── ui/
-│       │   │   │       ├── components/
 │       │   │   │       ├── forms/
+│       │   │   │       │   └── account-preferences-form.tsx
 │       │   │   │       └── views/
-│       │   │   ├── attention-signals/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── backlog/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── blockers/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── build-in-public/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── bulk-editing/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
+│       │   │   │           ├── preferences-view.test.tsx
+│       │   │   │           └── preferences-view.tsx
 │       │   │   ├── capture-triage/
 │       │   │   │   ├── hooks/
+│       │   │   │   │   ├── use-capture-inbox.ts
+│       │   │   │   │   └── use-extension-links.ts
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── capture-inbox.ts
+│       │   │   │   │   └── sequential-triage.ts
 │       │   │   │   └── ui/
 │       │   │   │       ├── components/
+│       │   │   │       │   ├── bulk-sense-making.tsx
+│       │   │   │       │   ├── capture-inbox-item-actions.tsx
+│       │   │   │       │   ├── capture-inbox-surface.tsx
+│       │   │   │       │   └── extension-links-section.tsx
 │       │   │   │       ├── forms/
+│       │   │   │       │   ├── capture-inbox-form.test.ts
+│       │   │   │       │   └── capture-inbox-form.tsx
 │       │   │   │       └── views/
+│       │   │   │           ├── capture-inbox-view.test.tsx
+│       │   │   │           └── capture-inbox-view.tsx
 │       │   │   ├── command-palette/
 │       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       └── components/
-│       │   │   ├── completion-effects/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── contact-and-company/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── custom-fields/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── daily-focus/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── data-export/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── data-import/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── decisions/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── documents/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── evidence/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── external-handoffs/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── external-surface-management/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── favorites/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── feedback/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── file-attachments/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── focus-period/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── github-integration/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── goals/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── kanban/
-│       │   │   │   ├── hooks/
-│       │   │   │   ├── store/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── link-sharing/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── moodboards/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── mutation-and-undo/
-│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-command-palette-source.ts
 │       │   │   │   ├── lib/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── personal-data/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── personal-reminders/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── personal-shell/
-│       │   │   │   ├── hooks/
-│       │   │   │   ├── store/
+│       │   │   │   │   ├── command-palette-commands.ts
+│       │   │   │   │   ├── command-palette-source.test.ts
+│       │   │   │   │   └── command-palette-source.ts
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
-│       │   │   ├── personal-wiki/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── priority/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── product-gaps/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── production-incidents/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── project-closure-summary/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── project-history/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
+│       │   │   │           ├── command-palette.test.tsx
+│       │   │   │           └── command-palette.tsx
 │       │   │   ├── project-overview/
-│       │   │   │   ├── hooks/
+│       │   │   │   ├── lib/
+│       │   │   │   │   └── project-overview.ts
 │       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── project-retirement/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
+│       │   │   │       └── components/
+│       │   │   │           ├── project-overview-sections.tsx
+│       │   │   │           ├── project-overview.test.tsx
+│       │   │   │           └── project-overview.tsx
 │       │   │   ├── project-shell/
 │       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── project-updates/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── project-wall/
-│       │   │   │   ├── hooks/
-│       │   │   │   ├── store/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── record-actions/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── record-discovery/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── relations/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── release-communication/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── release-evidence/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── release-planning/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── research-sessions/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── return-to-work/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── risks/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── roadmap-horizon/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── schema-artifacts/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── screens-and-wireframes/
-│       │   │   │   ├── hooks/
+│       │   │   │   │   ├── use-project-area-enable.ts
+│       │   │   │   │   ├── use-project-configuration.ts
+│       │   │   │   │   ├── use-project-shell-data.ts
+│       │   │   │   │   └── use-project-short-code.ts
 │       │   │   │   ├── lib/
+│       │   │   │   │   ├── project-area-navigation.ts
+│       │   │   │   │   ├── project-list.ts
+│       │   │   │   │   ├── project-shell-explanation.ts
+│       │   │   │   │   └── project-shell-navigation.ts
 │       │   │   │   └── ui/
 │       │   │   │       ├── components/
+│       │   │   │       │   ├── project-area-availability.tsx
+│       │   │   │       │   ├── project-area-catalog.tsx
+│       │   │   │       │   ├── project-row.tsx
+│       │   │   │       │   ├── project-shell-surface.tsx
+│       │   │   │       │   └── projects-list-states.tsx
 │       │   │   │       ├── forms/
+│       │   │   │       │   ├── project-configuration-form.tsx
+│       │   │   │       │   ├── project-create-form.tsx
+│       │   │   │       │   └── project-short-code-form.tsx
 │       │   │   │       └── views/
-│       │   │   ├── security-redaction/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── smart-collections/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── sources-and-freshness/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── spec-change-review/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── tags/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── technical-diagrams/
-│       │   │   │   ├── hooks/
-│       │   │   │   ├── lib/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── test-assessments/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── test-gaps/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── test-plan-and-handoff/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── test-report-acceptance/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── test-review-and-follow-up/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── trash/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── uncertainty-records/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── unified-calendar/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── user-flow/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── validation-records/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── value-chain/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
+│       │   │   │           ├── project-create-view.tsx
+│       │   │   │           ├── project-shell-view.tsx
+│       │   │   │           └── projects-view.tsx
 │       │   │   ├── web-macos-client/
 │       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-client-shell.ts
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── client-shell-format.ts
+│       │   │   │   │   ├── client-shell.test.ts
+│       │   │   │   │   ├── client-shell.ts
+│       │   │   │   │   ├── macos-package-contract.test.ts
+│       │   │   │   │   ├── macos-package-contract.ts
+│       │   │   │   │   ├── support-reference.ts
+│       │   │   │   │   ├── updater.test.ts
+│       │   │   │   │   └── updater.ts
+│       │   │   │   ├── store/
+│       │   │   │   │   └── client-shell.ts
 │       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── wiki-publishing/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── work-automation/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── work-checklists/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── work-context/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   ├── work-drafts/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── work-lifecycle/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── work-templates/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       ├── forms/
-│       │   │   │       └── views/
-│       │   │   ├── workspace-exit/
-│       │   │   │   ├── hooks/
-│       │   │   │   └── ui/
-│       │   │   │       ├── components/
-│       │   │   │       └── views/
-│       │   │   └── workspace-overview/
-│       │   │       ├── hooks/
+│       │   │   │       └── components/
+│       │   │   │           ├── client-shell.test.tsx
+│       │   │   │           ├── client-shell.tsx
+│       │   │   │           ├── support-reference.test.tsx
+│       │   │   │           └── support-reference.tsx
+│       │   │   └── work-lifecycle/
 │       │   │       └── ui/
 │       │   │           ├── components/
-│       │   │           └── views/
+│       │   │           │   ├── project-work-list.tsx
+│       │   │           │   ├── scope-tree.test.tsx
+│       │   │           │   └── scope-tree.tsx
+│       │   │           └── forms/
+│       │   │               ├── work-create-form.tsx
+│       │   │               ├── work-merge-form.tsx
+│       │   │               ├── work-recreate-form.tsx
+│       │   │               ├── work-status-form.test.ts
+│       │   │               └── work-status-form.tsx
 │       │   ├── lib/
 │       │   │   └── auth-client.ts
 │       │   ├── routes/
@@ -723,61 +255,21 @@
 │       │   │   │   │   └── preferences.tsx
 │       │   │   │   ├── capture/
 │       │   │   │   │   └── index.tsx
-│       │   │   │   ├── daily-focus/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── drafts/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── favorites/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── focus-periods/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── notifications/
-│       │   │   │   │   └── index.tsx
 │       │   │   │   ├── projects/
 │       │   │   │   │   ├── $projectId/
-│       │   │   │   │   │   ├── all-tools/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── decisions/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── design/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── discovery/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── documents/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── github/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── production/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── releases/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── technical-diagrams/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── tests/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── work/
-│       │   │   │   │   │   │   └── index.tsx
-│       │   │   │   │   │   ├── index.tsx
-│       │   │   │   │   │   └── route.tsx
+│       │   │   │   │   │   └── index.tsx
 │       │   │   │   │   ├── index.tsx
 │       │   │   │   │   └── new.tsx
-│       │   │   │   ├── search/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── trash/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── wiki/
-│       │   │   │   │   └── index.tsx
-│       │   │   │   ├── index.tsx
+│       │   │   │   ├── dashboard.tsx
 │       │   │   │   └── route.tsx
 │       │   │   ├── __root.tsx
-│       │   │   ├── _founder.tsx
+│       │   │   ├── index.tsx
 │       │   │   └── login.tsx
 │       │   ├── utils/
 │       │   │   └── orpc.ts
 │       │   ├── env.ts
 │       │   ├── index.css
-│       │   ├── main.tsx
-│       │   └── routeTree.gen.ts
+│       │   └── main.tsx
 │       ├── src-tauri/
 │       │   ├── capabilities/
 │       │   │   └── default.json
@@ -803,13 +295,15 @@
 │   │   │   ├── account-preferences.ts
 │   │   │   ├── capture-triage.ts
 │   │   │   ├── context.ts
+│   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
 │   │   │   ├── index.ts
 │   │   │   ├── mutation-and-undo.ts
 │   │   │   ├── project-overview.ts
 │   │   │   ├── project-shell.ts
 │   │   │   ├── support-reference.ts
-│   │   │   └── web-capture.ts
+│   │   │   ├── web-capture.ts
+│   │   │   └── work-lifecycle.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── auth/
@@ -832,7 +326,9 @@
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
-│   │   │   │   └── security-event.ts
+│   │   │   │   ├── relation.ts
+│   │   │   │   ├── security-event.ts
+│   │   │   │   └── work.ts
 │   │   │   ├── config.ts
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts

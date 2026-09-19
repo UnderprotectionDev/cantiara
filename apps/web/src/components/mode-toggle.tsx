@@ -18,7 +18,7 @@ import { themeForAppearance, useTheme } from "@/components/theme-provider";
 import {
   accountPreferencesMutationErrorMessage,
   parseAccountPreferencesMutationError,
-} from "@/features/account-preferences/account-preferences-mutation-error";
+} from "@/features/account-preferences/lib/account-preferences-mutation-error";
 import { authClient } from "@/lib/auth-client";
 import {
   accountPreferencesQueryOptions,
