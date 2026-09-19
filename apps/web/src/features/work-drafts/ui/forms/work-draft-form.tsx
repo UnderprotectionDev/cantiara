@@ -126,7 +126,7 @@ export default function WorkDraftForm({ projectId }: { projectId: string }) {
     draftIdRef.current = draft.id;
     revisionRef.current = draft.revision;
     setActiveDraftId(draft.id);
-    form.reset(draftValues(draft));
+    form.reset(draftValues(draft), { keepDefaultValues: true });
     setActionMessage("Draft resumed.");
     setCreatedWorkKey(null);
     setFormError(null);

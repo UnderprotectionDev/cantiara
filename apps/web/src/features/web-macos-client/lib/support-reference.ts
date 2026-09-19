@@ -41,20 +41,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function errorSignals(error: unknown) {
-  if (error instanceof Error) {
-    return `${error.name} ${error.message}`;
-  }
-  if (!isRecord(error)) {
+function errorSignals(
+  error: unknown,
+  seen = new Set<object>(),
+  depth = 0,
+): string {
+  if (depth > 4 || !isRecord(error) || seen.has(error)) {
     return "";
   }
+  seen.add(error);
 
   const signals: string[] = [];
-  for (const key of ["code", "message", "status"]) {
-    const value = error[key];
-    if (typeof value === "string" || typeof value === "number") {
-      signals.push(String(value));
+  if (error instanceof Error) {
+    signals.push(error.name, error.message);
+  } else {
+    for (const key of ["code", "message", "status"]) {
+      const value = error[key];
+      if (typeof value === "string" || typeof value === "number") {
+        signals.push(String(value));
+      }
     }
+  }
+
+  if ("cause" in error) {
+    signals.push(errorSignals(error.cause, seen, depth + 1));
   }
   return signals.join(" ");
 }

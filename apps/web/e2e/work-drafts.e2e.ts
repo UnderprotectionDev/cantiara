@@ -33,6 +33,7 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
     .click();
   await page.getByRole("link", { name: "Create", exact: true }).click();
 
+  const workCreate = page.locator("#work-create");
   const title = page.getByLabel("Title");
   await title.fill("Saved payment investigation");
   const savedDraft = page
@@ -68,7 +69,7 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
   await resumedDraft.getByRole("button", { name: "Resume" }).click();
   await expect(title).toHaveValue("Saved payment investigation");
 
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
   ).toBeVisible({ timeout: 20_000 });
@@ -80,6 +81,6 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
       .getByText("Saved payment investigation", { exact: true }),
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
   await expect(workList).not.toContainText("PAY-2");
 });

@@ -114,20 +114,30 @@ export async function wrapSupportFailureResponseForRpc(
   );
 }
 
-function safeSignals(value: unknown) {
-  if (value instanceof Error) {
-    return `${value.name} ${value.message}`;
-  }
-  if (!isRecord(value)) {
+function safeSignals(
+  value: unknown,
+  seen = new Set<object>(),
+  depth = 0,
+): string {
+  if (depth > 4 || !isRecord(value) || seen.has(value)) {
     return "";
   }
+  seen.add(value);
 
   const signals: string[] = [];
-  for (const key of ["code", "message", "status"]) {
-    const field = value[key];
-    if (typeof field === "string" || typeof field === "number") {
-      signals.push(String(field));
+  if (value instanceof Error) {
+    signals.push(value.name, value.message);
+  } else {
+    for (const key of ["code", "message", "status"]) {
+      const field = value[key];
+      if (typeof field === "string" || typeof field === "number") {
+        signals.push(String(field));
+      }
     }
+  }
+
+  if ("cause" in value) {
+    signals.push(safeSignals(value.cause, seen, depth + 1));
   }
   return signals.join(" ");
 }
