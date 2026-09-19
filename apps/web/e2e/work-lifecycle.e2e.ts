@@ -131,7 +131,9 @@ test("creates Work with a Project key, type, and protected start status", async 
   );
   await merge.getByRole("button", { name: "Confirm" }).click();
   await expect(duplicateWork).not.toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole("status")).toContainText("Origin: PAY-2 → PAY-1");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Origin: PAY-2 → PAY-1" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(duplicateWork).toBeVisible({ timeout: 20_000 });
 
