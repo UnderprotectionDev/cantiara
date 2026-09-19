@@ -51,6 +51,7 @@ function createWorkLifecycleStub(
     find: vi.fn(),
     includeWork: vi.fn(),
     list: vi.fn(),
+    scopeTree: vi.fn(),
     previewClose: vi.fn(),
     previewRecreate: vi.fn(),
     previewTypeChange: vi.fn(),
@@ -108,6 +109,10 @@ describe("Work Lifecycle RPC", () => {
       .mockResolvedValue({ ...work, archivedAt: "2026-09-18T10:00:00.000Z" });
     const unarchive = vi.fn().mockResolvedValue(work);
     const list = vi.fn().mockResolvedValue([work]);
+    const scopeTree = vi.fn().mockResolvedValue({
+      features: [],
+      project: { id: "project-1", name: "Payment App" },
+    });
     const reopen = vi.fn().mockResolvedValue({
       ...work,
       status: "In Progress",
@@ -153,6 +158,7 @@ describe("Work Lifecycle RPC", () => {
       find: vi.fn().mockResolvedValue(work),
       includeWork: vi.fn().mockResolvedValue(work),
       list,
+      scopeTree,
       previewClose: vi.fn().mockResolvedValue({
         closureCheck: {
           activeBlockers: [],
@@ -193,6 +199,12 @@ describe("Work Lifecycle RPC", () => {
     await expect(
       client.projectWorks({ projectId: "project-1" }),
     ).resolves.toEqual([work]);
+    await expect(client.scopeTree({ projectId: "project-1" })).resolves.toEqual(
+      {
+        features: [],
+        project: { id: "project-1", name: "Payment App" },
+      },
+    );
     await client.projectWorks({ archived: true, projectId: "project-1" });
     expect(list).toHaveBeenLastCalledWith("account-1", "project-1", {
       archived: true,
@@ -205,6 +217,7 @@ describe("Work Lifecycle RPC", () => {
       title: "Create the first Work",
       type: "Task",
     });
+    expect(scopeTree).toHaveBeenCalledWith("account-1", "project-1");
     await expect(
       client.workTypeChangePreview({ type: "Bug", workId: work.id }),
     ).resolves.toMatchObject({ requiresImpactPreview: false });

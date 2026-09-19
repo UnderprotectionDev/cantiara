@@ -14,6 +14,10 @@ import {
   recordFeatureHealthInputSchema,
   recreateWorkInputSchema,
   reopenWorkInputSchema,
+  type ScopeTree,
+  type ScopeTreeNode,
+  type ScopeTreeReference,
+  type ScopeTreeWork,
   updateFeaturePrimarySpecInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
@@ -33,7 +37,10 @@ import {
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
-import type { WorkRelations } from "../../relations/server/work-relations";
+import type {
+  ScopeTreeRelation,
+  WorkRelations,
+} from "../../relations/server/work-relations";
 
 export interface WorkClosureContext {
   activeBlockers: WorkClosureContextItem[];
@@ -576,6 +583,82 @@ async function createWork(
   }
 }
 
+function featureProgressFromIncludedWork(
+  includedWork: readonly WorkProfile[],
+): FeatureProgress {
+  const statusCounts: FeatureProgress["statusCounts"] = {
+    Blocked: 0,
+    Closed: 0,
+    "In Progress": 0,
+    "Not Started": 0,
+  };
+  for (const item of includedWork) {
+    statusCounts[item.status] += 1;
+  }
+  return {
+    includedWorkCount: includedWork.length,
+    statusCounts,
+  };
+}
+
+function scopeTreeWork(work: WorkProfile): ScopeTreeWork {
+  return {
+    id: work.id,
+    key: work.key,
+    status: work.status,
+    title: work.title,
+    type: work.type,
+  };
+}
+
+function uniqueScopeTreeReferences(references: readonly ScopeTreeReference[]) {
+  const seen = new Set<string>();
+  return references.filter((reference) => {
+    if (seen.has(reference.id)) {
+      return false;
+    }
+    seen.add(reference.id);
+    return true;
+  });
+}
+
+function scopeTreeNode(
+  work: WorkProfile,
+  relations: readonly ScopeTreeRelation[],
+): ScopeTreeNode {
+  const blockers = uniqueScopeTreeReferences(
+    relations
+      .filter(
+        (relation) =>
+          relation.kind === "Blocks" && relation.targetRecordId === work.id,
+      )
+      .map((relation) => ({
+        id: relation.sourceWork.id,
+        key: relation.sourceWork.key,
+        label: relation.sourceWork.title,
+        projectId: relation.sourceProjectId,
+      })),
+  );
+  const milestones = uniqueScopeTreeReferences(
+    relations
+      .filter(
+        (relation) =>
+          relation.kind === "Contributes to Milestone" &&
+          relation.sourceWork.id === work.id,
+      )
+      .map((relation) => ({
+        id: relation.targetRecordId,
+        key: null,
+        label: relation.targetLabel,
+      })),
+  );
+  return {
+    blockers,
+    milestones,
+    work: scopeTreeWork(work),
+  };
+}
+
 export function createWorkLifecycle({
   closureContext,
   mutationContracts,
@@ -771,19 +854,7 @@ export function createWorkLifecycle({
         throw new WorkNotFoundError(featureId);
       }
       const includedWork = await store.listIncluded(accountId, featureId);
-      const statusCounts: FeatureProgress["statusCounts"] = {
-        Blocked: 0,
-        Closed: 0,
-        "In Progress": 0,
-        "Not Started": 0,
-      };
-      for (const item of includedWork) {
-        statusCounts[item.status] += 1;
-      }
-      return {
-        includedWorkCount: includedWork.length,
-        statusCounts,
-      };
+      return featureProgressFromIncludedWork(includedWork);
     },
 
     detachIncludedWork(accountId, rawInput) {
@@ -875,6 +946,35 @@ export function createWorkLifecycle({
 
     list(accountId, projectId, options) {
       return store.list(accountId, projectId, options);
+    },
+
+    async scopeTree(accountId, projectId): Promise<ScopeTree> {
+      const [project, works, scopeTreeRelations] = await Promise.all([
+        store.findProject(accountId, projectId),
+        store.list(accountId, projectId),
+        relations.listScopeTreeRelations(accountId, projectId),
+      ]);
+      if (!project) {
+        throw new WorkProjectNotFoundError(projectId);
+      }
+
+      const features = works.filter((work) => work.type === "Feature");
+      return {
+        features: features.map((feature) => {
+          const includedWork = works.filter(
+            (work) =>
+              work.primaryFeatureId === feature.id && work.type !== "Feature",
+          );
+          return {
+            ...scopeTreeNode(feature, scopeTreeRelations),
+            includedWork: includedWork.map((work) =>
+              scopeTreeNode(work, scopeTreeRelations),
+            ),
+            progress: featureProgressFromIncludedWork(includedWork),
+          };
+        }),
+        project,
+      };
     },
 
     previewRecreate(accountId, rawInput) {

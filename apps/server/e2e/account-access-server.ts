@@ -1,6 +1,7 @@
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
 import { account, session, user } from "@cantiara/db/schema/auth";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { createSecurityEventDb } from "@cantiara/db/security-events";
 import { betterAuth } from "better-auth";
 import { testUtils } from "better-auth/plugins";
@@ -172,10 +173,68 @@ async function createE2EFixture(fixtureKey: string) {
         })
       : null;
 
+  const scopeTreeProject =
+    fixtureKey === "scope-tree"
+      ? await projectShell.create(founder.id, {
+          name: "Scope Tree Project",
+          shortCode: "SCOPE",
+          starterConfiguration: "Blank Project",
+        })
+      : null;
+  if (scopeTreeProject) {
+    const feature = await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "scope-tree-feature",
+      projectId: scopeTreeProject.id,
+      title: "Checkout Feature",
+      type: "Feature",
+    });
+    const includedWork = await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "scope-tree-included-work",
+      projectId: scopeTreeProject.id,
+      title: "Verify provider callback",
+      type: "Task",
+    });
+    const blocker = await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "scope-tree-blocker",
+      projectId: scopeTreeProject.id,
+      title: "Wait for provider access",
+      type: "Research",
+    });
+    const included = await workLifecycle.includeWork(founder.id, {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "scope-tree-include-work",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    await database.insert(workRelation).values([
+      {
+        id: `scope-tree-block-${crypto.randomUUID()}`,
+        kind: "Blocks",
+        sourceWorkId: blocker.id,
+        targetLabel: included.key,
+        targetProjectId: scopeTreeProject.id,
+        targetRecordId: included.id,
+      },
+      {
+        id: `scope-tree-milestone-${crypto.randomUUID()}`,
+        kind: "Contributes to Milestone",
+        sourceWorkId: included.id,
+        targetLabel: "Private beta",
+        targetProjectId: scopeTreeProject.id,
+        targetRecordId: "milestone-1",
+      },
+    ]);
+  }
+
+  const projectId = captureProject?.id ?? scopeTreeProject?.id;
+
   return {
     currentCookie,
     otherCookie,
-    ...(captureProject ? { projectId: captureProject.id } : {}),
+    ...(projectId ? { projectId } : {}),
   };
 }
 

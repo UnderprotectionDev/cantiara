@@ -49,6 +49,14 @@ function createMemoryWorkLifecycle(
     initialWorks?: WorkProfile[];
     projectDocuments?: ReadonlyArray<{ id: string; projectId: string }>;
     recreateRelations?: WorkRecreateRelation[];
+    scopeTreeRelations?: ReadonlyArray<{
+      id: string;
+      kind: "Blocks" | "Contributes to Milestone";
+      sourceProjectId: string;
+      sourceWork: Pick<WorkProfile, "id" | "key" | "status" | "title" | "type">;
+      targetLabel: string;
+      targetRecordId: string;
+    }>;
   } = {},
 ) {
   const works = new Map(
@@ -69,6 +77,7 @@ function createMemoryWorkLifecycle(
     failNextCommit: configuredFailNextCommit,
     projectDocuments = [],
     recreateRelations = [],
+    scopeTreeRelations = [],
   } = options;
   const projectDocumentIds = new Map(
     projectDocuments.map(({ id, projectId }) => [id, projectId]),
@@ -141,6 +150,7 @@ function createMemoryWorkLifecycle(
 
   const relations: WorkRelations = {
     listRecreateRelations: async () => recreateRelations,
+    listScopeTreeRelations: async () => scopeTreeRelations,
   };
 
   const mutationContracts: WorkLifecycleMutationContracts = {
@@ -432,6 +442,154 @@ describe("Work Lifecycle seam", () => {
     await expect(
       workLifecycle.find("account-1", feature.id),
     ).resolves.toMatchObject({ status: "Not Started" });
+  });
+
+  test("derives a read-only Scope Tree from primary inclusion and source relations", async () => {
+    const scopeTreeRelations: Array<{
+      id: string;
+      kind: "Blocks" | "Contributes to Milestone";
+      sourceProjectId: string;
+      sourceWork: Pick<WorkProfile, "id" | "key" | "status" | "title" | "type">;
+      targetLabel: string;
+      targetRecordId: string;
+    }> = [];
+    const workLifecycle = createMemoryWorkLifecycle({ scopeTreeRelations });
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("scope-tree-feature", {
+        title: "Checkout Feature",
+        type: "Feature",
+      }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("scope-tree-included", {
+        title: "Verify provider callback",
+        type: "Task",
+      }),
+    );
+    const blocker = await workLifecycle.create(
+      "account-1",
+      createInput("scope-tree-blocker", {
+        projectId: "project-2",
+        title: "Wait for provider access",
+        type: "Research",
+      }),
+    );
+    const blockedBlocker = await workLifecycle.updateStatus(
+      "account-1",
+      {
+        baseRevision: blocker.revision,
+        clientIdempotencyKey: "scope-tree-blocker-status",
+        status: "Blocked",
+        workId: blocker.id,
+      },
+      VISIBLE_USER,
+    );
+    const unrelatedWork = await workLifecycle.create(
+      "account-1",
+      createInput("scope-tree-unrelated", {
+        title: "Unscoped Work",
+        type: "Task",
+      }),
+    );
+
+    await workLifecycle.includeWork("account-1", {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "scope-tree-include",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    scopeTreeRelations.push(
+      {
+        id: "scope-tree-blocks",
+        kind: "Blocks",
+        sourceProjectId: "project-2",
+        sourceWork: {
+          id: blockedBlocker.id,
+          key: blockedBlocker.key,
+          status: blockedBlocker.status,
+          title: blockedBlocker.title,
+          type: blockedBlocker.type,
+        },
+        targetLabel: includedWork.key,
+        targetRecordId: includedWork.id,
+      },
+      {
+        id: "scope-tree-milestone",
+        kind: "Contributes to Milestone",
+        sourceProjectId: PROJECT_ID,
+        sourceWork: {
+          id: includedWork.id,
+          key: includedWork.key,
+          status: includedWork.status,
+          title: includedWork.title,
+          type: includedWork.type,
+        },
+        targetLabel: "Private beta",
+        targetRecordId: "milestone-1",
+      },
+    );
+
+    await expect(
+      workLifecycle.scopeTree("account-1", PROJECT_ID),
+    ).resolves.toEqual({
+      features: [
+        {
+          blockers: [],
+          includedWork: [
+            {
+              blockers: [
+                {
+                  id: blocker.id,
+                  key: blocker.key,
+                  label: blocker.title,
+                  projectId: "project-2",
+                },
+              ],
+              milestones: [
+                { id: "milestone-1", key: null, label: "Private beta" },
+              ],
+              work: {
+                id: includedWork.id,
+                key: includedWork.key,
+                status: includedWork.status,
+                title: includedWork.title,
+                type: includedWork.type,
+              },
+            },
+          ],
+          milestones: [],
+          progress: {
+            includedWorkCount: 1,
+            statusCounts: {
+              Blocked: 0,
+              Closed: 0,
+              "In Progress": 0,
+              "Not Started": 1,
+            },
+          },
+          work: {
+            id: feature.id,
+            key: feature.key,
+            status: feature.status,
+            title: feature.title,
+            type: feature.type,
+          },
+        },
+      ],
+      project: { id: PROJECT_ID, name: "Cantiara" },
+    });
+
+    const tree = await workLifecycle.scopeTree("account-1", PROJECT_ID);
+    expect(tree.features[0]?.includedWork[0]?.work.id).toBe(includedWork.id);
+    expect(tree.features.flatMap((node) => node.includedWork)).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          work: expect.objectContaining({ id: unrelatedWork.id }),
+        }),
+      ]),
+    );
   });
 
   test("records Feature health only on the Feature without changing status or progress", async () => {

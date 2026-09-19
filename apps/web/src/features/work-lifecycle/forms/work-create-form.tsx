@@ -53,6 +53,9 @@ export default function WorkCreateForm({ projectId }: { projectId: string }) {
   const projectQueryKey = orpc.project.queryOptions({
     input: { projectId },
   }).queryKey;
+  const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
+    input: { projectId },
+  }).queryKey;
 
   const createWork = useMutation({
     mutationFn: (input: Parameters<typeof client.createWork>[0]) =>
@@ -67,6 +70,7 @@ export default function WorkCreateForm({ projectId }: { projectId: string }) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: projectQueryKey }),
+        queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
       ]);
     },
   });

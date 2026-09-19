@@ -684,6 +684,16 @@ export const appRouter = {
         { archived: input.archived },
       ),
     ),
+  scopeTree: protectedProcedure
+    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).scopeTree(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
   featureProgress: protectedProcedure
     .input(z.object({ featureId: z.string().trim().min(1) }).strict())
     .handler(({ context, input }) =>

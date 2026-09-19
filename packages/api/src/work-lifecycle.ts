@@ -252,6 +252,18 @@ export const workRecreateRelationKindSchema = z.enum(
   WORK_RECREATE_RELATION_KIND_OPTIONS,
 );
 
+export const SCOPE_TREE_RELATION_KIND_OPTIONS = [
+  "Blocks",
+  "Contributes to Milestone",
+] as const;
+
+export type ScopeTreeRelationKind =
+  (typeof SCOPE_TREE_RELATION_KIND_OPTIONS)[number];
+
+export const scopeTreeRelationKindSchema = z.enum(
+  SCOPE_TREE_RELATION_KIND_OPTIONS,
+);
+
 export const workRecreateRelationSchema = z
   .object({
     id: identifierSchema,
@@ -439,6 +451,34 @@ export interface FeatureProgress {
   statusCounts: Record<WorkStatus, number>;
 }
 
+export type ScopeTreeWork = Pick<
+  WorkProfile,
+  "id" | "key" | "status" | "title" | "type"
+>;
+
+export interface ScopeTreeReference {
+  id: string;
+  key: string | null;
+  label: string;
+  projectId?: string;
+}
+
+export interface ScopeTreeNode {
+  blockers: ScopeTreeReference[];
+  milestones: ScopeTreeReference[];
+  work: ScopeTreeWork;
+}
+
+export interface ScopeTreeFeatureNode extends ScopeTreeNode {
+  includedWork: ScopeTreeNode[];
+  progress: FeatureProgress;
+}
+
+export interface ScopeTree {
+  features: ScopeTreeFeatureNode[];
+  project: { id: string; name: string };
+}
+
 export interface WorkLifecycleAccess {
   archive: (
     accountId: string,
@@ -500,6 +540,7 @@ export interface WorkLifecycleAccess {
     input: ReopenWorkInput,
     initiator: WorkVisibleUserInitiator,
   ) => Promise<WorkProfile>;
+  scopeTree: (accountId: string, projectId: string) => Promise<ScopeTree>;
   unarchive: (
     accountId: string,
     input: WorkArchiveMutationInput,
