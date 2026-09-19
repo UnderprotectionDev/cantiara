@@ -112,7 +112,8 @@ function createMemoryWorkLifecycle(
         .filter(
           (work) =>
             work.projectId === projectId &&
-            (work.archivedAt !== null) === (listOptions?.archived ?? false),
+            (listOptions?.archived === "all" ||
+              (work.archivedAt !== null) === (listOptions?.archived ?? false)),
         )
         .sort((left, right) => left.number - right.number),
     listIncluded: async (_accountId, featureId) =>
@@ -590,6 +591,43 @@ describe("Work Lifecycle seam", () => {
         }),
       ]),
     );
+  });
+
+  test("keeps archived Work in the Scope Tree with progress consistent with featureProgress", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const feature = await workLifecycle.create(
+      "account-1",
+      createInput("scope-tree-archived-feature", {
+        title: "Checkout Feature",
+        type: "Feature",
+      }),
+    );
+    const includedWork = await workLifecycle.create(
+      "account-1",
+      createInput("scope-tree-archived-included", {
+        title: "Verify provider callback",
+        type: "Task",
+      }),
+    );
+    const included = await workLifecycle.includeWork("account-1", {
+      baseRevision: includedWork.revision,
+      clientIdempotencyKey: "scope-tree-archived-include",
+      featureId: feature.id,
+      workId: includedWork.id,
+    });
+    const archivedWork = await workLifecycle.archive("account-1", {
+      baseRevision: included.revision,
+      clientIdempotencyKey: "scope-tree-archived-work",
+      workId: includedWork.id,
+    });
+
+    const tree = await workLifecycle.scopeTree("account-1", PROJECT_ID);
+    expect(tree.features[0]?.includedWork.map((node) => node.work.id)).toEqual([
+      archivedWork.id,
+    ]);
+    await expect(
+      workLifecycle.featureProgress("account-1", feature.id),
+    ).resolves.toEqual(tree.features[0]?.progress);
   });
 
   test("records Feature health only on the Feature without changing status or progress", async () => {

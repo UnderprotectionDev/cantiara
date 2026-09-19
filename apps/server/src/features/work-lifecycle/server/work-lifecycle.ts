@@ -86,7 +86,7 @@ export interface WorkLifecycleStore {
   list: (
     accountId: string,
     projectId: string,
-    options?: { archived?: boolean },
+    options?: { archived?: boolean | "all" },
   ) => Promise<WorkProfile[]>;
   listIncluded: (
     accountId: string,
@@ -951,7 +951,7 @@ export function createWorkLifecycle({
     async scopeTree(accountId, projectId): Promise<ScopeTree> {
       const [project, works, scopeTreeRelations] = await Promise.all([
         store.findProject(accountId, projectId),
-        store.list(accountId, projectId),
+        store.list(accountId, projectId, { archived: "all" }),
         relations.listScopeTreeRelations(accountId, projectId),
       ]);
       if (!project) {

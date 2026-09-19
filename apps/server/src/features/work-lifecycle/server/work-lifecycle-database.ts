@@ -15,6 +15,7 @@ import {
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project, work, workKeyAllocation } from "@cantiara/db/schema/index";
+import type { SQL } from "drizzle-orm";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import {
@@ -533,6 +534,14 @@ export function createDatabaseWorkLifecycle(
       if (!workspaceId) {
         return [];
       }
+      let archivedFilter: SQL | undefined;
+      if (listOptions?.archived === "all") {
+        archivedFilter = undefined;
+      } else if (listOptions?.archived) {
+        archivedFilter = isNotNull(work.archivedAt);
+      } else {
+        archivedFilter = isNull(work.archivedAt);
+      }
       const records = await database
         .select({ record: work })
         .from(work)
@@ -541,9 +550,7 @@ export function createDatabaseWorkLifecycle(
           and(
             eq(work.projectId, projectId),
             eq(project.workspaceId, workspaceId),
-            listOptions?.archived
-              ? isNotNull(work.archivedAt)
-              : isNull(work.archivedAt),
+            archivedFilter,
           ),
         )
         .orderBy(asc(work.number));

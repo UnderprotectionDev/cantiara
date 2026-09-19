@@ -388,7 +388,7 @@ export type WorkArchiveMutationInput = z.input<
 >;
 
 export interface WorkListOptions {
-  archived?: boolean;
+  archived?: boolean | "all";
 }
 
 export interface WorkProfile {
