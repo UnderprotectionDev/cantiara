@@ -296,7 +296,7 @@ export default function ProjectShellView({
       );
     }
 
-    if (activeHash === "work" || activeHash.startsWith("work-")) {
+    if (isWorkSurfaceHash(activeHash)) {
       return (
         <ProjectWorkSurface
           activeAction={dailyAction}
@@ -1494,7 +1494,7 @@ function navigationSurfaceFromHash(
     return "All Tools";
   }
   if (
-    (hash === "work" || hash.startsWith("work-")) &&
+    isWorkSurfaceHash(hash) &&
     enabledAreas.includes("Work") &&
     !hiddenAreas.includes("Work")
   ) {
@@ -1506,9 +1506,6 @@ function navigationSurfaceFromHash(
     !hiddenAreas.includes("Documents")
   ) {
     return "Documents";
-  }
-  if (dailyActionFromHash(hash)) {
-    return "Work";
   }
   const visibleArea = PROJECT_AREA_OPTIONS.find(
     (area) =>
@@ -1529,6 +1526,10 @@ function dailyActionFromHash(hash: string) {
   return (
     DAILY_ACTIONS.find((action) => DAILY_ACTION_HASHES[action] === hash) ?? null
   );
+}
+
+function isWorkSurfaceHash(hash: string) {
+  return hash === "work" || dailyActionFromHash(hash) !== null;
 }
 
 function navigationHash(surface: NavigationSurface) {

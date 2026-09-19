@@ -190,6 +190,10 @@ test("creates Work with a Project key, type, and protected start status", async 
     throw new Error("Orders project link did not expose an href.");
   }
   await page.getByRole("link", { name: "Payment App", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
 
   const sourceWork = page
     .getByRole("list", { name: "Work list" })
@@ -224,6 +228,10 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(sourceWork).toContainText("Not Started");
 
   await page.goto(ordersProjectUrl);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
   const recreatedWork = page.getByRole("listitem").filter({
     hasText: "ORD-1 Investigate payment failures",
   });

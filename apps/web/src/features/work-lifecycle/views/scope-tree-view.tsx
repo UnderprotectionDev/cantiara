@@ -63,7 +63,7 @@ function FeatureTreeNode({
   const completedCount = feature.progress.statusCounts.Closed;
 
   return (
-    <li draggable={false}>
+    <li draggable={false} id={`work-${feature.work.id}`}>
       <details draggable={false} open>
         <summary className="cursor-pointer list-inside">
           <span className="font-medium">
@@ -106,7 +106,7 @@ function WorkTreeNode({
   projectId: string;
 }) {
   return (
-    <li draggable={false}>
+    <li draggable={false} id={`work-${node.work.id}`}>
       <div className="space-y-2 pl-1 text-sm">
         <p className="font-medium">
           {node.work.key} {node.work.title}

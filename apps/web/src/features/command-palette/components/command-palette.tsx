@@ -99,6 +99,7 @@ export default function CommandPalette({
   >([]);
   const [failureReason, setFailureReason] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [recordsReady, setRecordsReady] = useState(false);
   const [query, setQuery] = useState(initialQuery);
   const commandInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,7 +129,7 @@ export default function CommandPalette({
   );
   const sourceRecordCommands = useMemo(
     () =>
-      open && commandStack.length === 0
+      open && recordsReady && commandStack.length === 0
         ? buildCommandPaletteRecordCommands(
             authorizedRecords,
             onOpenRecord,
@@ -136,7 +137,14 @@ export default function CommandPalette({
             COMMAND_PALETTE_MAX_VISIBLE_ITEMS,
           )
         : [],
-    [authorizedRecords, commandStack.length, onOpenRecord, open, query],
+    [
+      authorizedRecords,
+      commandStack.length,
+      onOpenRecord,
+      open,
+      query,
+      recordsReady,
+    ],
   );
   const recordCommandsFromCommandList = useMemo(
     () =>
@@ -167,10 +175,12 @@ export default function CommandPalette({
 
   useEffect(() => {
     if (!open) {
+      setRecordsReady(false);
       return;
     }
 
     const frame = requestAnimationFrame(() => {
+      setRecordsReady(true);
       commandInputRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
