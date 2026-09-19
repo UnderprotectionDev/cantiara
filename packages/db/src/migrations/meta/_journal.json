@@ -190,6 +190,13 @@
       "when": 1789848636618,
       "tag": "0026_project-custom-fields",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789851207714,
+      "tag": "0027_repair-drifted-project-schema",
+      "breakpoints": true
     }
   ]
 }
