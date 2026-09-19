@@ -128,4 +128,48 @@ test("defines the closed Project Custom Fields matrix in Configuration Mode", as
   await expect(
     customFieldHost.getByText("Available on: Work, Feedback", { exact: true }),
   ).toHaveCount(6);
+
+  const activeItems = customFieldHost.getByRole("list").first();
+  const trashItems = customFieldHost.getByRole("list").last();
+
+  await activeItems
+    .getByRole("listitem")
+    .filter({ hasText: "Text field" })
+    .getByRole("button", { name: "Edit" })
+    .click();
+  const editForm = customFieldHost.getByRole("form", {
+    name: "Edit Text field",
+  });
+  await editForm.getByLabel("Field name").fill("Renamed field");
+  await editForm.getByRole("button", { name: "Save" }).click();
+  await expect(
+    customFieldHost.getByText("Renamed field", { exact: true }),
+  ).toBeVisible();
+
+  await activeItems
+    .getByRole("listitem")
+    .filter({ hasText: "Number field" })
+    .getByRole("button", { name: "Move to Trash" })
+    .click();
+  await expect(
+    activeItems.getByRole("listitem").filter({ hasText: "Number field" }),
+  ).toHaveCount(0);
+  await expect(
+    customFieldHost.getByRole("heading", { name: "Trash" }),
+  ).toBeVisible();
+  await expect(
+    trashItems.getByRole("listitem").filter({ hasText: "Number field" }),
+  ).toHaveCount(1);
+
+  await trashItems
+    .getByRole("listitem")
+    .filter({ hasText: "Number field" })
+    .getByRole("button", { name: "Restore" })
+    .click();
+  await expect(
+    activeItems.getByRole("listitem").filter({ hasText: "Number field" }),
+  ).toHaveCount(1);
+  await expect(
+    customFieldHost.getByText("Available on: Work, Feedback", { exact: true }),
+  ).toHaveCount(6);
 });

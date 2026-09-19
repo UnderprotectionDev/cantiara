@@ -4,6 +4,7 @@ import type {
   CustomFieldMutationContracts,
   CustomFieldMutationValue,
   CustomFieldsAccess,
+  CustomFieldValueMutationValue,
 } from "@cantiara/api/custom-fields";
 import type {
   MutationApply,
@@ -23,6 +24,7 @@ const definition: CustomFieldDefinition = {
   projectId: "project-1",
   recordTypes: ["Work", "Feedback"],
   revision: 1,
+  trashedAt: null,
   type: "Text",
   updatedAt: "2026-09-19T09:00:00.000Z",
 };
@@ -53,7 +55,7 @@ function createContext(
   };
 }
 
-function createMutationContract() {
+function createFieldMutationContract(): MutationContract<CustomFieldMutationValue> {
   const mutation: MutationContract<CustomFieldMutationValue> = {
     mutate: async <TPayload extends MutationPayload>(
       command: MutationCommand<TPayload>,
@@ -88,17 +90,83 @@ function createMutationContract() {
   return mutation;
 }
 
+function createValueMutationContract(): MutationContract<CustomFieldValueMutationValue> {
+  const mutation: MutationContract<CustomFieldValueMutationValue> = {
+    mutate: async <TPayload extends MutationPayload>(
+      command: MutationCommand<TPayload>,
+      apply: MutationApply<CustomFieldValueMutationValue, TPayload>,
+    ) => {
+      if (command.kind !== "human") {
+        throw new Error("Expected a human Custom field command.");
+      }
+      const previousValue = { value: null };
+      const nextValue = await apply({
+        currentRevision: 0,
+        currentValue: previousValue,
+        payload: command.payload,
+      });
+      return {
+        actor: command.actor,
+        committedAt: "2026-09-19T09:00:00.000Z",
+        id: "receipt-2",
+        nextValue,
+        origin: {
+          clientIdempotencyKey: command.clientIdempotencyKey,
+          kind: "human" as const,
+        },
+        payloadFingerprint: "0".repeat(64),
+        previousValue,
+        revision: 1,
+        targetId: command.targetId,
+      };
+    },
+    replay: async () => null,
+  };
+  return mutation;
+}
+
+function createContracts(recorded: {
+  valueTargets: string[];
+}): CustomFieldMutationContracts {
+  return {
+    clearValue: () => createValueMutationContract(),
+    create: () => createFieldMutationContract(),
+    delete: () => createFieldMutationContract(),
+    restore: () => createFieldMutationContract(),
+    setValue: () => {
+      const contract = createValueMutationContract();
+      return {
+        ...contract,
+        mutate: (command, apply, options) => {
+          recorded.valueTargets.push(command.targetId);
+          return contract.mutate(command, apply, options);
+        },
+      } as MutationContract<CustomFieldValueMutationValue>;
+    },
+    trash: () => createFieldMutationContract(),
+    update: () => createFieldMutationContract(),
+  };
+}
+
+function createAccess(): CustomFieldsAccess {
+  return {
+    create: async () => definition,
+    list: async () => [definition],
+    previewOptionDeletion: async () => ({ affectedRecords: 0 }),
+    values: async (_accountId, input) =>
+      input.projectId === definition.projectId
+        ? [{ definition, value: null }]
+        : [],
+  };
+}
+
 describe("Project Custom Fields RPC", () => {
   test("lists project-local definitions through the authenticated interface", async () => {
-    const customFields: CustomFieldsAccess = {
-      create: async () => definition,
-      list: async (_accountId, projectId) =>
-        projectId === definition.projectId ? [definition] : [],
-    };
     const client = createRouterClient(appRouter, {
-      context: createContext(customFields, {
-        create: () => createMutationContract(),
-      }),
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
     });
 
     await expect(
@@ -106,14 +174,29 @@ describe("Project Custom Fields RPC", () => {
     ).resolves.toEqual([definition]);
   });
 
-  test("creates a Custom field through the Mutation Contract", async () => {
-    const customFields: CustomFieldsAccess = {
-      create: async () => definition,
-      list: async () => [definition],
-    };
-    const mutation = createMutationContract();
+  test("lists the bound definitions and values for a record", async () => {
     const client = createRouterClient(appRouter, {
-      context: createContext(customFields, { create: () => mutation }),
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
+    });
+
+    await expect(
+      client.customFieldValues({
+        projectId: "project-1",
+        recordId: "work-1",
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([{ definition, value: null }]);
+  });
+
+  test("creates a Custom field through the Mutation Contract", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
     });
 
     await expect(
@@ -133,15 +216,52 @@ describe("Project Custom Fields RPC", () => {
     });
   });
 
-  test("does not expose an unsupported field type or binding", async () => {
-    const customFields: CustomFieldsAccess = {
-      create: async () => definition,
-      list: async () => [definition],
-    };
+  test("sets a value on the composite definition/record target", async () => {
+    const recorded = { valueTargets: [] as string[] };
     const client = createRouterClient(appRouter, {
-      context: createContext(customFields, {
-        create: () => createMutationContract(),
+      context: createContext(createAccess(), createContracts(recorded)),
+    });
+
+    await expect(
+      client.setCustomFieldValue({
+        baseRevision: 0,
+        clientIdempotencyKey: "set-value-1",
+        definitionId: "field-1",
+        payload: { kind: "text", text: "Founders" },
+        recordId: "work-1",
+        recordType: "Work",
       }),
+    ).resolves.toMatchObject({
+      definitionId: "field-1",
+      recordId: "work-1",
+      recordType: "Work",
+      value: { kind: "text", text: "Founders" },
+    });
+    expect(recorded.valueTargets).toEqual(["field-1:work-1"]);
+  });
+
+  test("previews the records affected by deleting a select option", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
+    });
+
+    await expect(
+      client.previewCustomFieldOptionDeletion({
+        definitionId: "field-1",
+        option: "Ready",
+      }),
+    ).resolves.toEqual({ affectedRecords: 0 });
+  });
+
+  test("does not expose an unsupported field type or binding", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
     });
 
     await expect(

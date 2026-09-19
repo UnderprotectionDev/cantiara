@@ -1,16 +1,26 @@
 import {
   type CustomFieldMutationContracts,
   type CustomFieldMutationValue,
+  type CustomFieldType,
+  type CustomFieldValueMutationValue,
   createCustomFieldInputSchema,
   customFieldDefinitionSchema,
   customFieldNameKey,
+  isSelectCustomFieldType,
+  type ParsedCustomFieldValuePayload,
+  setCustomFieldValueInputSchema,
+  updateCustomFieldInputSchema,
 } from "@cantiara/api/custom-fields";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import { customFieldDefinition } from "@cantiara/db/schema/custom-fields";
+import {
+  type CustomFieldValuePayload,
+  customFieldDefinition,
+  customFieldValue,
+} from "@cantiara/db/schema/custom-fields";
 import { project } from "@cantiara/db/schema/project";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -18,14 +28,27 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
-  CustomFieldNameConflictError,
+  assertValueMatchesDefinition,
+  CustomFieldNotTrashedError,
+  CustomFieldOptionsNotSupportedError,
+  CustomFieldOptionsRequiredError,
   CustomFieldProjectNotFoundError,
+  CustomFieldRecordTypeNotBoundError,
+  CustomFieldTrashedError,
 } from "./custom-fields";
-import { toCustomFieldDefinition } from "./custom-fields-database";
+import {
+  findOwnedDefinition,
+  insertDefinition,
+  toCustomFieldDefinition,
+  toCustomFieldValueRecord,
+} from "./custom-fields-database";
 
 type CustomFieldMutationUpdateInput = Parameters<
   MutationDatabaseTargetAdapter<CustomFieldMutationValue>["update"]
 >[1];
+
+type DefinitionOperation = "delete" | "restore" | "trash" | "update";
+type ValueOperation = "clear" | "set";
 
 function emptyTarget(
   targetId: string,
@@ -35,6 +58,10 @@ function emptyTarget(
     revision: 0,
     value: { field: null },
   };
+}
+
+function valueTargetId(definitionId: string, recordId: string) {
+  return `${definitionId}:${recordId}`;
 }
 
 async function findWorkspaceId(
@@ -66,6 +93,26 @@ async function projectIsOwned(
   return Boolean(ownedProject);
 }
 
+async function findValueRow(
+  executor: MutationDatabaseExecutor,
+  definitionId: string,
+  recordId: string,
+  lock: boolean,
+) {
+  const query = executor
+    .select()
+    .from(customFieldValue)
+    .where(
+      and(
+        eq(customFieldValue.definitionId, definitionId),
+        eq(customFieldValue.recordId, recordId),
+      ),
+    )
+    .limit(1);
+  const rows = lock ? await query.for("update") : await query;
+  return rows[0] ?? null;
+}
+
 async function createDefinition(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -80,49 +127,108 @@ async function createDefinition(
   }
 
   const parsed = customFieldDefinitionSchema.parse(field);
-  const [created] = await executor
-    .insert(customFieldDefinition)
-    .values({
-      createdAt: input.committedAt,
-      id: parsed.id,
+  const created = await insertDefinition(executor, {
+    committedAt: input.committedAt,
+    id: parsed.id,
+    input: {
       name: parsed.name,
-      nameKey: customFieldNameKey(parsed.name),
       options: parsed.options,
       projectId: parsed.projectId,
-      recordTypes: [...parsed.recordTypes],
-      revision: parsed.revision,
+      recordTypes: parsed.recordTypes,
       type: parsed.type,
-      updatedAt: input.committedAt,
-    })
-    .onConflictDoNothing({
-      target: [customFieldDefinition.projectId, customFieldDefinition.nameKey],
-    })
-    .returning();
-
-  if (!created) {
-    throw new CustomFieldNameConflictError(parsed.name);
-  }
+    },
+    revision: parsed.revision,
+  });
 
   return {
     id: created.id,
     revision: created.revision,
-    value: { field: toCustomFieldDefinition(created) },
+    value: { field: created },
   } satisfies MutationTarget<CustomFieldMutationValue>;
 }
 
-function createCustomFieldMutationTarget(
+/**
+ * Values that used a deleted select option become empty (unset) instead of a
+ * ghost label.
+ */
+async function clearRemovedSelectOptions(
+  executor: MutationDatabaseExecutor,
+  definitionId: string,
+  type: string,
+  previousOptions: readonly string[],
+  nextOptions: readonly string[],
+) {
+  if (!isSelectCustomFieldType(type as CustomFieldType)) {
+    return;
+  }
+  const removed = previousOptions.filter(
+    (option) => !nextOptions.includes(option),
+  );
+  if (removed.length === 0) {
+    return;
+  }
+
+  if (type === "Single select") {
+    await executor
+      .delete(customFieldValue)
+      .where(
+        and(
+          eq(customFieldValue.definitionId, definitionId),
+          sql`${customFieldValue.value} ->> 'kind' = 'option'`,
+          inArray(sql`${customFieldValue.value} ->> 'option'`, removed),
+        ),
+      );
+    return;
+  }
+
+  const rows = await executor
+    .select()
+    .from(customFieldValue)
+    .where(
+      and(
+        eq(customFieldValue.definitionId, definitionId),
+        sql`${customFieldValue.value} ->> 'kind' = 'options'`,
+      ),
+    );
+  for (const row of rows) {
+    const payload: CustomFieldValuePayload = row.value;
+    if (payload.kind !== "options") {
+      continue;
+    }
+    const remaining = payload.options.filter(
+      (option) => !removed.includes(option),
+    );
+    if (remaining.length === payload.options.length) {
+      continue;
+    }
+    if (remaining.length === 0) {
+      // biome-ignore lint/performance/noAwaitInLoops: Each row can require a different delete or update query, and the transaction executor must apply them sequentially.
+      await executor
+        .delete(customFieldValue)
+        .where(eq(customFieldValue.id, row.id));
+      continue;
+    }
+    await executor
+      .update(customFieldValue)
+      .set({
+        updatedAt: new Date(),
+        value: { kind: "options", options: remaining },
+      })
+      .where(eq(customFieldValue.id, row.id));
+  }
+}
+
+function createDefinitionCreateTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<CustomFieldMutationValue> {
   return {
     async find(executor, targetId, _lock, context) {
       const parsed = createCustomFieldInputSchema.safeParse(context?.payload);
-      if (
-        !(
-          parsed.success &&
-          (await projectIsOwned(executor, accountId, parsed.data.projectId))
-        )
-      ) {
+      if (!parsed.success) {
         return null;
+      }
+      if (!(await projectIsOwned(executor, accountId, parsed.data.projectId))) {
+        throw new CustomFieldProjectNotFoundError(parsed.data.projectId);
       }
       return emptyTarget(targetId);
     },
@@ -133,13 +239,306 @@ function createCustomFieldMutationTarget(
   };
 }
 
+function createDefinitionMutationTarget(
+  accountId: string,
+  operation: DefinitionOperation,
+): MutationDatabaseTargetAdapter<CustomFieldMutationValue> {
+  return {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Definition lookup keeps ownership, trash state, and type-specific option validation at one mutation boundary.
+    async find(executor, targetId, lock, context) {
+      const record = await findOwnedDefinition(executor, accountId, targetId, {
+        lock,
+      });
+      if (!record) {
+        return null;
+      }
+      if (operation === "delete" && !record.trashedAt) {
+        throw new CustomFieldNotTrashedError(record.id);
+      }
+      if (operation === "update" && context?.payload) {
+        const parsed = updateCustomFieldInputSchema.safeParse(context.payload);
+        if (parsed.success) {
+          if (
+            !isSelectCustomFieldType(record.type as CustomFieldType) &&
+            parsed.data.options.length > 0
+          ) {
+            throw new CustomFieldOptionsNotSupportedError(record.id);
+          }
+          if (
+            isSelectCustomFieldType(record.type as CustomFieldType) &&
+            parsed.data.options.length === 0
+          ) {
+            throw new CustomFieldOptionsRequiredError(record.id);
+          }
+        }
+      }
+      return {
+        id: record.id,
+        revision: record.revision,
+        value: { field: toCustomFieldDefinition(record) },
+      } satisfies MutationTarget<CustomFieldMutationValue>;
+    },
+
+    async update(executor, input) {
+      const record = await findOwnedDefinition(
+        executor,
+        accountId,
+        input.targetId,
+        {
+          lock: true,
+        },
+      );
+      if (!record) {
+        return null;
+      }
+      const definitionIdentity = and(
+        eq(customFieldDefinition.id, input.targetId),
+        eq(customFieldDefinition.revision, input.expectedRevision),
+      );
+
+      if (operation === "delete") {
+        if (!record.trashedAt) {
+          throw new CustomFieldNotTrashedError(record.id);
+        }
+        const [deleted] = await executor
+          .delete(customFieldDefinition)
+          .where(definitionIdentity)
+          .returning({ id: customFieldDefinition.id });
+        if (!deleted) {
+          return null;
+        }
+        // Permanent delete cascades to the stored values.
+        return {
+          id: input.targetId,
+          revision: input.expectedRevision + 1,
+          value: { field: null },
+        } satisfies MutationTarget<CustomFieldMutationValue>;
+      }
+
+      const { field } = input.nextValue;
+      if (!field || field.id !== record.id) {
+        return null;
+      }
+
+      let updates: Partial<typeof customFieldDefinition.$inferInsert>;
+      if (operation === "update") {
+        updates = {
+          name: field.name,
+          nameKey: customFieldNameKey(field.name),
+          options: field.options,
+          recordTypes: [...field.recordTypes],
+          revision: input.expectedRevision + 1,
+          updatedAt: input.committedAt,
+        };
+      } else if (operation === "trash") {
+        updates = {
+          revision: input.expectedRevision + 1,
+          trashedAt: input.committedAt,
+          updatedAt: input.committedAt,
+        };
+      } else {
+        updates = {
+          revision: input.expectedRevision + 1,
+          trashedAt: null,
+          updatedAt: input.committedAt,
+        };
+      }
+
+      const [updated] = await executor
+        .update(customFieldDefinition)
+        .set(updates)
+        .where(definitionIdentity)
+        .returning();
+      if (!updated) {
+        return null;
+      }
+
+      if (operation === "update") {
+        await clearRemovedSelectOptions(
+          executor,
+          updated.id,
+          record.type,
+          record.options,
+          field.options,
+        );
+      }
+
+      return {
+        id: updated.id,
+        revision: updated.revision,
+        value: { field: toCustomFieldDefinition(updated) },
+      } satisfies MutationTarget<CustomFieldMutationValue>;
+    },
+  };
+}
+
+function assertDefinitionAcceptsValue(
+  record: typeof customFieldDefinition.$inferSelect,
+  recordType: string,
+  payload: ParsedCustomFieldValuePayload,
+) {
+  if (record.trashedAt) {
+    throw new CustomFieldTrashedError(record.id);
+  }
+  if (!record.recordTypes.includes(recordType)) {
+    throw new CustomFieldRecordTypeNotBoundError(
+      record.id,
+      recordType as never,
+    );
+  }
+  assertValueMatchesDefinition(toCustomFieldDefinition(record), payload);
+}
+
+function createValueMutationTarget(
+  accountId: string,
+  operation: ValueOperation,
+): MutationDatabaseTargetAdapter<CustomFieldValueMutationValue> {
+  return {
+    async find(executor, targetId, lock, context) {
+      const parsed = setCustomFieldValueInputSchema.safeParse(context?.payload);
+      if (!parsed.success) {
+        return null;
+      }
+      if (
+        valueTargetId(parsed.data.definitionId, parsed.data.recordId) !==
+        targetId
+      ) {
+        return null;
+      }
+      const record = await findOwnedDefinition(
+        executor,
+        accountId,
+        parsed.data.definitionId,
+        { lock },
+      );
+      if (!record) {
+        return null;
+      }
+      if (operation === "set") {
+        assertDefinitionAcceptsValue(
+          record,
+          parsed.data.recordType,
+          parsed.data.payload,
+        );
+      } else if (!record.recordTypes.includes(parsed.data.recordType)) {
+        throw new CustomFieldRecordTypeNotBoundError(
+          record.id,
+          parsed.data.recordType as never,
+        );
+      }
+
+      const valueRow = await findValueRow(
+        executor,
+        parsed.data.definitionId,
+        parsed.data.recordId,
+        lock,
+      );
+      return {
+        id: targetId,
+        revision: valueRow?.revision ?? 0,
+        value: { value: valueRow ? toCustomFieldValueRecord(valueRow) : null },
+      } satisfies MutationTarget<CustomFieldValueMutationValue>;
+    },
+
+    async update(executor, input) {
+      const separatorIndex = input.targetId.indexOf(":");
+      if (separatorIndex < 0) {
+        return null;
+      }
+      const definitionId = input.targetId.slice(0, separatorIndex);
+      const recordId = input.targetId.slice(separatorIndex + 1);
+      if (!(definitionId && recordId)) {
+        return null;
+      }
+
+      if (operation === "clear") {
+        await executor
+          .delete(customFieldValue)
+          .where(
+            and(
+              eq(customFieldValue.definitionId, definitionId),
+              eq(customFieldValue.recordId, recordId),
+              eq(customFieldValue.revision, input.expectedRevision),
+            ),
+          );
+        return {
+          id: input.targetId,
+          revision: input.expectedRevision + 1,
+          value: { value: null },
+        } satisfies MutationTarget<CustomFieldValueMutationValue>;
+      }
+
+      const next = input.nextValue.value;
+      if (!next) {
+        return null;
+      }
+
+      const [row] = await executor
+        .insert(customFieldValue)
+        .values({
+          createdAt: input.committedAt,
+          definitionId,
+          id: next.id,
+          recordId,
+          recordType: next.recordType,
+          revision: input.expectedRevision + 1,
+          updatedAt: input.committedAt,
+          value: next.value,
+        })
+        .onConflictDoUpdate({
+          set: {
+            revision: input.expectedRevision + 1,
+            updatedAt: input.committedAt,
+            value: next.value,
+          },
+          setWhere: eq(customFieldValue.revision, input.expectedRevision),
+          target: [customFieldValue.definitionId, customFieldValue.recordId],
+        })
+        .returning();
+      if (!row) {
+        return null;
+      }
+
+      return {
+        id: input.targetId,
+        revision: input.expectedRevision + 1,
+        value: { value: toCustomFieldValueRecord(row) },
+      } satisfies MutationTarget<CustomFieldValueMutationValue>;
+    },
+  };
+}
+
 export function createDatabaseCustomFieldMutationContracts(
   database: Database,
 ): CustomFieldMutationContracts {
   return {
     create: (accountId) =>
       createDatabaseMutationContract<CustomFieldMutationValue>(database, {
-        target: createCustomFieldMutationTarget(accountId),
+        target: createDefinitionCreateTarget(accountId),
+      }),
+    delete: (accountId) =>
+      createDatabaseMutationContract<CustomFieldMutationValue>(database, {
+        target: createDefinitionMutationTarget(accountId, "delete"),
+      }),
+    restore: (accountId) =>
+      createDatabaseMutationContract<CustomFieldMutationValue>(database, {
+        target: createDefinitionMutationTarget(accountId, "restore"),
+      }),
+    setValue: (accountId) =>
+      createDatabaseMutationContract<CustomFieldValueMutationValue>(database, {
+        target: createValueMutationTarget(accountId, "set"),
+      }),
+    clearValue: (accountId) =>
+      createDatabaseMutationContract<CustomFieldValueMutationValue>(database, {
+        target: createValueMutationTarget(accountId, "clear"),
+      }),
+    trash: (accountId) =>
+      createDatabaseMutationContract<CustomFieldMutationValue>(database, {
+        target: createDefinitionMutationTarget(accountId, "trash"),
+      }),
+    update: (accountId) =>
+      createDatabaseMutationContract<CustomFieldMutationValue>(database, {
+        target: createDefinitionMutationTarget(accountId, "update"),
       }),
   };
 }
