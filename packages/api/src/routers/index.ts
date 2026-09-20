@@ -786,6 +786,12 @@ function mapRelationsError(error: Record<string, unknown>) {
         defined: true,
         message: "This relation already exists.",
       });
+    case "RELATION_CYCLE":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message: "This relation would create a cycle in the catalog.",
+      });
     case "RELATION_PREVIEW_REQUIRED":
       return new ORPCError("PRECONDITION_FAILED", {
         data: { code: error.code },
@@ -1072,6 +1078,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runRelationsOperation(() =>
         requireRelations(context).list(context.session.user.id, input),
+      ),
+    ),
+  relationUsages: protectedProcedure
+    .input(relationsInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).listUsageLinks(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   relationPreview: protectedProcedure

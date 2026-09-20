@@ -130,11 +130,22 @@ export type RelationCardinality =
   | "at-most-one-current"
   | "directed-acyclic";
 
+/**
+ * Live-row uniqueness enforced by the store alongside the PRD 02 cardinality
+ * rules: `unique-per-source` keeps one current relation per source record,
+ * `unique-per-target` one per target record. Soft-deleted rows never count.
+ */
+export type RelationUniqueness =
+  | "many"
+  | "unique-per-source"
+  | "unique-per-target";
+
 export interface RelationDefinition {
   cardinality: RelationCardinality;
   inverseLabel: string;
   sourceTypes: RelationEndpointGroup;
   targetTypes: RelationEndpointGroup;
+  uniqueness: RelationUniqueness;
 }
 
 const RELATION_DEFINITIONS: Record<RelationKind, RelationDefinition> = {
@@ -143,83 +154,100 @@ const RELATION_DEFINITIONS: Record<RelationKind, RelationDefinition> = {
     inverseLabel: "Related",
     sourceTypes: "any-main-record",
     targetTypes: "any-main-record",
+    uniqueness: "many",
   },
   Origin: {
     cardinality: "many-to-many",
     inverseLabel: "Derived",
     sourceTypes: "origin-source",
     targetTypes: "produced-main-record",
+    uniqueness: "many",
   },
   Evidence: {
     cardinality: "many-to-many",
     inverseLabel: "Provides evidence",
     sourceTypes: "evidence-source",
     targetTypes: "evidence-target",
+    uniqueness: "many",
   },
   "Contributes to Goal": {
     cardinality: "many-to-many",
     inverseLabel: "In Goal",
     sourceTypes: "goal-source",
     targetTypes: "goal-target",
+    uniqueness: "many",
   },
   Blocks: {
     cardinality: "many-to-many",
     inverseLabel: "Blocked by",
     sourceTypes: "blocks-source",
     targetTypes: "blocks-target",
+    uniqueness: "many",
   },
   Includes: {
     cardinality: "at-most-one-current",
     inverseLabel: "Included in",
     sourceTypes: "feature-source",
     targetTypes: "feature-target",
+    uniqueness: "unique-per-target",
   },
   "Contributes to Milestone": {
     cardinality: "many-to-many",
     inverseLabel: "In Milestone",
     sourceTypes: "milestone-source",
     targetTypes: "milestone-target",
+    uniqueness: "many",
   },
   "Primary spec": {
     cardinality: "at-most-one-current",
     inverseLabel: "Primary spec",
     sourceTypes: "primary-spec-source",
     targetTypes: "document-version",
+    uniqueness: "unique-per-source",
   },
   Supersedes: {
     cardinality: "directed-acyclic",
     inverseLabel: "Superseded by",
     sourceTypes: "specialist-same-type",
     targetTypes: "specialist-same-type",
+    uniqueness: "many",
   },
   Implements: {
     cardinality: "many-to-many",
     inverseLabel: "Implemented by",
     sourceTypes: "implements-source",
     targetTypes: "implements-target",
+    uniqueness: "many",
   },
   "Belongs to Company": {
     cardinality: "at-most-one-current",
     inverseLabel: "Belongs to Company",
     sourceTypes: "company-source",
     targetTypes: "company-target",
+    uniqueness: "unique-per-source",
   },
   Participant: {
     cardinality: "at-most-one-current",
     inverseLabel: "Participant",
     sourceTypes: "participant-source",
     targetTypes: "participant-target",
+    uniqueness: "unique-per-source",
   },
   "Required for completion": {
     cardinality: "many-to-many",
     inverseLabel: "Contextual",
     sourceTypes: "github-pr-endpoint",
     targetTypes: "github-pr-endpoint",
+    uniqueness: "many",
   },
 };
 
 export function relationDefinition(kind: RelationKind): RelationDefinition {
   return RELATION_DEFINITIONS[kind];
+}
+
+export function relationUniqueness(kind: RelationKind): RelationUniqueness {
+  return RELATION_DEFINITIONS[kind].uniqueness;
 }
 
 export function relationLabel(
@@ -395,6 +423,62 @@ export type RelationsInput = z.infer<typeof relationsInputSchema>;
 export type RemoveRelationInput = z.infer<typeof removeRelationInputSchema>;
 export type UndoRelationInput = z.infer<typeof undoRelationInputSchema>;
 
+/**
+ * Usage links are the closed set of embed-derived bindings from PRD 02
+ * (kullanim baglari). They are not semantic relations, never carry Evidence
+ * Role, and never count as relation backlinks. Embed features write them
+ * through the Relations store instead of growing a second graph.
+ */
+export const RELATION_USAGE_KIND_OPTIONS = [
+  "Inline reference",
+  "Section reference",
+  "Live block",
+  "Pinned bind",
+  "Screen reference",
+] as const;
+
+export type RelationUsageKind = (typeof RELATION_USAGE_KIND_OPTIONS)[number];
+
+export const relationUsageKindSchema = z.enum(RELATION_USAGE_KIND_OPTIONS);
+
+export const relationUsageSurfaceSchema = z
+  .object({
+    context: z.string().trim().min(1).max(255).nullish(),
+    recordId: identifierSchema,
+    recordType: relationRecordTypeSchema,
+  })
+  .strict();
+
+export const relationUsageCreateInputSchema = z
+  .object({
+    kind: relationUsageKindSchema,
+    source: relationEndpointSchema,
+    surface: relationUsageSurfaceSchema,
+  })
+  .strict();
+
+export const relationUsageRemoveInputSchema = z
+  .object({ usageLinkId: identifierSchema })
+  .strict();
+
+export type RelationUsageCreateInput = z.infer<
+  typeof relationUsageCreateInputSchema
+>;
+export type RelationUsageRemoveInput = z.infer<
+  typeof relationUsageRemoveInputSchema
+>;
+
+/**
+ * Immutable provenance carried by a main record whose Origin is an owned
+ * component (checklist item, Wireframe node, Session Test). The owned
+ * component never becomes an independent relation end.
+ */
+export interface RelationOriginPosition {
+  componentId: string;
+  ownerRecordId: string;
+  sourceVersion: string | null;
+}
+
 export interface BrokenReferenceView {
   canOpenSourceRecord: boolean;
   establishedAt: string;
@@ -405,6 +489,7 @@ export interface RelationEndpointView extends RelationEndpoint {
   broken: BrokenReferenceView | null;
   key: string | null;
   label: string | null;
+  originPosition: RelationOriginPosition | null;
   projectId: string | null;
   title: string | null;
 }
@@ -444,6 +529,23 @@ export interface StoredRelationValue extends Record<string, MutationPayload> {
   targetRecordType: RelationRecordType;
 }
 
+/**
+ * The relation facts carried inside a mutation payload. Wall-clock fields are
+ * excluded so payload fingerprints stay deterministic across retries. The
+ * index signature keeps the payload assignable to the mutation JSON envelope.
+ */
+export interface RelationPayloadRelation
+  extends Record<string, MutationPayload> {
+  id: string;
+  kind: RelationKind;
+  sourceRecordId: string;
+  sourceRecordType: RelationRecordType;
+  targetLabel: string;
+  targetProjectId: string;
+  targetRecordId: string;
+  targetRecordType: RelationRecordType;
+}
+
 export interface RelationMutationValue extends Record<string, MutationPayload> {
   relation: StoredRelationValue | null;
 }
@@ -459,7 +561,15 @@ export interface RelationsAccess {
     accountId: string,
     input: RelationCreateInput,
   ) => Promise<RelationMutationResult>;
+  createUsageLink: (
+    accountId: string,
+    input: RelationUsageCreateInput,
+  ) => Promise<RelationUsageView>;
   list: (accountId: string, input: RelationsInput) => Promise<RelationView[]>;
+  listUsageLinks: (
+    accountId: string,
+    input: RelationsInput,
+  ) => Promise<RelationUsageView[]>;
   previewCreate: (
     accountId: string,
     input: RelationCreatePreviewInput,
@@ -468,8 +578,20 @@ export interface RelationsAccess {
     accountId: string,
     input: RemoveRelationInput,
   ) => Promise<RelationMutationResult>;
+  removeUsageLink: (
+    accountId: string,
+    input: RelationUsageRemoveInput,
+  ) => Promise<void>;
   undo: (
     accountId: string,
     input: UndoRelationInput,
   ) => Promise<RelationMutationResult>;
+}
+
+export interface RelationUsageView {
+  createdAt: string;
+  id: string;
+  kind: RelationUsageKind;
+  source: RelationEndpoint;
+  surface: RelationEndpointView;
 }

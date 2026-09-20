@@ -3,6 +3,7 @@ import type {
   MutationPayload,
   MutationReceipt,
 } from "@cantiara/api/mutation-and-undo";
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
   type BrokenReferenceReason,
   brokenReferenceReasonSchema,
@@ -13,10 +14,12 @@ import {
   type RelationEndpointView,
   type RelationKind,
   type RelationMutationResult,
-  type RelationMutationValue,
+  type RelationOriginPosition,
+  type RelationPayloadRelation,
   type RelationPreview,
   type RelationRecordType,
   type RelationsAccess,
+  type RelationUsageView,
   type RelationView,
   type RemoveRelationInput,
   relationCreateInputSchema,
@@ -26,6 +29,10 @@ import {
   relationLabel,
   relationRecordTypeSchema,
   relationsInputSchema,
+  relationUniqueness,
+  relationUsageCreateInputSchema,
+  relationUsageKindSchema,
+  relationUsageRemoveInputSchema,
   removeRelationInputSchema,
   type StoredRelationValue,
   type UndoRelationInput,
@@ -33,8 +40,13 @@ import {
 } from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import { project, work, workRelation } from "@cantiara/db/schema/index";
-import { and, asc, eq, isNull, or } from "drizzle-orm";
+import {
+  project,
+  recordUsageLink,
+  work,
+  workRelation,
+} from "@cantiara/db/schema/index";
+import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -45,11 +57,21 @@ import {
 type WorkRecord = typeof work.$inferSelect;
 type ProjectRecord = typeof project.$inferSelect;
 type RelationRecord = typeof workRelation.$inferSelect;
+type UsageLinkRecord = typeof recordUsageLink.$inferSelect;
+
+/**
+ * The value stored by the Mutation Contract for a relation target. It carries
+ * no wall-clock fields: deterministic payloads keep retries replayable, and
+ * `createdAt` is read from the row when presenting.
+ */
+export interface RelationStoreValue {
+  relation: RelationPayloadRelation | null;
+}
 
 type RelationMutationPayload =
   | {
       operation: "create";
-      relation: StoredRelationValue;
+      relation: RelationPayloadRelation;
     }
   | {
       operation: "remove";
@@ -92,6 +114,15 @@ export class RelationDuplicateError extends RelationsError {
   }
 }
 
+export class RelationCycleError extends RelationsError {
+  constructor() {
+    super(
+      "RELATION_CYCLE",
+      "This relation would create a cycle in the catalog.",
+    );
+  }
+}
+
 export class RelationPreviewRequiredError extends RelationsError {
   constructor() {
     super(
@@ -125,6 +156,14 @@ interface RelationWithSource {
   relation: RelationRecord;
   sourceProject: ProjectRecord;
   sourceWork: WorkRecord;
+}
+
+interface RelationEndsInput {
+  kind: RelationKind;
+  sourceId: string;
+  sourceType: RelationRecordType;
+  targetId: string;
+  targetType: RelationRecordType;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -257,6 +296,25 @@ function relationRecordType(value: string): RelationRecordType {
   return relationRecordTypeSchema.parse(value);
 }
 
+function relationUsageKind(value: string) {
+  return relationUsageKindSchema.parse(value);
+}
+
+function payloadRelationFromRecord(
+  record: RelationRecord,
+): RelationPayloadRelation {
+  return {
+    id: record.id,
+    kind: relationKind(record.kind),
+    sourceRecordId: record.sourceWorkId,
+    sourceRecordType: relationRecordType(record.sourceRecordType),
+    targetLabel: record.targetLabel,
+    targetProjectId: record.targetProjectId,
+    targetRecordId: record.targetRecordId,
+    targetRecordType: relationRecordType(record.targetRecordType),
+  };
+}
+
 function storedRelationFromRecord(record: RelationRecord): StoredRelationValue {
   return {
     createdAt: record.createdAt.toISOString(),
@@ -271,17 +329,17 @@ function storedRelationFromRecord(record: RelationRecord): StoredRelationValue {
   };
 }
 
-function targetFromRecord(record: RelationRecord): {
-  id: string;
-  revision: number;
-  value: RelationMutationValue;
-} {
+function targetFromRecord(record: RelationRecord) {
   return {
     id: record.id,
     revision: record.revision,
     value: {
-      relation: record.deletedAt ? null : storedRelationFromRecord(record),
+      relation: record.deletedAt ? null : payloadRelationFromRecord(record),
     },
+  } satisfies {
+    id: string;
+    revision: number;
+    value: RelationStoreValue;
   };
 }
 
@@ -321,7 +379,7 @@ async function relationTargetAdapterFind(
     } satisfies {
       id: string;
       revision: number;
-      value: RelationMutationValue;
+      value: RelationStoreValue;
     };
   }
   return null;
@@ -330,7 +388,7 @@ async function relationTargetAdapterFind(
 async function validateStoredRelation(
   executor: MutationDatabaseExecutor,
   accountId: string,
-  relation: StoredRelationValue,
+  relation: RelationPayloadRelation,
 ) {
   const source = await findOwnedWork(
     executor,
@@ -357,9 +415,153 @@ async function validateStoredRelation(
   );
 }
 
+async function hasDuplicateRelation(
+  executor: MutationDatabaseExecutor,
+  input: RelationEndsInput,
+  excludeRelationId?: string,
+): Promise<boolean> {
+  const sameDirection = and(
+    eq(workRelation.sourceWorkId, input.sourceId),
+    eq(workRelation.targetRecordId, input.targetId),
+  );
+  const reverseDirection = and(
+    eq(workRelation.sourceWorkId, input.targetId),
+    eq(workRelation.targetRecordId, input.sourceId),
+  );
+  const conditions = [
+    eq(workRelation.kind, input.kind),
+    eq(workRelation.sourceRecordType, input.sourceType),
+    eq(workRelation.targetRecordType, input.targetType),
+    isNull(workRelation.deletedAt),
+    input.kind === "Related"
+      ? or(sameDirection, reverseDirection)
+      : sameDirection,
+  ];
+  if (excludeRelationId) {
+    conditions.push(ne(workRelation.id, excludeRelationId));
+  }
+  const [record] = await executor
+    .select({ id: workRelation.id })
+    .from(workRelation)
+    .where(and(...conditions))
+    .limit(1);
+  return Boolean(record);
+}
+
+async function hasUniquenessConflict(
+  executor: MutationDatabaseExecutor,
+  input: RelationEndsInput,
+  excludeRelationId?: string,
+): Promise<boolean> {
+  const uniqueness = relationUniqueness(input.kind);
+  if (uniqueness === "many") {
+    return false;
+  }
+  const conditions = [
+    eq(workRelation.kind, input.kind),
+    isNull(workRelation.deletedAt),
+    uniqueness === "unique-per-source"
+      ? and(
+          eq(workRelation.sourceRecordType, input.sourceType),
+          eq(workRelation.sourceWorkId, input.sourceId),
+        )
+      : and(
+          eq(workRelation.targetRecordType, input.targetType),
+          eq(workRelation.targetRecordId, input.targetId),
+        ),
+  ];
+  if (excludeRelationId) {
+    conditions.push(ne(workRelation.id, excludeRelationId));
+  }
+  const [record] = await executor
+    .select({ id: workRelation.id })
+    .from(workRelation)
+    .where(and(...conditions))
+    .limit(1);
+  return Boolean(record);
+}
+
+const SUPERSEDES_CYCLE_MAX_DEPTH = 64;
+
+/**
+ * `Supersedes` is directed-acyclic in the PRD 02 catalog. The walk follows
+ * supersede edges from the target end; reaching the source end again means
+ * the new edge closes a cycle.
+ */
+export async function assertAcyclicSupersedes(
+  executor: MutationDatabaseExecutor,
+  input: RelationEndsInput,
+): Promise<void> {
+  if (input.kind !== "Supersedes") {
+    return;
+  }
+  if (input.sourceId === input.targetId) {
+    throw new RelationCycleError();
+  }
+  const visited = new Set<string>([input.sourceId]);
+  let frontier = [input.targetId];
+  for (
+    let depth = 0;
+    frontier.length > 0 && depth < SUPERSEDES_CYCLE_MAX_DEPTH;
+    depth += 1
+  ) {
+    // biome-ignore lint/performance/noAwaitInLoops: Breadth-first traversal queries each frontier before expanding the next one.
+    const rows = await executor
+      .select({
+        sourceId: workRelation.sourceWorkId,
+        targetId: workRelation.targetRecordId,
+      })
+      .from(workRelation)
+      .where(
+        and(
+          eq(workRelation.kind, "Supersedes"),
+          eq(workRelation.sourceRecordType, input.sourceType),
+          isNull(workRelation.deletedAt),
+          inArray(workRelation.sourceWorkId, frontier),
+        ),
+      );
+    frontier = [];
+    for (const row of rows) {
+      if (row.targetId === input.sourceId) {
+        throw new RelationCycleError();
+      }
+      if (!visited.has(row.targetId)) {
+        visited.add(row.targetId);
+        frontier.push(row.targetId);
+      }
+    }
+  }
+}
+
+/**
+ * Live-row catalog checks shared by create, resurrect, and undo-restore so
+ * every write path enforces the same duplicate, uniqueness, and acyclicity
+ * rules. Runs inside the caller's transaction when one is open.
+ */
+async function assertRelationWritable(
+  executor: MutationDatabaseExecutor,
+  relation: RelationPayloadRelation,
+  excludeRelationId: string,
+): Promise<void> {
+  const ends: RelationEndsInput = {
+    kind: relation.kind,
+    sourceId: relation.sourceRecordId,
+    sourceType: relation.sourceRecordType,
+    targetId: relation.targetRecordId,
+    targetType: relation.targetRecordType,
+  };
+  if (await hasDuplicateRelation(executor, ends, excludeRelationId)) {
+    throw new RelationDuplicateError();
+  }
+  if (await hasUniquenessConflict(executor, ends, excludeRelationId)) {
+    throw new RelationDuplicateError();
+  }
+  await assertAcyclicSupersedes(executor, ends);
+}
+
 function createRelationTarget(
   accountId: string,
-): MutationDatabaseTargetAdapter<RelationMutationValue> {
+): MutationDatabaseTargetAdapter<RelationStoreValue> {
   return {
     find: (executor, targetId, lock, context) =>
       relationTargetAdapterFind(
@@ -401,12 +603,13 @@ function createRelationTarget(
       if (!(await validateStoredRelation(executor, accountId, nextRelation))) {
         return null;
       }
+      await assertRelationWritable(executor, nextRelation, input.targetId);
 
       if (!current) {
         const [inserted] = await executor
           .insert(workRelation)
           .values({
-            createdAt: new Date(nextRelation.createdAt),
+            createdAt: input.committedAt,
             id: nextRelation.id,
             kind: nextRelation.kind,
             revision: input.expectedRevision + 1,
@@ -449,7 +652,7 @@ function createRelationTarget(
 }
 
 function createRelationMutation(database: Database, accountId: string) {
-  return createDatabaseMutationContract<RelationMutationValue>(database, {
+  return createDatabaseMutationContract<RelationStoreValue>(database, {
     target: createRelationTarget(accountId),
   });
 }
@@ -466,8 +669,78 @@ function brokenEndpoint(
     broken: { canOpenSourceRecord, establishedAt, reason },
     key: null,
     label: null,
+    originPosition: null,
     projectId: canOpenSourceRecord ? projectId : null,
     title: null,
+  };
+}
+
+interface ResolvedWorkEndpoint {
+  archived: boolean;
+  key: string | null;
+  originPosition: RelationOriginPosition | null;
+  projectId: string | null;
+  title: string | null;
+}
+
+/**
+ * Endpoint resolvers are registered per record type by the owning feature.
+ * Record types without a resolver fail closed: the end is presented as the
+ * shared broken-reference tombstone with no title, so an end the store cannot
+ * resolve never leaks names and never claims access. Register a resolver here
+ * when an owning store for a record type lands.
+ */
+const ENDPOINT_RESOLVERS: Partial<
+  Record<
+    RelationRecordType,
+    (
+      executor: MutationDatabaseExecutor,
+      accountId: string,
+      recordId: string,
+    ) => Promise<ResolvedWorkEndpoint | null>
+  >
+> = {
+  Work: async (executor, accountId, recordId) => {
+    const owned = await findOwnedWork(executor, accountId, recordId, false);
+    if (!owned) {
+      return null;
+    }
+    return {
+      archived: owned.record.archivedAt !== null,
+      key: owned.record.key,
+      originPosition:
+        owned.record.originOwnerRecordId && owned.record.originComponentId
+          ? {
+              componentId: owned.record.originComponentId,
+              ownerRecordId: owned.record.originOwnerRecordId,
+              sourceVersion: owned.record.originSourceVersion,
+            }
+          : null,
+      projectId: owned.record.projectId,
+      title: owned.record.title,
+    };
+  },
+};
+
+function resolvedEndpointView(
+  endpoint: RelationEndpoint,
+  resolved: ResolvedWorkEndpoint,
+  establishedAt: string,
+): RelationEndpointView {
+  return {
+    ...endpoint,
+    broken: resolved.archived
+      ? {
+          canOpenSourceRecord: true,
+          establishedAt,
+          reason: "Archived",
+        }
+      : null,
+    key: resolved.key,
+    label: resolved.key,
+    originPosition: resolved.originPosition,
+    projectId: resolved.projectId,
+    title: resolved.title,
   };
 }
 
@@ -478,21 +751,6 @@ async function endpointView(
   relation: RelationRecord,
   role: "source" | "target",
 ): Promise<RelationEndpointView> {
-  if (endpoint.recordType !== "Work") {
-    return brokenEndpoint(
-      endpoint,
-      "No access",
-      relation.createdAt.toISOString(),
-      null,
-    );
-  }
-
-  const owned = await findOwnedWork(
-    executor,
-    accountId,
-    endpoint.recordId,
-    false,
-  );
   const explicitReason =
     role === "target" && relation.brokenReason
       ? brokenReferenceReasonSchema.safeParse(relation.brokenReason)
@@ -506,22 +764,23 @@ async function endpointView(
     );
   }
 
-  if (owned) {
-    const archived = owned.record.archivedAt !== null;
-    return {
-      ...endpoint,
-      broken: archived
-        ? {
-            canOpenSourceRecord: true,
-            establishedAt: relation.createdAt.toISOString(),
-            reason: "Archived",
-          }
-        : null,
-      key: owned.record.key,
-      label: owned.record.key,
-      projectId: owned.record.projectId,
-      title: owned.record.title,
-    };
+  const resolver = ENDPOINT_RESOLVERS[endpoint.recordType];
+  if (!resolver) {
+    return brokenEndpoint(
+      endpoint,
+      "No access",
+      relation.createdAt.toISOString(),
+      null,
+    );
+  }
+
+  const resolved = await resolver(executor, accountId, endpoint.recordId);
+  if (resolved) {
+    return resolvedEndpointView(
+      endpoint,
+      resolved,
+      relation.createdAt.toISOString(),
+    );
   }
 
   const ownedTargetProject = await findOwnedProject(
@@ -543,6 +802,51 @@ async function endpointView(
     relation.createdAt.toISOString(),
     relation.targetProjectId,
   );
+}
+
+async function usageSurfaceView(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  endpoint: RelationEndpoint,
+  establishedAt: string,
+): Promise<RelationEndpointView> {
+  const resolver = ENDPOINT_RESOLVERS[endpoint.recordType];
+  if (!resolver) {
+    return brokenEndpoint(endpoint, "No access", establishedAt, null);
+  }
+  const resolved = await resolver(executor, accountId, endpoint.recordId);
+  if (!resolved) {
+    // Usage links only exist inside the founder's workspace, so a surface the
+    // resolver cannot find was permanently deleted, not moved out of reach.
+    return brokenEndpoint(endpoint, "Permanently deleted", establishedAt, null);
+  }
+  return resolvedEndpointView(endpoint, resolved, establishedAt);
+}
+
+async function usageView(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  record: UsageLinkRecord,
+): Promise<RelationUsageView> {
+  const surface = await usageSurfaceView(
+    executor,
+    accountId,
+    {
+      recordId: record.surfaceRecordId,
+      recordType: relationRecordType(record.surfaceRecordType),
+    },
+    record.createdAt.toISOString(),
+  );
+  return {
+    createdAt: record.createdAt.toISOString(),
+    id: record.id,
+    kind: relationUsageKind(record.kind),
+    source: {
+      recordId: record.sourceRecordId,
+      recordType: relationRecordType(record.sourceRecordType),
+    },
+    surface,
+  };
 }
 
 async function relationView(
@@ -578,19 +882,6 @@ async function relationView(
   };
 }
 
-function relationPreviewMatches(
-  preview: RelationCreatePreviewInput,
-  input: RelationCreateInput,
-): boolean {
-  return (
-    preview.kind === input.kind &&
-    preview.source.recordId === input.source.recordId &&
-    preview.source.recordType === input.source.recordType &&
-    preview.target.recordId === input.target.recordId &&
-    preview.target.recordType === input.target.recordType
-  );
-}
-
 function assertCatalogEndpoints(input: RelationCreatePreviewInput) {
   if (
     !isAllowedRelationEndpoints(
@@ -624,34 +915,47 @@ async function assertWorkEndpoints(
   return { source, target };
 }
 
-async function hasDuplicateRelation(
+function endsFromCreateInput(
+  input: RelationCreatePreviewInput,
+): RelationEndsInput {
+  return {
+    kind: input.kind,
+    sourceId: input.source.recordId,
+    sourceType: input.source.recordType,
+    targetId: input.target.recordId,
+    targetType: input.target.recordType,
+  };
+}
+
+async function assertRelationCreatable(
   executor: MutationDatabaseExecutor,
   input: RelationCreatePreviewInput,
-): Promise<boolean> {
-  const sameDirection = and(
-    eq(workRelation.sourceWorkId, input.source.recordId),
-    eq(workRelation.targetRecordId, input.target.recordId),
-  );
-  const reverseDirection = and(
-    eq(workRelation.sourceWorkId, input.target.recordId),
-    eq(workRelation.targetRecordId, input.source.recordId),
-  );
-  const [record] = await executor
-    .select({ id: workRelation.id })
-    .from(workRelation)
-    .where(
-      and(
-        eq(workRelation.kind, input.kind),
-        eq(workRelation.sourceRecordType, input.source.recordType),
-        eq(workRelation.targetRecordType, input.target.recordType),
-        isNull(workRelation.deletedAt),
-        input.kind === "Related"
-          ? or(sameDirection, reverseDirection)
-          : sameDirection,
-      ),
-    )
-    .limit(1);
-  return Boolean(record);
+): Promise<void> {
+  const ends = endsFromCreateInput(input);
+  if (await hasDuplicateRelation(executor, ends)) {
+    throw new RelationDuplicateError();
+  }
+  if (await hasUniquenessConflict(executor, ends)) {
+    throw new RelationDuplicateError();
+  }
+  await assertAcyclicSupersedes(executor, ends);
+}
+
+const RELATION_PREVIEW_PREFIX = "relation-preview:";
+
+/**
+ * Preview ids are deterministic fingerprints of the stable create inputs, the
+ * same pattern as Work lifecycle previews. Confirming recomputes the id, so
+ * previews survive restarts and multiple server instances without storage.
+ */
+async function relationPreviewId(
+  input: RelationCreatePreviewInput,
+): Promise<string> {
+  return `${RELATION_PREVIEW_PREFIX}${await fingerprintMutationPayload({
+    kind: input.kind,
+    source: input.source,
+    target: input.target,
+  })}`;
 }
 
 async function findRelationViewById(
@@ -674,7 +978,7 @@ async function findRelationViewById(
 async function mutationResult(
   database: Database,
   accountId: string,
-  receipt: MutationReceipt<RelationMutationValue>,
+  receipt: MutationReceipt<RelationStoreValue>,
 ): Promise<RelationMutationResult> {
   const relationId = receipt.targetId;
   return {
@@ -690,12 +994,10 @@ function relationCreatePayload(
   input: RelationCreateInput,
   source: OwnedWork,
   target: OwnedWork,
-  createdAt: string,
 ): RelationMutationPayload {
   return {
     operation: "create",
     relation: {
-      createdAt,
       id: input.previewId,
       kind: input.kind,
       sourceRecordId: source.record.id,
@@ -708,12 +1010,27 @@ function relationCreatePayload(
   };
 }
 
-export function createDatabaseRelations(database: Database): RelationsAccess {
-  const previews = new Map<
-    string,
-    { accountId: string; createdAt: string; input: RelationCreatePreviewInput }
-  >();
+async function assertUsageEndpointResolvable(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  endpoint: RelationEndpoint,
+): Promise<OwnedWork> {
+  if (endpoint.recordType !== "Work") {
+    throw new RelationRecordUnavailableError();
+  }
+  const owned = await findOwnedWork(
+    executor,
+    accountId,
+    endpoint.recordId,
+    false,
+  );
+  if (!owned) {
+    throw new RelationRecordUnavailableError();
+  }
+  return owned;
+}
 
+export function createDatabaseRelations(database: Database): RelationsAccess {
   return {
     async previewCreate(accountId, rawInput) {
       const input = relationCreatePreviewInputSchema.parse(rawInput);
@@ -726,18 +1043,16 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (source.record.id === target.record.id) {
         throw new RelationEndpointNotAllowedError();
       }
-      if (await hasDuplicateRelation(database, input)) {
-        throw new RelationDuplicateError();
-      }
+      await assertRelationCreatable(database, input);
 
-      const previewId = crypto.randomUUID();
-      previews.set(previewId, {
-        accountId,
-        createdAt: new Date().toISOString(),
-        input,
-      });
+      const previewId = await relationPreviewId(input);
+      const [existing] = await database
+        .select({ revision: workRelation.revision })
+        .from(workRelation)
+        .where(eq(workRelation.id, previewId))
+        .limit(1);
       return {
-        baseRevision: 0,
+        baseRevision: existing?.revision ?? 0,
         id: previewId,
         inverseLabel: relationDefinition(input.kind).inverseLabel,
         kind: input.kind,
@@ -747,6 +1062,7 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
           broken: null,
           key: source.record.key,
           label: source.record.key,
+          originPosition: null,
           projectId: source.record.projectId,
           recordId: source.record.id,
           recordType: input.source.recordType,
@@ -756,6 +1072,7 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
           broken: null,
           key: target.record.key,
           label: target.record.key,
+          originPosition: null,
           projectId: target.record.projectId,
           recordId: target.record.id,
           recordType: input.target.recordType,
@@ -772,20 +1089,16 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         accountId,
         input,
       );
-      const preview = previews.get(input.previewId);
-      if (
-        !preview ||
-        preview.accountId !== accountId ||
-        !relationPreviewMatches(preview.input, input)
-      ) {
+      if (source.record.id === target.record.id) {
+        throw new RelationEndpointNotAllowedError();
+      }
+      const expectedPreviewId = await relationPreviewId(input);
+      if (input.previewId !== expectedPreviewId) {
         throw new RelationPreviewRequiredError();
       }
-      const stablePayload = relationCreatePayload(
-        input,
-        source,
-        target,
-        preview.createdAt,
-      );
+      await assertRelationCreatable(database, input);
+
+      const stablePayload = relationCreatePayload(input, source, target);
       const mutation = createRelationMutation(database, accountId);
       const command: MutationCommand<RelationMutationPayload> = {
         actor: { actorId: accountId, type: "User" },
@@ -798,10 +1111,6 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       const replay = await mutation.replay(command);
       if (replay) {
         return mutationResult(database, accountId, replay);
-      }
-
-      if (await hasDuplicateRelation(database, input)) {
-        throw new RelationDuplicateError();
       }
 
       const receipt = await mutation.mutate(
@@ -865,6 +1174,122 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
           ),
         ),
       );
+    },
+
+    async listUsageLinks(accountId, rawInput) {
+      const input = relationsInputSchema.parse(rawInput);
+      if (input.recordType !== "Work") {
+        return [];
+      }
+      const workspaceId = await findOwnedWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        return [];
+      }
+      const records = await database
+        .select({ link: recordUsageLink })
+        .from(recordUsageLink)
+        .innerJoin(work, eq(recordUsageLink.sourceRecordId, work.id))
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(project.workspaceId, workspaceId),
+            eq(recordUsageLink.sourceRecordType, input.recordType),
+            eq(recordUsageLink.sourceRecordId, input.recordId),
+            isNull(recordUsageLink.deletedAt),
+          ),
+        )
+        .orderBy(asc(recordUsageLink.createdAt), asc(recordUsageLink.id));
+      return Promise.all(
+        records.map(({ link }) => usageView(database, accountId, link)),
+      );
+    },
+
+    async createUsageLink(accountId, rawInput) {
+      const input = relationUsageCreateInputSchema.parse(rawInput);
+      const source = await assertUsageEndpointResolvable(
+        database,
+        accountId,
+        input.source,
+      );
+      const surface = await assertUsageEndpointResolvable(database, accountId, {
+        recordId: input.surface.recordId,
+        recordType: input.surface.recordType,
+      });
+      if (
+        input.source.recordType === input.surface.recordType &&
+        source.record.id === surface.record.id
+      ) {
+        throw new RelationEndpointNotAllowedError();
+      }
+
+      const surfaceContext = input.surface.context ?? null;
+      const [duplicate] = await database
+        .select({ id: recordUsageLink.id })
+        .from(recordUsageLink)
+        .where(
+          and(
+            eq(recordUsageLink.kind, input.kind),
+            eq(recordUsageLink.sourceRecordType, input.source.recordType),
+            eq(recordUsageLink.sourceRecordId, source.record.id),
+            eq(recordUsageLink.surfaceRecordType, input.surface.recordType),
+            eq(recordUsageLink.surfaceRecordId, surface.record.id),
+            surfaceContext === null
+              ? isNull(recordUsageLink.surfaceContext)
+              : eq(recordUsageLink.surfaceContext, surfaceContext),
+            isNull(recordUsageLink.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (duplicate) {
+        throw new RelationDuplicateError();
+      }
+
+      const [inserted] = await database
+        .insert(recordUsageLink)
+        .values({
+          id: crypto.randomUUID(),
+          kind: input.kind,
+          sourceRecordId: source.record.id,
+          sourceRecordType: input.source.recordType,
+          surfaceContext,
+          surfaceRecordId: surface.record.id,
+          surfaceRecordType: input.surface.recordType,
+        })
+        .returning();
+      if (!inserted) {
+        throw new RelationsError(
+          "USAGE_LINK_WRITE_FAILED",
+          "The usage link could not be created.",
+        );
+      }
+      return usageView(database, accountId, inserted);
+    },
+
+    async removeUsageLink(accountId, rawInput) {
+      const input = relationUsageRemoveInputSchema.parse(rawInput);
+      const workspaceId = await findOwnedWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        throw new RelationNotFoundError();
+      }
+      const [record] = await database
+        .select({ link: recordUsageLink })
+        .from(recordUsageLink)
+        .innerJoin(work, eq(recordUsageLink.sourceRecordId, work.id))
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(recordUsageLink.id, input.usageLinkId),
+            eq(project.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      if (!record || record.link.deletedAt) {
+        throw new RelationNotFoundError();
+      }
+      await database
+        .update(recordUsageLink)
+        .set({ deletedAt: new Date() })
+        .where(eq(recordUsageLink.id, input.usageLinkId));
     },
 
     async remove(accountId, rawInput) {

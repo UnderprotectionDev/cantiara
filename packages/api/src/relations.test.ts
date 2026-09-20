@@ -5,10 +5,13 @@ import {
   isAllowedRelationEndpoints,
   RELATION_KIND_OPTIONS,
   RELATION_RECORD_TYPE_OPTIONS,
+  RELATION_USAGE_KIND_OPTIONS,
   relationDefinition,
   relationEndpointSchema,
   relationKindSchema,
   relationRecordTypeSchema,
+  relationUniqueness,
+  relationUsageKindSchema,
 } from "./relations";
 
 describe("Relations seam", () => {
@@ -102,5 +105,22 @@ describe("Relations seam", () => {
         recordType: "Work",
       }),
     ).toThrow();
+  });
+
+  test("keeps usage kinds and catalog uniqueness closed", () => {
+    expect(RELATION_USAGE_KIND_OPTIONS).toEqual([
+      "Inline reference",
+      "Section reference",
+      "Live block",
+      "Pinned bind",
+      "Screen reference",
+    ]);
+    expect(relationUsageKindSchema.safeParse("Evidence").success).toBe(false);
+    expect(relationUniqueness("Primary spec")).toBe("unique-per-source");
+    expect(relationUniqueness("Belongs to Company")).toBe("unique-per-source");
+    expect(relationUniqueness("Participant")).toBe("unique-per-source");
+    expect(relationUniqueness("Includes")).toBe("unique-per-target");
+    expect(relationUniqueness("Related")).toBe("many");
+    expect(relationUniqueness("Origin")).toBe("many");
   });
 });

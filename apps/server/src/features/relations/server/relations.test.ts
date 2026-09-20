@@ -18,7 +18,7 @@ import {
 } from "vitest";
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
 import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
-import { createDatabaseRelations } from "./relations";
+import { assertAcyclicSupersedes, createDatabaseRelations } from "./relations";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -372,5 +372,312 @@ describeDatabase("Relations PostgreSQL integration", () => {
       relationId: created.relation.id,
     });
     expect(undone.relation).toMatchObject({ kind: "Related" });
+  }, 30_000);
+
+  test("confirms previews statelessly across store instances", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { source, target } = await createWorks();
+    const input = {
+      kind: "Related" as const,
+      source: { recordId: source.id, recordType: "Work" as const },
+      target: { recordId: target.id, recordType: "Work" as const },
+    };
+    const preview = await createDatabaseRelations(database).previewCreate(
+      accountId,
+      input,
+    );
+    // A fresh store instance, as after a server restart, accepts the same
+    // deterministic preview id without any process-local state.
+    const created = await createDatabaseRelations(database).create(accountId, {
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "stateless-preview",
+      kind: preview.kind,
+      previewId: preview.previewId,
+      source: input.source,
+      target: input.target,
+    });
+    expect(created.relation).toMatchObject({ kind: "Related" });
+  }, 30_000);
+
+  test("resurrects the same relation row and refuses stale removal undo", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { source, target } = await createWorks();
+    const relations = createDatabaseRelations(database);
+    const input = {
+      kind: "Related" as const,
+      source: { recordId: source.id, recordType: "Work" as const },
+      target: { recordId: target.id, recordType: "Work" as const },
+    };
+    const preview = await relations.previewCreate(accountId, input);
+    const created = await relations.create(accountId, {
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "recreate-first",
+      kind: preview.kind,
+      previewId: preview.previewId,
+      source: input.source,
+      target: input.target,
+    });
+    if (!created.relation) {
+      throw new Error("Expected a created relation");
+    }
+    const removed = await relations.remove(accountId, {
+      baseRevision: created.relation.revision,
+      clientIdempotencyKey: "recreate-remove",
+      relationId: created.relation.id,
+    });
+
+    const rePreview = await relations.previewCreate(accountId, input);
+    expect(rePreview.previewId).toBe(preview.previewId);
+    expect(rePreview.baseRevision).toBe(created.relation.revision + 1);
+    await relations.create(accountId, {
+      baseRevision: rePreview.baseRevision,
+      clientIdempotencyKey: "recreate-second",
+      kind: rePreview.kind,
+      previewId: rePreview.previewId,
+      source: input.source,
+      target: input.target,
+    });
+
+    await expect(
+      relations.undo(accountId, {
+        baseRevision: rePreview.baseRevision + 1,
+        clientIdempotencyKey: "recreate-undo",
+        receiptId: removed.receiptId,
+        relationId: created.relation.id,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  }, 30_000);
+
+  test("enforces at-most-one live relations with partial unique indexes", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { project, source, target } = await createWorks();
+    const primarySpec = {
+      kind: "Primary spec",
+      sourceRecordType: "Work",
+      sourceWorkId: source.id,
+      targetLabel: "SPEC",
+      targetProjectId: project.id,
+      targetRecordId: target.id,
+      targetRecordType: "Document version",
+    };
+    await database
+      .insert(workRelation)
+      .values({ id: "primary-spec-live", ...primarySpec });
+    await expect(
+      database
+        .insert(workRelation)
+        .values({ id: "primary-spec-conflict", ...primarySpec }),
+    ).rejects.toThrow();
+    await database
+      .update(workRelation)
+      .set({ deletedAt: new Date() })
+      .where(eq(workRelation.id, "primary-spec-live"));
+    await expect(
+      database
+        .insert(workRelation)
+        .values({ id: "primary-spec-again", ...primarySpec }),
+    ).resolves.toBeDefined();
+  }, 30_000);
+
+  test("rejects Supersedes cycles before they are written", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { project } = await createWorks();
+    const lifecycle = createDatabaseWorkLifecycle(database);
+    const supersededTitles = ["Alpha", "Beta", "Gamma", "Delta"];
+    const records: Array<{ id: string; key: string }> = [];
+    for (const title of supersededTitles) {
+      // biome-ignore lint/performance/noAwaitInLoops: Work creation must remain sequential because each mutation uses the current revision.
+      const record = await lifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: `supersede-${title}`,
+        projectId: project.id,
+        title,
+        type: "Task",
+      });
+      records.push({ id: record.id, key: record.key });
+    }
+    const [recordA, recordB, recordC, recordD] = records;
+    if (!(recordA && recordB && recordC && recordD)) {
+      throw new Error("Expected four Work records for the supersede chain");
+    }
+    await database.insert(workRelation).values([
+      {
+        id: "supersede-a-b",
+        kind: "Supersedes",
+        sourceRecordType: "Decision",
+        sourceWorkId: recordA.id,
+        targetLabel: recordB.key,
+        targetProjectId: project.id,
+        targetRecordId: recordB.id,
+        targetRecordType: "Decision",
+      },
+      {
+        id: "supersede-b-c",
+        kind: "Supersedes",
+        sourceRecordType: "Decision",
+        sourceWorkId: recordB.id,
+        targetLabel: recordC.key,
+        targetProjectId: project.id,
+        targetRecordId: recordC.id,
+        targetRecordType: "Decision",
+      },
+    ]);
+
+    await expect(
+      assertAcyclicSupersedes(database, {
+        kind: "Supersedes",
+        sourceId: recordC.id,
+        sourceType: "Decision",
+        targetId: recordA.id,
+        targetType: "Decision",
+      }),
+    ).rejects.toMatchObject({ code: "RELATION_CYCLE" });
+    await expect(
+      assertAcyclicSupersedes(database, {
+        kind: "Supersedes",
+        sourceId: recordC.id,
+        sourceType: "Decision",
+        targetId: recordD.id,
+        targetType: "Decision",
+      }),
+    ).resolves.toBeUndefined();
+  }, 30_000);
+
+  test("tracks usage links separately from relation backlinks", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { source, target } = await createWorks();
+    const relations = createDatabaseRelations(database);
+    const usageInput = {
+      kind: "Live block" as const,
+      source: { recordId: source.id, recordType: "Work" as const },
+      surface: {
+        context: "block-1",
+        recordId: target.id,
+        recordType: "Work" as const,
+      },
+    };
+    const usage = await relations.createUsageLink(accountId, usageInput);
+    expect(usage.kind).toBe("Live block");
+    expect(usage.source).toEqual({
+      recordId: source.id,
+      recordType: "Work",
+    });
+    expect(usage.surface).toMatchObject({
+      broken: null,
+      key: target.key,
+      title: target.title,
+    });
+
+    // Usage links never enter the typed-relation graph and never count as
+    // backlinks.
+    await expect(
+      relations.list(accountId, { recordId: source.id, recordType: "Work" }),
+    ).resolves.toEqual([]);
+    await expect(
+      relations.listUsageLinks(accountId, {
+        recordId: source.id,
+        recordType: "Work",
+      }),
+    ).resolves.toHaveLength(1);
+
+    await expect(
+      relations.createUsageLink(accountId, usageInput),
+    ).rejects.toMatchObject({ code: "RELATION_DUPLICATE" });
+
+    await relations.removeUsageLink(accountId, {
+      usageLinkId: usage.id,
+    });
+    await expect(
+      relations.listUsageLinks(accountId, {
+        recordId: source.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([]);
+    // Unlink keeps the source record.
+    await expect(
+      createDatabaseWorkLifecycle(database).find(accountId, source.id),
+    ).resolves.toMatchObject({ id: source.id });
+  }, 30_000);
+
+  test("exposes the immutable Origin position on the target", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { source, target } = await createWorks();
+    await database
+      .update(work)
+      .set({
+        originComponentId: "checklist-item-1",
+        originOwnerRecordId: source.id,
+        originSourceVersion: "v3",
+      })
+      .where(eq(work.id, target.id));
+    const relations = createDatabaseRelations(database);
+    const preview = await relations.previewCreate(accountId, {
+      kind: "Origin",
+      source: { recordId: source.id, recordType: "Work" },
+      target: { recordId: target.id, recordType: "Work" },
+    });
+    await relations.create(accountId, {
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "origin-position",
+      kind: preview.kind,
+      previewId: preview.previewId,
+      source: {
+        recordId: preview.source.recordId,
+        recordType: preview.source.recordType,
+      },
+      target: {
+        recordId: preview.target.recordId,
+        recordType: preview.target.recordType,
+      },
+    });
+    const [view] = await relations.list(accountId, {
+      recordId: target.id,
+      recordType: "Work",
+    });
+    expect(view?.target?.originPosition).toEqual({
+      componentId: "checklist-item-1",
+      ownerRecordId: source.id,
+      sourceVersion: "v3",
+    });
+    expect(view?.source?.originPosition).toBeNull();
+  }, 30_000);
+
+  test("presents unsupported record types as fail-closed tombstones", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { project, source } = await createWorks();
+    await database.insert(workRelation).values({
+      id: "unsupported-target",
+      kind: "Related",
+      sourceWorkId: source.id,
+      targetLabel: "Document target",
+      targetProjectId: project.id,
+      targetRecordId: "document-1",
+      targetRecordType: "Document",
+    });
+    const relations = createDatabaseRelations(database);
+    const [view] = await relations.list(accountId, {
+      recordId: source.id,
+      recordType: "Work",
+    });
+    expect(view?.target).toMatchObject({
+      broken: { canOpenSourceRecord: false, reason: "No access" },
+      key: null,
+      originPosition: null,
+      title: null,
+    });
   }, 30_000);
 });

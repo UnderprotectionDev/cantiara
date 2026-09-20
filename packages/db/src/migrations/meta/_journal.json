@@ -225,6 +225,13 @@
       "when": 1789911774236,
       "tag": "0031_huge_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789924083169,
+      "tag": "0032_foamy_boom_boom",
+      "breakpoints": true
     }
   ]
 }

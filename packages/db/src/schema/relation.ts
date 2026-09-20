@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 import { work } from "./work";
@@ -28,6 +29,18 @@ export const WORK_RELATION_KIND_OPTIONS = [
 
 const workRelationKindSql = sql.raw(
   WORK_RELATION_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
+);
+
+export const WORK_RELATION_USAGE_KIND_OPTIONS = [
+  "Inline reference",
+  "Section reference",
+  "Live block",
+  "Pinned bind",
+  "Screen reference",
+] as const;
+
+const workRelationUsageKindSql = sql.raw(
+  WORK_RELATION_USAGE_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
 );
 
 export const workRelation = pgTable(
@@ -54,6 +67,14 @@ export const workRelation = pgTable(
       table.targetRecordType,
       table.targetRecordId,
     ),
+    uniqueIndex("work_relation_unique_per_source_uidx")
+      .on(table.kind, table.sourceRecordType, table.sourceWorkId)
+      .where(
+        sql`${table.deletedAt} is null and ${table.kind} in ('Primary spec', 'Belongs to Company', 'Participant')`,
+      ),
+    uniqueIndex("work_relation_unique_per_target_uidx")
+      .on(table.kind, table.targetRecordType, table.targetRecordId)
+      .where(sql`${table.deletedAt} is null and ${table.kind} = 'Includes'`),
     check(
       "work_relation_kind_check",
       sql`${table.kind} in (${workRelationKindSql})`,
@@ -84,3 +105,49 @@ export const workRelationRelations = relations(workRelation, ({ one }) => ({
     references: [work.id],
   }),
 }));
+
+/**
+ * Usage links (kullanim baglari) are derived, embed-owned bindings between a
+ * surface and the main record it uses. They are not semantic relations: no
+ * Evidence Role, no cardinality rule, no lifecycle effect, and they never
+ * enter relation counts. Unlink (`Unlink`) soft-deletes the row and keeps the
+ * source record.
+ */
+export const recordUsageLink = pgTable(
+  "record_usage_link",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at"),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    sourceRecordId: text("source_record_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+    sourceRecordType: text("source_record_type").default("Work").notNull(),
+    surfaceContext: text("surface_context"),
+    surfaceRecordId: text("surface_record_id").notNull(),
+    surfaceRecordType: text("surface_record_type").notNull(),
+  },
+  (table) => [
+    index("record_usage_link_source_idx").on(
+      table.sourceRecordType,
+      table.sourceRecordId,
+    ),
+    index("record_usage_link_surface_idx").on(
+      table.surfaceRecordType,
+      table.surfaceRecordId,
+    ),
+    check(
+      "record_usage_link_kind_check",
+      sql`${table.kind} in (${workRelationUsageKindSql})`,
+    ),
+    check(
+      "record_usage_link_source_record_type_check",
+      sql`length(btrim(${table.sourceRecordType})) > 0`,
+    ),
+    check(
+      "record_usage_link_surface_record_type_check",
+      sql`length(btrim(${table.surfaceRecordType})) > 0`,
+    ),
+  ],
+);

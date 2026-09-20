@@ -1,6 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Relation controls close over their current preview and mutation state.
 
-import type { RelationPreview, RelationView } from "@cantiara/api/relations";
+import type {
+  RelationPreview,
+  RelationUsageView,
+  RelationView,
+} from "@cantiara/api/relations";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -41,6 +45,11 @@ export default function WorkRelations({
   const [error, setError] = useState<string | null>(null);
   const query = useQuery(
     orpc.relations.queryOptions({
+      input: { recordId: work.id, recordType: "Work" },
+    }),
+  );
+  const usagesQuery = useQuery(
+    orpc.relationUsages.queryOptions({
       input: { recordId: work.id, recordType: "Work" },
     }),
   );
@@ -329,6 +338,7 @@ export default function WorkRelations({
         onRemove={(relation) => removeMutation.mutate(relation)}
         outgoing={outgoing}
         removePending={removeMutation.isPending}
+        usages={usagesQuery.data ?? []}
         workId={work.id}
       />
     </section>
@@ -342,6 +352,7 @@ function RelationsContent({
   onRemove,
   outgoing,
   removePending,
+  usages,
   workId,
 }: {
   incoming: readonly RelationView[];
@@ -350,6 +361,7 @@ function RelationsContent({
   onRemove: (relation: RelationView) => void;
   outgoing: readonly RelationView[];
   removePending: boolean;
+  usages: readonly RelationUsageView[];
   workId: string;
 }) {
   if (isPending) {
@@ -362,7 +374,7 @@ function RelationsContent({
       </p>
     );
   }
-  if (outgoing.length === 0 && incoming.length === 0) {
+  if (outgoing.length === 0 && incoming.length === 0 && usages.length === 0) {
     return <p className="text-muted-foreground text-xs">No relations yet.</p>;
   }
   return (
@@ -376,14 +388,35 @@ function RelationsContent({
           workId={workId}
         />
       ) : null}
-      {incoming.length > 0 ? (
-        <RelationGroup
-          onRemove={onRemove}
-          relations={incoming}
-          removePending={removePending}
-          title="Used in"
-          workId={workId}
-        />
+      {incoming.length > 0 || usages.length > 0 ? (
+        <div className="space-y-2">
+          <h5 className="font-medium text-muted-foreground text-xs">Used in</h5>
+          {incoming.length > 0 ? (
+            <RelationItems
+              onRemove={onRemove}
+              relations={incoming}
+              removePending={removePending}
+              workId={workId}
+            />
+          ) : null}
+          {usages.length > 0 ? (
+            <ul className="space-y-2">
+              {usages.map((usage) => (
+                <li
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2 text-xs"
+                  key={usage.id}
+                >
+                  <div className="min-w-0">
+                    <span className="mr-2 text-muted-foreground">
+                      {usage.kind}
+                    </span>
+                    <UsageSurfaceText surface={usage.surface} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -405,38 +438,89 @@ function RelationGroup({
   return (
     <div className="space-y-2">
       <h5 className="font-medium text-muted-foreground text-xs">{title}</h5>
-      <ul className="space-y-2">
-        {relations.map((relation) => {
-          const endpoint =
-            relation.direction === "outgoing"
-              ? relation.target
-              : relation.source;
-          return (
-            <li
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2 text-xs"
-              key={relation.id}
-            >
-              <div className="min-w-0">
-                <span className="mr-2 text-muted-foreground">
-                  {relation.label}
-                </span>
-                <RelationEndpointText endpoint={endpoint} workId={workId} />
-              </div>
-              <Button
-                aria-label={`Remove ${relation.label}`}
-                disabled={removePending}
-                onClick={() => onRemove(relation)}
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                Remove
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
+      <RelationItems
+        onRemove={onRemove}
+        relations={relations}
+        removePending={removePending}
+        workId={workId}
+      />
     </div>
+  );
+}
+
+function RelationItems({
+  onRemove,
+  relations,
+  removePending,
+  workId,
+}: {
+  onRemove: (relation: RelationView) => void;
+  relations: readonly RelationView[];
+  removePending: boolean;
+  workId: string;
+}) {
+  return (
+    <ul className="space-y-2">
+      {relations.map((relation) => {
+        const endpoint =
+          relation.direction === "outgoing" ? relation.target : relation.source;
+        return (
+          <li
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2 text-xs"
+            key={relation.id}
+          >
+            <div className="min-w-0">
+              <span className="mr-2 text-muted-foreground">
+                {relation.label}
+              </span>
+              <RelationEndpointText endpoint={endpoint} workId={workId} />
+            </div>
+            <Button
+              aria-label={`Remove ${relation.label}`}
+              disabled={removePending}
+              onClick={() => onRemove(relation)}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              Remove
+            </Button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function UsageSurfaceText({
+  surface,
+}: {
+  surface: RelationUsageView["surface"];
+}) {
+  if (surface.broken) {
+    return (
+      <span className="text-muted-foreground">
+        {surface.key && surface.title
+          ? `${surface.key} ${surface.title} — ${surface.broken.reason}`
+          : `Broken — ${surface.broken.reason}`}
+        {surface.broken.canOpenSourceRecord ? (
+          <a
+            className="ml-2 underline underline-offset-2"
+            href={`#work-${surface.recordId}`}
+          >
+            Open source record
+          </a>
+        ) : null}
+      </span>
+    );
+  }
+  return (
+    <a
+      className="underline underline-offset-2"
+      href={`#work-${surface.recordId}`}
+    >
+      {surface.key} {surface.title}
+    </a>
   );
 }
 
