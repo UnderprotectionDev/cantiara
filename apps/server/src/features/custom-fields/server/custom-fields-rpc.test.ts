@@ -154,6 +154,10 @@ function createAccess(): CustomFieldsAccess {
     create: async () => definition,
     list: async () => [definition],
     previewOptionDeletion: async () => ({ affectedRecords: 0 }),
+    projectValues: async () => ({
+      definitions: [definition],
+      values: [],
+    }),
     searchFields: async (_accountId, input) =>
       input.recordType === "Work" ? [definition] : [],
     values: async (_accountId, input) =>
@@ -208,6 +212,51 @@ describe("Project Custom Fields RPC", () => {
         targetProjectId: "project-2",
       }),
     ).resolves.toEqual([definition]);
+  });
+
+  test("surfaces a copy name conflict through the shared error contract", async () => {
+    const conflictAccess: CustomFieldsAccess = {
+      ...createAccess(),
+      copyDefinitions: () => {
+        throw Object.assign(
+          new Error(
+            "A Custom field named Audience already exists in this Project.",
+          ),
+          { code: "CUSTOM_FIELD_NAME_CONFLICT" },
+        );
+      },
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        conflictAccess,
+        createContracts({ valueTargets: [] }),
+      ),
+    });
+
+    await expect(
+      client.copyCustomFieldDefinitions({
+        sourceProjectId: "project-1",
+        targetProjectId: "project-2",
+      }),
+    ).rejects.toThrow(
+      "A Custom field named Audience already exists in this Project.",
+    );
+  });
+
+  test("lists Project-scoped Custom field values for record surfaces", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
+    });
+
+    await expect(
+      client.customFieldProjectValues({
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toEqual({ definitions: [definition], values: [] });
   });
 
   test("offers bound definitions to the search and filter seam", async () => {

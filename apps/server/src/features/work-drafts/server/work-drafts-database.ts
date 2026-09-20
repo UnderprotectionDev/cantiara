@@ -26,6 +26,7 @@ type WorkDraftDatabaseRecord = typeof workDraft.$inferSelect;
 function toWorkDraftValue(record: WorkDraftDatabaseRecord): WorkDraft {
   const values = workDraftFormSchema.parse({
     checklist: record.checklist,
+    customFieldValues: record.customFieldValues,
     description: record.description,
     projectId: record.projectId,
     title: record.title,
@@ -142,6 +143,7 @@ const workDraftMutationTargetAdapter: MutationDatabaseTargetAdapter<WorkDraftMut
           .update(workDraft)
           .set({
             checklist: nextDraft.checklist,
+            customFieldValues: nextDraft.customFieldValues,
             description: nextDraft.description,
             projectId: nextDraft.projectId,
             revision: nextRevision,
@@ -171,6 +173,7 @@ const workDraftMutationTargetAdapter: MutationDatabaseTargetAdapter<WorkDraftMut
         .values({
           accountId: target.accountId,
           checklist: nextDraft.checklist,
+          customFieldValues: nextDraft.customFieldValues,
           description: nextDraft.description,
           id: target.draftId,
           projectId: nextDraft.projectId,

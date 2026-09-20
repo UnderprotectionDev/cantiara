@@ -5,6 +5,7 @@ import {
   type CustomFieldsAccess,
   copyCustomFieldDefinitionsInputSchema,
   createCustomFieldInputSchema,
+  customFieldProjectValuesInputSchema,
   customFieldSearchFieldsInputSchema,
   customFieldValuesInputSchema,
   type ParsedCustomFieldValuePayload,
@@ -242,6 +243,19 @@ export function createCustomFields({
         parsed.projectId,
         parsed.recordType,
         parsed.recordId,
+      );
+    },
+
+    async projectValues(accountId, input) {
+      const parsed = customFieldProjectValuesInputSchema.parse(input);
+      const workspaceId = await store.findWorkspaceId(accountId);
+      if (!workspaceId) {
+        return null;
+      }
+      return store.listProjectValues(
+        workspaceId,
+        parsed.projectId,
+        parsed.recordType,
       );
     },
   };

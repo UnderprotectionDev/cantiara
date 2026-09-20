@@ -279,6 +279,7 @@ export default function CustomFieldValuesForm({
   onDraftValuesChange,
   projectId,
   recordId,
+  recordItems,
   recordType,
 }: {
   disabled?: boolean;
@@ -286,20 +287,30 @@ export default function CustomFieldValuesForm({
   onDraftValuesChange?: (values: CustomFieldDraftValues) => void;
   projectId: string;
   recordId?: string;
+  /** Prefetched values for this record; suppresses the per-record query. */
+  recordItems?: CustomFieldValueListItem[];
   recordType: CustomFieldRecordType;
 }) {
   const definitionsQuery = useCustomFields(projectId).query;
-  const values = useCustomFieldValues(projectId, recordType, recordId);
+  const values = useCustomFieldValues(projectId, recordType, recordId, {
+    enabled: recordItems === undefined,
+  });
   const [actionError, setActionError] = useState<string | null>(null);
 
-  if (definitionsQuery.isPending || (recordId && values.query.isPending)) {
+  if (
+    definitionsQuery.isPending ||
+    (recordId && recordItems === undefined && values.query.isPending)
+  ) {
     return (
       <p className="text-muted-foreground text-sm" role="status">
         Loading Custom field…
       </p>
     );
   }
-  if (definitionsQuery.isError || (recordId && values.query.isError)) {
+  if (
+    definitionsQuery.isError ||
+    (recordId && recordItems === undefined && values.query.isError)
+  ) {
     return (
       <p className="text-destructive text-sm" role="alert">
         Custom field values could not be loaded. Try loading this page again.
@@ -308,7 +319,7 @@ export default function CustomFieldValuesForm({
   }
 
   const items = recordId
-    ? (values.query.data ?? []).filter((item) =>
+    ? (recordItems ?? values.query.data ?? []).filter((item) =>
         isAvailableOnRecord(item.definition, recordType),
       )
     : (definitionsQuery.data ?? [])
@@ -351,7 +362,7 @@ export default function CustomFieldValuesForm({
       setActionError(
         error instanceof Error
           ? error.message
-          : "Custom field value could not be saved.",
+          : "Custom field values could not be saved.",
       );
     }
   }

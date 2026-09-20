@@ -446,4 +446,245 @@ describeDatabase("Project Custom Fields PostgreSQL integration", () => {
     ).resolves.toEqual([]);
     await expect(customFields.list(accountId, projectId)).resolves.toEqual([]);
   });
+
+  test("copies active definitions into another Project as independent clones", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const sourceProjectId = `project-${crypto.randomUUID()}`;
+    const targetProjectId = `project-${crypto.randomUUID()}`;
+    await database.insert(project).values([
+      {
+        id: sourceProjectId,
+        name: "Copy Source Project",
+        shortCode: `CPSRC-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+        workspaceId,
+      },
+      {
+        id: targetProjectId,
+        name: "Copy Target Project",
+        shortCode: `CPTGT-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+        workspaceId,
+      },
+    ]);
+
+    const customFields = createDatabaseCustomFields(database);
+    const active = await customFields.create(accountId, {
+      name: "Audience",
+      projectId: sourceProjectId,
+      recordTypes: ["Work"],
+      type: "Text",
+    });
+    const trashed = await customFields.create(accountId, {
+      name: "Archived review",
+      projectId: sourceProjectId,
+      recordTypes: ["Work"],
+      type: "Boolean",
+    });
+    const contracts = createDatabaseCustomFieldMutationContracts(database);
+    await contracts.trash(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: trashed.revision,
+        clientIdempotencyKey: `trash-copy-${trashed.id}`,
+        kind: "human",
+        payload: {},
+        targetId: trashed.id,
+      },
+      ({ currentValue, currentRevision }) => {
+        const timestamp = new Date().toISOString();
+        const current = currentValue.field;
+        if (!current) {
+          throw new Error("Custom field was not found.");
+        }
+        return {
+          field: {
+            ...current,
+            revision: currentRevision + 1,
+            trashedAt: timestamp,
+            updatedAt: timestamp,
+          },
+        };
+      },
+    );
+
+    const copied =
+      (await customFields.copyDefinitions(accountId, {
+        sourceProjectId,
+        targetProjectId,
+      })) ?? [];
+    expect(copied).toHaveLength(1);
+    expect(copied[0]).toMatchObject({
+      name: "Audience",
+      projectId: targetProjectId,
+      revision: 0,
+      trashedAt: null,
+    });
+    expect(copied[0]?.id).not.toBe(active.id);
+
+    // A same-named active definition in the target Project surfaces the
+    // shared create conflict instead of silently skipping the clone.
+    await customFields.create(accountId, {
+      name: "Audience",
+      projectId: targetProjectId,
+      recordTypes: ["Work"],
+      type: "Number",
+    });
+    await expect(
+      customFields.copyDefinitions(accountId, {
+        sourceProjectId,
+        targetProjectId,
+      }),
+    ).rejects.toBeInstanceOf(CustomFieldNameConflictError);
+  });
+
+  test("search fields return only active definitions bound to the record type", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectId = `project-${crypto.randomUUID()}`;
+    await database.insert(project).values({
+      id: projectId,
+      name: "Search Fields Project",
+      shortCode: `SRCH-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
+
+    const customFields = createDatabaseCustomFields(database);
+    await customFields.create(accountId, {
+      name: "Audience",
+      projectId,
+      recordTypes: ["Work", "Risk"],
+      type: "Text",
+    });
+    const trashed = await customFields.create(accountId, {
+      name: "Archived review",
+      projectId,
+      recordTypes: ["Work"],
+      type: "Boolean",
+    });
+    const contracts = createDatabaseCustomFieldMutationContracts(database);
+    await contracts.trash(accountId).mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: trashed.revision,
+        clientIdempotencyKey: `trash-search-${trashed.id}`,
+        kind: "human",
+        payload: {},
+        targetId: trashed.id,
+      },
+      ({ currentValue, currentRevision }) => {
+        const timestamp = new Date().toISOString();
+        const current = currentValue.field;
+        if (!current) {
+          throw new Error("Custom field was not found.");
+        }
+        return {
+          field: {
+            ...current,
+            revision: currentRevision + 1,
+            trashedAt: timestamp,
+            updatedAt: timestamp,
+          },
+        };
+      },
+    );
+
+    await expect(
+      customFields.searchFields(accountId, { projectId, recordType: "Work" }),
+    ).resolves.toMatchObject([{ name: "Audience" }]);
+    await expect(
+      customFields.searchFields(accountId, { projectId, recordType: "Risk" }),
+    ).resolves.toMatchObject([{ name: "Audience" }]);
+    await expect(
+      customFields.searchFields(accountId, {
+        projectId,
+        recordType: "Feedback",
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  test("lists Project values across records with the bound definitions", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectId = `project-${crypto.randomUUID()}`;
+    await database.insert(project).values({
+      id: projectId,
+      name: "Project Values Project",
+      shortCode: `PVAL-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
+
+    const customFields = createDatabaseCustomFields(database);
+    const contracts = createDatabaseCustomFieldMutationContracts(database);
+    const textField = await customFields.create(accountId, {
+      name: "Audience",
+      projectId,
+      recordTypes: ["Work"],
+      type: "Text",
+    });
+    await customFields.create(accountId, {
+      name: "Unbound number",
+      projectId,
+      recordTypes: ["Risk"],
+      type: "Number",
+    });
+
+    const setValueOn = async (recordId: string, text: string) => {
+      await contracts.setValue(accountId).mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: 0,
+          clientIdempotencyKey: `set-${textField.id}-${recordId}`,
+          kind: "human",
+          payload: {
+            definitionId: textField.id,
+            payload: { kind: "text", text },
+            recordId,
+            recordType: "Work",
+          },
+          targetId: `${textField.id}:${recordId}`,
+        },
+        ({ currentValue, currentRevision }) => {
+          const timestamp = new Date().toISOString();
+          return {
+            value: {
+              createdAt: currentValue.value?.createdAt ?? timestamp,
+              definitionId: textField.id,
+              id: currentValue.value?.id ?? crypto.randomUUID(),
+              recordId,
+              recordType: "Work" as const,
+              revision: currentRevision + 1,
+              updatedAt: timestamp,
+              value: { kind: "text" as const, text },
+            },
+          };
+        },
+      );
+    };
+    await setValueOn("work-1", "Founders");
+    await setValueOn("work-2", "Operators");
+
+    const projectValues = await customFields.projectValues(accountId, {
+      projectId,
+      recordType: "Work",
+    });
+    expect(projectValues).not.toBeNull();
+    expect(projectValues?.definitions).toMatchObject([
+      { name: "Audience", type: "Text" },
+    ]);
+    expect(projectValues?.values).toHaveLength(2);
+    expect(projectValues?.values.map((value) => value.recordId)).toEqual([
+      "work-1",
+      "work-2",
+    ]);
+  });
 });

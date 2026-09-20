@@ -21,6 +21,10 @@ export const workDraft = pgTable(
     checklist: jsonb("checklist").$type<unknown>().notNull().default([]),
     consumedAt: timestamp("consumed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    customFieldValues: jsonb("custom_field_values")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
     description: text("description"),
     finalizedWorkId: text("finalized_work_id"),
     finalizingClientIdempotencyKey: text("finalizing_client_idempotency_key"),

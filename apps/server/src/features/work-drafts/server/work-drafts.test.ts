@@ -29,6 +29,7 @@ import {
 const draft: WorkDraft = {
   checklist: [],
   createdAt: "2026-09-19T09:00:00.000Z",
+  customFieldValues: {},
   description: null,
   id: "draft-1",
   projectId: "project-1",
@@ -288,6 +289,38 @@ describe("Work Drafts", () => {
     expectNoWorkLifecycleCall(workLifecycle);
   });
 
+  test("saves Custom field values as Draft form state", async () => {
+    const store = createMemoryStore(draft);
+    const workLifecycle = createWorkLifecycleStub();
+    const workDrafts: WorkDraftsAccess = createWorkDrafts({
+      mutationContract: createSavingMutationContract(),
+      projects: createProjectShellStub(),
+      store,
+      workLifecycle,
+    });
+
+    const saved = await workDrafts.save("account-1", {
+      baseRevision: 0,
+      checklist: [],
+      clientIdempotencyKey: "draft-save-custom-values",
+      customFieldValues: {
+        "field-1": { kind: "text", text: "Founders" },
+        "field-2": null,
+      },
+      description: null,
+      draftId: "draft-new",
+      projectId: "project-1",
+      title: "A saved Draft",
+      type: "Task",
+    });
+
+    expect(saved.customFieldValues).toEqual({
+      "field-1": { kind: "text", text: "Founders" },
+      "field-2": null,
+    });
+    expectNoWorkLifecycleCall(workLifecycle);
+  });
+
   test("deletes a Draft without creating or changing a Work", async () => {
     const store = createMemoryStore(draft);
     const workLifecycle = createWorkLifecycleStub();
@@ -338,6 +371,32 @@ describe("Work Drafts", () => {
     ).rejects.toMatchObject({ code: "WORK_DRAFT_CONSUMED" });
 
     expect(workLifecycle.create).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not hand Draft Custom field values to Work create", async () => {
+    const store = createMemoryStore({
+      ...draft,
+      customFieldValues: { "field-1": { kind: "text", text: "Founders" } },
+    });
+    const workLifecycle = createWorkLifecycleStub();
+    const workDrafts: WorkDraftsAccess = createWorkDrafts({
+      mutationContract: createUnusedMutationContract(),
+      projects: createProjectShellStub(),
+      store,
+      workLifecycle,
+    });
+
+    await expect(
+      workDrafts.finalize("account-1", {
+        baseRevision: draft.revision,
+        clientIdempotencyKey: "draft-finalize-custom-values",
+        draftId: draft.id,
+      }),
+    ).resolves.toEqual(work);
+
+    const createInput = vi.mocked(workLifecycle.create).mock.calls[0]?.[1];
+    expect(createInput).toMatchObject({ title: draft.title });
+    expect(createInput).not.toHaveProperty("customFieldValues");
   });
 
   test("takes over a stale finalization when Create is retried with a new key", async () => {

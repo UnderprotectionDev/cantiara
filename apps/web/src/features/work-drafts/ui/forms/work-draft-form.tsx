@@ -8,6 +8,7 @@ import { type WorkDraft, workDraftFormSchema } from "@cantiara/api/work-drafts";
 import {
   createWorkInputSchema,
   WORK_TYPE_OPTIONS,
+  type WorkProfile,
   type WorkType,
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -74,6 +75,34 @@ function draftValues(draft: WorkDraft): WorkDraftFormValues {
   };
 }
 
+function pendingFinalization(
+  finalization: {
+    draftId: string;
+    work?: WorkProfile;
+    key: string;
+  } | null,
+  draftId: string,
+) {
+  return finalization?.work && finalization.draftId === draftId
+    ? {
+        draftId: finalization.draftId,
+        work: finalization.work,
+      }
+    : undefined;
+}
+
+function validateCreateWork(values: WorkDraftFormValues, projectId: string) {
+  const parsed = createWorkInputSchema.safeParse({
+    description: values.description.trim() ? values.description : null,
+    projectId,
+    title: values.title,
+    type: values.type,
+  });
+  return parsed.success
+    ? null
+    : (parsed.error.issues[0]?.message ?? "Check the form.");
+}
+
 export default function WorkDraftForm({
   accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   projectId,
@@ -103,6 +132,7 @@ export default function WorkDraftForm({
   const lastFinalizeKeyRef = useRef<{
     draftId: string;
     key: string;
+    work?: WorkProfile;
   } | null>(null);
   const saveDraftRef = useRef<
     (values: WorkDraftFormValues) => Promise<WorkDraft>
@@ -129,6 +159,9 @@ export default function WorkDraftForm({
 
   useEffect(() => {
     setTargetProjectId(projectId);
+    // Custom field values are keyed by the Project's own definitions; they do
+    // not survive a Project switch.
+    setCustomFieldValues({});
   }, [projectId]);
 
   const form = useForm({
@@ -162,7 +195,8 @@ export default function WorkDraftForm({
     setActiveDraftId(draft.id);
     setTargetProjectId(draft.projectId);
     form.reset(draftValues(draft), { keepDefaultValues: true });
-    setCustomFieldValues({});
+    // Custom field values are Draft form state; resuming restores them.
+    setCustomFieldValues(draft.customFieldValues);
     setActionMessage("Draft resumed.");
     setCreatedWorkKey(null);
     setFormError(null);
@@ -175,6 +209,7 @@ export default function WorkDraftForm({
       try {
         const parsed = workDraftFormSchema.safeParse({
           checklist: [],
+          customFieldValues,
           description: values.description.trim() ? values.description : null,
           projectId: targetProjectId,
           title: values.title,
@@ -264,6 +299,17 @@ export default function WorkDraftForm({
     }
   }
 
+  function queueCustomFieldValuesChange(values: CustomFieldDraftValues) {
+    setCustomFieldValues(values);
+    setActionMessage(null);
+    setCreatedWorkKey(null);
+    setFormError(null);
+    shell.markUnsavedChanges();
+    if (connection === "online") {
+      debouncer.maybeExecute(form.state.values);
+    }
+  }
+
   async function saveCurrentDraft() {
     debouncer.cancel();
     setFormError(null);
@@ -276,93 +322,145 @@ export default function WorkDraftForm({
     }
   }
 
+  async function finalizeOrReuseWork(
+    retry: ReturnType<typeof pendingFinalization>,
+    priorFinalization: {
+      draftId: string;
+      key: string;
+      work?: WorkProfile;
+    } | null,
+  ) {
+    if (retry) {
+      return retry;
+    }
+
+    const saved = await saveDraftNow(form.state.values);
+    const finalizeKey =
+      priorFinalization?.draftId === saved.id
+        ? priorFinalization.key
+        : crypto.randomUUID();
+    lastFinalizeKeyRef.current = { draftId: saved.id, key: finalizeKey };
+    const work = await shell.runWrite(() =>
+      client.finalizeWorkDraft({
+        baseRevision: saved.revision,
+        clientIdempotencyKey: finalizeKey,
+        draftId: saved.id,
+      }),
+    );
+    return { draftId: saved.id, work };
+  }
+
+  async function persistWorkCustomFields(work: WorkProfile) {
+    if (Object.keys(customFieldValues).length === 0) {
+      return null;
+    }
+    try {
+      await persistCustomFieldValues({
+        projectId: work.projectId,
+        recordId: work.id,
+        recordType: "Work",
+        values: customFieldValues,
+      });
+      return null;
+    } catch (error) {
+      return errorMessage(error, "Custom field values could not be saved.");
+    }
+  }
+
+  async function invalidateAfterWorkCreation(work: WorkProfile) {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: draftsQueryKey }),
+      queryClient.invalidateQueries({ queryKey: worksQueryKey }),
+      queryClient.invalidateQueries({ queryKey: projectQueryKey }),
+      queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.customFieldProjectValues.queryOptions({
+          input: { projectId, recordType: "Work" },
+        }).queryKey,
+      }),
+      ...(work.projectId === projectId
+        ? []
+        : [
+            queryClient.invalidateQueries({
+              queryKey: orpc.projectWorks.queryOptions({
+                input: { projectId: work.projectId },
+              }).queryKey,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: orpc.project.queryOptions({
+                input: { projectId: work.projectId },
+              }).queryKey,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: orpc.scopeTree.queryOptions({
+                input: { projectId: work.projectId },
+              }).queryKey,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: orpc.customFieldProjectValues.queryOptions({
+                input: { projectId: work.projectId, recordType: "Work" },
+              }).queryKey,
+            }),
+          ]),
+    ]);
+  }
+
   async function createWork() {
     debouncer.cancel();
     setFormError(null);
     setActionMessage(null);
     setCreatedWorkKey(null);
 
-    const parsed = createWorkInputSchema.safeParse({
-      description: form.state.values.description.trim()
-        ? form.state.values.description
-        : null,
-      projectId: targetProjectId,
-      title: form.state.values.title,
-      type: form.state.values.type,
-    });
-    if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
-      return;
+    const priorFinalization = lastFinalizeKeyRef.current;
+    // A prior Create finalized this Draft into a Work but could not save the
+    // Custom field values; Create now retries only the value persist against
+    // the same Work instead of minting a second one.
+    const pendingRetry = pendingFinalization(
+      priorFinalization,
+      draftIdRef.current,
+    );
+
+    if (!pendingRetry) {
+      const validationError = validateCreateWork(
+        form.state.values,
+        targetProjectId,
+      );
+      if (validationError) {
+        setFormError(validationError);
+        return;
+      }
     }
 
     setIsCreating(true);
     try {
-      const saved = await saveDraftNow(form.state.values);
-      // Reuse the finalization key for this Draft across retries so a lost
-      // response or server restart replays the same Work instead of wedging
-      // the Draft behind a stale finalization reservation.
-      const priorFinalization = lastFinalizeKeyRef.current;
-      const finalizeKey =
-        priorFinalization?.draftId === saved.id
-          ? priorFinalization.key
-          : crypto.randomUUID();
-      lastFinalizeKeyRef.current = { draftId: saved.id, key: finalizeKey };
-      const work = await shell.runWrite(() =>
-        client.finalizeWorkDraft({
-          baseRevision: saved.revision,
-          clientIdempotencyKey: finalizeKey,
-          draftId: saved.id,
-        }),
+      const { draftId: finalizedDraftId, work } = await finalizeOrReuseWork(
+        pendingRetry,
+        priorFinalization,
       );
-      let customFieldError: string | null = null;
-      if (Object.keys(customFieldValues).length > 0) {
-        try {
-          await persistCustomFieldValues({
-            projectId: work.projectId,
-            recordId: work.id,
-            recordType: "Work",
-            values: customFieldValues,
-          });
-        } catch (error) {
-          customFieldError = errorMessage(
-            error,
-            "Custom field values could not be saved.",
-          );
-        }
+      const customFieldError = await persistWorkCustomFields(work);
+
+      queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
+        drafts.filter((draft) => draft.id !== finalizedDraftId),
+      );
+      await invalidateAfterWorkCreation(work);
+
+      if (customFieldError) {
+        // Keep the finalize reservation and the entered values so the next
+        // Create retries the persist against the same Work.
+        lastFinalizeKeyRef.current = {
+          draftId: finalizedDraftId,
+          key: lastFinalizeKeyRef.current?.key ?? crypto.randomUUID(),
+          work,
+        };
+        setCreatedWorkKey(work.key);
+        setFormError(customFieldError);
+        return;
       }
+
       lastFinalizeKeyRef.current = null;
       setCreatedWorkKey(work.key);
       setActionMessage(null);
-      setFormError(customFieldError);
       setNewDraft();
-      queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
-        drafts.filter((draft) => draft.id !== saved.id),
-      );
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: draftsQueryKey }),
-        queryClient.invalidateQueries({ queryKey: worksQueryKey }),
-        queryClient.invalidateQueries({ queryKey: projectQueryKey }),
-        queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
-        ...(work.projectId === projectId
-          ? []
-          : [
-              queryClient.invalidateQueries({
-                queryKey: orpc.projectWorks.queryOptions({
-                  input: { projectId: work.projectId },
-                }).queryKey,
-              }),
-              queryClient.invalidateQueries({
-                queryKey: orpc.project.queryOptions({
-                  input: { projectId: work.projectId },
-                }).queryKey,
-              }),
-              queryClient.invalidateQueries({
-                queryKey: orpc.scopeTree.queryOptions({
-                  input: { projectId: work.projectId },
-                }).queryKey,
-              }),
-            ]),
-      ]);
     } catch (error) {
       setFormError(
         errorMessage(error, "Work could not be created. Try again."),
@@ -594,7 +692,7 @@ export default function WorkDraftForm({
         <CustomFieldValuesForm
           disabled={connection === "offline" || isBusy}
           draftValues={customFieldValues}
-          onDraftValuesChange={setCustomFieldValues}
+          onDraftValuesChange={queueCustomFieldValuesChange}
           projectId={targetProjectId}
           recordType="Work"
         />

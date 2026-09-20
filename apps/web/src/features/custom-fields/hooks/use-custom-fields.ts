@@ -1,5 +1,6 @@
 import type {
   CreateCustomFieldInput,
+  CustomFieldDefinition,
   CustomFieldRecordType,
   CustomFieldValueListItem,
   CustomFieldValueRecord,
@@ -120,6 +121,7 @@ export function useCustomFieldValues(
   projectId: string,
   recordType: CustomFieldRecordType,
   recordId?: string,
+  options: { enabled?: boolean } = {},
 ) {
   const queryClient = useQueryClient();
   const valuesQueryOptions = orpc.customFieldValues.queryOptions({
@@ -131,11 +133,20 @@ export function useCustomFieldValues(
   });
   const query = useQuery({
     ...valuesQueryOptions,
-    enabled: Boolean(recordId),
+    enabled: Boolean(recordId) && (options.enabled ?? true),
   });
   const { queryKey } = valuesQueryOptions;
+  // Row surfaces may render prefetched Project values instead of this query;
+  // invalidating both keeps either source fresh after a value write.
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.customFieldProjectValues.queryOptions({
+          input: { projectId, recordType },
+        }).queryKey,
+      }),
+    ]);
   };
 
   const setValue = useMutation({
@@ -173,6 +184,51 @@ export function useCustomFieldValues(
   });
 
   return { clearValue, query, setValue };
+}
+
+export function useCustomFieldProjectValues(
+  projectId: string,
+  recordType: CustomFieldRecordType,
+) {
+  const query = useQuery(
+    orpc.customFieldProjectValues.queryOptions({
+      input: { projectId, recordType },
+    }),
+  );
+  return { query };
+}
+
+function projectValueItems(
+  projectValues: {
+    definitions: CustomFieldDefinition[];
+    values: CustomFieldValueRecord[];
+  },
+  recordId: string,
+): CustomFieldValueListItem[] {
+  return projectValues.definitions.map((definition) => ({
+    definition,
+    value:
+      projectValues.values.find(
+        (candidate) =>
+          candidate.definitionId === definition.id &&
+          candidate.recordId === recordId,
+      ) ?? null,
+  }));
+}
+
+export function customFieldItemsForRecord(
+  projectValues:
+    | {
+        definitions: CustomFieldDefinition[];
+        values: CustomFieldValueRecord[];
+      }
+    | undefined,
+  recordId: string,
+): CustomFieldValueListItem[] {
+  if (!projectValues) {
+    return [];
+  }
+  return projectValueItems(projectValues, recordId);
 }
 
 function sameCustomFieldValue(

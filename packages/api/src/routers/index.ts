@@ -33,6 +33,7 @@ import {
   copyCustomFieldDefinitionsInputSchema,
   createCustomFieldInputSchema,
   createCustomFieldMutationInputSchema,
+  customFieldProjectValuesInputSchema,
   customFieldSearchFieldsInputSchema,
   customFieldValuesInputSchema,
   deleteCustomFieldMutationInputSchema,
@@ -941,17 +942,23 @@ export const appRouter = {
   copyCustomFieldDefinitions: protectedProcedure
     .input(copyCustomFieldDefinitionsInputSchema)
     .handler(async ({ context, input }) => {
-      const definitions = await requireCustomFields(context).copyDefinitions(
-        context.session.user.id,
-        input,
-      );
-      if (!definitions) {
-        throw new ORPCError("NOT_FOUND", {
-          defined: true,
-          message: "Source or target Project is unavailable.",
+      try {
+        const definitions = await requireCustomFields(context).copyDefinitions(
+          context.session.user.id,
+          input,
+        );
+        if (!definitions) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Source or target Project is unavailable.",
+          });
+        }
+        return definitions;
+      } catch (error) {
+        rethrowCustomFieldMutationError(error, input.targetProjectId, {
+          targetNotFoundMessage: "Source or target Project is unavailable.",
         });
       }
-      return definitions;
     }),
   projectWorks: protectedProcedure
     .input(
@@ -1389,6 +1396,21 @@ export const appRouter = {
         });
       }
       return fields;
+    }),
+  customFieldProjectValues: protectedProcedure
+    .input(customFieldProjectValuesInputSchema)
+    .handler(async ({ context, input }) => {
+      const projectValues = await requireCustomFields(context).projectValues(
+        context.session.user.id,
+        input,
+      );
+      if (!projectValues) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return projectValues;
     }),
   previewCustomFieldOptionDeletion: protectedProcedure
     .input(previewCustomFieldOptionDeletionInputSchema)

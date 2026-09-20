@@ -108,6 +108,7 @@ function publicDraft(record: WorkDraftRecord): WorkDraft {
   return {
     checklist: record.checklist,
     createdAt: record.createdAt,
+    customFieldValues: record.customFieldValues,
     description: record.description,
     id: record.id,
     projectId: record.projectId,
@@ -300,6 +301,7 @@ export function createWorkDrafts({
           draft: {
             checklist: payload.checklist,
             createdAt: previous?.createdAt ?? timestamp,
+            customFieldValues: payload.customFieldValues,
             description: payload.description,
             id: payload.draftId,
             projectId: payload.projectId,

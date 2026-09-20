@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { customFieldValuePayloadSchema } from "./custom-fields";
 import {
   humanMutationEnvelopeSchema,
   type MutationPayload,
@@ -15,6 +16,19 @@ import {
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
+/**
+ * Custom field values carried as Draft form state (workflow 10 owns the
+ * schema; the Draft never writes Custom field value rows until `Create`).
+ */
+export const customFieldDraftValuesSchema = z.record(
+  identifierSchema,
+  customFieldValuePayloadSchema.nullable(),
+);
+
+export type CustomFieldDraftValues = z.output<
+  typeof customFieldDraftValuesSchema
+>;
+
 export const workDraftTitleSchema = z
   .string()
   .max(255, "Draft title must be 255 characters or fewer.");
@@ -22,6 +36,7 @@ export const workDraftTitleSchema = z
 const workDraftFormObjectSchema = z
   .object({
     checklist: workChecklistSchema.default([]),
+    customFieldValues: customFieldDraftValuesSchema.default({}),
     description: workDescriptionSchema.default(null),
     projectId: identifierSchema,
     title: workDraftTitleSchema,
@@ -65,6 +80,7 @@ export type FinalizeWorkDraftInput = z.input<
 export interface WorkDraft {
   checklist: WorkChecklistItem[];
   createdAt: string;
+  customFieldValues: CustomFieldDraftValues;
   description: string | null;
   id: string;
   projectId: string;
@@ -107,6 +123,7 @@ export function workDraftMutationPayload(
   const parsed = saveWorkDraftInputSchema.parse(input);
   return {
     checklist: parsed.checklist,
+    customFieldValues: parsed.customFieldValues,
     description: parsed.description,
     draftId: parsed.draftId,
     projectId: parsed.projectId,

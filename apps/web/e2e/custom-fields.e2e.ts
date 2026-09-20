@@ -335,4 +335,39 @@ test("renders bound Custom field values on Work create and edit surfaces", async
   await expect(reloadedWork.getByLabel("Audience")).toHaveValue("Operators");
   await expect(reloadedWork.getByLabel("Reviewed")).toHaveValue("true");
   await expect(reloadedWork.getByLabel("Review state")).toHaveValue("Later");
+
+  // Draft autosave keeps Custom field values as form state: a refresh does
+  // not wipe them and Resume restores them into the Work draft form.
+  const workCreateForm = page.locator("#work-create");
+  await workCreateForm.getByLabel("Title").fill("Draft persistence check");
+  await workCreateForm.getByLabel("Audience").fill("Resume check");
+  await workCreateForm
+    .getByRole("button", { name: "Save", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Draft saved." }),
+  ).toBeVisible();
+
+  await page.reload();
+  await page
+    .getByRole("list", { name: "Drafts" })
+    .getByRole("listitem")
+    .filter({ hasText: "Draft persistence check" })
+    .getByRole("button", { name: "Resume" })
+    .click();
+  await expect(page.getByLabel("Audience")).toHaveValue("Resume check");
+
+  await workCreateForm
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await expect(
+    page.getByText("Work CUS-2 created.", { exact: true }),
+  ).toBeVisible({ timeout: 60_000 });
+  const persistedWork = page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem")
+    .filter({ hasText: "Draft persistence check" });
+  await expect(persistedWork.getByLabel("Audience")).toHaveValue(
+    "Resume check",
+  );
 });

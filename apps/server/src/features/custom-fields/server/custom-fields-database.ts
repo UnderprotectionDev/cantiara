@@ -301,6 +301,54 @@ export function createDatabaseCustomFields(database: Database) {
       return records.map(toCustomFieldDefinition);
     },
 
+    async listProjectValues(workspaceId, projectId, recordType) {
+      const [ownedProject] = await database
+        .select({ id: project.id })
+        .from(project)
+        .where(
+          and(eq(project.id, projectId), eq(project.workspaceId, workspaceId)),
+        )
+        .limit(1);
+      if (!ownedProject) {
+        return null;
+      }
+
+      const definitionRecords = await database
+        .select()
+        .from(customFieldDefinition)
+        .where(
+          and(
+            eq(customFieldDefinition.projectId, projectId),
+            isNull(customFieldDefinition.trashedAt),
+            sql`${customFieldDefinition.recordTypes} @> ${JSON.stringify([recordType])}::jsonb`,
+          ),
+        )
+        .orderBy(
+          asc(customFieldDefinition.createdAt),
+          asc(customFieldDefinition.nameKey),
+        );
+      if (definitionRecords.length === 0) {
+        return { definitions: [], values: [] };
+      }
+
+      const valueRecords = await database
+        .select()
+        .from(customFieldValue)
+        .where(
+          and(
+            inArray(
+              customFieldValue.definitionId,
+              definitionRecords.map((record) => record.id),
+            ),
+            eq(customFieldValue.recordType, recordType),
+          ),
+        );
+      return {
+        definitions: definitionRecords.map(toCustomFieldDefinition),
+        values: valueRecords.map(toCustomFieldValueRecord),
+      };
+    },
+
     async listValues(
       workspaceId,
       projectId,

@@ -15,6 +15,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -39,6 +40,13 @@ export default function ProjectWorkList({
   const query = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: showArchived, projectId },
+    }),
+  );
+  // One Project-scoped read feeds every Work row's Custom field values; the
+  // per-record form renders from these prefetched items without its own query.
+  const customFieldValuesQuery = useQuery(
+    orpc.customFieldProjectValues.queryOptions({
+      input: { projectId, recordType: "Work" },
     }),
   );
   const undoMerge = useMutation({
@@ -147,11 +155,18 @@ export default function ProjectWorkList({
                   {work.title}
                 </p>
               </div>
-              <CustomFieldValuesForm
-                disabled={connection === "offline" || work.archivedAt !== null}
-                projectId={work.projectId}
-                recordId={work.id}
-                recordType="Work"
+              <CustomFieldValues
+                connection={connection}
+                error={customFieldValuesQuery.isError}
+                items={
+                  customFieldValuesQuery.data
+                    ? customFieldItemsForRecord(
+                        customFieldValuesQuery.data,
+                        work.id,
+                      )
+                    : undefined
+                }
+                work={work}
               />
               <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
                 {work.recreatedFrom ? (
@@ -188,6 +203,38 @@ export default function ProjectWorkList({
 
 function mutationErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function CustomFieldValues({
+  error,
+  items,
+  work,
+  connection,
+}: {
+  error: boolean;
+  items: ReturnType<typeof customFieldItemsForRecord> | undefined;
+  work: WorkProfile;
+  connection: ReturnType<typeof useClientShellConnection>;
+}) {
+  if (error) {
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        Custom field values could not be loaded. Try loading this page again.
+      </p>
+    );
+  }
+  if (!items) {
+    return null;
+  }
+  return (
+    <CustomFieldValuesForm
+      disabled={connection === "offline" || work.archivedAt !== null}
+      projectId={work.projectId}
+      recordId={work.id}
+      recordItems={items}
+      recordType="Work"
+    />
+  );
 }
 
 function WorkArchiveAction({ work }: { work: WorkProfile }) {

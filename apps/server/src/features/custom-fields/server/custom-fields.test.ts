@@ -152,6 +152,32 @@ function createMemoryStore() {
         ),
       );
     },
+    listProjectValues: (workspaceId, projectId, recordType) => {
+      if (workspaceId !== "workspace-1") {
+        return Promise.resolve(null);
+      }
+      const boundDefinitions = [...definitions.values()]
+        .filter(
+          (definition) =>
+            definition.projectId === projectId &&
+            definition.trashedAt === null &&
+            definition.recordTypes.includes(recordType),
+        )
+        .sort((first, second) =>
+          first.createdAt.localeCompare(second.createdAt),
+        );
+      return Promise.resolve({
+        definitions: boundDefinitions,
+        values: [...values.entries()]
+          .filter(
+            ([key, value]) =>
+              boundDefinitions.some(
+                (definition) => key === `${definition.id}:${value.recordId}`,
+              ) && value.recordType === recordType,
+          )
+          .map(([, value]) => value),
+      });
+    },
   };
 
   return { definitions, store, values };
@@ -294,6 +320,50 @@ describe("Project Custom Fields seam", () => {
         recordType: "Work",
       }),
     ).resolves.toEqual([{ definition: clone, value: null }]);
+  });
+
+  test("lists Project-scoped values for every record of a bound type", async () => {
+    const store = createMemoryStore();
+    const access = createCustomFields({ store: store.store });
+    const field = await access.create("account-1", {
+      ...fieldInput("Text"),
+      name: "Audience",
+      recordTypes: ["Work"],
+    });
+
+    store.values.set(`${field.id}:work-1`, {
+      createdAt: "2026-09-19T09:00:09.000Z",
+      definitionId: field.id,
+      id: "value-1",
+      recordId: "work-1",
+      recordType: "Work",
+      revision: 1,
+      updatedAt: "2026-09-19T09:00:09.000Z",
+      value: { kind: "text", text: "Founders" },
+    });
+    store.values.set(`${field.id}:work-2`, {
+      createdAt: "2026-09-19T09:00:10.000Z",
+      definitionId: field.id,
+      id: "value-2",
+      recordId: "work-2",
+      recordType: "Work",
+      revision: 1,
+      updatedAt: "2026-09-19T09:00:10.000Z",
+      value: { kind: "text", text: "Operators" },
+    });
+
+    await expect(
+      access.projectValues("account-1", {
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toMatchObject({
+      definitions: [expect.objectContaining({ id: field.id })],
+      values: [
+        expect.objectContaining({ recordId: "work-1" }),
+        expect.objectContaining({ recordId: "work-2" }),
+      ],
+    });
   });
 
   test("rejects a duplicate name only inside the same Project", async () => {
