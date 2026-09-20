@@ -12,6 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLinkProps } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -356,7 +357,7 @@ export default function WorkRelations({
   );
 }
 
-export function RelationsContent({
+function RelationsContent({
   isError,
   isPending,
   onRemove,
@@ -533,13 +534,11 @@ function UsageSurfaceText({
         {surface.key && surface.title
           ? `${surface.key} ${surface.title} — ${surface.broken.reason}`
           : `Broken — ${surface.broken.reason}`}
-        {surface.broken.canOpenSourceRecord ? (
-          <a
-            className="ml-2 underline underline-offset-2"
-            href={`#work-${surface.recordId}`}
-          >
-            Open source record
-          </a>
+        {surface.broken.canOpenSourceRecord && surface.projectId ? (
+          <OpenSourceRecordLink
+            projectId={surface.projectId}
+            recordId={surface.recordId}
+          />
         ) : null}
       </span>
     );
@@ -547,12 +546,12 @@ function UsageSurfaceText({
   return (
     <span>
       {surface.key} {surface.title}
-      <a
-        className="ml-2 underline underline-offset-2"
-        href={`#work-${surface.recordId}`}
-      >
-        Open source record
-      </a>
+      {surface.projectId ? (
+        <OpenSourceRecordLink
+          projectId={surface.projectId}
+          recordId={surface.recordId}
+        />
+      ) : null}
     </span>
   );
 }
@@ -572,13 +571,11 @@ function RelationEndpointText({
         {endpoint.key && endpoint.title
           ? `${endpoint.key} ${endpoint.title} — ${endpoint.broken.reason}`
           : `Broken — ${endpoint.broken.reason}`}
-        {endpoint.broken.canOpenSourceRecord ? (
-          <a
-            className="ml-2 underline underline-offset-2"
-            href={`#work-${endpoint.recordId}`}
-          >
-            Open source record
-          </a>
+        {endpoint.broken.canOpenSourceRecord && endpoint.projectId ? (
+          <OpenSourceRecordLink
+            projectId={endpoint.projectId}
+            recordId={endpoint.recordId}
+          />
         ) : null}
       </span>
     );
@@ -587,15 +584,34 @@ function RelationEndpointText({
     <span>
       {endpoint.key} {endpoint.title}
       {endpoint.recordId === workId ? " (current)" : ""}
-      {openSourceRecord ? (
-        <a
-          className="ml-2 underline underline-offset-2"
-          href={`#work-${endpoint.recordId}`}
-        >
-          Open source record
-        </a>
+      {openSourceRecord && endpoint.projectId ? (
+        <OpenSourceRecordLink
+          projectId={endpoint.projectId}
+          recordId={endpoint.recordId}
+        />
       ) : null}
     </span>
+  );
+}
+
+function OpenSourceRecordLink({
+  projectId,
+  recordId,
+}: {
+  projectId: string;
+  recordId: string;
+}) {
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash: `work-${recordId}`,
+    params: { projectId },
+    to: "/projects/$projectId",
+  });
+
+  return (
+    <a {...linkProps} className="ml-2 underline underline-offset-2">
+      Open source record
+    </a>
   );
 }
 

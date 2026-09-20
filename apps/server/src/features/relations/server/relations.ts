@@ -148,10 +148,12 @@ export class RelationUndoUnavailableError extends RelationsError {
   }
 }
 
-interface OwnedWork {
+interface WorkWithProject {
   project: ProjectRecord;
   record: WorkRecord;
 }
+
+type OwnedWork = WorkWithProject;
 
 interface RelationWithSource {
   relation: RelationRecord;
@@ -261,7 +263,7 @@ async function findAnyProject(
 async function findAnyWork(
   executor: MutationDatabaseExecutor,
   workId: string,
-): Promise<OwnedWork | null> {
+): Promise<WorkWithProject | null> {
   const [record] = await executor
     .select({ project, record: work })
     .from(work)
