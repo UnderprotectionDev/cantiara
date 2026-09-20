@@ -1,5 +1,6 @@
 import {
   USAGE_LINK_KIND_OPTIONS,
+  USAGE_LINK_RECORD_TYPE_OPTIONS,
   usageLinkPayloadSchema,
 } from "@cantiara/api/relations";
 import { describe, expect, test } from "vitest";
@@ -8,12 +9,12 @@ import { createInMemoryUsageLinks } from "./usage-links";
 const source = {
   recordId: "work-1",
   recordType: "Work",
-};
+} as const;
 
 const surface = {
   recordId: "document-1",
   recordType: "Document",
-};
+} as const;
 
 describe("Relations usage links", () => {
   test("keeps the closed usage catalog separate from Related", async () => {
@@ -58,6 +59,51 @@ describe("Relations usage links", () => {
         surface,
       }),
     ).toThrow();
+  });
+
+  test("rejects an endpoint record type that is not in the closed catalog", () => {
+    expect(USAGE_LINK_RECORD_TYPE_OPTIONS).toEqual([
+      "Assumption",
+      "Decision",
+      "Document",
+      "Feedback",
+      "Milestone",
+      "Planned Test Scenario",
+      "Production Incident",
+      "Project Release",
+      "Risk",
+      "Test Gap",
+      "Test Handoff",
+      "Test Session",
+      "User Research Session",
+      "Work",
+    ]);
+
+    expect(() =>
+      usageLinkPayloadSchema.parse({
+        kind: "Inline reference",
+        source: { recordId: "work-1", recordType: "Wrk" },
+        surface,
+      }),
+    ).toThrow();
+  });
+
+  test("keeps usage links invisible to another account", async () => {
+    const usageLinks = createInMemoryUsageLinks();
+    const link = await usageLinks.create("account-1", {
+      kind: "Live block",
+      source,
+      surface,
+    });
+
+    await expect(usageLinks.listBySource("account-2", source)).resolves.toEqual(
+      [],
+    );
+    await expect(usageLinks.find("account-2", link.id)).resolves.toBeNull();
+    await expect(usageLinks.unlink("account-2", link.id)).resolves.toBe(false);
+    await expect(usageLinks.listBySource("account-1", source)).resolves.toEqual(
+      [link],
+    );
   });
 
   test("unlinks the embed while keeping the source record and its status", async () => {

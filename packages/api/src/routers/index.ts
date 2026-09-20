@@ -917,6 +917,54 @@ function rethrowCustomFieldMutationError(
   throw error;
 }
 
+function rethrowUsageLinkMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowUsageLinkMutationError(error.cause, targetId);
+  }
+
+  if (error.code === "TARGET_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Usage link is unavailable.",
+    });
+  }
+
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+
+  if (error.code === "STALE_BASE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(isRecord(error.currentValue)
+          ? { currentValue: error.currentValue }
+          : {}),
+        ...(typeof error.currentRevision === "number"
+          ? { currentRevision: error.currentRevision }
+          : {}),
+        label: MUTATION_UI_LABELS.currentValue,
+        targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+
+  throw error;
+}
+
 function nullableProjectValue(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
@@ -962,29 +1010,34 @@ export const appRouter = {
       const mutation = requireUsageLinkMutationContracts(context).create(
         context.session.user.id,
       );
-      const receipt = await mutation.mutate(
-        {
-          actor: { actorId: context.session.user.id, type: "User" },
-          baseRevision,
-          clientIdempotencyKey,
-          kind: "human",
-          payload,
-          targetId: clientIdempotencyKey,
-        },
-        ({ currentRevision, payload: mutationPayload }) =>
-          ({
-            usageLink: usageLinkSchema.parse({
-              ...mutationPayload,
-              createdAt: new Date().toISOString(),
-              id: crypto.randomUUID(),
-              revision: currentRevision + 1,
-            }),
-          }) satisfies UsageLinkMutationValue,
-      );
-      if (!receipt.nextValue.usageLink) {
-        throw new ORPCError("NOT_FOUND");
+
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ currentRevision, payload: mutationPayload }) =>
+            ({
+              usageLink: usageLinkSchema.parse({
+                ...mutationPayload,
+                createdAt: new Date().toISOString(),
+                id: crypto.randomUUID(),
+                revision: currentRevision + 1,
+              }),
+            }) satisfies UsageLinkMutationValue,
+        );
+        if (!receipt.nextValue.usageLink) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.usageLink;
+      } catch (error) {
+        rethrowUsageLinkMutationError(error, clientIdempotencyKey);
       }
-      return receipt.nextValue.usageLink;
     }),
   unlinkUsageLink: protectedProcedure
     .input(unlinkUsageLinkInputSchema)
@@ -992,26 +1045,31 @@ export const appRouter = {
       const mutation = requireUsageLinkMutationContracts(context).unlink(
         context.session.user.id,
       );
-      const receipt = await mutation.mutate(
-        {
-          actor: { actorId: context.session.user.id, type: "User" },
-          baseRevision: input.baseRevision,
-          clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
-          payload: {},
-          targetId: input.usageLinkId,
-        },
-        ({ currentValue }) => {
-          if (!currentValue.usageLink) {
-            throw new ORPCError("NOT_FOUND");
-          }
-          return { usageLink: null } satisfies UsageLinkMutationValue;
-        },
-      );
-      if (receipt.nextValue.usageLink !== null) {
-        throw new ORPCError("NOT_FOUND");
+
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: input.usageLinkId,
+          },
+          ({ currentValue }) => {
+            if (!currentValue.usageLink) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return { usageLink: null } satisfies UsageLinkMutationValue;
+          },
+        );
+        if (receipt.nextValue.usageLink !== null) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return { status: true };
+      } catch (error) {
+        rethrowUsageLinkMutationError(error, input.usageLinkId);
       }
-      return { status: true };
     }),
   customFields: protectedProcedure
     .input(z.object({ projectId: z.string().trim().min(1) }).strict())

@@ -24,10 +24,34 @@ export type UsageLinkKind = (typeof USAGE_LINK_KIND_OPTIONS)[number];
 
 export const usageLinkKindSchema = z.enum(USAGE_LINK_KIND_OPTIONS);
 
+/**
+ * Usage link ends are closed to the record types that exist in the domain
+ * today. The change that introduces a new record type or usage surface
+ * extends this catalog, mirroring the usage-kind contract above.
+ */
+export const USAGE_LINK_RECORD_TYPE_OPTIONS = [
+  "Assumption",
+  "Decision",
+  "Document",
+  "Feedback",
+  "Milestone",
+  "Planned Test Scenario",
+  "Production Incident",
+  "Project Release",
+  "Risk",
+  "Test Gap",
+  "Test Handoff",
+  "Test Session",
+  "User Research Session",
+  "Work",
+] as const;
+
+export const usageLinkRecordTypeSchema = z.enum(USAGE_LINK_RECORD_TYPE_OPTIONS);
+
 export const usageLinkEndpointSchema = z
   .object({
     recordId: identifierSchema,
-    recordType: identifierSchema,
+    recordType: usageLinkRecordTypeSchema,
   })
   .strict();
 

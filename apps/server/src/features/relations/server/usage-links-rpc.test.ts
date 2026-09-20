@@ -1,9 +1,10 @@
 import type { Context } from "@cantiara/api/context";
-import type {
-  MutationApply,
-  MutationCommand,
-  MutationContract,
-  MutationPayload,
+import {
+  MUTATION_UI_LABELS,
+  type MutationApply,
+  type MutationCommand,
+  type MutationContract,
+  type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import type {
   UsageLink,
@@ -15,6 +16,11 @@ import type {
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
+import {
+  MutationConflictError,
+  MutationStaleBaseRevisionError,
+  MutationTargetNotFoundError,
+} from "../../mutation-and-undo/server/mutation-contract";
 
 const link: UsageLink = {
   createdAt: "2026-09-20T10:00:00.000Z",
@@ -96,6 +102,15 @@ function createAccess(): UsageLinksAccess {
   };
 }
 
+function createFailingMutationContract(
+  error: unknown,
+): MutationContract<UsageLinkMutationValue> {
+  return {
+    mutate: () => Promise.reject(error),
+    replay: async () => null,
+  };
+}
+
 describe("Usage Links RPC", () => {
   test("lists, creates, and unlinks a usage link through Relations", async () => {
     const usageLinks = createAccess();
@@ -156,5 +171,93 @@ describe("Usage Links RPC", () => {
       }),
     ).rejects.toThrow();
     expect(create).not.toHaveBeenCalled();
+  });
+
+  test("maps a stale base revision to a visible precondition failure", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(createAccess(), {
+        create: () =>
+          createFailingMutationContract(
+            new MutationStaleBaseRevisionError({
+              id: "create-usage-link-1",
+              revision: 2,
+              value: { usageLink: null },
+            }),
+          ),
+        unlink: () => createMutationContract(link),
+      }),
+    });
+
+    await expect(
+      client.createUsageLink({
+        baseRevision: 0,
+        clientIdempotencyKey: "create-usage-link-1",
+        kind: link.kind,
+        location: link.location,
+        source: link.source,
+        surface: link.surface,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "STALE_BASE_REVISION",
+        currentRevision: 2,
+        label: MUTATION_UI_LABELS.currentValue,
+      },
+      message: MUTATION_UI_LABELS.currentValue,
+      status: 412,
+    });
+  });
+
+  test("maps an idempotency conflict to a visible conflict", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(createAccess(), {
+        create: () =>
+          createFailingMutationContract(
+            new MutationConflictError("create-usage-link-1"),
+          ),
+        unlink: () => createMutationContract(link),
+      }),
+    });
+
+    await expect(
+      client.createUsageLink({
+        baseRevision: 0,
+        clientIdempotencyKey: "create-usage-link-1",
+        kind: link.kind,
+        location: link.location,
+        source: link.source,
+        surface: link.surface,
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "CONFLICT", targetId: "create-usage-link-1" },
+      message: MUTATION_UI_LABELS.conflict,
+      status: 409,
+    });
+  });
+
+  test("maps a missing usage link to Not Found on unlink", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(createAccess(), {
+        create: () => createMutationContract(null),
+        unlink: () =>
+          createFailingMutationContract(
+            new MutationTargetNotFoundError("usage-link-1"),
+          ),
+      }),
+    });
+
+    await expect(
+      client.unlinkUsageLink({
+        baseRevision: 1,
+        clientIdempotencyKey: "unlink-usage-link-1",
+        usageLinkId: "usage-link-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Usage link is unavailable.",
+      status: 404,
+    });
   });
 });
