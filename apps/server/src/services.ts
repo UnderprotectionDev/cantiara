@@ -34,6 +34,10 @@ import {
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import {
+  createDatabaseUsageLinkMutationContracts,
+  createDatabaseUsageLinks,
+} from "./features/relations/server/usage-links-database";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 
@@ -57,6 +61,9 @@ export const projectShellMutationContracts =
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);
+export const usageLinks = createDatabaseUsageLinks(db);
+export const usageLinkMutationContracts =
+  createDatabaseUsageLinkMutationContracts(db);
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });

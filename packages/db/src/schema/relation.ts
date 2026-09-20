@@ -1,6 +1,15 @@
 import { relations, sql } from "drizzle-orm";
-import { check, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
+import { workspace } from "./auth";
 import { work } from "./work";
 
 export const WORK_RELATION_KIND_OPTIONS = [
@@ -53,5 +62,72 @@ export const workRelationRelations = relations(workRelation, ({ one }) => ({
   sourceWork: one(work, {
     fields: [workRelation.sourceWorkId],
     references: [work.id],
+  }),
+}));
+
+export const USAGE_LINK_KIND_OPTIONS = [
+  "Inline reference",
+  "Section reference",
+  "Live block",
+  "Pinned bind",
+  "Screen reference",
+] as const;
+
+const usageLinkKindSql = sql.raw(
+  USAGE_LINK_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
+);
+
+export const usageLink = pgTable(
+  "usage_link",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    location: jsonb("location").$type<unknown>(),
+    revision: integer("revision").default(1).notNull(),
+    sourceRecordId: text("source_record_id").notNull(),
+    sourceRecordType: text("source_record_type").notNull(),
+    surfaceRecordId: text("surface_record_id").notNull(),
+    surfaceRecordType: text("surface_record_type").notNull(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("usage_link_workspace_source_idx").on(
+      table.workspaceId,
+      table.sourceRecordType,
+      table.sourceRecordId,
+    ),
+    index("usage_link_workspace_surface_idx").on(
+      table.workspaceId,
+      table.surfaceRecordType,
+      table.surfaceRecordId,
+    ),
+    check("usage_link_kind_check", sql`${table.kind} in (${usageLinkKindSql})`),
+    check("usage_link_revision_check", sql`${table.revision} >= 1`),
+    check(
+      "usage_link_source_record_id_check",
+      sql`length(btrim(${table.sourceRecordId})) > 0`,
+    ),
+    check(
+      "usage_link_source_record_type_check",
+      sql`length(btrim(${table.sourceRecordType})) > 0`,
+    ),
+    check(
+      "usage_link_surface_record_id_check",
+      sql`length(btrim(${table.surfaceRecordId})) > 0`,
+    ),
+    check(
+      "usage_link_surface_record_type_check",
+      sql`length(btrim(${table.surfaceRecordType})) > 0`,
+    ),
+  ],
+);
+
+export const usageLinkRelations = relations(usageLink, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [usageLink.workspaceId],
+    references: [workspace.id],
   }),
 }));
