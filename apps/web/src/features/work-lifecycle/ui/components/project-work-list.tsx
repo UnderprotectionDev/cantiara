@@ -21,6 +21,7 @@ import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import { client, orpc } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
@@ -159,6 +160,7 @@ export default function ProjectWorkList({
                   {work.title}
                 </p>
               </div>
+              <WorkContextCard work={work} />
               <CustomFieldValues
                 connection={connection}
                 error={customFieldValuesQuery.isError}
