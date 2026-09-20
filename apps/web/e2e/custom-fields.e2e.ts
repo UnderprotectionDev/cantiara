@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
@@ -28,6 +28,12 @@ const RECORD_TYPES = [
   "Milestone",
   "Project Release",
 ] as const;
+
+function workListItem(page: Page, title: string) {
+  return page.getByRole("listitem").filter({
+    has: page.locator("p").filter({ hasText: title }),
+  });
+}
 
 test("defines the closed Project Custom Fields matrix in Configuration Mode", async ({
   context,
@@ -371,10 +377,7 @@ test("renders bound Custom field values on Work create and edit surfaces", async
   await expect(
     page.getByText("Work CUS-2 created.", { exact: true }),
   ).toBeVisible({ timeout: 60_000 });
-  const persistedWork = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem")
-    .filter({ hasText: "Draft persistence check" });
+  const persistedWork = workListItem(page, "Draft persistence check");
   await expect(persistedWork.getByLabel("Audience")).toHaveValue(
     "Resume check",
   );
