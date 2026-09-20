@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/schema/work.ts",
     "./src/schema/work-draft.ts",
     "./src/schema/relation.ts",
+    "./src/schema/tags.ts",
   ],
   out: "./src/migrations",
   dialect: "postgresql",

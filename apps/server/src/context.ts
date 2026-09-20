@@ -22,6 +22,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
+import type { TagsAccess } from "@cantiara/api/tags";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
@@ -53,6 +54,7 @@ export interface CreateContextOptions {
   mutationContract?: MutationContract<MutationPayload>;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  tags?: TagsAccess;
   trustedProxyIps: readonly string[];
   webCapture?: WebCaptureAccess;
   workDrafts?: WorkDraftsAccess;
@@ -82,6 +84,7 @@ export async function createContext({
   mutationContract,
   projectShell,
   projectShellMutationContracts,
+  tags,
   trustedProxyIps,
   webCapture,
   workDrafts,
@@ -119,6 +122,7 @@ export async function createContext({
     mutationContract,
     projectShell,
     projectShellMutationContracts,
+    tags,
     auth: null,
     session,
     webCapture,

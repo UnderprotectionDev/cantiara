@@ -47,6 +47,12 @@ import {
   mutationStaging,
   mutationTarget,
 } from "./schema/mutation";
+import {
+  workspaceTag,
+  workspaceTagAssignment,
+  workspaceTagAssignmentRelations,
+  workspaceTagRelations,
+} from "./schema/tags";
 
 const schema = {
   account,
@@ -61,6 +67,10 @@ const schema = {
   captureExtensionPairingCode,
   customFieldDefinition,
   customFieldValue,
+  workspaceTag,
+  workspaceTagAssignment,
+  workspaceTagAssignmentRelations,
+  workspaceTagRelations,
   mutationHistory,
   mutationReceipt,
   mutationStaging,

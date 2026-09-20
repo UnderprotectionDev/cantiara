@@ -4,5 +4,6 @@ export * from "./capture-triage";
 export * from "./custom-fields";
 export * from "./project";
 export * from "./relation";
+export * from "./tags";
 export * from "./work";
 export * from "./work-draft";

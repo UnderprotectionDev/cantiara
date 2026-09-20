@@ -36,6 +36,7 @@ import {
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
+import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
@@ -106,6 +107,10 @@ export default function ProjectShellSurface({
   }
 
   const projectSurface = (() => {
+    if (activeHash === "tags") {
+      return <ProjectTagsSurface projectId={projectId} />;
+    }
+
     if (activeHash === "all-tools" || activeHash.startsWith("project-area-")) {
       return (
         <ProjectAreaCatalog

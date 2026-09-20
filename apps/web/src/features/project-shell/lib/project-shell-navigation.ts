@@ -5,7 +5,11 @@ import {
 
 import { projectAreaNavigationHash } from "./project-area-navigation";
 
-export const ALWAYS_REACHABLE_SURFACES = ["Overview", "All Tools"] as const;
+export const ALWAYS_REACHABLE_SURFACES = [
+  "Overview",
+  "Tags",
+  "All Tools",
+] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
 export type NavigationSurface =
   | (typeof ALWAYS_REACHABLE_SURFACES)[number]
@@ -98,6 +102,9 @@ export function navigationSurfaceFromHash(
   if (hash === "all-tools") {
     return "All Tools";
   }
+  if (hash === "tags") {
+    return "Tags";
+  }
   if (
     isWorkSurfaceHash(hash) &&
     enabledAreas.includes("Work") &&
@@ -143,6 +150,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Overview") {
     return "overview";
+  }
+  if (surface === "Tags") {
+    return "tags";
   }
   return projectAreaNavigationHash(surface);
 }
