@@ -7,8 +7,8 @@ import { describe, expect, test, vi } from "vitest";
 
 const draft: WorkDraft = {
   checklist: [],
+  customFieldValues: [],
   createdAt: "2026-09-19T09:00:00.000Z",
-  customFieldValues: {},
   description: null,
   id: "draft-1",
   projectId: "project-1",
@@ -115,7 +115,7 @@ describe("Work Drafts RPC", () => {
       baseRevision: 1,
       checklist: [],
       clientIdempotencyKey: "draft-save-1",
-      customFieldValues: {},
+      customFieldValues: [],
       description: null,
       draftId: draft.id,
       projectId: draft.projectId,

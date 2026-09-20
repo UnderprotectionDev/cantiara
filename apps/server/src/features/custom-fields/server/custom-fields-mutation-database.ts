@@ -30,6 +30,7 @@ import {
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   assertValueMatchesDefinition,
+  CustomFieldNotFoundError,
   CustomFieldNotTrashedError,
   CustomFieldOptionsNotSupportedError,
   CustomFieldOptionsRequiredError,
@@ -53,6 +54,24 @@ type ValueOperation = "clear" | "set";
 type ParsedValueMutationInput =
   | ReturnType<typeof clearCustomFieldValueInputSchema.parse>
   | ReturnType<typeof setCustomFieldValueInputSchema.parse>;
+
+export interface CustomFieldValueFinalization {
+  definitionId: string;
+  payload: ParsedCustomFieldValuePayload;
+}
+
+export interface CustomFieldValueFinalizationWriter {
+  apply: (
+    executor: MutationDatabaseExecutor,
+    input: {
+      accountId: string;
+      committedAt: Date;
+      projectId: string;
+      recordId: string;
+      values: readonly CustomFieldValueFinalization[];
+    },
+  ) => Promise<void>;
+}
 
 function emptyTarget(
   targetId: string,
@@ -533,6 +552,64 @@ function createValueMutationTarget(
         revision: input.expectedRevision + 1,
         value: { value: toCustomFieldValueRecord(row) },
       } satisfies MutationTarget<CustomFieldValueMutationValue>;
+    },
+  };
+}
+
+/**
+ * Applies the Custom field part of Work creation inside the Work Mutation
+ * Contract transaction. The compound command owns the commit barrier; the
+ * value target above remains the source of validation and row semantics.
+ */
+export function createDatabaseCustomFieldFinalizationWriter(): CustomFieldValueFinalizationWriter {
+  return {
+    async apply(executor, input) {
+      const valueTarget = createValueMutationTarget(input.accountId, "set");
+      for (const draftValue of input.values) {
+        // biome-ignore lint/performance/noAwaitInLoops: Custom field definitions are locked and validated in stable order inside the Work transaction.
+        const definition = await findOwnedDefinition(
+          executor,
+          input.accountId,
+          draftValue.definitionId,
+          { lock: true },
+        );
+        if (!definition || definition.projectId !== input.projectId) {
+          throw new CustomFieldNotFoundError(draftValue.definitionId);
+        }
+
+        assertDefinitionAcceptsValue(definition, "Work", draftValue.payload);
+        const valueRow = await findValueRow(
+          executor,
+          draftValue.definitionId,
+          input.recordId,
+          true,
+        );
+        const targetId = valueTargetId(draftValue.definitionId, input.recordId);
+        const updated = await valueTarget.update(executor, {
+          committedAt: input.committedAt,
+          expectedRevision: valueRow?.revision ?? 0,
+          nextValue: {
+            value: {
+              createdAt:
+                valueRow?.createdAt.toISOString() ??
+                input.committedAt.toISOString(),
+              definitionId: draftValue.definitionId,
+              id: valueRow?.id ?? crypto.randomUUID(),
+              recordId: input.recordId,
+              recordType: "Work",
+              revision: (valueRow?.revision ?? 0) + 1,
+              updatedAt: input.committedAt.toISOString(),
+              value: draftValue.payload,
+            },
+          },
+          targetId,
+        });
+        if (!updated) {
+          throw new Error(
+            `Custom field ${draftValue.definitionId} could not be finalized.`,
+          );
+        }
+      }
     },
   };
 }

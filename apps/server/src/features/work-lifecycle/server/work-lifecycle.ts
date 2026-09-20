@@ -28,6 +28,7 @@ import {
   type WorkIdentityInput,
   type WorkIdentityResolution,
   type WorkLifecycleAccess,
+  type WorkLifecycleMutationContract,
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkMergeField,
@@ -800,7 +801,7 @@ function buildMergedWork(
   return { attributedValueKeys, mergedWork };
 }
 
-async function createWork(
+export async function createWork(
   mutationContracts: WorkLifecycleMutationContracts,
   store: WorkLifecycleStore,
   accountId: string,
@@ -810,6 +811,8 @@ async function createWork(
     sourceWork: WorkProfile;
     sourceWorkRevision: number;
   },
+  createMutation?: WorkLifecycleMutationContract,
+  additionalPayload: Record<string, unknown> = {},
 ) {
   const input = createWorkMutationInputSchema.parse(rawInput);
   const selectedRelationIds = recreate
@@ -835,6 +838,7 @@ async function createWork(
       : {}),
     title: input.title,
     type: input.type,
+    ...additionalPayload,
   };
   const payloadFingerprint = await fingerprintMutationPayload(createPayload);
   const existing = await store.findByClientIdempotencyKey(
@@ -853,7 +857,7 @@ async function createWork(
     payloadFingerprint,
   );
   const timestamp = new Date().toISOString();
-  const mutation = mutationContracts.create(accountId);
+  const mutation = createMutation ?? mutationContracts.create(accountId);
 
   try {
     const receipt = await mutation.mutate(

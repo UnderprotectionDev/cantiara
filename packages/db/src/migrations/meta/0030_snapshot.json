@@ -1,5 +1,5 @@
 {
-  "id": "6cf0dbe2-4c0f-4a72-8809-268b4b5007f0",
+  "id": "797cbca3-c610-45a3-af45-7a0f83783d35",
   "prevId": "a41c4644-11b2-401e-8d04-e25d7ad5bc1e",
   "version": "7",
   "dialect": "postgresql",
@@ -2810,19 +2810,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "custom_field_values": {
+          "name": "custom_field_values",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "custom_field_values": {
-          "name": "custom_field_values",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
         },
         "description": {
           "name": "description",

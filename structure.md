@@ -252,6 +252,8 @@
 │       │   │   ├── work-drafts/
 │       │   │   │   └── ui/
 │       │   │   │       └── forms/
+│       │   │   │           ├── draft-custom-fields.test.ts
+│       │   │   │           ├── draft-custom-fields.ts
 │       │   │   │           └── work-draft-form.tsx
 │       │   │   └── work-lifecycle/
 │       │   │       └── ui/
@@ -324,6 +326,7 @@
 │   │   │   ├── project-shell.ts
 │   │   │   ├── support-reference.ts
 │   │   │   ├── web-capture.ts
+│   │   │   ├── work-drafts.test.ts
 │   │   │   ├── work-drafts.ts
 │   │   │   └── work-lifecycle.ts
 │   │   ├── package.json

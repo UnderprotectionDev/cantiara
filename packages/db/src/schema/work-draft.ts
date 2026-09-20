@@ -20,11 +20,11 @@ export const workDraft = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     checklist: jsonb("checklist").$type<unknown>().notNull().default([]),
     consumedAt: timestamp("consumed_at"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
     customFieldValues: jsonb("custom_field_values")
-      .$type<Record<string, unknown>>()
+      .$type<unknown>()
       .notNull()
-      .default({}),
+      .default([]),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
     finalizedWorkId: text("finalized_work_id"),
     finalizingClientIdempotencyKey: text("finalizing_client_idempotency_key"),

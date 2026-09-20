@@ -11,6 +11,7 @@ import {
   type SaveWorkDraftInput,
   saveWorkDraftInputSchema,
   type WorkDraft,
+  type WorkDraftCustomFieldValue,
   type WorkDraftMutationValue,
   type WorkDraftsAccess,
   workDraftDeleteMutationPayload,
@@ -53,6 +54,14 @@ export interface WorkDraftStore {
     draftId: string,
     clientIdempotencyKey: string,
   ) => Promise<WorkDraftFinalizationReservation>;
+}
+
+interface WorkDraftFinalizationLifecycle extends WorkLifecycleAccess {
+  createWithCustomFieldValues?: (
+    accountId: string,
+    input: Parameters<WorkLifecycleAccess["create"]>[1],
+    values: WorkDraftCustomFieldValue[],
+  ) => Promise<WorkProfile>;
 }
 
 export class WorkDraftNotFoundError extends Error {
@@ -107,8 +116,8 @@ export class WorkDraftStaleRevisionError extends Error {
 function publicDraft(record: WorkDraftRecord): WorkDraft {
   return {
     checklist: record.checklist,
-    createdAt: record.createdAt,
     customFieldValues: record.customFieldValues,
+    createdAt: record.createdAt,
     description: record.description,
     id: record.id,
     projectId: record.projectId,
@@ -240,7 +249,7 @@ export function createWorkDrafts({
   now?: () => Date;
   projects: Pick<ProjectShellAccess, "find">;
   store: WorkDraftStore;
-  workLifecycle: WorkLifecycleAccess;
+  workLifecycle: WorkDraftFinalizationLifecycle;
 }): WorkDraftsAccess {
   const finalizations = new Map<string, Promise<WorkProfile>>();
 
@@ -300,8 +309,8 @@ export function createWorkDrafts({
         return {
           draft: {
             checklist: payload.checklist,
-            createdAt: previous?.createdAt ?? timestamp,
             customFieldValues: payload.customFieldValues,
+            createdAt: previous?.createdAt ?? timestamp,
             description: payload.description,
             id: payload.draftId,
             projectId: payload.projectId,
@@ -365,7 +374,7 @@ export function createWorkDrafts({
   ) {
     let workCreated = false;
     try {
-      const work = await workLifecycle.create(accountId, {
+      const createInput = {
         baseRevision: 0,
         checklist: record.checklist,
         clientIdempotencyKey: finalizedWorkClientIdempotencyKey(record.id),
@@ -373,7 +382,18 @@ export function createWorkDrafts({
         projectId: record.projectId,
         title: record.title,
         type: record.type,
-      });
+      } satisfies Parameters<WorkLifecycleAccess["create"]>[1];
+      const work =
+        record.customFieldValues.length > 0
+          ? await workLifecycle.createWithCustomFieldValues?.(
+              accountId,
+              createInput,
+              record.customFieldValues,
+            )
+          : await workLifecycle.create(accountId, createInput);
+      if (!work) {
+        throw new Error("Work Draft Custom fields are not configured.");
+      }
       workCreated = true;
       const consumed = await store.markConsumed(
         accountId,

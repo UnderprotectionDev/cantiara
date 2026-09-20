@@ -343,17 +343,19 @@ export function createDatabaseWorkDrafts(
   database: Database,
   workLifecycle: WorkLifecycleAccess,
   projects: Pick<ProjectShellAccess, "find">,
-  now?: () => Date,
+  options: {
+    now?: () => Date;
+  } = {},
 ) {
   const mutationContract =
     createDatabaseMutationContract<WorkDraftMutationValue>(database, {
       target: workDraftMutationTargetAdapter,
     });
   return createWorkDrafts({
-    mutationContract,
-    ...(now ? { now } : {}),
+    ...(options.now ? { now: options.now } : {}),
     projects,
-    store: createWorkDraftStore(database, now),
+    store: createWorkDraftStore(database, options.now),
+    mutationContract,
     workLifecycle,
   });
 }
