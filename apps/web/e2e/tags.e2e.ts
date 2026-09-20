@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const TAGS_HASH_PATTERN = /#tags$/;
+const LAUNCH_TAG_PATTERN = /^launch\/next/;
 const ROADMAP_TAG_PATTERN = /^roadmap\/next/;
 
 test("classifies Work records with one Workspace tag dictionary", async ({
@@ -76,13 +77,24 @@ test("classifies Work records with one Workspace tag dictionary", async ({
   await page.getByRole("button", { name: "Rename Tag" }).click();
   await expect(page.getByText("Tag renamed.")).toBeVisible();
   await expect(tagFilter).toContainText("launch/next");
-  await tagFilter.selectOption({ label: "launch/next" });
+  const launchOption = tagFilter.locator("option", {
+    hasText: LAUNCH_TAG_PATTERN,
+  });
+  await launchOption.waitFor({ state: "attached" });
+  const launchOptionValue = await launchOption.getAttribute("value");
+  await tagFilter.selectOption(launchOptionValue ?? "");
   await expect(recordList.getByText("Prepare launch")).toBeVisible();
 
   // Undo is revision-guarded and restores the same identity and uses together.
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(tagFilter).toContainText("roadmap/next");
-  await tagFilter.selectOption({ label: "roadmap/next" });
+  const restoredRoadmapOption = tagFilter.locator("option", {
+    hasText: ROADMAP_TAG_PATTERN,
+  });
+  await restoredRoadmapOption.waitFor({ state: "attached" });
+  const restoredRoadmapOptionValue =
+    await restoredRoadmapOption.getAttribute("value");
+  await tagFilter.selectOption(restoredRoadmapOptionValue ?? "");
   await expect(recordList.getByText("Prepare launch")).toBeVisible();
 
   await page
