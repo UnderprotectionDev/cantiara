@@ -67,6 +67,14 @@ import {
   updateProjectConfigurationInputSchema,
   updateProjectShortCodeInputSchema,
 } from "../project-shell";
+import {
+  createUsageLinkMutationInputSchema,
+  listUsageLinksInputSchema,
+  type UsageLinkMutationValue,
+  unlinkUsageLinkInputSchema,
+  usageLinkPayloadSchema,
+  usageLinkSchema,
+} from "../relations";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   deleteWorkDraftInputSchema,
@@ -152,6 +160,20 @@ function requireProjectShell(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectShell;
+}
+
+function requireUsageLinks(context: Context) {
+  if (!context.usageLinks) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.usageLinks;
+}
+
+function requireUsageLinkMutationContracts(context: Context) {
+  if (!context.usageLinkMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.usageLinkMutationContracts;
 }
 
 function requireCustomFields(context: Context) {
@@ -923,6 +945,73 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return project;
+    }),
+  usageLinks: protectedProcedure
+    .input(listUsageLinksInputSchema)
+    .handler(({ context, input }) =>
+      requireUsageLinks(context).listBySource(
+        context.session.user.id,
+        input.source,
+      ),
+    ),
+  createUsageLink: protectedProcedure
+    .input(createUsageLinkMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = usageLinkPayloadSchema.parse(payloadInput);
+      const mutation = requireUsageLinkMutationContracts(context).create(
+        context.session.user.id,
+      );
+      const receipt = await mutation.mutate(
+        {
+          actor: { actorId: context.session.user.id, type: "User" },
+          baseRevision,
+          clientIdempotencyKey,
+          kind: "human",
+          payload,
+          targetId: clientIdempotencyKey,
+        },
+        ({ currentRevision, payload: mutationPayload }) =>
+          ({
+            usageLink: usageLinkSchema.parse({
+              ...mutationPayload,
+              createdAt: new Date().toISOString(),
+              id: crypto.randomUUID(),
+              revision: currentRevision + 1,
+            }),
+          }) satisfies UsageLinkMutationValue,
+      );
+      if (!receipt.nextValue.usageLink) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return receipt.nextValue.usageLink;
+    }),
+  unlinkUsageLink: protectedProcedure
+    .input(unlinkUsageLinkInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireUsageLinkMutationContracts(context).unlink(
+        context.session.user.id,
+      );
+      const receipt = await mutation.mutate(
+        {
+          actor: { actorId: context.session.user.id, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: {},
+          targetId: input.usageLinkId,
+        },
+        ({ currentValue }) => {
+          if (!currentValue.usageLink) {
+            throw new ORPCError("NOT_FOUND");
+          }
+          return { usageLink: null } satisfies UsageLinkMutationValue;
+        },
+      );
+      if (receipt.nextValue.usageLink !== null) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return { status: true };
     }),
   customFields: protectedProcedure
     .input(z.object({ projectId: z.string().trim().min(1) }).strict())
