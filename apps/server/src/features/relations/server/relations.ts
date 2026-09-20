@@ -42,7 +42,7 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
   project,
-  recordUsageLink,
+  usageLink,
   work,
   workRelation,
 } from "@cantiara/db/schema/index";
@@ -57,7 +57,7 @@ import {
 type WorkRecord = typeof work.$inferSelect;
 type ProjectRecord = typeof project.$inferSelect;
 type RelationRecord = typeof workRelation.$inferSelect;
-type UsageLinkRecord = typeof recordUsageLink.$inferSelect;
+type UsageLinkRecord = typeof usageLink.$inferSelect;
 
 /**
  * The value stored by the Mutation Contract for a relation target. It carries
@@ -1186,19 +1186,16 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         return [];
       }
       const records = await database
-        .select({ link: recordUsageLink })
-        .from(recordUsageLink)
-        .innerJoin(work, eq(recordUsageLink.sourceRecordId, work.id))
-        .innerJoin(project, eq(work.projectId, project.id))
+        .select({ link: usageLink })
+        .from(usageLink)
         .where(
           and(
-            eq(project.workspaceId, workspaceId),
-            eq(recordUsageLink.sourceRecordType, input.recordType),
-            eq(recordUsageLink.sourceRecordId, input.recordId),
-            isNull(recordUsageLink.deletedAt),
+            eq(usageLink.workspaceId, workspaceId),
+            eq(usageLink.sourceRecordType, input.recordType),
+            eq(usageLink.sourceRecordId, input.recordId),
           ),
         )
-        .orderBy(asc(recordUsageLink.createdAt), asc(recordUsageLink.id));
+        .orderBy(asc(usageLink.createdAt), asc(usageLink.id));
       return Promise.all(
         records.map(({ link }) => usageView(database, accountId, link)),
       );
@@ -1222,38 +1219,49 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         throw new RelationEndpointNotAllowedError();
       }
 
+      const workspaceId = await findOwnedWorkspaceId(database, accountId);
+      if (!workspaceId) {
+        throw new RelationRecordUnavailableError();
+      }
       const surfaceContext = input.surface.context ?? null;
       const [duplicate] = await database
-        .select({ id: recordUsageLink.id })
-        .from(recordUsageLink)
+        .select({ id: usageLink.id, location: usageLink.location })
+        .from(usageLink)
         .where(
           and(
-            eq(recordUsageLink.kind, input.kind),
-            eq(recordUsageLink.sourceRecordType, input.source.recordType),
-            eq(recordUsageLink.sourceRecordId, source.record.id),
-            eq(recordUsageLink.surfaceRecordType, input.surface.recordType),
-            eq(recordUsageLink.surfaceRecordId, surface.record.id),
-            surfaceContext === null
-              ? isNull(recordUsageLink.surfaceContext)
-              : eq(recordUsageLink.surfaceContext, surfaceContext),
-            isNull(recordUsageLink.deletedAt),
+            eq(usageLink.kind, input.kind),
+            eq(usageLink.workspaceId, workspaceId),
+            eq(usageLink.sourceRecordType, input.source.recordType),
+            eq(usageLink.sourceRecordId, source.record.id),
+            eq(usageLink.surfaceRecordType, input.surface.recordType),
+            eq(usageLink.surfaceRecordId, surface.record.id),
           ),
         )
         .limit(1);
-      if (duplicate) {
+      const duplicateContext =
+        duplicate?.location &&
+        typeof duplicate.location === "object" &&
+        "context" in duplicate.location &&
+        typeof duplicate.location.context === "string"
+          ? duplicate.location.context
+          : null;
+      if (duplicate && duplicateContext === surfaceContext) {
         throw new RelationDuplicateError();
       }
 
       const [inserted] = await database
-        .insert(recordUsageLink)
+        .insert(usageLink)
         .values({
           id: crypto.randomUUID(),
           kind: input.kind,
+          location:
+            surfaceContext === null ? null : { context: surfaceContext },
+          revision: 1,
           sourceRecordId: source.record.id,
           sourceRecordType: input.source.recordType,
-          surfaceContext,
           surfaceRecordId: surface.record.id,
           surfaceRecordType: input.surface.recordType,
+          workspaceId,
         })
         .returning();
       if (!inserted) {
@@ -1272,24 +1280,26 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         throw new RelationNotFoundError();
       }
       const [record] = await database
-        .select({ link: recordUsageLink })
-        .from(recordUsageLink)
-        .innerJoin(work, eq(recordUsageLink.sourceRecordId, work.id))
-        .innerJoin(project, eq(work.projectId, project.id))
+        .select({ link: usageLink })
+        .from(usageLink)
         .where(
           and(
-            eq(recordUsageLink.id, input.usageLinkId),
-            eq(project.workspaceId, workspaceId),
+            eq(usageLink.id, input.usageLinkId),
+            eq(usageLink.workspaceId, workspaceId),
           ),
         )
         .limit(1);
-      if (!record || record.link.deletedAt) {
+      if (!record) {
         throw new RelationNotFoundError();
       }
       await database
-        .update(recordUsageLink)
-        .set({ deletedAt: new Date() })
-        .where(eq(recordUsageLink.id, input.usageLinkId));
+        .delete(usageLink)
+        .where(
+          and(
+            eq(usageLink.id, input.usageLinkId),
+            eq(usageLink.workspaceId, workspaceId),
+          ),
+        );
     },
 
     async remove(accountId, rawInput) {

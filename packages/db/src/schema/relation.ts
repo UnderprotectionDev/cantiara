@@ -3,12 +3,14 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { workspace } from "./auth";
 import { work } from "./work";
 
 export const WORK_RELATION_KIND_OPTIONS = [
@@ -29,18 +31,6 @@ export const WORK_RELATION_KIND_OPTIONS = [
 
 const workRelationKindSql = sql.raw(
   WORK_RELATION_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
-);
-
-export const WORK_RELATION_USAGE_KIND_OPTIONS = [
-  "Inline reference",
-  "Section reference",
-  "Live block",
-  "Pinned bind",
-  "Screen reference",
-] as const;
-
-const workRelationUsageKindSql = sql.raw(
-  WORK_RELATION_USAGE_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
 );
 
 export const workRelation = pgTable(
@@ -106,48 +96,69 @@ export const workRelationRelations = relations(workRelation, ({ one }) => ({
   }),
 }));
 
-/**
- * Usage links (kullanim baglari) are derived, embed-owned bindings between a
- * surface and the main record it uses. They are not semantic relations: no
- * Evidence Role, no cardinality rule, no lifecycle effect, and they never
- * enter relation counts. Unlink (`Unlink`) soft-deletes the row and keeps the
- * source record.
- */
-export const recordUsageLink = pgTable(
-  "record_usage_link",
+export const USAGE_LINK_KIND_OPTIONS = [
+  "Inline reference",
+  "Section reference",
+  "Live block",
+  "Pinned bind",
+  "Screen reference",
+] as const;
+
+const usageLinkKindSql = sql.raw(
+  USAGE_LINK_KIND_OPTIONS.map((kind) => `'${kind}'`).join(", "),
+);
+
+export const usageLink = pgTable(
+  "usage_link",
   {
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    deletedAt: timestamp("deleted_at"),
     id: text("id").primaryKey(),
     kind: text("kind").notNull(),
-    sourceRecordId: text("source_record_id")
-      .notNull()
-      .references(() => work.id, { onDelete: "cascade" }),
-    sourceRecordType: text("source_record_type").default("Work").notNull(),
-    surfaceContext: text("surface_context"),
+    location: jsonb("location").$type<unknown>(),
+    revision: integer("revision").default(1).notNull(),
+    sourceRecordId: text("source_record_id").notNull(),
+    sourceRecordType: text("source_record_type").notNull(),
     surfaceRecordId: text("surface_record_id").notNull(),
     surfaceRecordType: text("surface_record_type").notNull(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
   },
   (table) => [
-    index("record_usage_link_source_idx").on(
+    index("usage_link_workspace_source_idx").on(
+      table.workspaceId,
       table.sourceRecordType,
       table.sourceRecordId,
     ),
-    index("record_usage_link_surface_idx").on(
+    index("usage_link_workspace_surface_idx").on(
+      table.workspaceId,
       table.surfaceRecordType,
       table.surfaceRecordId,
     ),
+    check("usage_link_kind_check", sql`${table.kind} in (${usageLinkKindSql})`),
+    check("usage_link_revision_check", sql`${table.revision} >= 1`),
     check(
-      "record_usage_link_kind_check",
-      sql`${table.kind} in (${workRelationUsageKindSql})`,
+      "usage_link_source_record_id_check",
+      sql`length(btrim(${table.sourceRecordId})) > 0`,
     ),
     check(
-      "record_usage_link_source_record_type_check",
+      "usage_link_source_record_type_check",
       sql`length(btrim(${table.sourceRecordType})) > 0`,
     ),
     check(
-      "record_usage_link_surface_record_type_check",
+      "usage_link_surface_record_id_check",
+      sql`length(btrim(${table.surfaceRecordId})) > 0`,
+    ),
+    check(
+      "usage_link_surface_record_type_check",
       sql`length(btrim(${table.surfaceRecordType})) > 0`,
     ),
   ],
 );
+
+export const usageLinkRelations = relations(usageLink, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [usageLink.workspaceId],
+    references: [workspace.id],
+  }),
+}));
