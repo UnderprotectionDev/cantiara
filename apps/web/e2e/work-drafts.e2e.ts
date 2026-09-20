@@ -27,6 +27,43 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
   await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
   await page.getByRole("link", { name: "Payment App", exact: true }).click();
   await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
+  const paymentProjectId = new URL(page.url()).pathname.split("/")[2] ?? "";
+
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
+  const configurationRegion = page.locator(
+    'section[aria-label="Configuration Mode"]',
+  );
+  await configurationRegion
+    .getByRole("button", { name: "Custom field", exact: true })
+    .click();
+  const customFieldHost = configurationRegion.getByRole("region", {
+    exact: true,
+    name: "Custom field",
+  });
+  await customFieldHost.getByLabel("Field name").fill("Release readiness");
+  await customFieldHost.getByLabel("Type").selectOption("Boolean");
+  await customFieldHost.getByRole("checkbox", { name: "Work" }).check();
+  const customFieldResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/createCustomField") &&
+      response.ok(),
+  );
+  await customFieldHost
+    .getByRole("button", { name: "Add custom field" })
+    .click();
+  const createdCustomField = (await (await customFieldResponse).json()) as {
+    json: { id: string };
+  };
+  await expect(
+    customFieldHost.getByText("Release readiness", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
+
   await page
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
@@ -35,6 +72,11 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
 
   const workCreate = page.locator("#work-create");
   const title = page.getByLabel("Title");
+  const releaseReadiness = page.getByRole("checkbox", {
+    name: "Release readiness",
+  });
+  await expect(releaseReadiness).toBeVisible({ timeout: 20_000 });
+  await releaseReadiness.check();
   await title.fill("Saved payment investigation");
   const savedDraft = page
     .getByRole("list", { name: "Drafts" })
@@ -77,11 +119,52 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
   await expect(resumedDraft).toBeVisible({ timeout: 20_000 });
   await resumedDraft.getByRole("button", { name: "Resume" }).click();
   await expect(title).toHaveValue("Saved payment investigation");
+  await expect(releaseReadiness).toBeChecked();
 
+  const finalizeWorkResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/finalizeWorkDraft") &&
+      response.ok(),
+  );
   await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  const finalizedWork = (
+    (await (await finalizeWorkResponse).json()) as {
+      json: { id: string; key: string };
+    }
+  ).json;
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
   ).toBeVisible({ timeout: 20_000 });
+  const customFieldValuesResponse = await page.evaluate(
+    async ({ projectId, recordId, serverUrl }) => {
+      const response = await fetch(`${serverUrl}/rpc/customFieldValues`, {
+        body: JSON.stringify({
+          json: { projectId, recordId, recordType: "Work" },
+        }),
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      return { body: await response.json(), status: response.status };
+    },
+    {
+      projectId: paymentProjectId,
+      recordId: finalizedWork.id,
+      serverUrl: E2E_SERVER_URL,
+    },
+  );
+  expect(customFieldValuesResponse.status).toBe(200);
+  expect(customFieldValuesResponse.body.json).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        definition: expect.objectContaining({ id: createdCustomField.json.id }),
+        value: expect.objectContaining({
+          value: { boolean: true, kind: "boolean" },
+        }),
+      }),
+    ]),
+  );
   const workList = page.getByRole("list", { name: "Work list" });
   await expect(workList).toContainText("PAY-1 Saved payment investigation");
   await expect(

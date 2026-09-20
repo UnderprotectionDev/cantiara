@@ -20,6 +20,10 @@ export const workDraft = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     checklist: jsonb("checklist").$type<unknown>().notNull().default([]),
     consumedAt: timestamp("consumed_at"),
+    customFieldValues: jsonb("custom_field_values")
+      .$type<unknown>()
+      .notNull()
+      .default([]),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
     finalizedWorkId: text("finalized_work_id"),
