@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   createTagInputSchema,
   createTagMarkdownExport,
+  renameTagCommandSchema,
   renameTagInputSchema,
   renameTagMutationInputSchema,
   TAG_RECORD_TYPE_OPTIONS,
@@ -49,6 +50,16 @@ describe("Tags seam", () => {
       baseRevision: 0,
       clientIdempotencyKey: "rename-1",
     });
+  });
+
+  test("keeps the feature-level revision guard out of the rename RPC command", () => {
+    expect(() =>
+      renameTagCommandSchema.parse({
+        expectedRevision: 4,
+        name: "launch/next",
+        tagId: "tag-1",
+      }),
+    ).toThrow();
   });
 
   test("requires a receipt and current base revision for rename Undo", () => {

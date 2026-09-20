@@ -84,7 +84,7 @@ import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
-  renameTagInputSchema,
+  renameTagCommandSchema,
   renameTagMutationInputSchema,
   type TagMutationValue,
   tagRecordsInputSchema,
@@ -1311,7 +1311,7 @@ export const appRouter = {
     .input(renameTagMutationInputSchema)
     .handler(async ({ context, input }) => {
       const { baseRevision, clientIdempotencyKey, ...inputPayload } = input;
-      const parsed = renameTagInputSchema.parse(inputPayload);
+      const parsed = renameTagCommandSchema.parse(inputPayload);
       const mutation = requireTagMutationContracts(context).rename(
         context.session.user.id,
       );

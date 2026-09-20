@@ -34,7 +34,6 @@ function errorMessage(error: unknown, fallback: string) {
 interface TagRenameRequest {
   baseRevision: number;
   name: string;
-  previousName: string;
   tagId: string;
 }
 
@@ -44,7 +43,6 @@ interface TagRenameCommand extends TagRenameRequest {
 
 interface TagRenameUndo {
   baseRevision: number;
-  name: string;
   receiptId: string;
   tagId: string;
 }
@@ -118,16 +116,15 @@ export default function ProjectTagsSurface({
   });
 
   const rename = useMutation({
-    mutationFn: ({ previousName: _previousName, ...input }: TagRenameCommand) =>
+    mutationFn: (input: TagRenameCommand) =>
       runOnlineOnlyWrite(() => client.renameTag(input)),
     onError: (error) => {
       setRenameError(errorMessage(error, "Tag could not be renamed."));
     },
-    onSuccess: async (renamed, input) => {
+    onSuccess: async (renamed) => {
       setRenameError(null);
       setRenameUndo({
         baseRevision: renamed.tag.revision,
-        name: input.previousName,
         receiptId: renamed.receiptId,
         tagId: renamed.tag.id,
       });
@@ -224,6 +221,7 @@ export default function ProjectTagsSurface({
               clientIdempotencyKey: crypto.randomUUID(),
             })
           }
+          onRenameValidationError={setRenameError}
           renameError={renameError}
           renamePending={rename.isPending}
           tags={tagsQuery.data ?? []}
@@ -245,7 +243,6 @@ export default function ProjectTagsSurface({
                 }
                 undoRename.mutate({
                   baseRevision: renameUndo.baseRevision,
-                  name: renameUndo.name,
                   receiptId: renameUndo.receiptId,
                   tagId: renameUndo.tagId,
                 });
@@ -279,6 +276,7 @@ function TagPicker({
   filterTagId,
   onFilterChange,
   onRename,
+  onRenameValidationError,
   renameError,
   renamePending,
   tags,
@@ -288,6 +286,7 @@ function TagPicker({
   filterTagId: string;
   onFilterChange: (tagId: string) => void;
   onRename: (input: TagRenameRequest) => void;
+  onRenameValidationError: (message: string | null) => void;
   renameError: string | null;
   renamePending: boolean;
   tags: readonly TagSuggestion[];
@@ -308,6 +307,7 @@ function TagPicker({
       />
       <TagRenameControl
         onRename={onRename}
+        onValidationError={onRenameValidationError}
         pending={renamePending}
         tags={tags}
         tagsError={tagsError}
@@ -324,12 +324,14 @@ function TagPicker({
 
 function TagRenameControl({
   onRename,
+  onValidationError,
   pending,
   tags,
   tagsError,
   tagsPending,
 }: {
   onRename: (input: TagRenameRequest) => void;
+  onValidationError: (message: string | null) => void;
   pending: boolean;
   tags: readonly TagSuggestion[];
   tagsError: boolean;
@@ -343,13 +345,20 @@ function TagRenameControl({
     onSubmit: ({ value }) => {
       const selectedTag = tags.find(({ tag }) => tag.id === value.tagId)?.tag;
       const parsed = createTagInputSchema.safeParse({ name: value.name });
-      if (!(selectedTag && parsed.success)) {
+      if (!parsed.success) {
+        onValidationError(
+          parsed.error.issues[0]?.message ?? "Check the tag name.",
+        );
         return;
       }
+      if (!selectedTag) {
+        onValidationError("Tag is unavailable.");
+        return;
+      }
+      onValidationError(null);
       onRename({
         baseRevision: selectedTag.revision,
         name: parsed.data.name,
-        previousName: selectedTag.name,
         tagId: selectedTag.id,
       });
     },

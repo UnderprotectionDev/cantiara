@@ -309,6 +309,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeni etiket adı | `New name` | Hedef Etiketin yeni görünen adı |
 | Etiket yeniden adlandırıldı | `Tag renamed.` | Atomik rename başarıyla tamamlandığında gösterilen durum |
 | Geri al | `Undo` | Revision korumalı Etiket rename işlemini güvenli biçimde tersine çevirme |
+| Etiket kullanılamıyor | `Tag is unavailable.` | Hedef Etiket bulunamadığında gösterilen hata durumu |
+| Etiket yeniden adlandırılamadı | `Tag could not be renamed.` | Rename Tag komutu başarısız olduğunda gösterilen hata durumu |
+| Etiket değişti | `Tag changed since it was loaded. Reload before renaming it.` | Etiket yüklendikten sonra değiştiğinde rename öncesi yeniden yükleme isteyen durum |
+| Etiket geri alma kaydı yok | `Tag rename is no longer available for Undo.` | Rename kaydı artık bulunamadığında Undo'nun kullanılamadığını söyleyen durum |
+| Etiket güvenli geri alınamadı | `Tag rename could not be undone safely.` | Rename Undo güvenli biçimde uygulanamadığında gösterilen hata durumu |
+| Etiket geri alınamadı | `Tag could not be undone safely.` | Undo isteği sunucudan açıklamasız döndüğünde gösterilen hata durumu |
+| Etiket geri alma için yenileme | `Tag could not be undone. Reload this page.` | Undo için Etiket güncel listede bulunamadığında istenen sayfa yenileme |
 | Etiketli kayıtlar yükleniyor | `Loading tagged records…` | Etiketli İş kayıtları listesi yüklenirken gösterilen durum |
 | Etiketli kayıtlar yüklenemedi | `Tagged records could not be loaded. Try loading this page again.` | Etiketli İş kayıtları yüklenemediğinde gösterilen hata durumu |
 | Etiketli İş kayıtları | `Tagged Work records` | Etiket yüzeyindeki erişilebilir İş kayıtları listesinin ekran okuyucu adı |

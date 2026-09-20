@@ -40,15 +40,23 @@ export const renameTagInputSchema = z
 export type RenameTagInput = z.input<typeof renameTagInputSchema>;
 export type ParsedRenameTagInput = z.output<typeof renameTagInputSchema>;
 
+export const renameTagCommandSchema = z
+  .object({
+    name: tagNameSchema,
+    tagId: identifierSchema,
+  })
+  .strict();
+
+export type RenameTagCommand = z.infer<typeof renameTagCommandSchema>;
+
 export type TagRenameAccess = (
   accountId: string,
   input: ParsedRenameTagInput,
 ) => Promise<Tag>;
 
-export const renameTagMutationInputSchema = humanMutationEnvelopeSchema.extend({
-  name: tagNameSchema,
-  tagId: identifierSchema,
-});
+export const renameTagMutationInputSchema = humanMutationEnvelopeSchema.extend(
+  renameTagCommandSchema.shape,
+);
 
 export type RenameTagMutationInput = z.input<
   typeof renameTagMutationInputSchema
