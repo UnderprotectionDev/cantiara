@@ -39,7 +39,10 @@ import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
-import { createDatabaseTags } from "./features/tags/server/tags-database";
+import {
+  createDatabaseTagMutationContracts,
+  createDatabaseTags,
+} from "./features/tags/server/tags-database";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 
@@ -65,6 +68,7 @@ export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
   createDatabaseUsageLinkMutationContracts(db);
 export const tags = createDatabaseTags(db);
+export const tagMutationContracts = createDatabaseTagMutationContracts(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

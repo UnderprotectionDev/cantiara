@@ -69,6 +69,8 @@ describe("Project Tags surface", () => {
     expect(html).toContain("Name");
     expect(html).toContain("Create tag");
     expect(html).toContain("Filter by tag");
+    expect(html).toContain("Rename Tag");
+    expect(html).toContain("New name");
     expect(html).toContain("All tags");
     expect(html).toContain("roadmap/next");
     expect(html).toContain("Suggested in this Project");

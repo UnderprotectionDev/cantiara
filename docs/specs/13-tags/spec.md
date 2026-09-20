@@ -56,7 +56,7 @@ Kurucu tek Çalışma Alanı etiket ad alanında düz etiket oluşturur, kayıtl
 - **Conflict note.** Phase-context Tamamlanma lists “birleştirme”; [Etiketler](../../prd/08-search-relations-and-evidence.md#etiketler) and [Gelişmiş etiket bakımı](../../prd/18-future-directions.md#gelismis-etiket-bakimi) win: first product atomically updates all uses of one identity (`Rename Tag`). Two-tag consolidation is PRD 18, not this feature.
 - **Documents token boundary.** Workflow 31 owns `#etiket` tokenization: paragraph/heading/list versus fenced or inline code, URL fragments, and escaped plain text. This feature does not parse a second dictionary. Rename here still updates those resolved uses because [Etiketler](../../prd/08-search-relations-and-evidence.md#etiketler) requires structured and inline uses to move together. Document filter line-context UI belongs to 31; this feature only guarantees the identity those tokens bind to.
 - **Consumers.** Universal Search, Smart Collection conditions, and saved filters match tag identity, not a frozen display string. This feature does not build those surfaces. Markdown export keeps inline `#etiket` text and puts identity mapping in the manifest; import preview maps recognized tokens to an existing tag or a new flat candidate and never silently mints a copy identity. Export/import UI stays in portability features; this feature supplies the mapping contract.
-- **English UI labels.** First user-visible copy uses `Tags`, `Rename Tag`, and picker empty/suggestion copy in English. Missing labels are added to the PRD term table in the same change that first shows them. No Turkish UI.
+- **English UI labels.** First user-visible copy uses `Tags`, `Rename Tag`, `Tag`, `Tag to rename`, `New name`, `Undo`, `Tag renamed.`, and picker empty/suggestion copy in English. Missing labels are added to the PRD term table in the same change that first shows them. No Turkish UI.
 - **Stack.** Persistence is PostgreSQL via Drizzle; search consumers may use `pg_trgm` but this feature does not own ranking. No new framework.
 
 ## Testing Decisions
@@ -66,6 +66,7 @@ Kurucu tek Çalışma Alanı etiket ad alanında düz etiket oluşturur, kayıtl
 - **Modules under test.** Tags only. Universal Search, Smart Collections, Documents tokenization, import/export, and custom fields are present only as “this identity is what they would consume / this command is not a second dictionary” counterparts.
 - **Prior art.** Contract tests at this seam. Evidence environment is [Arama ve ilişki](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (`Her ikisi`). Cloud tests must not use production content.
 - **Required counterparts.** No Project-local tag identity; rename failure leaves mixed names; `/` does not nest; applying a tag does not create a relation or evidence link; `#etiket` editor rules are absent here (31); two-tag merge/archive UI is absent; Universal Search / Smart Collection / import UI are absent; Document line-context UI is absent; import preview never silently mints a copy identity.
+- **Rename UI labels.** The Tags seam covers the exact English labels `Tag`, `Tag to rename`, `New name`, `Rename Tag`, `Undo`, and `Tag renamed.`; failure copy remains an error counterpart of the same atomic command.
 
 ## Out of Scope
 

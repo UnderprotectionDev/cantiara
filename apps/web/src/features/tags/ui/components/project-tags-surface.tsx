@@ -14,6 +14,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type Dispatch,
@@ -28,6 +29,22 @@ import { client, orpc } from "@/utils/orpc";
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+interface TagRenameRequest {
+  baseRevision: number;
+  name: string;
+  tagId: string;
+}
+
+interface TagRenameCommand extends TagRenameRequest {
+  clientIdempotencyKey: string;
+}
+
+interface TagRenameUndo {
+  baseRevision: number;
+  receiptId: string;
+  tagId: string;
 }
 
 function invalidateTagQueries(queryClient: ReturnType<typeof useQueryClient>) {
@@ -49,6 +66,8 @@ export default function ProjectTagsSurface({
   >({});
   const [formError, setFormError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameUndo, setRenameUndo] = useState<TagRenameUndo | null>(null);
   const queryClient = useQueryClient();
   const { recordsQuery, tagsQuery } = useTags(
     projectId,
@@ -92,6 +111,43 @@ export default function ProjectTagsSurface({
     },
     onSuccess: async () => {
       setActionError(null);
+      await invalidateTagQueries(queryClient);
+    },
+  });
+
+  const rename = useMutation({
+    mutationFn: (input: TagRenameCommand) =>
+      runOnlineOnlyWrite(() => client.renameTag(input)),
+    onError: (error) => {
+      setRenameError(errorMessage(error, "Tag could not be renamed."));
+    },
+    onSuccess: async (renamed) => {
+      setRenameError(null);
+      setRenameUndo({
+        baseRevision: renamed.tag.revision,
+        receiptId: renamed.receiptId,
+        tagId: renamed.tag.id,
+      });
+      await invalidateTagQueries(queryClient);
+    },
+  });
+
+  const undoRename = useMutation({
+    mutationFn: (input: TagRenameUndo) =>
+      runOnlineOnlyWrite(() =>
+        client.undoTagRename({
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          receiptId: input.receiptId,
+          tagId: input.tagId,
+        }),
+      ),
+    onError: (error) => {
+      setRenameError(errorMessage(error, "Tag could not be undone safely."));
+    },
+    onSuccess: async () => {
+      setRenameError(null);
+      setRenameUndo(null);
       await invalidateTagQueries(queryClient);
     },
   });
@@ -159,10 +215,46 @@ export default function ProjectTagsSurface({
         <TagPicker
           filterTagId={filterTagId}
           onFilterChange={setFilterTagId}
+          onRename={(input) =>
+            rename.mutate({
+              ...input,
+              clientIdempotencyKey: crypto.randomUUID(),
+            })
+          }
+          onRenameValidationError={setRenameError}
+          renameError={renameError}
+          renamePending={rename.isPending}
           tags={tagsQuery.data ?? []}
           tagsError={tagsQuery.isError}
           tagsPending={tagsQuery.isPending}
         />
+        {renameUndo ? (
+          <p className="flex items-center gap-3 text-sm" role="status">
+            Tag renamed.
+            <Button
+              disabled={rename.isPending || undoRename.isPending}
+              onClick={() => {
+                const currentTag = tagsQuery.data?.find(
+                  ({ tag }) => tag.id === renameUndo.tagId,
+                )?.tag;
+                if (!currentTag) {
+                  setRenameError("Tag could not be undone. Reload this page.");
+                  return;
+                }
+                undoRename.mutate({
+                  baseRevision: renameUndo.baseRevision,
+                  receiptId: renameUndo.receiptId,
+                  tagId: renameUndo.tagId,
+                });
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Undo
+            </Button>
+          </p>
+        ) : null}
         <TagRecordList
           applyPending={apply.isPending}
           onApply={(input) => apply.mutate(input)}
@@ -183,12 +275,20 @@ export default function ProjectTagsSurface({
 function TagPicker({
   filterTagId,
   onFilterChange,
+  onRename,
+  onRenameValidationError,
+  renameError,
+  renamePending,
   tags,
   tagsError,
   tagsPending,
 }: {
   filterTagId: string;
   onFilterChange: (tagId: string) => void;
+  onRename: (input: TagRenameRequest) => void;
+  onRenameValidationError: (message: string | null) => void;
+  renameError: string | null;
+  renamePending: boolean;
   tags: readonly TagSuggestion[];
   tagsError: boolean;
   tagsPending: boolean;
@@ -205,7 +305,133 @@ function TagPicker({
         tagsError={tagsError}
         tagsPending={tagsPending}
       />
+      <TagRenameControl
+        onRename={onRename}
+        onValidationError={onRenameValidationError}
+        pending={renamePending}
+        tags={tags}
+        tagsError={tagsError}
+        tagsPending={tagsPending}
+      />
+      {renameError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {renameError}
+        </p>
+      ) : null}
     </section>
+  );
+}
+
+function TagRenameControl({
+  onRename,
+  onValidationError,
+  pending,
+  tags,
+  tagsError,
+  tagsPending,
+}: {
+  onRename: (input: TagRenameRequest) => void;
+  onValidationError: (message: string | null) => void;
+  pending: boolean;
+  tags: readonly TagSuggestion[];
+  tagsError: boolean;
+  tagsPending: boolean;
+}) {
+  const form = useForm({
+    defaultValues: {
+      name: "",
+      tagId: "",
+    },
+    onSubmit: ({ value }) => {
+      const selectedTag = tags.find(({ tag }) => tag.id === value.tagId)?.tag;
+      const parsed = createTagInputSchema.safeParse({ name: value.name });
+      if (!parsed.success) {
+        onValidationError(
+          parsed.error.issues[0]?.message ?? "Check the tag name.",
+        );
+        return;
+      }
+      if (!selectedTag) {
+        onValidationError("Tag is unavailable.");
+        return;
+      }
+      onValidationError(null);
+      onRename({
+        baseRevision: selectedTag.revision,
+        name: parsed.data.name,
+        tagId: selectedTag.id,
+      });
+    },
+  });
+
+  if (tagsPending || tagsError || tags.length === 0) {
+    return null;
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    form.handleSubmit().catch(() => undefined);
+  }
+
+  return (
+    <form
+      aria-label="Rename Tag"
+      className="space-y-3 border-border/70 border-t pt-4"
+      noValidate
+      onSubmit={handleSubmit}
+    >
+      <h3 className="font-medium text-base">Rename Tag</h3>
+      <form.Field name="tagId">
+        {(field) => (
+          <div className="space-y-2">
+            <Label htmlFor="rename-tag-select">Tag</Label>
+            <NativeSelect
+              aria-label="Tag to rename"
+              disabled={pending}
+              id="rename-tag-select"
+              name={field.name}
+              onChange={(event) => field.handleChange(event.target.value)}
+              value={field.state.value}
+            >
+              <NativeSelectOption value="">Select a tag</NativeSelectOption>
+              {tags.map(({ tag }) => (
+                <NativeSelectOption key={tag.id} value={tag.id}>
+                  {tag.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+        )}
+      </form.Field>
+      <form.Field name="name">
+        {(field) => (
+          <div className="space-y-2">
+            <Label htmlFor="rename-tag-name">New name</Label>
+            <Input
+              disabled={pending}
+              id="rename-tag-name"
+              name={field.name}
+              onChange={(event) => field.handleChange(event.target.value)}
+              placeholder="e.g. launch/next"
+              value={field.state.value}
+            />
+          </div>
+        )}
+      </form.Field>
+      <form.Subscribe
+        selector={(state) => [state.values.name, state.values.tagId] as const}
+      >
+        {([name, selectedTagId]) => (
+          <Button
+            disabled={pending || !selectedTagId || name.trim().length === 0}
+            type="submit"
+          >
+            Rename Tag
+          </Button>
+        )}
+      </form.Subscribe>
+    </form>
   );
 }
 

@@ -2,6 +2,8 @@ import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
+  renameTagInputSchema,
+  type TagRenameAccess,
   type TagStore,
   type TagsAccess,
   tagRecordsInputSchema,
@@ -44,6 +46,15 @@ export class TagRecordNotFoundError extends Error {
   }
 }
 
+export class TagRevisionConflictError extends Error {
+  readonly code = "TAG_REVISION_CONFLICT" as const;
+
+  constructor(tagId: string, options?: ErrorOptions) {
+    super(`Tag ${tagId} changed since it was loaded.`, options);
+    this.name = "TagRevisionConflictError";
+  }
+}
+
 export class TagWorkspaceNotFoundError extends Error {
   readonly code = "TAG_WORKSPACE_NOT_FOUND" as const;
 
@@ -61,7 +72,13 @@ async function workspaceIdFor(store: TagStore, accountId: string) {
   return workspaceId;
 }
 
-export function createTags({ store }: { store: TagStore }): TagsAccess {
+export function createTags({
+  rename,
+  store,
+}: {
+  rename: TagRenameAccess;
+  store: TagStore;
+}): TagsAccess {
   return {
     async apply(accountId, input) {
       const parsed = applyTagInputSchema.parse(input);
@@ -105,6 +122,12 @@ export function createTags({ store }: { store: TagStore }): TagsAccess {
       const parsed = removeTagInputSchema.parse(input);
       const workspaceId = await workspaceIdFor(store, accountId);
       return store.remove(workspaceId, parsed);
+    },
+
+    async rename(accountId, input) {
+      const parsed = renameTagInputSchema.parse(input);
+      await workspaceIdFor(store, accountId);
+      return rename(accountId, parsed);
     },
   };
 }
