@@ -310,6 +310,9 @@ export default function WorkDraftForm({
       setCreatedWorkKey(work.key);
       setActionMessage(null);
       setNewDraft();
+      queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
+        drafts.filter((draft) => draft.id !== saved.id),
+      );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: draftsQueryKey }),
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),

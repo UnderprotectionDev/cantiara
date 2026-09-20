@@ -104,7 +104,14 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
       .filter({ hasText: "Cross project handoff" }),
   ).toBeVisible({ timeout: 20_000 });
 
-  await page.getByRole("link", { name: "Projects", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "Projects", exact: true })
+    .click();
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await page.getByRole("link", { name: "Create Project", exact: true }).click();
+  await page.getByLabel("Project Name").fill("Ledger App");
+  await page.getByRole("button", { name: "Create Project" }).click();
   await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
   await page.getByRole("link", { name: "Ledger App", exact: true }).click();
   await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
@@ -129,5 +136,7 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
   await expect(
     page.getByText("Work PAY-2 created.", { exact: true }),
   ).toBeVisible({ timeout: 20_000 });
-  await expect(ledgerDrafts).not.toContainText("Cross project handoff");
+  await expect(
+    ledgerDrafts.getByText("Cross project handoff", { exact: true }),
+  ).toHaveCount(0);
 });
