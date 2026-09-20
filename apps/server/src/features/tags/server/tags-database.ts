@@ -1,7 +1,11 @@
 import {
   type Tag,
   type TagAssignment,
+  type TagInlineRenameWriter,
+  type TagMutationContracts,
+  type TagMutationValue,
   type TagRecord,
+  type TagRenameAccess,
   type TagStore,
   type TagSuggestion,
   tagAssignmentSchema,
@@ -17,15 +21,26 @@ import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import {
+  createDatabaseMutationContract,
+  type MutationDatabaseTargetAdapter,
+} from "../../mutation-and-undo/server/mutation-contract-database";
+import {
   createTags,
   TagNameConflictError,
   TagNotFoundError,
   TagProjectNotFoundError,
   TagRecordNotFoundError,
+  TagRevisionConflictError,
+  TagWorkspaceNotFoundError,
 } from "./tags";
 
 type WorkspaceTagDatabaseRecord = typeof workspaceTag.$inferSelect;
 type TagAssignmentDatabaseRecord = typeof workspaceTagAssignment.$inferSelect;
+
+export type TagDatabaseExecutor = Pick<
+  Database,
+  "delete" | "insert" | "select" | "update"
+>;
 
 function toTag(record: WorkspaceTagDatabaseRecord): Tag {
   return tagSchema.parse({
@@ -91,8 +106,9 @@ async function findWorkspaceTag(
   database: Pick<Database, "select">,
   workspaceId: string,
   tagId: string,
+  lock = false,
 ) {
-  const [record] = await database
+  const query = database
     .select()
     .from(workspaceTag)
     .where(
@@ -102,7 +118,8 @@ async function findWorkspaceTag(
       ),
     )
     .limit(1);
-  return record ?? null;
+  const records = lock ? await query.for("update") : await query;
+  return records[0] ?? null;
 }
 
 async function findOwnedWork(
@@ -162,7 +179,179 @@ async function listRecordTags(
   return tagsByRecord;
 }
 
-export function createDatabaseTags(database: Database) {
+function toTagMutationTarget(record: WorkspaceTagDatabaseRecord): {
+  id: string;
+  revision: number;
+  value: TagMutationValue;
+} {
+  return {
+    id: record.id,
+    revision: record.revision,
+    value: { tag: toTag(record) },
+  };
+}
+
+function createTagRenameMutationTarget(
+  accountId: string,
+  inlineRename: TagInlineRenameWriter<TagDatabaseExecutor> | undefined,
+): MutationDatabaseTargetAdapter<TagMutationValue> {
+  return {
+    async find(executor, targetId, lock) {
+      const workspaceId = await findWorkspaceId(executor, accountId);
+      if (!workspaceId) {
+        throw new TagWorkspaceNotFoundError();
+      }
+      const record = await findWorkspaceTag(
+        executor,
+        workspaceId,
+        targetId,
+        lock,
+      );
+      return record ? toTagMutationTarget(record) : null;
+    },
+
+    async update(executor, input) {
+      const workspaceId = await findWorkspaceId(executor, accountId);
+      if (!workspaceId) {
+        throw new TagWorkspaceNotFoundError();
+      }
+      const current = await findWorkspaceTag(
+        executor,
+        workspaceId,
+        input.targetId,
+        true,
+      );
+      if (!current) {
+        return null;
+      }
+      const next = input.nextValue.tag;
+      if (!next || next.id !== current.id) {
+        return null;
+      }
+
+      const [nameConflict] = await executor
+        .select({ id: workspaceTag.id })
+        .from(workspaceTag)
+        .where(
+          and(
+            eq(workspaceTag.workspaceId, workspaceId),
+            eq(workspaceTag.nameKey, tagNameKey(next.name)),
+            sql`${workspaceTag.id} <> ${input.targetId}`,
+          ),
+        )
+        .limit(1);
+      if (nameConflict) {
+        throw new TagNameConflictError(next.name);
+      }
+
+      const [updated] = await executor
+        .update(workspaceTag)
+        .set({
+          name: next.name,
+          nameKey: tagNameKey(next.name),
+          revision: input.expectedRevision + 1,
+          updatedAt: input.committedAt,
+        })
+        .where(
+          and(
+            eq(workspaceTag.id, input.targetId),
+            eq(workspaceTag.workspaceId, workspaceId),
+            eq(workspaceTag.revision, input.expectedRevision),
+          ),
+        )
+        .returning();
+      if (!updated) {
+        return null;
+      }
+
+      await inlineRename?.renameInlineUses(executor, {
+        committedAt: input.committedAt.toISOString(),
+        nextName: updated.name,
+        previousName: current.name,
+        tagId: updated.id,
+        workspaceId,
+      });
+
+      return toTagMutationTarget(updated);
+    },
+  };
+}
+
+function createDatabaseTagRename(
+  database: Database,
+  options: {
+    inlineRename?: TagInlineRenameWriter<TagDatabaseExecutor>;
+  },
+): TagRenameAccess {
+  return async (accountId, input) => {
+    const workspaceId = await findWorkspaceId(database, accountId);
+    if (!workspaceId) {
+      throw new TagWorkspaceNotFoundError();
+    }
+    const current = await findWorkspaceTag(database, workspaceId, input.tagId);
+    if (
+      current &&
+      current.name === input.name &&
+      (input.expectedRevision === undefined ||
+        input.expectedRevision === current.revision)
+    ) {
+      return toTag(current);
+    }
+
+    const mutation = createDatabaseTagMutationContracts(
+      database,
+      options,
+    ).rename(accountId);
+    const baseRevision = input.expectedRevision ?? current?.revision ?? 0;
+    let receipt: Awaited<ReturnType<typeof mutation.mutate>>;
+    try {
+      receipt = await mutation.mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          kind: "human",
+          payload: input,
+          targetId: input.tagId,
+        },
+        ({ currentValue, currentRevision, payload }) => {
+          if (!currentValue.tag) {
+            throw new TagNotFoundError(input.tagId);
+          }
+          return {
+            tag: {
+              ...currentValue.tag,
+              name: payload.name,
+              revision: currentRevision + 1,
+              updatedAt: new Date().toISOString(),
+            },
+          } satisfies TagMutationValue;
+        },
+      );
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "STALE_BASE_REVISION"
+      ) {
+        throw new TagRevisionConflictError(input.tagId, { cause: error });
+      }
+      throw error;
+    }
+    if (!receipt.nextValue.tag) {
+      throw new TagNotFoundError(input.tagId);
+    }
+    return receipt.nextValue.tag;
+  };
+}
+
+export function createDatabaseTags(
+  database: Database,
+  options: {
+    inlineRename?: TagInlineRenameWriter<TagDatabaseExecutor>;
+  } = {},
+) {
   const store: TagStore = {
     async apply(workspaceId, input) {
       const tag = await findWorkspaceTag(database, workspaceId, input.tagId);
@@ -365,5 +554,22 @@ export function createDatabaseTags(database: Database) {
     },
   };
 
-  return createTags({ store });
+  return createTags({
+    rename: createDatabaseTagRename(database, options),
+    store,
+  });
+}
+
+export function createDatabaseTagMutationContracts(
+  database: Database,
+  options: {
+    inlineRename?: TagInlineRenameWriter<TagDatabaseExecutor>;
+  } = {},
+): TagMutationContracts {
+  return {
+    rename: (accountId) =>
+      createDatabaseMutationContract<TagMutationValue>(database, {
+        target: createTagRenameMutationTarget(accountId, options.inlineRename),
+      }),
+  };
 }

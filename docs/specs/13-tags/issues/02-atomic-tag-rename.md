@@ -6,11 +6,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] `Rename Tag` bütün yapılandırılmış kullanımları tek commit'te yeni görünen ada çeker; kimlik değişmez.
-- [ ] Rename sonrası aynı kayıt listesi filtresi kimliğe göre eşleşmeye devam eder; donmuş görünen ada veya eski/yeni adı karışık üyelik yoktur.
-- [ ] Aynı kimliğe çözülmüş inline kullanımlar aynı atomik sınırda güncellenir; etkilenen Belgeler sürümlenir ve güvenli geri alma düzeni döndürür.
-- [ ] İşlem başarısızsa hiçbir kayıt veya Belge gövdesi kısmen güncellenmez.
-- [ ] Markdown export sözleşmesi inline `#etiket` metnini korur ve manifest kimlik eşlemesini taşır; export UI'si bu ticket'ta yoktur.
-- [ ] İki etiket kimliğini birleştirme, arşivleme ve kullanım önerisi yoktur ([gelişmiş etiket bakımı](../../../prd/18-future-directions.md#gelismis-etiket-bakimi)).
-- [ ] Belge editörü `#etiket` ayrıştırması, kod çiti istisnası ve satır bağlamı UI'si 31'dedir; bu ticket ikinci sözlük açmaz.
-- [ ] Kabul kanıtı aynı Tags seam'inde: çok kayıtlı rename, Belge gövdesi ile alanın birlikte ilerlemesi, hata enjeksiyonunda karışık ad yokluğu, birleştirme UI'sinin yokluğu.
+- [x] `Rename Tag` bütün yapılandırılmış kullanımları tek commit'te yeni görünen ada çeker; kimlik değişmez.
+- [x] Rename sonrası aynı kayıt listesi filtresi kimliğe göre eşleşmeye devam eder; donmuş görünen ada veya eski/yeni adı karışık üyelik yoktur.
+- [ ] Aynı kimliğe çözülmüş inline kullanımlar aynı atomik sınırda güncellenir; etkilenen Belgeler sürümlenir ve güvenli geri alma düzeni döndürür. (Tags tarafında atomik seam, rollback testi ve receipt tabanlı Undo teslim edildi; gerçek Belge sürümlendirmesi workflow 31'i bekler.)
+- [x] İşlem başarısızsa hiçbir kayıt veya Belge gövdesi kısmen güncellenmez.
+- [x] Markdown export sözleşmesi inline `#etiket` metnini korur ve manifest kimlik eşlemesini taşır; export UI'si bu ticket'ta yoktur.
+- [x] İki etiket kimliğini birleştirme, arşivleme ve kullanım önerisi yoktur ([gelişmiş etiket bakımı](../../../prd/18-future-directions.md#gelismis-etiket-bakimi)).
+- [x] Belge editörü `#etiket` ayrıştırması, kod çiti istisnası ve satır bağlamı UI'si 31'dedir; bu ticket ikinci sözlük açmaz.
+- [x] Kabul kanıtı aynı Tags seam'inde: çok kayıtlı rename, Belge gövdesi ile alanın birlikte ilerlemesi, hata enjeksiyonunda karışık ad yokluğu, birleştirme UI'sinin yokluğu.

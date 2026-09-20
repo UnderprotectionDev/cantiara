@@ -27,7 +27,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
-import type { TagsAccess } from "@cantiara/api/tags";
+import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
@@ -60,6 +60,7 @@ export interface CreateContextOptions {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   relations?: RelationsAccess;
+  tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   trustedProxyIps: readonly string[];
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -94,6 +95,7 @@ export async function createContext({
   projectShellMutationContracts,
   tags,
   relations,
+  tagMutationContracts,
   trustedProxyIps,
   usageLinkMutationContracts,
   usageLinks,
@@ -137,6 +139,7 @@ export async function createContext({
     relations,
     auth: null,
     session,
+    tagMutationContracts,
     usageLinkMutationContracts,
     usageLinks,
     webCapture,
