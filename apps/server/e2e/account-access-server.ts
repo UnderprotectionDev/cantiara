@@ -33,6 +33,7 @@ import {
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseRelations } from "../src/features/relations/server/relations";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -78,6 +79,7 @@ const customFieldMutationContracts =
 const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
+const relations = createDatabaseRelations(database);
 const captureInbox = createDatabaseCaptureInbox(
   database,
   createCaptureInboxWorkCreate(workLifecycle),
@@ -153,6 +155,7 @@ const app = createApp({
   nodeEnv: "test",
   projectShell,
   projectShellMutationContracts,
+  relations,
   tags,
   tagMutationContracts,
   workLifecycle,
@@ -289,13 +292,84 @@ async function createE2EFixture(fixtureKey: string) {
     });
   }
 
+  let usedInSourceProjectId: string | null = null;
+  let usedInSourceWorkId: string | null = null;
+  const usedInTargetProject =
+    fixtureKey === "used-in"
+      ? await projectShell.create(founder.id, {
+          name: "Used In Target Project",
+          shortCode: "USED",
+          starterConfiguration: "Blank Project",
+        })
+      : null;
+  const usedInSourceProject =
+    fixtureKey === "used-in"
+      ? await projectShell.create(founder.id, {
+          name: "Used In Source Project",
+          shortCode: "SRC",
+          starterConfiguration: "Blank Project",
+        })
+      : null;
+  if (usedInTargetProject && usedInSourceProject) {
+    const target = await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "used-in-target-work",
+      projectId: usedInTargetProject.id,
+      title: "Target record",
+      type: "Task",
+    });
+    const source = await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "used-in-source-work",
+      projectId: usedInSourceProject.id,
+      title: "Source record",
+      type: "Task",
+    });
+    const relationPreview = await relations.previewCreate(founder.id, {
+      kind: "Related",
+      source: { recordId: source.id, recordType: "Work" },
+      target: { recordId: target.id, recordType: "Work" },
+    });
+    await relations.create(founder.id, {
+      baseRevision: relationPreview.baseRevision,
+      clientIdempotencyKey: "used-in-relation",
+      kind: relationPreview.kind,
+      previewId: relationPreview.previewId,
+      source: {
+        recordId: relationPreview.source.recordId,
+        recordType: relationPreview.source.recordType,
+      },
+      target: {
+        recordId: relationPreview.target.recordId,
+        recordType: relationPreview.target.recordType,
+      },
+    });
+    await relations.createUsageLink(founder.id, {
+      kind: "Live block",
+      source: { recordId: target.id, recordType: "Work" },
+      surface: {
+        context: "used-in-e2e-source",
+        recordId: source.id,
+        recordType: "Work",
+      },
+    });
+    usedInSourceProjectId = usedInSourceProject.id;
+    usedInSourceWorkId = source.id;
+  }
+
   const projectId =
-    captureProject?.id ?? scopeTreeProject?.id ?? tagsProject?.id;
+    usedInTargetProject?.id ??
+    captureProject?.id ??
+    scopeTreeProject?.id ??
+    tagsProject?.id;
 
   return {
     currentCookie,
     otherCookie,
     ...(projectId ? { projectId } : {}),
+    ...(usedInSourceProjectId && usedInSourceWorkId
+      ? { usedInSourceProjectId, usedInSourceWorkId }
+      : {}),
   };
 }
 
@@ -313,12 +387,20 @@ serve({
         );
       }
 
-      const { currentCookie, otherCookie, projectId } =
-        await createE2EFixture(fixtureKey);
+      const {
+        currentCookie,
+        otherCookie,
+        projectId,
+        usedInSourceProjectId,
+        usedInSourceWorkId,
+      } = await createE2EFixture(fixtureKey);
       return Response.json({
         cookie: currentCookie,
         otherCookie,
         ...(projectId ? { projectId } : {}),
+        ...(usedInSourceProjectId && usedInSourceWorkId
+          ? { usedInSourceProjectId, usedInSourceWorkId }
+          : {}),
       });
     }
     return app.fetch(request, server);

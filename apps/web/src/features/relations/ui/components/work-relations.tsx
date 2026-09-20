@@ -2,8 +2,8 @@
 
 import type {
   RelationPreview,
-  RelationUsageView,
   RelationView,
+  UsedInSummary,
 } from "@cantiara/api/relations";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -12,6 +12,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLinkProps } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -26,6 +27,11 @@ interface RemovedRelation {
   receiptId: string;
   relationId: string;
 }
+
+const EMPTY_USED_IN_SUMMARY: UsedInSummary = {
+  relationBacklinks: [],
+  usageLinks: [],
+};
 
 export default function WorkRelations({
   candidates,
@@ -48,8 +54,8 @@ export default function WorkRelations({
       input: { recordId: work.id, recordType: "Work" },
     }),
   );
-  const usagesQuery = useQuery(
-    orpc.relationUsages.queryOptions({
+  const usedInQuery = useQuery(
+    orpc.usedIn.queryOptions({
       input: { recordId: work.id, recordType: "Work" },
     }),
   );
@@ -70,10 +76,20 @@ export default function WorkRelations({
           input: { recordId: work.id, recordType: "Work" },
         }).queryKey,
       }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.usedIn.queryOptions({
+          input: { recordId: work.id, recordType: "Work" },
+        }).queryKey,
+      }),
       ...(targetId
         ? [
             queryClient.invalidateQueries({
               queryKey: orpc.relations.queryOptions({
+                input: { recordId: targetId, recordType: "Work" },
+              }).queryKey,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: orpc.usedIn.queryOptions({
                 input: { recordId: targetId, recordType: "Work" },
               }).queryKey,
             }),
@@ -195,9 +211,6 @@ export default function WorkRelations({
   const relationItems = query.data ?? [];
   const outgoing = relationItems.filter(
     (relation) => relation.direction === "outgoing",
-  );
-  const incoming = relationItems.filter(
-    (relation) => relation.direction === "incoming",
   );
   const canCreate =
     connection !== "offline" &&
@@ -332,13 +345,12 @@ export default function WorkRelations({
         </div>
       ) : null}
       <RelationsContent
-        incoming={incoming}
-        isError={query.isError}
-        isPending={query.isPending}
+        isError={query.isError || usedInQuery.isError}
+        isPending={query.isPending || usedInQuery.isPending}
         onRemove={(relation) => removeMutation.mutate(relation)}
         outgoing={outgoing}
         removePending={removeMutation.isPending}
-        usages={usagesQuery.data ?? []}
+        usedIn={usedInQuery.data ?? EMPTY_USED_IN_SUMMARY}
         workId={work.id}
       />
     </section>
@@ -346,24 +358,23 @@ export default function WorkRelations({
 }
 
 function RelationsContent({
-  incoming,
   isError,
   isPending,
   onRemove,
   outgoing,
   removePending,
-  usages,
+  usedIn,
   workId,
 }: {
-  incoming: readonly RelationView[];
   isError: boolean;
   isPending: boolean;
   onRemove: (relation: RelationView) => void;
   outgoing: readonly RelationView[];
   removePending: boolean;
-  usages: readonly RelationUsageView[];
+  usedIn: UsedInSummary;
   workId: string;
 }) {
+  const { relationBacklinks, usageLinks } = usedIn;
   if (isPending) {
     return <p className="text-muted-foreground text-xs">Loading relations…</p>;
   }
@@ -374,7 +385,11 @@ function RelationsContent({
       </p>
     );
   }
-  if (outgoing.length === 0 && incoming.length === 0 && usages.length === 0) {
+  if (
+    outgoing.length === 0 &&
+    relationBacklinks.length === 0 &&
+    usageLinks.length === 0
+  ) {
     return <p className="text-muted-foreground text-xs">No relations yet.</p>;
   }
   return (
@@ -388,33 +403,39 @@ function RelationsContent({
           workId={workId}
         />
       ) : null}
-      {incoming.length > 0 || usages.length > 0 ? (
+      {relationBacklinks.length > 0 || usageLinks.length > 0 ? (
         <div className="space-y-2">
           <h5 className="font-medium text-muted-foreground text-xs">Used in</h5>
-          {incoming.length > 0 ? (
+          {relationBacklinks.length > 0 ? (
             <RelationItems
               onRemove={onRemove}
-              relations={incoming}
+              openSourceRecord
+              relations={relationBacklinks}
               removePending={removePending}
               workId={workId}
             />
           ) : null}
-          {usages.length > 0 ? (
-            <ul className="space-y-2">
-              {usages.map((usage) => (
-                <li
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2 text-xs"
-                  key={usage.id}
-                >
-                  <div className="min-w-0">
-                    <span className="mr-2 text-muted-foreground">
-                      {usage.kind}
-                    </span>
-                    <UsageSurfaceText surface={usage.surface} />
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {usageLinks.length > 0 ? (
+            <div className="space-y-2">
+              <h6 className="font-medium text-muted-foreground text-xs">
+                Usage links
+              </h6>
+              <ul className="space-y-2">
+                {usageLinks.map((usage) => (
+                  <li
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2 text-xs"
+                    key={usage.id}
+                  >
+                    <div className="min-w-0">
+                      <span className="mr-2 text-muted-foreground">
+                        {usage.kind}
+                      </span>
+                      <UsageSurfaceText surface={usage.surface} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -424,12 +445,14 @@ function RelationsContent({
 
 function RelationGroup({
   onRemove,
+  openSourceRecord = false,
   relations,
   removePending,
   title,
   workId,
 }: {
   onRemove: (relation: RelationView) => void;
+  openSourceRecord?: boolean;
   relations: readonly RelationView[];
   removePending: boolean;
   title: "Relations" | "Used in";
@@ -440,6 +463,7 @@ function RelationGroup({
       <h5 className="font-medium text-muted-foreground text-xs">{title}</h5>
       <RelationItems
         onRemove={onRemove}
+        openSourceRecord={openSourceRecord}
         relations={relations}
         removePending={removePending}
         workId={workId}
@@ -450,11 +474,13 @@ function RelationGroup({
 
 function RelationItems({
   onRemove,
+  openSourceRecord = false,
   relations,
   removePending,
   workId,
 }: {
   onRemove: (relation: RelationView) => void;
+  openSourceRecord?: boolean;
   relations: readonly RelationView[];
   removePending: boolean;
   workId: string;
@@ -473,7 +499,11 @@ function RelationItems({
               <span className="mr-2 text-muted-foreground">
                 {relation.label}
               </span>
-              <RelationEndpointText endpoint={endpoint} workId={workId} />
+              <RelationEndpointText
+                endpoint={endpoint}
+                openSourceRecord={openSourceRecord}
+                workId={workId}
+              />
             </div>
             <Button
               aria-label={`Remove ${relation.label}`}
@@ -495,7 +525,7 @@ function RelationItems({
 function UsageSurfaceText({
   surface,
 }: {
-  surface: RelationUsageView["surface"];
+  surface: UsedInSummary["usageLinks"][number]["surface"];
 }) {
   if (surface.broken) {
     return (
@@ -503,32 +533,35 @@ function UsageSurfaceText({
         {surface.key && surface.title
           ? `${surface.key} ${surface.title} — ${surface.broken.reason}`
           : `Broken — ${surface.broken.reason}`}
-        {surface.broken.canOpenSourceRecord ? (
-          <a
-            className="ml-2 underline underline-offset-2"
-            href={`#work-${surface.recordId}`}
-          >
-            Open source record
-          </a>
+        {surface.broken.canOpenSourceRecord && surface.projectId ? (
+          <OpenSourceRecordLink
+            projectId={surface.projectId}
+            recordId={surface.recordId}
+          />
         ) : null}
       </span>
     );
   }
   return (
-    <a
-      className="underline underline-offset-2"
-      href={`#work-${surface.recordId}`}
-    >
+    <span>
       {surface.key} {surface.title}
-    </a>
+      {surface.projectId ? (
+        <OpenSourceRecordLink
+          projectId={surface.projectId}
+          recordId={surface.recordId}
+        />
+      ) : null}
+    </span>
   );
 }
 
 function RelationEndpointText({
   endpoint,
+  openSourceRecord = false,
   workId,
 }: {
   endpoint: RelationView["source"];
+  openSourceRecord?: boolean;
   workId: string;
 }) {
   if (endpoint.broken) {
@@ -537,13 +570,11 @@ function RelationEndpointText({
         {endpoint.key && endpoint.title
           ? `${endpoint.key} ${endpoint.title} — ${endpoint.broken.reason}`
           : `Broken — ${endpoint.broken.reason}`}
-        {endpoint.broken.canOpenSourceRecord ? (
-          <a
-            className="ml-2 underline underline-offset-2"
-            href={`#work-${endpoint.recordId}`}
-          >
-            Open source record
-          </a>
+        {endpoint.broken.canOpenSourceRecord && endpoint.projectId ? (
+          <OpenSourceRecordLink
+            projectId={endpoint.projectId}
+            recordId={endpoint.recordId}
+          />
         ) : null}
       </span>
     );
@@ -552,7 +583,34 @@ function RelationEndpointText({
     <span>
       {endpoint.key} {endpoint.title}
       {endpoint.recordId === workId ? " (current)" : ""}
+      {openSourceRecord && endpoint.projectId ? (
+        <OpenSourceRecordLink
+          projectId={endpoint.projectId}
+          recordId={endpoint.recordId}
+        />
+      ) : null}
     </span>
+  );
+}
+
+function OpenSourceRecordLink({
+  projectId,
+  recordId,
+}: {
+  projectId: string;
+  recordId: string;
+}) {
+  const linkProps = useLinkProps({
+    activeOptions: { exact: true, includeHash: true },
+    hash: `work-${recordId}`,
+    params: { projectId },
+    to: "/projects/$projectId",
+  });
+
+  return (
+    <a {...linkProps} className="ml-2 underline underline-offset-2">
+      Open source record
+    </a>
   );
 }
 

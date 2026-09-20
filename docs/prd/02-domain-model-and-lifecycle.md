@@ -569,6 +569,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Akış düğümü Ekran referansı | `Screen reference` | Kullanıcı Akışı düğümünün Ekran kullanım bağı |
 | Bağı kaldır | `Unlink` | Gömüyü kaldırıp kaynak ana kaydı silmeyen eylem |
 | Kullanıldığı yerler | `Used in` | Standart ilişki geri bağlantıları ile kullanım bağlarının kaynak türüne göre ayrı özeti; kopya içerik veya yeni yazma değildir |
+| Kullanım bağları | `Usage links` | `Used in` yüzeyindeki standart ilişki grubundan ayrı gösterilen gömülü kullanım bağları grubu |
 | Türetilen | `Derived` | Köken ilişkisinin üretilen uç etiketi; `Related` yerine geçmez |
 | Çöp Kutusunda | `In Trash` | Kırık referans nedeni |
 | Kalıcı silindi | `Permanently deleted` | Kırık referans nedeni |

@@ -5,7 +5,7 @@ import {
   mutationReceipt,
   mutationStaging,
 } from "@cantiara/db/schema/mutation";
-import { workRelation } from "@cantiara/db/schema/relation";
+import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -607,6 +607,187 @@ describeDatabase("Relations PostgreSQL integration", () => {
     await expect(
       createDatabaseWorkLifecycle(database).find(accountId, source.id),
     ).resolves.toMatchObject({ id: source.id });
+  }, 30_000);
+
+  test("derives Used in as separate relation backlinks and usage links without access leaks", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { project, source, target } = await createWorks();
+    const relations = createDatabaseRelations(database);
+    const sourceProject = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Relation Source Project",
+        shortCode: "SRC",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const crossProjectSource = await createDatabaseWorkLifecycle(
+      database,
+    ).create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "used-in-cross-project-source",
+      projectId: sourceProject.id,
+      title: "Cross-project Source Work",
+      type: "Task",
+    });
+    const relationPreview = await relations.previewCreate(accountId, {
+      kind: "Related",
+      source: { recordId: crossProjectSource.id, recordType: "Work" },
+      target: { recordId: target.id, recordType: "Work" },
+    });
+    await relations.create(accountId, {
+      baseRevision: relationPreview.baseRevision,
+      clientIdempotencyKey: "used-in-relation",
+      kind: relationPreview.kind,
+      previewId: relationPreview.previewId,
+      source: {
+        recordId: relationPreview.source.recordId,
+        recordType: relationPreview.source.recordType,
+      },
+      target: {
+        recordId: relationPreview.target.recordId,
+        recordType: relationPreview.target.recordType,
+      },
+    });
+    const usage = await relations.createUsageLink(accountId, {
+      kind: "Live block",
+      source: { recordId: target.id, recordType: "Work" },
+      surface: {
+        context: "target-used-in-source",
+        recordId: crossProjectSource.id,
+        recordType: "Work",
+      },
+    });
+    const relationsBeforeUsedIn = await relations.list(accountId, {
+      recordId: target.id,
+      recordType: "Work",
+    });
+    const usageLinksBeforeUsedIn = await relations.listUsageLinks(accountId, {
+      recordId: target.id,
+      recordType: "Work",
+    });
+
+    await expect(
+      relations.listUsedIn(accountId, {
+        recordId: target.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual({
+      relationBacklinks: [
+        expect.objectContaining({
+          direction: "incoming",
+          kind: "Related",
+          source: expect.objectContaining({
+            projectId: sourceProject.id,
+            recordId: crossProjectSource.id,
+            recordType: "Work",
+            title: crossProjectSource.title,
+          }),
+        }),
+      ],
+      usageLinks: [
+        expect.objectContaining({
+          id: usage.id,
+          kind: "Live block",
+          surface: expect.objectContaining({
+            projectId: sourceProject.id,
+            recordId: crossProjectSource.id,
+            recordType: "Work",
+            title: crossProjectSource.title,
+          }),
+        }),
+      ],
+    });
+    await expect(
+      relations.list(accountId, {
+        recordId: target.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual(relationsBeforeUsedIn);
+    await expect(
+      relations.listUsageLinks(accountId, {
+        recordId: target.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual(usageLinksBeforeUsedIn);
+
+    const otherAccountId = `used-in-other-${crypto.randomUUID()}`;
+    const otherWorkspaceId = `workspace-other-${crypto.randomUUID()}`;
+    await database.insert(user).values({
+      email: `${otherAccountId}@example.invalid`,
+      id: otherAccountId,
+      name: "Other Founder",
+    });
+    await database.insert(workspace).values({
+      id: otherWorkspaceId,
+      ownerAccountId: otherAccountId,
+    });
+    const otherProject = await createDatabaseProjectShell(database).create(
+      otherAccountId,
+      {
+        name: "Other Project",
+        shortCode: "OTHER",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const otherWork = await createDatabaseWorkLifecycle(database).create(
+      otherAccountId,
+      {
+        baseRevision: 0,
+        clientIdempotencyKey: "used-in-other-work",
+        projectId: otherProject.id,
+        title: "Private Used In",
+        type: "Task",
+      },
+    );
+    await database.insert(workRelation).values({
+      id: `used-in-inaccessible-relation-${crypto.randomUUID()}`,
+      kind: "Related",
+      sourceWorkId: source.id,
+      targetLabel: "Private Used In must not leak",
+      targetProjectId: otherProject.id,
+      targetRecordId: otherWork.id,
+    });
+    await database.insert(workRelation).values({
+      id: `used-in-inaccessible-source-relation-${crypto.randomUUID()}`,
+      kind: "Related",
+      sourceWorkId: otherWork.id,
+      targetLabel: "Private source must not leak",
+      targetProjectId: project.id,
+      targetRecordId: target.id,
+      targetRecordType: "Work",
+    });
+    await database.insert(usageLink).values({
+      id: `used-in-inaccessible-usage-${crypto.randomUUID()}`,
+      kind: "Live block",
+      location: { context: "private-surface" },
+      revision: 1,
+      sourceRecordId: target.id,
+      sourceRecordType: "Work",
+      surfaceRecordId: otherWork.id,
+      surfaceRecordType: "Work",
+      workspaceId,
+    });
+
+    await expect(
+      relations.listUsedIn(accountId, {
+        recordId: otherWork.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual({ relationBacklinks: [], usageLinks: [] });
+    await expect(
+      relations.listUsedIn(accountId, {
+        recordId: target.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual({
+      relationBacklinks: [expect.objectContaining({ kind: "Related" })],
+      usageLinks: [expect.objectContaining({ id: usage.id })],
+    });
+
+    await database.delete(user).where(eq(user.id, otherAccountId));
   }, 30_000);
 
   test("exposes the immutable Origin position on the target", async () => {

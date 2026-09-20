@@ -36,6 +36,7 @@ import {
   removeRelationInputSchema,
   type StoredRelationValue,
   type UndoRelationInput,
+  type UsedInSummary,
   undoRelationInputSchema,
 } from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
@@ -147,10 +148,12 @@ export class RelationUndoUnavailableError extends RelationsError {
   }
 }
 
-interface OwnedWork {
+interface WorkWithProject {
   project: ProjectRecord;
   record: WorkRecord;
 }
+
+type OwnedWork = WorkWithProject;
 
 interface RelationWithSource {
   relation: RelationRecord;
@@ -253,6 +256,19 @@ async function findAnyProject(
     .select()
     .from(project)
     .where(eq(project.id, projectId))
+    .limit(1);
+  return record ?? null;
+}
+
+async function findAnyWork(
+  executor: MutationDatabaseExecutor,
+  workId: string,
+): Promise<WorkWithProject | null> {
+  const [record] = await executor
+    .select({ project, record: work })
+    .from(work)
+    .innerJoin(project, eq(work.projectId, project.id))
+    .where(eq(work.id, workId))
     .limit(1);
   return record ?? null;
 }
@@ -816,8 +832,12 @@ async function usageSurfaceView(
   }
   const resolved = await resolver(executor, accountId, endpoint.recordId);
   if (!resolved) {
-    // Usage links only exist inside the founder's workspace, so a surface the
-    // resolver cannot find was permanently deleted, not moved out of reach.
+    if (
+      endpoint.recordType === "Work" &&
+      (await findAnyWork(executor, endpoint.recordId))
+    ) {
+      return brokenEndpoint(endpoint, "No access", establishedAt, null);
+    }
     return brokenEndpoint(endpoint, "Permanently deleted", establishedAt, null);
   }
   return resolvedEndpointView(endpoint, resolved, establishedAt);
@@ -1138,6 +1158,9 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (!workspaceId) {
         return [];
       }
+      if (!(await findOwnedWork(database, accountId, input.recordId, false))) {
+        return [];
+      }
       const records = await database
         .select({
           relation: workRelation,
@@ -1185,6 +1208,9 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (!workspaceId) {
         return [];
       }
+      if (!(await findOwnedWork(database, accountId, input.recordId, false))) {
+        return [];
+      }
       const records = await database
         .select({ link: usageLink })
         .from(usageLink)
@@ -1196,9 +1222,79 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
           ),
         )
         .orderBy(asc(usageLink.createdAt), asc(usageLink.id));
-      return Promise.all(
+      const views = await Promise.all(
         records.map(({ link }) => usageView(database, accountId, link)),
       );
+      return views.filter(
+        (view) => view.surface.broken?.reason !== "No access",
+      );
+    },
+
+    async listUsedIn(accountId, rawInput): Promise<UsedInSummary> {
+      const input = relationsInputSchema.parse(rawInput);
+      const empty: UsedInSummary = {
+        relationBacklinks: [],
+        usageLinks: [],
+      };
+      if (input.recordType !== "Work") {
+        return empty;
+      }
+      const workspaceId = await findOwnedWorkspaceId(database, accountId);
+      if (
+        !(
+          workspaceId &&
+          (await findOwnedWork(database, accountId, input.recordId, false))
+        )
+      ) {
+        return empty;
+      }
+
+      const relationRecords = await database
+        .select({
+          relation: workRelation,
+          sourceProject: project,
+          sourceWork: work,
+        })
+        .from(workRelation)
+        .innerJoin(work, eq(workRelation.sourceWorkId, work.id))
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(project.workspaceId, workspaceId),
+            eq(workRelation.sourceRecordType, "Work"),
+            isNull(workRelation.deletedAt),
+            eq(workRelation.targetRecordType, input.recordType),
+            eq(workRelation.targetRecordId, input.recordId),
+          ),
+        )
+        .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
+      const relationBacklinks = await Promise.all(
+        relationRecords.map((record) =>
+          relationView(database, accountId, record, "incoming"),
+        ),
+      );
+
+      const usageRecords = await database
+        .select({ link: usageLink })
+        .from(usageLink)
+        .where(
+          and(
+            eq(usageLink.workspaceId, workspaceId),
+            eq(usageLink.sourceRecordType, input.recordType),
+            eq(usageLink.sourceRecordId, input.recordId),
+          ),
+        )
+        .orderBy(asc(usageLink.createdAt), asc(usageLink.id));
+      const usageViews = await Promise.all(
+        usageRecords.map(({ link }) => usageView(database, accountId, link)),
+      );
+
+      return {
+        relationBacklinks,
+        usageLinks: usageViews.filter(
+          (view) => view.surface.broken?.reason !== "No access",
+        ),
+      };
     },
 
     async createUsageLink(accountId, rawInput) {

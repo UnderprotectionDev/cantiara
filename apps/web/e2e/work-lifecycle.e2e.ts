@@ -283,3 +283,54 @@ test("walks the read-only Scope Tree and opens a source record", async ({
     await scopeTree.locator('[draggable="false"]').count(),
   ).toBeGreaterThan(0);
 });
+
+test("shows Used in groups and opens cross-Project source records", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=used-in`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+    usedInSourceProjectId: string;
+    usedInSourceWorkId: string;
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto(`/projects/${setup.projectId}`);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  const targetWork = workListItem(page, "Target record");
+  await expect(targetWork).toBeVisible({ timeout: 20_000 });
+  const relations = targetWork.getByRole("region", { name: "Relations" });
+  await expect(
+    relations.getByRole("heading", { name: "Used in", exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(
+    relations.getByRole("heading", { name: "Relations", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    relations.getByRole("heading", { name: "Usage links", exact: true }),
+  ).toBeVisible();
+
+  const sourceLinks = relations.getByRole("link", {
+    name: "Open source record",
+  });
+  await expect(sourceLinks).toHaveCount(2);
+  await expect
+    .poll(() =>
+      sourceLinks.evaluateAll((links) =>
+        links.map((link) => (link as HTMLAnchorElement).getAttribute("href")),
+      ),
+    )
+    .toEqual([
+      `/projects/${setup.usedInSourceProjectId}#work-${setup.usedInSourceWorkId}`,
+      `/projects/${setup.usedInSourceProjectId}#work-${setup.usedInSourceWorkId}`,
+    ]);
+});

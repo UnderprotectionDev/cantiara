@@ -561,6 +561,11 @@ export interface RelationMutationResult {
   relationId: string;
 }
 
+export interface UsedInSummary {
+  relationBacklinks: RelationView[];
+  usageLinks: RelationUsageView[];
+}
+
 export interface RelationsAccess {
   create: (
     accountId: string,
@@ -575,6 +580,10 @@ export interface RelationsAccess {
     accountId: string,
     input: RelationsInput,
   ) => Promise<RelationUsageView[]>;
+  listUsedIn: (
+    accountId: string,
+    input: RelationsInput,
+  ) => Promise<UsedInSummary>;
   previewCreate: (
     accountId: string,
     input: RelationCreatePreviewInput,
