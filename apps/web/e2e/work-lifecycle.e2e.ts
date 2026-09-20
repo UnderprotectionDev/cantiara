@@ -1,10 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const TYPE_FIELD_PATTERN = /Type:/;
 const WORK_HASH_PATTERN = /#work-/;
+
+function workListItem(page: Page, title: string) {
+  return page.getByRole("listitem").filter({
+    has: page.locator("p").filter({ hasText: title }),
+  });
+}
 
 test.setTimeout(60_000);
 
@@ -45,9 +51,7 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
   ).toBeVisible();
-  const firstWork = page.getByRole("listitem").filter({
-    hasText: "PAY-1 Investigate payment failures",
-  });
+  const firstWork = workListItem(page, "PAY-1 Investigate payment failures");
   await expect(firstWork).toContainText("Research");
   await expect(firstWork).toContainText("Not Started");
 
@@ -78,9 +82,7 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(firstWork).toContainText("No longer needed");
 
   await page.reload();
-  const closedWork = page.getByRole("listitem").filter({
-    hasText: "PAY-1 Investigate payment failures",
-  });
+  const closedWork = workListItem(page, "PAY-1 Investigate payment failures");
   await expect(closedWork).toContainText("Abandoned", { timeout: 20_000 });
   await closedWork
     .getByRole("combobox", { name: "Status for PAY-1" })
@@ -116,9 +118,7 @@ test("creates Work with a Project key, type, and protected start status", async 
     page.getByText("Work PAY-2 created.", { exact: true }),
   ).toBeVisible();
 
-  const duplicateWork = page.getByRole("listitem").filter({
-    hasText: "PAY-2 Document the payment flow",
-  });
+  const duplicateWork = workListItem(page, "PAY-2 Document the payment flow");
   await duplicateWork
     .getByRole("button", { name: "Merge as duplicate" })
     .click();
@@ -148,37 +148,24 @@ test("creates Work with a Project key, type, and protected start status", async 
   await expect(duplicateWork).toBeVisible({ timeout: 20_000 });
 
   await page.reload();
-  const workListItems = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem");
   await expect(
-    workListItems.filter({
-      hasText: "PAY-1 Investigate payment failures",
-    }),
+    workListItem(page, "PAY-1 Investigate payment failures"),
   ).toBeVisible();
   await expect(
-    workListItems.filter({
-      hasText: "PAY-2 Document the payment flow",
-    }),
+    workListItem(page, "PAY-2 Document the payment flow"),
   ).toContainText("Task");
 
-  const secondWork = workListItems.filter({
-    hasText: "PAY-2 Document the payment flow",
-  });
+  const secondWork = workListItem(page, "PAY-2 Document the payment flow");
   await secondWork.getByRole("button", { name: "Archive" }).click();
   await expect(secondWork).not.toBeVisible();
   await page.getByRole("button", { name: "Archived" }).click();
-  const archivedWork = workListItems.filter({
-    hasText: "PAY-2 Document the payment flow",
-  });
+  const archivedWork = workListItem(page, "PAY-2 Document the payment flow");
   await expect(archivedWork).toContainText("Not Started");
   await archivedWork.getByRole("button", { name: "Unarchive" }).click();
   await expect(archivedWork).not.toBeVisible();
   await page.getByRole("button", { name: "Archived" }).click();
   await expect(
-    workListItems.filter({
-      hasText: "PAY-2 Document the payment flow",
-    }),
+    workListItem(page, "PAY-2 Document the payment flow"),
   ).toContainText("PAY-2");
 
   await page.goto("/projects");
@@ -201,10 +188,7 @@ test("creates Work with a Project key, type, and protected start status", async 
     .getByRole("link", { name: "Work", exact: true })
     .click();
 
-  const sourceWork = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem")
-    .filter({ hasText: "PAY-1 Investigate payment failures" });
+  const sourceWork = workListItem(page, "PAY-1 Investigate payment failures");
   await sourceWork
     .getByRole("button", { name: "Recreate in another Project" })
     .click();
@@ -238,9 +222,10 @@ test("creates Work with a Project key, type, and protected start status", async 
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  const recreatedWork = page.getByRole("listitem").filter({
-    hasText: "ORD-1 Investigate payment failures",
-  });
+  const recreatedWork = workListItem(
+    page,
+    "ORD-1 Investigate payment failures",
+  );
   await expect(recreatedWork).toContainText("Task");
   await expect(recreatedWork).toContainText("Not Started");
   await expect(recreatedWork).toContainText("Origin: PAY-1");

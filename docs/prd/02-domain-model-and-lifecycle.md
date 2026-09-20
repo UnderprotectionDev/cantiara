@@ -566,6 +566,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlişkiyi onayla | `Confirm relation` | Tür ve iki ucun önizlemesinden sonra ilişki yazma |
 | Kaynak öğe artık yok | `Source item is gone` | Köken konumunda sahipli bileşenin çözülemediğini açıklar |
 | İlişki yok | `No relations yet.` | Henüz standart ilişki olmadığını söyleyen boş durum |
+| İş ilişkileri bölümü | `Relations` | İş detayındaki ilişki bölümünün başlığı; birleştirme satırındaki aynı etiketten ayrı kavram |
+| İlişki türü | `Relation type` | İlişki oluşturmada kapalı katalogdan tür seçimi |
+| İlişkiyi önizle | `Preview relation` | Tür ve iki uçla önizleme üreten eylem |
+| İlişki kaldırıldı | `Relation removed.` | İlişki kaldırıldıktan sonra geri alma fırsatını bildiren durum |
+| İlişkiler yükleniyor | `Loading relations…` | İlişki listesinin yüklenme durumu |
+| İlişkiler yüklenemedi | `Relations could not be loaded. Try loading this page again.` | İlişki listesi yüklenemediğinde gösterilen hata |
+| Kırık uç | `Broken —` | Çözülemeyen ilişki ucunun kırık neden öneki |
+| Bu kayıt | `(current)` | İlişki ucunun güncel açık kayıt olduğunu belirten ek |
+| İş seç | `Select a Work` | İlişki hedefi seçilmemiş boş seçenek |
 | Kaldır | `Remove` | Standart ilişkiyi güvenli geri alma ile kaldırma |
 | Engeller | `Blocks` | Engelleme ilişkisinin kaynak ucu; serbest ilişki türü değildir |
 | Engellenir | `Blocked by` | Engellenen İş ucu; planlama tüketicisinin okuduğu bekletme yönü |

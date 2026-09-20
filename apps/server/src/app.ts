@@ -27,6 +27,11 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
+import type {
+  RelationsAccess,
+  UsageLinkMutationContracts,
+  UsageLinksAccess,
+} from "@cantiara/api/relations";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagsAccess } from "@cantiara/api/tags";
@@ -114,9 +119,12 @@ export interface AppDependencies {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   redactSecrets: (value: unknown) => unknown;
+  relations?: RelationsAccess;
   tags?: TagsAccess;
   tauriSessionAccess?: TauriSessionAccess;
   trustedProxyIps: readonly string[];
+  usageLinkMutationContracts?: UsageLinkMutationContracts;
+  usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
@@ -909,7 +917,10 @@ export function createApp(dependencies: AppDependencies) {
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       tags: dependencies.tags,
+      relations: dependencies.relations,
       trustedProxyIps: dependencies.trustedProxyIps,
+      usageLinkMutationContracts: dependencies.usageLinkMutationContracts,
+      usageLinks: dependencies.usageLinks,
       webCapture: dependencies.webCapture,
       workDrafts: dependencies.workDrafts,
       workLifecycle: dependencies.workLifecycle,

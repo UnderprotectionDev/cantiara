@@ -1,5 +1,5 @@
 {
-  "id": "14aa8f51-99a4-41de-a108-5adce7b6c844",
+  "id": "a8709f0c-d1af-4e42-8672-8f4a54e6a64a",
   "prevId": "797cbca3-c610-45a3-af45-7a0f83783d35",
   "version": "7",
   "dialect": "postgresql",
@@ -2951,6 +2951,171 @@
       },
       "isRLSEnabled": false
     },
+    "public.usage_link": {
+      "name": "usage_link",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "source_record_id": {
+          "name": "source_record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_record_type": {
+          "name": "source_record_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "surface_record_id": {
+          "name": "surface_record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "surface_record_type": {
+          "name": "surface_record_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "usage_link_workspace_source_idx": {
+          "name": "usage_link_workspace_source_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_record_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "usage_link_workspace_surface_idx": {
+          "name": "usage_link_workspace_surface_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "surface_record_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "surface_record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "usage_link_workspace_id_workspace_id_fk": {
+          "name": "usage_link_workspace_id_workspace_id_fk",
+          "tableFrom": "usage_link",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "usage_link_kind_check": {
+          "name": "usage_link_kind_check",
+          "value": "\"usage_link\".\"kind\" in ('Inline reference', 'Section reference', 'Live block', 'Pinned bind', 'Screen reference')"
+        },
+        "usage_link_revision_check": {
+          "name": "usage_link_revision_check",
+          "value": "\"usage_link\".\"revision\" >= 1"
+        },
+        "usage_link_source_record_id_check": {
+          "name": "usage_link_source_record_id_check",
+          "value": "length(btrim(\"usage_link\".\"source_record_id\")) > 0"
+        },
+        "usage_link_source_record_type_check": {
+          "name": "usage_link_source_record_type_check",
+          "value": "length(btrim(\"usage_link\".\"source_record_type\")) > 0"
+        },
+        "usage_link_surface_record_id_check": {
+          "name": "usage_link_surface_record_id_check",
+          "value": "length(btrim(\"usage_link\".\"surface_record_id\")) > 0"
+        },
+        "usage_link_surface_record_type_check": {
+          "name": "usage_link_surface_record_type_check",
+          "value": "length(btrim(\"usage_link\".\"surface_record_type\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.work_relation": {
       "name": "work_relation",
       "schema": "",
@@ -3038,239 +3203,6 @@
         "work_relation_target_label_check": {
           "name": "work_relation_target_label_check",
           "value": "length(btrim(\"work_relation\".\"target_label\")) > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.workspace_tag": {
-      "name": "workspace_tag",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "workspace_tag_workspace_idx": {
-          "name": "workspace_tag_workspace_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_tag_workspace_name_uidx": {
-          "name": "workspace_tag_workspace_name_uidx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workspace_tag_workspace_id_workspace_id_fk": {
-          "name": "workspace_tag_workspace_id_workspace_id_fk",
-          "tableFrom": "workspace_tag",
-          "tableTo": "workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "workspace_tag_name_check": {
-          "name": "workspace_tag_name_check",
-          "value": "length(btrim(\"workspace_tag\".\"name\")) > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.workspace_tag_assignment": {
-      "name": "workspace_tag_assignment",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "record_id": {
-          "name": "record_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "record_type": {
-          "name": "record_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tag_id": {
-          "name": "tag_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "workspace_tag_assignment_record_idx": {
-          "name": "workspace_tag_assignment_record_idx",
-          "columns": [
-            {
-              "expression": "record_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "record_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_tag_assignment_tag_idx": {
-          "name": "workspace_tag_assignment_tag_idx",
-          "columns": [
-            {
-              "expression": "tag_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_tag_assignment_tag_record_uidx": {
-          "name": "workspace_tag_assignment_tag_record_uidx",
-          "columns": [
-            {
-              "expression": "tag_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "record_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "record_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workspace_tag_assignment_tag_id_workspace_tag_id_fk": {
-          "name": "workspace_tag_assignment_tag_id_workspace_tag_id_fk",
-          "tableFrom": "workspace_tag_assignment",
-          "tableTo": "workspace_tag",
-          "columnsFrom": ["tag_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "workspace_tag_assignment_record_type_check": {
-          "name": "workspace_tag_assignment_record_type_check",
-          "value": "\"workspace_tag_assignment\".\"record_type\" in ('Work')"
         }
       },
       "isRLSEnabled": false

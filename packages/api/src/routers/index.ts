@@ -68,6 +68,19 @@ import {
   updateProjectShortCodeInputSchema,
 } from "../project-shell";
 import {
+  createUsageLinkMutationInputSchema,
+  listUsageLinksInputSchema,
+  relationCreateInputSchema,
+  relationCreatePreviewInputSchema,
+  relationsInputSchema,
+  removeRelationInputSchema,
+  type UsageLinkMutationValue,
+  undoRelationInputSchema,
+  unlinkUsageLinkInputSchema,
+  usageLinkPayloadSchema,
+  usageLinkSchema,
+} from "../relations";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -161,6 +174,20 @@ function requireProjectShell(context: Context) {
   return context.projectShell;
 }
 
+function requireUsageLinks(context: Context) {
+  if (!context.usageLinks) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.usageLinks;
+}
+
+function requireUsageLinkMutationContracts(context: Context) {
+  if (!context.usageLinkMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.usageLinkMutationContracts;
+}
+
 function requireCustomFields(context: Context) {
   if (!context.customFields) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -199,6 +226,13 @@ function requireWorkLifecycle(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.workLifecycle;
+}
+
+function requireRelations(context: Context) {
+  if (!context.relations) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.relations;
 }
 
 function requireWorkDrafts(context: Context): WorkDraftsAccess {
@@ -763,6 +797,89 @@ async function runWorkLifecycleOperation<T>(operation: () => Promise<T>) {
   }
 }
 
+function mapRelationsError(error: Record<string, unknown>) {
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    return mapRelationsError(error.cause);
+  }
+
+  switch (error.code) {
+    case "RELATION_ENDPOINT_NOT_ALLOWED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message: "The selected relation endpoints are not allowed.",
+      });
+    case "RELATION_RECORD_UNAVAILABLE":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "The selected record is unavailable.",
+      });
+    case "RELATION_DUPLICATE":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This relation already exists.",
+      });
+    case "RELATION_CYCLE":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message: "This relation would create a cycle in the catalog.",
+      });
+    case "RELATION_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Review the current relation preview before confirming.",
+      });
+    case "RELATION_NOT_FOUND":
+      return new ORPCError("NOT_FOUND", {
+        defined: true,
+        message: "The relation is unavailable.",
+      });
+    case "RELATION_UNDO_UNAVAILABLE":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This relation is no longer available for Undo.",
+      });
+    case "STALE_BASE_REVISION":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message: "Relation has changed. Reload and try again.",
+      });
+    case "CONFLICT":
+    case "MUTATION_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "The relation change could not be applied. Try again.",
+      });
+    default:
+      return null;
+  }
+}
+
+function rethrowRelationsError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  const mapped = mapRelationsError(error);
+  if (mapped) {
+    throw mapped;
+  }
+  throw error;
+}
+
+async function runRelationsOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowRelationsError(error);
+  }
+}
+
 function rethrowProjectShellMutationError(
   error: unknown,
   targetId: string,
@@ -913,7 +1030,6 @@ function rethrowTagError(error: unknown): never {
   if (!isRecord(error)) {
     throw error;
   }
-
   if (error.code === "TAG_NAME_CONFLICT") {
     throw new ORPCError("CONFLICT", {
       data: { code: error.code },
@@ -941,6 +1057,54 @@ function rethrowTagError(error: unknown): never {
   throw error;
 }
 
+function rethrowUsageLinkMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowUsageLinkMutationError(error.cause, targetId);
+  }
+
+  if (error.code === "TARGET_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Usage link is unavailable.",
+    });
+  }
+
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+
+  if (error.code === "STALE_BASE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(isRecord(error.currentValue)
+          ? { currentValue: error.currentValue }
+          : {}),
+        ...(typeof error.currentRevision === "number"
+          ? { currentRevision: error.currentRevision }
+          : {}),
+        label: MUTATION_UI_LABELS.currentValue,
+        targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+
+  throw error;
+}
+
 async function runTagOperation<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
@@ -961,7 +1125,6 @@ function tagUnavailableMessage(code: unknown) {
   }
   return "Tag is unavailable.";
 }
-
 function nullableProjectValue(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
@@ -1066,6 +1229,83 @@ export const appRouter = {
         return result;
       }),
     ),
+  usageLinks: protectedProcedure
+    .input(listUsageLinksInputSchema)
+    .handler(({ context, input }) =>
+      requireUsageLinks(context).listBySource(
+        context.session.user.id,
+        input.source,
+      ),
+    ),
+  createUsageLink: protectedProcedure
+    .input(createUsageLinkMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = usageLinkPayloadSchema.parse(payloadInput);
+      const mutation = requireUsageLinkMutationContracts(context).create(
+        context.session.user.id,
+      );
+
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ currentRevision, payload: mutationPayload }) =>
+            ({
+              usageLink: usageLinkSchema.parse({
+                ...mutationPayload,
+                createdAt: new Date().toISOString(),
+                id: crypto.randomUUID(),
+                revision: currentRevision + 1,
+              }),
+            }) satisfies UsageLinkMutationValue,
+        );
+        if (!receipt.nextValue.usageLink) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.usageLink;
+      } catch (error) {
+        rethrowUsageLinkMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  unlinkUsageLink: protectedProcedure
+    .input(unlinkUsageLinkInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireUsageLinkMutationContracts(context).unlink(
+        context.session.user.id,
+      );
+
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: input.usageLinkId,
+          },
+          ({ currentValue }) => {
+            if (!currentValue.usageLink) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return { usageLink: null } satisfies UsageLinkMutationValue;
+          },
+        );
+        if (receipt.nextValue.usageLink !== null) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return { status: true };
+      } catch (error) {
+        rethrowUsageLinkMutationError(error, input.usageLinkId);
+      }
+    }),
   customFields: protectedProcedure
     .input(z.object({ projectId: z.string().trim().min(1) }).strict())
     .handler(async ({ context, input }) => {
@@ -1116,6 +1356,51 @@ export const appRouter = {
         context.session.user.id,
         input.projectId,
         { archived: input.archived },
+      ),
+    ),
+  relations: protectedProcedure
+    .input(relationsInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).list(context.session.user.id, input),
+      ),
+    ),
+  relationUsages: protectedProcedure
+    .input(relationsInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).listUsageLinks(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  relationPreview: protectedProcedure
+    .input(relationCreatePreviewInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).previewCreate(context.session.user.id, input),
+      ),
+    ),
+  createRelation: protectedProcedure
+    .input(relationCreateInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).create(context.session.user.id, input),
+      ),
+    ),
+  removeRelation: protectedProcedure
+    .input(removeRelationInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).remove(context.session.user.id, input),
+      ),
+    ),
+  undoRelation: protectedProcedure
+    .input(undoRelationInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).undo(context.session.user.id, input),
       ),
     ),
   workDrafts: protectedProcedure

@@ -195,6 +195,10 @@
 │       │   │   │           └── custom-field-editor.tsx
 │       │   │   │           ├── custom-field-values-form.test.tsx
 │       │   │   │           └── custom-field-values-form.tsx
+│       │   │   ├── relations/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           └── work-relations.tsx
 │       │   │   ├── project-overview/
 │       │   │   │   ├── lib/
 │       │   │   │   │   └── project-overview.ts
@@ -324,6 +328,7 @@
 │   │   │   ├── mutation-and-undo.ts
 │   │   │   ├── project-overview.ts
 │   │   │   ├── project-shell.ts
+│   │   │   ├── relations.ts
 │   │   │   ├── support-reference.ts
 │   │   │   ├── web-capture.ts
 │   │   │   ├── work-drafts.test.ts
