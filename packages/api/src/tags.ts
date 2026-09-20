@@ -147,6 +147,102 @@ export function createTagMarkdownExport(
   });
 }
 
+const tagMarkdownImportResolutionSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("existing"),
+      tagId: identifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("new"),
+      name: tagNameSchema,
+    })
+    .strict(),
+]);
+
+const tagMarkdownImportSourceSchema = z
+  .object({
+    id: identifierSchema,
+    name: tagNameSchema,
+  })
+  .strict();
+
+export const tagMarkdownImportPreviewItemSchema = z
+  .object({
+    resolution: tagMarkdownImportResolutionSchema,
+    sourceTags: z.array(tagMarkdownImportSourceSchema).min(1),
+  })
+  .strict();
+
+export const tagMarkdownImportPreviewSchema = z
+  .array(tagMarkdownImportPreviewItemSchema)
+  .readonly();
+
+export type TagMarkdownImportPreviewItem = z.infer<
+  typeof tagMarkdownImportPreviewItemSchema
+>;
+
+export type TagMarkdownImportPreview = z.infer<
+  typeof tagMarkdownImportPreviewSchema
+>;
+
+/**
+ * Documents owns token recognition. This preview only resolves the manifest's
+ * canonical Workspace identities before an import can write anything: an
+ * existing identity wins by id, then by its visible name, and an unknown name
+ * remains one explicit candidate instead of silently creating a copy.
+ */
+export function createTagMarkdownImportPreview(
+  manifest: TagMarkdownManifest,
+  existingTags: readonly Pick<Tag, "id" | "name">[],
+): TagMarkdownImportPreview {
+  const parsedManifest = tagMarkdownManifestSchema.parse(manifest);
+  const tagsById = new Map(existingTags.map((tag) => [tag.id, tag]));
+  const tagsByName = new Map(
+    existingTags.map((tag) => [tagNameKey(tag.name), tag]),
+  );
+  const items = new Map<
+    string,
+    { item: TagMarkdownImportPreviewItem; sortName: string }
+  >();
+
+  for (const source of parsedManifest.tags) {
+    const existing =
+      tagsById.get(source.id) ?? tagsByName.get(tagNameKey(source.name));
+    const resolution = existing
+      ? { kind: "existing" as const, tagId: existing.id }
+      : { kind: "new" as const, name: source.name };
+    const key =
+      resolution.kind === "existing"
+        ? `existing:${resolution.tagId}`
+        : `new:${tagNameKey(resolution.name)}`;
+    const current = items.get(key);
+
+    if (current) {
+      current.item.sourceTags.push({ id: source.id, name: source.name });
+      continue;
+    }
+
+    items.set(key, {
+      sortName: source.name,
+      item: {
+        resolution,
+        sourceTags: [{ id: source.id, name: source.name }],
+      },
+    });
+  }
+
+  return tagMarkdownImportPreviewSchema.parse(
+    [...items.values()]
+      .sort((left, right) =>
+        left.sortName.localeCompare(right.sortName, "en-US"),
+      )
+      .map((entry) => entry.item),
+  );
+}
+
 export interface TagInlineRenameInput {
   committedAt: string;
   nextName: string;
@@ -208,11 +304,17 @@ export const tagsInputSchema = z
 
 export type TagsInput = z.input<typeof tagsInputSchema>;
 
+export const tagIdentityFilterSchema = z
+  .object({ tagId: identifierSchema })
+  .strict();
+
+export type TagIdentityFilter = z.infer<typeof tagIdentityFilterSchema>;
+
 export const tagRecordsInputSchema = z
   .object({
     projectId: identifierSchema,
-    tagId: identifierSchema.optional(),
   })
+  .merge(tagIdentityFilterSchema.partial())
   .strict();
 
 export type TagRecordsInput = z.input<typeof tagRecordsInputSchema>;

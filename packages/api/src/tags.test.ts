@@ -3,11 +3,14 @@ import { describe, expect, test } from "vitest";
 import {
   createTagInputSchema,
   createTagMarkdownExport,
+  createTagMarkdownImportPreview,
   renameTagCommandSchema,
   renameTagInputSchema,
   renameTagMutationInputSchema,
   TAG_RECORD_TYPE_OPTIONS,
+  tagIdentityFilterSchema,
   tagNameKey,
+  tagRecordsInputSchema,
   undoTagRenameInputSchema,
 } from "./tags";
 
@@ -22,6 +25,27 @@ describe("Tags seam", () => {
 
   test("rejects an empty tag name", () => {
     expect(() => createTagInputSchema.parse({ name: "   " })).toThrow();
+  });
+
+  test("filters records by Tag identity instead of a visible name", () => {
+    expect(tagIdentityFilterSchema.parse({ tagId: "tag-1" })).toEqual({
+      tagId: "tag-1",
+    });
+    expect(
+      tagRecordsInputSchema.parse({
+        projectId: "project-1",
+        tagId: "tag-1",
+      }),
+    ).toEqual({ projectId: "project-1", tagId: "tag-1" });
+    expect(() =>
+      tagIdentityFilterSchema.parse({ name: "launch/next" }),
+    ).toThrow();
+    expect(() =>
+      tagRecordsInputSchema.parse({
+        name: "launch/next",
+        projectId: "project-1",
+      }),
+    ).toThrow();
   });
 
   test("accepts an identity-preserving rename and an optional revision guard", () => {
@@ -90,5 +114,51 @@ describe("Tags seam", () => {
         version: 1,
       },
     });
+  });
+
+  test("previews import against identity or visible name without minting copies", () => {
+    const preview = createTagMarkdownImportPreview(
+      {
+        tags: [
+          { id: "tag-1", name: "roadmap/next" },
+          { id: "exported-existing", name: "customer" },
+          { id: "exported-name-match", name: "Launch/Next" },
+          { id: "exported-new", name: "support/next" },
+          { id: "exported-new-copy", name: "Support/Next" },
+        ],
+        version: 1,
+      },
+      [
+        {
+          id: "tag-1",
+          name: "launch/next",
+        },
+        {
+          id: "exported-existing",
+          name: "customer",
+        },
+      ],
+    );
+
+    expect(preview).toEqual([
+      {
+        sourceTags: [{ id: "exported-existing", name: "customer" }],
+        resolution: { kind: "existing", tagId: "exported-existing" },
+      },
+      {
+        sourceTags: [
+          { id: "tag-1", name: "roadmap/next" },
+          { id: "exported-name-match", name: "Launch/Next" },
+        ],
+        resolution: { kind: "existing", tagId: "tag-1" },
+      },
+      {
+        sourceTags: [
+          { id: "exported-new", name: "support/next" },
+          { id: "exported-new-copy", name: "Support/Next" },
+        ],
+        resolution: { kind: "new", name: "support/next" },
+      },
+    ]);
   });
 });
