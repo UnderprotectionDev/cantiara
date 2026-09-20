@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
@@ -25,9 +26,11 @@ import WorkRecreateForm from "../forms/work-recreate-form";
 import WorkStatusForm from "../forms/work-status-form";
 
 export default function ProjectWorkList({
+  accountFormattingPreferences,
   projectId,
   workStatusLabels,
 }: {
+  accountFormattingPreferences: AccountPreferences;
   projectId: string;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
@@ -158,6 +161,7 @@ export default function ProjectWorkList({
               <CustomFieldValues
                 connection={connection}
                 error={customFieldValuesQuery.isError}
+                formattingPreferences={accountFormattingPreferences}
                 items={
                   customFieldValuesQuery.data
                     ? customFieldItemsForRecord(
@@ -207,11 +211,13 @@ function mutationErrorMessage(error: unknown, fallback: string) {
 
 function CustomFieldValues({
   error,
+  formattingPreferences,
   items,
   work,
   connection,
 }: {
   error: boolean;
+  formattingPreferences: AccountPreferences;
   items: ReturnType<typeof customFieldItemsForRecord> | undefined;
   work: WorkProfile;
   connection: ReturnType<typeof useClientShellConnection>;
@@ -229,6 +235,7 @@ function CustomFieldValues({
   return (
     <CustomFieldValuesForm
       disabled={connection === "offline" || work.archivedAt !== null}
+      formattingPreferences={formattingPreferences}
       projectId={work.projectId}
       recordId={work.id}
       recordItems={items}

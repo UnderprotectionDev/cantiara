@@ -48,12 +48,14 @@ import { ClientShellStatus } from "@/features/web-macos-client/ui/components/cli
 import { client, orpc } from "@/utils/orpc";
 
 interface WorkDraftFormValues {
+  customFieldValues: CustomFieldDraftValues;
   description: string;
   title: string;
   type: WorkType;
 }
 
 const EMPTY_VALUES: WorkDraftFormValues = {
+  customFieldValues: {},
   description: "",
   title: "",
   type: "Task",
@@ -69,6 +71,7 @@ function serializeValues(values: WorkDraftFormValues) {
 
 function draftValues(draft: WorkDraft): WorkDraftFormValues {
   return {
+    customFieldValues: draft.customFieldValues,
     description: draft.description ?? "",
     title: draft.title,
     type: draft.type,
@@ -121,8 +124,6 @@ export default function WorkDraftForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [customFieldValues, setCustomFieldValues] =
-    useState<CustomFieldDraftValues>({});
   // The Draft editor's target Project follows the resumed Draft; new Drafts
   // target the Project whose surface opened the form.
   const [targetProjectId, setTargetProjectId] = useState(projectId);
@@ -157,17 +158,17 @@ export default function WorkDraftForm({
     input: { projectId },
   }).queryKey;
 
-  useEffect(() => {
-    setTargetProjectId(projectId);
-    // Custom field values are keyed by the Project's own definitions; they do
-    // not survive a Project switch.
-    setCustomFieldValues({});
-  }, [projectId]);
-
   const form = useForm({
     defaultValues: EMPTY_VALUES,
     onSubmit: async () => undefined,
   });
+
+  useEffect(() => {
+    setTargetProjectId(projectId);
+    // Custom field values are keyed by the Project's own definitions; they do
+    // not survive a Project switch.
+    form.setFieldValue("customFieldValues", {});
+  }, [form.setFieldValue, projectId]);
 
   async function updateDraftList(saved: WorkDraft) {
     await queryClient.cancelQueries({ queryKey: draftsQueryKey });
@@ -184,7 +185,6 @@ export default function WorkDraftForm({
     setActiveDraftId(nextDraftId);
     setTargetProjectId(projectId);
     form.reset(EMPTY_VALUES);
-    setCustomFieldValues({});
     shell.markUnsavedChanges(false);
   }
 
@@ -195,8 +195,6 @@ export default function WorkDraftForm({
     setActiveDraftId(draft.id);
     setTargetProjectId(draft.projectId);
     form.reset(draftValues(draft), { keepDefaultValues: true });
-    // Custom field values are Draft form state; resuming restores them.
-    setCustomFieldValues(draft.customFieldValues);
     setActionMessage("Draft resumed.");
     setCreatedWorkKey(null);
     setFormError(null);
@@ -209,7 +207,7 @@ export default function WorkDraftForm({
       try {
         const parsed = workDraftFormSchema.safeParse({
           checklist: [],
-          customFieldValues,
+          customFieldValues: values.customFieldValues,
           description: values.description.trim() ? values.description : null,
           projectId: targetProjectId,
           title: values.title,
@@ -300,13 +298,14 @@ export default function WorkDraftForm({
   }
 
   function queueCustomFieldValuesChange(values: CustomFieldDraftValues) {
-    setCustomFieldValues(values);
+    const nextFormValues = { ...form.state.values, customFieldValues: values };
+    form.setFieldValue("customFieldValues", values);
     setActionMessage(null);
     setCreatedWorkKey(null);
     setFormError(null);
     shell.markUnsavedChanges();
     if (connection === "online") {
-      debouncer.maybeExecute(form.state.values);
+      debouncer.maybeExecute(nextFormValues);
     }
   }
 
@@ -350,8 +349,11 @@ export default function WorkDraftForm({
     return { draftId: saved.id, work };
   }
 
-  async function persistWorkCustomFields(work: WorkProfile) {
-    if (Object.keys(customFieldValues).length === 0) {
+  async function persistWorkCustomFields(
+    work: WorkProfile,
+    values: CustomFieldDraftValues,
+  ) {
+    if (Object.keys(values).length === 0) {
       return null;
     }
     try {
@@ -359,7 +361,7 @@ export default function WorkDraftForm({
         projectId: work.projectId,
         recordId: work.id,
         recordType: "Work",
-        values: customFieldValues,
+        values,
       });
       return null;
     } catch (error) {
@@ -437,7 +439,10 @@ export default function WorkDraftForm({
         pendingRetry,
         priorFinalization,
       );
-      const customFieldError = await persistWorkCustomFields(work);
+      const customFieldError = await persistWorkCustomFields(
+        work,
+        form.state.values.customFieldValues,
+      );
 
       queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
         drafts.filter((draft) => draft.id !== finalizedDraftId),
@@ -689,13 +694,18 @@ export default function WorkDraftForm({
           )}
         </form.Field>
 
-        <CustomFieldValuesForm
-          disabled={connection === "offline" || isBusy}
-          draftValues={customFieldValues}
-          onDraftValuesChange={queueCustomFieldValuesChange}
-          projectId={targetProjectId}
-          recordType="Work"
-        />
+        <form.Subscribe selector={(state) => state.values.customFieldValues}>
+          {(customFieldValues) => (
+            <CustomFieldValuesForm
+              disabled={connection === "offline" || isBusy}
+              draftValues={customFieldValues}
+              formattingPreferences={accountFormattingPreferences}
+              onDraftValuesChange={queueCustomFieldValuesChange}
+              projectId={targetProjectId}
+              recordType="Work"
+            />
+          )}
+        </form.Subscribe>
 
         <div className="flex flex-wrap gap-2">
           <Button

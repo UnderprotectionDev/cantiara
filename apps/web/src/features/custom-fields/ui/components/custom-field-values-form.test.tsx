@@ -1,3 +1,4 @@
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type {
   CustomFieldDefinition,
   CustomFieldValueListItem,
@@ -32,11 +33,13 @@ function definition(
 
 function renderFields({
   definitions,
+  formattingPreferences,
   recordId,
   recordType,
   values,
 }: {
   definitions: CustomFieldDefinition[];
+  formattingPreferences?: AccountPreferences;
   recordId?: string;
   recordType: "Feedback" | "Risk" | "Work";
   values?: CustomFieldValueListItem[];
@@ -65,6 +68,7 @@ function renderFields({
       QueryClientProvider,
       { client: queryClient },
       createElement(CustomFieldValuesForm, {
+        formattingPreferences,
         projectId: "project-1",
         recordId,
         recordType,
@@ -162,6 +166,42 @@ describe("Custom field values form", () => {
     expect(html).toContain("Not evaluated");
     expect(html).toContain("False");
     expect(html).toContain("Ready");
+  });
+
+  test("formats Date values with Account preferences", () => {
+    const dateField = definition({
+      name: "Due date",
+      type: "Date",
+    });
+    const html = renderFields({
+      definitions: [dateField],
+      formattingPreferences: {
+        appearance: "Dark",
+        dateFormat: "dd/MM/yyyy",
+        firstDayOfWeek: "Monday",
+        locale: "en-GB",
+        timeZone: "Europe/Istanbul",
+      },
+      recordId: "work-1",
+      recordType: "Work",
+      values: [
+        {
+          definition: dateField,
+          value: {
+            createdAt: timestamp,
+            definitionId: dateField.id,
+            id: "value-date",
+            recordId: "work-1",
+            recordType: "Work",
+            revision: 1,
+            updatedAt: timestamp,
+            value: { date: "2026-09-19", kind: "date" },
+          },
+        },
+      ],
+    });
+
+    expect(html).toContain("19/09/2026");
   });
 
   test("does not render an unbound record surface", () => {

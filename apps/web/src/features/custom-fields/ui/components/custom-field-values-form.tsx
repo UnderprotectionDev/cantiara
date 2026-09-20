@@ -1,5 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Value controls close over their current Custom field and Mutation Contract handler.
 
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import type {
   CustomFieldDefinition,
   CustomFieldRecordType,
@@ -30,6 +34,7 @@ import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import {
   type CustomFieldDraftValues,
   useCustomFields,
@@ -165,12 +170,14 @@ function NumberValueInput({
 function DateValueInput({
   current,
   disabled,
+  formattingPreferences,
   id,
   label,
   onCommit,
 }: {
   current: ParsedCustomFieldValuePayload | null;
   disabled: boolean;
+  formattingPreferences: AccountPreferences;
   id: string;
   label: string;
   onCommit: (value: ParsedCustomFieldValuePayload | null) => void;
@@ -196,7 +203,12 @@ function DateValueInput({
           />
         }
       >
-        {selectedDate ? format(selectedDate, "yyyy-MM-dd") : "Not evaluated"}
+        {selectedDate
+          ? formatAccountDate(
+              current && current.kind === "date" ? current.date : "",
+              formattingPreferences,
+            )
+          : "Not evaluated"}
         <CalendarDays aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto min-w-72">
@@ -276,6 +288,7 @@ function MultiSelectValueInput({
 export default function CustomFieldValuesForm({
   disabled = false,
   draftValues = {},
+  formattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   onDraftValuesChange,
   projectId,
   recordId,
@@ -284,6 +297,7 @@ export default function CustomFieldValuesForm({
 }: {
   disabled?: boolean;
   draftValues?: CustomFieldDraftValues;
+  formattingPreferences?: AccountPreferences;
   onDraftValuesChange?: (values: CustomFieldDraftValues) => void;
   projectId: string;
   recordId?: string;
@@ -427,6 +441,7 @@ export default function CustomFieldValuesForm({
                 <DateValueInput
                   current={current}
                   disabled={busy}
+                  formattingPreferences={formattingPreferences}
                   id={id}
                   label={item.definition.name}
                   onCommit={(nextValue) =>

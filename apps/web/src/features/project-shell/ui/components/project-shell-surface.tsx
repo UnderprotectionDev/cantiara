@@ -321,6 +321,7 @@ function ProjectWorkSurface({
             projectId={projectId}
           />
           <ProjectWorkList
+            accountFormattingPreferences={accountFormattingPreferences}
             projectId={projectId}
             workStatusLabels={configuration.workStatusLabels}
           />
