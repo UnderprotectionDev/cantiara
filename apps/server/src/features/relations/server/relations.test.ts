@@ -615,9 +615,26 @@ describeDatabase("Relations PostgreSQL integration", () => {
     }
     const { project, source, target } = await createWorks();
     const relations = createDatabaseRelations(database);
+    const sourceProject = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Relation Source Project",
+        shortCode: "SRC",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const crossProjectSource = await createDatabaseWorkLifecycle(
+      database,
+    ).create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "used-in-cross-project-source",
+      projectId: sourceProject.id,
+      title: "Cross-project Source Work",
+      type: "Task",
+    });
     const relationPreview = await relations.previewCreate(accountId, {
       kind: "Related",
-      source: { recordId: source.id, recordType: "Work" },
+      source: { recordId: crossProjectSource.id, recordType: "Work" },
       target: { recordId: target.id, recordType: "Work" },
     });
     await relations.create(accountId, {
@@ -639,7 +656,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       source: { recordId: target.id, recordType: "Work" },
       surface: {
         context: "target-used-in-source",
-        recordId: source.id,
+        recordId: crossProjectSource.id,
         recordType: "Work",
       },
     });
@@ -655,9 +672,10 @@ describeDatabase("Relations PostgreSQL integration", () => {
           direction: "incoming",
           kind: "Related",
           source: expect.objectContaining({
-            recordId: source.id,
+            projectId: sourceProject.id,
+            recordId: crossProjectSource.id,
             recordType: "Work",
-            title: source.title,
+            title: crossProjectSource.title,
           }),
         }),
       ],
@@ -666,9 +684,10 @@ describeDatabase("Relations PostgreSQL integration", () => {
           id: usage.id,
           kind: "Live block",
           surface: expect.objectContaining({
-            recordId: source.id,
+            projectId: sourceProject.id,
+            recordId: crossProjectSource.id,
             recordType: "Work",
-            title: source.title,
+            title: crossProjectSource.title,
           }),
         }),
       ],
