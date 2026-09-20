@@ -129,6 +129,7 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
           page.getByRole("heading", { name: "Projects", level: 1 }),
         ).toBeVisible();
         await page.waitForSelector(COMMAND_PALETTE_TRIGGER_SELECTOR);
+        await page.waitForLoadState("networkidle");
         return page;
       }),
     );
