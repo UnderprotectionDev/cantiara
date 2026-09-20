@@ -660,6 +660,14 @@ describeDatabase("Relations PostgreSQL integration", () => {
         recordType: "Work",
       },
     });
+    const relationsBeforeUsedIn = await relations.list(accountId, {
+      recordId: target.id,
+      recordType: "Work",
+    });
+    const usageLinksBeforeUsedIn = await relations.listUsageLinks(accountId, {
+      recordId: target.id,
+      recordType: "Work",
+    });
 
     await expect(
       relations.listUsedIn(accountId, {
@@ -692,6 +700,18 @@ describeDatabase("Relations PostgreSQL integration", () => {
         }),
       ],
     });
+    await expect(
+      relations.list(accountId, {
+        recordId: target.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual(relationsBeforeUsedIn);
+    await expect(
+      relations.listUsageLinks(accountId, {
+        recordId: target.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual(usageLinksBeforeUsedIn);
 
     const otherAccountId = `used-in-other-${crypto.randomUUID()}`;
     const otherWorkspaceId = `workspace-other-${crypto.randomUUID()}`;
