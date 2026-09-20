@@ -527,16 +527,24 @@ describeDatabase("Project Custom Fields PostgreSQL integration", () => {
 
     // A same-named active definition in the target Project surfaces the
     // shared create conflict instead of silently skipping the clone.
+    const conflictTargetProjectId = `project-${crypto.randomUUID()}`;
+    await database.insert(project).values({
+      id: conflictTargetProjectId,
+      name: "Copy Conflict Target Project",
+      shortCode: `CPCTG-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
     await customFields.create(accountId, {
       name: "Audience",
-      projectId: targetProjectId,
+      projectId: conflictTargetProjectId,
       recordTypes: ["Work"],
       type: "Number",
     });
     await expect(
       customFields.copyDefinitions(accountId, {
         sourceProjectId,
-        targetProjectId,
+        targetProjectId: conflictTargetProjectId,
       }),
     ).rejects.toBeInstanceOf(CustomFieldNameConflictError);
   });
