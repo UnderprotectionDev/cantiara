@@ -69,6 +69,22 @@ test("classifies Work records with one Workspace tag dictionary", async ({
   await expect(recordList.getByText("Prepare launch")).toBeVisible();
   await expect(recordList.getByText("Review launch")).toBeHidden();
 
+  // Rename keeps the same identity, so the selected filter still resolves.
+  const renameTag = page.getByRole("combobox", { name: "Tag to rename" });
+  await renameTag.selectOption({ label: "roadmap/next" });
+  await page.getByLabel("New name").fill("launch/next");
+  await page.getByRole("button", { name: "Rename Tag" }).click();
+  await expect(page.getByText("Tag renamed.")).toBeVisible();
+  await expect(tagFilter).toContainText("launch/next");
+  await tagFilter.selectOption({ label: "launch/next" });
+  await expect(recordList.getByText("Prepare launch")).toBeVisible();
+
+  // Undo is revision-guarded and restores the same identity and uses together.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(tagFilter).toContainText("roadmap/next");
+  await tagFilter.selectOption({ label: "roadmap/next" });
+  await expect(recordList.getByText("Prepare launch")).toBeVisible();
+
   await page
     .getByRole("button", {
       name: "Remove tag roadmap/next from Prepare launch",

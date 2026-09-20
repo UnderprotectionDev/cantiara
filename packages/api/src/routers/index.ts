@@ -84,8 +84,12 @@ import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
+  renameTagInputSchema,
+  renameTagMutationInputSchema,
+  type TagMutationValue,
   tagRecordsInputSchema,
   tagsInputSchema,
+  undoTagRenameInputSchema,
 } from "../tags";
 import type { WebCaptureAccess } from "../web-capture";
 import {
@@ -207,6 +211,13 @@ function requireTags(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.tags;
+}
+
+function requireTagMutationContracts(context: Context) {
+  if (!context.tagMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.tagMutationContracts;
 }
 
 function requireProjectShellMutationContract(
@@ -1041,6 +1052,14 @@ function rethrowTagError(error: unknown): never {
     });
   }
 
+  if (error.code === "TAG_REVISION_CONFLICT") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Tag changed since it was loaded. Reload before renaming it.",
+    });
+  }
+
   if (
     error.code === "TAG_NOT_FOUND" ||
     error.code === "TAG_PROJECT_NOT_FOUND" ||
@@ -1054,6 +1073,65 @@ function rethrowTagError(error: unknown): never {
     });
   }
 
+  throw error;
+}
+
+function rethrowTagMutationError(error: unknown, targetId: string): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowTagMutationError(error.cause, targetId);
+  }
+  if (error.code === "TAG_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "A Tag with this name already exists in this Workspace.",
+    });
+  }
+  if (error.code === "STALE_BASE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(typeof error.currentRevision === "number"
+          ? { currentRevision: error.currentRevision }
+          : {}),
+        label: MUTATION_UI_LABELS.currentValue,
+        targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+  if (
+    error.code === "TAG_NOT_FOUND" ||
+    error.code === "TAG_WORKSPACE_NOT_FOUND" ||
+    error.code === "TARGET_NOT_FOUND"
+  ) {
+    throw new ORPCError("NOT_FOUND", {
+      data: { code: error.code },
+      defined: true,
+      message: "Tag is unavailable.",
+    });
+  }
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId, label: MUTATION_UI_LABELS.conflict },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+  if (error.code === "UNDO_NOT_SUPPORTED") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: "Tag rename could not be undone safely.",
+    });
+  }
   throw error;
 }
 
@@ -1229,6 +1307,103 @@ export const appRouter = {
         return result;
       }),
     ),
+  renameTag: protectedProcedure
+    .input(renameTagMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...inputPayload } = input;
+      const parsed = renameTagInputSchema.parse(inputPayload);
+      const mutation = requireTagMutationContracts(context).rename(
+        context.session.user.id,
+      );
+
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId: parsed.tagId,
+          },
+          ({ currentValue, currentRevision, payload }) => {
+            if (!currentValue.tag) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              tag: {
+                ...currentValue.tag,
+                name: payload.name,
+                revision: currentRevision + 1,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies TagMutationValue;
+          },
+          {
+            undo: {
+              kind: "atomic-transform",
+              scope: "tag.name",
+            },
+          },
+        );
+        if (!receipt.nextValue.tag) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return { receiptId: receipt.id, tag: receipt.nextValue.tag };
+      } catch (error) {
+        rethrowTagMutationError(error, parsed.tagId);
+      }
+    }),
+  undoTagRename: protectedProcedure
+    .input(undoTagRenameInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireTagMutationContracts(context).rename(
+        context.session.user.id,
+      );
+      if (!(mutation.findReceiptById && mutation.undo)) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const sourceReceipt = await mutation.findReceiptById(input.receiptId);
+      if (!sourceReceipt) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Tag rename is no longer available for Undo.",
+        });
+      }
+
+      try {
+        const receipt = await mutation.undo(
+          sourceReceipt,
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: input.tagId,
+          },
+          ({ currentValue, currentRevision, previousValue }) => {
+            if (!(currentValue.tag && previousValue.tag)) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              tag: {
+                ...currentValue.tag,
+                name: previousValue.tag.name,
+                revision: currentRevision + 1,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies TagMutationValue;
+          },
+        );
+        if (!receipt.nextValue.tag) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.tag;
+      } catch (error) {
+        rethrowTagMutationError(error, input.tagId);
+      }
+    }),
   usageLinks: protectedProcedure
     .input(listUsageLinksInputSchema)
     .handler(({ context, input }) =>

@@ -22,7 +22,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "./relations";
-import type { TagsAccess } from "./tags";
+import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkDraftsAccess } from "./work-drafts";
 import type { WorkLifecycleAccess } from "./work-lifecycle";
@@ -131,6 +131,7 @@ export interface Context {
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
+  tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;

@@ -33,7 +33,10 @@ import {
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
-import { createDatabaseTags } from "../src/features/tags/server/tags-database";
+import {
+  createDatabaseTagMutationContracts,
+  createDatabaseTags,
+} from "../src/features/tags/server/tags-database";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 
@@ -68,6 +71,7 @@ const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
 const tags = createDatabaseTags(database);
+const tagMutationContracts = createDatabaseTagMutationContracts(database);
 const customFields = createDatabaseCustomFields(database);
 const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(database);
@@ -150,6 +154,7 @@ const app = createApp({
   projectShell,
   projectShellMutationContracts,
   tags,
+  tagMutationContracts,
   workLifecycle,
   workDrafts,
   redactSecrets: () => new Error("Redacted E2E server error"),

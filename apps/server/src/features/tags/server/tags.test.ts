@@ -1,4 +1,9 @@
-import type { TagRecord, TagStore, TagSuggestion } from "@cantiara/api/tags";
+import type {
+  ParsedRenameTagInput,
+  TagRecord,
+  TagStore,
+  TagSuggestion,
+} from "@cantiara/api/tags";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -38,6 +43,11 @@ function createMemoryStore() {
     ],
   ]);
   const assignments = new Map<string, Set<string>>();
+  const inlineDocuments = new Map<
+    string,
+    { tagId: string; text: string; version: number }
+  >();
+  let failInlineRename = false;
   let sequence = 0;
 
   function tagForId(tagId: string) {
@@ -48,7 +58,14 @@ function createMemoryStore() {
     return tag;
   }
 
-  const store: TagStore = {
+  const store: TagStore & {
+    failInlineRename: boolean;
+    inlineDocuments: typeof inlineDocuments;
+    rename: (
+      workspaceId: string,
+      input: ParsedRenameTagInput,
+    ) => Promise<TagSuggestion["tag"]>;
+  } = {
     apply: async (_workspaceId, input) => {
       await Promise.resolve();
       const record = records.get(input.recordId);
@@ -134,14 +151,80 @@ function createMemoryStore() {
       recordAssignments?.delete(input.tagId);
       return { status: true };
     },
+    rename: async (_workspaceId, input) => {
+      await Promise.resolve();
+      const tag = tagForId(input.tagId);
+      if (
+        input.expectedRevision !== undefined &&
+        input.expectedRevision !== tag.revision
+      ) {
+        throw new Error("Tag changed since it was loaded.");
+      }
+      const nextName = input.name;
+      if (
+        [...tags.values()].some(
+          (candidate) =>
+            candidate.id !== tag.id &&
+            candidate.name.toLocaleLowerCase("en-US") ===
+              nextName.toLocaleLowerCase("en-US"),
+        )
+      ) {
+        throw new TagNameConflictError(nextName);
+      }
+      const previousTag = { ...tag };
+      const previousDocuments = new Map(
+        [...inlineDocuments.entries()].map(([id, document]) => [
+          id,
+          { ...document },
+        ]),
+      );
+      try {
+        if (failInlineRename) {
+          throw new Error("Document rename failed.");
+        }
+        const renamed = {
+          ...tag,
+          name: nextName,
+          revision: tag.revision + (tag.name === nextName ? 0 : 1),
+        } as const;
+        tags.set(tag.id, renamed);
+        for (const [documentId, document] of inlineDocuments) {
+          if (document.tagId === tag.id) {
+            inlineDocuments.set(documentId, {
+              ...document,
+              text: `#${nextName}`,
+              version: document.version + 1,
+            });
+          }
+        }
+        return renamed;
+      } catch (error) {
+        tags.set(tag.id, previousTag);
+        inlineDocuments.clear();
+        for (const [documentId, document] of previousDocuments) {
+          inlineDocuments.set(documentId, document);
+        }
+        throw error;
+      }
+    },
+    failInlineRename,
+    inlineDocuments,
   };
+
+  Object.defineProperty(store, "failInlineRename", {
+    get: () => failInlineRename,
+    set: (value: boolean) => {
+      failInlineRename = value;
+    },
+  });
 
   return store;
 }
 
 describe("Tags Workspace namespace", () => {
   test("creates one flat identity, applies and removes it without deleting the identity", async () => {
-    const tags = createTags({ store: createMemoryStore() });
+    const store = createMemoryStore();
+    const tags = createTags({ rename: store.rename, store });
     const tag = await tags.create("account-1", { name: "roadmap/next" });
 
     await tags.apply("account-1", {
@@ -173,7 +256,8 @@ describe("Tags Workspace namespace", () => {
   });
 
   test("rejects a second Workspace identity for the same visible name", async () => {
-    const tags = createTags({ store: createMemoryStore() });
+    const store = createMemoryStore();
+    const tags = createTags({ rename: store.rename, store });
     await tags.create("account-1", { name: "Audience" });
 
     await expect(
@@ -182,7 +266,8 @@ describe("Tags Workspace namespace", () => {
   });
 
   test("rejects writes for an Account without a Workspace", async () => {
-    const tags = createTags({ store: createMemoryStore() });
+    const store = createMemoryStore();
+    const tags = createTags({ rename: store.rename, store });
     const applyInput = {
       projectId: "project-1",
       recordId: "work-1",
@@ -202,7 +287,8 @@ describe("Tags Workspace namespace", () => {
   });
 
   test("ranks tags used in the current Project first without changing their scope", async () => {
-    const tags = createTags({ store: createMemoryStore() });
+    const store = createMemoryStore();
+    const tags = createTags({ rename: store.rename, store });
     const first = await tags.create("account-1", { name: "First" });
     const second = await tags.create("account-1", { name: "Second" });
     await tags.apply("account-1", {
@@ -228,5 +314,101 @@ describe("Tags Workspace namespace", () => {
         tag: expect.objectContaining({ id: first.id }),
       }),
     ]);
+  });
+
+  test("renames one identity across structured and inline uses and keeps filtering by identity", async () => {
+    const store = createMemoryStore();
+    const tags = createTags({ rename: store.rename, store });
+    const tag = await tags.create("account-1", { name: "roadmap/next" });
+    await tags.apply("account-1", {
+      projectId: "project-1",
+      recordId: "work-1",
+      recordType: "Work",
+      tagId: tag.id,
+    });
+    await tags.apply("account-1", {
+      projectId: "project-1",
+      recordId: "work-2",
+      recordType: "Work",
+      tagId: tag.id,
+    });
+    store.inlineDocuments.set("document-1", {
+      tagId: tag.id,
+      text: "#roadmap/next",
+      version: 1,
+    });
+
+    const renamed = await tags.rename("account-1", {
+      name: "launch/next",
+      tagId: tag.id,
+    });
+
+    expect(renamed).toMatchObject({
+      id: tag.id,
+      name: "launch/next",
+      revision: 1,
+    });
+    await expect(
+      tags.records("account-1", { projectId: "project-1", tagId: tag.id }),
+    ).resolves.toMatchObject([
+      { id: "work-1", tags: [{ id: tag.id, name: "launch/next" }] },
+      { id: "work-2", tags: [{ id: tag.id, name: "launch/next" }] },
+    ]);
+    expect(store.inlineDocuments.get("document-1")).toEqual({
+      tagId: tag.id,
+      text: "#launch/next",
+      version: 2,
+    });
+
+    const undone = await tags.rename("account-1", {
+      expectedRevision: renamed.revision,
+      name: "roadmap/next",
+      tagId: tag.id,
+    });
+    expect(undone).toMatchObject({
+      id: tag.id,
+      name: "roadmap/next",
+      revision: 2,
+    });
+    expect(store.inlineDocuments.get("document-1")).toEqual({
+      tagId: tag.id,
+      text: "#roadmap/next",
+      version: 3,
+    });
+  });
+
+  test("leaves no mixed names when an inline Document update fails", async () => {
+    const store = createMemoryStore();
+    const tags = createTags({ rename: store.rename, store });
+    const tag = await tags.create("account-1", { name: "roadmap/next" });
+    await tags.apply("account-1", {
+      projectId: "project-1",
+      recordId: "work-1",
+      recordType: "Work",
+      tagId: tag.id,
+    });
+    store.inlineDocuments.set("document-1", {
+      tagId: tag.id,
+      text: "#roadmap/next",
+      version: 1,
+    });
+    store.failInlineRename = true;
+
+    await expect(
+      tags.rename("account-1", { name: "launch/next", tagId: tag.id }),
+    ).rejects.toThrow("Document rename failed.");
+    await expect(tags.list("account-1", "project-1")).resolves.toMatchObject([
+      { tag: { id: tag.id, name: "roadmap/next", revision: 0 } },
+    ]);
+    await expect(
+      tags.records("account-1", { projectId: "project-1", tagId: tag.id }),
+    ).resolves.toMatchObject([
+      { id: "work-1", tags: [{ id: tag.id, name: "roadmap/next" }] },
+    ]);
+    expect(store.inlineDocuments.get("document-1")).toEqual({
+      tagId: tag.id,
+      text: "#roadmap/next",
+      version: 1,
+    });
   });
 });

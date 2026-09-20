@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  humanMutationEnvelopeSchema,
+  type MutationContract,
+} from "./mutation-and-undo";
+
 export const TAG_RECORD_TYPE_OPTIONS = ["Work"] as const;
 
 export type TagRecordType = (typeof TAG_RECORD_TYPE_OPTIONS)[number];
@@ -7,6 +12,7 @@ export type TagRecordType = (typeof TAG_RECORD_TYPE_OPTIONS)[number];
 export const tagRecordTypeSchema = z.enum(TAG_RECORD_TYPE_OPTIONS);
 
 const identifierSchema = z.string().trim().min(1).max(255);
+const revisionSchema = z.number().int().nonnegative().safe();
 
 export const tagNameSchema = z
   .string()
@@ -23,6 +29,38 @@ export const createTagInputSchema = z.object({ name: tagNameSchema }).strict();
 export type CreateTagInput = z.input<typeof createTagInputSchema>;
 export type ParsedCreateTagInput = z.output<typeof createTagInputSchema>;
 
+export const renameTagInputSchema = z
+  .object({
+    expectedRevision: revisionSchema.optional(),
+    name: tagNameSchema,
+    tagId: identifierSchema,
+  })
+  .strict();
+
+export type RenameTagInput = z.input<typeof renameTagInputSchema>;
+export type ParsedRenameTagInput = z.output<typeof renameTagInputSchema>;
+
+export type TagRenameAccess = (
+  accountId: string,
+  input: ParsedRenameTagInput,
+) => Promise<Tag>;
+
+export const renameTagMutationInputSchema = humanMutationEnvelopeSchema.extend({
+  name: tagNameSchema,
+  tagId: identifierSchema,
+});
+
+export type RenameTagMutationInput = z.input<
+  typeof renameTagMutationInputSchema
+>;
+
+export const undoTagRenameInputSchema = humanMutationEnvelopeSchema.extend({
+  receiptId: identifierSchema,
+  tagId: identifierSchema,
+});
+
+export type UndoTagRenameInput = z.input<typeof undoTagRenameInputSchema>;
+
 export const tagSchema = z
   .object({
     createdAt: z.string().datetime({ offset: true }),
@@ -34,6 +72,92 @@ export const tagSchema = z
   .strict();
 
 export type Tag = z.infer<typeof tagSchema>;
+
+export interface TagRenameResult {
+  receiptId: string;
+  tag: Tag;
+}
+
+export interface TagMutationValue {
+  tag: Tag | null;
+}
+
+export type TagMutationContract = MutationContract<TagMutationValue>;
+
+export interface TagMutationContracts {
+  rename: (accountId: string) => TagMutationContract;
+}
+
+export const TAG_MARKDOWN_MANIFEST_VERSION = 1 as const;
+
+export const tagMarkdownManifestSchema = z
+  .object({
+    tags: z
+      .array(
+        z
+          .object({
+            id: identifierSchema,
+            name: tagNameSchema,
+          })
+          .strict(),
+      )
+      .readonly(),
+    version: z.literal(TAG_MARKDOWN_MANIFEST_VERSION),
+  })
+  .strict();
+
+export type TagMarkdownManifest = z.infer<typeof tagMarkdownManifestSchema>;
+
+export const tagMarkdownExportSchema = z
+  .object({
+    manifest: tagMarkdownManifestSchema,
+    markdown: z.string(),
+  })
+  .strict();
+
+export type TagMarkdownExport = z.infer<typeof tagMarkdownExportSchema>;
+
+/**
+ * The Documents exporter owns the Markdown body. This helper only packages
+ * that unchanged body with the Workspace identity mapping it already
+ * resolved, so an export cannot turn a Tag into a second copy identity.
+ */
+export function createTagMarkdownExport(
+  markdown: string,
+  tags: readonly Pick<Tag, "id" | "name">[],
+): TagMarkdownExport {
+  const manifestTags = tags
+    .map(({ id, name }) => ({ id, name }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  return tagMarkdownExportSchema.parse({
+    markdown,
+    manifest: {
+      tags: manifestTags,
+      version: TAG_MARKDOWN_MANIFEST_VERSION,
+    },
+  });
+}
+
+export interface TagInlineRenameInput {
+  committedAt: string;
+  nextName: string;
+  previousName: string;
+  tagId: string;
+  workspaceId: string;
+}
+
+/**
+ * Documents owns tokenization and version creation. It participates in the
+ * Tags rename transaction through this narrow writer instead of creating a
+ * second tag dictionary or teaching Tags how to parse Markdown.
+ */
+export interface TagInlineRenameWriter<TTransaction = unknown> {
+  renameInlineUses: (
+    transaction: TTransaction,
+    input: TagInlineRenameInput,
+  ) => Promise<void>;
+}
 
 export const tagSuggestionSchema = z
   .object({
@@ -139,4 +263,5 @@ export interface TagsAccess {
     accountId: string,
     input: RemoveTagInput,
   ) => Promise<{ status: true } | null>;
+  rename: TagRenameAccess;
 }
