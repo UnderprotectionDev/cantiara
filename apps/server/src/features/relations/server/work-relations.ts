@@ -14,7 +14,7 @@ import {
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project, work, workRelation } from "@cantiara/db/schema/index";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import { describeWorkRecreateRelation } from "./work-recreate-relations";
@@ -246,6 +246,8 @@ export function createDatabaseWorkRelations(
                 survivingWorkId,
                 duplicateWorkId,
               ]),
+              eq(workRelation.sourceRecordType, "Work"),
+              isNull(workRelation.deletedAt),
               eq(project.workspaceId, workspaceId),
             ),
           )
@@ -258,6 +260,9 @@ export function createDatabaseWorkRelations(
           .where(
             and(
               eq(project.workspaceId, workspaceId),
+              eq(workRelation.sourceRecordType, "Work"),
+              eq(workRelation.targetRecordType, "Work"),
+              isNull(workRelation.deletedAt),
               inArray(workRelation.targetRecordId, [
                 survivingWorkId,
                 duplicateWorkId,
@@ -301,6 +306,8 @@ export function createDatabaseWorkRelations(
           .where(
             and(
               eq(workRelation.sourceWorkId, sourceWork.id),
+              eq(workRelation.sourceRecordType, "Work"),
+              isNull(workRelation.deletedAt),
               eq(project.workspaceId, workspaceId),
             ),
           )
@@ -317,6 +324,9 @@ export function createDatabaseWorkRelations(
           .where(
             and(
               eq(workRelation.kind, "Origin"),
+              eq(workRelation.sourceRecordType, "Work"),
+              eq(workRelation.targetRecordType, "Work"),
+              isNull(workRelation.deletedAt),
               eq(workRelation.targetProjectId, sourceWork.projectId),
               eq(workRelation.targetRecordId, sourceWork.id),
               eq(project.workspaceId, workspaceId),
@@ -366,6 +376,9 @@ export function createDatabaseWorkRelations(
         .where(
           and(
             eq(project.workspaceId, workspaceId),
+            eq(workRelation.sourceRecordType, "Work"),
+            eq(workRelation.targetRecordType, "Work"),
+            isNull(workRelation.deletedAt),
             eq(workRelation.targetProjectId, projectId),
             inArray(workRelation.kind, SCOPE_TREE_RELATION_KIND_OPTIONS),
           ),
@@ -410,6 +423,8 @@ export function createDatabaseWorkRelations(
               .where(
                 and(
                   eq(workRelation.sourceWorkId, sourceWork.id),
+                  eq(workRelation.sourceRecordType, "Work"),
+                  isNull(workRelation.deletedAt),
                   inArray(workRelation.id, selectedRelationIds),
                   eq(project.workspaceId, workspaceId),
                 ),

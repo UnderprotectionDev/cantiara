@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
+import WorkRelations from "@/features/relations/ui/components/work-relations";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -170,6 +171,12 @@ export default function ProjectWorkList({
                       )
                     : undefined
                 }
+                work={work}
+              />
+              <WorkRelations
+                candidates={query.data.filter(
+                  (candidate) => candidate.id !== work.id,
+                )}
                 work={work}
               />
               <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
