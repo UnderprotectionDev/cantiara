@@ -1,6 +1,6 @@
 {
-  "id": "c35abcf0-6310-4ac8-ae4b-eb11c510ce2b",
-  "prevId": "bf6531b0-031f-4238-ba0c-8d1c79ad4f47",
+  "id": "e70a41df-5128-40c8-928b-c7d465fc0194",
+  "prevId": "e2c66e8c-3235-4fb7-9fb0-1df72baa6e96",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1254,6 +1254,12 @@
           "notNull": true,
           "default": 0
         },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "type": {
           "name": "type",
           "type": "text",
@@ -1332,6 +1338,128 @@
         "custom_field_definition_revision_check": {
           "name": "custom_field_definition_revision_check",
           "value": "\"custom_field_definition\".\"revision\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.custom_field_value": {
+      "name": "custom_field_value",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "definition_id": {
+          "name": "definition_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "record_type": {
+          "name": "record_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "custom_field_value_record_idx": {
+          "name": "custom_field_value_record_idx",
+          "columns": [
+            {
+              "expression": "record_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "custom_field_value_definition_record_uidx": {
+          "name": "custom_field_value_definition_record_uidx",
+          "columns": [
+            {
+              "expression": "definition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "custom_field_value_definition_id_custom_field_definition_id_fk": {
+          "name": "custom_field_value_definition_id_custom_field_definition_id_fk",
+          "tableFrom": "custom_field_value",
+          "tableTo": "custom_field_definition",
+          "columnsFrom": ["definition_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "custom_field_value_revision_check": {
+          "name": "custom_field_value_revision_check",
+          "value": "\"custom_field_value\".\"revision\" >= 0"
         }
       },
       "isRLSEnabled": false

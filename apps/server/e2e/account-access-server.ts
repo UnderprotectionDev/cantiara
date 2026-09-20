@@ -25,6 +25,8 @@ import {
 } from "../src/features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "../src/features/capture-triage/server/capture-inbox-development-adapter";
 import { createCaptureInboxWorkCreate } from "../src/features/capture-triage/server/capture-work-create";
+import { createDatabaseCustomFields } from "../src/features/custom-fields/server/custom-fields-database";
+import { createDatabaseCustomFieldMutationContracts } from "../src/features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
@@ -73,6 +75,9 @@ const captureInbox = createDatabaseCaptureInbox(
 );
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
+const customFields = createDatabaseCustomFields(database);
+const customFieldMutationContracts =
+  createDatabaseCustomFieldMutationContracts(database);
 const githubAvailability = createGitHubAvailability();
 const authOptions = createAuthOptions(
   {
@@ -127,6 +132,8 @@ const app = createApp({
   accountPreferencesMutationContract,
   auth,
   captureInbox,
+  customFields,
+  customFieldMutationContracts,
   corsOrigin: webOrigin,
   database,
   desktopOrigins: [],

@@ -187,8 +187,29 @@
     {
       "idx": 26,
       "version": "7",
-      "when": 1789848954742,
-      "tag": "0026_tranquil_unus",
+      "when": 1789848636618,
+      "tag": "0026_project-custom-fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789851207714,
+      "tag": "0027_repair-drifted-project-schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789853578881,
+      "tag": "0028_project-custom-field-values",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789887783318,
+      "tag": "0029_work-draft-compatibility",
       "breakpoints": true
     }
   ]
