@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import {
+  customFieldValuePayloadSchema,
+  type ParsedCustomFieldValuePayload,
+} from "./custom-fields";
+import {
   humanMutationEnvelopeSchema,
   type MutationPayload,
 } from "./mutation-and-undo";
@@ -19,9 +23,38 @@ export const workDraftTitleSchema = z
   .string()
   .max(255, "Draft title must be 255 characters or fewer.");
 
+const workDraftCustomFieldValueEntrySchema = z
+  .object({
+    definitionId: identifierSchema,
+    payload: customFieldValuePayloadSchema,
+  })
+  .strict();
+
+export const workDraftCustomFieldValuesSchema = z
+  .array(workDraftCustomFieldValueEntrySchema)
+  .superRefine((values, context) => {
+    const seen = new Set<string>();
+    for (const [index, value] of values.entries()) {
+      if (seen.has(value.definitionId)) {
+        context.addIssue({
+          code: "custom",
+          message: "Each Custom field can have only one Draft value.",
+          path: [index, "definitionId"],
+        });
+      }
+      seen.add(value.definitionId);
+    }
+  });
+
+export interface WorkDraftCustomFieldValue {
+  definitionId: string;
+  payload: ParsedCustomFieldValuePayload;
+}
+
 const workDraftFormObjectSchema = z
   .object({
     checklist: workChecklistSchema.default([]),
+    customFieldValues: workDraftCustomFieldValuesSchema.default([]),
     description: workDescriptionSchema.default(null),
     projectId: identifierSchema,
     title: workDraftTitleSchema,
@@ -65,6 +98,7 @@ export type FinalizeWorkDraftInput = z.input<
 export interface WorkDraft {
   checklist: WorkChecklistItem[];
   createdAt: string;
+  customFieldValues: WorkDraftCustomFieldValue[];
   description: string | null;
   id: string;
   projectId: string;
@@ -107,6 +141,7 @@ export function workDraftMutationPayload(
   const parsed = saveWorkDraftInputSchema.parse(input);
   return {
     checklist: parsed.checklist,
+    customFieldValues: parsed.customFieldValues,
     description: parsed.description,
     draftId: parsed.draftId,
     projectId: parsed.projectId,

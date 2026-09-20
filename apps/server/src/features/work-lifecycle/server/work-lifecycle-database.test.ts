@@ -15,9 +15,12 @@ import {
   expect,
   test,
 } from "vitest";
-
+import { createDatabaseCustomFields } from "../../custom-fields/server/custom-fields-database";
+import { createDatabaseCustomFieldFinalizationWriter } from "../../custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
+import { createDatabaseWorkDrafts } from "../../work-drafts/server/work-drafts-database";
 import {
+  WorkCreationConflictError,
   WorkFeatureExitBlockedError,
   WorkTypeImpactPreviewRequiredError,
 } from "./work-lifecycle";
@@ -143,6 +146,159 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     await expect(
       workLifecycle.list(accountId, secondProject.id),
     ).resolves.toEqual([]);
+  });
+
+  test("finalizes Draft Custom field values atomically with one Work", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Draft Custom Fields Project",
+      shortCode: "DRAFTCF",
+      starterConfiguration: "Blank Project",
+    });
+    const customFields = createDatabaseCustomFields(database);
+    const readiness = await customFields.create(accountId, {
+      name: "Release readiness",
+      projectId: project.id,
+      recordTypes: ["Work"],
+      type: "Boolean",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database, {
+      customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+    });
+    const workDrafts = createDatabaseWorkDrafts(
+      database,
+      workLifecycle,
+      projectShell,
+    );
+    const draft = await workDrafts.save(accountId, {
+      baseRevision: 0,
+      checklist: [],
+      clientIdempotencyKey: "draft-custom-field-save",
+      customFieldValues: [
+        {
+          definitionId: readiness.id,
+          payload: { boolean: true, kind: "boolean" },
+        },
+      ],
+      description: null,
+      draftId: "draft-custom-field-1",
+      projectId: project.id,
+      title: "Finalize with a Custom field",
+      type: "Task",
+    });
+
+    const created = await workDrafts.finalize(accountId, {
+      baseRevision: draft.revision,
+      clientIdempotencyKey: "draft-custom-field-finalize",
+      draftId: draft.id,
+    });
+
+    expect(created.projectId).toBe(project.id);
+    await expect(workDrafts.find(accountId, draft.id)).resolves.toBeNull();
+    await expect(
+      customFields.values(accountId, {
+        projectId: project.id,
+        recordId: created.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        definition: expect.objectContaining({ id: readiness.id }),
+        value: expect.objectContaining({
+          recordId: created.id,
+          recordType: "Work",
+          value: { boolean: true, kind: "boolean" },
+        }),
+      }),
+    ]);
+
+    const invalidDraft = await workDrafts.save(accountId, {
+      baseRevision: 0,
+      checklist: [],
+      clientIdempotencyKey: "draft-custom-field-invalid-save",
+      customFieldValues: [
+        {
+          definitionId: "missing-field",
+          payload: { boolean: true, kind: "boolean" },
+        },
+      ],
+      description: null,
+      draftId: "draft-custom-field-invalid",
+      projectId: project.id,
+      title: "Do not partially finalize",
+      type: "Task",
+    });
+
+    await expect(
+      workDrafts.finalize(accountId, {
+        baseRevision: invalidDraft.revision,
+        clientIdempotencyKey: "draft-custom-field-invalid-finalize",
+        draftId: invalidDraft.id,
+      }),
+    ).rejects.toMatchObject({ code: "CUSTOM_FIELD_NOT_FOUND" });
+    await expect(
+      workDrafts.find(accountId, invalidDraft.id),
+    ).resolves.toMatchObject({ id: invalidDraft.id });
+    await expect(
+      workLifecycle.list(accountId, project.id),
+    ).resolves.toHaveLength(1);
+
+    const correctedDraft = await workDrafts.save(accountId, {
+      baseRevision: invalidDraft.revision,
+      checklist: [],
+      clientIdempotencyKey: "draft-custom-field-corrected-save",
+      customFieldValues: [
+        {
+          definitionId: readiness.id,
+          payload: { boolean: false, kind: "boolean" },
+        },
+      ],
+      description: null,
+      draftId: invalidDraft.id,
+      projectId: project.id,
+      title: "Finalize after correcting the Custom field",
+      type: "Task",
+    });
+    const corrected = await workDrafts.finalize(accountId, {
+      baseRevision: correctedDraft.revision,
+      clientIdempotencyKey: "draft-custom-field-invalid-finalize",
+      draftId: correctedDraft.id,
+    });
+    await expect(
+      workDrafts.find(accountId, correctedDraft.id),
+    ).resolves.toBeNull();
+    await expect(
+      customFields.values(accountId, {
+        projectId: project.id,
+        recordId: corrected.id,
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        definition: expect.objectContaining({ id: readiness.id }),
+        value: expect.objectContaining({
+          recordId: corrected.id,
+          value: { boolean: false, kind: "boolean" },
+        }),
+      }),
+    ]);
+    await expect(
+      workLifecycle.list(accountId, project.id),
+    ).resolves.toHaveLength(2);
+
+    await expect(
+      workLifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "work-draft:draft-custom-field-1",
+        projectId: project.id,
+        title: "Different payload on the same Work key",
+        type: "Task",
+      }),
+    ).rejects.toBeInstanceOf(WorkCreationConflictError);
   });
 
   test("persists recreate content and Origin through the public Work Lifecycle seam", async () => {

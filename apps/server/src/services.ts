@@ -27,7 +27,10 @@ import {
   createR2WebCaptureStagingStore,
 } from "./features/capture-triage/server/web-capture-staging-r2";
 import { createDatabaseCustomFields } from "./features/custom-fields/server/custom-fields-database";
-import { createDatabaseCustomFieldMutationContracts } from "./features/custom-fields/server/custom-fields-mutation-database";
+import {
+  createDatabaseCustomFieldFinalizationWriter,
+  createDatabaseCustomFieldMutationContracts,
+} from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -54,7 +57,9 @@ export const projectShellMutationContracts =
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);
-export const workLifecycle = createDatabaseWorkLifecycle(db);
+export const workLifecycle = createDatabaseWorkLifecycle(db, {
+  customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+});
 export const workDrafts = createDatabaseWorkDrafts(
   db,
   workLifecycle,

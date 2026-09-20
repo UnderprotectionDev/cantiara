@@ -4,13 +4,23 @@ import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
-import { type WorkDraft, workDraftFormSchema } from "@cantiara/api/work-drafts";
+import type {
+  CustomFieldDefinition,
+  ParsedCustomFieldValuePayload,
+} from "@cantiara/api/custom-fields";
+import {
+  type WorkDraft,
+  type WorkDraftCustomFieldValue,
+  workDraftFormSchema,
+} from "@cantiara/api/work-drafts";
 import {
   createWorkInputSchema,
   WORK_TYPE_OPTIONS,
   type WorkType,
 } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import { Calendar } from "@cantiara/ui/components/calendar";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
   Field,
   FieldDescription,
@@ -22,10 +32,17 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@cantiara/ui/components/popover";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useForm } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
+import { CalendarDays } from "lucide-react";
 import {
   type FormEvent,
   type ReactNode,
@@ -41,14 +58,34 @@ import {
 } from "@/features/web-macos-client/hooks/use-client-shell";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import {
+  activeDraftCustomFieldValues,
+  formatDraftCustomFieldDate,
+  parseDraftNumberText,
+} from "./draft-custom-fields";
+
+function draftNumberTextMatchesValue(
+  parsedText: ReturnType<typeof parseDraftNumberText>,
+  value: ParsedCustomFieldValuePayload | undefined,
+): boolean {
+  if (parsedText === "invalid") {
+    return true;
+  }
+  if (parsedText === "empty") {
+    return value === undefined;
+  }
+  return value?.kind === "number" && value.number === parsedText;
+}
 
 interface WorkDraftFormValues {
+  customFieldValues: WorkDraftCustomFieldValue[];
   description: string;
   title: string;
   type: WorkType;
 }
 
 const EMPTY_VALUES: WorkDraftFormValues = {
+  customFieldValues: [],
   description: "",
   title: "",
   type: "Task",
@@ -64,10 +101,411 @@ function serializeValues(values: WorkDraftFormValues) {
 
 function draftValues(draft: WorkDraft): WorkDraftFormValues {
   return {
+    customFieldValues: draft.customFieldValues,
     description: draft.description ?? "",
     title: draft.title,
     type: draft.type,
   };
+}
+
+function customFieldValueFor(
+  values: WorkDraftCustomFieldValue[],
+  definitionId: string,
+) {
+  return values.find((value) => value.definitionId === definitionId)?.payload;
+}
+
+function customFieldControlId(definitionId: string) {
+  return `work-draft-custom-field-${definitionId}`;
+}
+
+function CustomFieldClearButton({
+  disabled,
+  onClear,
+}: {
+  disabled: boolean;
+  onClear: () => void;
+}) {
+  return (
+    <Button
+      disabled={disabled}
+      onClick={onClear}
+      size="xs"
+      type="button"
+      variant="ghost"
+    >
+      Not evaluated
+    </Button>
+  );
+}
+
+function CustomFieldUnsetStatus() {
+  return <span className="text-muted-foreground text-sm">Not evaluated</span>;
+}
+
+function CustomFieldDateInput({
+  definition,
+  disabled,
+  formattingPreferences,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  disabled: boolean;
+  formattingPreferences: AccountPreferences;
+  onChange: (value: string | null) => void;
+  value: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = value ? parseISO(value) : undefined;
+  const validSelectedDate =
+    selectedDate && !Number.isNaN(selectedDate.getTime())
+      ? selectedDate
+      : undefined;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Popover onOpenChange={setOpen} open={open}>
+        <PopoverTrigger
+          disabled={disabled}
+          render={
+            <Button
+              aria-label={definition.name}
+              className="justify-between font-normal"
+              disabled={disabled}
+              id={customFieldControlId(definition.id)}
+              type="button"
+              variant="outline"
+            />
+          }
+        >
+          {value
+            ? formatDraftCustomFieldDate(value, formattingPreferences)
+            : "Not evaluated"}
+          <CalendarDays aria-hidden="true" />
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto min-w-72">
+          <Calendar
+            defaultMonth={validSelectedDate}
+            mode="single"
+            onSelect={(date) => {
+              onChange(date ? format(date, "yyyy-MM-dd") : null);
+              setOpen(false);
+            }}
+            selected={validSelectedDate}
+          />
+        </PopoverContent>
+      </Popover>
+      {value ? (
+        <CustomFieldClearButton
+          disabled={disabled}
+          onClear={() => onChange(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CustomFieldNumberInput({
+  definition,
+  disabled,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  disabled: boolean;
+  onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  value: ParsedCustomFieldValuePayload | undefined;
+}) {
+  const externalText = value?.kind === "number" ? String(value.number) : "";
+  const [text, setText] = useState(externalText);
+  // Keep the raw text as the source of the input: only an incoming value the
+  // text cannot explain (Draft resume, clear) is adopted, so the parse echo
+  // never clobbers in-progress input such as "0." or "-".
+  const parsedText = parseDraftNumberText(text);
+  const matchesExternal = draftNumberTextMatchesValue(parsedText, value);
+  if (!matchesExternal) {
+    setText(externalText);
+  }
+  const id = customFieldControlId(definition.id);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        aria-label={definition.name}
+        disabled={disabled}
+        id={id}
+        inputMode="decimal"
+        onChange={(event) => {
+          const next = event.target.value;
+          setText(next);
+          const parsed = parseDraftNumberText(next);
+          if (parsed === "empty") {
+            onChange(null);
+            return;
+          }
+          if (parsed !== "invalid") {
+            onChange({ kind: "number", number: parsed });
+          }
+        }}
+        type="number"
+        value={text}
+      />
+      {value ? (
+        <CustomFieldClearButton
+          disabled={disabled}
+          onClear={() => onChange(null)}
+        />
+      ) : (
+        <CustomFieldUnsetStatus />
+      )}
+    </div>
+  );
+}
+
+function CustomFieldInput({
+  definition,
+  disabled,
+  formattingPreferences,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  disabled: boolean;
+  formattingPreferences: AccountPreferences;
+  onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  value: ParsedCustomFieldValuePayload | undefined;
+}) {
+  const id = customFieldControlId(definition.id);
+
+  switch (definition.type) {
+    case "Text": {
+      const text = value?.kind === "text" ? value.text : "";
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            aria-label={definition.name}
+            disabled={disabled}
+            id={id}
+            onChange={(event) =>
+              onChange(
+                event.target.value
+                  ? { kind: "text", text: event.target.value }
+                  : null,
+              )
+            }
+            value={text}
+          />
+          {value ? (
+            <CustomFieldClearButton
+              disabled={disabled}
+              onClear={() => onChange(null)}
+            />
+          ) : (
+            <CustomFieldUnsetStatus />
+          )}
+        </div>
+      );
+    }
+    case "Number":
+      return (
+        <CustomFieldNumberInput
+          definition={definition}
+          disabled={disabled}
+          onChange={onChange}
+          value={value}
+        />
+      );
+    case "Boolean": {
+      const checked = value?.kind === "boolean" && value.boolean;
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm" htmlFor={id}>
+            <Checkbox
+              checked={checked}
+              disabled={disabled}
+              id={id}
+              onCheckedChange={(next) =>
+                onChange({ kind: "boolean", boolean: next === true })
+              }
+            />
+            <span>{definition.name}</span>
+          </label>
+          {value ? (
+            <CustomFieldClearButton
+              disabled={disabled}
+              onClear={() => onChange(null)}
+            />
+          ) : (
+            <CustomFieldUnsetStatus />
+          )}
+        </div>
+      );
+    }
+    case "Date":
+      return (
+        <CustomFieldDateInput
+          definition={definition}
+          disabled={disabled}
+          formattingPreferences={formattingPreferences}
+          onChange={(date) => onChange(date ? { date, kind: "date" } : null)}
+          value={value?.kind === "date" ? value.date : null}
+        />
+      );
+    case "Single select": {
+      const selected = value?.kind === "option" ? value.option : "";
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <NativeSelect
+            aria-label={definition.name}
+            disabled={disabled}
+            id={id}
+            onChange={(event) =>
+              onChange(
+                event.target.value
+                  ? { kind: "option", option: event.target.value }
+                  : null,
+              )
+            }
+            value={selected}
+          >
+            <NativeSelectOption value="">Not evaluated</NativeSelectOption>
+            {definition.options.map((option) => (
+              <NativeSelectOption key={option} value={option}>
+                {option}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      );
+    }
+    case "Multi select": {
+      const selected = value?.kind === "options" ? value.options : [];
+      return (
+        <fieldset className="space-y-2">
+          <legend className="font-medium text-sm">{definition.name}</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {definition.options.map((option) => {
+              const optionId = `${id}-${option}`;
+              return (
+                <label
+                  className="flex items-center gap-2 text-sm"
+                  htmlFor={optionId}
+                  key={option}
+                >
+                  <Checkbox
+                    checked={selected.includes(option)}
+                    disabled={disabled}
+                    id={optionId}
+                    onCheckedChange={(checked) => {
+                      const next = checked
+                        ? [...selected, option]
+                        : selected.filter((candidate) => candidate !== option);
+                      onChange(
+                        next.length > 0
+                          ? { kind: "options", options: next }
+                          : null,
+                      );
+                    }}
+                  />
+                  <span>{option}</span>
+                </label>
+              );
+            })}
+          </div>
+          {value ? (
+            <CustomFieldClearButton
+              disabled={disabled}
+              onClear={() => onChange(null)}
+            />
+          ) : (
+            <p className="text-muted-foreground text-xs">Not evaluated</p>
+          )}
+        </fieldset>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+function WorkCustomFields({
+  definitions,
+  disabled,
+  error,
+  formattingPreferences,
+  isPending,
+  onChange,
+  values,
+}: {
+  definitions: CustomFieldDefinition[];
+  disabled: boolean;
+  error: boolean;
+  formattingPreferences: AccountPreferences;
+  isPending: boolean;
+  onChange: (
+    definitionId: string,
+    value: ParsedCustomFieldValuePayload | null,
+  ) => void;
+  values: WorkDraftCustomFieldValue[];
+}) {
+  if (isPending) {
+    return (
+      <p className="text-muted-foreground text-sm" role="status">
+        Loading Custom fields…
+      </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        Custom fields could not be loaded. Try loading this page again.
+      </p>
+    );
+  }
+
+  if (definitions.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-labelledby="work-draft-custom-fields-heading"
+      className="space-y-4 border-border/70 border-t pt-5"
+    >
+      <div>
+        <h3
+          className="font-medium text-foreground"
+          id="work-draft-custom-fields-heading"
+        >
+          Custom fields
+        </h3>
+        <p className="mt-1 text-muted-foreground text-xs/relaxed">
+          These fields come from this Project’s Work definitions.
+        </p>
+      </div>
+      <FieldGroup>
+        {definitions.map((definition) => (
+          <Field key={definition.id}>
+            {definition.type === "Boolean" ||
+            definition.type === "Multi select" ? null : (
+              <FieldLabel htmlFor={customFieldControlId(definition.id)}>
+                {definition.name}
+              </FieldLabel>
+            )}
+            <CustomFieldInput
+              definition={definition}
+              disabled={disabled}
+              formattingPreferences={formattingPreferences}
+              onChange={(value) => onChange(definition.id, value)}
+              value={customFieldValueFor(values, definition.id)}
+            />
+          </Field>
+        ))}
+      </FieldGroup>
+    </section>
+  );
 }
 
 export default function WorkDraftForm({
@@ -107,6 +545,18 @@ export default function WorkDraftForm({
   const draftsQueryOptions = orpc.workDrafts.queryOptions({ input: {} });
   const draftsQuery = useQuery(draftsQueryOptions);
   const draftsQueryKey = draftsQueryOptions.queryKey;
+  const customFieldsQuery = useQuery(
+    orpc.customFields.queryOptions({ input: { projectId: targetProjectId } }),
+  );
+  const workCustomFieldDefinitions = useMemo(
+    () =>
+      (customFieldsQuery.data ?? []).filter(
+        (definition) =>
+          definition.trashedAt === null &&
+          definition.recordTypes.includes("Work"),
+      ),
+    [customFieldsQuery.data],
+  );
   const projectsQuery = useQuery(orpc.projects.queryOptions());
   const projectNameById = new Map(
     (projectsQuery.data ?? []).map((project) => [project.id, project.name]),
@@ -167,6 +617,16 @@ export default function WorkDraftForm({
       try {
         const parsed = workDraftFormSchema.safeParse({
           checklist: [],
+          // Draft Custom field values are form state (11): entries no longer
+          // backed by an active Work definition are dropped before saving, so
+          // a stale value can never fail `Create` after the definition was
+          // trashed, unbound, or its option removed.
+          customFieldValues: customFieldsQuery.data
+            ? activeDraftCustomFieldValues(
+                values.customFieldValues,
+                workCustomFieldDefinitions,
+              )
+            : values.customFieldValues,
           description: values.description.trim() ? values.description : null,
           projectId: targetProjectId,
           title: values.title,
@@ -254,6 +714,20 @@ export default function WorkDraftForm({
     if (connection === "online") {
       debouncer.maybeExecute(values);
     }
+  }
+
+  function updateCustomFieldValue(
+    definitionId: string,
+    value: ParsedCustomFieldValuePayload | null,
+  ) {
+    const customFieldValues = form.state.values.customFieldValues.filter(
+      (candidate) => candidate.definitionId !== definitionId,
+    );
+    if (value) {
+      customFieldValues.push({ definitionId, payload: value });
+    }
+    form.setFieldValue("customFieldValues", customFieldValues);
+    queueAutosave({ ...form.state.values, customFieldValues });
   }
 
   async function saveCurrentDraft() {
@@ -565,6 +1039,20 @@ export default function WorkDraftForm({
             </Field>
           )}
         </form.Field>
+
+        <form.Subscribe selector={(state) => state.values.customFieldValues}>
+          {(customFieldValues) => (
+            <WorkCustomFields
+              definitions={workCustomFieldDefinitions}
+              disabled={isBusy}
+              error={customFieldsQuery.isError}
+              formattingPreferences={accountFormattingPreferences}
+              isPending={customFieldsQuery.isPending}
+              onChange={updateCustomFieldValue}
+              values={customFieldValues}
+            />
+          )}
+        </form.Subscribe>
 
         <div className="flex flex-wrap gap-2">
           <Button

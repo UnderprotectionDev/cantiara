@@ -26,7 +26,10 @@ import {
 import { createDevelopmentCaptureInboxTriageAdapter } from "../src/features/capture-triage/server/capture-inbox-development-adapter";
 import { createCaptureInboxWorkCreate } from "../src/features/capture-triage/server/capture-work-create";
 import { createDatabaseCustomFields } from "../src/features/custom-fields/server/custom-fields-database";
-import { createDatabaseCustomFieldMutationContracts } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import {
+  createDatabaseCustomFieldFinalizationWriter,
+  createDatabaseCustomFieldMutationContracts,
+} from "../src/features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
@@ -61,23 +64,25 @@ const captureInboxMutationContract = createDatabaseMutationContract(database, {
   target: captureInboxMutationTarget,
 });
 const projectShell = createDatabaseProjectShell(database);
-const workLifecycle = createDatabaseWorkLifecycle(database);
-const workDrafts = createDatabaseWorkDrafts(
-  database,
-  workLifecycle,
-  projectShell,
-);
+const projectShellMutationContracts =
+  createDatabaseProjectShellMutationContracts(database);
+const customFields = createDatabaseCustomFields(database);
+const customFieldMutationContracts =
+  createDatabaseCustomFieldMutationContracts(database);
+const workLifecycle = createDatabaseWorkLifecycle(database, {
+  customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+});
 const captureInbox = createDatabaseCaptureInbox(
   database,
   createCaptureInboxWorkCreate(workLifecycle),
   captureInboxMutationContract,
   createDevelopmentCaptureInboxTriageAdapter(),
 );
-const projectShellMutationContracts =
-  createDatabaseProjectShellMutationContracts(database);
-const customFields = createDatabaseCustomFields(database);
-const customFieldMutationContracts =
-  createDatabaseCustomFieldMutationContracts(database);
+const workDrafts = createDatabaseWorkDrafts(
+  database,
+  workLifecycle,
+  projectShell,
+);
 const githubAvailability = createGitHubAvailability();
 const authOptions = createAuthOptions(
   {

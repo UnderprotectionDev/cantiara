@@ -4,6 +4,8 @@ import type {
 } from "@cantiara/api/mutation-and-undo";
 import {
   featureHealthUpdateSchema,
+  type WorkLifecycleAccess,
+  type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkMergeMutation,
   type WorkProfile,
@@ -24,7 +26,10 @@ import {
 } from "@cantiara/db/schema/index";
 import type { SQL } from "drizzle-orm";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
-
+import type {
+  CustomFieldValueFinalization,
+  CustomFieldValueFinalizationWriter,
+} from "../../custom-fields/server/custom-fields-mutation-database";
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
@@ -35,6 +40,7 @@ import {
   type WorkRelationsMutationAdapter,
 } from "../../relations/server/work-relations";
 import {
+  createWork,
   createWorkLifecycle,
   WorkCreationConflictError,
   type WorkCreationReservation,
@@ -250,10 +256,13 @@ async function selectRecreateSelection(
 function createWorkMutationTarget(
   accountId: string,
   relations: WorkRelationsMutationAdapter,
+  customFieldValueWriter?: CustomFieldValueFinalizationWriter,
+  customFieldValues: readonly CustomFieldValueFinalization[] = [],
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     find: async (_executor, targetId) => emptyWorkTarget(targetId),
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Work creation keeps allocation, relation persistence, and custom field finalization in one mutation transaction.
     async update(executor, input) {
       const nextWork = input.nextValue.work;
       if (!nextWork) {
@@ -338,6 +347,15 @@ function createWorkMutationTarget(
             },
             recreateSelection,
           );
+        }
+        if (customFieldValueWriter && customFieldValues.length > 0) {
+          await customFieldValueWriter.apply(executor, {
+            accountId,
+            committedAt: input.committedAt,
+            projectId: created.projectId,
+            recordId: created.id,
+            values: customFieldValues,
+          });
         }
         return {
           id: created.id,
@@ -879,10 +897,13 @@ export interface WorkLifecycleProjectDocumentAccess {
 
 export function createDatabaseWorkLifecycle(
   database: Database,
-  options: { projectDocumentAccess?: WorkLifecycleProjectDocumentAccess } = {},
+  options: {
+    customFieldValueWriter?: CustomFieldValueFinalizationWriter;
+    projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
+  } = {},
 ) {
   const relations = createDatabaseWorkRelations(database);
-  const { projectDocumentAccess } = options;
+  const { customFieldValueWriter, projectDocumentAccess } = options;
   const store: WorkLifecycleStore = {
     async find(accountId, workId) {
       const workspaceId = await findWorkspaceId(database, accountId);
@@ -1062,101 +1083,167 @@ export function createDatabaseWorkLifecycle(
       clientIdempotencyKey,
       payloadFingerprint,
     ) {
-      return database.transaction(async (transaction) => {
-        const ownedProject = await findOwnedProject(
-          transaction,
-          accountId,
-          projectId,
-          true,
-        );
-        if (!ownedProject) {
-          throw new WorkProjectNotFoundError(projectId);
-        }
-
-        const [existing] = await transaction
-          .select()
-          .from(workKeyAllocation)
-          .where(
-            and(
-              eq(workKeyAllocation.projectId, projectId),
-              eq(workKeyAllocation.clientIdempotencyKey, clientIdempotencyKey),
-            ),
-          )
-          .limit(1);
-        if (existing) {
-          return reserveExistingAllocation(existing, payloadFingerprint);
-        }
-
-        const number = ownedProject.record.workCount + 1;
-        const workId = crypto.randomUUID();
-        const reservedAt = new Date();
-        const [updatedProject] = await transaction
-          .update(project)
-          .set({
-            revision: ownedProject.record.revision + 1,
-            updatedAt: reservedAt,
-            workCount: number,
-          })
-          .where(
-            and(
-              eq(project.id, projectId),
-              eq(project.revision, ownedProject.record.revision),
-            ),
-          )
-          .returning({ shortCode: project.shortCode });
-        if (!updatedProject) {
-          throw new WorkCreationConflictError();
-        }
-
-        const [allocation] = await transaction
-          .insert(workKeyAllocation)
-          .values({
-            clientIdempotencyKey,
-            id: crypto.randomUUID(),
-            key: `${updatedProject.shortCode}-${number}`,
-            number,
-            payloadFingerprint,
+      return database.transaction(
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Work key reservation handles ownership, retry recovery, allocation, and project numbering in one transaction.
+        async (transaction) => {
+          const ownedProject = await findOwnedProject(
+            transaction,
+            accountId,
             projectId,
-            reservedAt,
-            shortCode: updatedProject.shortCode,
-            workId,
-          })
-          .onConflictDoNothing()
-          .returning();
-        if (allocation) {
-          return toReservation(allocation);
-        }
+            true,
+          );
+          if (!ownedProject) {
+            throw new WorkProjectNotFoundError(projectId);
+          }
 
-        const [racedAllocation] = await transaction
-          .select()
-          .from(workKeyAllocation)
-          .where(
-            and(
-              eq(workKeyAllocation.projectId, projectId),
-              eq(workKeyAllocation.clientIdempotencyKey, clientIdempotencyKey),
-            ),
-          )
-          .limit(1);
-        if (!racedAllocation) {
-          throw new WorkCreationConflictError();
-        }
-        return toReservation(racedAllocation);
-      });
+          const existingQuery = transaction
+            .select()
+            .from(workKeyAllocation)
+            .where(
+              and(
+                eq(workKeyAllocation.projectId, projectId),
+                eq(
+                  workKeyAllocation.clientIdempotencyKey,
+                  clientIdempotencyKey,
+                ),
+              ),
+            )
+            .limit(1)
+            .for("update");
+          const [existing] = await existingQuery;
+          if (existing) {
+            const [existingWork] = await transaction
+              .select({ id: work.id })
+              .from(work)
+              .where(eq(work.id, existing.workId))
+              .limit(1);
+            if (!existingWork) {
+              const [updated] = await transaction
+                .update(workKeyAllocation)
+                .set({
+                  payloadFingerprint,
+                  reservedAt: new Date(),
+                })
+                .where(eq(workKeyAllocation.id, existing.id))
+                .returning();
+              if (!updated) {
+                throw new WorkCreationConflictError();
+              }
+              return toReservation(updated);
+            }
+            return reserveExistingAllocation(existing, payloadFingerprint);
+          }
+
+          const number = ownedProject.record.workCount + 1;
+          const workId = crypto.randomUUID();
+          const reservedAt = new Date();
+          const [updatedProject] = await transaction
+            .update(project)
+            .set({
+              revision: ownedProject.record.revision + 1,
+              updatedAt: reservedAt,
+              workCount: number,
+            })
+            .where(
+              and(
+                eq(project.id, projectId),
+                eq(project.revision, ownedProject.record.revision),
+              ),
+            )
+            .returning({ shortCode: project.shortCode });
+          if (!updatedProject) {
+            throw new WorkCreationConflictError();
+          }
+
+          const [allocation] = await transaction
+            .insert(workKeyAllocation)
+            .values({
+              clientIdempotencyKey,
+              id: crypto.randomUUID(),
+              key: `${updatedProject.shortCode}-${number}`,
+              number,
+              payloadFingerprint,
+              projectId,
+              reservedAt,
+              shortCode: updatedProject.shortCode,
+              workId,
+            })
+            .onConflictDoNothing()
+            .returning();
+          if (allocation) {
+            return toReservation(allocation);
+          }
+
+          const [racedAllocation] = await transaction
+            .select()
+            .from(workKeyAllocation)
+            .where(
+              and(
+                eq(workKeyAllocation.projectId, projectId),
+                eq(
+                  workKeyAllocation.clientIdempotencyKey,
+                  clientIdempotencyKey,
+                ),
+              ),
+            )
+            .limit(1);
+          if (!racedAllocation) {
+            throw new WorkCreationConflictError();
+          }
+          return toReservation(racedAllocation);
+        },
+      );
     },
   };
 
-  return createWorkLifecycle({
-    mutationContracts: {
-      create: (accountId) =>
-        createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
-          target: createWorkMutationTarget(accountId, relations),
-        }),
-      update: (accountId) =>
-        createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
-          target: createWorkUpdateMutationTarget(accountId, relations),
-        }),
-    },
+  const mutationContracts = {
+    create: (accountId: string) =>
+      createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
+        target: createWorkMutationTarget(accountId, relations),
+      }),
+    update: (accountId: string) =>
+      createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
+        target: createWorkUpdateMutationTarget(accountId, relations),
+      }),
+  } satisfies WorkLifecycleMutationContracts;
+  const lifecycle = createWorkLifecycle({
+    mutationContracts,
     relations,
     store,
   });
+
+  if (!customFieldValueWriter) {
+    return lifecycle;
+  }
+
+  return {
+    ...lifecycle,
+    createWithCustomFieldValues(
+      accountId: string,
+      rawInput: Parameters<WorkLifecycleAccess["create"]>[1],
+      customFieldValues: readonly CustomFieldValueFinalization[],
+    ) {
+      const orderedCustomFieldValues = [...customFieldValues].sort(
+        (left, right) => left.definitionId.localeCompare(right.definitionId),
+      );
+      const mutation =
+        createDatabaseMutationContract<WorkLifecycleMutationValue>(database, {
+          target: createWorkMutationTarget(
+            accountId,
+            relations,
+            customFieldValueWriter,
+            orderedCustomFieldValues,
+          ),
+        });
+      return createWork(
+        mutationContracts,
+        store,
+        accountId,
+        rawInput,
+        undefined,
+        mutation,
+        { customFieldValues: orderedCustomFieldValues },
+      );
+    },
+  };
 }
