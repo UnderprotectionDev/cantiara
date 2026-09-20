@@ -313,8 +313,8 @@ test("shows Used in groups and opens cross-Project source records", async ({
     relations.getByRole("heading", { name: "Used in", exact: true }),
   ).toBeVisible({ timeout: 20_000 });
   await expect(
-    relations.getByRole("heading", { name: "Relations", exact: true }).nth(1),
-  ).toBeVisible();
+    relations.getByRole("heading", { name: "Relations", exact: true }),
+  ).toHaveCount(1);
   await expect(
     relations.getByRole("heading", { name: "Usage links", exact: true }),
   ).toBeVisible();

@@ -407,12 +407,11 @@ function RelationsContent({
         <div className="space-y-2">
           <h5 className="font-medium text-muted-foreground text-xs">Used in</h5>
           {relationBacklinks.length > 0 ? (
-            <RelationGroup
+            <RelationItems
               onRemove={onRemove}
               openSourceRecord
               relations={relationBacklinks}
               removePending={removePending}
-              title="Relations"
               workId={workId}
             />
           ) : null}

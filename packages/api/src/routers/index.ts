@@ -1372,16 +1372,6 @@ export const appRouter = {
         requireRelations(context).listUsedIn(context.session.user.id, input),
       ),
     ),
-  relationUsages: protectedProcedure
-    .input(relationsInputSchema)
-    .handler(({ context, input }) =>
-      runRelationsOperation(() =>
-        requireRelations(context).listUsageLinks(
-          context.session.user.id,
-          input,
-        ),
-      ),
-    ),
   relationPreview: protectedProcedure
     .input(relationCreatePreviewInputSchema)
     .handler(({ context, input }) =>

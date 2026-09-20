@@ -743,7 +743,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       },
     );
     await database.insert(workRelation).values({
-      id: "used-in-inaccessible-relation",
+      id: `used-in-inaccessible-relation-${crypto.randomUUID()}`,
       kind: "Related",
       sourceWorkId: source.id,
       targetLabel: "Private Used In must not leak",
@@ -751,7 +751,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       targetRecordId: otherWork.id,
     });
     await database.insert(workRelation).values({
-      id: "used-in-inaccessible-source-relation",
+      id: `used-in-inaccessible-source-relation-${crypto.randomUUID()}`,
       kind: "Related",
       sourceWorkId: otherWork.id,
       targetLabel: "Private source must not leak",
@@ -760,7 +760,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       targetRecordType: "Work",
     });
     await database.insert(usageLink).values({
-      id: "used-in-inaccessible-usage",
+      id: `used-in-inaccessible-usage-${crypto.randomUUID()}`,
       kind: "Live block",
       location: { context: "private-surface" },
       revision: 1,
