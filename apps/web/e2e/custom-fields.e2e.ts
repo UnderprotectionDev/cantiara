@@ -276,14 +276,20 @@ test("renders bound Custom field values on Work create and edit surfaces", async
 
   const workCreate = page.locator("#work-create");
   await expect(workCreate.getByLabel("Audience")).toBeVisible();
-  await expect(workCreate.getByLabel("Reviewed")).toBeVisible();
+  const reviewedCheckbox = workCreate.getByRole("checkbox", {
+    name: "Reviewed",
+  });
+  await expect(reviewedCheckbox).toBeVisible();
   await expect(workCreate.getByLabel("Review state")).toBeVisible();
   await expect(workCreate.getByLabel("Work score")).toBeVisible();
   await expect(workCreate.getByLabel("Risk severity")).toHaveCount(0);
 
   await workCreate.getByLabel("Title").fill("Evaluate audience fit");
   await workCreate.getByLabel("Audience").fill("Founders");
-  await workCreate.getByLabel("Reviewed").selectOption("false");
+  await reviewedCheckbox.click();
+  await expect(reviewedCheckbox).toBeChecked();
+  await reviewedCheckbox.click();
+  await expect(reviewedCheckbox).not.toBeChecked();
   await workCreate.getByLabel("Review state").selectOption("Ready");
   await workCreate.getByRole("button", { name: "Create", exact: true }).click();
 
@@ -355,7 +361,9 @@ test("renders bound Custom field values on Work create and edit surfaces", async
     .filter({ hasText: "Draft persistence check" })
     .getByRole("button", { name: "Resume" })
     .click();
-  await expect(page.getByLabel("Audience")).toHaveValue("Resume check");
+  await expect(workCreateForm.getByLabel("Audience")).toHaveValue(
+    "Resume check",
+  );
 
   await workCreateForm
     .getByRole("button", { name: "Create", exact: true })

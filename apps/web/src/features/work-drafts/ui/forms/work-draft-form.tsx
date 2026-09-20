@@ -570,6 +570,10 @@ export default function WorkDraftForm({
   const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
     input: { projectId },
   }).queryKey;
+  const customFieldProjectValuesQueryKey =
+    orpc.customFieldProjectValues.queryOptions({
+      input: { projectId, recordType: "Work" },
+    }).queryKey;
 
   useEffect(() => {
     setTargetProjectId(projectId);
@@ -792,6 +796,9 @@ export default function WorkDraftForm({
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: projectQueryKey }),
         queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+        queryClient.invalidateQueries({
+          queryKey: customFieldProjectValuesQueryKey,
+        }),
         ...(work.projectId === projectId
           ? []
           : [
@@ -808,6 +815,11 @@ export default function WorkDraftForm({
               queryClient.invalidateQueries({
                 queryKey: orpc.scopeTree.queryOptions({
                   input: { projectId: work.projectId },
+                }).queryKey,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: orpc.customFieldProjectValues.queryOptions({
+                  input: { projectId: work.projectId, recordType: "Work" },
                 }).queryKey,
               }),
             ]),
