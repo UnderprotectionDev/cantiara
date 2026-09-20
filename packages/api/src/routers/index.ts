@@ -928,7 +928,8 @@ function rethrowTagError(error: unknown): never {
   if (
     error.code === "TAG_NOT_FOUND" ||
     error.code === "TAG_PROJECT_NOT_FOUND" ||
-    error.code === "TAG_RECORD_NOT_FOUND"
+    error.code === "TAG_RECORD_NOT_FOUND" ||
+    error.code === "TAG_WORKSPACE_NOT_FOUND"
   ) {
     throw new ORPCError("NOT_FOUND", {
       data: { code: error.code },
@@ -954,6 +955,9 @@ function tagUnavailableMessage(code: unknown) {
   }
   if (code === "TAG_RECORD_NOT_FOUND") {
     return "Work is unavailable.";
+  }
+  if (code === "TAG_WORKSPACE_NOT_FOUND") {
+    return "Workspace is unavailable.";
   }
   return "Tag is unavailable.";
 }

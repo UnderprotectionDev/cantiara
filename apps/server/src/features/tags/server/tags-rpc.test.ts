@@ -115,4 +115,23 @@ describe("Tags RPC", () => {
       "Duplicate Tag",
     );
   });
+
+  test("maps a missing Workspace to the public not-found error", async () => {
+    const access: TagsAccess = {
+      ...createAccess(),
+      create: () =>
+        Promise.reject(
+          Object.assign(new Error("Missing Workspace"), {
+            code: "TAG_WORKSPACE_NOT_FOUND",
+          }),
+        ),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+
+    await expect(client.createTag({ name: tag.name })).rejects.toThrow(
+      "Workspace is unavailable.",
+    );
+  });
 });

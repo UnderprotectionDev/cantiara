@@ -1,7 +1,11 @@
 import type { TagRecord, TagStore, TagSuggestion } from "@cantiara/api/tags";
 import { describe, expect, test } from "vitest";
 
-import { createTags, TagNameConflictError } from "./tags";
+import {
+  createTags,
+  TagNameConflictError,
+  TagWorkspaceNotFoundError,
+} from "./tags";
 
 const timestamp = "2026-09-20T09:00:00.000Z";
 
@@ -175,6 +179,26 @@ describe("Tags Workspace namespace", () => {
     await expect(
       tags.create("account-1", { name: " audience " }),
     ).rejects.toBeInstanceOf(TagNameConflictError);
+  });
+
+  test("rejects writes for an Account without a Workspace", async () => {
+    const tags = createTags({ store: createMemoryStore() });
+    const applyInput = {
+      projectId: "project-1",
+      recordId: "work-1",
+      recordType: "Work",
+      tagId: "tag-1",
+    } as const;
+
+    await expect(
+      tags.create("account-without-workspace", { name: "Orphan" }),
+    ).rejects.toBeInstanceOf(TagWorkspaceNotFoundError);
+    await expect(
+      tags.apply("account-without-workspace", applyInput),
+    ).rejects.toBeInstanceOf(TagWorkspaceNotFoundError);
+    await expect(
+      tags.remove("account-without-workspace", applyInput),
+    ).rejects.toBeInstanceOf(TagWorkspaceNotFoundError);
   });
 
   test("ranks tags used in the current Project first without changing their scope", async () => {

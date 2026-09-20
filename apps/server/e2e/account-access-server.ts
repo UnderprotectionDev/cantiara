@@ -33,6 +33,7 @@ import {
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseTags } from "../src/features/tags/server/tags-database";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 
@@ -66,6 +67,7 @@ const captureInboxMutationContract = createDatabaseMutationContract(database, {
 const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
+const tags = createDatabaseTags(database);
 const customFields = createDatabaseCustomFields(database);
 const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(database);
@@ -147,6 +149,7 @@ const app = createApp({
   nodeEnv: "test",
   projectShell,
   projectShellMutationContracts,
+  tags,
   workLifecycle,
   workDrafts,
   redactSecrets: () => new Error("Redacted E2E server error"),
@@ -256,7 +259,33 @@ async function createE2EFixture(fixtureKey: string) {
     ]);
   }
 
-  const projectId = captureProject?.id ?? scopeTreeProject?.id;
+  const tagsProject =
+    fixtureKey === "tags"
+      ? await projectShell.create(founder.id, {
+          name: "Tags Project",
+          shortCode: "TAGS",
+          starterConfiguration: "Blank Project",
+        })
+      : null;
+  if (tagsProject) {
+    await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "tags-work-prepare",
+      projectId: tagsProject.id,
+      title: "Prepare launch",
+      type: "Task",
+    });
+    await workLifecycle.create(founder.id, {
+      baseRevision: 0,
+      clientIdempotencyKey: "tags-work-review",
+      projectId: tagsProject.id,
+      title: "Review launch",
+      type: "Task",
+    });
+  }
+
+  const projectId =
+    captureProject?.id ?? scopeTreeProject?.id ?? tagsProject?.id;
 
   return {
     currentCookie,

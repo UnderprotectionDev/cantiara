@@ -44,10 +44,19 @@ export class TagRecordNotFoundError extends Error {
   }
 }
 
+export class TagWorkspaceNotFoundError extends Error {
+  readonly code = "TAG_WORKSPACE_NOT_FOUND" as const;
+
+  constructor() {
+    super("Workspace was not found for this Account.");
+    this.name = "TagWorkspaceNotFoundError";
+  }
+}
+
 async function workspaceIdFor(store: TagStore, accountId: string) {
   const workspaceId = await store.findWorkspaceId(accountId);
   if (!workspaceId) {
-    throw new TagProjectNotFoundError("unknown");
+    throw new TagWorkspaceNotFoundError();
   }
   return workspaceId;
 }

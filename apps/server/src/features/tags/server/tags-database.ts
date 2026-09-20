@@ -298,26 +298,10 @@ export function createDatabaseTags(database: Database) {
         throw new TagProjectNotFoundError(input.projectId);
       }
 
-      let matchingRecordIds: string[] | undefined;
       if (input.tagId) {
         const tag = await findWorkspaceTag(database, workspaceId, input.tagId);
         if (!tag) {
           throw new TagNotFoundError(input.tagId);
-        }
-        const assignments = await database
-          .select({ recordId: workspaceTagAssignment.recordId })
-          .from(workspaceTagAssignment)
-          .where(
-            and(
-              eq(workspaceTagAssignment.tagId, input.tagId),
-              eq(workspaceTagAssignment.recordType, "Work"),
-            ),
-          );
-        matchingRecordIds = assignments.map(
-          (assignment) => assignment.recordId,
-        );
-        if (matchingRecordIds.length === 0) {
-          return [];
         }
       }
 
@@ -327,7 +311,20 @@ export function createDatabaseTags(database: Database) {
         .where(
           and(
             eq(work.projectId, input.projectId),
-            matchingRecordIds ? inArray(work.id, matchingRecordIds) : undefined,
+            input.tagId
+              ? inArray(
+                  work.id,
+                  database
+                    .select({ id: workspaceTagAssignment.recordId })
+                    .from(workspaceTagAssignment)
+                    .where(
+                      and(
+                        eq(workspaceTagAssignment.tagId, input.tagId),
+                        eq(workspaceTagAssignment.recordType, "Work"),
+                      ),
+                    ),
+                )
+              : undefined,
           ),
         )
         .orderBy(asc(work.number));
