@@ -203,7 +203,10 @@ export function createTagMarkdownImportPreview(
   const tagsByName = new Map(
     existingTags.map((tag) => [tagNameKey(tag.name), tag]),
   );
-  const items = new Map<string, TagMarkdownImportPreviewItem>();
+  const items = new Map<
+    string,
+    { item: TagMarkdownImportPreviewItem; sortName: string }
+  >();
 
   for (const source of parsedManifest.tags) {
     const existing =
@@ -218,23 +221,25 @@ export function createTagMarkdownImportPreview(
     const current = items.get(key);
 
     if (current) {
-      current.sourceTags.push({ id: source.id, name: source.name });
+      current.item.sourceTags.push({ id: source.id, name: source.name });
       continue;
     }
 
     items.set(key, {
-      resolution,
-      sourceTags: [{ id: source.id, name: source.name }],
+      sortName: source.name,
+      item: {
+        resolution,
+        sourceTags: [{ id: source.id, name: source.name }],
+      },
     });
   }
 
   return tagMarkdownImportPreviewSchema.parse(
-    [...items.values()].sort((left, right) =>
-      (left.sourceTags[0]?.name ?? "").localeCompare(
-        right.sourceTags[0]?.name ?? "",
-        "en-US",
-      ),
-    ),
+    [...items.values()]
+      .sort((left, right) =>
+        left.sortName.localeCompare(right.sortName, "en-US"),
+      )
+      .map((entry) => entry.item),
   );
 }
 
