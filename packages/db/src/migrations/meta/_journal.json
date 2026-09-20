@@ -232,6 +232,13 @@
       "when": 1789926834730,
       "tag": "0032_charming_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789929500910,
+      "tag": "0033_workspace-tag-schema",
+      "breakpoints": true
     }
   ]
 }

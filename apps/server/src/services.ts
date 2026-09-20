@@ -39,6 +39,7 @@ import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
+import { createDatabaseTags } from "./features/tags/server/tags-database";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 
@@ -59,16 +60,17 @@ export const mutationContract =
 export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
-export const customFields = createDatabaseCustomFields(db);
-export const customFieldMutationContracts =
-  createDatabaseCustomFieldMutationContracts(db);
+export const relations = createDatabaseRelations(db);
 export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
   createDatabaseUsageLinkMutationContracts(db);
+export const tags = createDatabaseTags(db);
+export const customFields = createDatabaseCustomFields(db);
+export const customFieldMutationContracts =
+  createDatabaseCustomFieldMutationContracts(db);
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
-export const relations = createDatabaseRelations(db);
 export const workDrafts = createDatabaseWorkDrafts(
   db,
   workLifecycle,

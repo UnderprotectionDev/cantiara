@@ -392,3 +392,5 @@
 ├── tsconfig.json
 └── turbo.json
 ```
+
+Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).

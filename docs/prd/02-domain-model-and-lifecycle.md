@@ -297,6 +297,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Etiketi kaldır | `Remove tag` | Etiketi kayıttan ayırma; kimliği silmez |
 | Etiketi yeniden adlandır | `Rename Tag` | Çalışma Alanı etiket kimliğini koruyarak görünen adı atomik güncelleme |
 | Bu Projede önerilen | `Suggested in this Project` | Proje seçicisinde sık kullanılanları önce gösteren kişisel öneri; kapsam değildir |
+| Etiket seç | `Select a tag` | Erişilebilir İş kaydına uygulanacak mevcut Etiketi seçme |
+| Etiket yükleniyor | `Loading Tags…` | Etiket seçicisi ve kimlik listesi yüklenirken gösterilen durum |
+| Etiketler yüklenemedi | `Tags could not be loaded. Try loading this page again.` | Etiket kimlikleri yüklenemediğinde gösterilen hata durumu |
+| Etiket oluşturulamadı | `Tag could not be created.` | Yeni Etiket kaydı başarısız olduğunda gösterilen hata durumu |
+| Etiket uygulanamadı | `Tag could not be applied.` | Etiket üyeliği yazılamadığında gösterilen hata durumu |
+| Etiket kaldırılamadı | `Tag could not be removed.` | Etiket üyeliği kaldırılamadığında gösterilen hata durumu |
+| Etiket adı kontrolü | `Check the tag name.` | Etiket adı doğrulanamadığında gösterilen form uyarısı |
+| Etiketli kayıtlar yükleniyor | `Loading tagged records…` | Etiketli İş kayıtları listesi yüklenirken gösterilen durum |
+| Etiketli kayıtlar yüklenemedi | `Tagged records could not be loaded. Try loading this page again.` | Etiketli İş kayıtları yüklenemediğinde gösterilen hata durumu |
+| Etiketli İş kayıtları | `Tagged Work records` | Etiket yüzeyindeki erişilebilir İş kayıtları listesinin ekran okuyucu adı |
+| Kayıt etiketleri | `Tags for {record title}` | Bir İş kaydının Etiket listesi için erişilebilir ad |
+| Kayıttan etiketi kaldır | `Remove tag {tag name} from {record title}` | Belirli Etiketi belirli İş kaydından ayıran erişilebilir eylem adı |
 | Metin | `Text` | Proje bazlı özel alan türü; Lookup veya Formula değildir |
 | Boolean | `Boolean` | Proje bazlı özel alan türü |
 | True | `True` | Boolean özel alanın ayarlanmış evet değeri; Değerlendirilmedi değildir |

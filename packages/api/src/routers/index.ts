@@ -80,6 +80,13 @@ import {
   usageLinkPayloadSchema,
   usageLinkSchema,
 } from "../relations";
+import {
+  applyTagInputSchema,
+  createTagInputSchema,
+  removeTagInputSchema,
+  tagRecordsInputSchema,
+  tagsInputSchema,
+} from "../tags";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   deleteWorkDraftInputSchema,
@@ -193,6 +200,13 @@ function requireCustomFieldMutationContracts(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.customFieldMutationContracts;
+}
+
+function requireTags(context: Context) {
+  if (!context.tags) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.tags;
 }
 
 function requireProjectShellMutationContract(
@@ -1012,6 +1026,37 @@ function rethrowCustomFieldMutationError(
   throw error;
 }
 
+function rethrowTagError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "TAG_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "A Tag with this name already exists in this Workspace.",
+    });
+  }
+
+  if (
+    error.code === "TAG_NOT_FOUND" ||
+    error.code === "TAG_PROJECT_NOT_FOUND" ||
+    error.code === "TAG_RECORD_NOT_FOUND" ||
+    error.code === "TAG_WORKSPACE_NOT_FOUND"
+  ) {
+    throw new ORPCError("NOT_FOUND", {
+      data: { code: error.code },
+      defined: true,
+      message: tagUnavailableMessage(error.code),
+    });
+  }
+
+  throw error;
+}
+
 function rethrowUsageLinkMutationError(
   error: unknown,
   targetId: string,
@@ -1060,6 +1105,26 @@ function rethrowUsageLinkMutationError(
   throw error;
 }
 
+async function runTagOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowTagError(error);
+  }
+}
+
+function tagUnavailableMessage(code: unknown) {
+  if (code === "TAG_PROJECT_NOT_FOUND") {
+    return "Project is unavailable.";
+  }
+  if (code === "TAG_RECORD_NOT_FOUND") {
+    return "Work is unavailable.";
+  }
+  if (code === "TAG_WORKSPACE_NOT_FOUND") {
+    return "Workspace is unavailable.";
+  }
+  return "Tag is unavailable.";
+}
 function nullableProjectValue(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
@@ -1089,6 +1154,81 @@ export const appRouter = {
       }
       return project;
     }),
+  tags: protectedProcedure
+    .input(tagsInputSchema)
+    .handler(({ context, input }) =>
+      runTagOperation(async () => {
+        const tags = await requireTags(context).list(
+          context.session.user.id,
+          input.projectId,
+        );
+        if (!tags) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Project is unavailable.",
+          });
+        }
+        return tags;
+      }),
+    ),
+  tagRecords: protectedProcedure
+    .input(tagRecordsInputSchema)
+    .handler(({ context, input }) =>
+      runTagOperation(async () => {
+        const records = await requireTags(context).records(
+          context.session.user.id,
+          input,
+        );
+        if (!records) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Project is unavailable.",
+          });
+        }
+        return records;
+      }),
+    ),
+  createTag: protectedProcedure
+    .input(createTagInputSchema)
+    .handler(({ context, input }) =>
+      runTagOperation(() =>
+        requireTags(context).create(context.session.user.id, input),
+      ),
+    ),
+  applyTag: protectedProcedure
+    .input(applyTagInputSchema)
+    .handler(({ context, input }) =>
+      runTagOperation(async () => {
+        const assignment = await requireTags(context).apply(
+          context.session.user.id,
+          input,
+        );
+        if (!assignment) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
+          });
+        }
+        return assignment;
+      }),
+    ),
+  removeTag: protectedProcedure
+    .input(removeTagInputSchema)
+    .handler(({ context, input }) =>
+      runTagOperation(async () => {
+        const result = await requireTags(context).remove(
+          context.session.user.id,
+          input,
+        );
+        if (!result) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
+          });
+        }
+        return result;
+      }),
+    ),
   usageLinks: protectedProcedure
     .input(listUsageLinksInputSchema)
     .handler(({ context, input }) =>

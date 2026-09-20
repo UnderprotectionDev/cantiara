@@ -34,6 +34,7 @@ import type {
 } from "@cantiara/api/relations";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
+import type { TagsAccess } from "@cantiara/api/tags";
 import {
   type WebCaptureAccess,
   webCapturePairingInputSchema,
@@ -119,6 +120,7 @@ export interface AppDependencies {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
+  tags?: TagsAccess;
   tauriSessionAccess?: TauriSessionAccess;
   trustedProxyIps: readonly string[];
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -914,6 +916,7 @@ export function createApp(dependencies: AppDependencies) {
       mutationContract: dependencies.mutationContract,
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
+      tags: dependencies.tags,
       relations: dependencies.relations,
       trustedProxyIps: dependencies.trustedProxyIps,
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,
