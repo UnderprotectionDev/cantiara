@@ -58,6 +58,24 @@ import {
 } from "@/features/web-macos-client/hooks/use-client-shell";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import {
+  activeDraftCustomFieldValues,
+  formatDraftCustomFieldDate,
+  parseDraftNumberText,
+} from "./draft-custom-fields";
+
+function draftNumberTextMatchesValue(
+  parsedText: ReturnType<typeof parseDraftNumberText>,
+  value: ParsedCustomFieldValuePayload | undefined,
+): boolean {
+  if (parsedText === "invalid") {
+    return true;
+  }
+  if (parsedText === "empty") {
+    return value === undefined;
+  }
+  return value?.kind === "number" && value.number === parsedText;
+}
 
 interface WorkDraftFormValues {
   customFieldValues: WorkDraftCustomFieldValue[];
@@ -128,11 +146,13 @@ function CustomFieldUnsetStatus() {
 function CustomFieldDateInput({
   definition,
   disabled,
+  formattingPreferences,
   onChange,
   value,
 }: {
   definition: CustomFieldDefinition;
   disabled: boolean;
+  formattingPreferences: AccountPreferences;
   onChange: (value: string | null) => void;
   value: string | null;
 }) {
@@ -159,7 +179,9 @@ function CustomFieldDateInput({
             />
           }
         >
-          {value ?? "Not evaluated"}
+          {value
+            ? formatDraftCustomFieldDate(value, formattingPreferences)
+            : "Not evaluated"}
           <CalendarDays aria-hidden="true" />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto min-w-72">
@@ -184,7 +206,7 @@ function CustomFieldDateInput({
   );
 }
 
-function CustomFieldInput({
+function CustomFieldNumberInput({
   definition,
   disabled,
   onChange,
@@ -192,6 +214,65 @@ function CustomFieldInput({
 }: {
   definition: CustomFieldDefinition;
   disabled: boolean;
+  onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  value: ParsedCustomFieldValuePayload | undefined;
+}) {
+  const externalText = value?.kind === "number" ? String(value.number) : "";
+  const [text, setText] = useState(externalText);
+  // Keep the raw text as the source of the input: only an incoming value the
+  // text cannot explain (Draft resume, clear) is adopted, so the parse echo
+  // never clobbers in-progress input such as "0." or "-".
+  const parsedText = parseDraftNumberText(text);
+  const matchesExternal = draftNumberTextMatchesValue(parsedText, value);
+  if (!matchesExternal) {
+    setText(externalText);
+  }
+  const id = customFieldControlId(definition.id);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        aria-label={definition.name}
+        disabled={disabled}
+        id={id}
+        inputMode="decimal"
+        onChange={(event) => {
+          const next = event.target.value;
+          setText(next);
+          const parsed = parseDraftNumberText(next);
+          if (parsed === "empty") {
+            onChange(null);
+            return;
+          }
+          if (parsed !== "invalid") {
+            onChange({ kind: "number", number: parsed });
+          }
+        }}
+        type="number"
+        value={text}
+      />
+      {value ? (
+        <CustomFieldClearButton
+          disabled={disabled}
+          onClear={() => onChange(null)}
+        />
+      ) : (
+        <CustomFieldUnsetStatus />
+      )}
+    </div>
+  );
+}
+
+function CustomFieldInput({
+  definition,
+  disabled,
+  formattingPreferences,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  disabled: boolean;
+  formattingPreferences: AccountPreferences;
   onChange: (value: ParsedCustomFieldValuePayload | null) => void;
   value: ParsedCustomFieldValuePayload | undefined;
 }) {
@@ -226,38 +307,15 @@ function CustomFieldInput({
         </div>
       );
     }
-    case "Number": {
-      const number = value?.kind === "number" ? String(value.number) : "";
+    case "Number":
       return (
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            aria-label={definition.name}
-            disabled={disabled}
-            id={id}
-            inputMode="decimal"
-            onChange={(event) => {
-              const next = event.target.value;
-              const parsed = Number(next);
-              onChange(
-                next && Number.isFinite(parsed)
-                  ? { kind: "number", number: parsed }
-                  : null,
-              );
-            }}
-            type="number"
-            value={number}
-          />
-          {value ? (
-            <CustomFieldClearButton
-              disabled={disabled}
-              onClear={() => onChange(null)}
-            />
-          ) : (
-            <CustomFieldUnsetStatus />
-          )}
-        </div>
+        <CustomFieldNumberInput
+          definition={definition}
+          disabled={disabled}
+          onChange={onChange}
+          value={value}
+        />
       );
-    }
     case "Boolean": {
       const checked = value?.kind === "boolean" && value.boolean;
       return (
@@ -289,6 +347,7 @@ function CustomFieldInput({
         <CustomFieldDateInput
           definition={definition}
           disabled={disabled}
+          formattingPreferences={formattingPreferences}
           onChange={(date) => onChange(date ? { date, kind: "date" } : null)}
           value={value?.kind === "date" ? value.date : null}
         />
@@ -374,6 +433,7 @@ function WorkCustomFields({
   definitions,
   disabled,
   error,
+  formattingPreferences,
   isPending,
   onChange,
   values,
@@ -381,6 +441,7 @@ function WorkCustomFields({
   definitions: CustomFieldDefinition[];
   disabled: boolean;
   error: boolean;
+  formattingPreferences: AccountPreferences;
   isPending: boolean;
   onChange: (
     definitionId: string,
@@ -436,6 +497,7 @@ function WorkCustomFields({
             <CustomFieldInput
               definition={definition}
               disabled={disabled}
+              formattingPreferences={formattingPreferences}
               onChange={(value) => onChange(definition.id, value)}
               value={customFieldValueFor(values, definition.id)}
             />
@@ -486,9 +548,14 @@ export default function WorkDraftForm({
   const customFieldsQuery = useQuery(
     orpc.customFields.queryOptions({ input: { projectId: targetProjectId } }),
   );
-  const workCustomFieldDefinitions = (customFieldsQuery.data ?? []).filter(
-    (definition) =>
-      definition.trashedAt === null && definition.recordTypes.includes("Work"),
+  const workCustomFieldDefinitions = useMemo(
+    () =>
+      (customFieldsQuery.data ?? []).filter(
+        (definition) =>
+          definition.trashedAt === null &&
+          definition.recordTypes.includes("Work"),
+      ),
+    [customFieldsQuery.data],
   );
   const projectsQuery = useQuery(orpc.projects.queryOptions());
   const projectNameById = new Map(
@@ -550,7 +617,16 @@ export default function WorkDraftForm({
       try {
         const parsed = workDraftFormSchema.safeParse({
           checklist: [],
-          customFieldValues: values.customFieldValues,
+          // Draft Custom field values are form state (11): entries no longer
+          // backed by an active Work definition are dropped before saving, so
+          // a stale value can never fail `Create` after the definition was
+          // trashed, unbound, or its option removed.
+          customFieldValues: customFieldsQuery.data
+            ? activeDraftCustomFieldValues(
+                values.customFieldValues,
+                workCustomFieldDefinitions,
+              )
+            : values.customFieldValues,
           description: values.description.trim() ? values.description : null,
           projectId: targetProjectId,
           title: values.title,
@@ -970,6 +1046,7 @@ export default function WorkDraftForm({
               definitions={workCustomFieldDefinitions}
               disabled={isBusy}
               error={customFieldsQuery.isError}
+              formattingPreferences={accountFormattingPreferences}
               isPending={customFieldsQuery.isPending}
               onChange={updateCustomFieldValue}
               values={customFieldValues}
