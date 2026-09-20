@@ -141,11 +141,27 @@ function deleteMutationCommand(accountId: string, input: DeleteWorkDraftInput) {
   };
 }
 
-function finalizedWorkClientIdempotencyKey(
-  draftId: string,
-  clientIdempotencyKey: string,
-) {
-  return `work-draft:${draftId}:${clientIdempotencyKey}`;
+function finalizedWorkClientIdempotencyKey(draftId: string) {
+  // Derived from the Draft alone: every retry or stale-reservation take-over for
+  // the same Draft replays the exact same Work create, so a Draft can never mint
+  // two Works even across server restarts or client retry keys.
+  return `work-draft:${draftId}`;
+}
+
+// Technical crash-recovery lease for a finalization reservation, not a product
+// SLA. A live finalization completes in seconds; a reservation older than this
+// is treated as dead so a retry can take it over. Safety never depends on the
+// duration: the draft-scoped Work create key above replays the same Work.
+export const WORK_DRAFT_FINALIZATION_LEASE_MS = 60_000;
+
+export function isFinalizationReservationStale(
+  updatedAt: string | Date,
+  now: Date,
+): boolean {
+  return (
+    now.getTime() - new Date(updatedAt).getTime() >=
+    WORK_DRAFT_FINALIZATION_LEASE_MS
+  );
 }
 
 async function resolveConsumedFinalization(
@@ -185,6 +201,33 @@ async function requireFinalizationReservation(
   return reservation;
 }
 
+// A Draft whose finalization crashed mid-flight stays locked by its reservation.
+// A retry takes the stale reservation over (the store compares the reservation
+// age against the lease) and releases it, so save/finalize/delete can proceed.
+async function healStaleFinalization(
+  store: WorkDraftStore,
+  accountId: string,
+  draftId: string,
+  clientIdempotencyKey: string,
+): Promise<"available" | "live" | "consumed" | "missing"> {
+  const reservation = await store.reserveFinalization(
+    accountId,
+    draftId,
+    clientIdempotencyKey,
+  );
+  if (reservation.status === "reserved") {
+    await store.releaseFinalization(accountId, draftId, clientIdempotencyKey);
+    return "available";
+  }
+  if (reservation.status === "finalizing") {
+    return "live";
+  }
+  if (reservation.status === "consumed") {
+    return "consumed";
+  }
+  return "missing";
+}
+
 export function createWorkDrafts({
   mutationContract,
   now = () => new Date(),
@@ -208,6 +251,7 @@ export function createWorkDrafts({
     return publicDraft(record);
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Draft saving coordinates replay, stale-finalization healing, project validation, and mutation persistence.
   async function save(
     accountId: string,
     rawInput: SaveWorkDraftInput,
@@ -227,7 +271,18 @@ export function createWorkDrafts({
       throw new WorkDraftConsumedError(input.draftId);
     }
     if (current?.finalizingClientIdempotencyKey) {
-      throw new WorkDraftFinalizingError(input.draftId);
+      const healing = await healStaleFinalization(
+        store,
+        accountId,
+        input.draftId,
+        input.clientIdempotencyKey,
+      );
+      if (healing === "live") {
+        throw new WorkDraftFinalizingError(input.draftId);
+      }
+      if (healing === "consumed") {
+        throw new WorkDraftConsumedError(input.draftId);
+      }
     }
     if (!current || current.projectId !== input.projectId) {
       const project = await projects.find(accountId, input.projectId);
@@ -311,10 +366,7 @@ export function createWorkDrafts({
       const work = await workLifecycle.create(accountId, {
         baseRevision: 0,
         checklist: record.checklist,
-        clientIdempotencyKey: finalizedWorkClientIdempotencyKey(
-          record.id,
-          input.clientIdempotencyKey,
-        ),
+        clientIdempotencyKey: finalizedWorkClientIdempotencyKey(record.id),
         description: record.description,
         projectId: record.projectId,
         title: record.title,
@@ -366,7 +418,18 @@ export function createWorkDrafts({
       return { deleted: false };
     }
     if (record.finalizingClientIdempotencyKey) {
-      throw new WorkDraftFinalizingError(input.draftId);
+      const healing = await healStaleFinalization(
+        store,
+        accountId,
+        input.draftId,
+        input.clientIdempotencyKey,
+      );
+      if (healing === "live") {
+        throw new WorkDraftFinalizingError(input.draftId);
+      }
+      if (healing === "consumed" || healing === "missing") {
+        return { deleted: false };
+      }
     }
     if (record.revision !== input.baseRevision) {
       throw new WorkDraftStaleRevisionError(record);

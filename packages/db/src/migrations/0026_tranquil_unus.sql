@@ -1,4 +1,4 @@
-CREATE TABLE "work_draft" (
+CREATE TABLE IF NOT EXISTS "work_draft" (
 	"account_id" text NOT NULL,
 	"checklist" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"consumed_at" timestamp,
@@ -17,6 +17,16 @@ CREATE TABLE "work_draft" (
 	CONSTRAINT "work_draft_finalization_check" CHECK ("work_draft"."consumed_at" is null or "work_draft"."finalized_work_id" is not null)
 );
 --> statement-breakpoint
-ALTER TABLE "work_draft" ADD CONSTRAINT "work_draft_account_id_user_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "work_draft" ADD CONSTRAINT "work_draft_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "work_draft_account_project_updated_idx" ON "work_draft" USING btree ("account_id","project_id","updated_at");
+DO $$ BEGIN
+	ALTER TABLE "work_draft" ADD CONSTRAINT "work_draft_account_id_user_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+	WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "work_draft" ADD CONSTRAINT "work_draft_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION
+	WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "work_draft_account_project_updated_idx" ON "work_draft" USING btree ("account_id","project_id","updated_at");

@@ -19,6 +19,8 @@ import { describe, expect, test, vi } from "vitest";
 
 import {
   createWorkDrafts,
+  isFinalizationReservationStale,
+  WORK_DRAFT_FINALIZATION_LEASE_MS,
   type WorkDraftFinalizationReservation,
   type WorkDraftRecord,
   type WorkDraftStore,
@@ -59,7 +61,10 @@ const work: WorkProfile = {
   updatedAt: "2026-09-19T09:01:00.000Z",
 };
 
-function createMemoryStore(initial: WorkDraft): WorkDraftStore {
+function createMemoryStore(
+  initial: WorkDraft,
+  { staleReservation = false }: { staleReservation?: boolean } = {},
+): WorkDraftStore {
   const records = new Map<string, WorkDraftRecord>([
     [
       initial.id,
@@ -71,6 +76,11 @@ function createMemoryStore(initial: WorkDraft): WorkDraftStore {
       },
     ],
   ]);
+
+  const stampReservation = () =>
+    staleReservation
+      ? new Date(Date.now() - WORK_DRAFT_FINALIZATION_LEASE_MS * 2)
+      : new Date();
 
   return {
     find: (_accountId, draftId) =>
@@ -122,11 +132,24 @@ function createMemoryStore(initial: WorkDraft): WorkDraftStore {
         record.finalizingClientIdempotencyKey &&
         record.finalizingClientIdempotencyKey !== clientIdempotencyKey
       ) {
+        if (isFinalizationReservationStale(record.updatedAt, new Date())) {
+          const takenOver = {
+            ...record,
+            finalizingClientIdempotencyKey: clientIdempotencyKey,
+            updatedAt: stampReservation().toISOString(),
+          };
+          records.set(draftId, takenOver);
+          return Promise.resolve({ draft: takenOver, status: "reserved" });
+        }
         return Promise.resolve({ draft: record, status: "finalizing" });
+      }
+      if (record.finalizingClientIdempotencyKey === clientIdempotencyKey) {
+        return Promise.resolve({ draft: record, status: "reserved" });
       }
       const reserved = {
         ...record,
         finalizingClientIdempotencyKey: clientIdempotencyKey,
+        updatedAt: stampReservation().toISOString(),
       };
       records.set(draftId, reserved);
       return Promise.resolve({ draft: reserved, status: "reserved" });
@@ -167,6 +190,13 @@ function createProjectShellStub(): Pick<ProjectShellAccess, "find"> {
   return {
     find: vi.fn().mockResolvedValue({ id: draft.projectId } as ProjectProfile),
   };
+}
+
+function expectNoWorkLifecycleCall(workLifecycle: WorkLifecycleAccess) {
+  for (const [name, method] of Object.entries(workLifecycle)) {
+    // biome-ignore lint/suspicious/noMisplacedAssertion: This helper is called only from test bodies.
+    expect(method, name).not.toHaveBeenCalled();
+  }
 }
 
 function createUnusedMutationContract(): MutationContract<{
@@ -255,7 +285,7 @@ describe("Work Drafts", () => {
 
     expect(saved.title).toBe("A saved Draft");
     expect(saved.revision).toBe(1);
-    expect(workLifecycle.create).not.toHaveBeenCalled();
+    expectNoWorkLifecycleCall(workLifecycle);
   });
 
   test("deletes a Draft without creating or changing a Work", async () => {
@@ -275,7 +305,7 @@ describe("Work Drafts", () => {
         draftId: draft.id,
       }),
     ).resolves.toEqual({ deleted: true });
-    expect(workLifecycle.create).not.toHaveBeenCalled();
+    expectNoWorkLifecycleCall(workLifecycle);
   });
 
   test("finalizes one Work and consumes the Draft exactly once", async () => {
@@ -308,5 +338,147 @@ describe("Work Drafts", () => {
     ).rejects.toMatchObject({ code: "WORK_DRAFT_CONSUMED" });
 
     expect(workLifecycle.create).toHaveBeenCalledTimes(1);
+  });
+
+  test("takes over a stale finalization when Create is retried with a new key", async () => {
+    const store = createMemoryStore(draft, { staleReservation: true });
+    const workLifecycle = createWorkLifecycleStub();
+    let createCalls = 0;
+    // The first create hangs forever: the server died after the Work create
+    // reservation but before the Draft could be consumed.
+    workLifecycle.create = vi.fn(() => {
+      const callNumber = createCalls;
+      createCalls += 1;
+      return callNumber === 0
+        ? new Promise<WorkProfile>(() => undefined)
+        : Promise.resolve(work);
+    });
+    const workDrafts: WorkDraftsAccess = createWorkDrafts({
+      mutationContract: createUnusedMutationContract(),
+      projects: createProjectShellStub(),
+      store,
+      workLifecycle,
+    });
+    const crashed = workDrafts.finalize("account-1", {
+      baseRevision: draft.revision,
+      clientIdempotencyKey: "draft-finalize-crash",
+      draftId: draft.id,
+    });
+    crashed.catch(() => undefined);
+
+    await expect(
+      workDrafts.finalize("account-1", {
+        baseRevision: draft.revision,
+        clientIdempotencyKey: "draft-finalize-retry",
+        draftId: draft.id,
+      }),
+    ).resolves.toEqual(work);
+    await expect(workDrafts.find("account-1", draft.id)).resolves.toBeNull();
+    // The production Work create replays through the draft-derived
+    // idempotency key; this stub has no replay, so it is called twice.
+    expect(workLifecycle.create).toHaveBeenCalledTimes(2);
+  });
+
+  test("keeps a live finalization exclusive against a different key", async () => {
+    const store = createMemoryStore(draft);
+    const workLifecycle = createWorkLifecycleStub();
+    let releaseCreate: ((created: WorkProfile) => void) | undefined;
+    workLifecycle.create = vi.fn(
+      () =>
+        new Promise<WorkProfile>((resolve) => {
+          releaseCreate = resolve;
+        }),
+    );
+    const workDrafts: WorkDraftsAccess = createWorkDrafts({
+      mutationContract: createUnusedMutationContract(),
+      projects: createProjectShellStub(),
+      store,
+      workLifecycle,
+    });
+
+    const inFlight = workDrafts.finalize("account-1", {
+      baseRevision: draft.revision,
+      clientIdempotencyKey: "draft-finalize-live",
+      draftId: draft.id,
+    });
+    await vi.waitFor(() =>
+      expect(workLifecycle.create).toHaveBeenCalledTimes(1),
+    );
+
+    await expect(
+      workDrafts.finalize("account-1", {
+        baseRevision: draft.revision,
+        clientIdempotencyKey: "draft-finalize-other",
+        draftId: draft.id,
+      }),
+    ).rejects.toMatchObject({ code: "WORK_DRAFT_FINALIZING" });
+
+    releaseCreate?.(work);
+    await expect(inFlight).resolves.toEqual(work);
+  });
+
+  test("deletes a Draft stuck in a stale finalization", async () => {
+    const store = createMemoryStore(draft, { staleReservation: true });
+    const workLifecycle = createWorkLifecycleStub();
+    workLifecycle.create = vi.fn(
+      () => new Promise<WorkProfile>(() => undefined),
+    );
+    const workDrafts: WorkDraftsAccess = createWorkDrafts({
+      mutationContract: createSavingMutationContract(),
+      projects: createProjectShellStub(),
+      store,
+      workLifecycle,
+    });
+    const crashed = workDrafts.finalize("account-1", {
+      baseRevision: draft.revision,
+      clientIdempotencyKey: "draft-finalize-crash",
+      draftId: draft.id,
+    });
+    crashed.catch(() => undefined);
+
+    await expect(
+      workDrafts.delete("account-1", {
+        baseRevision: draft.revision,
+        clientIdempotencyKey: "draft-delete-retry",
+        draftId: draft.id,
+      }),
+    ).resolves.toEqual({ deleted: true });
+    // The stub contract does not touch the store; the heal itself must have
+    // taken over and released the stale reservation.
+    const healed = await store.find("account-1", draft.id);
+    expect(healed?.finalizingClientIdempotencyKey).toBeNull();
+  });
+
+  test("resumes saving a Draft after a stale finalization is taken over", async () => {
+    const store = createMemoryStore(draft, { staleReservation: true });
+    const workLifecycle = createWorkLifecycleStub();
+    workLifecycle.create = vi.fn(
+      () => new Promise<WorkProfile>(() => undefined),
+    );
+    const workDrafts: WorkDraftsAccess = createWorkDrafts({
+      mutationContract: createSavingMutationContract(),
+      projects: createProjectShellStub(),
+      store,
+      workLifecycle,
+    });
+    const crashed = workDrafts.finalize("account-1", {
+      baseRevision: draft.revision,
+      clientIdempotencyKey: "draft-finalize-crash",
+      draftId: draft.id,
+    });
+    crashed.catch(() => undefined);
+
+    await expect(
+      workDrafts.save("account-1", {
+        baseRevision: draft.revision,
+        checklist: [],
+        clientIdempotencyKey: "draft-save-after-crash",
+        description: null,
+        draftId: draft.id,
+        projectId: draft.projectId,
+        title: draft.title,
+        type: draft.type,
+      }),
+    ).resolves.toMatchObject({ id: draft.id, revision: 1 });
   });
 });

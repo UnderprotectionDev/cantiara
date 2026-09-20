@@ -92,4 +92,42 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
 
   await workCreate.getByRole("button", { name: "Create", exact: true }).click();
   await expect(workList).not.toContainText("PAY-2");
+
+  // Drafts are personal to the account: a Draft saved here stays visible and
+  // resumable from another Project's Drafts surface, and finalizes into its
+  // own Project.
+  await title.fill("Cross project handoff");
+  await expect(
+    page
+      .getByRole("list", { name: "Drafts" })
+      .getByRole("listitem")
+      .filter({ hasText: "Cross project handoff" }),
+  ).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("link", { name: "Projects", exact: true }).click();
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await page.getByRole("link", { name: "Ledger App", exact: true }).click();
+  await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+
+  const ledgerDrafts = page.getByRole("list", { name: "Drafts" });
+  const crossProjectDraft = ledgerDrafts
+    .getByRole("listitem")
+    .filter({ hasText: "Cross project handoff" });
+  await expect(crossProjectDraft).toBeVisible({ timeout: 20_000 });
+  await crossProjectDraft.getByRole("button", { name: "Resume" }).click();
+  await expect(title).toHaveValue("Cross project handoff");
+  await expect(
+    workCreate.getByText("Payment App", { exact: true }),
+  ).toBeVisible();
+
+  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(
+    page.getByText("Work PAY-2 created.", { exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(ledgerDrafts).not.toContainText("Cross project handoff");
 });

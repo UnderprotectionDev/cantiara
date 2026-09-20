@@ -16,6 +16,7 @@ import type {
 import { createDatabaseMutationContract } from "../../mutation-and-undo/server/mutation-contract-database";
 import {
   createWorkDrafts,
+  isFinalizationReservationStale,
   type WorkDraftRecord,
   type WorkDraftStore,
 } from "./work-drafts";
@@ -206,7 +207,10 @@ function parseWorkDraftTarget(targetId: string) {
   };
 }
 
-function createWorkDraftStore(database: Database): WorkDraftStore {
+function createWorkDraftStore(
+  database: Database,
+  now: () => Date = () => new Date(),
+): WorkDraftStore {
   return {
     async find(accountId, draftId) {
       const record = await findDraft(database, accountId, draftId);
@@ -260,35 +264,74 @@ function createWorkDraftStore(database: Database): WorkDraftStore {
     },
 
     reserveFinalization(accountId, draftId, clientIdempotencyKey) {
-      return database.transaction(async (transaction) => {
-        const record = await findDraft(transaction, accountId, draftId, true);
-        if (!record) {
-          return { status: "not-found" as const };
-        }
-        const current = toWorkDraftRecord(record);
-        if (current.consumedAt) {
-          return { draft: current, status: "consumed" as const };
-        }
-        if (
-          current.finalizingClientIdempotencyKey &&
-          current.finalizingClientIdempotencyKey !== clientIdempotencyKey
-        ) {
-          return { draft: current, status: "finalizing" as const };
-        }
-        if (current.finalizingClientIdempotencyKey === clientIdempotencyKey) {
-          return { draft: current, status: "reserved" as const };
-        }
-        const [reserved] = await transaction
-          .update(workDraft)
-          .set({ finalizingClientIdempotencyKey: clientIdempotencyKey })
-          .where(
-            and(eq(workDraft.accountId, accountId), eq(workDraft.id, draftId)),
-          )
-          .returning();
-        return reserved
-          ? { draft: toWorkDraftRecord(reserved), status: "reserved" as const }
-          : { status: "not-found" as const };
-      });
+      return database.transaction(
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Reservation recovery keeps the lock, lease, and optimistic update in one transaction.
+        async (transaction) => {
+          const record = await findDraft(transaction, accountId, draftId, true);
+          if (!record) {
+            return { status: "not-found" as const };
+          }
+          const current = toWorkDraftRecord(record);
+          if (current.consumedAt) {
+            return { draft: current, status: "consumed" as const };
+          }
+          if (
+            current.finalizingClientIdempotencyKey &&
+            current.finalizingClientIdempotencyKey !== clientIdempotencyKey
+          ) {
+            // A reservation older than the crash-recovery lease is dead; a retry
+            // takes it over instead of leaving the Draft locked forever.
+            if (isFinalizationReservationStale(current.updatedAt, now())) {
+              const [takenOver] = await transaction
+                .update(workDraft)
+                .set({
+                  finalizingClientIdempotencyKey: clientIdempotencyKey,
+                  updatedAt: now(),
+                })
+                .where(
+                  and(
+                    eq(workDraft.accountId, accountId),
+                    eq(workDraft.id, draftId),
+                    eq(
+                      workDraft.finalizingClientIdempotencyKey,
+                      current.finalizingClientIdempotencyKey,
+                    ),
+                  ),
+                )
+                .returning();
+              return takenOver
+                ? {
+                    draft: toWorkDraftRecord(takenOver),
+                    status: "reserved" as const,
+                  }
+                : { status: "not-found" as const };
+            }
+            return { draft: current, status: "finalizing" as const };
+          }
+          if (current.finalizingClientIdempotencyKey === clientIdempotencyKey) {
+            return { draft: current, status: "reserved" as const };
+          }
+          const [reserved] = await transaction
+            .update(workDraft)
+            .set({
+              finalizingClientIdempotencyKey: clientIdempotencyKey,
+              updatedAt: now(),
+            })
+            .where(
+              and(
+                eq(workDraft.accountId, accountId),
+                eq(workDraft.id, draftId),
+              ),
+            )
+            .returning();
+          return reserved
+            ? {
+                draft: toWorkDraftRecord(reserved),
+                status: "reserved" as const,
+              }
+            : { status: "not-found" as const };
+        },
+      );
     },
   };
 }
@@ -297,6 +340,7 @@ export function createDatabaseWorkDrafts(
   database: Database,
   workLifecycle: WorkLifecycleAccess,
   projects: Pick<ProjectShellAccess, "find">,
+  now?: () => Date,
 ) {
   const mutationContract =
     createDatabaseMutationContract<WorkDraftMutationValue>(database, {
@@ -304,8 +348,9 @@ export function createDatabaseWorkDrafts(
     });
   return createWorkDrafts({
     mutationContract,
+    ...(now ? { now } : {}),
     projects,
-    store: createWorkDraftStore(database),
+    store: createWorkDraftStore(database, now),
     workLifecycle,
   });
 }

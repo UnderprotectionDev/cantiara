@@ -88,18 +88,29 @@ export default function WorkDraftForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // The Draft editor's target Project follows the resumed Draft; new Drafts
+  // target the Project whose surface opened the form.
+  const [targetProjectId, setTargetProjectId] = useState(projectId);
   const draftIdRef = useRef<string>(activeDraftId);
   const revisionRef = useRef(0);
   const saveSequenceRef = useRef(Promise.resolve());
+  const lastFinalizeKeyRef = useRef<{
+    draftId: string;
+    key: string;
+  } | null>(null);
   const saveDraftRef = useRef<
     (values: WorkDraftFormValues) => Promise<WorkDraft>
   >(() => Promise.reject(new Error("Draft save is not ready.")));
 
-  const draftsQueryOptions = orpc.workDrafts.queryOptions({
-    input: { projectId },
-  });
+  // Drafts are personal to the account: the Drafts surface lists every Draft
+  // regardless of Project, so it can resume or delete across Projects.
+  const draftsQueryOptions = orpc.workDrafts.queryOptions({ input: {} });
   const draftsQuery = useQuery(draftsQueryOptions);
   const draftsQueryKey = draftsQueryOptions.queryKey;
+  const projectsQuery = useQuery(orpc.projects.queryOptions());
+  const projectNameById = new Map(
+    (projectsQuery.data ?? []).map((project) => [project.id, project.name]),
+  );
   const worksQueryKey = orpc.projectWorks.queryOptions({
     input: { projectId },
   }).queryKey;
@@ -109,6 +120,10 @@ export default function WorkDraftForm({
   const scopeTreeQueryKey = orpc.scopeTree.queryOptions({
     input: { projectId },
   }).queryKey;
+
+  useEffect(() => {
+    setTargetProjectId(projectId);
+  }, [projectId]);
 
   const form = useForm({
     defaultValues: EMPTY_VALUES,
@@ -128,6 +143,7 @@ export default function WorkDraftForm({
     draftIdRef.current = nextDraftId;
     revisionRef.current = 0;
     setActiveDraftId(nextDraftId);
+    setTargetProjectId(projectId);
     form.reset(EMPTY_VALUES);
     shell.markUnsavedChanges(false);
   }
@@ -137,6 +153,7 @@ export default function WorkDraftForm({
     draftIdRef.current = draft.id;
     revisionRef.current = draft.revision;
     setActiveDraftId(draft.id);
+    setTargetProjectId(draft.projectId);
     form.reset(draftValues(draft), { keepDefaultValues: true });
     setActionMessage("Draft resumed.");
     setCreatedWorkKey(null);
@@ -148,16 +165,22 @@ export default function WorkDraftForm({
     const operation = async () => {
       setIsSaving(true);
       try {
-        const parsed = workDraftFormSchema.parse({
+        const parsed = workDraftFormSchema.safeParse({
           checklist: [],
           description: values.description.trim() ? values.description : null,
-          projectId,
+          projectId: targetProjectId,
           title: values.title,
           type: values.type,
         });
+        if (!parsed.success) {
+          throw new Error(
+            parsed.error.issues[0]?.message ??
+              "Draft could not be saved. Check the form.",
+          );
+        }
         const saved = await shell.runWrite(() =>
           client.saveWorkDraft({
-            ...parsed,
+            ...parsed.data,
             baseRevision: revisionRef.current,
             clientIdempotencyKey: crypto.randomUUID(),
             draftId: draftIdRef.current,
@@ -255,7 +278,7 @@ export default function WorkDraftForm({
       description: form.state.values.description.trim()
         ? form.state.values.description
         : null,
-      projectId,
+      projectId: targetProjectId,
       title: form.state.values.title,
       type: form.state.values.type,
     });
@@ -267,13 +290,23 @@ export default function WorkDraftForm({
     setIsCreating(true);
     try {
       const saved = await saveDraftNow(form.state.values);
+      // Reuse the finalization key for this Draft across retries so a lost
+      // response or server restart replays the same Work instead of wedging
+      // the Draft behind a stale finalization reservation.
+      const priorFinalization = lastFinalizeKeyRef.current;
+      const finalizeKey =
+        priorFinalization?.draftId === saved.id
+          ? priorFinalization.key
+          : crypto.randomUUID();
+      lastFinalizeKeyRef.current = { draftId: saved.id, key: finalizeKey };
       const work = await shell.runWrite(() =>
         client.finalizeWorkDraft({
           baseRevision: saved.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
+          clientIdempotencyKey: finalizeKey,
           draftId: saved.id,
         }),
       );
+      lastFinalizeKeyRef.current = null;
       setCreatedWorkKey(work.key);
       setActionMessage(null);
       setNewDraft();
@@ -282,6 +315,25 @@ export default function WorkDraftForm({
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: projectQueryKey }),
         queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+        ...(work.projectId === projectId
+          ? []
+          : [
+              queryClient.invalidateQueries({
+                queryKey: orpc.projectWorks.queryOptions({
+                  input: { projectId: work.projectId },
+                }).queryKey,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: orpc.project.queryOptions({
+                  input: { projectId: work.projectId },
+                }).queryKey,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: orpc.scopeTree.queryOptions({
+                  input: { projectId: work.projectId },
+                }).queryKey,
+              }),
+            ]),
       ]);
     } catch (error) {
       setFormError(
@@ -348,39 +400,44 @@ export default function WorkDraftForm({
     }
     return (
       <ul aria-label="Drafts" className="mt-3 space-y-2">
-        {drafts.map((draft) => (
-          <li
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2"
-            key={draft.id}
-          >
-            <div className="min-w-0">
-              <p className="truncate font-medium text-sm">
-                {draft.title || "Untitled Draft"}
-              </p>
-              <p className="text-muted-foreground text-xs">{draft.type}</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                disabled={connection === "offline" || isBusy}
-                onClick={() => resumeDraft(draft)}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                Resume
-              </Button>
-              <Button
-                disabled={isBusy || connection === "offline"}
-                onClick={() => deleteDraft(draft).catch(() => undefined)}
-                size="xs"
-                type="button"
-                variant="destructive"
-              >
-                Delete
-              </Button>
-            </div>
-          </li>
-        ))}
+        {drafts.map((draft) => {
+          const projectName = projectNameById.get(draft.projectId);
+          return (
+            <li
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2"
+              key={draft.id}
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium text-sm">
+                  {draft.title || "Untitled Draft"}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {projectName ? `${draft.type} · ${projectName}` : draft.type}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  disabled={connection === "offline" || isBusy}
+                  onClick={() => resumeDraft(draft)}
+                  size="xs"
+                  type="button"
+                  variant="outline"
+                >
+                  Resume
+                </Button>
+                <Button
+                  disabled={isBusy || connection === "offline"}
+                  onClick={() => deleteDraft(draft).catch(() => undefined)}
+                  size="xs"
+                  type="button"
+                  variant="destructive"
+                >
+                  Delete
+                </Button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     );
   }
@@ -397,6 +454,9 @@ export default function WorkDraftForm({
           <p className="mt-1 text-muted-foreground text-xs/relaxed">
             Changes save automatically while you are online. Create turns this
             Draft into one Work.
+          </p>
+          <p className="mt-1 text-muted-foreground text-xs">
+            {projectNameById.get(targetProjectId) ?? targetProjectId}
           </p>
         </div>
         {activeDraftId && connection === "online" ? (
