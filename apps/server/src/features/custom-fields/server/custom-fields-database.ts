@@ -15,7 +15,7 @@ import {
   customFieldValue,
 } from "@cantiara/db/schema/custom-fields";
 import { project } from "@cantiara/db/schema/project";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   CustomFieldNameConflictError,
@@ -165,6 +165,58 @@ export function createDatabaseCustomFields(database: Database) {
       return usage?.total ?? 0;
     },
 
+    copyDefinitions(workspaceId, input) {
+      return database.transaction(async (transaction) => {
+        const ownedProjects = await transaction
+          .select({ id: project.id })
+          .from(project)
+          .where(
+            and(
+              eq(project.workspaceId, workspaceId),
+              inArray(project.id, [
+                input.sourceProjectId,
+                input.targetProjectId,
+              ]),
+            ),
+          );
+        if (ownedProjects.length !== 2) {
+          return null;
+        }
+
+        const sourceRecords = await transaction
+          .select()
+          .from(customFieldDefinition)
+          .where(
+            and(
+              eq(customFieldDefinition.projectId, input.sourceProjectId),
+              isNull(customFieldDefinition.trashedAt),
+            ),
+          )
+          .orderBy(
+            asc(customFieldDefinition.createdAt),
+            asc(customFieldDefinition.nameKey),
+          );
+        const copied: CustomFieldDefinition[] = [];
+        for (const sourceRecord of sourceRecords) {
+          const source = toCustomFieldDefinition(sourceRecord);
+          const copiedDefinition =
+            // biome-ignore lint/performance/noAwaitInLoops: Structure copy preserves definition order and must surface the first target conflict deterministically.
+            await insertDefinition(transaction, {
+              id: crypto.randomUUID(),
+              input: {
+                name: source.name,
+                options: source.options,
+                projectId: input.targetProjectId,
+                recordTypes: source.recordTypes,
+                type: source.type,
+              },
+            });
+          copied.push(copiedDefinition);
+        }
+        return copied;
+      });
+    },
+
     create(workspaceId, input) {
       return database.transaction(async (transaction) => {
         const [ownedProject] = await transaction
@@ -220,6 +272,35 @@ export function createDatabaseCustomFields(database: Database) {
       return records.map(toCustomFieldDefinition);
     },
 
+    async listSearchFields(workspaceId, projectId, recordType) {
+      const [ownedProject] = await database
+        .select({ id: project.id })
+        .from(project)
+        .where(
+          and(eq(project.id, projectId), eq(project.workspaceId, workspaceId)),
+        )
+        .limit(1);
+      if (!ownedProject) {
+        return null;
+      }
+
+      const records = await database
+        .select()
+        .from(customFieldDefinition)
+        .where(
+          and(
+            eq(customFieldDefinition.projectId, projectId),
+            isNull(customFieldDefinition.trashedAt),
+            sql`${customFieldDefinition.recordTypes} @> ${JSON.stringify([recordType])}::jsonb`,
+          ),
+        )
+        .orderBy(
+          asc(customFieldDefinition.createdAt),
+          asc(customFieldDefinition.nameKey),
+        );
+      return records.map(toCustomFieldDefinition);
+    },
+
     async listValues(
       workspaceId,
       projectId,
@@ -245,6 +326,7 @@ export function createDatabaseCustomFields(database: Database) {
           and(
             eq(customFieldValue.definitionId, customFieldDefinition.id),
             eq(customFieldValue.recordId, recordId),
+            eq(customFieldValue.recordType, recordType),
           ),
         )
         .where(

@@ -15,6 +15,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -34,6 +35,7 @@ export default function ProjectWorkList({
     useState<WorkMergeResult | null>(null);
   const [mergeUndoError, setMergeUndoError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const connection = useClientShellConnection();
   const query = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: showArchived, projectId },
@@ -145,6 +147,12 @@ export default function ProjectWorkList({
                   {work.title}
                 </p>
               </div>
+              <CustomFieldValuesForm
+                disabled={connection === "offline" || work.archivedAt !== null}
+                projectId={work.projectId}
+                recordId={work.id}
+                recordType="Work"
+              />
               <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
                 {work.recreatedFrom ? (
                   <p className="basis-full text-muted-foreground text-xs">

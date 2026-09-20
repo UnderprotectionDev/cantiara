@@ -150,9 +150,12 @@ function createContracts(recorded: {
 
 function createAccess(): CustomFieldsAccess {
   return {
+    copyDefinitions: async () => [definition],
     create: async () => definition,
     list: async () => [definition],
     previewOptionDeletion: async () => ({ affectedRecords: 0 }),
+    searchFields: async (_accountId, input) =>
+      input.recordType === "Work" ? [definition] : [],
     values: async (_accountId, input) =>
       input.projectId === definition.projectId
         ? [{ definition, value: null }]
@@ -189,6 +192,38 @@ describe("Project Custom Fields RPC", () => {
         recordType: "Work",
       }),
     ).resolves.toEqual([{ definition, value: null }]);
+  });
+
+  test("copies project-local definitions through the authenticated interface", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
+    });
+
+    await expect(
+      client.copyCustomFieldDefinitions({
+        sourceProjectId: "project-1",
+        targetProjectId: "project-2",
+      }),
+    ).resolves.toEqual([definition]);
+  });
+
+  test("offers bound definitions to the search and filter seam", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(),
+        createContracts({ valueTargets: [] }),
+      ),
+    });
+
+    await expect(
+      client.customFieldSearchFields({
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([definition]);
   });
 
   test("creates a Custom field through the Mutation Contract", async () => {

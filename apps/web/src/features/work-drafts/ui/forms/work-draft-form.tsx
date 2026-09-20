@@ -34,7 +34,11 @@ import {
   useRef,
   useState,
 } from "react";
-
+import {
+  type CustomFieldDraftValues,
+  persistCustomFieldValues,
+} from "@/features/custom-fields/hooks/use-custom-fields";
+import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import {
   useClientShell,
   useClientShellConnection,
@@ -88,6 +92,8 @@ export default function WorkDraftForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [customFieldValues, setCustomFieldValues] =
+    useState<CustomFieldDraftValues>({});
   // The Draft editor's target Project follows the resumed Draft; new Drafts
   // target the Project whose surface opened the form.
   const [targetProjectId, setTargetProjectId] = useState(projectId);
@@ -145,6 +151,7 @@ export default function WorkDraftForm({
     setActiveDraftId(nextDraftId);
     setTargetProjectId(projectId);
     form.reset(EMPTY_VALUES);
+    setCustomFieldValues({});
     shell.markUnsavedChanges(false);
   }
 
@@ -155,6 +162,7 @@ export default function WorkDraftForm({
     setActiveDraftId(draft.id);
     setTargetProjectId(draft.projectId);
     form.reset(draftValues(draft), { keepDefaultValues: true });
+    setCustomFieldValues({});
     setActionMessage("Draft resumed.");
     setCreatedWorkKey(null);
     setFormError(null);
@@ -306,9 +314,26 @@ export default function WorkDraftForm({
           draftId: saved.id,
         }),
       );
+      let customFieldError: string | null = null;
+      if (Object.keys(customFieldValues).length > 0) {
+        try {
+          await persistCustomFieldValues({
+            projectId: work.projectId,
+            recordId: work.id,
+            recordType: "Work",
+            values: customFieldValues,
+          });
+        } catch (error) {
+          customFieldError = errorMessage(
+            error,
+            "Custom field values could not be saved.",
+          );
+        }
+      }
       lastFinalizeKeyRef.current = null;
       setCreatedWorkKey(work.key);
       setActionMessage(null);
+      setFormError(customFieldError);
       setNewDraft();
       queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
         drafts.filter((draft) => draft.id !== saved.id),
@@ -565,6 +590,14 @@ export default function WorkDraftForm({
             </Field>
           )}
         </form.Field>
+
+        <CustomFieldValuesForm
+          disabled={connection === "offline" || isBusy}
+          draftValues={customFieldValues}
+          onDraftValuesChange={setCustomFieldValues}
+          projectId={targetProjectId}
+          recordType="Work"
+        />
 
         <div className="flex flex-wrap gap-2">
           <Button

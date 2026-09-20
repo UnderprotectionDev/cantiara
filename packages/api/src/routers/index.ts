@@ -30,8 +30,10 @@ import {
   type CustomFieldValueMutationValue,
   clearCustomFieldValueInputSchema,
   clearCustomFieldValueMutationInputSchema,
+  copyCustomFieldDefinitionsInputSchema,
   createCustomFieldInputSchema,
   createCustomFieldMutationInputSchema,
+  customFieldSearchFieldsInputSchema,
   customFieldValuesInputSchema,
   deleteCustomFieldMutationInputSchema,
   previewCustomFieldOptionDeletionInputSchema,
@@ -936,6 +938,21 @@ export const appRouter = {
       }
       return fields;
     }),
+  copyCustomFieldDefinitions: protectedProcedure
+    .input(copyCustomFieldDefinitionsInputSchema)
+    .handler(async ({ context, input }) => {
+      const definitions = await requireCustomFields(context).copyDefinitions(
+        context.session.user.id,
+        input,
+      );
+      if (!definitions) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Source or target Project is unavailable.",
+        });
+      }
+      return definitions;
+    }),
   projectWorks: protectedProcedure
     .input(
       z
@@ -1357,6 +1374,21 @@ export const appRouter = {
         });
       }
       return items;
+    }),
+  customFieldSearchFields: protectedProcedure
+    .input(customFieldSearchFieldsInputSchema)
+    .handler(async ({ context, input }) => {
+      const fields = await requireCustomFields(context).searchFields(
+        context.session.user.id,
+        input,
+      );
+      if (!fields) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return fields;
     }),
   previewCustomFieldOptionDeletion: protectedProcedure
     .input(previewCustomFieldOptionDeletionInputSchema)
