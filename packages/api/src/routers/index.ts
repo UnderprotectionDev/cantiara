@@ -1365,6 +1365,13 @@ export const appRouter = {
         requireRelations(context).list(context.session.user.id, input),
       ),
     ),
+  usedIn: protectedProcedure
+    .input(relationsInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).listUsedIn(context.session.user.id, input),
+      ),
+    ),
   relationUsages: protectedProcedure
     .input(relationsInputSchema)
     .handler(({ context, input }) =>
