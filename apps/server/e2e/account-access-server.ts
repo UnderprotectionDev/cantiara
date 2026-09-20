@@ -30,6 +30,7 @@ import { createDatabaseCustomFieldMutationContracts } from "../src/features/cust
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
@@ -59,14 +60,19 @@ const accountPreferencesMutationContract = createDatabaseMutationContract(
 const captureInboxMutationContract = createDatabaseMutationContract(database, {
   target: captureInboxMutationTarget,
 });
+const projectShell = createDatabaseProjectShell(database);
 const workLifecycle = createDatabaseWorkLifecycle(database);
+const workDrafts = createDatabaseWorkDrafts(
+  database,
+  workLifecycle,
+  projectShell,
+);
 const captureInbox = createDatabaseCaptureInbox(
   database,
   createCaptureInboxWorkCreate(workLifecycle),
   captureInboxMutationContract,
   createDevelopmentCaptureInboxTriageAdapter(),
 );
-const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
 const customFields = createDatabaseCustomFields(database);
@@ -137,6 +143,7 @@ const app = createApp({
   projectShell,
   projectShellMutationContracts,
   workLifecycle,
+  workDrafts,
   redactSecrets: () => new Error("Redacted E2E server error"),
   trustedProxyIps: [],
 });

@@ -74,11 +74,13 @@ function ClientShellOfflineState({
   accountFormattingPreferences,
   layout = "empty",
   onRetry,
+  presentation = "banner",
   state,
 }: {
   accountFormattingPreferences: AccountFormattingPreferences;
   layout?: "empty" | "status";
   onRetry?: () => void;
+  presentation?: "banner" | "inline";
   state: ClientShellState;
 }) {
   const shell = useClientShell();
@@ -87,6 +89,62 @@ function ClientShellOfflineState({
       onRetry?.();
     }
   }, [onRetry, shell]);
+
+  const lastSavedValue = state.lastSavedAt ? (
+    <time dateTime={state.lastSavedAt.toISOString()}>
+      {formatLastSaved(state.lastSavedAt, accountFormattingPreferences)}
+    </time>
+  ) : (
+    "Not yet"
+  );
+
+  const inlineStatus = (
+    <section
+      aria-labelledby="client-shell-offline-title"
+      aria-live="polite"
+      className="rounded-md border border-destructive/35 bg-destructive/5 p-3"
+      role="status"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-destructive/35 bg-destructive/15 text-destructive">
+          <WifiOff aria-hidden="true" className="size-4" strokeWidth={2} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p
+              className="font-medium text-foreground text-sm"
+              id="client-shell-offline-title"
+            >
+              You’re offline
+            </p>
+            <Button
+              onClick={handleRetry}
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+          <p className="mt-1 text-muted-foreground text-xs/relaxed">
+            Cantiara needs an active internet connection to read and save
+            changes.
+          </p>
+        </div>
+      </div>
+
+      <dl className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-foreground/20 border-t pt-3 text-xs">
+        <dt className="font-medium text-foreground/70">Last saved</dt>
+        <dd className="font-semibold text-foreground">{lastSavedValue}</dd>
+      </dl>
+
+      {state.hasUnsavedChanges ? (
+        <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-medium text-destructive text-xs">
+          Unsaved changes may be lost
+        </p>
+      ) : null}
+    </section>
+  );
 
   const status = (
     <section
@@ -116,13 +174,7 @@ function ClientShellOfflineState({
       <dl className="mt-8 grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-2 border-foreground/20 border-t pt-5 sm:grid-cols-[9rem_1fr] sm:gap-x-8">
         <dt className="font-medium text-base text-foreground/70">Last saved</dt>
         <dd className="font-semibold text-base text-foreground">
-          {state.lastSavedAt ? (
-            <time dateTime={state.lastSavedAt.toISOString()}>
-              {formatLastSaved(state.lastSavedAt, accountFormattingPreferences)}
-            </time>
-          ) : (
-            "Not yet"
-          )}
+          {lastSavedValue}
         </dd>
       </dl>
 
@@ -140,13 +192,15 @@ function ClientShellOfflineState({
     </section>
   );
 
+  const renderedStatus = presentation === "inline" ? inlineStatus : status;
+
   if (layout === "status") {
-    return status;
+    return renderedStatus;
   }
 
   return (
     <main className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto bg-background px-5 py-10 sm:px-8">
-      {status}
+      {renderedStatus}
     </main>
   );
 }
@@ -189,9 +243,11 @@ function ClientShellUpdateRequiredState({
 export function ClientShellStatus({
   accountFormattingPreferences,
   onRetry,
+  presentation = "banner",
 }: {
   accountFormattingPreferences?: AccountFormattingPreferences;
   onRetry?: () => void;
+  presentation?: "banner" | "inline";
 } = {}) {
   const state = useClientShellState();
   const contextPreferences = useContext(AccountFormattingPreferencesContext);
@@ -210,6 +266,7 @@ export function ClientShellStatus({
       accountFormattingPreferences={preferences}
       layout="status"
       onRetry={onRetry}
+      presentation={presentation}
       state={state}
     />
   );

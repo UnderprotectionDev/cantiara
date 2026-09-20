@@ -36,9 +36,10 @@ import {
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
+import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
+import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
-import WorkCreateForm from "@/features/work-lifecycle/ui/forms/work-create-form";
 
 export default function ProjectShellSurface({
   accountFormattingPreferences,
@@ -119,6 +120,7 @@ export default function ProjectShellSurface({
     if (isWorkSurfaceHash(activeHash)) {
       return (
         <ProjectWorkSurface
+          accountFormattingPreferences={accountFormattingPreferences}
           activeAction={dailyAction}
           configuration={configuration}
           projectId={projectId}
@@ -245,6 +247,15 @@ export default function ProjectShellSurface({
         </aside>
       ) : null}
 
+      {activeHash === DAILY_ACTION_HASHES.Create ? null : (
+        <div className="mt-5">
+          <ClientShellStatus
+            accountFormattingPreferences={accountFormattingPreferences}
+            presentation="inline"
+          />
+        </div>
+      )}
+
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
         <ProjectNavigation
           enabledAreas={configuration.enabledAreas}
@@ -273,10 +284,12 @@ export default function ProjectShellSurface({
 
 function ProjectWorkSurface({
   activeAction,
+  accountFormattingPreferences,
   configuration,
   projectId,
 }: {
   activeAction: DailyAction | null;
+  accountFormattingPreferences: AccountPreferences;
   configuration: ProjectShellConfiguration;
   projectId: string;
 }) {
@@ -302,7 +315,11 @@ function ProjectWorkSurface({
 
       <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-10">
         <div className="min-w-0">
-          <DailyWorkActions activeAction={activeAction} projectId={projectId} />
+          <DailyWorkActions
+            accountFormattingPreferences={accountFormattingPreferences}
+            activeAction={activeAction}
+            projectId={projectId}
+          />
           <ProjectWorkList
             projectId={projectId}
             workStatusLabels={configuration.workStatusLabels}
@@ -367,9 +384,11 @@ function ScopeTreeSection({
 }
 
 function DailyWorkActions({
+  accountFormattingPreferences,
   activeAction,
   projectId,
 }: {
+  accountFormattingPreferences: AccountPreferences;
   activeAction: DailyAction | null;
   projectId: string;
 }) {
@@ -388,7 +407,11 @@ function DailyWorkActions({
         ))}
       </div>
       {activeAction ? (
-        <DailyActionHost action={activeAction} projectId={projectId} />
+        <DailyActionHost
+          accountFormattingPreferences={accountFormattingPreferences}
+          action={activeAction}
+          projectId={projectId}
+        />
       ) : null}
     </section>
   );
@@ -435,9 +458,11 @@ function dailyActionVariant(
 }
 
 function DailyActionHost({
+  accountFormattingPreferences,
   action,
   projectId,
 }: {
+  accountFormattingPreferences: AccountPreferences;
   action: DailyAction;
   projectId: string;
 }) {
@@ -453,7 +478,10 @@ function DailyActionHost({
         {action}
       </h4>
       {action === "Create" ? (
-        <WorkCreateForm projectId={projectId} />
+        <WorkDraftForm
+          accountFormattingPreferences={accountFormattingPreferences}
+          projectId={projectId}
+        />
       ) : (
         <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
       )}

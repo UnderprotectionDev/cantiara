@@ -5,6 +5,7 @@ import {
 } from "@cantiara/api/desktop-api-window";
 import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
+import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import { createAuthOptions } from "@cantiara/auth";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
@@ -52,6 +53,7 @@ function createTestApp(
     onRevokeSession?: (sessionId: string) => void;
     tauriSessionAccess?: TauriSessionAccess;
     webCapture?: WebCaptureAccess;
+    workDrafts?: WorkDraftsAccess;
   } = {},
 ) {
   let handlerCalls = 0;
@@ -116,6 +118,7 @@ function createTestApp(
     tauriSessionAccess: options.tauriSessionAccess,
     trustedProxyIps: ["203.0.113.10"],
     webCapture: options.webCapture,
+    workDrafts: options.workDrafts,
   };
 
   return {
@@ -385,6 +388,58 @@ describe("server app Account Access boundary", () => {
       new Request("https://api.cantiara.example/rpc/sessions", {
         body: JSON.stringify({}),
         headers: {
+          "content-type": "application/json",
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+    const body = (await response.json()) as {
+      json: {
+        data: { reasonCode: string; writeOutcome: string };
+        message: string;
+      };
+    };
+    const error = body.json;
+    const serialized = JSON.stringify(error);
+
+    expect(response.status).toBe(500);
+    expect(error.message).toBe(
+      "Please restart after applying the latest migration.",
+    );
+    expect(error.data.reasonCode).toBe("schema-drift");
+    expect(error.data.writeOutcome).toBe("unknown");
+    expect(serialized).not.toContain("secret-token");
+    expect(serialized).not.toContain("private Workspace body");
+  });
+
+  test("classifies a Work Draft schema failure as schema drift", async () => {
+    const workDrafts = {
+      delete: vi.fn(),
+      finalize: vi.fn(),
+      find: vi.fn(),
+      list: () => {
+        throw Object.assign(
+          new Error(
+            'Failed query: select from "work_draft" token=secret-token private Workspace body',
+          ),
+          {
+            cause: Object.assign(
+              new Error('relation "work_draft" does not exist'),
+              { code: "42P01" },
+            ),
+          },
+        );
+      },
+      save: vi.fn(),
+    } satisfies WorkDraftsAccess;
+    const { app } = createTestApp({ authorized: true, workDrafts });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/rpc/workDrafts", {
+        body: JSON.stringify({ json: { projectId: "project-1" } }),
+        headers: {
+          cookie: "__Secure-better-auth.session_token=valid-token",
           "content-type": "application/json",
           origin: "https://cantiara.example",
         },

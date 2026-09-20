@@ -86,6 +86,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── web-macos-client/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── work-drafts/
+│   │   │   │   │   └── server/
 │   │   │   │   └── work-lifecycle/
 │   │   │   │       └── server/
 │   │   │   ├── app.test.ts
@@ -109,6 +111,7 @@
 │       │   ├── custom-fields.e2e.ts
 │       │   ├── project-shell.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
+│       │   ├── work-drafts.e2e.ts
 │       │   └── work-lifecycle.e2e.ts
 │       ├── src/
 │       │   ├── components/
@@ -244,6 +247,10 @@
 │       │   │   │           ├── client-shell.tsx
 │       │   │   │           ├── support-reference.test.tsx
 │       │   │   │           └── support-reference.tsx
+│       │   │   ├── work-drafts/
+│       │   │   │   └── ui/
+│       │   │   │       └── forms/
+│       │   │   │           └── work-draft-form.tsx
 │       │   │   └── work-lifecycle/
 │       │   │       └── ui/
 │       │   │           ├── components/
@@ -315,6 +322,7 @@
 │   │   │   ├── project-shell.ts
 │   │   │   ├── support-reference.ts
 │   │   │   ├── web-capture.ts
+│   │   │   ├── work-drafts.ts
 │   │   │   └── work-lifecycle.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -341,6 +349,7 @@
 │   │   │   │   ├── project.ts
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
+│   │   │   │   ├── work-draft.ts
 │   │   │   │   └── work.ts
 │   │   │   ├── config.ts
 │   │   │   ├── env.ts

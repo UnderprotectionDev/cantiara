@@ -1,5 +1,6 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { useProjectShellData } from "@/features/project-shell/hooks/use-project-shell-data";
+import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 
 import ProjectShellSurface from "../components/project-shell-surface";
 
@@ -12,10 +13,15 @@ export default function ProjectShellView({
 }) {
   const { accountPreferencesQuery, projectQuery, scopeTreeQuery } =
     useProjectShellData(accountId, projectId);
+  const formattingPreferences =
+    accountPreferencesQuery.data ?? DEFAULT_ACCOUNT_PREFERENCES;
 
   if (projectQuery.isPending) {
     return (
       <main className="surface-frame max-w-[1440px]">
+        <ClientShellStatus
+          accountFormattingPreferences={formattingPreferences}
+        />
         <div aria-label="Loading…" role="status">
           Loading…
         </div>
@@ -23,9 +29,12 @@ export default function ProjectShellView({
     );
   }
 
-  if (projectQuery.isError) {
+  if (projectQuery.isError && !projectQuery.data) {
     return (
       <main className="surface-frame max-w-[1440px]">
+        <ClientShellStatus
+          accountFormattingPreferences={formattingPreferences}
+        />
         <div className="border-y py-8 text-sm" role="alert">
           <p className="font-medium">Project is unavailable.</p>
           <p className="mt-1 text-muted-foreground">
@@ -39,9 +48,7 @@ export default function ProjectShellView({
   return (
     <main className="surface-frame max-w-[1440px]">
       <ProjectShellSurface
-        accountFormattingPreferences={
-          accountPreferencesQuery.data ?? DEFAULT_ACCOUNT_PREFERENCES
-        }
+        accountFormattingPreferences={formattingPreferences}
         project={projectQuery.data}
         projectId={projectId}
         scopeTreeQuery={scopeTreeQuery}

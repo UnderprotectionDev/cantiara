@@ -38,6 +38,22 @@ describe("Client Shell Support reference notice", () => {
     expect(html).not.toContain("S1");
   });
 
+  test("classifies a nested database cause as schema drift", () => {
+    const failure = buildSupportReferenceFailure(
+      Object.assign(new Error('Failed query: select from "work_draft"'), {
+        cause: Object.assign(
+          new Error('relation "work_draft" does not exist'),
+          { code: "42P01" },
+        ),
+      }),
+      { kind: "query" },
+    );
+
+    expect(failure.reason).toBe(
+      "Please restart after applying the latest migration.",
+    );
+  });
+
   test("does not offer Retry after data was written", () => {
     const failure = buildSupportReferenceFailure(
       {
