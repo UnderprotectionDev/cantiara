@@ -74,6 +74,35 @@ function createMemoryStore() {
       definitions.set(`${workspaceId}:${definition.id}`, definition);
       return Promise.resolve(definition);
     },
+    copyDefinitions: (workspaceId, input) => {
+      if (
+        workspaceId !== "workspace-1" ||
+        input.sourceProjectId === input.targetProjectId
+      ) {
+        return Promise.resolve(null);
+      }
+      const copied = [...definitions.values()]
+        .filter(
+          (definition) =>
+            definition.projectId === input.sourceProjectId &&
+            definition.trashedAt === null,
+        )
+        .map((definition) => {
+          sequence += 1;
+          const timestamp = `2026-09-19T09:00:0${sequence}.000Z`;
+          const clone: CustomFieldDefinition = {
+            ...definition,
+            createdAt: timestamp,
+            id: `field-${sequence}`,
+            projectId: input.targetProjectId,
+            revision: 0,
+            updatedAt: timestamp,
+          };
+          definitions.set(`workspace-1:${clone.id}`, clone);
+          return clone;
+        });
+      return Promise.resolve(copied);
+    },
     findWorkspaceId: (accountId) =>
       Promise.resolve(accountId === "account-1" ? "workspace-1" : null),
     list: (workspaceId, projectId) => {
@@ -109,6 +138,45 @@ function createMemoryStore() {
           value: values.get(`${definition.id}:${recordId}`) ?? null,
         })),
       );
+    },
+    listSearchFields: (workspaceId, projectId, recordType) => {
+      if (workspaceId !== "workspace-1") {
+        return Promise.resolve(null);
+      }
+      return Promise.resolve(
+        [...definitions.values()].filter(
+          (definition) =>
+            definition.projectId === projectId &&
+            definition.trashedAt === null &&
+            definition.recordTypes.includes(recordType),
+        ),
+      );
+    },
+    listProjectValues: (workspaceId, projectId, recordType) => {
+      if (workspaceId !== "workspace-1") {
+        return Promise.resolve(null);
+      }
+      const boundDefinitions = [...definitions.values()]
+        .filter(
+          (definition) =>
+            definition.projectId === projectId &&
+            definition.trashedAt === null &&
+            definition.recordTypes.includes(recordType),
+        )
+        .sort((first, second) =>
+          first.createdAt.localeCompare(second.createdAt),
+        );
+      return Promise.resolve({
+        definitions: boundDefinitions,
+        values: [...values.entries()]
+          .filter(
+            ([key, value]) =>
+              boundDefinitions.some(
+                (definition) => key === `${definition.id}:${value.recordId}`,
+              ) && value.recordType === recordType,
+          )
+          .map(([, value]) => value),
+      });
     },
   };
 
@@ -169,6 +237,133 @@ describe("Project Custom Fields seam", () => {
     expect(first.id).not.toBe(second.id);
     expect(first.projectId).toBe("project-1");
     expect(second.projectId).toBe("project-2");
+  });
+
+  test("offers only active fields bound to the requested search record type", async () => {
+    const store = createMemoryStore();
+    const access = createCustomFields({ store: store.store });
+
+    await access.create("account-1", {
+      ...fieldInput("Text"),
+      name: "Audience",
+      recordTypes: ["Work"],
+    });
+    const archived = await access.create("account-1", {
+      ...fieldInput("Boolean"),
+      name: "Archived review",
+      recordTypes: ["Work"],
+    });
+    await access.create("account-1", {
+      ...fieldInput("Number"),
+      name: "Severity",
+      recordTypes: ["Risk"],
+    });
+    store.definitions.set(`workspace-1:${archived.id}`, {
+      ...archived,
+      trashedAt: "2026-09-19T10:00:00.000Z",
+    });
+
+    await expect(
+      access.searchFields("account-1", {
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ name: "Audience", recordTypes: ["Work"] }),
+    ]);
+    await expect(
+      access.searchFields("account-1", {
+        projectId: "project-1",
+        recordType: "Risk",
+      }),
+    ).resolves.toMatchObject([{ name: "Severity", recordTypes: ["Risk"] }]);
+  });
+
+  test("copies definitions with new identity and without source values", async () => {
+    const store = createMemoryStore();
+    const access = createCustomFields({ store: store.store });
+    const source = await access.create("account-1", {
+      ...fieldInput("Text"),
+      name: "Audience",
+      recordTypes: ["Work"],
+    });
+    store.values.set(`${source.id}:work-1`, {
+      createdAt: "2026-09-19T09:00:09.000Z",
+      definitionId: source.id,
+      id: "value-1",
+      recordId: "work-1",
+      recordType: "Work",
+      revision: 1,
+      updatedAt: "2026-09-19T09:00:09.000Z",
+      value: { kind: "text", text: "Founders" },
+    });
+
+    const [clone] =
+      (await access.copyDefinitions("account-1", {
+        sourceProjectId: "project-1",
+        targetProjectId: "project-2",
+      })) ?? [];
+
+    expect(clone).toMatchObject({
+      name: "Audience",
+      projectId: "project-2",
+      recordTypes: ["Work"],
+      revision: 0,
+      trashedAt: null,
+      type: "Text",
+    });
+    expect(clone?.id).not.toBe(source.id);
+    await expect(
+      access.values("account-1", {
+        projectId: "project-2",
+        recordId: "work-1",
+        recordType: "Work",
+      }),
+    ).resolves.toEqual([{ definition: clone, value: null }]);
+  });
+
+  test("lists Project-scoped values for every record of a bound type", async () => {
+    const store = createMemoryStore();
+    const access = createCustomFields({ store: store.store });
+    const field = await access.create("account-1", {
+      ...fieldInput("Text"),
+      name: "Audience",
+      recordTypes: ["Work"],
+    });
+
+    store.values.set(`${field.id}:work-1`, {
+      createdAt: "2026-09-19T09:00:09.000Z",
+      definitionId: field.id,
+      id: "value-1",
+      recordId: "work-1",
+      recordType: "Work",
+      revision: 1,
+      updatedAt: "2026-09-19T09:00:09.000Z",
+      value: { kind: "text", text: "Founders" },
+    });
+    store.values.set(`${field.id}:work-2`, {
+      createdAt: "2026-09-19T09:00:10.000Z",
+      definitionId: field.id,
+      id: "value-2",
+      recordId: "work-2",
+      recordType: "Work",
+      revision: 1,
+      updatedAt: "2026-09-19T09:00:10.000Z",
+      value: { kind: "text", text: "Operators" },
+    });
+
+    await expect(
+      access.projectValues("account-1", {
+        projectId: "project-1",
+        recordType: "Work",
+      }),
+    ).resolves.toMatchObject({
+      definitions: [expect.objectContaining({ id: field.id })],
+      values: [
+        expect.objectContaining({ recordId: "work-1" }),
+        expect.objectContaining({ recordId: "work-2" }),
+      ],
+    });
   });
 
   test("rejects a duplicate name only inside the same Project", async () => {

@@ -310,6 +310,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kayıt türleri | `Record types` | Proje bazlı özel alanın görüneceği desteklenen kayıt türleri |
 | Özel alanlar | `Custom fields` | Geçerli Projedeki özel alan tanımlarının listesi |
 | Özel alan ekle | `Add custom field` | Yeni Proje bazlı özel alan tanımını kaydetme eylemi |
+| Özel alan yükleniyor | `Loading Custom field…` | Proje bazlı özel alan değer yüzeyi yüklenirken gösterilen durum metni |
+| Özel alan değerleri yüklenemedi | `Custom field values could not be loaded. Try loading this page again.` | Özel alan değer yüzeyi yüklenemediğinde gösterilen hata durumu |
+| Özel alan değerleri kaydedilemedi | `Custom field values could not be saved.` | Özel alan değeri yazması başarısız olduğunda gösterilen hata durumu |
+| Takvim günü seçin | `Choose a calendar date.` | Özel alan Tarih seçicinin açıklaması; Tarih değeri takvim günüdür |
+| Tarihi temizle | `Clear date` | Özel alan Tarih değerini Değerlendirilmedi durumuna döndürme eylemi |
 | İş Bağlam Kartı düzeni | `Work Context Card layout` | İş Bağlam Kartı bölüm düzeninin Yapılandırma modu girişi; şema veya düzen motoru değildir |
 | Özel bölüm ekle | `Add custom section` | Desteklenen kayıt türü, doğrudan ilişki veya Kanıt Rolüyle adlandırılmış İş Bağlam Kartı bölümü ekleme; serbest sorgu değildir |
 | Göster | `Show` | Yapılandırma modunda gizlenen İş Bağlam Kartı bölümünü yeniden gösterme |

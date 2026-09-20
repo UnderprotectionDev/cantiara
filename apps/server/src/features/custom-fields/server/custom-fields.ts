@@ -3,7 +3,10 @@ import {
   type CustomFieldRecordType,
   type CustomFieldStore,
   type CustomFieldsAccess,
+  copyCustomFieldDefinitionsInputSchema,
   createCustomFieldInputSchema,
+  customFieldProjectValuesInputSchema,
+  customFieldSearchFieldsInputSchema,
   customFieldValuesInputSchema,
   type ParsedCustomFieldValuePayload,
   previewCustomFieldOptionDeletionInputSchema,
@@ -182,6 +185,12 @@ export function createCustomFields({
   store: CustomFieldStore;
 }): CustomFieldsAccess {
   return {
+    async copyDefinitions(accountId, input) {
+      const parsed = copyCustomFieldDefinitionsInputSchema.parse(input);
+      const workspaceId = await workspaceIdFor(store, accountId);
+      return store.copyDefinitions(workspaceId, parsed);
+    },
+
     async create(accountId, input) {
       const parsed = createCustomFieldInputSchema.parse(input);
       const workspaceId = await workspaceIdFor(store, accountId);
@@ -194,6 +203,19 @@ export function createCustomFields({
         return null;
       }
       return store.list(workspaceId, projectId);
+    },
+
+    async searchFields(accountId, input) {
+      const parsed = customFieldSearchFieldsInputSchema.parse(input);
+      const workspaceId = await store.findWorkspaceId(accountId);
+      if (!workspaceId) {
+        return null;
+      }
+      return store.listSearchFields(
+        workspaceId,
+        parsed.projectId,
+        parsed.recordType,
+      );
     },
 
     async previewOptionDeletion(accountId, input) {
@@ -221,6 +243,19 @@ export function createCustomFields({
         parsed.projectId,
         parsed.recordType,
         parsed.recordId,
+      );
+    },
+
+    async projectValues(accountId, input) {
+      const parsed = customFieldProjectValuesInputSchema.parse(input);
+      const workspaceId = await store.findWorkspaceId(accountId);
+      if (!workspaceId) {
+        return null;
+      }
+      return store.listProjectValues(
+        workspaceId,
+        parsed.projectId,
+        parsed.recordType,
       );
     },
   };

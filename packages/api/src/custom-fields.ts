@@ -263,6 +263,49 @@ export const customFieldValuesInputSchema = z
   })
   .strict();
 
+export const customFieldSearchFieldsInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    recordType: customFieldRecordTypeSchema,
+  })
+  .strict();
+
+export type CustomFieldSearchFieldsInput = z.input<
+  typeof customFieldSearchFieldsInputSchema
+>;
+
+export const customFieldProjectValuesInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    recordType: customFieldRecordTypeSchema,
+  })
+  .strict();
+
+export type CustomFieldProjectValuesInput = z.input<
+  typeof customFieldProjectValuesInputSchema
+>;
+
+/** Active bound definitions plus every stored value for one Project record type. */
+export interface CustomFieldProjectValues {
+  definitions: CustomFieldDefinition[];
+  values: CustomFieldValueRecord[];
+}
+
+export const copyCustomFieldDefinitionsInputSchema = z
+  .object({
+    sourceProjectId: identifierSchema,
+    targetProjectId: identifierSchema,
+  })
+  .strict()
+  .refine((input) => input.sourceProjectId !== input.targetProjectId, {
+    message: "Source and target Projects must be different.",
+    path: ["targetProjectId"],
+  });
+
+export type CopyCustomFieldDefinitionsInput = z.input<
+  typeof copyCustomFieldDefinitionsInputSchema
+>;
+
 export interface CustomFieldValueListItem {
   definition: CustomFieldDefinition;
   value: CustomFieldValueRecord | null;
@@ -316,6 +359,10 @@ export const previewCustomFieldOptionDeletionInputSchema = z
   .strict();
 
 export interface CustomFieldStore {
+  copyDefinitions: (
+    workspaceId: string,
+    input: z.output<typeof copyCustomFieldDefinitionsInputSchema>,
+  ) => Promise<CustomFieldDefinition[] | null>;
   countOptionUsage: (
     workspaceId: string,
     definitionId: string,
@@ -330,6 +377,16 @@ export interface CustomFieldStore {
     workspaceId: string,
     projectId: string,
   ) => Promise<CustomFieldDefinition[] | null>;
+  listProjectValues: (
+    workspaceId: string,
+    projectId: string,
+    recordType: CustomFieldRecordType,
+  ) => Promise<CustomFieldProjectValues | null>;
+  listSearchFields: (
+    workspaceId: string,
+    projectId: string,
+    recordType: CustomFieldRecordType,
+  ) => Promise<CustomFieldDefinition[] | null>;
   listValues: (
     workspaceId: string,
     projectId: string,
@@ -339,6 +396,10 @@ export interface CustomFieldStore {
 }
 
 export interface CustomFieldsAccess {
+  copyDefinitions: (
+    accountId: string,
+    input: CopyCustomFieldDefinitionsInput,
+  ) => Promise<CustomFieldDefinition[] | null>;
   create: (
     accountId: string,
     input: CreateCustomFieldInput,
@@ -351,6 +412,14 @@ export interface CustomFieldsAccess {
     accountId: string,
     input: z.output<typeof previewCustomFieldOptionDeletionInputSchema>,
   ) => Promise<{ affectedRecords: number }>;
+  projectValues: (
+    accountId: string,
+    input: CustomFieldProjectValuesInput,
+  ) => Promise<CustomFieldProjectValues | null>;
+  searchFields: (
+    accountId: string,
+    input: CustomFieldSearchFieldsInput,
+  ) => Promise<CustomFieldDefinition[] | null>;
   values: (
     accountId: string,
     input: z.output<typeof customFieldValuesInputSchema>,

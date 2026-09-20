@@ -1,6 +1,10 @@
 import type {
   CreateCustomFieldInput,
+  CustomFieldDefinition,
   CustomFieldRecordType,
+  CustomFieldValueListItem,
+  CustomFieldValueRecord,
+  ParsedCustomFieldValuePayload,
 } from "@cantiara/api/custom-fields";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -16,6 +20,22 @@ export interface UpdateCustomFieldArgs {
 }
 
 export interface DefinitionRevisionArgs {
+  baseRevision: number;
+  definitionId: string;
+}
+
+export type CustomFieldDraftValues = Record<
+  string,
+  ParsedCustomFieldValuePayload | null
+>;
+
+export interface SetCustomFieldValueArgs {
+  baseRevision: number;
+  definitionId: string;
+  payload: ParsedCustomFieldValuePayload;
+}
+
+export interface ClearCustomFieldValueArgs {
   baseRevision: number;
   definitionId: string;
 }
@@ -95,4 +115,173 @@ export function useCustomFields(projectId: string) {
     restore,
     update,
   };
+}
+
+export function useCustomFieldValues(
+  projectId: string,
+  recordType: CustomFieldRecordType,
+  recordId?: string,
+  options: { enabled?: boolean } = {},
+) {
+  const queryClient = useQueryClient();
+  const valuesQueryOptions = orpc.customFieldValues.queryOptions({
+    input: {
+      projectId,
+      recordId: recordId ?? "new-record",
+      recordType,
+    },
+  });
+  const query = useQuery({
+    ...valuesQueryOptions,
+    enabled: Boolean(recordId) && (options.enabled ?? true),
+  });
+  const { queryKey } = valuesQueryOptions;
+  // Row surfaces may render prefetched Project values instead of this query;
+  // invalidating both keeps either source fresh after a value write.
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.customFieldProjectValues.queryOptions({
+          input: { projectId, recordType },
+        }).queryKey,
+      }),
+    ]);
+  };
+
+  const setValue = useMutation({
+    mutationFn: (input: SetCustomFieldValueArgs) => {
+      if (!recordId) {
+        throw new Error("A record is required before saving a Custom field.");
+      }
+      return runOnlineOnlyWrite(() =>
+        client.setCustomFieldValue({
+          ...input,
+          clientIdempotencyKey: crypto.randomUUID(),
+          recordId,
+          recordType,
+        }),
+      );
+    },
+    onSuccess: invalidate,
+  });
+
+  const clearValue = useMutation({
+    mutationFn: (input: ClearCustomFieldValueArgs) => {
+      if (!recordId) {
+        throw new Error("A record is required before clearing a Custom field.");
+      }
+      return runOnlineOnlyWrite(() =>
+        client.clearCustomFieldValue({
+          ...input,
+          clientIdempotencyKey: crypto.randomUUID(),
+          recordId,
+          recordType,
+        }),
+      );
+    },
+    onSuccess: invalidate,
+  });
+
+  return { clearValue, query, setValue };
+}
+
+export function useCustomFieldProjectValues(
+  projectId: string,
+  recordType: CustomFieldRecordType,
+) {
+  const query = useQuery(
+    orpc.customFieldProjectValues.queryOptions({
+      input: { projectId, recordType },
+    }),
+  );
+  return { query };
+}
+
+function projectValueItems(
+  projectValues: {
+    definitions: CustomFieldDefinition[];
+    values: CustomFieldValueRecord[];
+  },
+  recordId: string,
+): CustomFieldValueListItem[] {
+  return projectValues.definitions.map((definition) => ({
+    definition,
+    value:
+      projectValues.values.find(
+        (candidate) =>
+          candidate.definitionId === definition.id &&
+          candidate.recordId === recordId,
+      ) ?? null,
+  }));
+}
+
+export function customFieldItemsForRecord(
+  projectValues:
+    | {
+        definitions: CustomFieldDefinition[];
+        values: CustomFieldValueRecord[];
+      }
+    | undefined,
+  recordId: string,
+): CustomFieldValueListItem[] {
+  if (!projectValues) {
+    return [];
+  }
+  return projectValueItems(projectValues, recordId);
+}
+
+function sameCustomFieldValue(
+  first: CustomFieldValueRecord | null,
+  second: ParsedCustomFieldValuePayload | null,
+) {
+  return JSON.stringify(first?.value ?? null) === JSON.stringify(second);
+}
+
+export async function persistCustomFieldValues({
+  projectId,
+  recordId,
+  recordType,
+  values,
+}: {
+  projectId: string;
+  recordId: string;
+  recordType: CustomFieldRecordType;
+  values: CustomFieldDraftValues;
+}) {
+  const current = await runOnlineOnlyWrite(() =>
+    client.customFieldValues({ projectId, recordId, recordType }),
+  );
+  const currentByDefinitionId = new Map<string, CustomFieldValueListItem>(
+    current.map((item) => [item.definition.id, item]),
+  );
+
+  for (const [definitionId, payload] of Object.entries(values)) {
+    const existing = currentByDefinitionId.get(definitionId)?.value ?? null;
+    if (sameCustomFieldValue(existing, payload)) {
+      continue;
+    }
+    const baseRevision = existing?.revision ?? 0;
+    const write = () =>
+      Promise.resolve(
+        payload === null
+          ? client.clearCustomFieldValue({
+              baseRevision,
+              clientIdempotencyKey: crypto.randomUUID(),
+              definitionId,
+              recordId,
+              recordType,
+            })
+          : client.setCustomFieldValue({
+              baseRevision,
+              clientIdempotencyKey: crypto.randomUUID(),
+              definitionId,
+              payload,
+              recordId,
+              recordType,
+            }),
+      );
+    // biome-ignore lint/performance/noAwaitInLoops: Each value has its own Mutation Contract target and revision.
+    await runOnlineOnlyWrite(write);
+  }
 }

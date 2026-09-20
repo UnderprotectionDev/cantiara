@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
@@ -15,6 +16,8 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
+import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -23,9 +26,11 @@ import WorkRecreateForm from "../forms/work-recreate-form";
 import WorkStatusForm from "../forms/work-status-form";
 
 export default function ProjectWorkList({
+  accountFormattingPreferences,
   projectId,
   workStatusLabels,
 }: {
+  accountFormattingPreferences: AccountPreferences;
   projectId: string;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
@@ -34,9 +39,17 @@ export default function ProjectWorkList({
     useState<WorkMergeResult | null>(null);
   const [mergeUndoError, setMergeUndoError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const connection = useClientShellConnection();
   const query = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: showArchived, projectId },
+    }),
+  );
+  // One Project-scoped read feeds every Work row's Custom field values; the
+  // per-record form renders from these prefetched items without its own query.
+  const customFieldValuesQuery = useQuery(
+    orpc.customFieldProjectValues.queryOptions({
+      input: { projectId, recordType: "Work" },
     }),
   );
   const undoMerge = useMutation({
@@ -145,6 +158,20 @@ export default function ProjectWorkList({
                   {work.title}
                 </p>
               </div>
+              <CustomFieldValues
+                connection={connection}
+                error={customFieldValuesQuery.isError}
+                formattingPreferences={accountFormattingPreferences}
+                items={
+                  customFieldValuesQuery.data
+                    ? customFieldItemsForRecord(
+                        customFieldValuesQuery.data,
+                        work.id,
+                      )
+                    : undefined
+                }
+                work={work}
+              />
               <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">
                 {work.recreatedFrom ? (
                   <p className="basis-full text-muted-foreground text-xs">
@@ -180,6 +207,41 @@ export default function ProjectWorkList({
 
 function mutationErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function CustomFieldValues({
+  error,
+  formattingPreferences,
+  items,
+  work,
+  connection,
+}: {
+  error: boolean;
+  formattingPreferences: AccountPreferences;
+  items: ReturnType<typeof customFieldItemsForRecord> | undefined;
+  work: WorkProfile;
+  connection: ReturnType<typeof useClientShellConnection>;
+}) {
+  if (error) {
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        Custom field values could not be loaded. Try loading this page again.
+      </p>
+    );
+  }
+  if (!items) {
+    return null;
+  }
+  return (
+    <CustomFieldValuesForm
+      disabled={connection === "offline" || work.archivedAt !== null}
+      formattingPreferences={formattingPreferences}
+      projectId={work.projectId}
+      recordId={work.id}
+      recordItems={items}
+      recordType="Work"
+    />
+  );
 }
 
 function WorkArchiveAction({ work }: { work: WorkProfile }) {
