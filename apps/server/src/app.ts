@@ -28,6 +28,7 @@ import type {
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
 import type {
+  RelationsAccess,
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
@@ -117,6 +118,7 @@ export interface AppDependencies {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   redactSecrets: (value: unknown) => unknown;
+  relations?: RelationsAccess;
   tauriSessionAccess?: TauriSessionAccess;
   trustedProxyIps: readonly string[];
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -912,6 +914,7 @@ export function createApp(dependencies: AppDependencies) {
       mutationContract: dependencies.mutationContract,
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
+      relations: dependencies.relations,
       trustedProxyIps: dependencies.trustedProxyIps,
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,
       usageLinks: dependencies.usageLinks,

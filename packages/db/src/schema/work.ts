@@ -30,6 +30,9 @@ export const work = pgTable(
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     number: integer("number").notNull(),
+    originComponentId: text("origin_component_id"),
+    originOwnerRecordId: text("origin_owner_record_id"),
+    originSourceVersion: text("origin_source_version"),
     primaryFeatureId: text("primary_feature_id").references(
       (): AnyPgColumn => work.id,
       { onDelete: "set null" },

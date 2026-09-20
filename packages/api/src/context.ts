@@ -17,7 +17,11 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "./project-shell";
-import type { UsageLinkMutationContracts, UsageLinksAccess } from "./relations";
+import type {
+  RelationsAccess,
+  UsageLinkMutationContracts,
+  UsageLinksAccess,
+} from "./relations";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkDraftsAccess } from "./work-drafts";
 import type { WorkLifecycleAccess } from "./work-lifecycle";
@@ -122,6 +126,7 @@ export interface Context {
   mutationContract?: MutationContract<MutationPayload>;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  relations?: RelationsAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

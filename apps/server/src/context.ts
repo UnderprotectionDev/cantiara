@@ -23,6 +23,7 @@ import type {
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
 import type {
+  RelationsAccess,
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
@@ -57,6 +58,7 @@ export interface CreateContextOptions {
   mutationContract?: MutationContract<MutationPayload>;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  relations?: RelationsAccess;
   trustedProxyIps: readonly string[];
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
@@ -88,6 +90,7 @@ export async function createContext({
   mutationContract,
   projectShell,
   projectShellMutationContracts,
+  relations,
   trustedProxyIps,
   usageLinkMutationContracts,
   usageLinks,
@@ -127,6 +130,7 @@ export async function createContext({
     mutationContract,
     projectShell,
     projectShellMutationContracts,
+    relations,
     auth: null,
     session,
     usageLinkMutationContracts,
