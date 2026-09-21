@@ -1601,7 +1601,7 @@ export const appRouter = {
     .input(
       z
         .object({
-          archived: z.boolean().default(false),
+          archived: z.union([z.boolean(), z.literal("all")]).default(false),
           projectId: z.string().trim().min(1),
         })
         .strict(),

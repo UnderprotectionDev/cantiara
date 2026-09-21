@@ -15,7 +15,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectsQueryOptions } from "@/utils/orpc";
+import {
+  client,
+  orpc,
+  projectsQueryOptions,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 function recreateErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -110,6 +115,9 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
         setRecreatedKey(recreatedWork.key);
         setPreview(null);
         await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: projectWorksQueryPrefix,
+          }),
           queryClient.invalidateQueries({
             queryKey: orpc.projectWorks.queryOptions({
               input: { projectId: work.projectId },

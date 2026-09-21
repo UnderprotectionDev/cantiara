@@ -15,14 +15,15 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useLocation } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
 import WorkStatusForm from "../forms/work-status-form";
@@ -36,6 +37,8 @@ export default function ProjectWorkList({
   projectId: string;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const activeHash = useLocation({ select: ({ hash }) => hash });
+  const handledWorkHash = useRef<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [lastMergeResult, setLastMergeResult] =
     useState<WorkMergeResult | null>(null);
@@ -47,6 +50,48 @@ export default function ProjectWorkList({
       input: { archived: showArchived, projectId },
     }),
   );
+  const allProjectWorksQuery = useQuery(
+    orpc.projectWorks.queryOptions({
+      input: { archived: "all", projectId },
+    }),
+  );
+  useEffect(() => {
+    if (!allProjectWorksQuery.data) {
+      return;
+    }
+    const workId = workIdFromHash(activeHash);
+    const workHashKey = `${projectId}:${activeHash}`;
+    if (!workId || handledWorkHash.current === workHashKey) {
+      return;
+    }
+    handledWorkHash.current = workHashKey;
+    const targetWork = allProjectWorksQuery.data.find(
+      (work) => work.id === workId,
+    );
+    if (targetWork) {
+      setShowArchived(targetWork.archivedAt !== null);
+    }
+  }, [activeHash, allProjectWorksQuery.data, projectId]);
+  useEffect(() => {
+    if (
+      !activeHash ||
+      query.isPending ||
+      query.isError ||
+      typeof window === "undefined" ||
+      !query.data.some(
+        (work) => `work-${encodeURIComponent(work.id)}` === activeHash,
+      )
+    ) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(activeHash)?.scrollIntoView({
+        block: "start",
+        behavior: "auto",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeHash, query.data, query.isError, query.isPending]);
   // One Project-scoped read feeds every Work row's Custom field values; the
   // per-record form renders from these prefetched items without its own query.
   const customFieldValuesQuery = useQuery(
@@ -81,6 +126,9 @@ export default function ProjectWorkList({
       setLastMergeResult(null);
       await Promise.all([
         queryClient.invalidateQueries({
+          queryKey: projectWorksQueryPrefix,
+        }),
+        queryClient.invalidateQueries({
           queryKey: orpc.projectWorks.queryOptions({
             input: { archived: false, projectId },
           }).queryKey,
@@ -94,11 +142,11 @@ export default function ProjectWorkList({
     },
   });
 
-  if (query.isPending) {
+  if (query.isPending || allProjectWorksQuery.isPending) {
     return <p className="mt-2 text-muted-foreground text-sm">Loading Work…</p>;
   }
 
-  if (query.isError) {
+  if (query.isError || allProjectWorksQuery.isError) {
     return (
       <p className="mt-2 text-destructive text-sm" role="alert">
         Work is unavailable. Try loading this page again.
@@ -151,7 +199,7 @@ export default function ProjectWorkList({
           {query.data.map((work) => (
             <li
               className="mb-3 grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4 transition-colors last:mb-0 hover:bg-card"
-              id={`work-${work.id}`}
+              id={`work-${encodeURIComponent(work.id)}`}
               key={work.id}
             >
               <div className="flex min-w-0 items-start justify-between gap-4">
@@ -161,6 +209,7 @@ export default function ProjectWorkList({
                 </p>
               </div>
               <WorkContextCard
+                projectWorks={allProjectWorksQuery.data ?? query.data}
                 work={work}
                 workStatusLabels={workStatusLabels}
               />
@@ -215,6 +264,17 @@ export default function ProjectWorkList({
       )}
     </div>
   );
+}
+
+function workIdFromHash(hash: string) {
+  if (!hash.startsWith("work-") || hash.startsWith("work-relations-")) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(hash.slice("work-".length));
+  } catch {
+    return null;
+  }
 }
 
 function mutationErrorMessage(error: unknown, fallback: string) {
@@ -289,6 +349,9 @@ function WorkArchiveAction({ work }: { work: WorkProfile }) {
     onSuccess: async () => {
       setError(null);
       await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: projectWorksQueryPrefix,
+        }),
         queryClient.invalidateQueries({
           queryKey: orpc.projectWorks.queryOptions({
             input: { archived: false, projectId: work.projectId },
@@ -373,6 +436,9 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
       setError(null);
       setPreview(null);
       await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: projectWorksQueryPrefix,
+        }),
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: workQueryKey }),
         queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),

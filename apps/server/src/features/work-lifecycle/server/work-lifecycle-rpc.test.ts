@@ -250,6 +250,10 @@ describe("Work Lifecycle RPC", () => {
         project: { id: "project-1", name: "Payment App" },
       },
     );
+    await client.projectWorks({ archived: "all", projectId: "project-1" });
+    expect(list).toHaveBeenLastCalledWith("account-1", "project-1", {
+      archived: "all",
+    });
     await client.projectWorks({ archived: true, projectId: "project-1" });
     expect(list).toHaveBeenLastCalledWith("account-1", "project-1", {
       archived: true,
