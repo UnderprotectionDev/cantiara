@@ -33,6 +33,7 @@ export const work = pgTable(
     key: text("key").notNull(),
     number: integer("number").notNull(),
     originComponentId: text("origin_component_id"),
+    originLocation: jsonb("origin_location").$type<unknown>(),
     originOwnerRecordId: text("origin_owner_record_id"),
     originSourceVersion: text("origin_source_version"),
     primaryFeatureId: text("primary_feature_id").references(

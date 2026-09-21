@@ -156,6 +156,50 @@ export const fileAttachmentUpload = pgTable(
   ],
 );
 
+export const fileAttachmentMarking = pgTable(
+  "file_attachment_marking",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    attachmentId: text("attachment_id")
+      .notNull()
+      .references(() => fileAttachment.id, { onDelete: "cascade" }),
+    clientIdempotencyKey: text("client_idempotency_key").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    geometry: jsonb("geometry").$type<unknown>().notNull(),
+    id: text("id").primaryKey(),
+    payloadFingerprint: text("payload_fingerprint").notNull(),
+    tool: text("tool").notNull(),
+    undoneAt: timestamp("undone_at"),
+    versionId: text("version_id")
+      .notNull()
+      .references(() => fileAttachmentVersion.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("file_attachment_marking_account_key_uidx").on(
+      table.accountId,
+      table.clientIdempotencyKey,
+    ),
+    index("file_attachment_marking_attachment_version_idx").on(
+      table.attachmentId,
+      table.versionId,
+    ),
+    index("file_attachment_marking_workspace_idx").on(table.workspaceId),
+    check(
+      "file_attachment_marking_payload_fingerprint_check",
+      sql`${table.payloadFingerprint} ~ '^[0-9a-fA-F]{64}$'`,
+    ),
+    check(
+      "file_attachment_marking_tool_check",
+      sql`${table.tool} in ('pen', 'highlighter', 'arrow', 'rectangle')`,
+    ),
+  ],
+);
+
 export const fileAttachmentRelations = relations(
   fileAttachment,
   ({ many, one }) => ({
@@ -163,6 +207,7 @@ export const fileAttachmentRelations = relations(
       fields: [fileAttachment.projectId],
       references: [project.id],
     }),
+    markings: many(fileAttachmentMarking),
     versions: many(fileAttachmentVersion),
     workspace: one(workspace, {
       fields: [fileAttachment.workspaceId],
@@ -173,10 +218,29 @@ export const fileAttachmentRelations = relations(
 
 export const fileAttachmentVersionRelations = relations(
   fileAttachmentVersion,
-  ({ one }) => ({
+  ({ many, one }) => ({
     attachment: one(fileAttachment, {
       fields: [fileAttachmentVersion.attachmentId],
       references: [fileAttachment.id],
+    }),
+    markings: many(fileAttachmentMarking),
+  }),
+);
+
+export const fileAttachmentMarkingRelations = relations(
+  fileAttachmentMarking,
+  ({ one }) => ({
+    attachment: one(fileAttachment, {
+      fields: [fileAttachmentMarking.attachmentId],
+      references: [fileAttachment.id],
+    }),
+    version: one(fileAttachmentVersion, {
+      fields: [fileAttachmentMarking.versionId],
+      references: [fileAttachmentVersion.id],
+    }),
+    workspace: one(workspace, {
+      fields: [fileAttachmentMarking.workspaceId],
+      references: [workspace.id],
     }),
   }),
 );

@@ -45,6 +45,7 @@ function createWorkLifecycleStub(
 ): WorkLifecycleAccess {
   return {
     archive: vi.fn(),
+    bindOriginPosition: vi.fn(),
     close: vi.fn(),
     create: vi.fn(),
     detachFeatureHealthHistory: vi.fn(),
@@ -60,6 +61,7 @@ function createWorkLifecycleStub(
     previewRecreate: vi.fn(),
     previewTypeChange: vi.fn(),
     recordFeatureHealth: vi.fn(),
+    replayBindOriginPosition: vi.fn(),
     reopen: vi.fn(),
     updateFeaturePrimarySpec: vi.fn(),
     updateStatus: vi.fn(),

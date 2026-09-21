@@ -134,6 +134,7 @@ Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürü
 ### Yerel geliştirme sınırı
 
 - Yerel geliştirmede Neon serverless sürücüsünü yerel PostgreSQL'e bağlayan proxy shim kullanılabilir. Shim geliştirici kolaylığıdır; ürün davranışının doğrulandığı ortam değildir ve ürettiği hiçbir sonuç [kabul kanıtı](prd/16-product-acceptance.md#urun-surum-adayi-kaniti) sayılmaz.
+- R2 kimlik bilgileri olmayan `NODE_ENV=development` sunucusu, Dosya Eki object-store sınırını çalıştırmak için yalnız process ömründe yaşayan Bun adapter'ını kullanır. Bu adapter kalıcı kaynak değildir; production'da Cloudflare R2 zorunlu ve fail-closed kalır.
 - [Avrupa Birliği veri bölgesi](prd/03-account-platform-operations.md#ab-veri-bolgesi) sözleşmesinin doğrulanması otomatik bir kontroldür ve production deployment'tan önce çalışır.
 
 ### Güvenlik verisi ve restore sınırı

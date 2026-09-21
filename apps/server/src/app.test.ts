@@ -227,12 +227,17 @@ describe("server app Account Access boundary", () => {
     const fileAttachments = {
       canSelectIntoExternalSurface: vi.fn(),
       cleanupVersionDerivatives: vi.fn(),
+      createMarking: vi.fn(),
       finalize: vi.fn(),
       getQuota: vi.fn(),
       list: vi.fn(),
+      listMarkings: vi.fn(),
+      previewLocationBind: vi.fn(),
       preview: vi.fn(),
       readAsset: vi.fn(),
       stage: vi.fn(),
+      undoMarking: vi.fn(),
+      bindLocation: vi.fn(),
     } satisfies FileAttachmentAccess;
     const { app } = createTestApp({ authorized: true, fileAttachments });
 
@@ -258,9 +263,12 @@ describe("server app Account Access boundary", () => {
     const fileAttachments = {
       canSelectIntoExternalSurface: vi.fn(),
       cleanupVersionDerivatives: vi.fn(),
+      createMarking: vi.fn(),
       finalize: vi.fn(),
       getQuota: vi.fn(),
       list: vi.fn(),
+      listMarkings: vi.fn(),
+      previewLocationBind: vi.fn(),
       preview: vi.fn(),
       readAsset: vi.fn(),
       stage: vi.fn((_accountId, _input, bytes) => {
@@ -272,6 +280,8 @@ describe("server app Account Access boundary", () => {
           uploadId: "upload-1",
         });
       }),
+      undoMarking: vi.fn(),
+      bindLocation: vi.fn(),
     } satisfies FileAttachmentAccess;
     const { app } = createTestApp({ authorized: true, fileAttachments });
     const form = new FormData();
@@ -319,9 +329,12 @@ describe("server app Account Access boundary", () => {
     const fileAttachments = {
       canSelectIntoExternalSurface: vi.fn(),
       cleanupVersionDerivatives: vi.fn(),
+      createMarking: vi.fn(),
       finalize: vi.fn(),
       getQuota: vi.fn(),
       list: vi.fn(),
+      listMarkings: vi.fn(),
+      previewLocationBind: vi.fn(),
       preview: vi.fn(),
       readAsset: vi.fn(async () => ({
         bytes: new Uint8Array([1, 2, 3]),
@@ -331,6 +344,8 @@ describe("server app Account Access boundary", () => {
         versionId: "version-1",
       })),
       stage: vi.fn(),
+      undoMarking: vi.fn(),
+      bindLocation: vi.fn(),
     } satisfies FileAttachmentAccess;
     const { app } = createTestApp({ authorized: true, fileAttachments });
 
@@ -362,12 +377,17 @@ describe("server app Account Access boundary", () => {
     const fileAttachments = {
       canSelectIntoExternalSurface: vi.fn(),
       cleanupVersionDerivatives: vi.fn(),
+      createMarking: vi.fn(),
       finalize: vi.fn(),
       getQuota: vi.fn(),
       list: vi.fn(),
+      listMarkings: vi.fn(),
+      previewLocationBind: vi.fn(),
       preview: vi.fn(),
       readAsset: vi.fn(),
       stage: vi.fn(),
+      undoMarking: vi.fn(),
+      bindLocation: vi.fn(),
     } satisfies FileAttachmentAccess;
     const { app } = createTestApp({ fileAttachments });
 

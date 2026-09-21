@@ -8,11 +8,13 @@ import {
   type WorkLifecycleMutationContracts,
   type WorkLifecycleMutationValue,
   type WorkMergeMutation,
+  type WorkOriginPosition,
   type WorkProfile,
   type WorkRetiredIdentity,
   workCaptureProvenanceSchema,
   workChecklistSchema,
   workClosureResultSchema,
+  workOriginPositionSchema,
   workStatusSchema,
   workTypeSchema,
 } from "@cantiara/api/work-lifecycle";
@@ -56,7 +58,25 @@ type WorkDatabaseRecord = typeof work.$inferSelect;
 type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 type WorkRetiredIdentityRecord = typeof workRetiredIdentity.$inferSelect;
 
+function originRecordValues(originPosition?: WorkOriginPosition) {
+  return {
+    originComponentId: originPosition?.componentId ?? null,
+    originLocation: originPosition?.location ?? null,
+    originOwnerRecordId: originPosition?.ownerRecordId ?? null,
+    originSourceVersion: originPosition?.sourceVersion ?? null,
+  };
+}
+
 function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
+  const originPosition =
+    record.originOwnerRecordId && record.originComponentId
+      ? workOriginPositionSchema.parse({
+          componentId: record.originComponentId,
+          ...(record.originLocation ? { location: record.originLocation } : {}),
+          ownerRecordId: record.originOwnerRecordId,
+          sourceVersion: record.originSourceVersion,
+        })
+      : undefined;
   return {
     archivedAt: record.archivedAt?.toISOString() ?? null,
     captureProvenance: record.captureProvenance
@@ -76,6 +96,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     id: record.id,
     key: record.key,
     number: record.number,
+    ...(originPosition ? { originPosition } : {}),
     primaryFeatureId: record.primaryFeatureId,
     primarySpecId: record.primarySpecId,
     projectId: record.projectId,
@@ -325,6 +346,7 @@ function createWorkMutationTarget(
           id: nextWork.id,
           key: nextWork.key,
           number: nextWork.number,
+          ...originRecordValues(nextWork.originPosition),
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
           projectId: nextWork.projectId,
@@ -454,6 +476,7 @@ function workRecordValues(
     id: nextWork.id,
     key: nextWork.key,
     number: nextWork.number,
+    ...originRecordValues(nextWork.originPosition),
     primaryFeatureId: nextWork.primaryFeatureId,
     primarySpecId: nextWork.primarySpecId,
     projectId: nextWork.projectId,

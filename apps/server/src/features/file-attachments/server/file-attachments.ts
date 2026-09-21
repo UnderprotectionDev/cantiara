@@ -1,25 +1,44 @@
 import { createHash } from "node:crypto";
 
 import {
+  FILE_ATTACHMENT_MARKING_GEOMETRY,
   FILE_ATTACHMENT_QUOTA,
   FILE_ATTACHMENT_TYPE_RULES,
   type FileAttachment,
   type FileAttachmentAccess,
   type FileAttachmentFinalizeInput,
   type FileAttachmentFinalizeReceipt,
+  type FileAttachmentLocation,
+  type FileAttachmentLocationBindInput,
+  type FileAttachmentLocationBindPreview,
+  type FileAttachmentLocationBindPreviewInput,
+  type FileAttachmentMarking,
+  type FileAttachmentMarkingInput,
+  type FileAttachmentMarkingsInput,
   type FileAttachmentQuota,
   type FileAttachmentScope,
   type FileAttachmentStageInput,
   type FileAttachmentType,
   type FileAttachmentTypeRule,
+  type FileAttachmentUndoMarkingInput,
   type FileAttachmentVersion,
+  type FileAttachmentWorkTarget,
   fileAttachmentFinalizeInputSchema,
   fileAttachmentFinalizeReceiptSchema,
+  fileAttachmentLocationBindInputSchema,
+  fileAttachmentLocationBindPreviewInputSchema,
+  fileAttachmentLocationBindPreviewSchema,
+  fileAttachmentLocationBindReceiptSchema,
+  fileAttachmentMarkingInputSchema,
+  fileAttachmentMarkingSchema,
+  fileAttachmentMarkingsInputSchema,
   fileAttachmentQuotaSchema,
   fileAttachmentSchema,
   fileAttachmentStageInputSchema,
+  fileAttachmentUndoMarkingInputSchema,
   fileAttachmentUploadSessionSchema,
 } from "@cantiara/api/file-attachments";
+import type { WorkOriginPosition } from "@cantiara/api/work-lifecycle";
 import { fileTypeFromBuffer } from "file-type";
 
 import {
@@ -368,6 +387,54 @@ export interface FileAttachmentStoredVersion {
   version: FileAttachmentVersion;
 }
 
+export type FileAttachmentWorkOriginPosition = WorkOriginPosition & {
+  location: FileAttachmentLocation;
+};
+
+export interface FileAttachmentLocationWorkAccess {
+  bind: (
+    accountId: string,
+    input: {
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      originPosition: FileAttachmentWorkOriginPosition;
+      workId: string;
+    },
+  ) => Promise<FileAttachmentWorkTarget>;
+  create: (
+    accountId: string,
+    input: {
+      clientIdempotencyKey: string;
+      description: string | null;
+      originPosition: FileAttachmentWorkOriginPosition;
+      projectId: string;
+      title: string;
+      type: "Feature" | "Bug" | "Task" | "Research" | "Improvement";
+    },
+  ) => Promise<FileAttachmentWorkTarget>;
+  find: (
+    accountId: string,
+    workId: string,
+  ) => Promise<FileAttachmentWorkTarget | null>;
+  findProject: (accountId: string, projectId: string) => Promise<boolean>;
+  replayBind: (
+    accountId: string,
+    input: {
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      originPosition: FileAttachmentWorkOriginPosition;
+      workId: string;
+    },
+  ) => Promise<FileAttachmentWorkTarget | null>;
+}
+
+export interface FileAttachmentStoredMarking {
+  accountId: string;
+  clientIdempotencyKey: string;
+  marking: FileAttachmentMarking;
+  payloadFingerprint: string;
+}
+
 export interface FileAttachmentCommitInput {
   accountId: string;
   attachmentId: string;
@@ -394,6 +461,16 @@ export interface FileAttachmentRepository {
     input: FileAttachmentCommitInput,
   ) => Promise<FileAttachmentCommitResult>;
   findExpiredUploads: (now: Date) => Promise<FileAttachmentStoredUpload[]>;
+  findMarking: (
+    accountId: string,
+    attachmentId: string,
+    versionId: string,
+    markingId: string,
+  ) => Promise<FileAttachmentMarking | null>;
+  findMarkingByIdempotencyKey: (
+    accountId: string,
+    clientIdempotencyKey: string,
+  ) => Promise<FileAttachmentStoredMarking | null>;
   findUpload: (
     accountId: string,
     clientIdempotencyKey: string,
@@ -409,11 +486,17 @@ export interface FileAttachmentRepository {
     contentHash: string,
     versionId: string,
   ) => Promise<boolean>;
+  insertMarking: (input: FileAttachmentStoredMarking) => Promise<void>;
   insertUpload: (input: FileAttachmentStoredUpload) => Promise<void>;
   list: (
     accountId: string,
     scope?: FileAttachmentScope,
   ) => Promise<FileAttachment[]>;
+  listMarkings: (
+    accountId: string,
+    attachmentId: string,
+    versionId: string,
+  ) => Promise<FileAttachmentMarking[]>;
   markUploadRejected: (
     uploadId: string,
     error: { code: string; message: string },
@@ -426,11 +509,19 @@ export interface FileAttachmentRepository {
     uploadId: string;
     versionId: string;
   }) => Promise<void>;
+  undoMarking: (
+    accountId: string,
+    attachmentId: string,
+    versionId: string,
+    markingId: string,
+  ) => Promise<void>;
 }
 
 export type FileAttachmentErrorCode =
   | "FILE_ATTACHMENT_ACCOUNT_NOT_FOUND"
   | "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT"
+  | "FILE_ATTACHMENT_LOCATION_UNSUPPORTED"
+  | "FILE_ATTACHMENT_MARKING_UNSUPPORTED"
   | "FILE_ATTACHMENT_QUOTA_EXCEEDED"
   | "FILE_ATTACHMENT_REVISION_CONFLICT"
   | "FILE_ATTACHMENT_PREVIEW_UNAVAILABLE"
@@ -451,10 +542,6 @@ export class FileAttachmentError extends Error {
     this.name = "FileAttachmentError";
     this.code = code;
   }
-}
-
-function hashBytesForFingerprint(bytes: Uint8Array) {
-  return hashBytes(bytes);
 }
 
 function scopeFingerprint(scope: FileAttachmentScope | undefined) {
@@ -545,6 +632,114 @@ function ensureUploadQuota(quota: FileAttachmentQuota, byteSize: number) {
   }
 }
 
+function metadataFingerprint(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function requireMarkableSource(source: FileAttachmentStoredVersion) {
+  if (source.version.preview !== "image" && source.version.preview !== "pdf") {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+      "Only image and PDF previews support a Marking layer.",
+    );
+  }
+  return source;
+}
+
+function validateMarkingGeometry(
+  source: FileAttachmentStoredVersion,
+  input: FileAttachmentMarkingInput,
+) {
+  requireMarkableSource(source);
+  const { page } = input.geometry;
+  if (source.version.preview === "pdf" && page === undefined) {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+      "PDF markings must identify a page.",
+    );
+  }
+  if (source.version.preview === "image" && page !== undefined) {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+      "Image markings cannot identify a PDF page.",
+    );
+  }
+
+  const expectedGeometry = FILE_ATTACHMENT_MARKING_GEOMETRY[input.tool];
+  if (input.geometry.kind !== expectedGeometry) {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+      "The selected Marking tool does not match its geometry.",
+    );
+  }
+}
+
+function validateLocation(
+  source: FileAttachmentStoredVersion,
+  location: FileAttachmentLocation,
+) {
+  if (source.version.preview !== "image" && source.version.preview !== "pdf") {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_LOCATION_UNSUPPORTED",
+      "Only image and PDF previews support Bind as origin.",
+    );
+  }
+  if (source.version.preview === "pdf" && location.page === undefined) {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_LOCATION_UNSUPPORTED",
+      "A PDF Bind as origin location must identify a page.",
+    );
+  }
+  if (source.version.preview === "image" && location.page !== undefined) {
+    throw new FileAttachmentError(
+      "FILE_ATTACHMENT_LOCATION_UNSUPPORTED",
+      "An image Bind as origin location cannot identify a PDF page.",
+    );
+  }
+}
+
+function originPosition(
+  source: FileAttachmentStoredVersion,
+  location: FileAttachmentLocation,
+): FileAttachmentWorkOriginPosition {
+  return {
+    componentId: `file-location:${metadataFingerprint({
+      attachmentId: source.attachment.id,
+      location,
+      versionId: source.version.id,
+    })}`,
+    location,
+    ownerRecordId: source.attachment.id,
+    sourceVersion: source.version.id,
+  };
+}
+
+function locationPreviewId(
+  source: FileAttachmentStoredVersion,
+  input: FileAttachmentLocationBindPreviewInput,
+  target: FileAttachmentWorkTarget | null,
+) {
+  return `file-attachment-origin:${metadataFingerprint({
+    attachmentId: source.attachment.id,
+    location: input.location,
+    target:
+      input.mode === "new"
+        ? {
+            description: input.description ?? null,
+            mode: input.mode,
+            projectId: input.projectId,
+            title: input.title,
+            type: input.type,
+          }
+        : {
+            mode: input.mode,
+            revision: target?.revision ?? null,
+            workId: input.workId,
+          },
+    versionId: source.version.id,
+  })}`;
+}
+
 export interface FileAttachmentService {
   access: FileAttachmentAccess;
   processPreview: (
@@ -575,6 +770,7 @@ export function createFileAttachments({
   preview: previewConfiguration,
   repository,
   schedulePreview,
+  locationWork,
 }: {
   idGenerator?: () => string;
   now?: () => Date;
@@ -582,7 +778,357 @@ export function createFileAttachments({
   repository: FileAttachmentRepository;
   schedulePreview?: FileAttachmentPreviewSchedule;
   preview?: FileAttachmentPreviewConfiguration;
+  locationWork?: FileAttachmentLocationWorkAccess;
 }): FileAttachmentService {
+  const fileAttachmentPreview = createFileAttachmentPreview({
+    ...previewConfiguration,
+    objectStore,
+    repository,
+    schedulePreview,
+  });
+
+  async function exactSource(
+    accountId: string,
+    attachmentId: string,
+    versionId: string,
+  ) {
+    const source = await repository.findVersion(
+      accountId,
+      attachmentId,
+      versionId,
+    );
+    if (!source) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_TARGET_NOT_FOUND",
+        "File Attachment is unavailable.",
+      );
+    }
+    return source;
+  }
+
+  // PDF page counts never change for a committed File Attachment version, so
+  // one resolved count serves every later marking or Bind as origin call in
+  // this process instead of re-reading and re-parsing the object each time.
+  const pdfPageCounts = new Map<string, number>();
+
+  async function pdfPageCount(
+    accountId: string,
+    source: FileAttachmentStoredVersion,
+  ): Promise<number> {
+    const cached = pdfPageCounts.get(source.version.id);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const rendered = await fileAttachmentPreview.preview(accountId, {
+      attachmentId: source.attachment.id,
+      versionId: source.version.id,
+    });
+    if (
+      rendered.status !== "available" ||
+      rendered.kind !== "pdf" ||
+      rendered.pageCount === undefined
+    ) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_PREVIEW_UNAVAILABLE",
+        "The PDF page count is unavailable.",
+      );
+    }
+    pdfPageCounts.set(source.version.id, rendered.pageCount);
+    return rendered.pageCount;
+  }
+
+  async function validatePdfPage(
+    accountId: string,
+    source: FileAttachmentStoredVersion,
+    page: number | undefined,
+    errorCode:
+      | "FILE_ATTACHMENT_LOCATION_UNSUPPORTED"
+      | "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+  ) {
+    if (source.version.preview !== "pdf" || page === undefined) {
+      return;
+    }
+    if (page > (await pdfPageCount(accountId, source))) {
+      throw new FileAttachmentError(
+        errorCode,
+        "The selected PDF page is outside the available document pages.",
+      );
+    }
+  }
+
+  async function createMarking(
+    accountId: string,
+    rawInput: FileAttachmentMarkingInput,
+  ) {
+    const input = fileAttachmentMarkingInputSchema.parse(rawInput);
+    const source = await exactSource(
+      accountId,
+      input.attachmentId,
+      input.versionId,
+    );
+    validateMarkingGeometry(source, input);
+    await validatePdfPage(
+      accountId,
+      source,
+      input.geometry.page,
+      "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+    );
+    const payloadFingerprint = metadataFingerprint(input);
+    const existing = await repository.findMarkingByIdempotencyKey(
+      accountId,
+      input.clientIdempotencyKey,
+    );
+    if (existing) {
+      if (existing.payloadFingerprint !== payloadFingerprint) {
+        throw new FileAttachmentError(
+          "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT",
+          "The Marking key was already used for different metadata.",
+        );
+      }
+      return fileAttachmentMarkingSchema.parse(existing.marking);
+    }
+
+    const marking = fileAttachmentMarkingSchema.parse({
+      attachmentId: input.attachmentId,
+      createdAt: now().toISOString(),
+      geometry: input.geometry,
+      id: idGenerator(),
+      tool: input.tool,
+      versionId: input.versionId,
+    });
+    const stored: FileAttachmentStoredMarking = {
+      accountId,
+      clientIdempotencyKey: input.clientIdempotencyKey,
+      marking,
+      payloadFingerprint,
+    };
+    try {
+      await repository.insertMarking(stored);
+    } catch (error) {
+      const concurrent = await repository.findMarkingByIdempotencyKey(
+        accountId,
+        input.clientIdempotencyKey,
+      );
+      if (concurrent) {
+        if (concurrent.payloadFingerprint !== payloadFingerprint) {
+          // biome-ignore lint/style/useErrorCause: FileAttachmentError forwards this cause through its Error constructor.
+          throw new FileAttachmentError(
+            "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT",
+            "The Marking key was already used for different metadata.",
+            { cause: error },
+          );
+        }
+        return fileAttachmentMarkingSchema.parse(concurrent.marking);
+      }
+      throw error;
+    }
+    return marking;
+  }
+
+  async function listMarkings(
+    accountId: string,
+    rawInput: FileAttachmentMarkingsInput,
+  ) {
+    const input = fileAttachmentMarkingsInputSchema.parse(rawInput);
+    const source = await exactSource(
+      accountId,
+      input.attachmentId,
+      input.versionId,
+    );
+    requireMarkableSource(source);
+    return fileAttachmentMarkingSchema
+      .array()
+      .parse(
+        await repository.listMarkings(
+          accountId,
+          input.attachmentId,
+          input.versionId,
+        ),
+      );
+  }
+
+  async function undoMarking(
+    accountId: string,
+    rawInput: FileAttachmentUndoMarkingInput,
+  ) {
+    const input = fileAttachmentUndoMarkingInputSchema.parse(rawInput);
+    const source = await exactSource(
+      accountId,
+      input.attachmentId,
+      input.versionId,
+    );
+    requireMarkableSource(source);
+    const marking = await repository.findMarking(
+      accountId,
+      input.attachmentId,
+      input.versionId,
+      input.markingId,
+    );
+    if (marking) {
+      await repository.undoMarking(
+        accountId,
+        input.attachmentId,
+        input.versionId,
+        input.markingId,
+      );
+    }
+  }
+
+  async function resolveLocationPreview(
+    accountId: string,
+    rawInput: FileAttachmentLocationBindPreviewInput,
+  ): Promise<{
+    preview: FileAttachmentLocationBindPreview;
+    source: FileAttachmentStoredVersion;
+  }> {
+    const input = fileAttachmentLocationBindPreviewInputSchema.parse(rawInput);
+    const source = await exactSource(
+      accountId,
+      input.attachmentId,
+      input.versionId,
+    );
+    validateLocation(source, input.location);
+    await validatePdfPage(
+      accountId,
+      source,
+      input.location.page,
+      "FILE_ATTACHMENT_LOCATION_UNSUPPORTED",
+    );
+    if (!locationWork) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_LOCATION_UNSUPPORTED",
+        "Work is unavailable for Bind as origin.",
+      );
+    }
+    const target =
+      input.mode === "existing"
+        ? await locationWork.find(accountId, input.workId)
+        : null;
+    if (input.mode === "existing" && !target) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_TARGET_NOT_FOUND",
+        "The selected Work is unavailable.",
+      );
+    }
+    if (
+      input.mode === "new" &&
+      !(await locationWork.findProject(accountId, input.projectId))
+    ) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_TARGET_NOT_FOUND",
+        "The selected Project is unavailable.",
+      );
+    }
+    const preview = fileAttachmentLocationBindPreviewSchema.parse({
+      attachmentId: input.attachmentId,
+      location: input.location,
+      previewId: locationPreviewId(source, input, target),
+      target:
+        input.mode === "new"
+          ? {
+              mode: "new" as const,
+              projectId: input.projectId,
+              title: input.title,
+              type: input.type,
+            }
+          : { mode: "existing" as const, work: target },
+      versionId: input.versionId,
+    });
+    return { preview, source };
+  }
+
+  async function previewLocationBind(
+    accountId: string,
+    rawInput: FileAttachmentLocationBindPreviewInput,
+  ): Promise<FileAttachmentLocationBindPreview> {
+    const { preview } = await resolveLocationPreview(accountId, rawInput);
+    return preview;
+  }
+
+  async function bindLocation(
+    accountId: string,
+    rawInput: FileAttachmentLocationBindInput,
+  ) {
+    const input = fileAttachmentLocationBindInputSchema.parse(rawInput);
+    const previewInput =
+      input.mode === "new"
+        ? {
+            attachmentId: input.attachmentId,
+            description: input.description,
+            location: input.location,
+            mode: input.mode,
+            projectId: input.projectId,
+            title: input.title,
+            type: input.type,
+            versionId: input.versionId,
+          }
+        : {
+            attachmentId: input.attachmentId,
+            location: input.location,
+            mode: input.mode,
+            versionId: input.versionId,
+            workId: input.workId,
+          };
+    const { preview, source } = await resolveLocationPreview(
+      accountId,
+      previewInput,
+    );
+    const position = originPosition(source, input.location);
+    if (preview.previewId !== input.previewId) {
+      const replayed =
+        input.mode === "existing"
+          ? await locationWork?.replayBind(accountId, {
+              baseRevision: input.baseRevision,
+              clientIdempotencyKey: input.clientIdempotencyKey,
+              originPosition: position,
+              workId: input.workId,
+            })
+          : null;
+      if (replayed) {
+        return fileAttachmentLocationBindReceiptSchema.parse({
+          attachmentId: input.attachmentId,
+          location: input.location,
+          status: "committed",
+          versionId: input.versionId,
+          work: replayed,
+        });
+      }
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_REVISION_CONFLICT",
+        "The Bind as origin preview is stale. Review it again before confirming.",
+      );
+    }
+    const work =
+      input.mode === "new"
+        ? await locationWork?.create(accountId, {
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            description: input.description ?? null,
+            originPosition: position,
+            projectId: input.projectId,
+            title: input.title,
+            type: input.type,
+          })
+        : await locationWork?.bind(accountId, {
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            originPosition: position,
+            workId: input.workId,
+          });
+    if (!work) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_LOCATION_UNSUPPORTED",
+        "Work is unavailable for Bind as origin.",
+      );
+    }
+    return fileAttachmentLocationBindReceiptSchema.parse({
+      attachmentId: input.attachmentId,
+      location: input.location,
+      status: "committed",
+      versionId: input.versionId,
+      work,
+    });
+  }
+
   async function stage(
     accountId: string,
     rawInput: FileAttachmentStageInput,
@@ -597,7 +1143,7 @@ export function createFileAttachments({
       );
     }
 
-    const contentHash = hashBytesForFingerprint(bytes);
+    const contentHash = hashBytes(bytes);
     const payloadFingerprint = uploadFingerprint(
       input,
       contentHash,
@@ -818,7 +1364,7 @@ export function createFileAttachments({
         .delete(upload.temporaryObjectKey)
         .catch(() => undefined);
       await repository.clearTemporaryObject(upload.id).catch(() => undefined);
-      preview
+      fileAttachmentPreview
         .schedule(accountId, {
           attachmentId: committed.attachment.id,
           versionId: committed.version.id,
@@ -960,17 +1506,21 @@ export function createFileAttachments({
     return expired.length;
   }
 
-  const preview = createFileAttachmentPreview({
-    ...previewConfiguration,
-    objectStore,
-    repository,
-    schedulePreview,
-  });
-
   return {
-    access: { finalize, getQuota, list, stage, ...preview },
+    access: {
+      bindLocation,
+      createMarking,
+      finalize,
+      getQuota,
+      list,
+      listMarkings,
+      previewLocationBind,
+      stage,
+      undoMarking,
+      ...fileAttachmentPreview,
+    },
     processPreview: (job, options) =>
-      preview.process(
+      fileAttachmentPreview.process(
         job.accountId,
         {
           attachmentId: job.attachmentId,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { FileAttachmentLocation } from "./file-attachments";
 import {
   humanMutationEnvelopeSchema,
   type MutationContract,
@@ -496,6 +497,7 @@ export type RelationUsageRemoveInput = z.infer<
  */
 export interface RelationOriginPosition {
   componentId: string;
+  location?: FileAttachmentLocation;
   ownerRecordId: string;
   sourceVersion: string | null;
 }

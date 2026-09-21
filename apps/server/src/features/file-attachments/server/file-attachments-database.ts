@@ -3,10 +3,12 @@ import {
   FILE_ATTACHMENT_TYPE_RULES,
   type FileAttachment,
   type FileAttachmentFinalizeReceipt,
+  type FileAttachmentMarking,
   type FileAttachmentQuota,
   type FileAttachmentScope,
   type FileAttachmentVersion,
   fileAttachmentFinalizeReceiptSchema,
+  fileAttachmentMarkingSchema,
   fileAttachmentQuotaSchema,
   fileAttachmentSchema,
   fileAttachmentVersionSchema,
@@ -15,17 +17,19 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
   fileAttachment,
+  fileAttachmentMarking,
   fileAttachmentUpload,
   fileAttachmentVersion,
 } from "@cantiara/db/schema/file-attachments";
 import { project } from "@cantiara/db/schema/project";
-import { and, asc, eq, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 import {
   type FileAttachmentCommitInput,
   type FileAttachmentCommitResult,
   FileAttachmentError,
   type FileAttachmentRepository,
+  type FileAttachmentStoredMarking,
   type FileAttachmentStoredUpload,
 } from "./file-attachments";
 
@@ -34,6 +38,8 @@ type FileAttachmentVersionDatabaseRecord =
   typeof fileAttachmentVersion.$inferSelect;
 type FileAttachmentUploadDatabaseRecord =
   typeof fileAttachmentUpload.$inferSelect;
+type FileAttachmentMarkingDatabaseRecord =
+  typeof fileAttachmentMarking.$inferSelect;
 
 function scopeFromColumns(record: {
   personalWikiId: string | null;
@@ -172,6 +178,19 @@ function toStoredUpload(
     temporaryObjectKey: record.temporaryObjectKey,
     workspaceId: record.workspaceId,
   };
+}
+
+function toMarking(
+  record: FileAttachmentMarkingDatabaseRecord,
+): FileAttachmentMarking {
+  return fileAttachmentMarkingSchema.parse({
+    attachmentId: record.attachmentId,
+    createdAt: record.createdAt.toISOString(),
+    geometry: record.geometry,
+    id: record.id,
+    tool: record.tool,
+    versionId: record.versionId,
+  });
 }
 
 async function workspaceIdFor(
@@ -509,6 +528,52 @@ export function createDatabaseFileAttachments(
         : null;
     },
 
+    async findMarking(accountId, attachmentId, versionId, markingId) {
+      const [record] = await database
+        .select({ marking: fileAttachmentMarking })
+        .from(fileAttachmentMarking)
+        .innerJoin(
+          fileAttachment,
+          eq(fileAttachment.id, fileAttachmentMarking.attachmentId),
+        )
+        .where(
+          and(
+            eq(fileAttachmentMarking.accountId, accountId),
+            eq(fileAttachmentMarking.attachmentId, attachmentId),
+            eq(fileAttachmentMarking.versionId, versionId),
+            eq(fileAttachmentMarking.id, markingId),
+            eq(fileAttachment.workspaceId, fileAttachmentMarking.workspaceId),
+            isNull(fileAttachmentMarking.undoneAt),
+          ),
+        )
+        .limit(1);
+      return record ? toMarking(record.marking) : null;
+    },
+
+    async findMarkingByIdempotencyKey(accountId, clientIdempotencyKey) {
+      const [record] = await database
+        .select()
+        .from(fileAttachmentMarking)
+        .where(
+          and(
+            eq(fileAttachmentMarking.accountId, accountId),
+            eq(
+              fileAttachmentMarking.clientIdempotencyKey,
+              clientIdempotencyKey,
+            ),
+          ),
+        )
+        .limit(1);
+      return record
+        ? ({
+            accountId: record.accountId,
+            clientIdempotencyKey: record.clientIdempotencyKey,
+            marking: toMarking(record),
+            payloadFingerprint: record.payloadFingerprint,
+          } satisfies FileAttachmentStoredMarking)
+        : null;
+    },
+
     async hasOtherVersionWithContentHash(contentHash, versionId) {
       const [record] = await database
         .select({ id: fileAttachmentVersion.id })
@@ -577,6 +642,28 @@ export function createDatabaseFileAttachments(
       });
     },
 
+    async insertMarking(input) {
+      const workspaceId = await workspaceIdFor(database, input.accountId);
+      if (!workspaceId) {
+        throw new FileAttachmentError(
+          "FILE_ATTACHMENT_ACCOUNT_NOT_FOUND",
+          "Workspace is unavailable.",
+        );
+      }
+      await database.insert(fileAttachmentMarking).values({
+        accountId: input.accountId,
+        attachmentId: input.marking.attachmentId,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        createdAt: new Date(input.marking.createdAt),
+        geometry: input.marking.geometry,
+        id: input.marking.id,
+        payloadFingerprint: input.payloadFingerprint,
+        tool: input.marking.tool,
+        versionId: input.marking.versionId,
+        workspaceId,
+      });
+    },
+
     async list(accountId, scope) {
       const workspaceId = await workspaceIdFor(database, accountId);
       if (!workspaceId) {
@@ -607,6 +694,27 @@ export function createDatabaseFileAttachments(
       return records.map(({ attachment, version }) =>
         toAttachment(attachment, version),
       );
+    },
+
+    async listMarkings(accountId, attachmentId, versionId) {
+      const records = await database
+        .select({ marking: fileAttachmentMarking })
+        .from(fileAttachmentMarking)
+        .innerJoin(
+          fileAttachment,
+          eq(fileAttachment.id, fileAttachmentMarking.attachmentId),
+        )
+        .where(
+          and(
+            eq(fileAttachmentMarking.accountId, accountId),
+            eq(fileAttachmentMarking.attachmentId, attachmentId),
+            eq(fileAttachmentMarking.versionId, versionId),
+            eq(fileAttachment.workspaceId, fileAttachmentMarking.workspaceId),
+            isNull(fileAttachmentMarking.undoneAt),
+          ),
+        )
+        .orderBy(asc(fileAttachmentMarking.createdAt));
+      return records.map(({ marking }) => toMarking(marking));
     },
 
     async markUploadRejected(uploadId, error, at) {
@@ -673,6 +781,21 @@ export function createDatabaseFileAttachments(
           temporaryObjectKey: null,
         })
         .where(eq(fileAttachmentUpload.id, uploadId));
+    },
+
+    async undoMarking(accountId, attachmentId, versionId, markingId) {
+      await database
+        .update(fileAttachmentMarking)
+        .set({ undoneAt: new Date() })
+        .where(
+          and(
+            eq(fileAttachmentMarking.accountId, accountId),
+            eq(fileAttachmentMarking.attachmentId, attachmentId),
+            eq(fileAttachmentMarking.versionId, versionId),
+            eq(fileAttachmentMarking.id, markingId),
+            isNull(fileAttachmentMarking.undoneAt),
+          ),
+        );
     },
   };
 

@@ -1,24 +1,57 @@
 import { z } from "zod";
 
 export const FILE_ATTACHMENT_UI_LABELS = {
+  arrow: "Arrow",
+  bindAsOrigin: "Bind as origin",
+  cancel: "Cancel",
+  confirm: "Confirm",
   chooseFile: "Choose file",
   captions: "Captions",
   copy: "Copy",
+  description: "Description",
   download: "Download",
   fileAttachment: "File Attachment",
+  existingWork: "Existing Work",
   finalizing: "Finalizing",
   fullscreen: "Fullscreen",
+  highlighter: "Highlighter",
   loop: "Loop",
+  markingLayer: "Marking layer",
+  markedSourceLocation: "Marked source location",
   move: "Move",
+  locationBindFailed: "Bind as origin could not be completed.",
+  locationPreviewUnavailable: "Location preview is unavailable.",
+  locationSelectionInstruction:
+    "Click a Point or drag a Region on the preview, then click Preview.",
+  markingSaveFailed: "Marking could not be saved. Try again.",
+  markingUndoFailed: "Marking could not be undone. Try again.",
+  newWork: "New Work",
+  newWorkProjectRequired: "A Project is required for a new Work.",
   noFileSelected: "No file selected",
+  page: "Page",
+  pen: "Pen",
   playbackSpeed: "Playback speed",
+  point: "Point",
+  projectId: "Project ID",
   preview: "Preview",
+  rectangle: "Rectangle",
+  region: "Region",
   retryPreview: "Retry preview",
   selectFileAttachment: "Select a File Attachment",
+  reviewLocationBind:
+    "Review the selected Point or Region, then confirm the Work bind.",
+  title: "Title",
+  undo: "Undo",
   unavailable: "Unavailable",
   upload: "Upload",
+  uploading: "Uploading",
   uploadNewVersion: "Upload new version",
   versions: "Versions",
+  workId: "Work ID",
+  xCoordinate: "X (0–1)",
+  yCoordinate: "Y (0–1)",
+  width: "Width (0–1)",
+  height: "Height (0–1)",
 } as const;
 
 export const FILE_ATTACHMENT_QUOTA = {
@@ -237,6 +270,299 @@ export const FILE_ATTACHMENT_PREVIEW_VARIANTS = [
 export type FileAttachmentPreviewVariant =
   (typeof FILE_ATTACHMENT_PREVIEW_VARIANTS)[number];
 
+export const FILE_ATTACHMENT_MARKING_TOOLS = [
+  "pen",
+  "highlighter",
+  "arrow",
+  "rectangle",
+] as const;
+
+export type FileAttachmentMarkingTool =
+  (typeof FILE_ATTACHMENT_MARKING_TOOLS)[number];
+
+export const FILE_ATTACHMENT_MARKING_GEOMETRY = {
+  arrow: "arrow",
+  highlighter: "path",
+  pen: "path",
+  rectangle: "rectangle",
+} as const satisfies Record<
+  FileAttachmentMarkingTool,
+  "arrow" | "path" | "rectangle"
+>;
+
+const normalizedCoordinateSchema = z.number().min(0).max(1);
+const pageNumberSchema = z.number().int().positive().safe();
+
+export const fileAttachmentPointSchema = z
+  .object({
+    x: normalizedCoordinateSchema,
+    y: normalizedCoordinateSchema,
+  })
+  .strict();
+
+export type FileAttachmentPoint = z.infer<typeof fileAttachmentPointSchema>;
+
+export const fileAttachmentRegionSchema = z
+  .object({
+    height: z.number().gt(0).max(1),
+    width: z.number().gt(0).max(1),
+    x: normalizedCoordinateSchema,
+    y: normalizedCoordinateSchema,
+  })
+  .strict()
+  .superRefine((region, context) => {
+    if (region.x + region.width > 1) {
+      context.addIssue({
+        code: "custom",
+        message: "Region must stay inside the source surface.",
+        path: ["width"],
+      });
+    }
+    if (region.y + region.height > 1) {
+      context.addIssue({
+        code: "custom",
+        message: "Region must stay inside the source surface.",
+        path: ["height"],
+      });
+    }
+  });
+
+export type FileAttachmentRegion = z.infer<typeof fileAttachmentRegionSchema>;
+
+export const fileAttachmentLocationSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("point"),
+      page: pageNumberSchema.optional(),
+      x: normalizedCoordinateSchema,
+      y: normalizedCoordinateSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("region"),
+      page: pageNumberSchema.optional(),
+      region: fileAttachmentRegionSchema,
+    })
+    .strict(),
+]);
+
+export type FileAttachmentLocation = z.infer<
+  typeof fileAttachmentLocationSchema
+>;
+
+export const fileAttachmentMarkingGeometrySchema = z.discriminatedUnion(
+  "kind",
+  [
+    z
+      .object({
+        kind: z.literal("path"),
+        page: pageNumberSchema.optional(),
+        points: z.array(fileAttachmentPointSchema).min(2).max(10_000),
+      })
+      .strict(),
+    z
+      .object({
+        end: fileAttachmentPointSchema,
+        kind: z.literal("arrow"),
+        page: pageNumberSchema.optional(),
+        start: fileAttachmentPointSchema,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("rectangle"),
+        page: pageNumberSchema.optional(),
+        region: fileAttachmentRegionSchema,
+      })
+      .strict(),
+  ],
+);
+
+export type FileAttachmentMarkingGeometry = z.infer<
+  typeof fileAttachmentMarkingGeometrySchema
+>;
+
+export const fileAttachmentMarkingInputSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    clientIdempotencyKey: identifierSchema,
+    geometry: fileAttachmentMarkingGeometrySchema,
+    tool: z.enum(FILE_ATTACHMENT_MARKING_TOOLS),
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentMarkingInput = z.infer<
+  typeof fileAttachmentMarkingInputSchema
+>;
+
+export const fileAttachmentMarkingSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    createdAt: z.string().datetime({ offset: true }),
+    geometry: fileAttachmentMarkingGeometrySchema,
+    id: identifierSchema,
+    tool: z.enum(FILE_ATTACHMENT_MARKING_TOOLS),
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentMarking = z.infer<typeof fileAttachmentMarkingSchema>;
+
+export const fileAttachmentMarkingsInputSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentMarkingsInput = z.infer<
+  typeof fileAttachmentMarkingsInputSchema
+>;
+
+export const fileAttachmentUndoMarkingInputSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    markingId: identifierSchema,
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentUndoMarkingInput = z.infer<
+  typeof fileAttachmentUndoMarkingInputSchema
+>;
+
+const fileAttachmentWorkTypeSchema = z.enum([
+  "Feature",
+  "Bug",
+  "Task",
+  "Research",
+  "Improvement",
+]);
+
+export const fileAttachmentLocationBindPreviewInputSchema =
+  z.discriminatedUnion("mode", [
+    z
+      .object({
+        attachmentId: identifierSchema,
+        description: z.string().trim().max(100_000).nullable().optional(),
+        location: fileAttachmentLocationSchema,
+        mode: z.literal("new"),
+        projectId: identifierSchema,
+        title: fileNameSchema,
+        type: fileAttachmentWorkTypeSchema.default("Task"),
+        versionId: identifierSchema,
+      })
+      .strict(),
+    z
+      .object({
+        attachmentId: identifierSchema,
+        location: fileAttachmentLocationSchema,
+        mode: z.literal("existing"),
+        versionId: identifierSchema,
+        workId: identifierSchema,
+      })
+      .strict(),
+  ]);
+
+export type FileAttachmentLocationBindPreviewInput = z.infer<
+  typeof fileAttachmentLocationBindPreviewInputSchema
+>;
+
+export const fileAttachmentLocationBindInputSchema = z.discriminatedUnion(
+  "mode",
+  [
+    z
+      .object({
+        attachmentId: identifierSchema,
+        clientIdempotencyKey: identifierSchema,
+        description: z.string().trim().max(100_000).nullable().optional(),
+        location: fileAttachmentLocationSchema,
+        mode: z.literal("new"),
+        previewId: identifierSchema,
+        projectId: identifierSchema,
+        title: fileNameSchema,
+        type: fileAttachmentWorkTypeSchema.default("Task"),
+        versionId: identifierSchema,
+      })
+      .strict(),
+    z
+      .object({
+        attachmentId: identifierSchema,
+        baseRevision: revisionSchema,
+        clientIdempotencyKey: identifierSchema,
+        location: fileAttachmentLocationSchema,
+        mode: z.literal("existing"),
+        previewId: identifierSchema,
+        versionId: identifierSchema,
+        workId: identifierSchema,
+      })
+      .strict(),
+  ],
+);
+
+export type FileAttachmentLocationBindInput = z.infer<
+  typeof fileAttachmentLocationBindInputSchema
+>;
+
+export const fileAttachmentWorkTargetSchema = z
+  .object({
+    id: identifierSchema,
+    key: identifierSchema,
+    projectId: identifierSchema,
+    revision: revisionSchema,
+    title: fileNameSchema,
+  })
+  .strict();
+
+export type FileAttachmentWorkTarget = z.infer<
+  typeof fileAttachmentWorkTargetSchema
+>;
+
+export const fileAttachmentLocationBindPreviewSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    location: fileAttachmentLocationSchema,
+    previewId: identifierSchema,
+    target: z.discriminatedUnion("mode", [
+      z
+        .object({
+          mode: z.literal("new"),
+          projectId: identifierSchema,
+          title: fileNameSchema,
+          type: fileAttachmentWorkTypeSchema,
+        })
+        .strict(),
+      z
+        .object({
+          mode: z.literal("existing"),
+          work: fileAttachmentWorkTargetSchema,
+        })
+        .strict(),
+    ]),
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentLocationBindPreview = z.infer<
+  typeof fileAttachmentLocationBindPreviewSchema
+>;
+
+export const fileAttachmentLocationBindReceiptSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    location: fileAttachmentLocationSchema,
+    status: z.literal("committed"),
+    versionId: identifierSchema,
+    work: fileAttachmentWorkTargetSchema,
+  })
+  .strict();
+
+export type FileAttachmentLocationBindReceipt = z.infer<
+  typeof fileAttachmentLocationBindReceiptSchema
+>;
+
 export const fileAttachmentPreviewInputSchema = z
   .object({
     attachmentId: identifierSchema,
@@ -421,6 +747,10 @@ export const fileAttachmentListInputSchema = z
   .strict();
 
 export interface FileAttachmentAccess {
+  bindLocation: (
+    accountId: string,
+    input: FileAttachmentLocationBindInput,
+  ) => Promise<FileAttachmentLocationBindReceipt>;
   canSelectIntoExternalSurface: (
     accountId: string,
     input: FileAttachmentPreviewInput,
@@ -429,6 +759,10 @@ export interface FileAttachmentAccess {
     accountId: string,
     input: FileAttachmentPreviewInput,
   ) => Promise<void>;
+  createMarking: (
+    accountId: string,
+    input: FileAttachmentMarkingInput,
+  ) => Promise<FileAttachmentMarking>;
   finalize: (
     accountId: string,
     input: FileAttachmentFinalizeInput,
@@ -438,10 +772,18 @@ export interface FileAttachmentAccess {
     accountId: string,
     scope?: FileAttachmentScope,
   ) => Promise<FileAttachment[]>;
+  listMarkings: (
+    accountId: string,
+    input: FileAttachmentMarkingsInput,
+  ) => Promise<FileAttachmentMarking[]>;
   preview: (
     accountId: string,
     input: FileAttachmentPreviewInput,
   ) => Promise<FileAttachmentPreview>;
+  previewLocationBind: (
+    accountId: string,
+    input: FileAttachmentLocationBindPreviewInput,
+  ) => Promise<FileAttachmentLocationBindPreview>;
   readAsset: (
     accountId: string,
     input: FileAttachmentAssetInput,
@@ -451,4 +793,8 @@ export interface FileAttachmentAccess {
     input: FileAttachmentStageInput,
     bytes: Uint8Array,
   ) => Promise<FileAttachmentUploadSession>;
+  undoMarking: (
+    accountId: string,
+    input: FileAttachmentUndoMarkingInput,
+  ) => Promise<void>;
 }

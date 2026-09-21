@@ -7,6 +7,7 @@ import {
   captureTemplateSchema,
   captureUrlSchema,
 } from "./capture-triage";
+import { fileAttachmentLocationSchema } from "./file-attachments";
 import {
   humanMutationEnvelopeSchema,
   type MutationContract,
@@ -70,6 +71,17 @@ export const workClosureReasonSchema = z
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
+export const workOriginPositionSchema = z
+  .object({
+    componentId: identifierSchema,
+    location: fileAttachmentLocationSchema.optional(),
+    ownerRecordId: identifierSchema,
+    sourceVersion: identifierSchema.nullable(),
+  })
+  .strict();
+
+export type WorkOriginPosition = z.infer<typeof workOriginPositionSchema>;
+
 export const workTitleSchema = z
   .string()
   .trim()
@@ -128,6 +140,7 @@ const createWorkInputObjectSchema = z
     captureProvenance: workCaptureProvenanceSchema.nullable().optional(),
     checklist: workChecklistSchema.optional(),
     description: workDescriptionSchema.optional(),
+    originPosition: workOriginPositionSchema.optional(),
     effort: workEffortSchema,
     projectId: identifierSchema,
     targetDate: workTargetDateSchema,
@@ -141,6 +154,9 @@ export const createWorkInputSchema = createWorkInputObjectSchema;
 export const createWorkMutationInputSchema = humanMutationEnvelopeSchema.extend(
   createWorkInputObjectSchema.shape,
 );
+
+export const createWorkRpcMutationInputSchema =
+  createWorkMutationInputSchema.omit({ originPosition: true });
 
 const workTypeChangePreviewInputObjectSchema = z
   .object({
@@ -235,6 +251,17 @@ export type WorkTypeChangePreviewInput = z.input<
   typeof workTypeChangePreviewInputSchema
 >;
 export type UpdateWorkTypeInput = z.input<typeof updateWorkTypeInputSchema>;
+
+export const bindWorkOriginPositionInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    originPosition: workOriginPositionSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type BindWorkOriginPositionInput = z.input<
+  typeof bindWorkOriginPositionInputSchema
+>;
 
 export const WORK_RECREATE_FIELD_OPTIONS = [
   "title",
@@ -574,6 +601,7 @@ export interface WorkProfile {
   id: string;
   key: string;
   number: number;
+  originPosition?: WorkOriginPosition;
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
@@ -670,6 +698,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: WorkArchiveMutationInput,
   ) => Promise<WorkProfile>;
+  bindOriginPosition: (
+    accountId: string,
+    input: BindWorkOriginPositionInput,
+  ) => Promise<WorkProfile>;
   close: (
     accountId: string,
     input: CloseWorkInput,
@@ -731,6 +763,10 @@ export interface WorkLifecycleAccess {
     input: ReopenWorkInput,
     initiator: WorkVisibleUserInitiator,
   ) => Promise<WorkProfile>;
+  replayBindOriginPosition: (
+    accountId: string,
+    input: BindWorkOriginPositionInput,
+  ) => Promise<WorkProfile | null>;
   resolve: (
     accountId: string,
     input: WorkIdentityInput,

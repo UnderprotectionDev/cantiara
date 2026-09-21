@@ -149,15 +149,20 @@ function createPreview(
         objectKey: sourceKey,
         version,
       }),
+    findMarking: () => Promise.resolve(null),
+    findMarkingByIdempotencyKey: () => Promise.resolve(null),
     hasOtherVersionWithContentHash:
       options.hasOtherVersionWithContentHash ?? (() => Promise.resolve(false)),
     findWorkspaceId: () => Promise.resolve("workspace-1"),
     getQuota: () => Promise.reject(new Error("Not part of this preview test.")),
     insertUpload: () => Promise.resolve(),
+    insertMarking: () => Promise.resolve(),
     list: () => Promise.resolve([]),
+    listMarkings: () => Promise.resolve([]),
     markUploadRejected: () => Promise.resolve(),
     markUploadSwept: () => Promise.resolve(),
     rollbackCapturePromotion: () => Promise.resolve(),
+    undoMarking: () => Promise.resolve(),
   };
   const previewConfiguration: FileAttachmentPreviewConfiguration = {
     limits: options.limits,

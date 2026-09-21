@@ -267,6 +267,27 @@
       "when": 1790007640332,
       "tag": "0037_wealthy_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790016390256,
+      "tag": "0038_repair_github_workspace_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790016464145,
+      "tag": "0039_backfill_github_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790024281176,
+      "tag": "0040_file-attachment-markings-work-origin",
+      "breakpoints": true
     }
   ]
 }

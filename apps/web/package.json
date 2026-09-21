@@ -39,10 +39,12 @@
     "@vidstack/react": "1.15.6",
     "better-auth": "catalog:",
     "date-fns": "^4.4.0",
+    "konva": "^10.2.0",
     "lucide-react": "catalog:",
     "pdfjs-dist": "^6.3.289",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-konva": "^19.0.10",
     "sonner": "catalog:",
     "zod": "catalog:"
   },

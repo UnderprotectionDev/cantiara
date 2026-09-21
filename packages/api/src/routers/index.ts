@@ -48,7 +48,12 @@ import {
 import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
+  fileAttachmentLocationBindInputSchema,
+  fileAttachmentLocationBindPreviewInputSchema,
+  fileAttachmentMarkingInputSchema,
+  fileAttachmentMarkingsInputSchema,
   fileAttachmentPreviewInputSchema,
+  fileAttachmentUndoMarkingInputSchema,
 } from "../file-attachments";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
@@ -115,7 +120,7 @@ import {
 } from "../work-drafts";
 import {
   closeWorkInputSchema,
-  createWorkMutationInputSchema,
+  createWorkRpcMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
   includeWorkInputSchema,
@@ -373,6 +378,17 @@ function rethrowFileAttachmentError(error: unknown): never {
       }
       throw error;
   }
+}
+
+function rethrowFileAttachmentWorkError(error: unknown): never {
+  if (
+    isRecord(error) &&
+    typeof error.code === "string" &&
+    error.code.startsWith("FILE_ATTACHMENT_")
+  ) {
+    rethrowFileAttachmentError(error);
+  }
+  rethrowWorkLifecycleError(error);
 }
 
 function requireCaptureInboxTriage(context: Context): CaptureInboxTriageAccess {
@@ -1979,7 +1995,7 @@ export const appRouter = {
       ),
     ),
   createWork: protectedProcedure
-    .input(createWorkMutationInputSchema)
+    .input(createWorkRpcMutationInputSchema)
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).create(context.session.user.id, input),
@@ -2820,6 +2836,67 @@ export const appRouter = {
       rethrowFileAttachmentError(error);
     }
   }),
+  fileAttachmentMarkings: protectedProcedure
+    .input(fileAttachmentMarkingsInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).listMarkings(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  createFileAttachmentMarking: protectedProcedure
+    .input(fileAttachmentMarkingInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).createMarking(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  undoFileAttachmentMarking: protectedProcedure
+    .input(fileAttachmentUndoMarkingInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFileAttachments(context).undoMarking(
+          context.session.user.id,
+          input,
+        );
+        return { status: "undone" as const };
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  previewFileAttachmentLocationBind: protectedProcedure
+    .input(fileAttachmentLocationBindPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).previewLocationBind(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentWorkError(error);
+      }
+    }),
+  bindFileAttachmentLocation: protectedProcedure
+    .input(fileAttachmentLocationBindInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).bindLocation(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentWorkError(error);
+      }
+    }),
   finalizeFileAttachment: protectedProcedure
     .input(fileAttachmentFinalizeInputSchema)
     .handler(async ({ context, input }) => {

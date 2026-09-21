@@ -31,11 +31,12 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
+import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
 import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
 import { createFileAttachments } from "./features/file-attachments/server/file-attachments";
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
-import { createR2FileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-r2";
+import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -110,18 +111,22 @@ const webCaptureStaging =
       })
     : undefined;
 const fileAttachmentRepository = createDatabaseFileAttachments(db);
-const fileAttachmentObjectStore =
+const fileAttachmentR2Config =
   env.R2_ACCESS_KEY_ID &&
   env.R2_ACCOUNT_ID &&
   env.R2_BUCKET &&
   env.R2_SECRET_ACCESS_KEY
-    ? createR2FileAttachmentObjectStore({
+    ? {
         accessKeyId: env.R2_ACCESS_KEY_ID,
         accountId: env.R2_ACCOUNT_ID,
         bucket: env.R2_BUCKET,
         secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-      })
+      }
     : undefined;
+const fileAttachmentObjectStore = createFileAttachmentObjectStore({
+  nodeEnv: env.NODE_ENV,
+  r2: fileAttachmentR2Config,
+});
 let processFileAttachmentPreview:
   | ((
       job: {
@@ -145,6 +150,10 @@ const fileAttachmentPreviewWorker = fileAttachmentObjectStore
   : undefined;
 const fileAttachmentService = fileAttachmentObjectStore
   ? createFileAttachments({
+      locationWork: createFileAttachmentLocationWork(
+        workLifecycle,
+        projectShell,
+      ),
       objectStore: fileAttachmentObjectStore,
       repository: fileAttachmentRepository,
       schedulePreview: fileAttachmentPreviewWorker?.enqueue,
