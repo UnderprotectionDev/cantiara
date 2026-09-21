@@ -1,5 +1,9 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { RelationView } from "@cantiara/api/relations";
+import {
+  getDefaultWorkContextLayouts,
+  type WorkContextLayouts,
+} from "@cantiara/api/work-context";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -58,6 +62,7 @@ const work: WorkProfile = {
 function renderCard(
   statusLabels: readonly WorkStatusLabel[],
   relations: readonly RelationView[] = [],
+  workContextLayouts?: Partial<WorkContextLayouts>,
 ) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(
@@ -75,7 +80,11 @@ function renderCard(
   return renderToStaticMarkup(
     <RouterContextProvider router={router}>
       <QueryClientProvider client={queryClient}>
-        <WorkContextCard work={work} workStatusLabels={statusLabels} />
+        <WorkContextCard
+          work={work}
+          workContextLayouts={workContextLayouts}
+          workStatusLabels={statusLabels}
+        />
       </QueryClientProvider>
     </RouterContextProvider>,
   );
@@ -99,6 +108,36 @@ describe("Work Context Card initial fields", () => {
     const html = renderCard(workStatusLabels);
 
     expect(html).not.toContain("Nothing here yet.");
+  });
+
+  test("uses the Project + Work type layout and does not offer hidden sections", () => {
+    const layouts = getDefaultWorkContextLayouts();
+    layouts.Task = {
+      ...layouts.Task,
+      customSections: [
+        {
+          condition: {
+            kind: "record-type",
+            recordType: "Decision",
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+      ],
+      hiddenSections: ["Description"],
+      sectionOrder: [
+        "custom-decisions",
+        "Dependencies",
+        "Description",
+        "GitHub & Tests",
+        "Target Release",
+      ],
+    };
+    const html = renderCard(workStatusLabels, [], layouts);
+
+    expect(html).toContain("Opens Decision trail.");
+    expect(html).not.toContain("Opens Description.");
   });
 
   test("renders live source names, status, and source links in the why chain", () => {

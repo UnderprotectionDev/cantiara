@@ -3,7 +3,10 @@ import type {
   MutationApply,
   MutationCommand,
   MutationContract,
+  MutationOptions,
   MutationPayload,
+  MutationReceipt,
+  MutationUndoApply,
 } from "@cantiara/api/mutation-and-undo";
 import type {
   ProjectProfile,
@@ -71,11 +74,17 @@ function createProjectUpdateMutation(
   getCurrentProject: () => ProjectProfile,
   setCurrentProject: (project: ProjectProfile) => void,
 ): MutationContract<ProjectShellMutationValue> {
+  const receipts = new Map<
+    string,
+    MutationReceipt<ProjectShellMutationValue>
+  >();
   return {
+    findReceiptById: async (receiptId) => receipts.get(receiptId) ?? null,
     replay: async () => null,
     mutate: async <TPayload extends MutationPayload>(
       command: MutationCommand<TPayload>,
       apply: MutationApply<ProjectShellMutationValue, TPayload>,
+      options?: MutationOptions,
     ) => {
       if (command.kind !== "human") {
         throw new Error("Expected a human Project command.");
@@ -88,7 +97,7 @@ function createProjectUpdateMutation(
       });
       const nextProject = nextValue.project ?? previousProject;
       setCurrentProject(nextProject);
-      return {
+      const receipt: MutationReceipt<ProjectShellMutationValue> = {
         actor: command.actor,
         committedAt: "2026-09-17T09:00:00.000Z",
         id: `receipt-${nextProject.revision}`,
@@ -101,7 +110,68 @@ function createProjectUpdateMutation(
         previousValue: { project: previousProject },
         revision: nextProject.revision,
         targetId: command.targetId,
+        ...(options?.undo && typeof options.undo === "object"
+          ? {
+              undo: {
+                after: nextValue,
+                afterPresent: true,
+                before: { project: previousProject },
+                beforePresent: true,
+                ...(options.undo as object),
+              } as unknown as MutationReceipt<ProjectShellMutationValue>["undo"],
+            }
+          : {}),
       };
+      receipts.set(receipt.id, receipt);
+      return receipt;
+    },
+    undo: async <TPayload extends MutationPayload>(
+      receipt: MutationReceipt<ProjectShellMutationValue>,
+      command: MutationCommand<TPayload>,
+      apply?: MutationUndoApply<ProjectShellMutationValue>,
+    ) => {
+      if (command.kind !== "human") {
+        throw new Error("Expected a human Project undo command.");
+      }
+      const currentProject = getCurrentProject();
+      const nextValue = apply
+        ? await apply({
+            currentRevision: currentProject.revision,
+            currentValue: { project: currentProject },
+            nextValue: receipt.nextValue,
+            previousValue: receipt.previousValue,
+            undo:
+              receipt.undo ??
+              ({
+                after: receipt.nextValue,
+                afterPresent: true,
+                before: receipt.previousValue,
+                beforePresent: true,
+                kind: "view-metadata",
+                scope: "project.configuration.workContextLayouts",
+              } as unknown as NonNullable<
+                MutationReceipt<ProjectShellMutationValue>["undo"]
+              >),
+          })
+        : receipt.previousValue;
+      const nextProject = nextValue.project ?? currentProject;
+      setCurrentProject(nextProject);
+      const undoReceipt: MutationReceipt<ProjectShellMutationValue> = {
+        ...receipt,
+        committedAt: "2026-09-17T09:00:00.000Z",
+        id: `undo-${receipt.id}`,
+        nextValue,
+        origin: {
+          clientIdempotencyKey: command.clientIdempotencyKey,
+          kind: "human",
+        },
+        previousValue: { project: currentProject },
+        revision: nextProject.revision,
+        undo: undefined,
+        undoOf: receipt.id,
+      };
+      receipts.set(undoReceipt.id, undoReceipt);
+      return undoReceipt;
     },
   };
 }
@@ -467,6 +537,119 @@ describe("Project Shell RPC", () => {
       label: "Done",
       semantic: "Closed",
     });
+  });
+
+  test("previews, applies, and safely undoes only the Work Context Card layout", async () => {
+    let currentProject: ProjectProfile = {
+      ...project,
+      configuration: getProjectShellConfiguration("Blank Project"),
+    };
+    const initialLayout = currentProject.configuration.workContextLayouts.Task;
+    const projectShell: ProjectShellAccess = {
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
+    };
+    const updateMutation = createProjectUpdateMutation(
+      () => currentProject,
+      (nextProject) => {
+        currentProject = nextProject;
+      },
+    );
+    const client = createRouterClient(appRouter, {
+      context: createContext(projectShell, {
+        create: () => updateMutation,
+        update: () => updateMutation,
+      }),
+    });
+    const layout = {
+      ...initialLayout,
+      customSections: [
+        {
+          condition: {
+            kind: "record-type" as const,
+            recordType: "Decision" as const,
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+      ],
+      hiddenSections: ["Dependencies" as const],
+      sectionOrder: [
+        "Description",
+        "custom-decisions",
+        "GitHub & Tests",
+        "Target Release",
+        "Dependencies",
+      ],
+    };
+    const change = {
+      kind: "set-work-context-layout" as const,
+      layout,
+      workType: "Task" as const,
+    };
+
+    await expect(
+      client.previewWorkContextLayout({
+        baseRevision: currentProject.revision,
+        change,
+        projectId: currentProject.id,
+      }),
+    ).resolves.toMatchObject({
+      preview: {
+        added: ["Decision trail"],
+        hidden: ["Dependencies"],
+      },
+      workType: "Task",
+    });
+
+    const applied = await client.updateProjectConfiguration({
+      baseRevision: currentProject.revision,
+      change,
+      clientIdempotencyKey: "work-context-layout-1",
+      projectId: currentProject.id,
+    });
+    if (!("receiptId" in applied)) {
+      throw new Error("Expected a layout mutation receipt.");
+    }
+    expect(applied).toMatchObject({
+      configuration: {
+        workContextLayouts: { Task: layout },
+      },
+      receiptId: "receipt-2",
+      revision: 2,
+    });
+
+    const concurrentProject = {
+      ...currentProject,
+      name: "Concurrent project edit",
+      configuration: {
+        ...currentProject.configuration,
+        workStatusLabels: currentProject.configuration.workStatusLabels.map(
+          (status, index) =>
+            index === 0
+              ? { ...status, label: "Concurrent status label" }
+              : status,
+        ),
+      },
+    };
+    currentProject = concurrentProject;
+
+    const undone = await client.undoWorkContextLayout({
+      baseRevision: currentProject.revision,
+      clientIdempotencyKey: "work-context-layout-undo-1",
+      projectId: currentProject.id,
+      receiptId: applied.receiptId,
+    });
+    expect(undone.configuration.workContextLayouts.Task).toEqual(initialLayout);
+    expect(undone.name).toBe("Concurrent project edit");
+    expect(undone.configuration.workStatusLabels[0]?.label).toBe(
+      "Concurrent status label",
+    );
+    expect(undone).toHaveProperty("revision", 3);
   });
 
   test("retries an automatically suggested Short code through the mutation contract", async () => {

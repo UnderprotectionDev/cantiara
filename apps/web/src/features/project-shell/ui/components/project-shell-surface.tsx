@@ -328,6 +328,7 @@ function ProjectWorkSurface({
           <ProjectWorkList
             accountFormattingPreferences={accountFormattingPreferences}
             projectId={projectId}
+            workContextLayouts={configuration.workContextLayouts}
             workStatusLabels={configuration.workStatusLabels}
           />
         </div>

@@ -66,10 +66,13 @@ import {
   enableProjectAreaInputSchema,
   getProjectShellConfiguration,
   type ProjectShellMutationValue,
+  previewWorkContextLayoutInputSchema,
   shortCodeSchema,
   suggestProjectShortCode,
+  undoWorkContextLayoutInputSchema,
   updateProjectConfigurationInputSchema,
   updateProjectShortCodeInputSchema,
+  type WorkContextLayoutMutationResult,
 } from "../project-shell";
 import {
   createUsageLinkMutationInputSchema,
@@ -96,6 +99,7 @@ import {
   undoTagRenameInputSchema,
 } from "../tags";
 import type { WebCaptureAccess } from "../web-capture";
+import { previewWorkContextLayout } from "../work-context";
 import {
   deleteWorkDraftInputSchema,
   finalizeWorkDraftInputSchema,
@@ -1013,6 +1017,17 @@ function rethrowProjectShellMutationError(
     throw new ORPCError("NOT_FOUND", {
       defined: true,
       message: "Project is unavailable.",
+    });
+  }
+
+  if (code === "UNDO_NOT_SUPPORTED") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: {
+        code,
+        targetId,
+      },
+      defined: true,
+      message: "Work Context Card layout undo is not available.",
     });
   }
 
@@ -2459,12 +2474,141 @@ export const appRouter = {
               },
             } satisfies ProjectShellMutationValue;
           },
+          input.change.kind === "set-work-context-layout"
+            ? {
+                undo: {
+                  kind: "view-metadata",
+                  scope: "project.configuration.workContextLayouts",
+                },
+              }
+            : undefined,
         );
         const { project } = receipt.nextValue;
         if (!project) {
           throw new ORPCError("NOT_FOUND");
         }
-        return project;
+        return input.change.kind === "set-work-context-layout"
+          ? ({
+              ...project,
+              receiptId: receipt.id,
+            } satisfies WorkContextLayoutMutationResult)
+          : project;
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
+  previewWorkContextLayout: protectedProcedure
+    .input(previewWorkContextLayoutInputSchema)
+    .handler(async ({ context, input }) => {
+      const project = await requireProjectShell(context).find(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!project) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      if (project.revision !== input.baseRevision) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          data: {
+            code: "STALE_BASE_REVISION",
+            currentRevision: project.revision,
+            currentValue: project,
+            label: MUTATION_UI_LABELS.currentValue,
+            targetId: input.projectId,
+          },
+          defined: true,
+          message: MUTATION_UI_LABELS.currentValue,
+        });
+      }
+      try {
+        const nextConfiguration = applyProjectShellConfigurationChange(
+          project.configuration,
+          input.change,
+          project.starterConfiguration,
+        );
+        return {
+          baseRevision: project.revision,
+          preview: previewWorkContextLayout(
+            input.change.workType,
+            project.configuration.workContextLayouts[input.change.workType],
+            nextConfiguration.workContextLayouts[input.change.workType],
+          ),
+          projectId: project.id,
+          workType: input.change.workType,
+        };
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
+  undoWorkContextLayout: protectedProcedure
+    .input(undoWorkContextLayoutInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireProjectShellMutationContract(
+        context,
+        "update",
+        context.session.user.id,
+      );
+      if (!(mutation.findReceiptById && mutation.undo)) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const sourceReceipt = await mutation.findReceiptById(input.receiptId);
+        if (!sourceReceipt) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work Context Card layout history is unavailable.",
+          });
+        }
+        if (
+          sourceReceipt.targetId !== input.projectId ||
+          sourceReceipt.undo?.scope !==
+            "project.configuration.workContextLayouts"
+        ) {
+          throw new ORPCError("BAD_REQUEST", {
+            data: { code: "WORK_CONTEXT_LAYOUT_UNDO_NOT_SUPPORTED" },
+            defined: true,
+            message: "Only Work Context Card layout changes can be undone.",
+          });
+        }
+        const receipt = await mutation.undo(
+          sourceReceipt,
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: input.projectId,
+          },
+          ({ currentValue, currentRevision, previousValue }) => {
+            if (!(currentValue.project && previousValue.project)) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              project: {
+                ...currentValue.project,
+                configuration: {
+                  ...currentValue.project.configuration,
+                  workContextLayouts:
+                    previousValue.project.configuration.workContextLayouts,
+                },
+                revision: currentRevision + 1,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies ProjectShellMutationValue;
+          },
+        );
+        const { project } = receipt.nextValue;
+        if (!project) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return {
+          ...project,
+          receiptId: receipt.id,
+        } satisfies WorkContextLayoutMutationResult;
       } catch (error) {
         rethrowProjectShellMutationError(error, input.projectId);
       }

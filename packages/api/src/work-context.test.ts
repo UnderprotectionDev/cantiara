@@ -1,12 +1,24 @@
 import { describe, expect, test } from "vitest";
 
-import { STARTER_CONFIGURATION_OPTIONS } from "./project-shell";
+import {
+  applyProjectShellConfigurationChange,
+  getProjectShellConfiguration,
+  projectShellConfigurationChangeSchema,
+  resolveProjectShellConfiguration,
+  STARTER_CONFIGURATION_OPTIONS,
+} from "./project-shell";
 import type { RelationEndpointView, RelationView } from "./relations";
 import {
   buildWorkContextModel,
+  getDefaultWorkContextLayouts,
   getPreparedWorkContextLayout,
+  getWorkContextLayout,
   nextPreparedWorkContextSection,
+  previewWorkContextLayout,
+  sourcesForWorkContextCustomSection,
   sourcesForWorkContextSection,
+  WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS,
+  WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS,
 } from "./work-context";
 import type { WorkProfile } from "./work-lifecycle";
 import { WORK_TYPE_OPTIONS } from "./work-lifecycle";
@@ -142,6 +154,242 @@ describe("Work Context Card prepared layouts", () => {
         "Target Release",
       ]),
     ).toBeNull();
+  });
+});
+
+describe("Work Context Card configurable layouts", () => {
+  test("starts every Work type with the prepared sections and no custom query", () => {
+    const layouts = getDefaultWorkContextLayouts();
+
+    expect(Object.keys(layouts)).toEqual([...WORK_TYPE_OPTIONS]);
+    expect(layouts.Feature).toEqual({
+      customSections: [],
+      hiddenSections: [],
+      sectionOrder: EXPECTED_SECTIONS.Feature,
+    });
+    expect(WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS).toContain("Primary spec");
+    expect(WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS).toEqual([
+      "Supports",
+      "Contradicts",
+      "Provides context",
+      "Inconclusive",
+      "Unspecified",
+    ]);
+  });
+
+  test("repairs a persisted configuration from before Work Context layouts", () => {
+    const current = getProjectShellConfiguration("Blank Project");
+    const { workContextLayouts: _legacyLayouts, ...legacy } = current;
+
+    const resolved = resolveProjectShellConfiguration(legacy, "Blank Project");
+
+    expect(resolved.workContextLayouts.Task).toEqual(
+      getDefaultWorkContextLayouts().Task,
+    );
+  });
+
+  test("previews a hidden, reordered, and custom section before apply", () => {
+    const configuration = getProjectShellConfiguration("Blank Project");
+    const layout = getWorkContextLayout(
+      "Task",
+      configuration.workContextLayouts,
+    );
+    const nextLayout = {
+      ...layout,
+      customSections: [
+        {
+          condition: {
+            kind: "record-type" as const,
+            recordType: "Decision" as const,
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+      ],
+      hiddenSections: ["Dependencies" as const],
+      sectionOrder: [
+        "Description",
+        "custom-decisions",
+        "GitHub & Tests",
+        "Target Release",
+        "Dependencies",
+      ],
+    };
+
+    expect(previewWorkContextLayout("Task", layout, nextLayout)).toEqual({
+      added: ["Decision trail"],
+      hidden: ["Dependencies"],
+      moved: ["Decision trail", "GitHub & Tests", "Target Release"],
+      shown: [],
+    });
+
+    const next = applyProjectShellConfigurationChange(
+      configuration,
+      { kind: "set-work-context-layout", layout: nextLayout, workType: "Task" },
+      "Blank Project",
+    );
+    expect(next.workContextLayouts.Task).toEqual(nextLayout);
+    expect(next.preparedStages).toEqual(configuration.preparedStages);
+  });
+
+  test("accepts only the closed catalog and relation-reachable sources", () => {
+    const decision = relation({
+      id: "decision-context",
+      kind: "Related",
+      source: endpoint({ recordId: work.id }),
+      target: endpoint({
+        key: "DEC-1",
+        projectId: work.projectId,
+        recordId: "decision-1",
+        recordType: "Decision",
+        status: "In Progress",
+        title: "Use hosted checkout",
+      }),
+    });
+    const model = buildWorkContextModel({
+      relations: [decision],
+      work: { ...work, primaryFeatureId: null, primarySpecId: null },
+    });
+    const customSection = {
+      condition: {
+        kind: "record-type" as const,
+        recordType: "Decision" as const,
+        status: "In Progress" as const,
+      },
+      id: "custom-decisions",
+      title: "Decision trail",
+    };
+
+    expect(
+      sourcesForWorkContextCustomSection(customSection, model.sources),
+    ).toEqual([expect.objectContaining({ recordType: "Decision" })]);
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          ...customSection,
+          condition: {
+            ...customSection.condition,
+            status: "Closed",
+          },
+        },
+        model.sources,
+      ),
+    ).toEqual([]);
+
+    const milestone = relation({
+      id: "milestone-context",
+      kind: "Contributes to Milestone",
+      source: endpoint({ recordId: work.id }),
+      target: endpoint({ recordId: "milestone-1", recordType: "Milestone" }),
+    });
+    const milestoneModel = buildWorkContextModel({
+      relations: [milestone],
+      work: { ...work, primaryFeatureId: null, primarySpecId: null },
+    });
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            kind: "relation",
+            relation: "Contributes to Milestone",
+            status: null,
+          },
+          id: "custom-milestones",
+          title: "Milestone trail",
+        },
+        milestoneModel.sources,
+      ),
+    ).toEqual([expect.objectContaining({ recordType: "Milestone" })]);
+  });
+
+  test("does not accept a free query or an incomplete section order", () => {
+    const configuration = getProjectShellConfiguration("Blank Project");
+    const layout = getWorkContextLayout(
+      "Task",
+      configuration.workContextLayouts,
+    );
+    const freeQueryChange = {
+      kind: "set-work-context-layout" as const,
+      layout: {
+        ...layout,
+        customSections: [
+          {
+            condition: {
+              kind: "record-type" as const,
+              query: "status = Closed",
+              recordType: "Decision" as const,
+              status: null,
+            },
+            id: "custom-query",
+            title: "Not allowed",
+          },
+        ],
+        sectionOrder: [...layout.sectionOrder, "custom-query"],
+      },
+      workType: "Task" as const,
+    };
+
+    expect(
+      projectShellConfigurationChangeSchema.safeParse(freeQueryChange),
+    ).toMatchObject({ success: false });
+    expect(() =>
+      applyProjectShellConfigurationChange(
+        configuration,
+        {
+          kind: "set-work-context-layout",
+          layout: { ...layout, sectionOrder: layout.sectionOrder.slice(1) },
+          workType: "Task",
+        },
+        "Blank Project",
+      ),
+    ).toThrow("every prepared and custom section exactly once");
+  });
+
+  test("treats an unset Evidence Role as Unspecified", () => {
+    const evidenceRelation = relation({
+      id: "evidence-role-unspecified",
+      kind: "Evidence",
+      source: endpoint({ recordId: work.id, recordType: "Work" }),
+      target: endpoint({
+        recordId: "source-1",
+        recordType: "Source",
+        title: "Checkout notes",
+      }),
+    });
+    const model = buildWorkContextModel({
+      relations: [evidenceRelation],
+      work: { ...work, primaryFeatureId: null, primarySpecId: null },
+    });
+
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            evidenceRole: "Unspecified",
+            kind: "evidence-role",
+            status: null,
+          },
+          id: "custom-unspecified-evidence",
+          title: "Unspecified evidence",
+        },
+        model.sources,
+      ),
+    ).toHaveLength(1);
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            evidenceRole: "Supports",
+            kind: "evidence-role",
+            status: null,
+          },
+          id: "custom-supporting-evidence",
+          title: "Supporting evidence",
+        },
+        model.sources,
+      ),
+    ).toEqual([]);
   });
 });
 
