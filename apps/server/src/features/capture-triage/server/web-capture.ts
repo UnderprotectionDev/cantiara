@@ -150,10 +150,17 @@ function captureAttachmentFor(
   attachmentId: string,
 ) {
   if (input.kind === "screenshot") {
+    const mimeType = input.mediaDataUrl?.match(
+      IMAGE_DATA_URL_MIME_PATTERN,
+    )?.[1];
+    if (!mimeType) {
+      return;
+    }
+    const extension = mimeType === "image/jpeg" ? "jpg" : mimeType.slice(6);
     return {
       id: attachmentId,
-      mimeType: "image/png",
-      name: "Screenshot.png",
+      mimeType,
+      name: `Screenshot.${extension}`,
     };
   }
   if (input.kind === "selected-image" && input.mediaDataUrl) {

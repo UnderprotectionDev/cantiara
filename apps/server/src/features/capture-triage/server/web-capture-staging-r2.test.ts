@@ -63,6 +63,29 @@ describe("Web Capture R2 staging", () => {
     });
   });
 
+  test("treats a missing staging object as already deleted", async () => {
+    const staging = createR2WebCaptureStagingStore(
+      {
+        accessKeyId: "access-key",
+        accountId: "account-id",
+        bucket: "cantiara-staging",
+        endpoint: "https://r2.example.test",
+        secretAccessKey: "secret-key",
+      },
+      {
+        fetcher: () => Promise.resolve(new Response(null, { status: 404 })),
+        now: () => NOW,
+      },
+    );
+
+    await expect(
+      staging.delete({
+        accountId: "account-1",
+        attachmentId: "already-deleted",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   test("reads Capture staging and deletes it only after File Attachment promotion succeeds", async () => {
     const requests: Request[] = [];
     const sourceBytes = new Uint8Array([
@@ -91,7 +114,10 @@ describe("Web Capture R2 staging", () => {
     );
     const promoteCaptureAttachment = vi
       .fn()
-      .mockResolvedValue({ attachmentId: "file-attachment-1" });
+      .mockImplementation(async (input) => {
+        await input.readBytes?.();
+        return { attachmentId: "file-attachment-1" };
+      });
     const captureStaging = createR2CaptureInboxStagingStore(staging, {
       promoteCaptureAttachment,
     });
@@ -122,7 +148,6 @@ describe("Web Capture R2 staging", () => {
     expect(promoteCaptureAttachment).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "account-1",
-        bytes: sourceBytes,
         clientIdempotencyKey: "convert-1",
         declaredMimeType: "image/jpeg",
         fileName: "capture.jpg",
@@ -164,9 +189,10 @@ describe("Web Capture R2 staging", () => {
       { fetcher, now: () => NOW },
     );
     const captureStaging = createR2CaptureInboxStagingStore(staging, {
-      promoteCaptureAttachment: vi
-        .fn()
-        .mockRejectedValue(new Error("quota exceeded")),
+      promoteCaptureAttachment: vi.fn().mockImplementation(async (input) => {
+        await input.readBytes?.();
+        throw new Error("quota exceeded");
+      }),
     });
 
     await expect(
@@ -195,7 +221,7 @@ describe("Web Capture R2 staging", () => {
     expect(requests[0]).toMatchObject({ method: "GET" });
   });
 
-  test("does not retry a committed File Attachment when staging cleanup fails", async () => {
+  test("keeps Capture conversion retryable when staging cleanup fails", async () => {
     const requests: Request[] = [];
     const sourceBytes = new Uint8Array([
       0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
@@ -223,9 +249,10 @@ describe("Web Capture R2 staging", () => {
       { fetcher, now: () => NOW },
     );
     const captureStaging = createR2CaptureInboxStagingStore(staging, {
-      promoteCaptureAttachment: vi
-        .fn()
-        .mockResolvedValue({ attachmentId: "file-attachment-1" }),
+      promoteCaptureAttachment: vi.fn().mockImplementation(async (input) => {
+        await input.readBytes?.();
+        return { attachmentId: "file-attachment-1" };
+      }),
     });
 
     await expect(
@@ -249,7 +276,7 @@ describe("Web Capture R2 staging", () => {
         operation: "convert",
         targetScope: { kind: "project", projectId: "project-1" },
       }),
-    ).resolves.toEqual({ attachmentId: "file-attachment-1" });
+    ).rejects.toThrow("R2 staging request failed with 503");
     expect(requests).toHaveLength(2);
     expect(requests[1]).toMatchObject({ method: "DELETE" });
   });

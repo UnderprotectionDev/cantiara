@@ -391,6 +391,12 @@ export interface FileAttachmentRepository {
     at: Date,
   ) => Promise<void>;
   markUploadSwept: (uploadId: string, at: Date) => Promise<void>;
+  rollbackCapturePromotion: (input: {
+    accountId: string;
+    attachmentId: string;
+    uploadId: string;
+    versionId: string;
+  }) => Promise<void>;
 }
 
 export type FileAttachmentErrorCode =
@@ -492,6 +498,10 @@ function permanentObjectKey(
   return `file-attachments/${workspaceId}/${attachmentId}/${versionId}`;
 }
 
+function captureUploadIdempotencyKey(clientIdempotencyKey: string) {
+  return `capture-attachment:${hashBytes(new TextEncoder().encode(clientIdempotencyKey))}`;
+}
+
 function ensureUploadQuota(quota: FileAttachmentQuota, byteSize: number) {
   if (
     quota.isOverLimit ||
@@ -515,11 +525,12 @@ export interface FileAttachmentService {
 
 export interface FileAttachmentCapturePromotionInput<TReceipt> {
   accountId: string;
-  bytes: Uint8Array;
+  bytes?: Uint8Array;
   clientIdempotencyKey: string;
   declaredMimeType: string;
   fileName: string;
   finalize: () => Promise<TReceipt>;
+  readBytes?: () => Promise<Uint8Array>;
   scope: FileAttachmentScope;
 }
 
@@ -822,22 +833,67 @@ export function createFileAttachments({
     declaredMimeType,
     fileName,
     finalize: finalizeTarget,
+    readBytes,
     scope,
   }: FileAttachmentCapturePromotionInput<TReceipt>): Promise<TReceipt> {
     const uploadInput: FileAttachmentStageInput = {
-      clientIdempotencyKey: `capture-attachment:${hashBytes(new TextEncoder().encode(clientIdempotencyKey))}`,
+      clientIdempotencyKey: captureUploadIdempotencyKey(clientIdempotencyKey),
       declaredMimeType,
       fileName,
       mode: "new",
       scope,
     };
-    const session = await stage(accountId, uploadInput, bytes);
-    const targetReceipt = await finalizeTarget();
-    await finalize(accountId, {
+    const existing = await repository.findUpload(
+      accountId,
+      uploadInput.clientIdempotencyKey,
+    );
+    if (existing?.status === "committed" && existing.result) {
+      return await finalizeTarget();
+    }
+
+    const promotionBytes =
+      bytes ??
+      (readBytes
+        ? await readBytes()
+        : (() => {
+            throw new Error(
+              "Capture attachment bytes are unavailable for File Attachment promotion.",
+            );
+          })());
+    const session = await stage(accountId, uploadInput, promotionBytes);
+    const attachmentReceipt = await finalize(accountId, {
       ...uploadInput,
       uploadId: session.uploadId,
     });
-    return targetReceipt;
+    const committed = await repository.findUpload(
+      accountId,
+      uploadInput.clientIdempotencyKey,
+    );
+    if (!committed) {
+      throw new FileAttachmentError(
+        "FILE_ATTACHMENT_UPLOAD_UNAVAILABLE",
+        "The Capture File Attachment promotion could not be recovered.",
+      );
+    }
+
+    try {
+      return await finalizeTarget();
+    } catch (error) {
+      await repository.rollbackCapturePromotion({
+        accountId,
+        attachmentId: attachmentReceipt.attachment.id,
+        uploadId: session.uploadId,
+        versionId: attachmentReceipt.version.id,
+      });
+      await objectStore.delete(
+        permanentObjectKey(
+          committed.workspaceId,
+          attachmentReceipt.attachment.id,
+          attachmentReceipt.version.id,
+        ),
+      );
+      throw error;
+    }
   }
 
   async function sweepExpiredUploads(at = now()) {

@@ -116,6 +116,7 @@ async function signedRequest({
   config,
   contentType,
   fetcher,
+  ignoreNotFound = false,
   key,
   method,
   now,
@@ -124,6 +125,7 @@ async function signedRequest({
   config: R2StagingConfig;
   contentType?: string;
   fetcher: R2Fetch;
+  ignoreNotFound?: boolean;
   key: string;
   method: "DELETE" | "GET" | "PUT";
   now: () => Date;
@@ -183,6 +185,9 @@ async function signedRequest({
     method,
   });
   if (!response.ok) {
+    if (ignoreNotFound && response.status === 404) {
+      return response;
+    }
     throw new Error(
       `R2 staging request failed with ${response.status}: ${await response.text()}`,
     );
@@ -202,6 +207,7 @@ export function createR2WebCaptureStagingStore(
       await signedRequest({
         config,
         fetcher,
+        ignoreNotFound: true,
         key: objectKey(accountId, attachmentId),
         method: "DELETE",
         now,
@@ -256,28 +262,25 @@ export function createR2CaptureInboxStagingStore(
           "Capture attachment metadata is unavailable for File Attachment promotion.",
         );
       }
-      const bytes = await staging.read({
-        accountId: input.accountId,
-        attachmentId: attachment.id,
-      });
       const receipt = await fileAttachments.promoteCaptureAttachment({
         accountId: input.accountId,
-        bytes,
         clientIdempotencyKey: input.clientIdempotencyKey,
         declaredMimeType: attachment.mimeType,
         fileName: attachment.name,
         finalize: input.finalize,
+        readBytes: () =>
+          staging.read({
+            accountId: input.accountId,
+            attachmentId: attachment.id,
+          }),
         scope: input.targetScope,
       });
-      // The File Attachment commit is already durable. A transient Capture
-      // staging cleanup failure must not turn that success into a retry that
-      // could leave the Inbox item beside its committed File Attachment.
-      await staging
-        .delete({
-          accountId: input.accountId,
-          attachmentId: attachment.id,
-        })
-        .catch(() => undefined);
+      // Keep the Inbox item when cleanup is not confirmed. The next retry can
+      // replay the committed File Attachment without rereading staging.
+      await staging.delete({
+        accountId: input.accountId,
+        attachmentId: attachment.id,
+      });
       return receipt;
     },
   };

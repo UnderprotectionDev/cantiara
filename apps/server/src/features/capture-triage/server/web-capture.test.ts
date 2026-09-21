@@ -384,6 +384,33 @@ describe("Web Capture seam", () => {
     });
   });
 
+  test("keeps screenshot metadata aligned with its staged image MIME", async () => {
+    const staging = {
+      delete: vi.fn(),
+      put: vi.fn(),
+    } satisfies WebCaptureStagingStore;
+    const { access, captures } = createSubject(staging);
+    const paired = await pair(access);
+
+    await access.send(
+      paired.token,
+      {
+        clientIdempotencyKey: "jpeg-screenshot-key",
+        content: "JPEG screenshot",
+        kind: "screenshot",
+        mediaDataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRgAB",
+        originUrl: "https://example.com/article",
+        projectId: null,
+      },
+      NOW,
+    );
+
+    expect(captures[0]?.attachment).toMatchObject({
+      mimeType: "image/jpeg",
+      name: "Screenshot.jpg",
+    });
+  });
+
   test("keeps selected-image metadata compatible with File Attachment validation", async () => {
     const staging = {
       delete: vi.fn(),
