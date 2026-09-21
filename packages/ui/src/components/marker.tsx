@@ -43,12 +43,12 @@ function Marker({
 function MarkerIcon({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
-      data-slot="marker-icon"
       aria-hidden="true"
       className={cn(
         "size-3.5 shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className,
       )}
+      data-slot="marker-icon"
       {...props}
     />
   );
@@ -57,11 +57,11 @@ function MarkerIcon({ className, ...props }: React.ComponentProps<"span">) {
 function MarkerContent({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
-      data-slot="marker-content"
       className={cn(
         "wrap-break-word min-w-0 group-data-[variant=separator]/marker:flex-none group-data-[variant=separator]/marker:text-center *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className,
       )}
+      data-slot="marker-content"
       {...props}
     />
   );

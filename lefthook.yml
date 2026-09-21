@@ -5,6 +5,6 @@ pre-commit:
   parallel: true
   jobs:
     - name: biome
-      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
-      run: bun run check:ultracite -- {staged_files}
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc,css,html,svg}"
+      run: bun run fix:ultracite -- {staged_files}
       stage_fixed: true

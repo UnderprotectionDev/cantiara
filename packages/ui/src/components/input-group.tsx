@@ -6,13 +6,12 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { cn } from "@cantiara/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
+import { useCallback } from "react";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: This generic layout group must not impose fieldset form semantics on every consumer.
     <div
-      data-slot="input-group"
-      role="group"
       className={cn(
         "group/input-group relative flex h-8 w-full min-w-0 items-center rounded-none border border-input bg-background shadow-xs outline-none transition-[color,box-shadow] has-[>textarea]:h-auto dark:bg-input/30",
         "has-[>[data-align=inline-end]]:[&>input]:pr-2 has-[>[data-align=inline-start]]:[&>input]:pl-2",
@@ -22,6 +21,8 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
         "has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-1 has-[[data-slot][aria-invalid=true]]:ring-destructive/20 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
         className,
       )}
+      data-slot="input-group"
+      role="group"
       {...props}
     />
   );
@@ -53,24 +54,25 @@ function InputGroupAddon({
   align = "inline-start",
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
+  const handleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button")) {
+      return;
+    }
+    event.currentTarget.parentElement
+      ?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
+      ?.focus();
+  }, []);
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: Keyboard users focus the adjacent native control directly; this click only enlarges its pointer target.
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: This addon intentionally enlarges the adjacent input's pointer target.
     // biome-ignore lint/a11y/useSemanticElements: This addon groups decorations and actions, not a set of form controls that requires a fieldset.
     <div
-      role="group"
-      data-slot="input-group-addon"
-      data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button")) {
-          return;
-        }
-        e.currentTarget.parentElement
-          ?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-            "input, textarea",
-          )
-          ?.focus();
-      }}
+      data-align={align}
+      data-slot="input-group-addon"
+      onClick={handleClick}
+      role="group"
       {...props}
     />
   );
@@ -105,10 +107,10 @@ function InputGroupButton({
   }) {
   return (
     <Button
-      type={type}
-      data-size={size}
-      variant={variant}
       className={cn(inputGroupButtonVariants({ size }), className)}
+      data-size={size}
+      type={type}
+      variant={variant}
       {...props}
     />
   );
@@ -132,11 +134,11 @@ function InputGroupInput({
 }: React.ComponentProps<"input">) {
   return (
     <Input
-      data-slot="input-group-control"
       className={cn(
         "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
         className,
       )}
+      data-slot="input-group-control"
       {...props}
     />
   );
@@ -148,11 +150,11 @@ function InputGroupTextarea({
 }: React.ComponentProps<"textarea">) {
   return (
     <Textarea
-      data-slot="input-group-control"
       className={cn(
         "flex-1 resize-none rounded-none border-0 bg-transparent py-2 shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
         className,
       )}
+      data-slot="input-group-control"
       {...props}
     />
   );

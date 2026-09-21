@@ -16,7 +16,16 @@
   "backend": "hono",
   "runtime": "bun",
   "frontend": ["tanstack-router"],
-  "addons": ["biome", "evlog", "fumadocs", "lefthook", "tauri", "turborepo", "ultracite", "wxt"],
+  "addons": [
+    "biome",
+    "evlog",
+    "fumadocs",
+    "lefthook",
+    "tauri",
+    "turborepo",
+    "ultracite",
+    "wxt"
+  ],
   "examples": [],
   "auth": "better-auth",
   "payments": "none",
@@ -24,5 +33,5 @@
   "dbSetup": "neon",
   "api": "orpc",
   "webDeploy": "none",
-  "serverDeploy": "none",
+  "serverDeploy": "none"
 }

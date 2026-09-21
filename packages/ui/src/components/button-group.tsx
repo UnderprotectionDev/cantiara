@@ -29,10 +29,10 @@ function ButtonGroup({
   return (
     // biome-ignore lint/a11y/useSemanticElements: A button group is not necessarily a form fieldset.
     <div
-      role="group"
-      data-slot="button-group"
-      data-orientation={orientation}
       className={cn(buttonGroupVariants({ orientation }), className)}
+      data-orientation={orientation}
+      data-slot="button-group"
+      role="group"
       {...props}
     />
   );
@@ -68,12 +68,12 @@ function ButtonGroupSeparator({
 }: React.ComponentProps<typeof Separator>) {
   return (
     <Separator
-      data-slot="button-group-separator"
-      orientation={orientation}
       className={cn(
         "relative self-stretch bg-input data-horizontal:mx-px data-vertical:my-px data-vertical:h-auto data-horizontal:w-auto",
         className,
       )}
+      data-slot="button-group-separator"
+      orientation={orientation}
       {...props}
     />
   );

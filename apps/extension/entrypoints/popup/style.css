@@ -1,8 +1,8 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
   color: #e8edf7;
   background: #101522;
-  font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
@@ -11,30 +11,30 @@
 }
 
 body {
-  margin: 0;
   min-width: 380px;
   min-height: 100vh;
+  margin: 0;
 }
 
 button,
 input,
 select {
+  font: inherit;
   border: 1px solid #3a465b;
   border-radius: 6px;
-  font: inherit;
 }
 
 button {
-  background: #1a2334;
+  padding: 8px 10px;
   color: inherit;
   cursor: pointer;
-  padding: 8px 10px;
+  background: #1a2334;
 }
 
 button:hover,
 button.selected {
-  border-color: #84a9ff;
   background: #243452;
+  border-color: #84a9ff;
 }
 
 button:disabled {
@@ -44,10 +44,10 @@ button:disabled {
 
 input,
 select {
-  background: #0c111c;
-  color: inherit;
-  padding: 8px 9px;
   width: 100%;
+  padding: 8px 9px;
+  color: inherit;
+  background: #0c111c;
 }
 
 .capture-app {
@@ -58,10 +58,10 @@ select {
 
 .capture-header,
 .section-heading {
-  align-items: center;
   display: flex;
-  justify-content: space-between;
   gap: 12px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .eyebrow,
@@ -69,14 +69,14 @@ select {
 .last-save,
 .kind-label,
 .browser-badge {
-  color: #a7b1c5;
   font-size: 12px;
+  color: #a7b1c5;
 }
 
 .eyebrow {
-  letter-spacing: 0.12em;
   margin: 0 0 2px;
   text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 h1,
@@ -95,9 +95,9 @@ h2 {
 
 .browser-badge,
 .kind-label {
+  padding: 4px 8px;
   border: 1px solid #3a465b;
   border-radius: 999px;
-  padding: 4px 8px;
 }
 
 .capture-section {
@@ -107,8 +107,8 @@ h2 {
 
 .capture-actions {
   display: grid;
-  gap: 8px;
   grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .pair-form {
@@ -119,13 +119,13 @@ h2 {
 label {
   display: grid;
   gap: 5px;
-  color: #bdc7d8;
   font-size: 12px;
+  color: #bdc7d8;
 }
 
 .preview {
-  border-top: 1px solid #2d384b;
   padding-top: 15px;
+  border-top: 1px solid #2d384b;
 }
 
 dl {
@@ -140,8 +140,8 @@ dl > div {
 }
 
 dt {
-  color: #a7b1c5;
   font-size: 11px;
+  color: #a7b1c5;
   text-transform: uppercase;
 }
 
@@ -155,32 +155,32 @@ dd > select {
 }
 
 .url-value {
-  color: #9dc0ff;
   font-size: 12px;
+  color: #9dc0ff;
 }
 
 .send-button {
+  font-weight: 700;
+  color: #0b1220;
   background: #84a9ff;
   border-color: #84a9ff;
-  color: #0b1220;
-  font-weight: 700;
 }
 
 .success,
 .error,
 .warning {
-  border-radius: 6px;
-  font-size: 12px;
   padding: 9px 10px;
+  font-size: 12px;
+  border-radius: 6px;
 }
 
 .success {
-  background: #17382c;
   color: #9ce3bd;
+  background: #17382c;
 }
 
 .error,
 .warning {
-  background: #3a2427;
   color: #ffb7bc;
+  background: #3a2427;
 }
