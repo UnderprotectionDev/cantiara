@@ -41,6 +41,7 @@ const work: WorkProfile = {
   closureResult: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   description: null,
+  effort: null,
   featureHealthHistory: [],
   id: "work-1",
   key: "PAY-1",
@@ -51,6 +52,7 @@ const work: WorkProfile = {
   recreatedFrom: null,
   revision: 1,
   status: "In Progress",
+  targetDate: null,
   title: "Checkout work",
   type: "Task",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -63,10 +65,11 @@ function renderCard(
 ) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(
-    orpc.relations.queryOptions({
-      input: { recordId: work.id, recordType: "Work" },
-    }).queryKey,
-    [...relations],
+    orpc.workContext.queryOptions({ input: { workId: work.id } }).queryKey,
+    {
+      priorityValues: priorityValues ?? {},
+      relations: [...relations],
+    },
   );
   const router = createRouter({
     history: createMemoryHistory({
@@ -101,10 +104,11 @@ describe("Work Context Card initial fields", () => {
     expect(html).toContain("In Progress");
   });
 
-  test("keeps an empty why chain neutral until a context section is opened", () => {
+  test("shows a neutral Priority Foundations empty state without opening context", () => {
     const html = renderCard(workStatusLabels);
 
-    expect(html).not.toContain("Nothing here yet.");
+    expect(html).toContain("Nothing here yet.");
+    expect(html).toContain(">Link</button>");
   });
 
   test("renders live source names, status, and source links in the why chain", () => {
@@ -257,6 +261,7 @@ describe("Work Context Card initial fields", () => {
             broken: null,
             key: "FB-1",
             label: "FB-1",
+            openPath: "/projects/project-1#feedback-feedback-1",
             originPosition: null,
             projectId: "project-1",
             recordId: "feedback-1",
@@ -348,7 +353,12 @@ describe("Work Context Card initial fields", () => {
       {
         effort: "3 days",
         priorityMetrics: [
-          { id: "evidence-strength", name: "Evidence strength", value: "High" },
+          {
+            id: "evidence-strength",
+            name: "Evidence strength",
+            projectId: work.projectId,
+            value: "High",
+          },
         ],
         targetDate: "2026-10-01",
       },
@@ -364,6 +374,11 @@ describe("Work Context Card initial fields", () => {
     expect(html).toContain("Feedback: 1");
     expect(html).toContain("Unique Contact");
     expect(html).toContain("Unique Company");
+    expect(html).toContain('aria-label="Show Feedback source records (1)"');
+    expect(html).toContain(
+      'aria-label="Show Unique Contact source records (1)"',
+    );
+    expect(html).toContain('href="/projects/project-1#feedback-feedback-1"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain("WSJF");
     expect(html).not.toContain("Score");

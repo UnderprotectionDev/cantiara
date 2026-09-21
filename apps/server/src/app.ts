@@ -46,6 +46,7 @@ import {
   webCapturePairingInputSchema,
   webCaptureSendInputSchema,
 } from "@cantiara/api/web-capture";
+import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
 import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
@@ -135,6 +136,7 @@ export interface AppDependencies {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
+  workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
@@ -1049,6 +1051,7 @@ export function createApp(dependencies: AppDependencies) {
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,
       usageLinks: dependencies.usageLinks,
       webCapture: dependencies.webCapture,
+      workContext: dependencies.workContext,
       workDrafts: dependencies.workDrafts,
       workLifecycle: dependencies.workLifecycle,
       workspaceOverview: dependencies.workspaceOverview,

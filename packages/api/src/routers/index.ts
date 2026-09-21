@@ -97,6 +97,10 @@ import {
 } from "../tags";
 import type { WebCaptureAccess } from "../web-capture";
 import {
+  type WorkContextAccess,
+  workContextInputSchema,
+} from "../work-context";
+import {
   deleteWorkDraftInputSchema,
   finalizeWorkDraftInputSchema,
   saveWorkDraftInputSchema,
@@ -267,6 +271,13 @@ function requireRelations(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.relations;
+}
+
+function requireWorkContext(context: Context): WorkContextAccess {
+  if (!context.workContext) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workContext;
 }
 
 function requireWorkDrafts(context: Context): WorkDraftsAccess {
@@ -1613,6 +1624,21 @@ export const appRouter = {
         { archived: input.archived },
       ),
     ),
+  workContext: protectedProcedure
+    .input(workContextInputSchema)
+    .handler(async ({ context, input }) => {
+      const projection = await requireWorkContext(context).find(
+        context.session.user.id,
+        input.workId,
+      );
+      if (!projection) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work context is unavailable.",
+        });
+      }
+      return projection;
+    }),
   relations: protectedProcedure
     .input(relationsInputSchema)
     .handler(({ context, input }) =>

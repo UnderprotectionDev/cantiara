@@ -30,6 +30,7 @@ import type {
 } from "@cantiara/api/relations";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
+import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
 import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
@@ -69,6 +70,7 @@ export interface CreateContextOptions {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
+  workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
@@ -106,6 +108,7 @@ export async function createContext({
   usageLinkMutationContracts,
   usageLinks,
   webCapture,
+  workContext,
   workDrafts,
   workLifecycle,
 }: CreateContextOptions): Promise<ApiContext> {
@@ -151,6 +154,7 @@ export async function createContext({
     usageLinkMutationContracts,
     usageLinks,
     webCapture,
+    workContext,
     workDrafts,
     workLifecycle,
   };

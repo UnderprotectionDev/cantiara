@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type {
   RelationEndpointView,
   RelationKind,
@@ -12,6 +14,10 @@ export const WORK_CONTEXT_INITIAL_FIELDS = [
   "Status",
   "Planning",
 ] as const;
+
+export const workContextInputSchema = z
+  .object({ workId: z.string().trim().min(1).max(255) })
+  .strict();
 
 export type WorkContextInitialField =
   (typeof WORK_CONTEXT_INITIAL_FIELDS)[number];
@@ -153,6 +159,7 @@ export interface WorkContextSource {
   id: string;
   key: string | null;
   label: string;
+  openPath: string | null;
   projectId: string | null;
   recordId: string;
   recordType: RelationRecordType;
@@ -185,8 +192,20 @@ export type PriorityFoundationSourceLabel =
 export interface WorkContextPriorityMetricValue {
   id: string;
   name: string;
+  projectId: string;
   value: string | null;
 }
+
+export interface WorkContextPriorityCriterionSource {
+  criterionId: string;
+  kind: "Priority criterion";
+  label: string;
+  projectId: string;
+}
+
+export type WorkContextPriorityValueSource =
+  | WorkContextPriorityCriterionSource
+  | WorkContextSource;
 
 export interface WorkContextPriorityValues {
   effort?: string | null;
@@ -197,7 +216,7 @@ export interface WorkContextPriorityValues {
 export interface WorkContextPriorityValue {
   id: string;
   label: string;
-  source: WorkContextSource;
+  source: WorkContextPriorityValueSource;
   value: string;
 }
 
@@ -218,6 +237,18 @@ export interface BuildWorkContextModelInput {
   projectWorks?: readonly WorkProfile[];
   relations: readonly RelationView[];
   work: WorkProfile;
+}
+
+export interface WorkContextProjection {
+  priorityValues: WorkContextPriorityValues;
+  relations: readonly RelationView[];
+}
+
+export interface WorkContextAccess {
+  find: (
+    accountId: string,
+    workId: string,
+  ) => Promise<WorkContextProjection | null>;
 }
 
 /**
@@ -370,7 +401,7 @@ export function buildPriorityFoundations({
   const metricValues = (values.priorityMetrics ?? []).map((metric) => ({
     id: `priority-metric:${metric.id}`,
     label: metric.name,
-    source: sourceFromWork("Priority metrics", work),
+    source: priorityCriterionSource(metric),
     value: metric.value ?? "Unevaluated",
   }));
 
@@ -408,7 +439,7 @@ export function buildPriorityFoundations({
 
 function priorityFoundationLabel(
   source: WorkContextSource,
-): PriorityFoundationSourceLabel | "Target Release" | null {
+): PriorityFoundationSourceLabel | null {
   if (source.label === "Project Goal" || source.recordType === "Project Goal") {
     return "Project Goal";
   }
@@ -466,6 +497,17 @@ function priorityValueFromWork(
         value,
       }
     : null;
+}
+
+function priorityCriterionSource(
+  metric: WorkContextPriorityMetricValue,
+): WorkContextPriorityCriterionSource {
+  return {
+    criterionId: metric.id,
+    kind: "Priority criterion",
+    label: metric.name,
+    projectId: metric.projectId,
+  };
 }
 
 function isVisiblePrioritySource(source: WorkContextSource) {
@@ -595,6 +637,7 @@ function sourceFromRelation(
     id: `relation:${relation.id}`,
     key: endpoint.key,
     label: sourceLabel(relationKind, endpoint),
+    openPath: workContextOpenPath(endpoint),
     projectId: endpoint.projectId,
     recordId: endpoint.recordId,
     recordType: endpoint.recordType,
@@ -619,6 +662,12 @@ function sourceFromWork(label: string, work: WorkProfile): WorkContextSource {
     id: `work:${work.id}`,
     key: work.key,
     label,
+    openPath: workContextOpenPath({
+      openPath: null,
+      projectId: work.projectId,
+      recordId: work.id,
+      recordType: "Work",
+    }),
     projectId: work.projectId,
     recordId: work.id,
     recordType: "Work",
@@ -646,6 +695,7 @@ function unavailableSource(
     id: `${label}:${recordId}`,
     key: null,
     label,
+    openPath: null,
     projectId: null,
     recordId,
     recordType,
@@ -655,6 +705,24 @@ function unavailableSource(
     title: null,
     workType: null,
   };
+}
+
+function workContextOpenPath(
+  endpoint: Pick<
+    RelationEndpointView,
+    "openPath" | "projectId" | "recordId" | "recordType"
+  >,
+) {
+  if (
+    endpoint.openPath?.startsWith("/") &&
+    !endpoint.openPath.startsWith("//")
+  ) {
+    return endpoint.openPath;
+  }
+  if (endpoint.recordType !== "Work" || !endpoint.projectId) {
+    return null;
+  }
+  return `/projects/${encodeURIComponent(endpoint.projectId)}#work-${encodeURIComponent(endpoint.recordId)}`;
 }
 
 function sourceLabel(

@@ -50,6 +50,7 @@ const work: WorkProfile = {
   closureResult: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   description: "The checkout flow is hard to understand.",
+  effort: null,
   featureHealthHistory: [],
   id: "work-1",
   key: "PAY-1",
@@ -60,6 +61,7 @@ const work: WorkProfile = {
   recreatedFrom: null,
   revision: 1,
   status: "In Progress",
+  targetDate: null,
   title: "Improve checkout clarity",
   type: "Improvement",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -598,7 +600,12 @@ describe("Work Context Card Priority Foundations", () => {
       priorityValues: {
         effort: "3 days",
         priorityMetrics: [
-          { id: "evidence-strength", name: "Evidence strength", value: "High" },
+          {
+            id: "evidence-strength",
+            name: "Evidence strength",
+            projectId: work.projectId,
+            value: "High",
+          },
         ],
         targetDate: "2026-10-01",
       },
@@ -606,6 +613,9 @@ describe("Work Context Card Priority Foundations", () => {
     });
 
     const foundations = model.priorityFoundations;
+    const criterionValue = foundations.values.find(
+      (value) => value.label === "Evidence strength",
+    );
 
     expect(foundations.values).toEqual(
       expect.arrayContaining([
@@ -618,7 +628,11 @@ describe("Work Context Card Priority Foundations", () => {
         expect.objectContaining({
           label: "Evidence strength",
           value: "High",
-          source: expect.objectContaining({ recordId: work.id }),
+          source: expect.objectContaining({
+            criterionId: "evidence-strength",
+            kind: "Priority criterion",
+            projectId: work.projectId,
+          }),
         }),
       ]),
     );
@@ -654,5 +668,6 @@ describe("Work Context Card Priority Foundations", () => {
     expect(foundations.values).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ label: "Score" })]),
     );
+    expect(criterionValue?.source).not.toHaveProperty("recordId");
   });
 });

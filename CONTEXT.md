@@ -334,6 +334,10 @@ _Avoid_: Bildirim Merkezi, Review later, varsayılan bildirim
 İşin isteğe bağlı hedef günü; planlanan başlangıç, yeniden görünme tarihi, Proje hedef tarihi ve kişisel hatırlatmadan ayrıdır ([Günlük Odak](docs/prd/06-work-management-and-planning.md#günlük-odak)). UI: `Target date`.
 _Avoid_: Yeniden görünme tarihi, Hatırlatma, due date
 
+**Efor**:
+İş için isteğe bağlı efor tahmini; zaman takibi veya öncelik skoru değildir ([İş öğeleri](docs/prd/06-work-management-and-planning.md#iş-öğeleri)). UI: `Effort`.
+_Avoid_: zaman takibi, kapasite ölçümü, öncelik skoru
+
 **Planlanan başlangıç**:
 İşin ne zaman başlamasının düşünüldüğü isteğe bağlı gün; İş akışı durumunu yazmaz, İşi gizlemez ve otomatik başlatmaz ([planlama yüzeyi–durum ayrımı](docs/prd/06-work-management-and-planning.md#planlama-yüzeyidurum-ayrımı)). UI: `Planned start`.
 _Avoid_: due date, otomatik başlatma, Kanban taşıması, hedef tarihi
@@ -857,9 +861,17 @@ _Avoid_: Bildirim Merkezi, evrensel arama, inbox, destek aracı, ikinci Feed kay
 Geri bildirimi veren kişiyi geri bildirimler boyunca aynı kimlikle tanıyan Çalışma Alanı ana kaydı; ticari hesap veya CRM kartı değildir ([Contact ve Company kimliği](docs/prd/08-search-relations-and-evidence.md#contact-ve-company-kimliği)).
 _Avoid_: Kullanıcı Hesabı, Persona, müşteri kaydı
 
+**Benzersiz Contact**:
+`Priority Foundations` içinde Geri Bildirim kayıtlarından ayrı olarak aynı Contact kimliğini bir kez sayan bağlam değeri; talep veya popülerlik ölçüsü değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Unique Contact`.
+_Avoid_: Geri Bildirim sayısı, Contact toplamı, popülerlik puanı
+
 **Company**:
 Birden fazla Contact ve Geri Bildirimi isteğe bağlı ortak kuruluş bağlamında gruplayan hafif ana kayıt; gelir, sözleşme veya satış aşaması taşımaz.
 _Avoid_: CRM hesabı, ticari Hesap, Invoice müşterisi
+
+**Benzersiz Company**:
+`Priority Foundations` içinde Company kullanılıyorsa Geri Bildirim ve Benzersiz Contact sayılarından ayrı olarak aynı Company kimliğini bir kez sayan bağlam değeri; ticari değer veya otomatik öncelik girdisi değildir ([İş Bağlam Kartı](docs/prd/06-work-management-and-planning.md#iş-bağlam-kartı)). UI: `Unique Company`.
+_Avoid_: ticari değer, satış aşaması, popülerlik puanı
 
 **Şirkete ait**:
 Contact'ın Company ile türlenmiş güncel bağı; Contact başına en fazla bir güncel Company vardır ve geçmiş değişiklikte korunur ([standart ilişki türleri](docs/prd/02-domain-model-and-lifecycle.md#standart-ilişki-türleri)). UI: `Belongs to Company`.

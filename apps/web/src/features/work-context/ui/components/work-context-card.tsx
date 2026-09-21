@@ -15,7 +15,7 @@ import {
 import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useLinkProps, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { type MouseEvent, useCallback, useState } from "react";
 
 import { workRelationsHash } from "@/features/project-shell/lib/project-shell-navigation";
@@ -40,10 +40,8 @@ export default function WorkContextCard({
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
-  const relationsQuery = useQuery(
-    orpc.relations.queryOptions({
-      input: { recordId: work.id, recordType: "Work" },
-    }),
+  const workContextQuery = useQuery(
+    orpc.workContext.queryOptions({ input: { workId: work.id } }),
   );
   const layout = getPreparedWorkContextLayout(work.type);
   const [contextState, setContextState] = useState<WorkContextState>({
@@ -58,8 +56,8 @@ export default function WorkContextCard({
   );
   const contextModel = buildWorkContextModel({
     projectWorks,
-    priorityValues,
-    relations: relationsQuery.data ?? [],
+    priorityValues: priorityValues ?? workContextQuery.data?.priorityValues,
+    relations: workContextQuery.data?.relations ?? [],
     work,
   });
 
@@ -114,8 +112,8 @@ export default function WorkContextCard({
       </header>
 
       <WhyChain
-        isError={relationsQuery.isError}
-        isPending={relationsQuery.isPending}
+        isError={workContextQuery.isError}
+        isPending={workContextQuery.isPending}
         sources={contextModel.whyChain}
         work={work}
         workStatusLabels={workStatusLabels}
@@ -136,14 +134,16 @@ export default function WorkContextCard({
 
       <PriorityFoundations
         foundations={contextModel.priorityFoundations}
+        isError={workContextQuery.isError}
+        isPending={workContextQuery.isPending}
         work={work}
         workStatusLabels={workStatusLabels}
       />
 
       {visibleSections.map((section) => (
         <PreparedSection
-          isError={relationsQuery.isError}
-          isPending={relationsQuery.isPending}
+          isError={workContextQuery.isError}
+          isPending={workContextQuery.isPending}
           key={section}
           section={section}
           sources={sourcesForWorkContextSection(section, contextModel.sources)}
@@ -305,32 +305,16 @@ function WorkContextSourceItem({
           Status: {getWorkStatusLabel(source.status, workStatusLabels)}
         </span>
       ) : null}
-      {canOpenSourceRecord && source.projectId ? (
-        <OpenSourceRecordLink
-          projectId={source.projectId}
-          recordId={source.recordId}
-        />
+      {canOpenSourceRecord && source.openPath ? (
+        <OpenSourceRecordLink href={source.openPath} />
       ) : null}
     </div>
   );
 }
 
-function OpenSourceRecordLink({
-  projectId,
-  recordId,
-}: {
-  projectId: string;
-  recordId: string;
-}) {
-  const linkProps = useLinkProps({
-    activeOptions: { exact: true, includeHash: true },
-    hash: `work-${encodeURIComponent(recordId)}`,
-    params: { projectId },
-    to: "/projects/$projectId",
-  });
-
+function OpenSourceRecordLink({ href }: { href: string | null }) {
   return (
-    <a {...linkProps} className="underline underline-offset-2">
+    <a className="underline underline-offset-2" href={href ?? undefined}>
       Open source record
     </a>
   );
@@ -363,10 +347,14 @@ function InitialField({
 
 function PriorityFoundations({
   foundations,
+  isError,
+  isPending,
   work,
   workStatusLabels,
 }: {
   foundations: WorkContextPriorityFoundations;
+  isError: boolean;
+  isPending: boolean;
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
@@ -390,7 +378,20 @@ function PriorityFoundations({
       <h5 className="font-medium text-sm" id={headingId}>
         Priority Foundations
       </h5>
-      {foundations.values.length > 0 ? (
+      {isPending ? (
+        <p className="text-muted-foreground text-sm">Loading relations…</p>
+      ) : null}
+      {isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Priority Foundations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(isPending || isError) &&
+      foundations.values.length === 0 &&
+      foundations.counts.length === 0 ? (
+        <EmptyContextState work={work} />
+      ) : null}
+      {!(isPending || isError) && foundations.values.length > 0 ? (
         <ul className="space-y-2">
           {foundations.values.map((value) => (
             <PriorityFoundationValue
@@ -401,7 +402,7 @@ function PriorityFoundations({
           ))}
         </ul>
       ) : null}
-      {foundations.counts.length > 0 ? (
+      {!(isPending || isError) && foundations.counts.length > 0 ? (
         <ul className="flex flex-wrap gap-2">
           {foundations.counts.map((count) => {
             const isOpen = openCountId === count.id;
@@ -411,6 +412,7 @@ function PriorityFoundations({
                 <Button
                   aria-controls={isOpen ? listId : undefined}
                   aria-expanded={isOpen}
+                  aria-label={`Show ${count.label} source records (${count.count})`}
                   className="px-2 text-sm underline-offset-2 hover:underline"
                   data-count-id={count.id}
                   onClick={toggleCount}
@@ -421,7 +423,11 @@ function PriorityFoundations({
                   {count.label}: {count.count}
                 </Button>
                 {isOpen ? (
-                  <ul className="mt-2 space-y-2" id={listId}>
+                  <ul
+                    aria-label={`${count.label} source records`}
+                    className="mt-2 space-y-2"
+                    id={listId}
+                  >
                     {count.sources.map((source) => (
                       <li key={source.id}>
                         <WorkContextSourceItem
@@ -449,22 +455,22 @@ function PriorityFoundationValue({
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const { source } = value;
-  const canOpenSourceRecord = canOpenWorkContextSource(source);
+  const workSource = isWorkContextSource(source) ? source : null;
+  const canOpenSourceRecord = workSource
+    ? canOpenWorkContextSource(workSource)
+    : false;
 
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 px-3 py-2 text-sm">
       <span className="text-muted-foreground">{value.label}</span>
       <span>{value.value}</span>
-      {source.status ? (
+      {workSource?.status ? (
         <span className="text-muted-foreground">
-          Status: {getWorkStatusLabel(source.status, workStatusLabels)}
+          Status: {getWorkStatusLabel(workSource.status, workStatusLabels)}
         </span>
       ) : null}
-      {canOpenSourceRecord && source.projectId ? (
-        <OpenSourceRecordLink
-          projectId={source.projectId}
-          recordId={source.recordId}
-        />
+      {canOpenSourceRecord && workSource?.openPath ? (
+        <OpenSourceRecordLink href={workSource.openPath} />
       ) : null}
     </li>
   );
@@ -472,8 +478,12 @@ function PriorityFoundationValue({
 
 function canOpenWorkContextSource(source: WorkContextSource) {
   return Boolean(
-    source.recordType === "Work" &&
-      source.projectId &&
-      (!source.broken || source.broken.canOpenSourceRecord),
+    source.openPath && (!source.broken || source.broken.canOpenSourceRecord),
   );
+}
+
+function isWorkContextSource(
+  source: WorkContextPriorityValue["source"],
+): source is WorkContextSource {
+  return "recordType" in source;
 }
