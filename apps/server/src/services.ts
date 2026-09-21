@@ -164,7 +164,7 @@ export const captureInbox = createDatabaseCaptureInbox(
     ? undefined
     : createDevelopmentCaptureInboxTriageAdapter(),
   webCaptureStaging
-    ? createR2CaptureInboxStagingStore(webCaptureStaging)
+    ? createR2CaptureInboxStagingStore(webCaptureStaging, fileAttachmentService)
     : undefined,
 );
 export const webCapture = createDatabaseWebCapture({

@@ -616,6 +616,54 @@ export function createDatabaseFileAttachments(
         .where(eq(fileAttachmentUpload.id, uploadId));
     },
 
+    async rollbackCapturePromotion(input) {
+      await database.transaction(async (transaction) => {
+        const [upload] = await transaction
+          .select()
+          .from(fileAttachmentUpload)
+          .where(
+            and(
+              eq(fileAttachmentUpload.id, input.uploadId),
+              eq(fileAttachmentUpload.accountId, input.accountId),
+            ),
+          )
+          .limit(1)
+          .for("update");
+        if (!upload) {
+          return;
+        }
+        if (upload.status !== "committed" || !upload.result) {
+          return;
+        }
+        const receipt = fileAttachmentFinalizeReceiptSchema.parse(
+          upload.result,
+        );
+        if (
+          receipt.attachment.id !== input.attachmentId ||
+          receipt.version.id !== input.versionId
+        ) {
+          throw new Error("Capture promotion rollback does not match upload.");
+        }
+
+        await transaction
+          .delete(fileAttachment)
+          .where(
+            and(
+              eq(fileAttachment.id, input.attachmentId),
+              eq(fileAttachment.workspaceId, upload.workspaceId),
+            ),
+          );
+        await transaction
+          .delete(fileAttachmentUpload)
+          .where(
+            and(
+              eq(fileAttachmentUpload.id, input.uploadId),
+              eq(fileAttachmentUpload.accountId, input.accountId),
+            ),
+          );
+      });
+    },
+
     async markUploadSwept(uploadId, at) {
       await database
         .update(fileAttachmentUpload)

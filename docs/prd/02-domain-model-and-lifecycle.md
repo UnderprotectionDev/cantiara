@@ -165,12 +165,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Daha fazla | `More` | Kişisel kabuk çubuğunda Capture, Daily Focus ve Projects dışındaki yüzeyleri gruplayan menü |
 | Son bildirilen sağlık | `Last reported health` | Son Manuel Proje Güncellemesinin tarihiyle gösterilen sağlık işareti; güncel Project health alanı değildir |
 | Üyelik koşullardan gelir | `Membership comes from list conditions.` | Sürükleyerek liste üyesi eklenemeyeceğini söyleyen metin |
+| Liste adı | `List name` | Kaydedilmiş çapraz Proje listesinin kullanıcı tarafından verilen adı |
+| Listeyi aç | `Open list` | Kaydedilmiş çapraz Proje görünümünü açma eylemi |
+| Listeyi düzenle | `Edit list` | Kaydedilmiş çapraz Proje listesinin koşul veya görünümünü düzenleme eylemi |
+| Kaydedilmiş listeyi düzenle | `Edit saved list` | Kaydedilmiş liste formunun düzenleme başlığı |
+| Proje adı içerir | `Project name contains` | Proje adına göre canlı liste koşulu |
+| Proje alanı eşleşmesi | `Project areas match` | Seçilen Proje alanlarının herhangi biri veya tümüyle eşleşen canlı liste koşulu |
 | Kolonlar | `Columns` | Kaydedilmiş çapraz Proje listesinde saklanan desteklenen kolonlar |
 | Sıralama | `Sort` | Kaydedilmiş listenin kolon sıralaması |
+| Sıralama yönü | `Direction` | Kaydedilmiş listenin artan veya azalan sıralama yönü |
+| Artan | `Ascending` | Kaydedilmiş liste sıralamasını küçükten büyüğe veya eskiden yeniye uygulama |
+| Azalan | `Descending` | Kaydedilmiş liste sıralamasını büyükten küçüğe veya yeniden eskiye uygulama |
 | A–Z | `A–Z` | Artan sıralama |
 | Z–A | `Z–A` | Azalan sıralama |
 | Gruplama | `Grouping` | Kaydedilmiş listenin kolon gruplaması |
 | Yok | `None` | Gruplama seçilmedi |
+| Hedef tarih başlangıcı | `Target date from` | Kaydedilmiş liste için kapsayıcı hedef tarih aralığının başlangıcı |
+| Hedef tarih bitişi | `Target date to` | Kaydedilmiş liste için kapsayıcı hedef tarih aralığının bitişi |
+| Oluşturulma tarihi | `Created date` | Kaydedilmiş listenin Proje oluşturulma tarihine göre sıralama seçeneği |
+| Güncellenme tarihi | `Updated date` | Kaydedilmiş listenin Proje güncellenme tarihine göre sıralama seçeneği |
 | Herhangi | `Any` | Arşiv koşulu uygulanmaz |
 | Arşivlenmemiş | `Not archived` | Yalnız arşivde olmayan Projeler |
 | Arşivlenmiş | `Archived` | Yalnız arşivdeki Projeler; İş arşiv filtresi değildir |

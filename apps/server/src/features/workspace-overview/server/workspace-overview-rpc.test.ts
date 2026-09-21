@@ -1,7 +1,10 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
-import type { WorkspaceOverviewLayout } from "@cantiara/api/workspace-overview";
+import type {
+  WorkspaceOverviewLayout,
+  WorkspaceOverviewSavedListDefinition,
+} from "@cantiara/api/workspace-overview";
 import { buildWorkspaceOverview } from "@cantiara/api/workspace-overview";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
@@ -12,6 +15,7 @@ describe("Workspace Overview RPC", () => {
     const calls: Array<{
       accountId: string;
       layout: WorkspaceOverviewLayout;
+      savedLists: readonly WorkspaceOverviewSavedListDefinition[];
     }> = [];
     const context = {
       accountAccess: {
@@ -40,7 +44,11 @@ describe("Workspace Overview RPC", () => {
           return Promise.resolve(overview);
         },
         savePresentation: (accountId, presentation) => {
-          calls.push({ accountId, layout: presentation.layout });
+          calls.push({
+            accountId,
+            layout: presentation.layout,
+            savedLists: presentation.savedLists ?? [],
+          });
           return Promise.resolve(overview);
         },
       },
@@ -55,6 +63,18 @@ describe("Workspace Overview RPC", () => {
           order: ["recent-work", "active-projects"],
         },
         liveBlockSources: [],
+        savedLists: [
+          {
+            columns: ["name", "status"],
+            conditions: {
+              lifecycleStatuses: ["Active"],
+            },
+            groupBy: "status",
+            id: "active-projects",
+            name: "Active Projects",
+            sort: { direction: "asc", field: "name" },
+          },
+        ],
         version: 1,
       }),
     ).resolves.toEqual(overview);
@@ -66,6 +86,23 @@ describe("Workspace Overview RPC", () => {
           hidden: ["upcoming"],
           order: ["recent-work", "active-projects"],
         },
+        savedLists: [
+          {
+            columns: ["name", "status"],
+            conditions: {
+              archive: "all",
+              areaMatch: "any",
+              lifecycleStatuses: ["Active"],
+              nameContains: "",
+              projectAreas: [],
+              stageNames: [],
+            },
+            groupBy: "status",
+            id: "active-projects",
+            name: "Active Projects",
+            sort: { direction: "asc", field: "name" },
+          },
+        ],
       },
     ]);
   });

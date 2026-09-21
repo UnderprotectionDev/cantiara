@@ -8,13 +8,21 @@ export const Route = createFileRoute("/_auth/projects/")({
     const parsed = workspaceOverviewModuleIdSchema.safeParse(
       search.overviewModule,
     );
-    return parsed.success ? { overviewModule: parsed.data } : {};
+    const savedListId =
+      typeof search.savedListId === "string" &&
+      search.savedListId.trim().length > 0
+        ? search.savedListId
+        : undefined;
+    return {
+      ...(parsed.success ? { overviewModule: parsed.data } : {}),
+      ...(savedListId ? { savedListId } : {}),
+    };
   },
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { overviewModule } = Route.useSearch();
+  const { overviewModule, savedListId } = Route.useSearch();
   const { session } = Route.useRouteContext();
 
   return (
@@ -22,6 +30,7 @@ function RouteComponent() {
       <ProjectsView
         accountId={session.data?.user.id}
         selectedModule={overviewModule}
+        selectedSavedList={savedListId}
       />
     </ClientShellContent>
   );

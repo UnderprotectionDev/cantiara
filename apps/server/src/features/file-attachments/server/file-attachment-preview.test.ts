@@ -157,6 +157,7 @@ function createPreview(
     list: () => Promise.resolve([]),
     markUploadRejected: () => Promise.resolve(),
     markUploadSwept: () => Promise.resolve(),
+    rollbackCapturePromotion: () => Promise.resolve(),
   };
   const previewConfiguration: FileAttachmentPreviewConfiguration = {
     limits: options.limits,

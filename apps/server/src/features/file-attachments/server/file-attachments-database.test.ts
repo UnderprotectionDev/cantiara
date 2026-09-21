@@ -190,6 +190,37 @@ describeDatabase("File Attachments PostgreSQL repository", () => {
     expect(attachments[0]?.currentVersion).toMatchObject({ id: "version-1" });
   });
 
+  test("rolls back a failed Capture promotion without leaving its upload", async () => {
+    if (!database) {
+      throw new Error("FILE_ATTACHMENTS_DATABASE_URL is required");
+    }
+    const repository = createDatabaseFileAttachments(database);
+    await repository.insertUpload(stagedUpload(fixture, {}));
+    const committed = await repository.commitUpload(commitInput(fixture, {}));
+
+    await repository.rollbackCapturePromotion({
+      accountId: fixture.accountId,
+      attachmentId: committed.attachment.id,
+      uploadId: "upload-1",
+      versionId: committed.version.id,
+    });
+
+    await expect(
+      repository.list(fixture.accountId, {
+        kind: "project",
+        projectId: fixture.projectId,
+      }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      repository.findUpload(fixture.accountId, "key-1"),
+    ).resolves.toBeNull();
+    const versions = await database
+      .select({ id: fileAttachmentVersion.id })
+      .from(fileAttachmentVersion)
+      .where(eq(fileAttachmentVersion.attachmentId, committed.attachment.id));
+    expect(versions).toHaveLength(0);
+  });
+
   test("rejects a stale base revision without appending a version", async () => {
     if (!database) {
       throw new Error("FILE_ATTACHMENTS_DATABASE_URL is required");

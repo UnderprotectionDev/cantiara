@@ -52,6 +52,9 @@ const accountPreferencesQueryPrefix =
 export const projectsQueryPrefix = orpc.projects.queryOptions().queryKey;
 export const workspaceOverviewQueryPrefix =
   orpc.workspaceOverview.queryOptions().queryKey;
+export const projectWorksQueryPrefix = orpc.projectWorks
+  .queryOptions({ input: { projectId: "" } })
+  .queryKey.slice(0, 1);
 
 export function accountPreferencesQueryOptions(accountId?: string) {
   return {

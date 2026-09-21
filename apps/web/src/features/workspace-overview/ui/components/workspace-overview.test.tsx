@@ -1,5 +1,6 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type { WorkspaceOverviewModel } from "@cantiara/api/workspace-overview";
+import { workspaceOverviewSavedListDefinitionSchema } from "@cantiara/api/workspace-overview";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
@@ -84,6 +85,30 @@ const model: WorkspaceOverviewModel = {
       sourceHref: "/projects?overviewModule=recent-work",
     },
   ],
+  savedLists: [
+    workspaceOverviewSavedListDefinitionSchema.parse({
+      columns: ["name", "status", "archive"],
+      conditions: { lifecycleStatuses: ["Active"] },
+      groupBy: "status",
+      id: "active-projects-list",
+      name: "Active delivery Projects",
+      sort: { direction: "asc", field: "name" },
+    }),
+  ].map((definition) => ({
+    ...definition,
+    href: "/projects?savedListId=active-projects-list",
+    projects: [
+      {
+        archivedAt: null,
+        createdAt: "2026-09-01T09:00:00.000Z",
+        id: "project-1",
+        name: "Payment App",
+        status: "Active" as const,
+        targetDate: "2026-09-30",
+        updatedAt: "2026-09-19T08:00:00.000Z",
+      },
+    ],
+  })),
 };
 
 describe("Workspace Overview seam", () => {
@@ -163,5 +188,31 @@ describe("Workspace Overview seam", () => {
     );
 
     expect(html).toContain("Sep 30, 2026");
+  });
+
+  test("shows named live Project lists", () => {
+    const html = renderToStaticMarkup(<WorkspaceOverviewView model={model} />);
+
+    expect(html).toContain("Saved lists");
+    expect(html).toContain("Active delivery Projects");
+    expect(html).toContain("New list");
+    expect(html).toContain('href="/projects?savedListId=active-projects-list"');
+    expect(html).not.toContain("Portfolio");
+    expect(html).not.toContain("Project score");
+  });
+
+  test("opens a saved list without exposing manual membership controls", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceOverviewView
+        model={model}
+        selectedSavedList="active-projects-list"
+      />,
+    );
+
+    expect(html).toContain("Active delivery Projects");
+    expect(html).toContain("Archive");
+    expect(html).not.toContain("Add Project");
+    expect(html).not.toContain("Portfolio");
+    expect(html).not.toContain('data-workspace-overview-layout="true"');
   });
 });
