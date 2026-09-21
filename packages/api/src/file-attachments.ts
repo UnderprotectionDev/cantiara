@@ -222,6 +222,113 @@ export type FileAttachmentStageInput = z.infer<
   typeof fileAttachmentStageInputSchema
 >;
 
+export const FILE_ATTACHMENT_PREVIEW_VARIANTS = [
+  "original",
+  "small",
+  "medium",
+] as const;
+
+export type FileAttachmentPreviewVariant =
+  (typeof FILE_ATTACHMENT_PREVIEW_VARIANTS)[number];
+
+export const fileAttachmentPreviewInputSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentPreviewInput = z.infer<
+  typeof fileAttachmentPreviewInputSchema
+>;
+
+export const fileAttachmentAssetInputSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    variant: z.enum(FILE_ATTACHMENT_PREVIEW_VARIANTS),
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentAssetInput = z.infer<
+  typeof fileAttachmentAssetInputSchema
+>;
+
+export const fileAttachmentPreviewSchema = z
+  .object({
+    attachmentId: identifierSchema,
+    csv: z
+      .object({
+        headers: z.array(z.string()),
+        rows: z.array(z.array(z.string())),
+        truncated: z.boolean(),
+      })
+      .strict()
+      .optional(),
+    downloadPath: z.string().startsWith("/api/file-attachments/"),
+    failure: z
+      .object({
+        attempts: z.number().int().positive().safe(),
+        code: z.enum([
+          "decode-limit",
+          "dimension-limit",
+          "frame-limit",
+          "cpu-limit",
+          "processing-failed",
+        ]),
+        message: z.string().min(1),
+        retryable: z.boolean(),
+      })
+      .strict()
+      .optional(),
+    fallback: z.literal("Unavailable").optional(),
+    gallery: z
+      .object({
+        mediumPath: z.string().startsWith("/api/file-attachments/"),
+        smallPath: z.string().startsWith("/api/file-attachments/"),
+      })
+      .strict()
+      .optional(),
+    kind: z.enum(["image", "pdf", "csv", "text", "audio", "video", "download"]),
+    pageCount: z.number().int().positive().optional(),
+    playback: z
+      .object({
+        autoplay: z.literal(false),
+        fullscreen: z.literal(true),
+        loop: z.literal("optional"),
+        speeds: z.array(z.number().positive()).min(1),
+        userInitiated: z.literal(true),
+      })
+      .strict()
+      .optional(),
+    previewPath: z.string().startsWith("/api/file-attachments/").optional(),
+    status: z.enum(["available", "download-only", "processing", "unavailable"]),
+    text: z
+      .object({
+        content: z.string(),
+        truncated: z.boolean(),
+      })
+      .strict()
+      .optional(),
+    versionId: identifierSchema,
+  })
+  .strict();
+
+export type FileAttachmentPreview = z.infer<typeof fileAttachmentPreviewSchema>;
+
+export interface FileAttachmentAsset {
+  bytes: Uint8Array;
+  contentType: string;
+  disposition: "attachment" | "inline";
+  fileName: string;
+  versionId: string;
+}
+
+export interface FileAttachmentExternalSurfaceSelection {
+  allowed: boolean;
+  reason: "unscanned-zip" | null;
+}
+
 export const fileAttachmentVersionSchema = z
   .object({
     byteSize: z.number().int().positive().safe(),
@@ -308,6 +415,14 @@ export const fileAttachmentListInputSchema = z
   .strict();
 
 export interface FileAttachmentAccess {
+  canSelectIntoExternalSurface: (
+    accountId: string,
+    input: FileAttachmentPreviewInput,
+  ) => Promise<FileAttachmentExternalSurfaceSelection>;
+  cleanupVersionDerivatives: (
+    accountId: string,
+    input: FileAttachmentPreviewInput,
+  ) => Promise<void>;
   finalize: (
     accountId: string,
     input: FileAttachmentFinalizeInput,
@@ -317,6 +432,14 @@ export interface FileAttachmentAccess {
     accountId: string,
     scope?: FileAttachmentScope,
   ) => Promise<FileAttachment[]>;
+  preview: (
+    accountId: string,
+    input: FileAttachmentPreviewInput,
+  ) => Promise<FileAttachmentPreview>;
+  readAsset: (
+    accountId: string,
+    input: FileAttachmentAssetInput,
+  ) => Promise<FileAttachmentAsset>;
   stage: (
     accountId: string,
     input: FileAttachmentStageInput,

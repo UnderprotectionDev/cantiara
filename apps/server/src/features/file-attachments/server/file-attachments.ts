@@ -22,6 +22,14 @@ import {
 } from "@cantiara/api/file-attachments";
 import { fileTypeFromBuffer } from "file-type";
 
+import {
+  createFileAttachmentPreview,
+  type FileAttachmentPreviewConfiguration,
+  type FileAttachmentPreviewJob,
+  type FileAttachmentPreviewProcessOptions,
+  type FileAttachmentPreviewSchedule,
+} from "./file-attachment-preview";
+
 const MIME_PARAMETER_PATTERN = /;.*$/u;
 const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
 
@@ -307,10 +315,16 @@ export async function validateFileAttachmentUpload(
 
 export interface FileAttachmentObjectStore {
   delete: (key: string) => Promise<void>;
+  has: (key: string) => Promise<boolean>;
   promote: (input: {
     permanentKey: string;
     temporaryKey: string;
   }) => Promise<void>;
+  putImmutable: (input: {
+    bytes: Uint8Array;
+    contentType: string;
+    key: string;
+  }) => Promise<"created" | "existing">;
   putTemporary: (input: {
     accountId: string;
     bytes: Uint8Array;
@@ -348,6 +362,12 @@ export interface FileAttachmentStoredUpload {
   workspaceId: string;
 }
 
+export interface FileAttachmentStoredVersion {
+  attachment: FileAttachment;
+  objectKey: string;
+  version: FileAttachmentVersion;
+}
+
 export interface FileAttachmentCommitInput {
   accountId: string;
   attachmentId: string;
@@ -378,8 +398,17 @@ export interface FileAttachmentRepository {
     accountId: string,
     clientIdempotencyKey: string,
   ) => Promise<FileAttachmentStoredUpload | null>;
+  findVersion: (
+    accountId: string,
+    attachmentId: string,
+    versionId: string,
+  ) => Promise<FileAttachmentStoredVersion | null>;
   findWorkspaceId: (accountId: string) => Promise<string | null>;
   getQuota: (accountId: string) => Promise<FileAttachmentQuota>;
+  hasOtherVersionWithContentHash: (
+    contentHash: string,
+    versionId: string,
+  ) => Promise<boolean>;
   insertUpload: (input: FileAttachmentStoredUpload) => Promise<void>;
   list: (
     accountId: string,
@@ -398,6 +427,7 @@ export type FileAttachmentErrorCode =
   | "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT"
   | "FILE_ATTACHMENT_QUOTA_EXCEEDED"
   | "FILE_ATTACHMENT_REVISION_CONFLICT"
+  | "FILE_ATTACHMENT_PREVIEW_UNAVAILABLE"
   | "FILE_ATTACHMENT_TARGET_NOT_FOUND"
   | "FILE_ATTACHMENT_UPLOAD_NOT_FOUND"
   | "FILE_ATTACHMENT_UPLOAD_REJECTED"
@@ -507,6 +537,10 @@ function ensureUploadQuota(quota: FileAttachmentQuota, byteSize: number) {
 
 export interface FileAttachmentService {
   access: FileAttachmentAccess;
+  processPreview: (
+    job: FileAttachmentPreviewJob,
+    options?: FileAttachmentPreviewProcessOptions,
+  ) => Promise<void>;
   sweepExpiredUploads: (now?: Date) => Promise<number>;
 }
 
@@ -514,12 +548,16 @@ export function createFileAttachments({
   idGenerator = () => crypto.randomUUID(),
   now = () => new Date(),
   objectStore,
+  preview: previewConfiguration,
   repository,
+  schedulePreview,
 }: {
   idGenerator?: () => string;
   now?: () => Date;
   objectStore: FileAttachmentObjectStore;
   repository: FileAttachmentRepository;
+  schedulePreview?: FileAttachmentPreviewSchedule;
+  preview?: FileAttachmentPreviewConfiguration;
 }): FileAttachmentService {
   async function stage(
     accountId: string,
@@ -756,6 +794,12 @@ export function createFileAttachments({
         .delete(upload.temporaryObjectKey)
         .catch(() => undefined);
       await repository.clearTemporaryObject(upload.id).catch(() => undefined);
+      preview
+        .schedule(accountId, {
+          attachmentId: committed.attachment.id,
+          versionId: committed.version.id,
+        })
+        .catch(() => undefined);
       return receipt;
     } catch (error) {
       const committed = await repository.findUpload(
@@ -822,8 +866,24 @@ export function createFileAttachments({
     return expired.length;
   }
 
+  const preview = createFileAttachmentPreview({
+    ...previewConfiguration,
+    objectStore,
+    repository,
+    schedulePreview,
+  });
+
   return {
-    access: { finalize, getQuota, list, stage },
+    access: { finalize, getQuota, list, stage, ...preview },
+    processPreview: (job, options) =>
+      preview.process(
+        job.accountId,
+        {
+          attachmentId: job.attachmentId,
+          versionId: job.versionId,
+        },
+        options,
+      ),
     sweepExpiredUploads,
   } satisfies FileAttachmentService;
 }

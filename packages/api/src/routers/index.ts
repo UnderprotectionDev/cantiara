@@ -48,6 +48,7 @@ import {
 import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
+  fileAttachmentPreviewInputSchema,
 } from "../file-attachments";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
@@ -317,6 +318,12 @@ function rethrowFileAttachmentError(error: unknown): never {
     case "FILE_ATTACHMENT_TARGET_NOT_FOUND":
     case "FILE_ATTACHMENT_UPLOAD_NOT_FOUND":
       throw new ORPCError("NOT_FOUND", {
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    case "FILE_ATTACHMENT_PREVIEW_UNAVAILABLE":
+      throw new ORPCError("SERVICE_UNAVAILABLE", {
         data: { code: error.code },
         defined: true,
         message,
@@ -2633,6 +2640,29 @@ export const appRouter = {
           context.session.user.id,
           input,
         );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  previewFileAttachment: protectedProcedure
+    .input(fileAttachmentPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).preview(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  fileAttachmentExternalSurfaceSelection: protectedProcedure
+    .input(fileAttachmentPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(
+          context,
+        ).canSelectIntoExternalSurface(context.session.user.id, input);
       } catch (error) {
         rethrowFileAttachmentError(error);
       }

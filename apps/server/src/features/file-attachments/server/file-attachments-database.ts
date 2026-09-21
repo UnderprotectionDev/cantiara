@@ -19,7 +19,7 @@ import {
   fileAttachmentVersion,
 } from "@cantiara/db/schema/file-attachments";
 import { project } from "@cantiara/db/schema/project";
-import { and, asc, eq, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, lte, ne, or, sql } from "drizzle-orm";
 
 import {
   type FileAttachmentCommitInput,
@@ -478,6 +478,53 @@ export function createDatabaseFileAttachments(
         )
         .limit(1);
       return record ? toStoredUpload(record) : null;
+    },
+
+    async findVersion(accountId, attachmentId, versionId) {
+      const workspaceId = await workspaceIdFor(database, accountId);
+      if (!workspaceId) {
+        return null;
+      }
+      const [record] = await database
+        .select({ attachment: fileAttachment, version: fileAttachmentVersion })
+        .from(fileAttachmentVersion)
+        .innerJoin(
+          fileAttachment,
+          eq(fileAttachment.id, fileAttachmentVersion.attachmentId),
+        )
+        .where(
+          and(
+            eq(fileAttachment.workspaceId, workspaceId),
+            eq(fileAttachment.id, attachmentId),
+            eq(fileAttachmentVersion.id, versionId),
+          ),
+        )
+        .limit(1);
+      return record
+        ? {
+            attachment: toAttachment(record.attachment, record.version),
+            objectKey: record.version.objectKey,
+            version: toVersion(record.version),
+          }
+        : null;
+    },
+
+    async hasOtherVersionWithContentHash(contentHash, versionId) {
+      const [record] = await database
+        .select({ id: fileAttachmentVersion.id })
+        .from(fileAttachmentVersion)
+        .innerJoin(
+          fileAttachment,
+          eq(fileAttachment.id, fileAttachmentVersion.attachmentId),
+        )
+        .where(
+          and(
+            eq(fileAttachmentVersion.contentHash, contentHash),
+            ne(fileAttachmentVersion.id, versionId),
+          ),
+        )
+        .limit(1);
+      return Boolean(record);
     },
 
     findWorkspaceId(accountId) {

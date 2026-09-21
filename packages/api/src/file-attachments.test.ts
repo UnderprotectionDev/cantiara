@@ -5,6 +5,7 @@ import {
   FILE_ATTACHMENT_TYPE_RULES,
   FILE_ATTACHMENT_UI_LABELS,
   fileAttachmentFinalizeInputSchema,
+  fileAttachmentPreviewSchema,
   fileAttachmentScopeSchema,
 } from "./file-attachments";
 
@@ -64,5 +65,23 @@ describe("File Attachments contract", () => {
         uploadId: "upload-object-2",
       }),
     ).toMatchObject({ mode: "new-version" });
+  });
+
+  test("describes a ZIP as download-only without exposing an object URL", () => {
+    const preview = fileAttachmentPreviewSchema.parse({
+      attachmentId: "attachment-1",
+      downloadPath:
+        "/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+      kind: "download",
+      status: "download-only",
+      versionId: "version-1",
+    });
+
+    expect(preview).toMatchObject({
+      kind: "download",
+      status: "download-only",
+    });
+    expect(preview).not.toHaveProperty("objectKey");
+    expect(preview).not.toHaveProperty("externalUrl");
   });
 });

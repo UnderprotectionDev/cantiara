@@ -22,6 +22,7 @@ import {
   projectShellMutationContracts,
   relations,
   replaySecurityRevocations,
+  startFileAttachmentPreviewWorker,
   sweepExpiredFileAttachmentUploads,
   tagMutationContracts,
   tags,
@@ -39,6 +40,7 @@ initLogger({
 });
 
 await replaySecurityRevocations();
+await startFileAttachmentPreviewWorker();
 await sweepExpiredFileAttachmentUploads();
 setInterval(
   () => {
