@@ -106,13 +106,6 @@ export const WORK_CONTEXT_SOURCE_RELATION_KINDS = [
 type WorkContextSourceRelationKind =
   (typeof WORK_CONTEXT_SOURCE_RELATION_KINDS)[number];
 
-// Work is the only source record with a resolver and an exact destination in
-// the current product. Other catalog types remain visible when the endpoint
-// is broken, but an unresolved future source must not look live.
-const WORK_CONTEXT_RESOLVED_RECORD_TYPES = new Set<RelationRecordType>([
-  "Work",
-]);
-
 const WORK_CONTEXT_EVIDENCE_RECORD_TYPES = new Set<RelationRecordType>([
   "Document",
   "Document version",
@@ -126,6 +119,7 @@ const WORK_CONTEXT_EVIDENCE_RECORD_TYPES = new Set<RelationRecordType>([
 
 export interface WorkContextSource {
   broken: RelationEndpointView["broken"];
+  direction?: RelationView["direction"] | null;
   id: string;
   key: string | null;
   label: string;
@@ -136,8 +130,13 @@ export interface WorkContextSource {
   relationKind: WorkContextSourceRelationKind | null;
   status: WorkStatus | null;
   title: string | null;
+  url?: string | null;
   workType: WorkType | null;
 }
+
+export type WorkContextSourceLink = (
+  source: WorkContextSource,
+) => string | null;
 
 export interface WorkContextModel {
   sources: readonly WorkContextSource[];
@@ -147,6 +146,14 @@ export interface WorkContextModel {
 export interface BuildWorkContextModelInput {
   projectWorks?: readonly WorkProfile[];
   relations: readonly RelationView[];
+  work: WorkProfile;
+}
+
+export interface RenderWorkContextMarkdownInput {
+  model: WorkContextModel;
+  producedAt: string;
+  sourceLink?: WorkContextSourceLink;
+  statusLabel?: string;
   work: WorkProfile;
 }
 
@@ -200,7 +207,7 @@ export function buildWorkContextModel({
 
   for (const relation of relations) {
     const relationKind = relationKindFromRelation(relation.kind);
-    if (!(relationKind && hasSupportedRelatedEndpoint(relation, work.id))) {
+    if (!(relationKind && hasRelatedEndpoint(relation, work.id))) {
       continue;
     }
 
@@ -276,6 +283,185 @@ export function sourcesForWorkContextSection(
   });
 }
 
+export function renderWorkContextMarkdown({
+  model,
+  producedAt,
+  statusLabel,
+  work,
+  sourceLink,
+}: RenderWorkContextMarkdownInput) {
+  const lines = [
+    `# ${markdownInlineText(`${work.key} ${work.title}`)}`,
+    "",
+    `- Work key: ${markdownInlineText(work.key)}`,
+    `- Title: ${markdownInlineText(work.title)}`,
+    `- Type: ${markdownInlineText(work.type)}`,
+    `- Status: ${markdownInlineText(statusLabel ?? work.status)}`,
+    `- Produced at: ${markdownInlineText(producedAt)}`,
+    "- Primary source is in the app",
+    "",
+    "## Description",
+    "",
+    work.description?.trim() ? work.description.trim() : "_No description._",
+    "",
+    "## Checklist",
+    "",
+    ...(work.checklist.length > 0
+      ? work.checklist.map(
+          (item) =>
+            `- [${item.completed ? "x" : " "}] ${markdownInlineText(item.text)}`,
+        )
+      : ["_No checklist items._"]),
+    "",
+    "## Why am I doing this work?",
+    "",
+    ...markdownSourceSection(model.whyChain, undefined, sourceLink),
+    "",
+    "## Primary spec",
+    "",
+    ...markdownSourceSection(
+      model.sources.filter(
+        (source) =>
+          source.label === "Primary spec" ||
+          source.relationKind === "Primary spec",
+      ),
+      undefined,
+      sourceLink,
+    ),
+    "",
+    "## Related Decision, Risk, and Open Question",
+    "",
+    ...markdownSourceSection(
+      model.sources.filter((source) =>
+        ["Decision", "Risk", "Open Question"].includes(source.recordType),
+      ),
+      undefined,
+      sourceLink,
+    ),
+    "",
+    "## Active blockers",
+    "",
+    ...markdownSourceSection(
+      model.sources.filter(
+        (source) =>
+          source.relationKind === "Blocks" &&
+          source.status !== "Closed" &&
+          (source.direction === undefined ||
+            source.direction === null ||
+            source.direction === "incoming"),
+      ),
+      "Blocked by",
+      sourceLink,
+    ),
+    "",
+    "## GitHub and external links",
+    "",
+    ...markdownSourceSection(
+      model.sources.filter((source) =>
+        ["GitHub external", "GitHub PR"].includes(source.recordType),
+      ),
+      undefined,
+      sourceLink,
+    ),
+  ];
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function markdownSourceSection(
+  sources: readonly WorkContextSource[],
+  label?: string,
+  sourceLink?: WorkContextSourceLink,
+) {
+  const lines = sources
+    .filter(isCopyableSource)
+    .map((source) => {
+      const reference = markdownSourceReference(source, sourceLink);
+      if (!reference) {
+        return null;
+      }
+      const status = source.status
+        ? ` — Status: ${markdownInlineText(source.status)}`
+        : "";
+      return `- ${markdownInlineText(label ?? source.label)}: ${reference}${status}`;
+    })
+    .filter((line): line is string => line !== null);
+
+  return lines.length > 0 ? lines : ["_No accessible sources._"];
+}
+
+function isCopyableSource(source: WorkContextSource) {
+  if (source.broken && !source.broken.canOpenSourceRecord) {
+    return false;
+  }
+  return Boolean(source.key || source.title || source.url);
+}
+
+function markdownSourceReference(
+  source: WorkContextSource,
+  sourceLink?: WorkContextSourceLink,
+) {
+  let sourceText: string = source.recordType;
+  if (source.key) {
+    sourceText = source.title ? `${source.key} ${source.title}` : source.key;
+  } else if (source.title) {
+    sourceText = source.title;
+  }
+  const text = markdownInlineText(sourceText);
+  const url = sourceUrl(source, sourceLink);
+  return url ? `[${text}](<${markdownUrl(url)}>)` : text;
+}
+
+function sourceUrl(
+  source: WorkContextSource,
+  sourceLink?: WorkContextSourceLink,
+) {
+  const appLink = sourceLink?.(source);
+  if (appLink !== null && appLink !== undefined) {
+    return appLink;
+  }
+
+  if (
+    source.recordType === "GitHub external" ||
+    source.recordType === "GitHub PR"
+  ) {
+    for (const candidate of [
+      source.url,
+      source.key,
+      source.label,
+      source.title,
+    ]) {
+      if (candidate && isHttpUrl(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function markdownInlineText(value: string) {
+  return value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("`", "\\`")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]")
+    .replaceAll("\n", " ")
+    .replaceAll("\r", " ");
+}
+
+function markdownUrl(value: string) {
+  return value.replaceAll("\\", "%5C").replaceAll(">", "%3E");
+}
+
 function isEvidenceSource(source: WorkContextSource) {
   return (
     source.relationKind === "Evidence" &&
@@ -293,16 +479,11 @@ function relationKindFromRelation(
     : null;
 }
 
-function hasSupportedRelatedEndpoint(relation: RelationView, workId: string) {
+function hasRelatedEndpoint(relation: RelationView, workId: string) {
   const endpoint = relatedEndpoint(relation, workId);
-  return endpoint
-    ? endpoint.broken !== null ||
-        isSupportedSourceRecordType(endpoint.recordType)
-    : false;
-}
-
-function isSupportedSourceRecordType(recordType: RelationRecordType) {
-  return WORK_CONTEXT_RESOLVED_RECORD_TYPES.has(recordType);
+  // RelationEndpointView is the authorization boundary. A resolved endpoint
+  // is live, while a broken endpoint remains only as a content-free tombstone.
+  return endpoint !== null;
 }
 
 function relatedEndpoint(
@@ -328,6 +509,7 @@ function sourceFromRelation(
   }
   return {
     broken: endpoint.broken,
+    direction: relation.direction,
     id: `relation:${relation.id}`,
     key: endpoint.key,
     label: sourceLabel(relationKind, endpoint),
@@ -338,6 +520,7 @@ function sourceFromRelation(
     relationKind,
     status: endpoint.status,
     title: endpoint.title,
+    url: endpoint.url ?? null,
     workType: endpoint.workType,
   };
 }
