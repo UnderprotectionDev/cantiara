@@ -208,7 +208,9 @@ function createMemoryFileAttachments(
         [...uploads.values()].filter(
           (upload) =>
             upload.expiresAt <= at &&
-            (upload.status === "staged" || upload.status === "rejected"),
+            (upload.status === "staged" ||
+              upload.status === "rejected" ||
+              upload.status === "committed"),
         ),
       );
     },
@@ -278,7 +280,7 @@ function createMemoryFileAttachments(
       );
     },
 
-    markUploadRejected(uploadId, error) {
+    markUploadRejected(uploadId, error, _at) {
       const upload = uploads.get(uploadId);
       if (upload) {
         upload.error = error;
@@ -287,7 +289,7 @@ function createMemoryFileAttachments(
       return Promise.resolve();
     },
 
-    markUploadSwept(uploadId) {
+    markUploadSwept(uploadId, _at) {
       uploads.delete(uploadId);
       return Promise.resolve();
     },
@@ -323,6 +325,7 @@ function createMemoryFileAttachments(
   return {
     attachments,
     objects,
+    objectStore,
     repository,
     service: createFileAttachments({
       idGenerator: createIds(),
@@ -330,6 +333,7 @@ function createMemoryFileAttachments(
       objectStore,
       repository,
     }),
+    uploads,
   };
 }
 
@@ -614,5 +618,68 @@ describe("File Attachments — Dosya sınırları finalize seam", () => {
         new Uint8Array([...jpegBytes, 0x01]),
       ),
     ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT" });
+  });
+
+  test("reports an idempotency conflict when a concurrent stage wins with different content", async () => {
+    const memory = createMemoryFileAttachments();
+    const input = newInput();
+    const racingRepository: FileAttachmentRepository = {
+      ...memory.repository,
+      async insertUpload(upload) {
+        await memory.repository.insertUpload({
+          ...upload,
+          id: `${upload.id}-concurrent`,
+          payloadFingerprint: "0".repeat(64),
+        });
+        throw new Error("duplicate idempotency key");
+      },
+    };
+    const service = createFileAttachments({
+      idGenerator: createIds(),
+      now: () => new Date("2026-09-21T10:00:00.000Z"),
+      objectStore: memory.objectStore,
+      repository: racingRepository,
+    });
+
+    await expect(
+      service.access.stage(accountId, stageInput(input), jpegBytes),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT" });
+    expect([...memory.objects.keys()]).toHaveLength(0);
+  });
+
+  test("sweeping a committed upload keeps its idempotent finalize receipt", async () => {
+    const memory = createMemoryFileAttachments();
+    const input = newInput();
+    const session = await memory.service.access.stage(
+      accountId,
+      stageInput(input),
+      jpegBytes,
+    );
+    await memory.service.access.finalize(accountId, {
+      ...input,
+      uploadId: session.uploadId,
+    });
+
+    // Simulate a failed temporary-object cleanup after the commit barrier.
+    const upload = memory.uploads.get(session.uploadId);
+    expect(upload?.status).toBe("committed");
+    if (!upload) {
+      throw new Error("The committed upload is missing.");
+    }
+    upload.temporaryObjectKey = "temporary/orphan";
+
+    expect(
+      await memory.service.sweepExpiredUploads(
+        new Date("2026-09-22T10:00:00.000Z"),
+      ),
+    ).toBe(1);
+    expect(upload.status).toBe("committed");
+    expect(upload.temporaryObjectKey).toBeNull();
+    await expect(
+      memory.service.access.finalize(accountId, {
+        ...input,
+        uploadId: session.uploadId,
+      }),
+    ).resolves.toMatchObject({ idempotent: true });
   });
 });

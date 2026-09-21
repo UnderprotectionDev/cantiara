@@ -4,6 +4,7 @@ import {
   type DesktopApiCompatibilityWindow,
 } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
+import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
 import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -220,6 +221,33 @@ describe("server app Account Access boundary", () => {
 
     expect(response.status).toBe(401);
     expect(webCapture.send).not.toHaveBeenCalled();
+  });
+
+  test("rejects an oversized File Attachment stage body before buffering it", async () => {
+    const fileAttachments = {
+      finalize: vi.fn(),
+      getQuota: vi.fn(),
+      list: vi.fn(),
+      stage: vi.fn(),
+    } satisfies FileAttachmentAccess;
+    const { app } = createTestApp({ authorized: true, fileAttachments });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/file-attachments/stage", {
+        body: "x",
+        headers: {
+          "content-length": String(FILE_ATTACHMENT_UPLOAD_BODY_LIMIT + 1),
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      code: "FILE_ATTACHMENT_FILE_TOO_LARGE",
+    });
+    expect(fileAttachments.stage).not.toHaveBeenCalled();
   });
 
   test("stages a multipart File Attachment only for an authorized Founder", async () => {

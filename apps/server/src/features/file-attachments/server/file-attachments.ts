@@ -323,7 +323,8 @@ export interface FileAttachmentObjectStore {
 export type FileAttachmentStoredUploadStatus =
   | "committed"
   | "rejected"
-  | "staged";
+  | "staged"
+  | "swept";
 
 export interface FileAttachmentStoredUpload {
   accountId: string;
@@ -387,8 +388,9 @@ export interface FileAttachmentRepository {
   markUploadRejected: (
     uploadId: string,
     error: { code: string; message: string },
+    at: Date,
   ) => Promise<void>;
-  markUploadSwept: (uploadId: string) => Promise<void>;
+  markUploadSwept: (uploadId: string, at: Date) => Promise<void>;
 }
 
 export type FileAttachmentErrorCode =
@@ -608,6 +610,14 @@ export function createFileAttachments({
           uploadId: concurrent.id,
         });
       }
+      if (concurrent) {
+        // biome-ignore lint/style/useErrorCause: FileAttachmentError forwards this cause through its Error constructor.
+        throw new FileAttachmentError(
+          "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT",
+          "The upload key was already used for different file content.",
+          { cause: error },
+        );
+      }
       throw error;
     }
 
@@ -668,7 +678,7 @@ export function createFileAttachments({
         code: "FILE_ATTACHMENT_UPLOAD_UNAVAILABLE",
         message: "The upload object is unavailable. Start the upload again.",
       } as const;
-      await repository.markUploadRejected(upload.id, failure);
+      await repository.markUploadRejected(upload.id, failure, now());
       // biome-ignore lint/style/useErrorCause: FileAttachmentError forwards this cause through its Error constructor.
       throw new FileAttachmentError(failure.code, failure.message, {
         cause: error,
@@ -690,7 +700,7 @@ export function createFileAttachments({
               code: "FILE_ATTACHMENT_CONTENT_MISMATCH",
               message: "The file could not be verified.",
             };
-      await repository.markUploadRejected(upload.id, failure);
+      await repository.markUploadRejected(upload.id, failure, now());
       throw error;
     }
 
@@ -704,7 +714,7 @@ export function createFileAttachments({
         code: "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT",
         message: "The upload content changed before finalization.",
       } as const;
-      await repository.markUploadRejected(upload.id, failure);
+      await repository.markUploadRejected(upload.id, failure, now());
       throw new FileAttachmentError(failure.code, failure.message);
     }
 
@@ -765,10 +775,14 @@ export function createFileAttachments({
       await objectStore.delete(permanentKey).catch(() => undefined);
       if (error instanceof FileAttachmentError) {
         await repository
-          .markUploadRejected(upload.id, {
-            code: error.code,
-            message: error.message,
-          })
+          .markUploadRejected(
+            upload.id,
+            {
+              code: error.code,
+              message: error.message,
+            },
+            now(),
+          )
           .catch(() => undefined);
         throw error;
       }
@@ -795,7 +809,14 @@ export function createFileAttachments({
         if (upload.temporaryObjectKey) {
           await objectStore.delete(upload.temporaryObjectKey);
         }
-        await repository.markUploadSwept(upload.id);
+        // A committed upload must keep its receipt so an idempotent finalize
+        // retry still returns the prior result (ADR-0004); only its leftover
+        // temporary object is cleared.
+        if (upload.status === "committed") {
+          await repository.clearTemporaryObject(upload.id);
+        } else {
+          await repository.markUploadSwept(upload.id, at);
+        }
       }),
     );
     return expired.length;

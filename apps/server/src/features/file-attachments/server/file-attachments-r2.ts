@@ -42,8 +42,16 @@ function copyBytes(value: Uint8Array) {
   return copy;
 }
 
+// Web crypto and fetch need a standalone ArrayBuffer; the payload-sized copy is
+// avoided when the view already covers its whole backing buffer.
+function standaloneBuffer(value: Uint8Array): ArrayBuffer {
+  return value.byteOffset === 0 && value.byteLength === value.buffer.byteLength
+    ? (value.buffer as ArrayBuffer)
+    : value.slice().buffer;
+}
+
 async function sha256(value: Uint8Array) {
-  return hex(await crypto.subtle.digest("SHA-256", copyBytes(value)));
+  return hex(await crypto.subtle.digest("SHA-256", standaloneBuffer(value)));
 }
 
 async function hmac(key: Uint8Array, value: string | Uint8Array) {
@@ -148,7 +156,7 @@ async function signedRequest({
     "x-amz-date": timestamp,
   });
   const response = await fetcher(parsedUrl, {
-    body: method === "PUT" ? copyBytes(payload).buffer : undefined,
+    body: method === "PUT" ? standaloneBuffer(payload) : undefined,
     headers: requestHeaders,
     method,
   });

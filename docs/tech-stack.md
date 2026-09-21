@@ -85,7 +85,7 @@ Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürü
 
 | Teknoloji | Amaç |
 | --- | --- |
-| Uppy Core | R2 upload yönetimi |
+| Uppy Core | R2 upload yönetimi; istemci yükleme yüzeyinde çalışır, sunucu bu yüzden Uppy'nin multipart POST gönderebildiği Dosya Eki `stage` endpoint'ini sağlar |
 | `file-type` | Dosya türü algılama |
 | Sharp | Görsel üstverisi ve thumbnail |
 | Papa Parse | CSV ayrıştırma |

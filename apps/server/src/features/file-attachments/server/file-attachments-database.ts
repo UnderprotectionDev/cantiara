@@ -562,18 +562,18 @@ export function createDatabaseFileAttachments(
       );
     },
 
-    async markUploadRejected(uploadId, error) {
+    async markUploadRejected(uploadId, error, at) {
       await database
         .update(fileAttachmentUpload)
-        .set({ completedAt: new Date(), error, status: "rejected" })
+        .set({ completedAt: at, error, status: "rejected" })
         .where(eq(fileAttachmentUpload.id, uploadId));
     },
 
-    async markUploadSwept(uploadId) {
+    async markUploadSwept(uploadId, at) {
       await database
         .update(fileAttachmentUpload)
         .set({
-          completedAt: new Date(),
+          completedAt: at,
           status: "swept",
           temporaryObjectKey: null,
         })

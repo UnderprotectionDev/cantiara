@@ -111,6 +111,13 @@ export const FILE_ATTACHMENT_TYPE_RULES: Record<
   },
 };
 
+// Largest accepted original bytes plus multipart form overhead for the stage route.
+export const FILE_ATTACHMENT_UPLOAD_BODY_LIMIT =
+  Math.max(
+    ...Object.values(FILE_ATTACHMENT_TYPE_RULES).map((rule) => rule.maxBytes),
+  ) +
+  1024 * 1024;
+
 export const FILE_ATTACHMENT_LIFECYCLE_STATUSES = [
   "Active",
   "Archive",
