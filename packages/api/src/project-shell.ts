@@ -5,9 +5,9 @@ import {
   cloneWorkContextLayouts,
   getDefaultWorkContextLayouts,
   normalizeWorkContextLayout,
+  repairWorkContextLayouts,
   type WorkContextLayouts,
   workContextLayoutSchema,
-  workContextLayoutsSchema,
 } from "./work-context";
 import { workTypeSchema } from "./work-lifecycle";
 
@@ -428,7 +428,9 @@ export const projectShellConfigurationSchema = z
     preparedStages: projectStagesSchema,
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema,
-    workContextLayouts: workContextLayoutsSchema,
+    // Work Context Card layouts are repaired on read; storage stays lenient so
+    // an evolved prepared section set cannot invalidate the configuration.
+    workContextLayouts: z.unknown().optional(),
     workStatuses: protectedWorkStatusesSchema,
     workStatusLabels: workStatusLabelsSchema,
   })
@@ -444,7 +446,7 @@ const legacyProjectShellConfigurationSchema = z
     ),
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema.optional(),
-    workContextLayouts: workContextLayoutsSchema.optional(),
+    workContextLayouts: z.unknown().optional(),
     workStatuses: protectedWorkStatusesSchema,
     workStatusLabels: workStatusLabelsSchema.optional(),
   })
@@ -500,15 +502,28 @@ export function resolveProjectShellConfiguration(
   const parsed = projectShellConfigurationSchema.safeParse(value);
   const expected = getProjectShellConfiguration(starterConfiguration);
   if (parsed.success) {
+    const resolved: ProjectShellConfiguration = {
+      enabledAreas: [...parsed.data.enabledAreas],
+      extraPinnedAreas: [...parsed.data.extraPinnedAreas],
+      hiddenAreas: [...parsed.data.hiddenAreas],
+      preparedStages: clonePreparedStages(parsed.data.preparedStages),
+      preparedWorkViews: [...parsed.data.preparedWorkViews],
+      starterSkeletons: cloneStarterSkeletons(parsed.data.starterSkeletons),
+      workContextLayouts: repairWorkContextLayouts(
+        parsed.data.workContextLayouts,
+      ),
+      workStatuses: [...parsed.data.workStatuses],
+      workStatusLabels: cloneWorkStatusLabels(parsed.data.workStatusLabels),
+    };
     return starterSkeletonsEqual(
-      parsed.data.starterSkeletons,
+      resolved.starterSkeletons,
       expected.starterSkeletons,
     )
-      ? cloneProjectShellConfiguration(parsed.data)
-      : cloneProjectShellConfiguration({
-          ...parsed.data,
+      ? resolved
+      : {
+          ...resolved,
           starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
-        });
+        };
   }
 
   const legacy = legacyProjectShellConfigurationSchema.safeParse(value);
@@ -518,9 +533,9 @@ export function resolveProjectShellConfiguration(
         hiddenAreas: [...(legacy.data.hiddenAreas ?? [])],
         preparedStages: normalizeLegacyStages(legacy.data.preparedStages),
         starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
-        workContextLayouts: legacy.data.workContextLayouts
-          ? cloneWorkContextLayouts(legacy.data.workContextLayouts)
-          : getDefaultWorkContextLayouts(),
+        workContextLayouts: repairWorkContextLayouts(
+          legacy.data.workContextLayouts,
+        ),
         workStatusLabels: cloneWorkStatusLabels(
           legacy.data.workStatusLabels ?? defaultWorkStatusLabels(),
         ),

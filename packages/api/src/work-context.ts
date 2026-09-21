@@ -155,32 +155,6 @@ export type WorkContextLayout = z.infer<typeof workContextLayoutSchema>;
 
 export type WorkContextLayouts = Record<WorkType, WorkContextLayout>;
 
-export const workContextLayoutsSchema = z
-  .object({
-    Bug: workContextLayoutSchema,
-    Feature: workContextLayoutSchema,
-    Improvement: workContextLayoutSchema,
-    Research: workContextLayoutSchema,
-    Task: workContextLayoutSchema,
-  })
-  .strict()
-  .superRefine((layouts, context) => {
-    for (const workType of WORK_TYPE_OPTIONS) {
-      try {
-        normalizeWorkContextLayout(workType, layouts[workType]);
-      } catch (error) {
-        context.addIssue({
-          code: "custom",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Work Context Card layout is invalid.",
-          path: [workType],
-        });
-      }
-    }
-  });
-
 export interface WorkContextLayoutSection {
   custom: WorkContextCustomSection | null;
   key: string;
@@ -263,6 +237,83 @@ export function getDefaultWorkContextLayouts(): WorkContextLayouts {
   ) as unknown as WorkContextLayouts;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+function readStringKeys(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((key): key is string => typeof key === "string")
+    : [];
+}
+
+/**
+ * Read-path companion to `normalizeWorkContextLayout`. Persisted layouts are
+ * repaired instead of rejected so an evolved prepared section set can never
+ * invalidate a whole Project configuration: missing prepared sections are
+ * appended, unknown or duplicate keys are dropped, and unreadable data falls
+ * back to the prepared layout. The write path stays strict.
+ */
+export function repairWorkContextLayout(
+  workType: WorkType,
+  value: unknown,
+): WorkContextLayout {
+  const prepared = PREPARED_WORK_CONTEXT_SECTIONS[workType];
+  const expectedKeys = new Set<string>(prepared);
+  const customSections: WorkContextCustomSection[] = [];
+  if (!isRecord(value)) {
+    return getDefaultWorkContextLayouts()[workType];
+  }
+  const customCandidates = Array.isArray(value.customSections)
+    ? value.customSections
+    : [];
+  for (const candidate of customCandidates) {
+    const parsed = workContextCustomSectionSchema.safeParse(candidate);
+    if (!parsed.success) {
+      continue;
+    }
+    const section = cloneWorkContextCustomSection(parsed.data);
+    if (expectedKeys.has(section.id)) {
+      continue;
+    }
+    expectedKeys.add(section.id);
+    customSections.push(section);
+  }
+  const seenKeys = new Set<string>();
+  const sectionOrder: string[] = [];
+  for (const key of readStringKeys(value.sectionOrder)) {
+    if (!expectedKeys.has(key) || seenKeys.has(key)) {
+      continue;
+    }
+    seenKeys.add(key);
+    sectionOrder.push(key);
+  }
+  for (const key of expectedKeys) {
+    if (!seenKeys.has(key)) {
+      sectionOrder.push(key);
+    }
+  }
+  const hiddenSections: string[] = [];
+  const seenHidden = new Set<string>();
+  for (const key of readStringKeys(value.hiddenSections)) {
+    if (!expectedKeys.has(key) || seenHidden.has(key)) {
+      continue;
+    }
+    seenHidden.add(key);
+    hiddenSections.push(key);
+  }
+  return { customSections, hiddenSections, sectionOrder };
+}
+
+export function repairWorkContextLayouts(value: unknown): WorkContextLayouts {
+  const source = isRecord(value) ? value : {};
+  return Object.fromEntries(
+    WORK_TYPE_OPTIONS.map((workType) => [
+      workType,
+      repairWorkContextLayout(workType, source[workType]),
+    ]),
+  ) as unknown as WorkContextLayouts;
+}
+
 export function normalizeWorkContextLayout(
   workType: WorkType,
   value: unknown,
@@ -313,19 +364,14 @@ export function getWorkContextLayout(
   workType: WorkType,
   layouts?: Partial<WorkContextLayouts> | null,
 ): WorkContextLayout {
-  const layout = layouts?.[workType];
-  return layout
-    ? normalizeWorkContextLayout(workType, layout)
-    : getDefaultWorkContextLayouts()[workType];
+  return repairWorkContextLayout(workType, layouts?.[workType]);
 }
 
 export function workContextLayoutSections(
   workType: WorkType,
   layout?: WorkContextLayout | null,
 ): WorkContextLayoutSection[] {
-  const resolved = layout
-    ? normalizeWorkContextLayout(workType, layout)
-    : getWorkContextLayout(workType);
+  const resolved = repairWorkContextLayout(workType, layout);
   const customById = new Map(
     resolved.customSections.map((section) => [section.id, section]),
   );
@@ -387,8 +433,11 @@ export function previewWorkContextLayout(
     nextVisible.includes(key),
   );
   const nextCommon = nextVisible.filter((key) => currentVisible.includes(key));
+  const currentIndexByKey = new Map(
+    currentCommon.map((key, index) => [key, index] as const),
+  );
   const movedKeys = nextCommon.filter(
-    (key, index) => currentCommon[index] !== key,
+    (key, index) => currentIndexByKey.get(key) !== index,
   );
 
   return {
@@ -403,17 +452,6 @@ export function previewWorkContextLayout(
       .filter((key) => !next.hiddenSections.includes(key))
       .map(label),
   };
-}
-
-export function nextPreparedWorkContextSection(
-  workType: WorkType,
-  visibleSections: readonly PreparedWorkContextSection[],
-) {
-  return (
-    getPreparedWorkContextLayout(workType).sections.find(
-      (section) => !visibleSections.includes(section),
-    ) ?? null
-  );
 }
 
 export const WORK_CONTEXT_SOURCE_RELATION_KINDS = [
@@ -663,9 +701,19 @@ function matchesCustomRecordType(
         source.recordType === "GitHub external"
       );
     case "Origin Research":
+      return (
+        source.relationKind === "Origin" &&
+        source.recordType === "Work" &&
+        source.workType === "Research"
+      );
     case "Primary Feature":
+      return (
+        (source.relationKind === null && source.recordType === "Work") ||
+        (source.relationKind === "Includes" &&
+          (source.recordType === "Feature" || source.workType === "Feature"))
+      );
     case "Primary spec":
-      return source.label === recordType;
+      return source.relationKind === "Primary spec";
     default:
       return source.recordType === recordType;
   }

@@ -13,8 +13,9 @@ import {
   getDefaultWorkContextLayouts,
   getPreparedWorkContextLayout,
   getWorkContextLayout,
-  nextPreparedWorkContextSection,
+  nextWorkContextSection,
   previewWorkContextLayout,
+  repairWorkContextLayout,
   sourcesForWorkContextCustomSection,
   sourcesForWorkContextSection,
   WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS,
@@ -142,12 +143,12 @@ describe("Work Context Card prepared layouts", () => {
   });
 
   test("opens one hidden section at a time through Add Context", () => {
-    expect(nextPreparedWorkContextSection("Task", [])).toBe("Description");
-    expect(nextPreparedWorkContextSection("Task", ["Description"])).toBe(
+    expect(nextWorkContextSection("Task", [])?.key).toBe("Description");
+    expect(nextWorkContextSection("Task", ["Description"])?.key).toBe(
       "Dependencies",
     );
     expect(
-      nextPreparedWorkContextSection("Task", [
+      nextWorkContextSection("Task", [
         "Description",
         "Dependencies",
         "GitHub & Tests",
@@ -186,6 +187,128 @@ describe("Work Context Card configurable layouts", () => {
     expect(resolved.workContextLayouts.Task).toEqual(
       getDefaultWorkContextLayouts().Task,
     );
+  });
+
+  test("repairs a stale persisted layout without resetting the Project configuration", () => {
+    const current = getProjectShellConfiguration("Blank Project");
+    const stale = {
+      ...current,
+      workContextLayouts: {
+        ...current.workContextLayouts,
+        Task: {
+          customSections: [],
+          hiddenSections: [],
+          sectionOrder: ["Description", "Legacy Section", "Dependencies"],
+        },
+      },
+    };
+
+    const resolved = resolveProjectShellConfiguration(stale, "Blank Project");
+
+    expect(resolved.workContextLayouts.Task).toEqual({
+      customSections: [],
+      hiddenSections: [],
+      sectionOrder: [
+        "Description",
+        "Dependencies",
+        "GitHub & Tests",
+        "Target Release",
+      ],
+    });
+    expect(resolved.enabledAreas).toEqual(current.enabledAreas);
+    expect(resolved.workStatusLabels).toEqual(current.workStatusLabels);
+    expect(resolved.preparedStages).toEqual(current.preparedStages);
+  });
+
+  test("repairs a layout by keeping valid custom sections and dropping stale keys", () => {
+    const repaired = repairWorkContextLayout("Task", {
+      customSections: [
+        {
+          condition: {
+            kind: "record-type",
+            recordType: "Decision",
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+        {
+          condition: { kind: "query", query: "status = Closed" },
+          id: "custom-free-query",
+          title: "Not allowed",
+        },
+      ],
+      hiddenSections: ["Description", "Ghost Section"],
+      sectionOrder: ["Description", "custom-decisions", "Description"],
+    });
+
+    expect(repaired).toEqual({
+      customSections: [
+        {
+          condition: {
+            kind: "record-type",
+            recordType: "Decision",
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+      ],
+      hiddenSections: ["Description"],
+      sectionOrder: [
+        "Description",
+        "custom-decisions",
+        "Dependencies",
+        "GitHub & Tests",
+        "Target Release",
+      ],
+    });
+    expect(repairWorkContextLayout("Task", repaired)).toEqual(repaired);
+  });
+
+  test("falls back to the prepared layout when the persisted layout is unreadable", () => {
+    expect(repairWorkContextLayout("Task", null)).toEqual(
+      getDefaultWorkContextLayouts().Task,
+    );
+    expect(repairWorkContextLayout("Task", "not a layout")).toEqual(
+      getDefaultWorkContextLayouts().Task,
+    );
+  });
+
+  test("does not report hidden or added sections as moved when the order is stable", () => {
+    const configuration = getProjectShellConfiguration("Blank Project");
+    const before = getWorkContextLayout(
+      "Task",
+      configuration.workContextLayouts,
+    );
+    const after = {
+      customSections: [
+        {
+          condition: {
+            kind: "record-type" as const,
+            recordType: "Decision" as const,
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+      ],
+      hiddenSections: ["Dependencies" as const],
+      sectionOrder: [
+        "Description",
+        "Dependencies",
+        "GitHub & Tests",
+        "Target Release",
+        "custom-decisions",
+      ],
+    };
+
+    expect(previewWorkContextLayout("Task", before, after)).toEqual({
+      added: ["Decision trail"],
+      hidden: ["Dependencies"],
+      moved: [],
+      shown: [],
+    });
   });
 
   test("previews a hidden, reordered, and custom section before apply", () => {
@@ -344,6 +467,86 @@ describe("Work Context Card configurable layouts", () => {
         "Blank Project",
       ),
     ).toThrow("every prepared and custom section exactly once");
+  });
+
+  test("matches primary-feature record-type conditions by structure, not display label", () => {
+    const featureWork = {
+      ...work,
+      id: "feature-1",
+      key: "PAY-2",
+      primaryFeatureId: null,
+      primarySpecId: null,
+      title: "Checkout clarity",
+      type: "Feature" as const,
+    };
+    const includesFeature = relation({
+      id: "includes-feature",
+      kind: "Includes",
+      source: endpoint({
+        key: work.key,
+        label: work.key,
+        projectId: work.projectId,
+        recordId: work.id,
+        recordType: "Work",
+        status: work.status,
+        title: work.title,
+        workType: work.type,
+      }),
+      target: endpoint({
+        key: "PAY-7",
+        label: "PAY-7",
+        projectId: work.projectId,
+        recordId: "feature-2",
+        recordType: "Feature",
+        title: "Guest checkout",
+        workType: "Feature",
+      }),
+    });
+    const model = buildWorkContextModel({
+      projectWorks: [featureWork],
+      relations: [includesFeature],
+      work,
+    });
+
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            kind: "record-type",
+            recordType: "Primary Feature",
+            status: null,
+          },
+          id: "custom-primary-features",
+          title: "Primary features",
+        },
+        model.customSources,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        recordType: "Work",
+        relationKind: null,
+        workType: "Feature",
+      }),
+      expect.objectContaining({
+        recordId: "feature-2",
+        recordType: "Feature",
+        relationKind: "Includes",
+      }),
+    ]);
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            kind: "record-type",
+            recordType: "Primary spec",
+            status: null,
+          },
+          id: "custom-primary-specs",
+          title: "Primary specs",
+        },
+        model.customSources,
+      ),
+    ).toEqual([]);
   });
 
   test("treats an unset Evidence Role as Unspecified", () => {
