@@ -269,10 +269,15 @@ export function createR2CaptureInboxStagingStore(
         finalize: input.finalize,
         scope: input.targetScope,
       });
-      await staging.delete({
-        accountId: input.accountId,
-        attachmentId: attachment.id,
-      });
+      // The File Attachment commit is already durable. A transient Capture
+      // staging cleanup failure must not turn that success into a retry that
+      // could leave the Inbox item beside its committed File Attachment.
+      await staging
+        .delete({
+          accountId: input.accountId,
+          attachmentId: attachment.id,
+        })
+        .catch(() => undefined);
       return receipt;
     },
   };

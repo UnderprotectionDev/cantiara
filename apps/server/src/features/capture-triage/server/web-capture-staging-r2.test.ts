@@ -194,4 +194,63 @@ describe("Web Capture R2 staging", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ method: "GET" });
   });
+
+  test("does not retry a committed File Attachment when staging cleanup fails", async () => {
+    const requests: Request[] = [];
+    const sourceBytes = new Uint8Array([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+    ]);
+    const fetcher = (input: string | Request | URL, init?: RequestInit) => {
+      const requestInput =
+        input instanceof Request ? input.url : input.toString();
+      const request = new Request(requestInput, init);
+      requests.push(request);
+      if (request.method === "GET") {
+        return Promise.resolve(new Response(sourceBytes, { status: 200 }));
+      }
+      return Promise.resolve(
+        new Response("staging cleanup unavailable", { status: 503 }),
+      );
+    };
+    const staging = createR2WebCaptureStagingStore(
+      {
+        accessKeyId: "access-key",
+        accountId: "account-id",
+        bucket: "cantiara-staging",
+        endpoint: "https://r2.example.test",
+        secretAccessKey: "secret-key",
+      },
+      { fetcher, now: () => NOW },
+    );
+    const captureStaging = createR2CaptureInboxStagingStore(staging, {
+      promoteCaptureAttachment: vi
+        .fn()
+        .mockResolvedValue({ attachmentId: "file-attachment-1" }),
+    });
+
+    await expect(
+      captureStaging.promote({
+        accountId: "account-1",
+        attachment: {
+          id: "capture-1",
+          mimeType: "image/jpeg",
+          name: "capture.jpg",
+        },
+        clientIdempotencyKey: "convert-1",
+        finalize: async () => ({ recordId: "record-1" }),
+        item: {
+          content: "Captured content",
+          createdAt: "2026-09-18T09:00:00.000Z",
+          fields: {},
+          id: "capture-1",
+          projectId: "project-1",
+          template: null,
+        },
+        operation: "convert",
+        targetScope: { kind: "project", projectId: "project-1" },
+      }),
+    ).resolves.toEqual({ attachmentId: "file-attachment-1" });
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({ method: "DELETE" });
+  });
 });
