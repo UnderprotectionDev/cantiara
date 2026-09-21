@@ -16,6 +16,7 @@ const work: WorkProfile = {
   closureResult: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   description: "Make checkout easier to understand.",
+  effort: null,
   featureHealthHistory: [],
   id: "work-1",
   key: "PAY-1",
@@ -26,6 +27,7 @@ const work: WorkProfile = {
   recreatedFrom: null,
   revision: 1,
   status: "In Progress",
+  targetDate: null,
   title: "Improve checkout clarity",
   type: "Improvement",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -33,6 +35,7 @@ const work: WorkProfile = {
 
 const model: WorkContextModel = {
   customSources: [],
+  priorityFoundations: { counts: [], values: [] },
   sources: [],
   whyChain: [],
 };
@@ -91,6 +94,7 @@ describe("Work Context Card Markdown action", () => {
       id: "work-source",
       key: "PAY-2",
       label: "Work",
+      openPath: null,
       projectId: "project-1",
       recordId: "work-2",
       recordType: "Work" as const,
@@ -104,6 +108,7 @@ describe("Work Context Card Markdown action", () => {
     const markdown = await copyWorkContextAsMarkdown({
       model: {
         customSources: [source],
+        priorityFoundations: { counts: [], values: [] },
         sources: [source],
         whyChain: [source],
       },

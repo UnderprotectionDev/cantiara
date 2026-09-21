@@ -260,6 +260,13 @@
       "when": 1789993270048,
       "tag": "0036_serious_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790007640332,
+      "tag": "0037_wealthy_tiger_shark",
+      "breakpoints": true
     }
   ]
 }

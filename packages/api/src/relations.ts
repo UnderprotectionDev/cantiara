@@ -510,6 +510,8 @@ export interface RelationEndpointView extends RelationEndpoint {
   broken: BrokenReferenceView | null;
   key: string | null;
   label: string | null;
+  /** Relative app path supplied by the owning record resolver when it exists. */
+  openPath?: string | null;
   originPosition: RelationOriginPosition | null;
   projectId: string | null;
   status: WorkStatus | null;

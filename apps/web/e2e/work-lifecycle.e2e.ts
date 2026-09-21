@@ -112,7 +112,7 @@ test("shows the same progressive Work Context Card layouts for five types across
       ).toBeVisible();
       await expect(
         card.getByText("Nothing here yet.", { exact: true }),
-      ).toHaveCount(0);
+      ).toHaveCount(1);
 
       for (const section of sections) {
         // biome-ignore lint/performance/noAwaitInLoops: Each Add Context click must reveal the prior section before the next progressive section can be asserted.
@@ -135,6 +135,121 @@ test("shows the same progressive Work Context Card layouts for five types across
       ).toBeEnabled();
     }
   }
+});
+
+test("opens the exact Priority Foundations count drilldown", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.route("**/rpc/relations", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as {
+      json?: unknown[];
+      meta?: unknown;
+    };
+    if (!body.json) {
+      await route.fulfill({ response, json: body });
+      return;
+    }
+    const input = route.request().postDataJSON() as {
+      json?: { recordId?: string };
+    };
+    const recordId = input.json?.recordId;
+    if (!recordId) {
+      await route.fulfill({ response, json: body });
+      return;
+    }
+    body.json = [
+      {
+        createdAt: "2026-01-01T00:00:00.000Z",
+        direction: "incoming",
+        id: "priority-foundations-blocker-relation",
+        inverseLabel: "Blocked by",
+        kind: "Blocks",
+        label: "Blocked by",
+        revision: 1,
+        source: {
+          broken: null,
+          key: "BLK-1",
+          label: "BLK-1",
+          openPath: "/projects/priority-project#work-blocker-1",
+          originPosition: null,
+          projectId: "priority-project",
+          recordId: "blocker-1",
+          recordType: "Work",
+          status: "In Progress",
+          title: "Wait for provider access",
+          workType: "Research",
+        },
+        target: {
+          broken: null,
+          key: "TARGET-1",
+          label: "TARGET-1",
+          originPosition: null,
+          projectId: "priority-project",
+          recordId,
+          recordType: "Work",
+          status: "Not Started",
+          title: "Review checkout evidence",
+          workType: "Task",
+        },
+      },
+    ];
+    await route.fulfill({ response, json: body });
+  });
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Priority Foundations Project");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await page
+    .getByRole("link", { name: "Priority Foundations Project", exact: true })
+    .click();
+  await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title").fill("Review checkout evidence");
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+
+  const targetWork = workListItem(page, "Review checkout evidence");
+  const card = targetWork.locator('[data-work-context-card="true"]');
+  const count = card.getByRole("button", {
+    name: "Show Blocked by source records (1)",
+  });
+  await expect(count).toBeVisible({ timeout: 20_000 });
+  await expect(count).toHaveAttribute("aria-expanded", "false");
+
+  await count.click();
+
+  await expect(count).toHaveAttribute("aria-expanded", "true");
+  const sources = card.getByRole("list", {
+    name: "Blocked by source records",
+  });
+  await expect(sources).toContainText("BLK-1 Wait for provider access");
+  await expect(
+    sources.getByRole("link", { name: "Open source record" }),
+  ).toHaveAttribute("href", "/projects/priority-project#work-blocker-1");
 });
 
 test("creates Work with a Project key, type, and protected start status", async ({

@@ -48,6 +48,7 @@ import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
 } from "./features/tags/server/tags-database";
+import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
@@ -82,6 +83,7 @@ export const customFieldMutationContracts =
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
+export const workContext = createWorkContextAccess(workLifecycle, relations);
 export const workDrafts = createDatabaseWorkDrafts(
   db,
   workLifecycle,

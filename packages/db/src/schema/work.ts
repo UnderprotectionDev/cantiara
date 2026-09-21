@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -23,6 +24,7 @@ export const work = pgTable(
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
+    effort: text("effort"),
     featureHealthHistory: jsonb("feature_health_history")
       .$type<unknown[]>()
       .default(sql`'[]'::jsonb`)
@@ -45,6 +47,7 @@ export const work = pgTable(
     recreatedFromWorkKey: text("recreated_from_work_key"),
     revision: integer("revision").default(0).notNull(),
     status: text("status").default("Not Started").notNull(),
+    targetDate: date("target_date", { mode: "string" }),
     title: text("title").notNull(),
     type: text("type").notNull(),
     updatedAt: timestamp("updated_at")
@@ -60,6 +63,14 @@ export const work = pgTable(
     check("work_number_check", sql`${table.number} >= 1`),
     check("work_revision_check", sql`${table.revision} >= 0`),
     check("work_title_check", sql`length(btrim(${table.title})) > 0`),
+    check(
+      "work_effort_check",
+      sql`${table.effort} is null or length(btrim(${table.effort})) between 1 and 255`,
+    ),
+    check(
+      "work_target_date_check",
+      sql`${table.targetDate} is null or ${table.targetDate}::text ~ '^\\d{4}-\\d{2}-\\d{2}$'`,
+    ),
     check(
       "work_primary_feature_not_self_check",
       sql`${table.primaryFeatureId} is null or ${table.primaryFeatureId} <> ${table.id}`,

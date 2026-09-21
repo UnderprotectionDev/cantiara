@@ -23,6 +23,10 @@ export const WORK_CONTEXT_INITIAL_FIELDS = [
   "Planning",
 ] as const;
 
+export const workContextInputSchema = z
+  .object({ workId: z.string().trim().min(1).max(255) })
+  .strict();
+
 export type WorkContextInitialField =
   (typeof WORK_CONTEXT_INITIAL_FIELDS)[number];
 
@@ -455,6 +459,7 @@ export function previewWorkContextLayout(
 }
 
 export const WORK_CONTEXT_SOURCE_RELATION_KINDS = [
+  "Belongs to Company",
   "Blocks",
   "Contributes to Goal",
   "Contributes to Milestone",
@@ -462,6 +467,7 @@ export const WORK_CONTEXT_SOURCE_RELATION_KINDS = [
   "Implements",
   "Includes",
   "Origin",
+  "Participant",
   "Primary spec",
   "Related",
   "Required for completion",
@@ -489,6 +495,7 @@ export interface WorkContextSource {
   id: string;
   key: string | null;
   label: string;
+  openPath?: string | null;
   projectId: string | null;
   recordId: string;
   recordType: RelationRecordType;
@@ -506,14 +513,84 @@ export type WorkContextSourceLink = (
 
 export interface WorkContextModel {
   customSources: readonly WorkContextSource[];
+  priorityFoundations: WorkContextPriorityFoundations;
   sources: readonly WorkContextSource[];
   whyChain: readonly WorkContextSource[];
 }
 
+export const PRIORITY_FOUNDATION_SOURCE_LABELS = [
+  "Project Goal",
+  "Blocked by",
+  "Risk",
+  "Milestone",
+  "Feedback",
+  "Decision",
+  "Source",
+] as const;
+
+export type PriorityFoundationSourceLabel =
+  (typeof PRIORITY_FOUNDATION_SOURCE_LABELS)[number];
+
+export interface WorkContextPriorityMetricValue {
+  id: string;
+  name: string;
+  projectId: string;
+  value: string | null;
+}
+
+export interface WorkContextPriorityCriterionSource {
+  criterionId: string;
+  kind: "Priority criterion";
+  label: string;
+  projectId: string;
+}
+
+export type WorkContextPriorityValueSource =
+  | WorkContextPriorityCriterionSource
+  | WorkContextSource;
+
+export interface WorkContextPriorityValues {
+  effort?: string | null;
+  priorityMetrics?: readonly WorkContextPriorityMetricValue[];
+  targetDate?: string | null;
+}
+
+export interface WorkContextPriorityValue {
+  id: string;
+  label: string;
+  source: WorkContextPriorityValueSource;
+  value: string;
+}
+
+export interface WorkContextPriorityCount {
+  count: number;
+  id: string;
+  label: string;
+  sources: readonly WorkContextSource[];
+}
+
+export interface WorkContextPriorityFoundations {
+  counts: readonly WorkContextPriorityCount[];
+  values: readonly WorkContextPriorityValue[];
+}
+
 export interface BuildWorkContextModelInput {
+  priorityValues?: WorkContextPriorityValues;
   projectWorks?: readonly WorkProfile[];
   relations: readonly RelationView[];
   work: WorkProfile;
+}
+
+export interface WorkContextProjection {
+  priorityValues: WorkContextPriorityValues;
+  relations: readonly RelationView[];
+}
+
+export interface WorkContextAccess {
+  find: (
+    accountId: string,
+    workId: string,
+  ) => Promise<WorkContextProjection | null>;
 }
 
 export interface RenderWorkContextMarkdownInput {
@@ -531,6 +608,7 @@ export interface RenderWorkContextMarkdownInput {
  */
 export function buildWorkContextModel({
   projectWorks = [],
+  priorityValues,
   relations,
   work,
 }: BuildWorkContextModelInput): WorkContextModel {
@@ -588,12 +666,215 @@ export function buildWorkContextModel({
 
   const uniqueSources = deduplicateSources(sources);
   return {
+    priorityFoundations: buildPriorityFoundations({
+      relations,
+      sources: uniqueSources,
+      values: priorityValues,
+      work,
+    }),
     customSources: sources,
     sources: uniqueSources,
     whyChain: uniqueSources
       .filter(isWhyChainSource)
       .sort(compareWhyChainSources),
   };
+}
+
+export interface BuildPriorityFoundationsInput {
+  relations: readonly RelationView[];
+  sources: readonly WorkContextSource[];
+  values?: WorkContextPriorityValues;
+  work: WorkProfile;
+}
+
+export function buildPriorityFoundations({
+  relations,
+  sources,
+  values = {},
+  work,
+}: BuildPriorityFoundationsInput): WorkContextPriorityFoundations {
+  const feedbackIds = new Set(
+    sources
+      .filter(
+        (source) =>
+          source.recordType === "Feedback" && isVisiblePrioritySource(source),
+      )
+      .map((source) => source.recordId),
+  );
+  const participantSources = relations
+    .filter(
+      (relation) =>
+        relation.kind === "Participant" &&
+        feedbackIds.has(relation.source.recordId) &&
+        relation.source.recordType === "Feedback",
+    )
+    .map((relation) => sourceFromRelation(relation, relation.target));
+  const contactIds = new Set(
+    participantSources
+      .filter(
+        (source) =>
+          source.recordType === "Contact" && isVisiblePrioritySource(source),
+      )
+      .map((source) => source.recordId),
+  );
+  const companySources = relations
+    .filter(
+      (relation) =>
+        relation.kind === "Belongs to Company" &&
+        contactIds.has(relation.source.recordId) &&
+        relation.source.recordType === "Contact",
+    )
+    .map((relation) => sourceFromRelation(relation, relation.target));
+  const allSources = deduplicateSources([
+    ...sources,
+    ...participantSources,
+    ...companySources,
+  ]);
+  const visibleSources = allSources.filter(isVisiblePrioritySource);
+
+  const sourceValues = visibleSources.flatMap((source) => {
+    const label = priorityFoundationLabel(source);
+    return label
+      ? [
+          {
+            id: `priority-value:${source.id}`,
+            label,
+            source,
+            value: workContextSourceText(source),
+          },
+        ]
+      : [];
+  });
+  const valuesFromWork = [
+    priorityValueFromWork("Target date", values.targetDate, work),
+    priorityValueFromWork("Effort", values.effort, work),
+  ].filter((value): value is WorkContextPriorityValue => value !== null);
+  const metricValues = (values.priorityMetrics ?? []).map((metric) => ({
+    id: `priority-metric:${metric.id}`,
+    label: metric.name,
+    source: priorityCriterionSource(metric),
+    value: metric.value ?? "Unevaluated",
+  }));
+
+  const sourceCounts = PRIORITY_FOUNDATION_SOURCE_LABELS.map((label) =>
+    priorityCount(
+      label,
+      visibleSources.filter((source) =>
+        sourceMatchesPriorityLabel(source, label),
+      ),
+    ),
+  ).filter((count) => count.count > 0);
+  const contactSources = deduplicateSources(
+    participantSources.filter(
+      (source) =>
+        source.recordType === "Contact" && isVisiblePrioritySource(source),
+    ),
+  );
+  const visibleCompanySources = deduplicateSources(
+    companySources.filter(
+      (source) =>
+        source.recordType === "Company" && isVisiblePrioritySource(source),
+    ),
+  );
+  const counts = [
+    ...sourceCounts,
+    priorityCount("Unique Contact", contactSources),
+    priorityCount("Unique Company", visibleCompanySources),
+  ].filter((count) => count.count > 0);
+
+  return {
+    counts,
+    values: [...sourceValues, ...valuesFromWork, ...metricValues],
+  };
+}
+
+function priorityFoundationLabel(
+  source: WorkContextSource,
+): PriorityFoundationSourceLabel | null {
+  if (source.label === "Project Goal" || source.recordType === "Project Goal") {
+    return "Project Goal";
+  }
+  if (source.relationKind === "Blocks" && source.direction === "incoming") {
+    return "Blocked by";
+  }
+  if (source.recordType === "Risk") {
+    return "Risk";
+  }
+  if (
+    source.recordType === "Milestone" ||
+    source.relationKind === "Contributes to Milestone"
+  ) {
+    return "Milestone";
+  }
+  if (source.recordType === "Feedback") {
+    return "Feedback";
+  }
+  if (source.recordType === "Decision") {
+    return "Decision";
+  }
+  if (source.recordType === "Source") {
+    return "Source";
+  }
+  return null;
+}
+
+function sourceMatchesPriorityLabel(source: WorkContextSource, label: string) {
+  return priorityFoundationLabel(source) === label;
+}
+
+function priorityCount(
+  label: string,
+  sources: readonly WorkContextSource[],
+): WorkContextPriorityCount {
+  const slug = label.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+  return {
+    count: sources.length,
+    id: `priority-count-${slug}`,
+    label,
+    sources,
+  };
+}
+
+function priorityValueFromWork(
+  label: string,
+  value: string | null | undefined,
+  work: WorkProfile,
+): WorkContextPriorityValue | null {
+  return value
+    ? {
+        id: `priority-value:${label.toLowerCase().replaceAll(" ", "-")}`,
+        label,
+        source: sourceFromWork(label, work),
+        value,
+      }
+    : null;
+}
+
+function priorityCriterionSource(
+  metric: WorkContextPriorityMetricValue,
+): WorkContextPriorityCriterionSource {
+  return {
+    criterionId: metric.id,
+    kind: "Priority criterion",
+    label: metric.name,
+    projectId: metric.projectId,
+  };
+}
+
+function isVisiblePrioritySource(source: WorkContextSource) {
+  return source.broken === null || source.broken.reason === "Archived";
+}
+
+export function workContextSourceText(source: WorkContextSource) {
+  if (source.broken) {
+    return source.key && source.title
+      ? `${source.key} ${source.title} — ${source.broken.reason}`
+      : `Broken — ${source.broken.reason}`;
+  }
+  if (source.key && source.title) {
+    return `${source.key} ${source.title}`;
+  }
+  return source.title ?? source.recordType;
 }
 
 export function sourcesForWorkContextSection(
@@ -965,6 +1246,7 @@ function sourceFromRelation(
     id: `relation:${relation.id}`,
     key: endpoint.key,
     label: sourceLabel(relationKind, endpoint),
+    openPath: workContextOpenPath(endpoint),
     projectId: endpoint.projectId,
     recordId: endpoint.recordId,
     recordType: endpoint.recordType,
@@ -990,6 +1272,12 @@ function sourceFromWork(label: string, work: WorkProfile): WorkContextSource {
     id: `work:${work.id}`,
     key: work.key,
     label,
+    openPath: workContextOpenPath({
+      openPath: null,
+      projectId: work.projectId,
+      recordId: work.id,
+      recordType: "Work",
+    }),
     projectId: work.projectId,
     recordId: work.id,
     recordType: "Work",
@@ -1017,6 +1305,7 @@ function unavailableSource(
     id: `${label}:${recordId}`,
     key: null,
     label,
+    openPath: null,
     projectId: null,
     recordId,
     recordType,
@@ -1026,6 +1315,24 @@ function unavailableSource(
     title: null,
     workType: null,
   };
+}
+
+function workContextOpenPath(
+  endpoint: Pick<
+    RelationEndpointView,
+    "openPath" | "projectId" | "recordId" | "recordType"
+  >,
+) {
+  if (
+    endpoint.openPath?.startsWith("/") &&
+    !endpoint.openPath.startsWith("//")
+  ) {
+    return endpoint.openPath;
+  }
+  if (endpoint.recordType !== "Work" || !endpoint.projectId) {
+    return null;
+  }
+  return `/projects/${encodeURIComponent(endpoint.projectId)}#work-${encodeURIComponent(endpoint.recordId)}`;
 }
 
 function evidenceRoleFromRelation(

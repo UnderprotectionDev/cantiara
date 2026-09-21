@@ -450,8 +450,10 @@ interface WorkCreationPayload {
   captureProvenance: WorkProfile["captureProvenance"];
   checklist: WorkProfile["checklist"];
   description: string | null;
+  effort: string | null;
   projectId: string;
   recreatedFrom: WorkProfile["recreatedFrom"];
+  targetDate: string | null;
   title: string;
   type: WorkType;
 }
@@ -470,13 +472,17 @@ function replayExistingWork(
       captureProvenance: existing.work.captureProvenance,
       checklist: existing.work.checklist,
       description: existing.work.description,
+      effort: existing.work.effort,
       recreatedFrom: existing.work.recreatedFrom,
+      targetDate: existing.work.targetDate,
     }) ===
       canonicalizeMutationPayload({
         captureProvenance: payload.captureProvenance,
         checklist: payload.checklist,
         description: payload.description,
+        effort: payload.effort,
         recreatedFrom: payload.recreatedFrom,
+        targetDate: payload.targetDate,
       });
   if (existing.payloadFingerprint !== payloadFingerprint || !sameWork) {
     throw new WorkCreationConflictError(cause);
@@ -573,10 +579,12 @@ const WORK_MERGE_FIELD_LABELS: Record<
   closureReason: "Closure reason",
   closureResult: "Closure result",
   description: "Description",
+  effort: "Effort",
   featureHealthHistory: "Feature health",
   primaryFeatureId: "Included in",
   primarySpecId: "Primary spec",
   status: "Status",
+  targetDate: "Target date",
   title: "Title",
   type: "Type",
 };
@@ -825,6 +833,7 @@ export async function createWork(
     captureProvenance: input.captureProvenance ?? null,
     checklist: input.checklist ?? [],
     description: input.description ?? null,
+    effort: input.effort ?? null,
     projectId: input.projectId,
     recreatedFrom,
     ...(recreate
@@ -837,6 +846,7 @@ export async function createWork(
         }
       : {}),
     title: input.title,
+    targetDate: input.targetDate ?? null,
     type: input.type,
     ...additionalPayload,
   };
@@ -885,6 +895,7 @@ export async function createWork(
           closureResult: null,
           createdAt: timestamp,
           description: mutationPayload.description,
+          effort: mutationPayload.effort,
           featureHealthHistory: [],
           id: reservation.workId,
           key: reservation.key,
@@ -895,6 +906,7 @@ export async function createWork(
           recreatedFrom: mutationPayload.recreatedFrom,
           revision: currentRevision + 1,
           status: "Not Started",
+          targetDate: mutationPayload.targetDate,
           title: mutationPayload.title,
           type: mutationPayload.type,
           updatedAt: timestamp,

@@ -65,6 +65,7 @@ const work: WorkProfile = {
   closureResult: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   description: "The checkout flow is hard to understand.",
+  effort: null,
   featureHealthHistory: [],
   id: "work-1",
   key: "PAY-1",
@@ -75,6 +76,7 @@ const work: WorkProfile = {
   recreatedFrom: null,
   revision: 1,
   status: "In Progress",
+  targetDate: null,
   title: "Improve checkout clarity",
   type: "Improvement",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -122,6 +124,7 @@ function contextSource(
     id: "source-1",
     key: null,
     label: "Source",
+    openPath: null,
     projectId: null,
     recordId: "source-1",
     recordType: "Source",
@@ -998,6 +1001,240 @@ describe("Work Context Card live sources", () => {
   });
 });
 
+describe("Work Context Card Priority Foundations", () => {
+  test("keeps source values and Feedback counts separate without ranking", () => {
+    const feedbackSources = Array.from({ length: 5 }, (_, index) =>
+      relation({
+        direction: "incoming",
+        id: `feedback-${index + 1}`,
+        kind: "Evidence",
+        source: endpoint({
+          key: `FB-${index + 1}`,
+          projectId: work.projectId,
+          recordId: `feedback-${index + 1}`,
+          recordType: "Feedback",
+          title: `Feedback ${index + 1}`,
+        }),
+        target: endpoint({
+          recordId: work.id,
+          recordType: "Work",
+        }),
+      }),
+    );
+    const model = buildWorkContextModel({
+      relations: [
+        relation({
+          id: "goal",
+          kind: "Contributes to Goal",
+          source: endpoint({ recordId: work.id, recordType: "Work" }),
+          target: endpoint({
+            projectId: work.projectId,
+            recordId: "goal-1",
+            recordType: "Project Goal",
+            title: "Make checkout understandable",
+          }),
+        }),
+        relation({
+          direction: "incoming",
+          id: "blocker",
+          kind: "Blocks",
+          source: endpoint({
+            key: "PAY-9",
+            projectId: work.projectId,
+            recordId: "blocker-1",
+            recordType: "Work",
+            status: "In Progress",
+            title: "Waiting for payment provider",
+            workType: "Task",
+          }),
+          target: endpoint({ recordId: work.id, recordType: "Work" }),
+        }),
+        relation({
+          id: "risk",
+          kind: "Evidence",
+          source: endpoint({ recordId: work.id, recordType: "Work" }),
+          target: endpoint({
+            recordId: "risk-1",
+            recordType: "Risk",
+            title: "Checkout confusion remains",
+          }),
+        }),
+        relation({
+          id: "milestone",
+          kind: "Contributes to Milestone",
+          source: endpoint({ recordId: work.id, recordType: "Work" }),
+          target: endpoint({
+            recordId: "milestone-1",
+            recordType: "Milestone",
+            title: "Checkout beta",
+          }),
+        }),
+        relation({
+          id: "decision",
+          kind: "Implements",
+          source: endpoint({ recordId: work.id, recordType: "Work" }),
+          target: endpoint({
+            recordId: "decision-1",
+            recordType: "Decision",
+            title: "Prefer inline payment guidance",
+          }),
+        }),
+        relation({
+          direction: "incoming",
+          id: "source",
+          kind: "Evidence",
+          source: endpoint({
+            recordId: "source-1",
+            recordType: "Source",
+            title: "Support call transcript",
+          }),
+          target: endpoint({ recordId: work.id, recordType: "Work" }),
+        }),
+        ...feedbackSources,
+        relation({
+          id: "feedback-archived",
+          kind: "Evidence",
+          source: endpoint({
+            broken: {
+              canOpenSourceRecord: true,
+              establishedAt: "2026-01-01T00:00:00.000Z",
+              reason: "Archived",
+            },
+            key: "FB-ARCHIVED",
+            recordId: "feedback-archived",
+            recordType: "Feedback",
+            title: "Archived checkout feedback",
+          }),
+          target: endpoint({ recordId: work.id, recordType: "Work" }),
+        }),
+        relation({
+          id: "feedback-in-trash",
+          kind: "Evidence",
+          source: endpoint({
+            broken: {
+              canOpenSourceRecord: false,
+              establishedAt: "2026-01-01T00:00:00.000Z",
+              reason: "In Trash",
+            },
+            recordId: "feedback-in-trash",
+            recordType: "Feedback",
+          }),
+          target: endpoint({ recordId: work.id, recordType: "Work" }),
+        }),
+        relation({
+          id: "feedback-deleted",
+          kind: "Evidence",
+          source: endpoint({
+            broken: {
+              canOpenSourceRecord: false,
+              establishedAt: "2026-01-01T00:00:00.000Z",
+              reason: "Permanently deleted",
+            },
+            recordId: "feedback-deleted",
+            recordType: "Feedback",
+          }),
+          target: endpoint({ recordId: work.id, recordType: "Work" }),
+        }),
+        relation({
+          id: "feedback-participant-1",
+          kind: "Participant",
+          source: endpoint({
+            recordId: "feedback-1",
+            recordType: "Feedback",
+          }),
+          target: endpoint({ recordId: "contact-1", recordType: "Contact" }),
+        }),
+        relation({
+          id: "feedback-participant-2",
+          kind: "Participant",
+          source: endpoint({
+            recordId: "feedback-2",
+            recordType: "Feedback",
+          }),
+          target: endpoint({ recordId: "contact-1", recordType: "Contact" }),
+        }),
+        relation({
+          id: "contact-company",
+          kind: "Belongs to Company",
+          source: endpoint({ recordId: "contact-1", recordType: "Contact" }),
+          target: endpoint({ recordId: "company-1", recordType: "Company" }),
+        }),
+      ],
+      priorityValues: {
+        effort: "3 days",
+        priorityMetrics: [
+          {
+            id: "evidence-strength",
+            name: "Evidence strength",
+            projectId: work.projectId,
+            value: "High",
+          },
+        ],
+        targetDate: "2026-10-01",
+      },
+      work,
+    });
+
+    const foundations = model.priorityFoundations;
+    const criterionValue = foundations.values.find(
+      (value) => value.label === "Evidence strength",
+    );
+
+    expect(foundations.values).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Project Goal",
+          value: "Make checkout understandable",
+        }),
+        expect.objectContaining({ label: "Target date", value: "2026-10-01" }),
+        expect.objectContaining({ label: "Effort", value: "3 days" }),
+        expect.objectContaining({
+          label: "Evidence strength",
+          value: "High",
+          source: expect.objectContaining({
+            criterionId: "evidence-strength",
+            kind: "Priority criterion",
+            projectId: work.projectId,
+          }),
+        }),
+      ]),
+    );
+    expect(foundations.counts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Feedback", count: 6 }),
+        expect.objectContaining({ label: "Unique Contact", count: 1 }),
+        expect.objectContaining({ label: "Unique Company", count: 1 }),
+        expect.objectContaining({ label: "Risk", count: 1 }),
+        expect.objectContaining({ label: "Milestone", count: 1 }),
+      ]),
+    );
+    expect(
+      foundations.counts.find((count) => count.label === "Feedback")?.sources,
+    ).toHaveLength(6);
+    expect(
+      foundations.counts
+        .find((count) => count.label === "Feedback")
+        ?.sources.some((source) => source.broken?.reason === "Archived"),
+    ).toBe(true);
+    expect(
+      foundations.counts
+        .find((count) => count.label === "Feedback")
+        ?.sources.some((source) => source.broken?.reason === "In Trash"),
+    ).toBe(false);
+    expect(
+      foundations.counts
+        .find((count) => count.label === "Feedback")
+        ?.sources.some(
+          (source) => source.broken?.reason === "Permanently deleted",
+        ),
+    ).toBe(false);
+    expect(foundations.values).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ label: "Score" })]),
+    );
+    expect(criterionValue?.source).not.toHaveProperty("recordId");
+  });
+});
+
 describe("Work Context Card Markdown copy", () => {
   test("renders readable context and excludes inaccessible or private content", () => {
     const activeBlocker = contextSource({
@@ -1081,6 +1318,7 @@ describe("Work Context Card Markdown copy", () => {
           inaccessibleRisk,
         ],
         whyChain: [primarySpec, decision, inaccessibleRisk],
+        priorityFoundations: { counts: [], values: [] },
       },
       producedAt: "2026-01-01T12:00:00.000Z",
       statusLabel: "Doing",

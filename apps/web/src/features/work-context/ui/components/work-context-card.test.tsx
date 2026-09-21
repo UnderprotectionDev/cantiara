@@ -3,6 +3,7 @@ import type { RelationView } from "@cantiara/api/relations";
 import {
   getDefaultWorkContextLayouts,
   type WorkContextLayouts,
+  type WorkContextPriorityValues,
 } from "@cantiara/api/work-context";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -44,6 +45,7 @@ const work: WorkProfile = {
   closureResult: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   description: null,
+  effort: null,
   featureHealthHistory: [],
   id: "work-1",
   key: "PAY-1",
@@ -54,6 +56,7 @@ const work: WorkProfile = {
   recreatedFrom: null,
   revision: 1,
   status: "In Progress",
+  targetDate: null,
   title: "Checkout work",
   type: "Task",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -63,6 +66,7 @@ function renderCard(
   statusLabels: readonly WorkStatusLabel[],
   relations: readonly RelationView[] = [],
   workContextLayouts?: Partial<WorkContextLayouts>,
+  priorityValues?: WorkContextPriorityValues,
 ) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(
@@ -70,6 +74,13 @@ function renderCard(
       input: { recordId: work.id, recordType: "Work" },
     }).queryKey,
     [...relations],
+  );
+  queryClient.setQueryData(
+    orpc.workContext.queryOptions({ input: { workId: work.id } }).queryKey,
+    {
+      priorityValues: priorityValues ?? {},
+      relations: [...relations],
+    },
   );
   const router = createRouter({
     history: createMemoryHistory({
@@ -81,6 +92,7 @@ function renderCard(
     <RouterContextProvider router={router}>
       <QueryClientProvider client={queryClient}>
         <WorkContextCard
+          priorityValues={priorityValues}
           work={work}
           workContextLayouts={workContextLayouts}
           workStatusLabels={statusLabels}
@@ -104,10 +116,11 @@ describe("Work Context Card initial fields", () => {
     expect(html).toContain("In Progress");
   });
 
-  test("keeps an empty why chain neutral until a context section is opened", () => {
+  test("shows a neutral Priority Foundations empty state without opening context", () => {
     const html = renderCard(workStatusLabels);
 
-    expect(html).not.toContain("Nothing here yet.");
+    expect(html).toContain("Nothing here yet.");
+    expect(html).toContain(">Link</button>");
   });
 
   test("uses the Project + Work type layout and does not offer hidden sections", () => {
@@ -279,5 +292,145 @@ describe("Work Context Card initial fields", () => {
 
     expect(html).toContain("PAY-2 Archived checkout work — Archived");
     expect(html).toContain('href="/projects/project-1#work-work-2"');
+  });
+
+  test("renders Priority Foundations without a score and with separate counts", () => {
+    const html = renderCard(
+      workStatusLabels,
+      [
+        {
+          createdAt: "2026-01-01T00:00:00.000Z",
+          direction: "incoming",
+          id: "feedback-1",
+          inverseLabel: "Provides evidence",
+          kind: "Evidence",
+          label: "Provides evidence",
+          revision: 1,
+          source: {
+            broken: null,
+            key: "FB-1",
+            label: "FB-1",
+            openPath: "/projects/project-1#feedback-feedback-1",
+            originPosition: null,
+            projectId: "project-1",
+            recordId: "feedback-1",
+            recordType: "Feedback",
+            status: null,
+            title: "Make checkout clearer",
+            workType: null,
+          },
+          target: {
+            broken: null,
+            key: work.key,
+            label: work.key,
+            originPosition: null,
+            projectId: work.projectId,
+            recordId: work.id,
+            recordType: "Work",
+            status: work.status,
+            title: work.title,
+            workType: work.type,
+          },
+        },
+        {
+          createdAt: "2026-01-01T00:00:00.000Z",
+          direction: "outgoing",
+          id: "feedback-participant-1",
+          inverseLabel: "Participant",
+          kind: "Participant",
+          label: "Participant",
+          revision: 1,
+          source: {
+            broken: null,
+            key: "FB-1",
+            label: "FB-1",
+            originPosition: null,
+            projectId: "project-1",
+            recordId: "feedback-1",
+            recordType: "Feedback",
+            status: null,
+            title: "Make checkout clearer",
+            workType: null,
+          },
+          target: {
+            broken: null,
+            key: null,
+            label: null,
+            originPosition: null,
+            projectId: "project-1",
+            recordId: "contact-1",
+            recordType: "Contact",
+            status: null,
+            title: "Ada Lovelace",
+            workType: null,
+          },
+        },
+        {
+          createdAt: "2026-01-01T00:00:00.000Z",
+          direction: "outgoing",
+          id: "contact-company-1",
+          inverseLabel: "Belongs to Company",
+          kind: "Belongs to Company",
+          label: "Belongs to Company",
+          revision: 1,
+          source: {
+            broken: null,
+            key: null,
+            label: null,
+            originPosition: null,
+            projectId: "project-1",
+            recordId: "contact-1",
+            recordType: "Contact",
+            status: null,
+            title: "Ada Lovelace",
+            workType: null,
+          },
+          target: {
+            broken: null,
+            key: null,
+            label: null,
+            originPosition: null,
+            projectId: "project-1",
+            recordId: "company-1",
+            recordType: "Company",
+            status: null,
+            title: "Analytical Engines",
+            workType: null,
+          },
+        },
+      ],
+      undefined,
+      {
+        effort: "3 days",
+        priorityMetrics: [
+          {
+            id: "evidence-strength",
+            name: "Evidence strength",
+            projectId: work.projectId,
+            value: "High",
+          },
+        ],
+        targetDate: "2026-10-01",
+      },
+    );
+
+    expect(html).toContain("Priority Foundations");
+    expect(html).toContain("Target date");
+    expect(html).toContain("2026-10-01");
+    expect(html).toContain("Effort");
+    expect(html).toContain("3 days");
+    expect(html).toContain("Evidence strength");
+    expect(html).toContain("Feedback");
+    expect(html).toContain("Feedback: 1");
+    expect(html).toContain("Unique Contact");
+    expect(html).toContain("Unique Company");
+    expect(html).toContain('aria-label="Show Feedback source records (1)"');
+    expect(html).toContain(
+      'aria-label="Show Unique Contact source records (1)"',
+    );
+    expect(html).toContain('href="/projects/project-1#feedback-feedback-1"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("WSJF");
+    expect(html).not.toContain("Score");
   });
 });

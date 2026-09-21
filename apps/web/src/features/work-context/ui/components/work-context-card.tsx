@@ -10,14 +10,24 @@ import {
   type WorkContextCustomSection,
   type WorkContextInitialField,
   type WorkContextLayouts,
+  type WorkContextPriorityFoundations,
+  type WorkContextPriorityValue,
+  type WorkContextPriorityValues,
   type WorkContextSource,
   workContextLayoutSections,
+  workContextSourceText,
 } from "@cantiara/api/work-context";
 import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
@@ -42,9 +52,11 @@ interface WorkContextState {
 export default function WorkContextCard({
   work,
   workStatusLabels,
+  priorityValues,
   projectWorks = [],
   workContextLayouts,
 }: {
+  priorityValues?: WorkContextPriorityValues;
   projectWorks?: readonly WorkProfile[];
   work: WorkProfile;
   workContextLayouts?: Partial<WorkContextLayouts>;
@@ -54,6 +66,9 @@ export default function WorkContextCard({
     orpc.relations.queryOptions({
       input: { recordId: work.id, recordType: "Work" },
     }),
+  );
+  const workContextQuery = useQuery(
+    orpc.workContext.queryOptions({ input: { workId: work.id } }),
   );
   const commandPalette = useCommandPalette();
   const layout = getPreparedWorkContextLayout(work.type);
@@ -80,10 +95,17 @@ export default function WorkContextCard({
     () =>
       buildWorkContextModel({
         projectWorks,
+        priorityValues: priorityValues ?? workContextQuery.data?.priorityValues,
         relations: relationsQuery.data ?? [],
         work,
       }),
-    [projectWorks, relationsQuery.data, work],
+    [
+      priorityValues,
+      projectWorks,
+      relationsQuery.data,
+      work,
+      workContextQuery.data?.priorityValues,
+    ],
   );
   const statusLabel = getWorkStatusLabel(work.status, workStatusLabels);
   const sourceLink = useCallback((source: WorkContextSource) => {
@@ -216,8 +238,8 @@ export default function WorkContextCard({
       ) : null}
 
       <WhyChain
-        isError={relationsQuery.isError}
-        isPending={relationsQuery.isPending}
+        isError={workContextQuery.isError}
+        isPending={workContextQuery.isPending}
         sources={contextModel.whyChain}
         work={work}
         workStatusLabels={workStatusLabels}
@@ -235,6 +257,14 @@ export default function WorkContextCard({
           />
         ))}
       </dl>
+
+      <PriorityFoundations
+        foundations={contextModel.priorityFoundations}
+        isError={workContextQuery.isError}
+        isPending={workContextQuery.isPending}
+        work={work}
+        workStatusLabels={workStatusLabels}
+      />
 
       {displayedSections.map((section) => {
         if (section.prepared) {
@@ -464,22 +494,8 @@ function WorkContextSourceItem({
   source: WorkContextSource;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
-  let sourceText: string;
-  if (source.broken) {
-    sourceText =
-      source.key && source.title
-        ? `${source.key} ${source.title} — ${source.broken.reason}`
-        : `Broken — ${source.broken.reason}`;
-  } else if (source.key && source.title) {
-    sourceText = `${source.key} ${source.title}`;
-  } else {
-    sourceText = source.title ?? source.recordType;
-  }
-  const canOpenSourceRecord = Boolean(
-    source.recordType === "Work" &&
-      source.projectId &&
-      (!source.broken || source.broken.canOpenSourceRecord),
-  );
+  const sourceText = workContextSourceText(source);
+  const canOpenSourceRecord = canOpenWorkContextSource(source);
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 px-3 py-2 text-sm">
@@ -490,10 +506,13 @@ function WorkContextSourceItem({
           Status: {getWorkStatusLabel(source.status, workStatusLabels)}
         </span>
       ) : null}
-      {canOpenSourceRecord && source.projectId ? (
+      {canOpenSourceRecord &&
+      (source.recordType === "Work" ? source.projectId : source.openPath) ? (
         <OpenSourceRecordLink
+          href={source.openPath ?? null}
           projectId={source.projectId}
           recordId={source.recordId}
+          useRouterLink={source.recordType === "Work"}
         />
       ) : null}
     </div>
@@ -501,21 +520,28 @@ function WorkContextSourceItem({
 }
 
 function OpenSourceRecordLink({
+  href,
   projectId,
   recordId,
+  useRouterLink,
 }: {
-  projectId: string;
+  href: string | null;
+  projectId: string | null;
   recordId: string;
+  useRouterLink: boolean;
 }) {
   const linkProps = useLinkProps({
     activeOptions: { exact: true, includeHash: true },
     hash: workRecordHash(recordId),
-    params: { projectId },
+    params: { projectId: projectId ?? "" },
     to: "/projects/$projectId",
   });
 
   return (
-    <a {...linkProps} className="underline underline-offset-2">
+    <a
+      {...(useRouterLink ? linkProps : { href: href ?? undefined })}
+      className="underline underline-offset-2"
+    >
       Open source record
     </a>
   );
@@ -541,6 +567,158 @@ function InitialField({
       <dd className="mt-1 font-medium">{value}</dd>
     </div>
   );
+}
+
+function PriorityFoundations({
+  foundations,
+  isError,
+  isPending,
+  work,
+  workStatusLabels,
+}: {
+  foundations: WorkContextPriorityFoundations;
+  isError: boolean;
+  isPending: boolean;
+  work: WorkProfile;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const [openCountId, setOpenCountId] = useState<string | null>(null);
+  const headingId = `work-context-priority-foundations-${work.id}`;
+  const toggleCount = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    const { currentTarget } = event;
+    const { countId } = currentTarget.dataset;
+    if (!countId) {
+      return;
+    }
+    setOpenCountId((current) => (current === countId ? null : countId));
+  }, []);
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="space-y-3 border-border/70 border-t pt-3"
+      data-work-context-priority-foundations="true"
+    >
+      <h5 className="font-medium text-sm" id={headingId}>
+        Priority Foundations
+      </h5>
+      {isPending ? (
+        <p className="text-muted-foreground text-sm">Loading relations…</p>
+      ) : null}
+      {isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Priority Foundations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(isPending || isError) &&
+      foundations.values.length === 0 &&
+      foundations.counts.length === 0 ? (
+        <EmptyContextState work={work} />
+      ) : null}
+      {!(isPending || isError) && foundations.values.length > 0 ? (
+        <ul className="space-y-2">
+          {foundations.values.map((value) => (
+            <PriorityFoundationValue
+              key={value.id}
+              value={value}
+              workStatusLabels={workStatusLabels}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {!(isPending || isError) && foundations.counts.length > 0 ? (
+        <ul className="flex flex-wrap gap-2">
+          {foundations.counts.map((count) => {
+            const isOpen = openCountId === count.id;
+            const listId = `${count.id}-${work.id}`;
+            return (
+              <li key={count.id}>
+                <Button
+                  aria-controls={isOpen ? listId : undefined}
+                  aria-expanded={isOpen}
+                  aria-label={`Show ${count.label} source records (${count.count})`}
+                  className="px-2 text-sm underline-offset-2 hover:underline"
+                  data-count-id={count.id}
+                  onClick={toggleCount}
+                  size="xs"
+                  type="button"
+                  variant="outline"
+                >
+                  {count.label}: {count.count}
+                </Button>
+                {isOpen ? (
+                  <ul
+                    aria-label={`${count.label} source records`}
+                    className="mt-2 space-y-2"
+                    id={listId}
+                  >
+                    {count.sources.map((source) => (
+                      <li key={source.id}>
+                        <WorkContextSourceItem
+                          source={source}
+                          workStatusLabels={workStatusLabels}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function PriorityFoundationValue({
+  value,
+  workStatusLabels,
+}: {
+  value: WorkContextPriorityValue;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const { source } = value;
+  const workSource = isWorkContextSource(source) ? source : null;
+  const sourceLink =
+    workSource &&
+    canOpenWorkContextSource(workSource) &&
+    (workSource.recordType === "Work"
+      ? workSource.projectId
+      : workSource.openPath)
+      ? {
+          href: workSource.openPath ?? null,
+          projectId: workSource.projectId,
+          recordId: workSource.recordId,
+          useRouterLink: workSource.recordType === "Work",
+        }
+      : null;
+
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 px-3 py-2 text-sm">
+      <span className="text-muted-foreground">{value.label}</span>
+      <span>{value.value}</span>
+      {workSource?.status ? (
+        <span className="text-muted-foreground">
+          Status: {getWorkStatusLabel(workSource.status, workStatusLabels)}
+        </span>
+      ) : null}
+      {sourceLink ? <OpenSourceRecordLink {...sourceLink} /> : null}
+    </li>
+  );
+}
+
+function canOpenWorkContextSource(source: WorkContextSource) {
+  return Boolean(
+    (!source.broken || source.broken.canOpenSourceRecord) &&
+      (source.openPath || (source.recordType === "Work" && source.projectId)),
+  );
+}
+
+function isWorkContextSource(
+  source: WorkContextPriorityValue["source"],
+): source is WorkContextSource {
+  return "recordType" in source;
 }
 
 function copyErrorMessage(error: unknown) {
