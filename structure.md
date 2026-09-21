@@ -260,6 +260,8 @@
 │       │   │   ├── work-context/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── work-context-card-layout-editor.test.tsx
+│       │   │   │           ├── work-context-card-layout-editor.tsx
 │       │   │   │           ├── work-context-card.test.tsx
 │       │   │   │           ├── work-context-card.tsx
 │       │   │   │           ├── work-context-markdown.test.ts

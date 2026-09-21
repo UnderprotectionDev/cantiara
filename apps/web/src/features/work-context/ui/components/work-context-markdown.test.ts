@@ -32,6 +32,7 @@ const work: WorkProfile = {
 };
 
 const model: WorkContextModel = {
+  customSources: [],
   sources: [],
   whyChain: [],
 };
@@ -86,6 +87,7 @@ describe("Work Context Card Markdown action", () => {
       .mockResolvedValue(undefined);
     const source = {
       broken: null,
+      evidenceRole: "Unspecified" as const,
       id: "work-source",
       key: "PAY-2",
       label: "Work",
@@ -100,7 +102,11 @@ describe("Work Context Card Markdown action", () => {
     };
 
     const markdown = await copyWorkContextAsMarkdown({
-      model: { sources: [source], whyChain: [source] },
+      model: {
+        customSources: [source],
+        sources: [source],
+        whyChain: [source],
+      },
       now: () => "2026-01-01T12:00:00.000Z",
       sourceLink: (candidate) =>
         candidate.recordType === "Work"

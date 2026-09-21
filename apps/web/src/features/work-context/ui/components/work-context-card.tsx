@@ -2,11 +2,16 @@ import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   buildWorkContextModel,
   getPreparedWorkContextLayout,
-  nextPreparedWorkContextSection,
+  getWorkContextLayout,
+  nextWorkContextSection,
   type PreparedWorkContextSection,
+  sourcesForWorkContextCustomSection,
   sourcesForWorkContextSection,
+  type WorkContextCustomSection,
   type WorkContextInitialField,
+  type WorkContextLayouts,
   type WorkContextSource,
+  workContextLayoutSections,
 } from "@cantiara/api/work-context";
 import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -30,7 +35,7 @@ import {
 const WORK_CONTEXT_SECTION_ID_PATTERN = /[^a-z0-9]+/gi;
 
 interface WorkContextState {
-  visibleSections: PreparedWorkContextSection[];
+  visibleSections: string[];
   workType: WorkType;
 }
 
@@ -38,9 +43,11 @@ export default function WorkContextCard({
   work,
   workStatusLabels,
   projectWorks = [],
+  workContextLayouts,
 }: {
   projectWorks?: readonly WorkProfile[];
   work: WorkProfile;
+  workContextLayouts?: Partial<WorkContextLayouts>;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const relationsQuery = useQuery(
@@ -50,15 +57,24 @@ export default function WorkContextCard({
   );
   const commandPalette = useCommandPalette();
   const layout = getPreparedWorkContextLayout(work.type);
+  const configuredLayout = getWorkContextLayout(work.type, workContextLayouts);
+  const configuredSections = workContextLayoutSections(
+    work.type,
+    configuredLayout,
+  );
   const [contextState, setContextState] = useState<WorkContextState>({
     visibleSections: [],
     workType: work.type,
   });
   const visibleSections =
     contextState.workType === work.type ? contextState.visibleSections : [];
-  const nextSection = nextPreparedWorkContextSection(
+  const nextSection = nextWorkContextSection(
     work.type,
     visibleSections,
+    configuredLayout,
+  );
+  const displayedSections = configuredSections.filter((section) =>
+    visibleSections.includes(section.key),
   );
   const contextModel = useMemo(
     () =>
@@ -111,7 +127,7 @@ export default function WorkContextCard({
       return;
     }
     setContextState({
-      visibleSections: [...visibleSections, nextSection],
+      visibleSections: [...visibleSections, nextSection.key],
       workType: work.type,
     });
   }
@@ -178,7 +194,7 @@ export default function WorkContextCard({
           ) : null}
           {nextSection ? (
             <span className="sr-only" id={`work-context-next-${work.id}`}>
-              Opens {nextSection}.
+              Opens {nextSection.label}.
             </span>
           ) : null}
         </div>
@@ -220,17 +236,41 @@ export default function WorkContextCard({
         ))}
       </dl>
 
-      {visibleSections.map((section) => (
-        <PreparedSection
-          isError={relationsQuery.isError}
-          isPending={relationsQuery.isPending}
-          key={section}
-          section={section}
-          sources={sourcesForWorkContextSection(section, contextModel.sources)}
-          work={work}
-          workStatusLabels={workStatusLabels}
-        />
-      ))}
+      {displayedSections.map((section) => {
+        if (section.prepared) {
+          return (
+            <PreparedSection
+              isError={relationsQuery.isError}
+              isPending={relationsQuery.isPending}
+              key={section.key}
+              section={section.prepared}
+              sources={sourcesForWorkContextSection(
+                section.prepared,
+                contextModel.sources,
+              )}
+              work={work}
+              workStatusLabels={workStatusLabels}
+            />
+          );
+        }
+        if (section.custom) {
+          return (
+            <CustomSection
+              isError={relationsQuery.isError}
+              isPending={relationsQuery.isPending}
+              key={section.key}
+              section={section.custom}
+              sources={sourcesForWorkContextCustomSection(
+                section.custom,
+                contextModel.customSources,
+              )}
+              work={work}
+              workStatusLabels={workStatusLabels}
+            />
+          );
+        }
+        return null;
+      })}
     </section>
   );
 }
@@ -341,6 +381,57 @@ function PreparedSection({
   );
 }
 
+function CustomSection({
+  isError,
+  isPending,
+  section,
+  sources,
+  work,
+  workStatusLabels,
+}: {
+  isError: boolean;
+  isPending: boolean;
+  section: WorkContextCustomSection;
+  sources: readonly WorkContextSource[];
+  work: WorkProfile;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const headingId = workContextSectionId(work.id, section.id);
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="space-y-2 border-border/70 border-t pt-3"
+    >
+      <h5 className="font-medium text-sm" id={headingId}>
+        {section.title}
+      </h5>
+      {isPending ? (
+        <p className="text-muted-foreground text-sm">Loading relations…</p>
+      ) : null}
+      {isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Relations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(isPending || isError) && sources.length > 0 ? (
+        <ul className="space-y-2">
+          {sources.map((source) => (
+            <li key={source.id}>
+              <WorkContextSourceItem
+                source={source}
+                workStatusLabels={workStatusLabels}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {!(isPending || isError) && sources.length === 0 ? (
+        <EmptyContextState work={work} />
+      ) : null}
+    </section>
+  );
+}
+
 function EmptyContextState({ work }: { work: WorkProfile }) {
   const navigate = useNavigate();
   const handleLink = useCallback(() => {
@@ -430,10 +521,7 @@ function OpenSourceRecordLink({
   );
 }
 
-function workContextSectionId(
-  workId: string,
-  section: PreparedWorkContextSection,
-) {
+function workContextSectionId(workId: string, section: string) {
   const sectionSlug = section
     .toLowerCase()
     .replaceAll(WORK_CONTEXT_SECTION_ID_PATTERN, "-");
