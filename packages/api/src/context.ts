@@ -12,6 +12,7 @@ import type {
   CustomFieldMutationContracts,
   CustomFieldsAccess,
 } from "./custom-fields";
+import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type {
   ProjectShellAccess,
@@ -122,6 +123,7 @@ export interface Context {
   customFields?: CustomFieldsAccess;
   db: Database;
   desktopApiContract?: string;
+  fileAttachments?: FileAttachmentAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;

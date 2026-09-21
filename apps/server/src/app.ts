@@ -19,6 +19,11 @@ import {
   type DesktopApiCompatibilityWindow,
   evaluateDesktopApiCompatibility,
 } from "@cantiara/api/desktop-api-window";
+import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
+import {
+  fileAttachmentScopeSchema,
+  fileAttachmentStageInputSchema,
+} from "@cantiara/api/file-attachments";
 import type {
   MutationContract,
   MutationPayload,
@@ -109,6 +114,7 @@ export interface AppDependencies {
   desktopApiNow?: () => Date;
   desktopApiWindow?: DesktopApiCompatibilityWindow;
   desktopOrigins: readonly string[];
+  fileAttachments?: FileAttachmentAccess;
   githubAvailability: Pick<
     GitHubAvailability,
     "getStatus" | "requiresFreshConsent"
@@ -694,6 +700,53 @@ function webCaptureUnauthorizedResponse() {
   );
 }
 
+function fileAttachmentErrorResponse(error: unknown) {
+  if (error instanceof ZodError || error instanceof SyntaxError) {
+    return Response.json(
+      { code: "FILE_ATTACHMENT_INVALID_REQUEST" },
+      { headers: noStoreHeaders(), status: 400 },
+    );
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code.startsWith("FILE_ATTACHMENT_")
+  ) {
+    const status =
+      {
+        FILE_ATTACHMENT_ACCOUNT_NOT_FOUND: 404,
+        FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT: 409,
+        FILE_ATTACHMENT_QUOTA_EXCEEDED: 412,
+        FILE_ATTACHMENT_REVISION_CONFLICT: 409,
+        FILE_ATTACHMENT_TARGET_NOT_FOUND: 404,
+        FILE_ATTACHMENT_UPLOAD_NOT_FOUND: 404,
+      }[error.code] ?? 400;
+    return Response.json(
+      {
+        code: error.code,
+        message:
+          "message" in error && typeof error.message === "string"
+            ? error.message
+            : "File Attachment request was rejected.",
+      },
+      { headers: noStoreHeaders(), status },
+    );
+  }
+  return Response.json(
+    { code: "FILE_ATTACHMENT_UNAVAILABLE" },
+    { headers: noStoreHeaders(), status: 500 },
+  );
+}
+
+function fileAttachmentUnavailableResponse() {
+  return Response.json(
+    { code: "FILE_ATTACHMENT_UNAVAILABLE" },
+    { headers: noStoreHeaders(), status: 503 },
+  );
+}
+
 export function createApp(dependencies: AppDependencies) {
   const identifyUser = createAuthMiddleware(
     dependencies.auth as unknown as BetterAuthInstance,
@@ -772,6 +825,59 @@ export function createApp(dependencies: AppDependencies) {
       });
     } catch (error) {
       return webCaptureErrorResponse(error);
+    }
+  });
+
+  app.post("/api/file-attachments/stage", async (c) => {
+    if (!dependencies.fileAttachments) {
+      return fileAttachmentUnavailableResponse();
+    }
+    let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
+    try {
+      principal = await authorizedPrincipal(c.req.raw, dependencies);
+    } catch {
+      return webCaptureUnauthorizedResponse();
+    }
+    if (!principal) {
+      return webCaptureUnauthorizedResponse();
+    }
+    try {
+      const form = await c.req.raw.formData();
+      const file = form.get("file");
+      if (!(file instanceof File)) {
+        throw new ZodError([]);
+      }
+      const rawScope = form.get("scope");
+      const rawBaseRevision = form.get("baseRevision");
+      const rawAttachmentId = form.get("attachmentId");
+      const scope =
+        typeof rawScope === "string"
+          ? fileAttachmentScopeSchema.parse(JSON.parse(rawScope))
+          : undefined;
+      const input = fileAttachmentStageInputSchema.parse({
+        ...(scope ? { scope } : {}),
+        ...(typeof rawAttachmentId === "string"
+          ? { attachmentId: rawAttachmentId }
+          : {}),
+        ...(typeof rawBaseRevision === "string"
+          ? { baseRevision: Number(rawBaseRevision) }
+          : {}),
+        clientIdempotencyKey: form.get("clientIdempotencyKey"),
+        declaredMimeType: form.get("declaredMimeType") || file.type,
+        fileName: form.get("fileName") || file.name,
+        mode: form.get("mode"),
+      });
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      return Response.json(
+        await dependencies.fileAttachments.stage(
+          principal.accountId,
+          input,
+          bytes,
+        ),
+        { headers: noStoreHeaders() },
+      );
+    } catch (error) {
+      return fileAttachmentErrorResponse(error);
     }
   });
 
@@ -912,6 +1018,7 @@ export function createApp(dependencies: AppDependencies) {
       customFieldMutationContracts: dependencies.customFieldMutationContracts,
       context: c,
       database: dependencies.database,
+      fileAttachments: dependencies.fileAttachments,
       githubAvailability: dependencies.githubAvailability,
       githubIdentityConfirmation: dependencies.githubIdentityConfirmation,
       mutationContract: dependencies.mutationContract,

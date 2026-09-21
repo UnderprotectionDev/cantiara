@@ -76,6 +76,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── file-attachments/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── custom-fields/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── mutation-and-undo/
@@ -320,6 +322,8 @@
 │   │   │   ├── account-preferences.ts
 │   │   │   ├── capture-triage.ts
 │   │   │   ├── context.ts
+│   │   │   ├── file-attachments.test.ts
+│   │   │   ├── file-attachments.ts
 │   │   │   ├── custom-fields.test.ts
 │   │   │   ├── custom-fields.ts
 │   │   │   ├── desktop-api-window.test.ts
@@ -354,6 +358,7 @@
 │   │   │   │   ├── auth.ts
 │   │   │   │   ├── capture-triage.ts
 │   │   │   │   ├── custom-fields.ts
+│   │   │   │   ├── file-attachments.ts
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
@@ -394,3 +399,5 @@
 ```
 
 Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).
+
+File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).

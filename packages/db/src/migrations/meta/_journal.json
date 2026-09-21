@@ -239,6 +239,13 @@
       "when": 1789929500910,
       "tag": "0033_workspace-tag-schema",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789946772335,
+      "tag": "0034_mushy_meteorite",
+      "breakpoints": true
     }
   ]
 }

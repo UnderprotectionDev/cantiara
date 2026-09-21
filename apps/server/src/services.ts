@@ -31,6 +31,9 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
+import { createFileAttachments } from "./features/file-attachments/server/file-attachments";
+import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
+import { createR2FileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-r2";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -100,6 +103,28 @@ const webCaptureStaging =
         secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       })
     : undefined;
+const fileAttachmentRepository = createDatabaseFileAttachments(db);
+const fileAttachmentObjectStore =
+  env.R2_ACCESS_KEY_ID &&
+  env.R2_ACCOUNT_ID &&
+  env.R2_BUCKET &&
+  env.R2_SECRET_ACCESS_KEY
+    ? createR2FileAttachmentObjectStore({
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        accountId: env.R2_ACCOUNT_ID,
+        bucket: env.R2_BUCKET,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      })
+    : undefined;
+const fileAttachmentService = fileAttachmentObjectStore
+  ? createFileAttachments({
+      objectStore: fileAttachmentObjectStore,
+      repository: fileAttachmentRepository,
+    })
+  : undefined;
+export const fileAttachments = fileAttachmentService?.access;
+export const sweepExpiredFileAttachmentUploads = () =>
+  fileAttachmentService?.sweepExpiredUploads() ?? Promise.resolve(0);
 export const captureInbox = createDatabaseCaptureInbox(
   db,
   captureInboxWorkCreate,

@@ -11,6 +11,7 @@ import {
   captureInbox,
   customFieldMutationContracts,
   customFields,
+  fileAttachments,
   getDb,
   githubAvailability,
   githubIdentityConfirmation,
@@ -19,6 +20,7 @@ import {
   projectShellMutationContracts,
   relations,
   replaySecurityRevocations,
+  sweepExpiredFileAttachmentUploads,
   tagMutationContracts,
   tags,
   tauriSessionAccess,
@@ -34,6 +36,13 @@ initLogger({
 });
 
 await replaySecurityRevocations();
+await sweepExpiredFileAttachmentUploads();
+setInterval(
+  () => {
+    sweepExpiredFileAttachmentUploads().catch(() => undefined);
+  },
+  60 * 60 * 1000,
+);
 
 export default createApp({
   accountSessionAccess,
@@ -51,6 +60,7 @@ export default createApp({
   },
   corsOrigin: env.CORS_ORIGIN,
   database: getDb(),
+  fileAttachments,
   desktopOrigins,
   githubAvailability,
   githubIdentityConfirmation,
