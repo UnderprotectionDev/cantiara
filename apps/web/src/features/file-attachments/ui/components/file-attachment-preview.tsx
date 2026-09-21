@@ -8,7 +8,10 @@ import type {
   FileAttachmentMarkingInput,
   FileAttachmentPreview as FileAttachmentPreviewData,
 } from "@cantiara/api/file-attachments";
-import { FILE_ATTACHMENT_UI_LABELS } from "@cantiara/api/file-attachments";
+import {
+  FILE_ATTACHMENT_TYPE_RULES,
+  FILE_ATTACHMENT_UI_LABELS,
+} from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,12 +20,20 @@ import {
   MediaProvider,
 } from "@vidstack/react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
   downloadFileAttachmentAsset,
   fetchFileAttachmentAsset,
 } from "../../lib/file-attachment-assets";
+import { uploadFileAttachment } from "../../lib/file-attachment-upload";
 import { FileAttachmentMarkup, MarkupSurface } from "./file-attachment-markup";
 
 type AssetStatus = "idle" | "loading" | "ready" | "error";
@@ -857,6 +868,135 @@ export function FileAttachmentPreviewCard({
   );
 }
 
+const FILE_ATTACHMENT_ACCEPT = Object.values(FILE_ATTACHMENT_TYPE_RULES)
+  .flatMap((rule) => [...rule.extensions, ...rule.mimeTypes])
+  .join(",");
+
+function uploadErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+  return "File Attachment upload could not be completed. Try again.";
+}
+
+function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pendingClientIdempotencyKey = useRef<string | null>(null);
+  const attachmentsQuery = orpc.fileAttachments.queryOptions({
+    input: { scope: { kind: "project", projectId } },
+  });
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => {
+      const clientIdempotencyKey =
+        pendingClientIdempotencyKey.current ?? crypto.randomUUID();
+      pendingClientIdempotencyKey.current = clientIdempotencyKey;
+      return runOnlineOnlyWrite(() =>
+        uploadFileAttachment(
+          file,
+          {
+            kind: "project",
+            projectId,
+          },
+          { createIdempotencyKey: () => clientIdempotencyKey },
+        ),
+      );
+    },
+    onError: (uploadError) => {
+      setError(uploadErrorMessage(uploadError));
+    },
+    onSuccess: async () => {
+      setError(null);
+      setSelectedFile(null);
+      pendingClientIdempotencyKey.current = null;
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      await queryClient.invalidateQueries({
+        queryKey: attachmentsQuery.queryKey,
+      });
+    },
+  });
+
+  const handleFileChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setSelectedFile(event.target.files?.[0] ?? null);
+      pendingClientIdempotencyKey.current = null;
+      setError(null);
+    },
+    [],
+  );
+
+  const handleChooseFile = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleUpload = useCallback(() => {
+    if (!selectedFile || uploadMutation.isPending) {
+      return;
+    }
+    uploadMutation.mutate(selectedFile);
+  }, [selectedFile, uploadMutation]);
+
+  const handleCancel = useCallback(() => {
+    if (uploadMutation.isPending) {
+      return;
+    }
+    setError(null);
+    setSelectedFile(null);
+    pendingClientIdempotencyKey.current = null;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [uploadMutation.isPending]);
+
+  return (
+    <div className="max-w-3xl rounded-lg border border-border/70 bg-card/50 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          accept={FILE_ATTACHMENT_ACCEPT}
+          className="hidden"
+          onChange={handleFileChange}
+          ref={fileInputRef}
+          type="file"
+        />
+        <Button
+          disabled={uploadMutation.isPending}
+          onClick={handleChooseFile}
+          type="button"
+          variant="outline"
+        >
+          {FILE_ATTACHMENT_UI_LABELS.chooseFile}
+        </Button>
+        <Button
+          disabled={!selectedFile || uploadMutation.isPending}
+          onClick={handleUpload}
+          type="button"
+        >
+          {uploadMutation.isPending
+            ? FILE_ATTACHMENT_UI_LABELS.finalizing
+            : FILE_ATTACHMENT_UI_LABELS.upload}
+        </Button>
+        {selectedFile && !uploadMutation.isPending ? (
+          <Button onClick={handleCancel} type="button" variant="ghost">
+            {FILE_ATTACHMENT_UI_LABELS.cancel}
+          </Button>
+        ) : null}
+        <p className="text-muted-foreground text-sm" role="status">
+          {selectedFile?.name ?? FILE_ATTACHMENT_UI_LABELS.noFileSelected}
+        </p>
+      </div>
+      {error ? (
+        <p className="mt-3 text-destructive text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function FileAttachmentsSurface({
   projectId,
 }: {
@@ -890,6 +1030,8 @@ export default function FileAttachmentsSurface({
           request.
         </p>
       </header>
+
+      <FileAttachmentUploadControl projectId={projectId} />
 
       {attachmentsQuery.isPending ? (
         <p className="text-muted-foreground text-sm" role="status">
