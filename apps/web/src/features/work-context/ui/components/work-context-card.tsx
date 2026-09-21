@@ -12,9 +12,14 @@ import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useNavigate } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { workRelationsHash } from "@/features/project-shell/lib/project-shell-navigation";
+import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
+import {
+  workRecordHash,
+  workRecordHref,
+  workRelationsHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import {
@@ -43,6 +48,7 @@ export default function WorkContextCard({
       input: { recordId: work.id, recordType: "Work" },
     }),
   );
+  const commandPalette = useCommandPalette();
   const layout = getPreparedWorkContextLayout(work.type);
   const [contextState, setContextState] = useState<WorkContextState>({
     visibleSections: [],
@@ -54,21 +60,47 @@ export default function WorkContextCard({
     work.type,
     visibleSections,
   );
-  const contextModel = buildWorkContextModel({
-    projectWorks,
-    relations: relationsQuery.data ?? [],
-    work,
-  });
+  const contextModel = useMemo(
+    () =>
+      buildWorkContextModel({
+        projectWorks,
+        relations: relationsQuery.data ?? [],
+        work,
+      }),
+    [projectWorks, relationsQuery.data, work],
+  );
   const statusLabel = getWorkStatusLabel(work.status, workStatusLabels);
+  const sourceLink = useCallback((source: WorkContextSource) => {
+    if (
+      source.recordType !== "Work" ||
+      !source.projectId ||
+      (source.broken && !source.broken.canOpenSourceRecord)
+    ) {
+      return null;
+    }
+    return workRecordHref(source.projectId, source.recordId);
+  }, []);
   const copyCommand = useMemo(
     () =>
       createCopyContextAsMarkdownCommand({
         model: contextModel,
         statusLabel,
         work,
+        sourceLink,
       }),
-    [contextModel, statusLabel, work],
+    [contextModel, sourceLink, statusLabel, work],
   );
+  useEffect(() => {
+    if (!commandPalette || relationsQuery.isPending || relationsQuery.isError) {
+      return;
+    }
+    return commandPalette.registerCommand(copyCommand);
+  }, [
+    commandPalette,
+    copyCommand,
+    relationsQuery.isError,
+    relationsQuery.isPending,
+  ]);
   const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">(
     "idle",
   );
@@ -121,7 +153,7 @@ export default function WorkContextCard({
         </div>
         <div className="flex flex-wrap items-end justify-end gap-2">
           <Button
-            data-command-id="copy-context-as-markdown"
+            data-command-id={copyCommand.id}
             disabled={
               relationsQuery.isPending ||
               relationsQuery.isError ||
@@ -386,7 +418,7 @@ function OpenSourceRecordLink({
 }) {
   const linkProps = useLinkProps({
     activeOptions: { exact: true, includeHash: true },
-    hash: `work-${encodeURIComponent(recordId)}`,
+    hash: workRecordHash(recordId),
     params: { projectId },
     to: "/projects/$projectId",
   });

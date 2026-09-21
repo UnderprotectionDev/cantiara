@@ -62,6 +62,7 @@ interface CommandPaletteContextValue {
     commandId: string,
     trigger?: HTMLElement | null,
   ) => void;
+  registerCommand: (command: CommandPaletteCommand) => () => void;
 }
 
 const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(
@@ -559,6 +560,29 @@ export function CommandPaletteProvider({
   const { initialQuery, open } = useStore(paletteStore);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef<boolean | null>(null);
+  const commandRegistrationTokensRef = useRef(new Map<string, symbol>());
+  const [registeredCommands, setRegisteredCommands] = useState<
+    readonly CommandPaletteCommand[]
+  >([]);
+
+  const registerCommand = useCallback((command: CommandPaletteCommand) => {
+    const token = Symbol(command.id);
+    commandRegistrationTokensRef.current.set(command.id, token);
+    setRegisteredCommands((current) => [
+      ...current.filter((candidate) => candidate.id !== command.id),
+      command,
+    ]);
+
+    return () => {
+      if (commandRegistrationTokensRef.current.get(command.id) !== token) {
+        return;
+      }
+      commandRegistrationTokensRef.current.delete(command.id);
+      setRegisteredCommands((current) =>
+        current.filter((candidate) => candidate.id !== command.id),
+      );
+    };
+  }, []);
 
   const navigationCommands = useMemo<CommandPaletteCommand[]>(() => {
     const navigationCommand = ({
@@ -621,7 +645,11 @@ export function CommandPaletteProvider({
       buildCommandPaletteCommands(
         {
           authorizedProjects,
-          commands: [...navigationCommands, ...(commands ?? [])],
+          commands: [
+            ...navigationCommands,
+            ...(commands ?? []),
+            ...registeredCommands,
+          ],
           createOptions,
           onCreate,
           onOpenRecord,
@@ -637,6 +665,7 @@ export function CommandPaletteProvider({
       onCreate,
       onOpenRecord,
       onSwitchProject,
+      registeredCommands,
     ],
   );
 
@@ -708,8 +737,8 @@ export function CommandPaletteProvider({
   }, [openPalette]);
 
   const contextValue = useMemo(
-    () => ({ openPalette, openPaletteForCommand }),
-    [openPalette, openPaletteForCommand],
+    () => ({ openPalette, openPaletteForCommand, registerCommand }),
+    [openPalette, openPaletteForCommand, registerCommand],
   );
 
   return (

@@ -289,7 +289,8 @@
 │       │   │               ├── saved-project-lists.tsx
 │       │   │               └── workspace-overview.tsx
 │       │   ├── lib/
-│       │   │   └── auth-client.ts
+│       │   │   ├── auth-client.ts
+│       │   │   └── clipboard.ts
 │       │   ├── routes/
 │       │   │   ├── _auth/
 │       │   │   │   ├── account/

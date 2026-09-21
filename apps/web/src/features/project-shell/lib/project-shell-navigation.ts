@@ -91,6 +91,15 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
 };
 
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
+const WORK_RECORD_HASH_PREFIX = "work-";
+
+export function workRecordHash(workId: string) {
+  return `${WORK_RECORD_HASH_PREFIX}${encodeURIComponent(workId)}`;
+}
+
+export function workRecordHref(projectId: string, workId: string) {
+  return `/projects/${encodeURIComponent(projectId)}#${workRecordHash(workId)}`;
+}
 
 export function workRelationsHash(workId: string) {
   return `${WORK_RELATIONS_HASH_PREFIX}${encodeURIComponent(workId)}`;

@@ -547,11 +547,11 @@ describe("Work Context Card Markdown copy", () => {
         reason: "Redacted for security",
       },
       id: "private-risk",
-      key: null,
+      key: "RISK-1",
       label: "Risk",
       recordId: "private-risk",
       recordType: "Risk",
-      title: null,
+      title: "Private risk must not leak",
     });
 
     const markdown = renderWorkContextMarkdown({
@@ -613,5 +613,6 @@ describe("Work Context Card Markdown copy", () => {
     expect(markdown).not.toContain("super-secret capture content");
     expect(markdown).not.toContain("Redacted for security");
     expect(markdown).not.toContain("private-risk");
+    expect(markdown).not.toContain("Private risk must not leak");
   });
 });

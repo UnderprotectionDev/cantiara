@@ -3,7 +3,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test, vi } from "vitest";
 
 import {
-  COPY_CONTEXT_AS_MARKDOWN_COMMAND_ID,
+  copyContextAsMarkdownCommandId,
   copyWorkContextAsMarkdown,
   createCopyContextAsMarkdownCommand,
 } from "./work-context-markdown";
@@ -69,7 +69,7 @@ describe("Work Context Card Markdown action", () => {
     });
 
     expect(command).toMatchObject({
-      id: COPY_CONTEXT_AS_MARKDOWN_COMMAND_ID,
+      id: copyContextAsMarkdownCommandId(work.id),
       label: "Copy Context as Markdown",
       scope: "Work: PAY-1",
       target: "PAY-1 Improve checkout clarity",
@@ -78,5 +78,40 @@ describe("Work Context Card Markdown action", () => {
 
     await command.run();
     expect(writeText).toHaveBeenCalledOnce();
+  });
+
+  test("lets the web route owner provide links for live app sources", async () => {
+    const writeText = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const source = {
+      broken: null,
+      id: "work-source",
+      key: "PAY-2",
+      label: "Work",
+      projectId: "project-1",
+      recordId: "work-2",
+      recordType: "Work" as const,
+      relationId: "relation-1",
+      relationKind: "Origin" as const,
+      status: "Closed" as const,
+      title: "Checkout interviews",
+      workType: "Research" as const,
+    };
+
+    const markdown = await copyWorkContextAsMarkdown({
+      model: { sources: [source], whyChain: [source] },
+      now: () => "2026-01-01T12:00:00.000Z",
+      sourceLink: (candidate) =>
+        candidate.recordType === "Work"
+          ? "/projects/project-1#work-work-2"
+          : null,
+      work,
+      writeText,
+    });
+
+    expect(markdown).toContain(
+      "[PAY-2 Checkout interviews](</projects/project-1#work-work-2>)",
+    );
   });
 });
