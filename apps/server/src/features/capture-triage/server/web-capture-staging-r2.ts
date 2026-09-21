@@ -1,4 +1,5 @@
-import type { CaptureAttachment } from "@cantiara/api/capture-triage";
+import type { CaptureAttachmentPromotionInput } from "@cantiara/api/capture-triage";
+import type { FileAttachmentService } from "../../file-attachments/server/file-attachments";
 import type { CaptureInboxStagingStore } from "./capture-inbox";
 import type { WebCaptureStagingStore } from "./web-capture";
 
@@ -23,6 +24,13 @@ type R2Fetch = (
   input: string | Request | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+
+interface R2WebCaptureStagingStore extends WebCaptureStagingStore {
+  read: (input: {
+    accountId: string;
+    attachmentId: string;
+  }) => Promise<Uint8Array>;
+}
 
 function encodePathSegment(value: string) {
   return encodeURIComponent(value).replace(
@@ -117,7 +125,7 @@ async function signedRequest({
   contentType?: string;
   fetcher: R2Fetch;
   key: string;
-  method: "DELETE" | "PUT";
+  method: "DELETE" | "GET" | "PUT";
   now: () => Date;
 }) {
   const endpoint = endpointFor(config);
@@ -179,12 +187,13 @@ async function signedRequest({
       `R2 staging request failed with ${response.status}: ${await response.text()}`,
     );
   }
+  return response;
 }
 
 export function createR2WebCaptureStagingStore(
   config: R2StagingConfig,
   options: { fetcher?: R2Fetch; now?: () => Date } = {},
-): WebCaptureStagingStore {
+): R2WebCaptureStagingStore {
   const fetcher = options.fetcher ?? fetch;
   const now = options.now ?? (() => new Date());
 
@@ -210,27 +219,61 @@ export function createR2WebCaptureStagingStore(
         now,
       });
     },
+    async read({ accountId, attachmentId }) {
+      const response = await signedRequest({
+        config,
+        fetcher,
+        key: objectKey(accountId, attachmentId),
+        method: "GET",
+        now,
+      });
+      return new Uint8Array(await response.arrayBuffer());
+    },
   };
 }
 
 export function createR2CaptureInboxStagingStore(
-  staging: WebCaptureStagingStore,
+  staging: R2WebCaptureStagingStore,
+  fileAttachments?: Pick<FileAttachmentService, "promoteCaptureAttachment">,
 ): CaptureInboxStagingStore {
   return {
     delete: ({ accountId, attachment }) =>
       staging.delete({
         accountId,
-        attachmentId: (attachment as CaptureAttachment).id,
+        attachmentId: attachment.id,
       }),
-    // File Attachment owns the atomic promotion. The R2 adapter currently
-    // owns only Web Capture staging, so conversion remains fail-closed until
-    // that owning feature supplies its promotion adapter.
-    promote<TReceipt>(): Promise<TReceipt> {
-      return Promise.reject(
-        new Error(
+    async promote<TReceipt>(
+      input: CaptureAttachmentPromotionInput<TReceipt>,
+    ): Promise<TReceipt> {
+      if (!fileAttachments) {
+        throw new Error(
           "File Attachment promotion is not configured for Capture staging.",
-        ),
-      );
+        );
+      }
+      const { attachment } = input;
+      if (!(attachment.mimeType && attachment.name)) {
+        throw new Error(
+          "Capture attachment metadata is unavailable for File Attachment promotion.",
+        );
+      }
+      const bytes = await staging.read({
+        accountId: input.accountId,
+        attachmentId: attachment.id,
+      });
+      const receipt = await fileAttachments.promoteCaptureAttachment({
+        accountId: input.accountId,
+        bytes,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        declaredMimeType: attachment.mimeType,
+        fileName: attachment.name,
+        finalize: input.finalize,
+        scope: input.targetScope,
+      });
+      await staging.delete({
+        accountId: input.accountId,
+        attachmentId: attachment.id,
+      });
+      return receipt;
     },
   };
 }

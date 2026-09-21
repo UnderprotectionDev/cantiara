@@ -507,7 +507,20 @@ function ensureUploadQuota(quota: FileAttachmentQuota, byteSize: number) {
 
 export interface FileAttachmentService {
   access: FileAttachmentAccess;
+  promoteCaptureAttachment: <TReceipt>(
+    input: FileAttachmentCapturePromotionInput<TReceipt>,
+  ) => Promise<TReceipt>;
   sweepExpiredUploads: (now?: Date) => Promise<number>;
+}
+
+export interface FileAttachmentCapturePromotionInput<TReceipt> {
+  accountId: string;
+  bytes: Uint8Array;
+  clientIdempotencyKey: string;
+  declaredMimeType: string;
+  fileName: string;
+  finalize: () => Promise<TReceipt>;
+  scope: FileAttachmentScope;
 }
 
 export function createFileAttachments({
@@ -802,6 +815,31 @@ export function createFileAttachments({
     );
   }
 
+  async function promoteCaptureAttachment<TReceipt>({
+    accountId,
+    bytes,
+    clientIdempotencyKey,
+    declaredMimeType,
+    fileName,
+    finalize: finalizeTarget,
+    scope,
+  }: FileAttachmentCapturePromotionInput<TReceipt>): Promise<TReceipt> {
+    const uploadInput: FileAttachmentStageInput = {
+      clientIdempotencyKey: `capture-attachment:${hashBytes(new TextEncoder().encode(clientIdempotencyKey))}`,
+      declaredMimeType,
+      fileName,
+      mode: "new",
+      scope,
+    };
+    const session = await stage(accountId, uploadInput, bytes);
+    const targetReceipt = await finalizeTarget();
+    await finalize(accountId, {
+      ...uploadInput,
+      uploadId: session.uploadId,
+    });
+    return targetReceipt;
+  }
+
   async function sweepExpiredUploads(at = now()) {
     const expired = await repository.findExpiredUploads(at);
     await Promise.all(
@@ -824,6 +862,7 @@ export function createFileAttachments({
 
   return {
     access: { finalize, getQuota, list, stage },
+    promoteCaptureAttachment,
     sweepExpiredUploads,
   } satisfies FileAttachmentService;
 }

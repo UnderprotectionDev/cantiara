@@ -384,6 +384,35 @@ describe("Web Capture seam", () => {
     });
   });
 
+  test("keeps selected-image metadata compatible with File Attachment validation", async () => {
+    const staging = {
+      delete: vi.fn(),
+      put: vi.fn(),
+    } satisfies WebCaptureStagingStore;
+    const { access, captures } = createSubject(staging);
+    const paired = await pair(access);
+
+    await access.send(
+      paired.token,
+      {
+        clientIdempotencyKey: "selected-image-key",
+        content: "Selected image",
+        kind: "selected-image",
+        link: "https://example.com/article",
+        mediaDataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRgAB",
+        originUrl: "https://example.com/article",
+        projectId: "project-1",
+      },
+      NOW,
+    );
+
+    expect(captures[0]?.attachment).toMatchObject({
+      mimeType: "image/jpeg",
+      name: "Selected image.jpg",
+    });
+    expect(captures[0]?.attachment).not.toHaveProperty("sourceUrl");
+  });
+
   test("does not create an Inbox item when the link is revoked before finalization", async () => {
     let access!: WebCaptureAccess;
     const staging = {
