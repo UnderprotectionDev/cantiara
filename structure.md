@@ -90,7 +90,9 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── work-drafts/
 │   │   │   │   │   └── server/
-│   │   │   │   └── work-lifecycle/
+│   │   │   │   ├── work-lifecycle/
+│   │   │   │   │   └── server/
+│   │   │   │   └── workspace-overview/
 │   │   │   │       └── server/
 │   │   │   ├── app.test.ts
 │   │   │   ├── app.ts
@@ -261,7 +263,7 @@
 │       │   │   │           ├── draft-custom-fields.test.ts
 │       │   │   │           ├── draft-custom-fields.ts
 │       │   │   │           └── work-draft-form.tsx
-│       │   │   └── work-lifecycle/
+│       │   │   ├── work-lifecycle/
 │       │   │       └── ui/
 │       │   │           ├── components/
 │       │   │           │   ├── project-work-list.tsx
@@ -273,6 +275,11 @@
 │       │   │               ├── work-recreate-form.tsx
 │       │   │               ├── work-status-form.test.ts
 │       │   │               └── work-status-form.tsx
+│       │   │   └── workspace-overview/
+│       │   │       └── ui/
+│       │   │           └── components/
+│       │   │               ├── workspace-overview.test.tsx
+│       │   │               └── workspace-overview.tsx
 │       │   ├── lib/
 │       │   │   └── auth-client.ts
 │       │   ├── routes/
@@ -293,6 +300,7 @@
 │       │   │   ├── index.tsx
 │       │   │   └── login.tsx
 │       │   ├── utils/
+│       │   │   ├── orpc.test.ts
 │       │   │   └── orpc.ts
 │       │   ├── env.ts
 │       │   ├── index.css
@@ -337,7 +345,9 @@
 │   │   │   ├── web-capture.ts
 │   │   │   ├── work-drafts.test.ts
 │   │   │   ├── work-drafts.ts
-│   │   │   └── work-lifecycle.ts
+│   │   │   ├── work-lifecycle.ts
+│   │   │   ├── workspace-overview.test.ts
+│   │   │   └── workspace-overview.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── auth/

@@ -31,6 +31,7 @@ import {
   webCapture,
   workDrafts,
   workLifecycle,
+  workspaceOverview,
 } from "./services";
 
 initLogger({
@@ -81,6 +82,7 @@ const app = createApp({
   webCapture,
   workDrafts,
   workLifecycle,
+  workspaceOverview,
 });
 
 // Bun's implicit server caps request bodies at 128 MiB, which would reject the

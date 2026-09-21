@@ -27,6 +27,7 @@ import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkDraftsAccess } from "./work-drafts";
 import type { WorkLifecycleAccess } from "./work-lifecycle";
+import type { WorkspaceOverviewAccess } from "./workspace-overview";
 
 export interface AccountSessionPrincipal {
   accountId: string;
@@ -140,4 +141,5 @@ export interface Context {
   webCapture?: WebCaptureAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
+  workspaceOverview?: WorkspaceOverviewAccess;
 }

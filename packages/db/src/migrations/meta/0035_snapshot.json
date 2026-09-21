@@ -1,6 +1,6 @@
 {
-  "id": "9e450fd2-5e6b-47df-937a-c0fe60598f34",
-  "prevId": "e0945efa-fd84-4d05-a8f6-3b6e110b9789",
+  "id": "968ed161-2957-4eee-a84b-c0827bdf8ed5",
+  "prevId": "9e450fd2-5e6b-47df-937a-c0fe60598f34",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1466,6 +1466,546 @@
         "custom_field_value_revision_check": {
           "name": "custom_field_value_revision_check",
           "value": "\"custom_field_value\".\"revision\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.file_attachment": {
+      "name": "file_attachment",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "current_version": {
+          "name": "current_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lifecycle_status": {
+          "name": "lifecycle_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Active'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "personal_wiki_id": {
+          "name": "personal_wiki_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "scope_type": {
+          "name": "scope_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "file_attachment_workspace_idx": {
+          "name": "file_attachment_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_attachment_scope_idx": {
+          "name": "file_attachment_scope_idx",
+          "columns": [
+            {
+              "expression": "scope_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "personal_wiki_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "file_attachment_project_id_project_id_fk": {
+          "name": "file_attachment_project_id_project_id_fk",
+          "tableFrom": "file_attachment",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_attachment_workspace_id_workspace_id_fk": {
+          "name": "file_attachment_workspace_id_workspace_id_fk",
+          "tableFrom": "file_attachment",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "file_attachment_current_version_check": {
+          "name": "file_attachment_current_version_check",
+          "value": "\"file_attachment\".\"current_version\" >= 1"
+        },
+        "file_attachment_lifecycle_status_check": {
+          "name": "file_attachment_lifecycle_status_check",
+          "value": "\"file_attachment\".\"lifecycle_status\" in ('Active', 'Archive', 'Trash')"
+        },
+        "file_attachment_name_check": {
+          "name": "file_attachment_name_check",
+          "value": "length(btrim(\"file_attachment\".\"name\")) > 0"
+        },
+        "file_attachment_revision_check": {
+          "name": "file_attachment_revision_check",
+          "value": "\"file_attachment\".\"revision\" >= 0"
+        },
+        "file_attachment_scope_check": {
+          "name": "file_attachment_scope_check",
+          "value": "(\"file_attachment\".\"scope_type\" = 'Project' and \"file_attachment\".\"project_id\" is not null and \"file_attachment\".\"personal_wiki_id\" is null) or (\"file_attachment\".\"scope_type\" = 'Personal Wiki' and \"file_attachment\".\"project_id\" is null and \"file_attachment\".\"personal_wiki_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.file_attachment_upload": {
+      "name": "file_attachment_upload",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attachment_id": {
+          "name": "attachment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_revision": {
+          "name": "base_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_idempotency_key": {
+          "name": "client_idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "declared_mime_type": {
+          "name": "declared_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error": {
+          "name": "error",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "mode": {
+          "name": "mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_fingerprint": {
+          "name": "payload_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "personal_wiki_id": {
+          "name": "personal_wiki_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope_type": {
+          "name": "scope_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'staged'"
+        },
+        "temporary_object_key": {
+          "name": "temporary_object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "file_attachment_upload_account_key_uidx": {
+          "name": "file_attachment_upload_account_key_uidx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_attachment_upload_expiry_idx": {
+          "name": "file_attachment_upload_expiry_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_attachment_upload_workspace_idx": {
+          "name": "file_attachment_upload_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "file_attachment_upload_account_id_user_id_fk": {
+          "name": "file_attachment_upload_account_id_user_id_fk",
+          "tableFrom": "file_attachment_upload",
+          "tableTo": "user",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_attachment_upload_workspace_id_workspace_id_fk": {
+          "name": "file_attachment_upload_workspace_id_workspace_id_fk",
+          "tableFrom": "file_attachment_upload",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "file_attachment_upload_base_revision_check": {
+          "name": "file_attachment_upload_base_revision_check",
+          "value": "\"file_attachment_upload\".\"base_revision\" is null or \"file_attachment_upload\".\"base_revision\" >= 0"
+        },
+        "file_attachment_upload_mode_check": {
+          "name": "file_attachment_upload_mode_check",
+          "value": "\"file_attachment_upload\".\"mode\" in ('new', 'new-version')"
+        },
+        "file_attachment_upload_payload_fingerprint_check": {
+          "name": "file_attachment_upload_payload_fingerprint_check",
+          "value": "\"file_attachment_upload\".\"payload_fingerprint\" ~ '^[0-9a-fA-F]{64}$'"
+        },
+        "file_attachment_upload_scope_check": {
+          "name": "file_attachment_upload_scope_check",
+          "value": "(\"file_attachment_upload\".\"scope_type\" is null and \"file_attachment_upload\".\"project_id\" is null and \"file_attachment_upload\".\"personal_wiki_id\" is null) or (\"file_attachment_upload\".\"scope_type\" = 'Project' and \"file_attachment_upload\".\"project_id\" is not null and \"file_attachment_upload\".\"personal_wiki_id\" is null) or (\"file_attachment_upload\".\"scope_type\" = 'Personal Wiki' and \"file_attachment_upload\".\"project_id\" is null and \"file_attachment_upload\".\"personal_wiki_id\" is not null)"
+        },
+        "file_attachment_upload_status_check": {
+          "name": "file_attachment_upload_status_check",
+          "value": "\"file_attachment_upload\".\"status\" in ('staged', 'committed', 'rejected', 'swept')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.file_attachment_version": {
+      "name": "file_attachment_version",
+      "schema": "",
+      "columns": {
+        "attachment_id": {
+          "name": "attachment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "byte_size": {
+          "name": "byte_size",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "detected_mime_type": {
+          "name": "detected_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "extension": {
+          "name": "extension",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "file_attachment_version_attachment_idx": {
+          "name": "file_attachment_version_attachment_idx",
+          "columns": [
+            {
+              "expression": "attachment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_attachment_version_attachment_number_uidx": {
+          "name": "file_attachment_version_attachment_number_uidx",
+          "columns": [
+            {
+              "expression": "attachment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "file_attachment_version_attachment_id_file_attachment_id_fk": {
+          "name": "file_attachment_version_attachment_id_file_attachment_id_fk",
+          "tableFrom": "file_attachment_version",
+          "tableTo": "file_attachment",
+          "columnsFrom": ["attachment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "file_attachment_version_byte_size_check": {
+          "name": "file_attachment_version_byte_size_check",
+          "value": "\"file_attachment_version\".\"byte_size\" > 0"
+        },
+        "file_attachment_version_content_hash_check": {
+          "name": "file_attachment_version_content_hash_check",
+          "value": "\"file_attachment_version\".\"content_hash\" ~ '^[0-9a-fA-F]{64}$'"
+        },
+        "file_attachment_version_version_check": {
+          "name": "file_attachment_version_version_check",
+          "value": "\"file_attachment_version\".\"version\" >= 1"
         }
       },
       "isRLSEnabled": false

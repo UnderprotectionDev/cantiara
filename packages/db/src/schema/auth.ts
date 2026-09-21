@@ -5,11 +5,25 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+export interface WorkspaceOverviewConfiguration {
+  layout: {
+    hidden: string[];
+    order: string[];
+  };
+  liveBlockSources: Array<{
+    recordId: string;
+    recordType: string;
+    viewId?: string;
+  }>;
+  version: number;
+}
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -100,6 +114,9 @@ export const workspace = pgTable("workspace", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  overviewConfiguration: jsonb(
+    "overview_configuration",
+  ).$type<WorkspaceOverviewConfiguration | null>(),
 });
 
 export const accountPreferences = pgTable(

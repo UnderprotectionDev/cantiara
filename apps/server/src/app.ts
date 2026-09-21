@@ -48,6 +48,7 @@ import {
 } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
+import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
@@ -136,6 +137,7 @@ export interface AppDependencies {
   webCapture?: WebCaptureAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
+  workspaceOverview?: WorkspaceOverviewAccess;
 }
 
 function isRecoverableAuthPath(path: string) {
@@ -1049,6 +1051,7 @@ export function createApp(dependencies: AppDependencies) {
       webCapture: dependencies.webCapture,
       workDrafts: dependencies.workDrafts,
       workLifecycle: dependencies.workLifecycle,
+      workspaceOverview: dependencies.workspaceOverview,
     });
     const rpcResult = await rpcHandler.handle(c.req.raw, {
       prefix: "/rpc",
