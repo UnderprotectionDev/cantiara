@@ -151,28 +151,29 @@ test("opens the exact Priority Foundations count drilldown", async ({
   };
   await context.addCookies([{ ...setup.cookie, expires: -1 }]);
 
-  await page.route("**/rpc/workContext", async (route) => {
+  await page.route("**/rpc/relations", async (route) => {
     if (route.request().method() !== "POST") {
       await route.continue();
       return;
     }
     const response = await route.fetch();
     const body = (await response.json()) as {
-      json?: {
-        priorityValues?: unknown;
-        relations?: unknown[];
-      };
+      json?: unknown[];
       meta?: unknown;
     };
-    const input = route.request().postDataJSON() as {
-      json?: { workId?: string };
-    };
-    const workId = input.json?.workId;
-    if (!(body.json && workId)) {
+    if (!body.json) {
       await route.fulfill({ response, json: body });
       return;
     }
-    body.json.relations = [
+    const input = route.request().postDataJSON() as {
+      json?: { recordId?: string };
+    };
+    const recordId = input.json?.recordId;
+    if (!recordId) {
+      await route.fulfill({ response, json: body });
+      return;
+    }
+    body.json = [
       {
         createdAt: "2026-01-01T00:00:00.000Z",
         direction: "incoming",
@@ -200,7 +201,7 @@ test("opens the exact Priority Foundations count drilldown", async ({
           label: "TARGET-1",
           originPosition: null,
           projectId: "priority-project",
-          recordId: workId,
+          recordId,
           recordType: "Work",
           status: "Not Started",
           title: "Review checkout evidence",
