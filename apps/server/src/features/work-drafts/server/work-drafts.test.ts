@@ -161,6 +161,7 @@ function createMemoryStore(
 function createWorkLifecycleStub(): WorkLifecycleAccess {
   return {
     archive: vi.fn(),
+    bindOriginPosition: vi.fn(),
     close: vi.fn(),
     create: vi.fn().mockResolvedValue(work),
     detachFeatureHealthHistory: vi.fn(),
@@ -175,6 +176,7 @@ function createWorkLifecycleStub(): WorkLifecycleAccess {
     previewRecreate: vi.fn(),
     previewTypeChange: vi.fn(),
     recordFeatureHealth: vi.fn(),
+    replayBindOriginPosition: vi.fn(),
     recreate: vi.fn(),
     reopen: vi.fn(),
     resolve: vi.fn(),

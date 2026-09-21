@@ -31,6 +31,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
+import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
 import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
 import { createFileAttachments } from "./features/file-attachments/server/file-attachments";
@@ -143,6 +144,10 @@ const fileAttachmentPreviewWorker = fileAttachmentObjectStore
   : undefined;
 const fileAttachmentService = fileAttachmentObjectStore
   ? createFileAttachments({
+      locationWork: createFileAttachmentLocationWork(
+        workLifecycle,
+        projectShell,
+      ),
       objectStore: fileAttachmentObjectStore,
       repository: fileAttachmentRepository,
       schedulePreview: fileAttachmentPreviewWorker?.enqueue,

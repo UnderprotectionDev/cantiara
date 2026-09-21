@@ -12,16 +12,20 @@ import {
   createFileAttachments,
   type FileAttachmentCommitInput,
   FileAttachmentError,
+  type FileAttachmentLocationWorkAccess,
   type FileAttachmentObjectStore,
   type FileAttachmentRepository,
+  type FileAttachmentStoredMarking,
   type FileAttachmentStoredUpload,
   FileAttachmentValidationError,
+  type FileAttachmentWorkOriginPosition,
   validateFileAttachmentUpload,
 } from "./file-attachments";
 
 const jpegBytes = new Uint8Array([
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
 ]);
+const pdfBytes = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n");
 const CONTENT_HASH_PATTERN = /^[0-9a-f]{64}$/u;
 
 const accountId = "account-1";
@@ -39,7 +43,11 @@ function createIds() {
 }
 
 function createMemoryFileAttachments(
-  options: { byteLimit?: number; commitByteLimit?: number } = {},
+  options: {
+    byteLimit?: number;
+    commitByteLimit?: number;
+    locationWork?: FileAttachmentLocationWorkAccess;
+  } = {},
 ) {
   const objects = new Map<string, Uint8Array>();
   const uploads = new Map<string, FileAttachmentStoredUpload>();
@@ -48,6 +56,7 @@ function createMemoryFileAttachments(
     { attachment: FileAttachment; versions: FileAttachmentVersion[] }
   >();
   const versionObjectKeys = new Map<string, string>();
+  const markings = new Map<string, FileAttachmentStoredMarking>();
   const byteLimit = options.byteLimit ?? FILE_ATTACHMENT_QUOTA.maxBytes;
   const commitByteLimit = options.commitByteLimit ?? byteLimit;
 
@@ -249,6 +258,45 @@ function createMemoryFileAttachments(
       );
     },
 
+    findMarking(candidateAccountId, attachmentId, versionId, markingId) {
+      const stored = markings.get(markingId);
+      return Promise.resolve(
+        stored?.accountId === candidateAccountId &&
+          stored.marking.attachmentId === attachmentId &&
+          stored.marking.versionId === versionId
+          ? stored.marking
+          : null,
+      );
+    },
+
+    findMarkingByIdempotencyKey(candidateAccountId, clientIdempotencyKey) {
+      return Promise.resolve(
+        [...markings.values()].find(
+          ({ accountId: storedAccountId, clientIdempotencyKey: storedKey }) =>
+            storedAccountId === candidateAccountId &&
+            storedKey === clientIdempotencyKey,
+        ) ?? null,
+      );
+    },
+
+    insertMarking(marking) {
+      markings.set(marking.marking.id, marking);
+      return Promise.resolve();
+    },
+
+    listMarkings(candidateAccountId, attachmentId, versionId) {
+      return Promise.resolve(
+        [...markings.values()]
+          .filter(
+            ({ accountId: storedAccountId, marking }) =>
+              storedAccountId === candidateAccountId &&
+              marking.attachmentId === attachmentId &&
+              marking.versionId === versionId,
+          )
+          .map(({ marking }) => marking),
+      );
+    },
+
     hasOtherVersionWithContentHash(contentHash, versionId) {
       return Promise.resolve(
         [...attachments.values()].some(({ versions }) =>
@@ -329,6 +377,14 @@ function createMemoryFileAttachments(
       uploads.delete(uploadId);
       return Promise.resolve();
     },
+
+    undoMarking(candidateAccountId, _attachmentId, _versionId, markingId) {
+      const stored = markings.get(markingId);
+      if (stored?.accountId === candidateAccountId) {
+        markings.delete(markingId);
+      }
+      return Promise.resolve();
+    },
   };
 
   const objectStore: FileAttachmentObjectStore = {
@@ -377,9 +433,16 @@ function createMemoryFileAttachments(
       idGenerator: createIds(),
       now: () => new Date("2026-09-21T10:00:00.000Z"),
       objectStore,
+      preview: {
+        pdfReader: {
+          readPageCount: async () => 1,
+        },
+      },
       repository,
+      locationWork: options.locationWork,
     }),
     uploads,
+    markings,
   };
 }
 
@@ -910,5 +973,344 @@ describe("File Attachments — Dosya sınırları finalize seam", () => {
         uploadId: session.uploadId,
       }),
     ).resolves.toMatchObject({ idempotent: true });
+  });
+});
+
+describe("File Attachments — Görsel işaretleme ve Köken konumu seam", () => {
+  test("stores marking as undoable metadata pinned to the exact version", async () => {
+    const memory = createMemoryFileAttachments();
+    const input = newInput();
+    const session = await memory.service.access.stage(
+      accountId,
+      stageInput(input),
+      jpegBytes,
+    );
+    const receipt = await memory.service.access.finalize(accountId, {
+      ...input,
+      uploadId: session.uploadId,
+    });
+    const beforeSource = await memory.service.access.readAsset(accountId, {
+      attachmentId: receipt.attachment.id,
+      variant: "original",
+      versionId: receipt.version.id,
+    });
+
+    const marking = await memory.service.access.createMarking(accountId, {
+      attachmentId: receipt.attachment.id,
+      clientIdempotencyKey: "marking-1",
+      geometry: {
+        kind: "path",
+        points: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.3, y: 0.4 },
+        ],
+      },
+      tool: "highlighter",
+      versionId: receipt.version.id,
+    });
+
+    await expect(
+      memory.service.access.listMarkings(accountId, {
+        attachmentId: receipt.attachment.id,
+        versionId: receipt.version.id,
+      }),
+    ).resolves.toEqual([marking]);
+    const afterSource = await memory.service.access.readAsset(accountId, {
+      attachmentId: receipt.attachment.id,
+      variant: "original",
+      versionId: receipt.version.id,
+    });
+    expect(afterSource.bytes).toEqual(beforeSource.bytes);
+
+    const nextVersionInput = {
+      attachmentId: receipt.attachment.id,
+      baseRevision: receipt.attachment.revision,
+      clientIdempotencyKey: "version-1",
+      declaredMimeType: "image/jpeg",
+      fileName: "screen-v2.jpg",
+      mode: "new-version" as const,
+    };
+    const nextVersionSession = await memory.service.access.stage(
+      accountId,
+      nextVersionInput,
+      jpegBytes,
+    );
+    const nextVersion = await memory.service.access.finalize(accountId, {
+      ...nextVersionInput,
+      uploadId: nextVersionSession.uploadId,
+    });
+    await expect(
+      memory.service.access.listMarkings(accountId, {
+        attachmentId: receipt.attachment.id,
+        versionId: nextVersion.version.id,
+      }),
+    ).resolves.toEqual([]);
+
+    await memory.service.access.undoMarking(accountId, {
+      attachmentId: receipt.attachment.id,
+      markingId: marking.id,
+      versionId: receipt.version.id,
+    });
+    await expect(
+      memory.service.access.undoMarking(accountId, {
+        attachmentId: receipt.attachment.id,
+        markingId: marking.id,
+        versionId: receipt.version.id,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      memory.service.access.listMarkings(accountId, {
+        attachmentId: receipt.attachment.id,
+        versionId: receipt.version.id,
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  test("pins a location bind to the selected version across a later version", async () => {
+    const work = {
+      id: "work-1",
+      key: "CANT-1",
+      projectId: "project-1",
+      revision: 0,
+      title: "Existing work",
+    };
+    const originPositions: FileAttachmentWorkOriginPosition[] = [];
+    let workRevision = 0;
+    const locationWork: FileAttachmentLocationWorkAccess = {
+      bind: (_accountId, bindInput) => {
+        originPositions.push(bindInput.originPosition);
+        workRevision = 1;
+        expect(bindInput.originPosition).toMatchObject({
+          ownerRecordId: "2",
+          sourceVersion: "3",
+        });
+        return Promise.resolve({ ...work, revision: 1 });
+      },
+      create: (_accountId, createInput) => {
+        originPositions.push(createInput.originPosition);
+        expect(createInput.originPosition).toMatchObject({
+          ownerRecordId: "2",
+          sourceVersion: "3",
+        });
+        return Promise.resolve({
+          ...work,
+          id: "work-2",
+          key: "CANT-2",
+          title: createInput.title,
+        });
+      },
+      find: () => Promise.resolve({ ...work, revision: workRevision }),
+      findProject: (_accountId, projectId) =>
+        Promise.resolve(projectId === projectScope.projectId),
+      replayBind: () => Promise.resolve({ ...work, revision: workRevision }),
+    };
+    const memory = createMemoryFileAttachments({ locationWork });
+    const input = newInput();
+    const session = await memory.service.access.stage(
+      accountId,
+      stageInput(input),
+      jpegBytes,
+    );
+    const receipt = await memory.service.access.finalize(accountId, {
+      ...input,
+      uploadId: session.uploadId,
+    });
+    const originInput = {
+      attachmentId: receipt.attachment.id,
+      location: { kind: "point" as const, x: 0.25, y: 0.75 },
+      mode: "existing" as const,
+      versionId: receipt.version.id,
+      workId: work.id,
+    };
+    const preview = await memory.service.access.previewLocationBind(
+      accountId,
+      originInput,
+    );
+
+    expect(preview).toMatchObject({
+      attachmentId: receipt.attachment.id,
+      target: { mode: "existing", work },
+      versionId: receipt.version.id,
+    });
+
+    await expect(
+      memory.service.access.bindLocation(accountId, {
+        ...originInput,
+        baseRevision: work.revision,
+        clientIdempotencyKey: "origin-1",
+        previewId: preview.previewId,
+      }),
+    ).resolves.toMatchObject({
+      attachmentId: receipt.attachment.id,
+      status: "committed",
+      versionId: receipt.version.id,
+      work: { id: work.id, revision: 1 },
+    });
+
+    await expect(
+      memory.service.access.bindLocation(accountId, {
+        ...originInput,
+        baseRevision: work.revision,
+        clientIdempotencyKey: "origin-1",
+        previewId: preview.previewId,
+      }),
+    ).resolves.toMatchObject({
+      status: "committed",
+      versionId: receipt.version.id,
+      work: { id: work.id, revision: 1 },
+    });
+
+    const newWorkInput = {
+      attachmentId: receipt.attachment.id,
+      description: "Create a Work from this source location.",
+      location: {
+        kind: "region" as const,
+        region: { height: 0.2, width: 0.3, x: 0.1, y: 0.2 },
+      },
+      mode: "new" as const,
+      projectId: projectScope.projectId,
+      title: "New source Work",
+      type: "Task" as const,
+      versionId: receipt.version.id,
+    };
+    const newWorkPreview = await memory.service.access.previewLocationBind(
+      accountId,
+      newWorkInput,
+    );
+
+    expect(newWorkPreview).toMatchObject({
+      target: {
+        mode: "new",
+        projectId: projectScope.projectId,
+        title: newWorkInput.title,
+        type: newWorkInput.type,
+      },
+      versionId: receipt.version.id,
+    });
+
+    await expect(
+      memory.service.access.previewLocationBind(accountId, {
+        ...newWorkInput,
+        projectId: "project-missing",
+      }),
+    ).rejects.toMatchObject({
+      code: "FILE_ATTACHMENT_TARGET_NOT_FOUND",
+    });
+
+    await expect(
+      memory.service.access.bindLocation(accountId, {
+        ...newWorkInput,
+        clientIdempotencyKey: "origin-new-1",
+        previewId: newWorkPreview.previewId,
+      }),
+    ).resolves.toMatchObject({
+      status: "committed",
+      versionId: receipt.version.id,
+      work: { id: "work-2", key: "CANT-2", title: newWorkInput.title },
+    });
+
+    const nextVersionInput = {
+      attachmentId: receipt.attachment.id,
+      baseRevision: receipt.attachment.revision,
+      clientIdempotencyKey: "version-after-origin-1",
+      declaredMimeType: "image/jpeg",
+      fileName: "screen-v2.jpg",
+      mode: "new-version" as const,
+    };
+    const nextVersionSession = await memory.service.access.stage(
+      accountId,
+      nextVersionInput,
+      jpegBytes,
+    );
+    const nextVersion = await memory.service.access.finalize(accountId, {
+      ...nextVersionInput,
+      uploadId: nextVersionSession.uploadId,
+    });
+
+    const latestOriginPosition = originPositions.at(-1);
+    expect(latestOriginPosition).toMatchObject({
+      ownerRecordId: receipt.attachment.id,
+      sourceVersion: receipt.version.id,
+    });
+    expect(nextVersion.version.id).not.toBe(
+      latestOriginPosition?.sourceVersion,
+    );
+  });
+
+  test("requires a page for PDF marking and location metadata", async () => {
+    const memory = createMemoryFileAttachments();
+    const input = newInput({
+      declaredMimeType: "application/pdf",
+      fileName: "brief.pdf",
+    });
+    const session = await memory.service.access.stage(
+      accountId,
+      stageInput(input),
+      pdfBytes,
+    );
+    const receipt = await memory.service.access.finalize(accountId, {
+      ...input,
+      uploadId: session.uploadId,
+    });
+
+    await expect(
+      memory.service.access.createMarking(accountId, {
+        attachmentId: receipt.attachment.id,
+        clientIdempotencyKey: "pdf-marking-without-page",
+        geometry: {
+          kind: "path",
+          points: [
+            { x: 0.1, y: 0.2 },
+            { x: 0.3, y: 0.4 },
+          ],
+        },
+        tool: "pen",
+        versionId: receipt.version.id,
+      }),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_MARKING_UNSUPPORTED" });
+
+    await expect(
+      memory.service.access.createMarking(accountId, {
+        attachmentId: receipt.attachment.id,
+        clientIdempotencyKey: "pdf-marking-with-page",
+        geometry: {
+          kind: "path",
+          page: 1,
+          points: [
+            { x: 0.1, y: 0.2 },
+            { x: 0.3, y: 0.4 },
+          ],
+        },
+        tool: "pen",
+        versionId: receipt.version.id,
+      }),
+    ).resolves.toMatchObject({ versionId: receipt.version.id });
+
+    await expect(
+      memory.service.access.createMarking(accountId, {
+        attachmentId: receipt.attachment.id,
+        clientIdempotencyKey: "pdf-marking-out-of-range",
+        geometry: {
+          kind: "path",
+          page: 2,
+          points: [
+            { x: 0.1, y: 0.2 },
+            { x: 0.3, y: 0.4 },
+          ],
+        },
+        tool: "pen",
+        versionId: receipt.version.id,
+      }),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_MARKING_UNSUPPORTED" });
+
+    await expect(
+      memory.service.access.previewLocationBind(accountId, {
+        attachmentId: receipt.attachment.id,
+        location: { kind: "point", x: 0.25, y: 0.75 },
+        mode: "existing",
+        versionId: receipt.version.id,
+        workId: "work-1",
+      }),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_LOCATION_UNSUPPORTED" });
   });
 });

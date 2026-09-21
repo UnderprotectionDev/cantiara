@@ -203,7 +203,7 @@ describe("File Attachment preview surface", () => {
     expect(pdfMarkup).toContain("PDF page 1 of 2");
     expect(pdfMarkup).toContain("PDF page 2 of 2");
     expect(unavailableMarkup).toContain("Unavailable");
-    expect(unavailableMarkup).toContain("Retry preview");
+    expect(unavailableMarkup).not.toContain("Retry preview");
     expect(unavailableMarkup).toContain("Download");
     expect(assetUnavailableMarkup).toContain("Retry preview");
   });

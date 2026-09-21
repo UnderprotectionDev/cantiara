@@ -4,6 +4,7 @@ import {
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  bindWorkOriginPositionInputSchema,
   closeWorkInputSchema,
   createWorkMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
@@ -37,6 +38,7 @@ import {
   type WorkMergeRelationPreview,
   type WorkMergeRelationSnapshot,
   type WorkMergeResult,
+  type WorkOriginPosition,
   type WorkProfile,
   type WorkRecreateFieldPreview,
   type WorkRecreatePreview,
@@ -450,6 +452,7 @@ interface WorkCreationPayload {
   captureProvenance: WorkProfile["captureProvenance"];
   checklist: WorkProfile["checklist"];
   description: string | null;
+  originPosition?: WorkOriginPosition;
   projectId: string;
   recreatedFrom: WorkProfile["recreatedFrom"];
   title: string;
@@ -470,12 +473,14 @@ function replayExistingWork(
       captureProvenance: existing.work.captureProvenance,
       checklist: existing.work.checklist,
       description: existing.work.description,
+      originPosition: existing.work.originPosition ?? null,
       recreatedFrom: existing.work.recreatedFrom,
     }) ===
       canonicalizeMutationPayload({
         captureProvenance: payload.captureProvenance,
         checklist: payload.checklist,
         description: payload.description,
+        originPosition: payload.originPosition ?? null,
         recreatedFrom: payload.recreatedFrom,
       });
   if (existing.payloadFingerprint !== payloadFingerprint || !sameWork) {
@@ -825,6 +830,7 @@ export async function createWork(
     captureProvenance: input.captureProvenance ?? null,
     checklist: input.checklist ?? [],
     description: input.description ?? null,
+    ...(input.originPosition ? { originPosition: input.originPosition } : {}),
     projectId: input.projectId,
     recreatedFrom,
     ...(recreate
@@ -889,6 +895,9 @@ export async function createWork(
           id: reservation.workId,
           key: reservation.key,
           number: reservation.number,
+          ...(mutationPayload.originPosition
+            ? { originPosition: mutationPayload.originPosition }
+            : {}),
           primaryFeatureId: null,
           primarySpecId: null,
           projectId: reservation.projectId,
@@ -1118,6 +1127,42 @@ export function createWorkLifecycle({
   return {
     archive(accountId, input) {
       return setArchived(accountId, input, true);
+    },
+
+    async replayBindOriginPosition(accountId, rawInput) {
+      const input = bindWorkOriginPositionInputSchema.parse(rawInput);
+      const replay = await mutationContracts.update(accountId).replay({
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human",
+        payload: {
+          originPosition: input.originPosition,
+          workId: input.workId,
+        },
+        targetId: input.workId,
+      });
+      return replay?.nextValue.work ?? null;
+    },
+
+    bindOriginPosition(accountId, rawInput) {
+      const input = bindWorkOriginPositionInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            originPosition: input.originPosition,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        (work, payload) => ({
+          ...work,
+          originPosition: payload.originPosition,
+        }),
+      );
     },
 
     async close(accountId, rawInput, initiator) {

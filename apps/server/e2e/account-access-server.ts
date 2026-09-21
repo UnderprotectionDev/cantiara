@@ -101,12 +101,17 @@ const fileAttachments = {
     reason: null,
   }),
   cleanupVersionDerivatives: async () => undefined,
+  createMarking: unavailableFileAttachmentOperation,
   finalize: unavailableFileAttachmentOperation,
   getQuota: unavailableFileAttachmentOperation,
   list: async () => [],
+  listMarkings: unavailableFileAttachmentOperation,
+  previewLocationBind: unavailableFileAttachmentOperation,
   preview: unavailableFileAttachmentOperation,
   readAsset: unavailableFileAttachmentOperation,
   stage: unavailableFileAttachmentOperation,
+  undoMarking: unavailableFileAttachmentOperation,
+  bindLocation: unavailableFileAttachmentOperation,
 } satisfies FileAttachmentAccess;
 const githubAvailability = createGitHubAvailability();
 const authOptions = createAuthOptions(

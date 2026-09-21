@@ -719,6 +719,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Köken konumu | `Origin Location` | Sahipli bileşenden üretilen kaydın kesin kaynak öğe işaretidir; bağımsız ilişki ucu değildir |
 | İşaretleme katmanı | `Marking layer` | Kesin Dosya Eki sürümüne bağlı, özgün dosyadan ayrı geri alınabilir görsel not |
 | Kaynak görsel | `Source visual` | Paylaşım/yayın önizlemesinde işaretlemeden ayrı onaylanan görsel öğe |
+| İşaretlenen kaynak konumu | `Marked source location` | Dosya Eki sürümünde seçilen Nokta veya Bölgenin görsel köken işareti |
+| İşaretleme kaydedilemedi | `Marking could not be saved. Try again.` | Görsel işaretleme yazımı başarısız olduğunda yeniden denemeyi bildiren hata |
 | Kalem | `Pen` | İşaretleme katmanı aracı |
 | Vurgulayıcı | `Highlighter` | İşaretleme katmanı aracı |
 | Ok | `Arrow` | İşaretleme katmanı aracı |
@@ -729,6 +731,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yeni İş | `New Work` | Köken konumunu yeni tam İşe bağlama |
 | Mevcut İş | `Existing Work` | Köken konumunu var olan tam İşe bağlama |
 | Onayla | `Confirm` | Köken konumu önizlemesini uygulayan eylem |
+| Proje alanı | `Project ID` | Yeni İş köken bağında hedef Projeyi belirleyen doğrulanmış alan |
+| İş alanı | `Work ID` | Mevcut İş köken bağında hedef İş kaydını belirleyen alan |
+| Sayfa | `Page` | PDF köken konumunun veya işaretlemesinin pozitif sayfa numarası |
+| X koordinatı | `X (0–1)` | Nokta veya bölge için yatay normalize konum alanı |
+| Y koordinatı | `Y (0–1)` | Nokta veya bölge için dikey normalize konum alanı |
+| Genişlik | `Width (0–1)` | Bölge seçiminin normalize genişliği |
+| Yükseklik | `Height (0–1)` | Bölge seçiminin normalize yüksekliği |
+| Konum önizlemesi kullanılamıyor | `Location preview is unavailable.` | Köken konumu bağ önizlemesinin üretilemediğini bildiren hata |
+| Köken olarak bağlama başarısız | `Bind as origin could not be completed.` | Önizlemeli İş köken bağının kesinleştirilemediğini bildiren hata |
+| Yeni İş için Proje gerekli | `A Project is required for a new Work.` | Yeni İş köken bağında hedef Projenin zorunlu olduğunu bildiren doğrulama |
+| Konum seçimi yönergesi | `Click a Point or drag a Region on the preview, then click Preview.` | Önizleme yüzeyinde nokta veya bölge seçimini açıklayan yönerge |
+| Köken bağı incelemesi | `Review the selected Point or Region, then confirm the Work bind.` | Onaydan önce seçili köken konumu ve İş hedefini gözden geçirme yönergesi |
 | Hedefe katkı | `Contributes to Goal` | İş, Kilometre Taşı veya Proje Sürümünün Proje Hedefine türlenmiş katkı ilişkisidir |
 | Hedef kapsamında | `In Goal` | Hedefe katkı ilişkisinin Proje Hedefi ucu |
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |

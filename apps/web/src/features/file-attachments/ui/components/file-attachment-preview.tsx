@@ -1,10 +1,16 @@
 import type {
   FileAttachment,
+  FileAttachmentLocation,
+  FileAttachmentLocationBindInput,
+  FileAttachmentLocationBindPreview,
+  FileAttachmentLocationBindPreviewInput,
+  FileAttachmentMarking,
+  FileAttachmentMarkingInput,
   FileAttachmentPreview as FileAttachmentPreviewData,
 } from "@cantiara/api/file-attachments";
 import { FILE_ATTACHMENT_UI_LABELS } from "@cantiara/api/file-attachments";
 import { Button } from "@cantiara/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MediaPlayer,
   type MediaPlayerInstance,
@@ -12,29 +18,46 @@ import {
 } from "@vidstack/react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 import {
   downloadFileAttachmentAsset,
   fetchFileAttachmentAsset,
 } from "../../lib/file-attachment-assets";
+import { FileAttachmentMarkup, MarkupSurface } from "./file-attachment-markup";
 
 type AssetStatus = "idle" | "loading" | "ready" | "error";
 export interface FileAttachmentPreviewViewProps {
   assetStatus?: AssetStatus;
   assetURL?: string;
   attachment: FileAttachment;
+  markings?: readonly FileAttachmentMarking[];
+  onBindLocation?: (
+    input: FileAttachmentLocationBindInput,
+  ) => void | Promise<void>;
+  onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
   onDownload?: () => void | Promise<void>;
+  onPreviewLocation?: (
+    input: FileAttachmentLocationBindPreviewInput,
+  ) => Promise<FileAttachmentLocationBindPreview>;
   onRetry?: () => void;
+  onUndoMarking?: (marking: FileAttachmentMarking) => void | Promise<void>;
   preview: FileAttachmentPreviewData;
+  projectId?: string;
 }
 
 export function FileAttachmentPreviewView({
   assetStatus = "idle",
   assetURL,
   attachment,
+  markings,
+  onBindLocation,
+  onCreateMarking,
   onDownload,
+  onPreviewLocation,
   onRetry,
   preview,
+  projectId,
+  onUndoMarking,
 }: FileAttachmentPreviewViewProps) {
   const resolvedAssetStatus = assetURL ? "ready" : assetStatus;
   const handleDownload = useCallback(() => {
@@ -79,6 +102,7 @@ export function FileAttachmentPreviewView({
         <UnavailablePreview
           failureMessage={preview.failure?.message}
           onRetry={onRetry}
+          retryable={preview.failure?.retryable !== false}
         />
       ) : null}
 
@@ -93,8 +117,14 @@ export function FileAttachmentPreviewView({
           assetStatus={resolvedAssetStatus}
           assetURL={assetURL}
           attachment={attachment}
+          markings={markings}
+          onBindLocation={onBindLocation}
+          onCreateMarking={onCreateMarking}
+          onPreviewLocation={onPreviewLocation}
           onRetry={onRetry}
+          onUndoMarking={onUndoMarking}
           preview={preview}
+          projectId={projectId}
         />
       ) : null}
     </article>
@@ -104,9 +134,11 @@ export function FileAttachmentPreviewView({
 function UnavailablePreview({
   failureMessage,
   onRetry,
+  retryable = true,
 }: {
   failureMessage?: string;
   onRetry?: () => void;
+  retryable?: boolean;
 }) {
   return (
     <div
@@ -120,7 +152,7 @@ function UnavailablePreview({
       <p className="text-muted-foreground text-sm">
         {failureMessage ?? "The preview could not be generated."}
       </p>
-      {onRetry ? (
+      {onRetry && retryable ? (
         <Button onClick={onRetry} size="sm" type="button" variant="outline">
           {FILE_ATTACHMENT_UI_LABELS.retryPreview}
         </Button>
@@ -133,35 +165,78 @@ function PreviewContent({
   assetStatus,
   assetURL,
   attachment,
+  markings,
+  onBindLocation,
+  onCreateMarking,
   onRetry,
+  onPreviewLocation,
   preview,
+  projectId,
+  onUndoMarking,
 }: {
   assetStatus: AssetStatus;
   assetURL?: string;
   attachment: FileAttachment;
+  markings?: readonly FileAttachmentMarking[];
+  onBindLocation?: (
+    input: FileAttachmentLocationBindInput,
+  ) => void | Promise<void>;
+  onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
   onRetry?: () => void;
+  onPreviewLocation?: (
+    input: FileAttachmentLocationBindPreviewInput,
+  ) => Promise<FileAttachmentLocationBindPreview>;
   preview: FileAttachmentPreviewData;
+  projectId?: string;
+  onUndoMarking?: (marking: FileAttachmentMarking) => void | Promise<void>;
 }) {
   switch (preview.kind) {
     case "image":
       return assetURL ? (
-        <img
+        <FileAttachmentMarkup
           alt={attachment.name}
-          className="max-h-[min(70vh,42rem)] w-full rounded-md bg-muted/30 object-contain"
-          height={720}
-          src={assetURL}
-          width={1280}
+          assetURL={assetURL}
+          attachmentId={attachment.id}
+          kind="image"
+          markings={markings}
+          onBindLocation={onBindLocation}
+          onCreateMarking={onCreateMarking}
+          onPreviewLocation={onPreviewLocation}
+          onUndoMarking={onUndoMarking}
+          projectId={projectId}
+          versionId={attachment.currentVersion.id}
         />
       ) : (
         <AssetStatusMessage onRetry={onRetry} status={assetStatus} />
       );
     case "pdf":
       return assetURL ? (
-        <PdfPreview
+        <FileAttachmentMarkup
           assetURL={assetURL}
-          onRetry={onRetry}
+          attachmentId={attachment.id}
+          kind="pdf"
+          markings={markings}
+          onBindLocation={onBindLocation}
+          onCreateMarking={onCreateMarking}
+          onPreviewLocation={onPreviewLocation}
+          onUndoMarking={onUndoMarking}
           pageCount={preview.pageCount ?? 1}
-        />
+          projectId={projectId}
+          versionId={attachment.currentVersion.id}
+        >
+          {(tool, locationProps) => (
+            <PdfPreview
+              assetURL={assetURL}
+              attachmentId={attachment.id}
+              markings={markings}
+              onRetry={onRetry}
+              pageCount={preview.pageCount ?? 1}
+              tool={tool}
+              versionId={attachment.currentVersion.id}
+              {...locationProps}
+            />
+          )}
+        </FileAttachmentMarkup>
       ) : (
         <AssetStatusMessage onRetry={onRetry} status={assetStatus} />
       );
@@ -360,13 +435,33 @@ function MediaPreview({
 }
 
 function PdfPreview({
+  attachmentId,
   assetURL,
+  location,
+  locationKind,
+  markings,
+  onCreateMarking,
+  onMarkingError,
+  onSelectLocation,
   onRetry,
   pageCount,
+  selectingLocation,
+  tool,
+  versionId,
 }: {
+  attachmentId: string;
   assetURL: string;
+  location: FileAttachmentLocation | null;
+  locationKind: "point" | "region";
+  markings?: readonly FileAttachmentMarking[];
+  onCreateMarking?: (input: FileAttachmentMarkingInput) => void | Promise<void>;
+  onMarkingError?: () => void;
+  onSelectLocation: (location: FileAttachmentLocation) => void;
   onRetry?: () => void;
   pageCount: number;
+  selectingLocation: boolean;
+  tool: "pen" | "highlighter" | "arrow" | "rectangle";
+  versionId: string;
 }) {
   const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -466,13 +561,27 @@ function PdfPreview({
       <div className="grid justify-items-center gap-4">
         {Array.from({ length: pageCount }, (_, index) => index + 1).map(
           (pageNumber) => (
-            <canvas
-              aria-label={`PDF page ${pageNumber} of ${pageCount}`}
-              className="max-w-full rounded-md border bg-white shadow-sm"
-              data-page-index={pageNumber - 1}
+            <MarkupSurface
+              attachmentId={attachmentId}
               key={pageNumber}
-              ref={setCanvasRef}
-            />
+              location={location}
+              locationKind={locationKind}
+              markings={markings ?? []}
+              onCreateMarking={onCreateMarking}
+              onMarkingError={onMarkingError}
+              onSelectLocation={onSelectLocation}
+              page={pageNumber}
+              selectingLocation={selectingLocation}
+              tool={tool}
+              versionId={versionId}
+            >
+              <canvas
+                aria-label={`PDF page ${pageNumber} of ${pageCount}`}
+                className="max-w-full rounded-md border bg-white shadow-sm"
+                data-page-index={pageNumber - 1}
+                ref={setCanvasRef}
+              />
+            </MarkupSurface>
           ),
         )}
       </div>
@@ -480,14 +589,18 @@ function PdfPreview({
   );
 }
 
-function useFileAttachmentAsset(path: string | undefined) {
+function useFileAttachmentAsset(path: string | undefined, retryToken = 0) {
+  const requestPath =
+    path && retryToken > 0
+      ? `${path}${path.includes("?") ? "&" : "?"}retry=${retryToken}`
+      : path;
   const [state, setState] = useState<{
     status: AssetStatus;
     url?: string;
   }>({ status: "idle" });
 
   useEffect(() => {
-    if (!path) {
+    if (!requestPath) {
       setState({ status: "idle" });
       return;
     }
@@ -495,7 +608,7 @@ function useFileAttachmentAsset(path: string | undefined) {
     const controller = new AbortController();
     let objectURL: string | undefined;
     setState({ status: "loading" });
-    fetchFileAttachmentAsset(path, controller.signal)
+    fetchFileAttachmentAsset(requestPath, controller.signal)
       .then((blob) => {
         if (controller.signal.aborted) {
           return;
@@ -515,7 +628,7 @@ function useFileAttachmentAsset(path: string | undefined) {
         URL.revokeObjectURL(objectURL);
       }
     };
-  }, [path]);
+  }, [requestPath]);
 
   return state;
 }
@@ -543,6 +656,8 @@ export function FileAttachmentPreviewPanel({
   attachment: FileAttachment;
   open: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const [assetRetryToken, setAssetRetryToken] = useState(0);
   const previewQuery = useQuery({
     ...orpc.previewFileAttachment.queryOptions({
       input: {
@@ -553,11 +668,25 @@ export function FileAttachmentPreviewPanel({
     enabled: open,
   });
   const preview = previewQuery.data;
+  const markingsQuery = useQuery({
+    ...orpc.fileAttachmentMarkings.queryOptions({
+      input: {
+        attachmentId: attachment.id,
+        versionId: attachment.currentVersion.id,
+      },
+    }),
+    enabled:
+      open &&
+      preview?.status === "available" &&
+      (preview.kind === "image" || preview.kind === "pdf"),
+  });
   const assetPath = previewAssetPath(preview);
   const asset = useFileAttachmentAsset(
     preview?.status === "available" ? assetPath : undefined,
+    assetRetryToken,
   );
   const handlePreviewRetry = useCallback(() => {
+    setAssetRetryToken((current) => current + 1);
     previewQuery.refetch().catch(() => undefined);
   }, [previewQuery.refetch]);
   const handleDownload = useCallback(() => {
@@ -569,6 +698,70 @@ export function FileAttachmentPreviewPanel({
       attachment.currentVersion.fileName,
     ).catch(() => undefined);
   }, [attachment.currentVersion.fileName, preview]);
+  const invalidateMarkings = useCallback(
+    () =>
+      queryClient.invalidateQueries({
+        queryKey: orpc.fileAttachmentMarkings.queryOptions({
+          input: {
+            attachmentId: attachment.id,
+            versionId: attachment.currentVersion.id,
+          },
+        }).queryKey,
+      }),
+    [attachment.currentVersion.id, attachment.id, queryClient],
+  );
+  const createMarkingMutation = useMutation({
+    mutationFn: async (input: FileAttachmentMarkingInput) => {
+      await client.createFileAttachmentMarking(input);
+    },
+    onSuccess: invalidateMarkings,
+  });
+  const undoMarkingMutation = useMutation({
+    mutationFn: async (marking: FileAttachmentMarking) => {
+      await client.undoFileAttachmentMarking({
+        attachmentId: marking.attachmentId,
+        markingId: marking.id,
+        versionId: marking.versionId,
+      });
+    },
+    onSuccess: invalidateMarkings,
+  });
+  const previewLocationMutation = useMutation({
+    mutationFn: async (input: FileAttachmentLocationBindPreviewInput) =>
+      (await client.previewFileAttachmentLocationBind(
+        input,
+      )) as FileAttachmentLocationBindPreview,
+  });
+  const bindLocationMutation = useMutation({
+    mutationFn: async (input: FileAttachmentLocationBindInput) => {
+      await client.bindFileAttachmentLocation(input);
+    },
+  });
+  const handleBindLocation = useCallback(
+    async (input: FileAttachmentLocationBindInput) => {
+      await bindLocationMutation.mutateAsync(input);
+    },
+    [bindLocationMutation.mutateAsync],
+  );
+  const handleCreateMarking = useCallback(
+    async (input: FileAttachmentMarkingInput) => {
+      await createMarkingMutation.mutateAsync(input);
+    },
+    [createMarkingMutation.mutateAsync],
+  );
+  const handlePreviewLocation = useCallback(
+    (input: FileAttachmentLocationBindPreviewInput) =>
+      previewLocationMutation.mutateAsync(
+        input,
+      ) as Promise<FileAttachmentLocationBindPreview>,
+    [previewLocationMutation.mutateAsync],
+  );
+  const handleUndoMarking = useCallback(
+    async (marking: FileAttachmentMarking) => {
+      await undoMarkingMutation.mutateAsync(marking);
+    },
+    [undoMarkingMutation.mutateAsync],
+  );
 
   useEffect(() => {
     if (!open || preview?.status !== "processing") {
@@ -612,9 +805,19 @@ export function FileAttachmentPreviewPanel({
       assetStatus={asset.status}
       assetURL={asset.url}
       attachment={attachment}
+      markings={markingsQuery.data}
+      onBindLocation={handleBindLocation}
+      onCreateMarking={handleCreateMarking}
       onDownload={handleDownload}
+      onPreviewLocation={handlePreviewLocation}
       onRetry={handlePreviewRetry}
+      onUndoMarking={handleUndoMarking}
       preview={preview}
+      projectId={
+        attachment.scope.kind === "project"
+          ? attachment.scope.projectId
+          : undefined
+      }
     />
   );
 }
@@ -669,10 +872,12 @@ export default function FileAttachmentsSurface({
     <section
       aria-labelledby="file-attachments-heading"
       className="space-y-8"
-      id="documents"
+      id="file-attachments"
     >
       <header className="surface-header max-w-3xl">
-        <p className="surface-kicker">Documents</p>
+        <p className="surface-kicker">
+          {FILE_ATTACHMENT_UI_LABELS.fileAttachment}
+        </p>
         <h2
           className="mt-2 text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
           id="file-attachments-heading"

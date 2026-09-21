@@ -1,3 +1,4 @@
+import { fileAttachmentLocationSchema } from "@cantiara/api/file-attachments";
 import type {
   MutationCommand,
   MutationPayload,
@@ -726,6 +727,9 @@ const ENDPOINT_RESOLVERS: Partial<
     if (!owned) {
       return null;
     }
+    const originLocation = owned.record.originLocation
+      ? fileAttachmentLocationSchema.safeParse(owned.record.originLocation).data
+      : undefined;
     return {
       archived: owned.record.archivedAt !== null,
       key: owned.record.key,
@@ -733,6 +737,7 @@ const ENDPOINT_RESOLVERS: Partial<
         owned.record.originOwnerRecordId && owned.record.originComponentId
           ? {
               componentId: owned.record.originComponentId,
+              ...(originLocation ? { location: originLocation } : {}),
               ownerRecordId: owned.record.originOwnerRecordId,
               sourceVersion: owned.record.originSourceVersion,
             }
