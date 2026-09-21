@@ -17,11 +17,20 @@ import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { workRelationsHash } from "@/features/project-shell/lib/project-shell-navigation";
+import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
+import {
+  workRecordHash,
+  workRecordHref,
+  workRelationsHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
+import {
+  COPY_CONTEXT_AS_MARKDOWN_LABEL,
+  createCopyContextAsMarkdownCommand,
+} from "./work-context-markdown";
 
 const WORK_CONTEXT_SECTION_ID_PATTERN = /[^a-z0-9]+/gi;
 
@@ -46,6 +55,7 @@ export default function WorkContextCard({
       input: { recordId: work.id, recordType: "Work" },
     }),
   );
+  const commandPalette = useCommandPalette();
   const layout = getPreparedWorkContextLayout(work.type);
   const configuredLayout = getWorkContextLayout(work.type, workContextLayouts);
   const configuredSections = workContextLayoutSections(
@@ -66,11 +76,51 @@ export default function WorkContextCard({
   const displayedSections = configuredSections.filter((section) =>
     visibleSections.includes(section.key),
   );
-  const contextModel = buildWorkContextModel({
-    projectWorks,
-    relations: relationsQuery.data ?? [],
-    work,
-  });
+  const contextModel = useMemo(
+    () =>
+      buildWorkContextModel({
+        projectWorks,
+        relations: relationsQuery.data ?? [],
+        work,
+      }),
+    [projectWorks, relationsQuery.data, work],
+  );
+  const statusLabel = getWorkStatusLabel(work.status, workStatusLabels);
+  const sourceLink = useCallback((source: WorkContextSource) => {
+    if (
+      source.recordType !== "Work" ||
+      !source.projectId ||
+      (source.broken && !source.broken.canOpenSourceRecord)
+    ) {
+      return null;
+    }
+    return workRecordHref(source.projectId, source.recordId);
+  }, []);
+  const copyCommand = useMemo(
+    () =>
+      createCopyContextAsMarkdownCommand({
+        model: contextModel,
+        statusLabel,
+        work,
+        sourceLink,
+      }),
+    [contextModel, sourceLink, statusLabel, work],
+  );
+  useEffect(() => {
+    if (!commandPalette || relationsQuery.isPending || relationsQuery.isError) {
+      return;
+    }
+    return commandPalette.registerCommand(copyCommand);
+  }, [
+    commandPalette,
+    copyCommand,
+    relationsQuery.isError,
+    relationsQuery.isPending,
+  ]);
+  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">(
+    "idle",
+  );
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   function addContext() {
     if (!nextSection) {
@@ -84,10 +134,22 @@ export default function WorkContextCard({
 
   const initialFieldValues: Record<WorkContextInitialField, string> = {
     Planning: "Not set",
-    Status: getWorkStatusLabel(work.status, workStatusLabels),
+    Status: statusLabel,
     Title: work.title,
     Type: work.type,
   };
+
+  const handleCopy = useCallback(async () => {
+    setCopyError(null);
+    setCopyState("copying");
+    try {
+      await copyCommand.run();
+      setCopyState("copied");
+    } catch (error) {
+      setCopyState("idle");
+      setCopyError(copyErrorMessage(error));
+    }
+  }, [copyCommand]);
 
   return (
     <section
@@ -105,8 +167,22 @@ export default function WorkContextCard({
             {work.title}
           </h4>
         </div>
-        {nextSection ? (
-          <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-end justify-end gap-2">
+          <Button
+            data-command-id={copyCommand.id}
+            disabled={
+              relationsQuery.isPending ||
+              relationsQuery.isError ||
+              copyState === "copying"
+            }
+            onClick={handleCopy}
+            size="xs"
+            type="button"
+            variant="outline"
+          >
+            {COPY_CONTEXT_AS_MARKDOWN_LABEL}
+          </Button>
+          {nextSection ? (
             <Button
               aria-describedby={`work-context-next-${work.id}`}
               onClick={addContext}
@@ -115,12 +191,29 @@ export default function WorkContextCard({
             >
               Add Context
             </Button>
+          ) : null}
+          {nextSection ? (
             <span className="sr-only" id={`work-context-next-${work.id}`}>
               Opens {nextSection.label}.
             </span>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </header>
+
+      {copyState === "copied" ? (
+        <p aria-live="polite" className="text-muted-foreground text-sm">
+          Context copied.
+        </p>
+      ) : null}
+      {copyError ? (
+        <p
+          aria-live="assertive"
+          className="text-destructive text-sm"
+          role="alert"
+        >
+          {copyError}
+        </p>
+      ) : null}
 
       <WhyChain
         isError={relationsQuery.isError}
@@ -416,7 +509,7 @@ function OpenSourceRecordLink({
 }) {
   const linkProps = useLinkProps({
     activeOptions: { exact: true, includeHash: true },
-    hash: `work-${encodeURIComponent(recordId)}`,
+    hash: workRecordHash(recordId),
     params: { projectId },
     to: "/projects/$projectId",
   });
@@ -448,4 +541,10 @@ function InitialField({
       <dd className="mt-1 font-medium">{value}</dd>
     </div>
   );
+}
+
+function copyErrorMessage(error: unknown) {
+  return error instanceof Error && error.message
+    ? error.message
+    : "Context could not be copied.";
 }

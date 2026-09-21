@@ -140,6 +140,13 @@ describe("Work Context Card initial fields", () => {
     expect(html).not.toContain("Opens Description.");
   });
 
+  test("offers Copy Context as Markdown from the Work Context Card", () => {
+    const html = renderCard(workStatusLabels);
+
+    expect(html).toContain("Copy Context as Markdown");
+    expect(html).not.toContain("Create Context");
+  });
+
   test("renders live source names, status, and source links in the why chain", () => {
     const html = renderCard(workStatusLabels, [
       {

@@ -24,9 +24,10 @@ async function establishFounderSession(
   page: Page,
   context: BrowserContext,
   request: APIRequestContext,
+  fixture = "command-palette",
 ) {
   const setupResponse = await request.get(
-    `${E2E_SERVER_URL}/__e2e/setup?fixture=command-palette`,
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=${fixture}`,
   );
   const setup = (await setupResponse.json()) as {
     cookie: {
@@ -39,10 +40,12 @@ async function establishFounderSession(
       secure: boolean;
       value: string;
     };
+    projectId?: string;
   };
   await context.addCookies([setup.cookie]);
   await page.goto("/projects");
   await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  return setup;
 }
 
 function measureVisibilitySamples(
@@ -271,6 +274,110 @@ test("does not mount founder palette controls for a visitor", async ({
   await expect(
     page.getByRole("dialog", { name: "Command Palette" }),
   ).toHaveCount(0);
+});
+
+test("copies the Work Context Card and exposes the same action in Command Palette", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setup = await establishFounderSession(
+    page,
+    context,
+    request,
+    "scope-tree",
+  );
+  if (!setup.projectId) {
+    throw new Error("The Work Context E2E fixture did not create a Project.");
+  }
+
+  await page.addInitScript(() => {
+    const writes: string[] = [];
+    Object.defineProperty(window, "__cantiaraClipboardWrites", {
+      configurable: true,
+      value: writes,
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          writes.push(text);
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  await page.goto(`/projects/${setup.projectId}#work`);
+
+  const copyButton = page
+    .getByRole("button", {
+      name: "Copy Context as Markdown",
+    })
+    .first();
+  await expect(copyButton).toBeEnabled();
+  await copyButton.click();
+  await expect(
+    page.getByText("Context copied.", { exact: true }).first(),
+  ).toBeVisible();
+
+  const copiedMarkdown = await page.evaluate(() => {
+    const writes = (window as Window & { __cantiaraClipboardWrites?: string[] })
+      .__cantiaraClipboardWrites;
+    return writes?.at(-1);
+  });
+  expect(copiedMarkdown).toContain("# ");
+
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Command Palette" });
+  const commandInput = palette.getByRole("combobox", {
+    name: "Filter Command Palette commands",
+  });
+  await commandInput.fill("Copy Context as Markdown");
+  await expect(
+    palette.getByText("Copy Context as Markdown", { exact: true }).first(),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(palette).toHaveCount(0);
+  await expect(
+    page.getByText("Context copied.", { exact: true }).first(),
+  ).toBeVisible();
+});
+
+test("announces clipboard failures from the Work Context Card", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setup = await establishFounderSession(
+    page,
+    context,
+    request,
+    "scope-tree",
+  );
+  if (!setup.projectId) {
+    throw new Error("The Work Context E2E fixture did not create a Project.");
+  }
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: () => Promise.reject(new Error("Clipboard is unavailable.")),
+      },
+    });
+  });
+  await page.goto(`/projects/${setup.projectId}#work`);
+
+  const copyButton = page
+    .getByRole("button", {
+      name: "Copy Context as Markdown",
+    })
+    .first();
+  await expect(copyButton).toBeEnabled();
+  await copyButton.click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Clipboard is unavailable." }),
+  ).toBeVisible();
 });
 
 test("completes the Command Palette journey with keyboard input only", async ({

@@ -777,6 +777,14 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(page).toHaveURL(DOCUMENTS_HASH_PATTERN);
     await expect(page.locator("#documents")).toBeInViewport();
     await expect(
+      page.getByRole("heading", { name: "File Attachments", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("No File Attachments are available in this Project yet.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
       page
         .getByRole("navigation", { name: "Project navigation" })
         .getByRole("link", { name: "Documents", exact: true }),
