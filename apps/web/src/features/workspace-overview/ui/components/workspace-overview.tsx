@@ -9,9 +9,11 @@ import type {
   WorkspaceOverviewModule,
   WorkspaceOverviewModuleId,
   WorkspaceOverviewPresentation,
+  WorkspaceOverviewSavedListDefinition,
   WorkspaceOverviewSourceRecord,
 } from "@cantiara/api/workspace-overview";
 import {
+  cloneWorkspaceOverviewSavedListDefinition,
   moveWorkspaceOverviewModule,
   normalizeWorkspaceOverviewLayout,
   setWorkspaceOverviewModuleVisibility,
@@ -27,12 +29,16 @@ import {
 } from "@cantiara/ui/components/select";
 import { cn } from "@cantiara/ui/lib/utils";
 import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import {
   formatAccountDate,
   formatAccountDateTime,
 } from "@/features/account-preferences/lib/account-preferences-format";
+
+import SavedProjectLists, {
+  workspaceOverviewSavedListDefinitions,
+} from "./saved-project-lists";
 
 const MAX_LIVE_BLOCKS = 4;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -503,6 +509,7 @@ export interface WorkspaceOverviewViewProps {
   model: WorkspaceOverviewModel;
   onPresentationChange?: (presentation: WorkspaceOverviewPresentation) => void;
   selectedModule?: WorkspaceOverviewModuleId;
+  selectedSavedList?: string;
 }
 
 export default function WorkspaceOverviewView({
@@ -510,12 +517,16 @@ export default function WorkspaceOverviewView({
   model,
   onPresentationChange,
   selectedModule,
+  selectedSavedList,
 }: WorkspaceOverviewViewProps) {
   const [layout, setLayout] = useState<WorkspaceOverviewLayout>(() =>
     normalizeWorkspaceOverviewLayout(model.layout),
   );
   const [liveBlockSources, setLiveBlockSources] = useState(() =>
     model.liveBlockSources.map((source) => ({ ...source })),
+  );
+  const [savedLists, setSavedLists] = useState(() =>
+    workspaceOverviewSavedListDefinitions(model.savedLists),
   );
   const moduleById = new Map(
     model.modules.map((module) => [module.id, module]),
@@ -533,6 +544,7 @@ export default function WorkspaceOverviewView({
     onPresentationChange?.({
       layout: nextLayout,
       liveBlockSources,
+      savedLists,
       version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
     });
   }
@@ -545,8 +557,43 @@ export default function WorkspaceOverviewView({
     onPresentationChange?.({
       layout,
       liveBlockSources: normalizedSources,
+      savedLists,
       version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
     });
+  }
+
+  function changeSavedLists(
+    nextLists: readonly WorkspaceOverviewSavedListDefinition[],
+  ) {
+    const normalizedLists = nextLists.map(
+      cloneWorkspaceOverviewSavedListDefinition,
+    );
+    setSavedLists(normalizedLists);
+    onPresentationChange?.({
+      layout,
+      liveBlockSources,
+      savedLists: normalizedLists,
+      version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
+    });
+  }
+
+  let selectedContent: ReactNode = null;
+  if (selectedSavedList) {
+    selectedContent = (
+      <SavedProjectLists
+        formattingPreferences={formattingPreferences}
+        lists={model.savedLists}
+        onChange={changeSavedLists}
+        selectedListId={selectedSavedList}
+      />
+    );
+  } else if (selectedSourceModule) {
+    selectedContent = (
+      <SelectedSourceSet
+        formattingPreferences={formattingPreferences}
+        module={selectedSourceModule}
+      />
+    );
   }
 
   return (
@@ -572,14 +619,9 @@ export default function WorkspaceOverviewView({
         </p>
       </header>
 
-      {selectedSourceModule ? (
-        <SelectedSourceSet
-          formattingPreferences={formattingPreferences}
-          module={selectedSourceModule}
-        />
-      ) : null}
+      {selectedContent}
 
-      {selectedSourceModule ? null : (
+      {selectedSavedList || selectedSourceModule ? null : (
         <>
           <LayoutControls
             layout={layout}
@@ -604,6 +646,12 @@ export default function WorkspaceOverviewView({
           )}
 
           <LiveBlocks model={model} onChange={changeLiveBlockSources} />
+
+          <SavedProjectLists
+            formattingPreferences={formattingPreferences}
+            lists={model.savedLists}
+            onChange={changeSavedLists}
+          />
         </>
       )}
     </section>

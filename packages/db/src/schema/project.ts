@@ -20,6 +20,7 @@ export const project = pgTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
+    archivedAt: timestamp("archived_at"),
     name: text("name").notNull(),
     shortCode: text("short_code").notNull(),
     starterConfiguration: text("starter_configuration").notNull(),

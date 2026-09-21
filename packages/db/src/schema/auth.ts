@@ -22,6 +22,28 @@ export interface WorkspaceOverviewConfiguration {
     recordType: string;
     viewId?: string;
   }>;
+  savedLists?: Array<{
+    columns: string[];
+    conditions: {
+      archive: string;
+      areaMatch: string;
+      lifecycleStatuses: string[];
+      nameContains: string;
+      projectAreas: string[];
+      stageNames: string[];
+      targetDate?: {
+        from?: string | null;
+        to?: string | null;
+      };
+    };
+    groupBy: string | null;
+    id: string;
+    name: string;
+    sort: {
+      direction: string;
+      field: string;
+    };
+  }>;
   version: number;
 }
 

@@ -8,6 +8,7 @@ import {
   WORKSPACE_OVERVIEW_MODULE_IDS,
   WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT,
   workspaceOverviewLiveBlockSourceSchema,
+  workspaceOverviewSavedListDefinitionSchema,
 } from "./workspace-overview";
 
 describe("Workspace Overview seam", () => {
@@ -15,6 +16,7 @@ describe("Workspace Overview seam", () => {
     const overview = buildWorkspaceOverview({
       projects: [
         {
+          archivedAt: null,
           createdAt: "2026-09-01T09:00:00.000Z",
           id: "project-active",
           name: "Payment App",
@@ -23,6 +25,7 @@ describe("Workspace Overview seam", () => {
           updatedAt: "2026-09-18T09:00:00.000Z",
         },
         {
+          archivedAt: null,
           createdAt: "2026-09-02T09:00:00.000Z",
           id: "project-pending",
           name: "Archive Tool",
@@ -151,6 +154,7 @@ describe("Workspace Overview seam", () => {
       asOf: "2026-09-21",
       projects: [
         {
+          archivedAt: null,
           createdAt: "2026-09-01T09:00:00.000Z",
           id: "project-past",
           name: "Past target",
@@ -159,6 +163,7 @@ describe("Workspace Overview seam", () => {
           updatedAt: "2026-09-18T09:00:00.000Z",
         },
         {
+          archivedAt: null,
           createdAt: "2026-09-02T09:00:00.000Z",
           id: "project-future",
           name: "Future target",
@@ -227,5 +232,92 @@ describe("Workspace Overview seam", () => {
         viewId: "view-1",
       }).success,
     ).toBe(true);
+  });
+
+  test("derives named cross-Project list membership from live conditions", () => {
+    const definition = workspaceOverviewSavedListDefinitionSchema.parse({
+      columns: ["name", "status", "stage", "areas"],
+      conditions: {
+        archive: "not-archived",
+        areaMatch: "all",
+        lifecycleStatuses: ["Active"],
+        projectAreas: ["Work", "Tests"],
+        stageNames: ["Build"],
+      },
+      groupBy: "status",
+      id: "saved-list-release-projects",
+      name: "Release projects",
+      sort: { direction: "asc", field: "name" },
+    });
+    const sources = {
+      projects: [
+        {
+          areas: ["Work", "Tests"] as const,
+          archivedAt: null,
+          createdAt: "2026-09-01T09:00:00.000Z",
+          id: "project-release",
+          name: "Release App",
+          stages: [{ id: "build", name: "Build", status: "Active" as const }],
+          status: "Active" as const,
+          targetDate: "2026-10-01",
+          updatedAt: "2026-09-18T09:00:00.000Z",
+        },
+        {
+          areas: ["Work", "Tests"] as const,
+          archivedAt: null,
+          createdAt: "2026-09-02T09:00:00.000Z",
+          id: "project-design",
+          name: "Design App",
+          stages: [{ id: "design", name: "Design", status: "Active" as const }],
+          status: "Active" as const,
+          targetDate: "2026-10-02",
+          updatedAt: "2026-09-18T09:00:00.000Z",
+        },
+        {
+          areas: ["Work", "Tests"] as const,
+          archivedAt: "2026-09-03T09:00:00.000Z",
+          createdAt: "2026-09-03T09:00:00.000Z",
+          id: "project-archived",
+          name: "Archived App",
+          stages: [{ id: "build", name: "Build", status: "Active" as const }],
+          status: "Active" as const,
+          targetDate: "2026-10-03",
+          updatedAt: "2026-09-18T09:00:00.000Z",
+        },
+      ],
+      savedLists: [definition],
+    };
+
+    const overview = buildWorkspaceOverview(sources);
+
+    expect(overview.savedLists).toHaveLength(1);
+    expect(overview.savedLists[0]).toMatchObject({
+      columns: ["name", "status", "stage", "areas"],
+      groupBy: "status",
+      href: "/projects?savedListId=saved-list-release-projects",
+      sort: { direction: "asc", field: "name" },
+    });
+    expect(
+      overview.savedLists[0]?.projects.map((project) => project.id),
+    ).toEqual(["project-release"]);
+
+    const nextOverview = buildWorkspaceOverview({
+      ...sources,
+      projects: sources.projects.map((project) =>
+        project.id === "project-design"
+          ? {
+              ...project,
+              stages: [
+                { id: "build", name: "Build", status: "Active" as const },
+              ],
+            }
+          : project,
+      ),
+    });
+
+    expect(
+      nextOverview.savedLists[0]?.projects.map((project) => project.id),
+    ).toEqual(["project-design", "project-release"]);
+    expect(nextOverview.savedLists[0]?.projects[0]?.id).toBe("project-design");
   });
 });
