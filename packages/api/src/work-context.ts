@@ -490,6 +490,7 @@ export interface WorkContextSource {
 }
 
 export interface WorkContextModel {
+  customSources: readonly WorkContextSource[];
   sources: readonly WorkContextSource[];
   whyChain: readonly WorkContextSource[];
 }
@@ -564,6 +565,7 @@ export function buildWorkContextModel({
 
   const uniqueSources = deduplicateSources(sources);
   return {
+    customSources: sources,
     sources: uniqueSources,
     whyChain: uniqueSources
       .filter(isWhyChainSource)
@@ -631,24 +633,26 @@ export function sourcesForWorkContextCustomSection(
   sources: readonly WorkContextSource[],
 ): readonly WorkContextSource[] {
   const { condition } = section;
-  return sources.filter((source) => {
-    if (condition.status && source.status !== condition.status) {
-      return false;
-    }
-    switch (condition.kind) {
-      case "record-type":
-        return matchesCustomRecordType(condition.recordType, source);
-      case "relation":
-        return matchesCustomRelation(condition.relation, source);
-      case "evidence-role":
-        return (
-          source.relationKind === "Evidence" &&
-          source.evidenceRole === condition.evidenceRole
-        );
-      default:
+  return deduplicateSources(
+    sources.filter((source) => {
+      if (condition.status && source.status !== condition.status) {
         return false;
-    }
-  });
+      }
+      switch (condition.kind) {
+        case "record-type":
+          return matchesCustomRecordType(condition.recordType, source);
+        case "relation":
+          return matchesCustomRelation(condition.relation, source);
+        case "evidence-role":
+          return (
+            source.relationKind === "Evidence" &&
+            source.evidenceRole === condition.evidenceRole
+          );
+        default:
+          return false;
+      }
+    }),
+  );
 }
 
 function matchesCustomRecordType(

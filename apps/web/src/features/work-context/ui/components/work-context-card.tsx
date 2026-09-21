@@ -169,7 +169,7 @@ export default function WorkContextCard({
               section={section.custom}
               sources={sourcesForWorkContextCustomSection(
                 section.custom,
-                contextModel.sources,
+                contextModel.customSources,
               )}
               work={work}
               workStatusLabels={workStatusLabels}

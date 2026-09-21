@@ -391,6 +391,62 @@ describe("Work Context Card configurable layouts", () => {
       ),
     ).toEqual([]);
   });
+
+  test("keeps relation-specific custom conditions when one record has two links", () => {
+    const sharedEndpoint = endpoint({
+      recordId: "source-1",
+      recordType: "Source",
+      title: "Checkout notes",
+    });
+    const evidenceRelation = Object.assign(
+      relation({
+        id: "evidence-supports",
+        kind: "Evidence",
+        source: endpoint({ recordId: work.id, recordType: "Work" }),
+        target: sharedEndpoint,
+      }),
+      { evidenceRole: "Supports" },
+    ) as RelationView;
+    const relatedRelation = relation({
+      id: "related-source",
+      kind: "Related",
+      source: endpoint({ recordId: work.id, recordType: "Work" }),
+      target: sharedEndpoint,
+    });
+    const model = buildWorkContextModel({
+      relations: [relatedRelation, evidenceRelation],
+      work: { ...work, primaryFeatureId: null, primarySpecId: null },
+    });
+
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            evidenceRole: "Supports",
+            kind: "evidence-role",
+            status: null,
+          },
+          id: "custom-supporting-evidence",
+          title: "Supporting evidence",
+        },
+        model.customSources,
+      ),
+    ).toEqual([expect.objectContaining({ relationId: "evidence-supports" })]);
+    expect(
+      sourcesForWorkContextCustomSection(
+        {
+          condition: {
+            kind: "relation",
+            relation: "Related",
+            status: null,
+          },
+          id: "custom-related",
+          title: "Related records",
+        },
+        model.customSources,
+      ),
+    ).toEqual([expect.objectContaining({ relationId: "related-source" })]);
+  });
 });
 
 describe("Work Context Card live sources", () => {
