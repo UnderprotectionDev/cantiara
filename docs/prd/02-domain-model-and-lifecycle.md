@@ -862,6 +862,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dosya seçilmedi | `No file selected` | Dosya Eki yükleme denetiminde henüz dosya seçilmediğini söyleyen durum |
 | Dosya Eki seç | `Select a File Attachment` | Gallery listesinde henüz bir Dosya Eki seçilmediğinde önizleme boş durumu |
 | Sürümler | `Versions` | Seçili Dosya Ekinin sürüm zinciri başlığı |
+| Önizlemeyi yeniden dene | `Retry preview` | İşlenemeyen bir Dosya Eki önizlemesini aynı güvenli sınır içinde yeniden isteme eylemi |
+| Oynatma hızı | `Playback speed` | Ses veya video önizlemesinde kullanıcı tarafından seçilen oynatma hızı |
+| Tam ekran | `Fullscreen` | Ses veya video önizlemesini tam ekran yüzeyine alma eylemi |
+| Döngü | `Loop` | Ses veya video oynatmasını kullanıcı seçimine göre tekrarlama denetimi |
+| Altyazılar | `Captions` | Ses veya video önizlemesinin erişilebilir altyazı kanalı |
 | Yakalama eki | `Capture attachment` | Yalnız Yakalama Gelen Kutusu öğesine ait şifreli staging nesnesi; Dosya Eki veya paylaşılmış medya kütüphanesi değildir |
 | Taslak | `Draft` | Henüz kaydedilmemiş ayrıntılı İş formu; ana kayıt, Yakalama Gelen Kutusu öğesi veya Belge taslağı değildir |
 | Taslaklar | `Drafts` | Kişisel Taslakların sürdürüldüğü veya silindiği yüzey |

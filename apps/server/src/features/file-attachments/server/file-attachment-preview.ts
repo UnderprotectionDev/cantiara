@@ -14,6 +14,8 @@ import Papa from "papaparse";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import sharp, { type Metadata } from "sharp";
 
+const TIMEOUT_ERROR_PATTERN = /timeout/iu;
+
 import {
   FileAttachmentError,
   type FileAttachmentObjectStore,
@@ -78,6 +80,7 @@ export interface FileAttachmentPreviewProcessor {
   createImageDerivatives: (
     bytes: Uint8Array,
     limits: FileAttachmentPreviewLimits,
+    signal?: AbortSignal,
   ) => Promise<{
     medium: Uint8Array;
     small: Uint8Array;
@@ -88,6 +91,7 @@ export interface FileAttachmentPreviewPdfReader {
   readPageCount: (
     bytes: Uint8Array,
     limits: FileAttachmentPreviewLimits,
+    signal?: AbortSignal,
   ) => Promise<number>;
 }
 
@@ -180,6 +184,14 @@ function toPreviewError(error: unknown) {
   if (error instanceof FileAttachmentPreviewError) {
     return error;
   }
+  if (error instanceof Error && TIMEOUT_ERROR_PATTERN.test(error.message)) {
+    return new FileAttachmentPreviewError(
+      "cpu-limit",
+      "The preview exceeded its processing time limit.",
+      false,
+      { cause: error },
+    );
+  }
   return new FileAttachmentPreviewError(
     "processing-failed",
     "The preview could not be generated.",
@@ -188,10 +200,15 @@ function toPreviewError(error: unknown) {
   );
 }
 
-function withProcessingTimeLimit<T>(task: Promise<T>, limitMs: number) {
+function withProcessingTimeLimit<T>(
+  taskFactory: (signal: AbortSignal) => Promise<T>,
+  limitMs: number,
+) {
+  const controller = new AbortController();
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(() => {
+      controller.abort();
       reject(
         new FileAttachmentPreviewError(
           "cpu-limit",
@@ -200,6 +217,7 @@ function withProcessingTimeLimit<T>(task: Promise<T>, limitMs: number) {
       );
     }, limitMs);
   });
+  const task = Promise.resolve().then(() => taskFactory(controller.signal));
   return Promise.race([task, timeout]).finally(() => {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
@@ -207,13 +225,43 @@ function withProcessingTimeLimit<T>(task: Promise<T>, limitMs: number) {
   });
 }
 
-function createSharpPreviewProcessor(): FileAttachmentPreviewProcessor {
+function sampleBytesForDepth(depth: Metadata["depth"] | undefined) {
+  switch (depth) {
+    case "dpcomplex":
+      return 16;
+    case "complex":
+      return 8;
+    case "double":
+      return 8;
+    case "float":
+    case "int":
+    case "uint":
+      return 4;
+    case "short":
+    case "ushort":
+      return 2;
+    case "char":
+    case "uchar":
+      return 1;
+    default:
+      return 8;
+  }
+}
+
+export function createSharpPreviewProcessor(): FileAttachmentPreviewProcessor {
   return {
-    async createImageDerivatives(bytes, limits) {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Sharp processing keeps decode, metadata, derivative, and limit handling in one preview adapter seam.
+    async createImageDerivatives(bytes, limits, signal) {
       if (bytes.byteLength > limits.maxDecodeBytes) {
         throw new FileAttachmentPreviewError(
           "decode-limit",
           "The image exceeds the preview decode limit.",
+        );
+      }
+      if (signal?.aborted) {
+        throw new FileAttachmentPreviewError(
+          "cpu-limit",
+          "The preview exceeded its processing time limit.",
         );
       }
 
@@ -222,8 +270,22 @@ function createSharpPreviewProcessor(): FileAttachmentPreviewProcessor {
         metadata = await sharp(bytes, {
           failOn: "error",
           limitInputPixels: limits.maxPixels,
-        }).metadata();
+        })
+          .timeout({ seconds: Math.max(limits.maxCpuMs / 1000, 0.001) })
+          .metadata();
       } catch (error) {
+        if (
+          error instanceof Error &&
+          TIMEOUT_ERROR_PATTERN.test(error.message)
+        ) {
+          // biome-ignore lint/style/useErrorCause: FileAttachmentPreviewError forwards ErrorOptions to Error.
+          throw new FileAttachmentPreviewError(
+            "cpu-limit",
+            "The preview exceeded its processing time limit.",
+            false,
+            { cause: error },
+          );
+        }
         // biome-ignore lint/style/useErrorCause: FileAttachmentPreviewError forwards ErrorOptions to Error.
         throw new FileAttachmentPreviewError(
           "processing-failed",
@@ -252,6 +314,26 @@ function createSharpPreviewProcessor(): FileAttachmentPreviewProcessor {
           "The image exceeds the preview frame limit.",
         );
       }
+      const decodedBytes =
+        pixels *
+        Math.max(metadata.channels ?? 4, 1) *
+        Math.max(metadata.pages ?? 1, 1) *
+        Math.max(
+          sampleBytesForDepth(metadata.depth),
+          Math.ceil((metadata.bitsPerSample ?? 8) / 8),
+        );
+      if (decodedBytes > limits.maxDecodeBytes) {
+        throw new FileAttachmentPreviewError(
+          "decode-limit",
+          "The image exceeds the preview decode limit.",
+        );
+      }
+      if (signal?.aborted) {
+        throw new FileAttachmentPreviewError(
+          "cpu-limit",
+          "The preview exceeded its processing time limit.",
+        );
+      }
 
       const render = (size: number) =>
         sharp(bytes, {
@@ -267,6 +349,7 @@ function createSharpPreviewProcessor(): FileAttachmentPreviewProcessor {
             width: size,
           })
           .webp({ quality: 82 })
+          .timeout({ seconds: Math.max(limits.maxCpuMs / 1000, 0.001) })
           .toBuffer();
 
       const [small, medium] = await Promise.all([render(320), render(1280)]);
@@ -342,7 +425,7 @@ function csvPreview(bytes: Uint8Array, limits: FileAttachmentPreviewLimits) {
 
 function createPdfPreviewReader(): FileAttachmentPreviewPdfReader {
   return {
-    async readPageCount(bytes) {
+    async readPageCount(bytes, _limits, signal) {
       const loadingTask = getDocument({
         data: bytes,
         disableAutoFetch: true,
@@ -350,10 +433,23 @@ function createPdfPreviewReader(): FileAttachmentPreviewPdfReader {
         useWorkerFetch: false,
       });
       let document: Awaited<typeof loadingTask.promise> | undefined;
+      const abortLoading = () => {
+        loadingTask.destroy().catch(() => undefined);
+      };
+      signal?.addEventListener("abort", abortLoading, { once: true });
       try {
         document = await loadingTask.promise;
+        if (signal?.aborted) {
+          throw new FileAttachmentPreviewError(
+            "cpu-limit",
+            "The preview exceeded its processing time limit.",
+          );
+        }
         return document.numPages;
       } catch (error) {
+        if (error instanceof FileAttachmentPreviewError) {
+          throw error;
+        }
         // biome-ignore lint/style/useErrorCause: FileAttachmentPreviewError forwards ErrorOptions to Error.
         throw new FileAttachmentPreviewError(
           "processing-failed",
@@ -362,6 +458,7 @@ function createPdfPreviewReader(): FileAttachmentPreviewPdfReader {
           { cause: error },
         );
       } finally {
+        signal?.removeEventListener("abort", abortLoading);
         document?.cleanup();
         await loadingTask.destroy().catch(() => undefined);
       }
@@ -475,7 +572,7 @@ export function createFileAttachmentPreview({
     return source;
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Preview orchestration keeps cache lookup, queue scheduling, bounded processing, and failure persistence at one File Attachments seam.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Preview derivative orchestration keeps cache lookup, queue scheduling, bounded processing, and failure persistence at one File Attachments seam.
   async function imageDerivatives(
     accountId: string,
     source: FileAttachmentStoredVersion,
@@ -634,7 +731,8 @@ export function createFileAttachmentPreview({
       try {
         // biome-ignore lint/performance/noAwaitInLoops: Preview retries must remain sequential and bounded so one version cannot consume parallel processor attempts.
         const generated = await withProcessingTimeLimit(
-          processor.createImageDerivatives(sourceBytes, limits),
+          (signal) =>
+            processor.createImageDerivatives(sourceBytes, limits, signal),
           limits.maxCpuMs,
         );
         const generatedByVariant = {
@@ -774,7 +872,7 @@ export function createFileAttachmentPreview({
       }
       if (source.version.preview === "pdf") {
         const pageCount = await withProcessingTimeLimit(
-          pdfReader.readPageCount(bytes, limits),
+          (signal) => pdfReader.readPageCount(bytes, limits, signal),
           limits.maxCpuMs,
         );
         if (pageCount > limits.maxFrames) {

@@ -12,8 +12,14 @@ import {
 describe("File Attachments contract", () => {
   test("keeps the product labels and original-byte limits in one matrix", () => {
     expect(FILE_ATTACHMENT_UI_LABELS).toMatchObject({
+      captions: "Captions",
       fileAttachment: "File Attachment",
       finalizing: "Finalizing",
+      fullscreen: "Fullscreen",
+      loop: "Loop",
+      playbackSpeed: "Playback speed",
+      preview: "Preview",
+      retryPreview: "Retry preview",
       uploadNewVersion: "Upload new version",
     });
     expect(FILE_ATTACHMENT_TYPE_RULES.image.maxBytes).toBe(25 * 1024 * 1024);

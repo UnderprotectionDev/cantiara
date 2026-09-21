@@ -2,7 +2,9 @@ import type {
   FileAttachment,
   FileAttachmentVersion,
 } from "@cantiara/api/file-attachments";
+import sharp from "sharp";
 import { describe, expect, test } from "vitest";
+import { createSharpPreviewProcessor } from "./file-attachment-preview";
 import {
   createFileAttachments,
   type FileAttachmentObjectStore,
@@ -74,6 +76,7 @@ function createPreview(
     bytes?: Uint8Array;
     limits?: FileAttachmentPreviewConfiguration["limits"];
     observe?: FileAttachmentPreviewConfiguration["observe"];
+    pdfReader?: FileAttachmentPreviewConfiguration["pdfReader"];
     processor?: FileAttachmentPreviewProcessor | null;
     schedulePreview?: FileAttachmentPreviewSchedule;
     hasOtherVersionWithContentHash?: FileAttachmentRepository["hasOtherVersionWithContentHash"];
@@ -127,9 +130,10 @@ function createPreview(
         limits: Parameters<
           NonNullable<FileAttachmentPreviewProcessor["createImageDerivatives"]>
         >[1],
+        signal?: AbortSignal,
       ) => {
         processorCalls += 1;
-        return sourceProcessor.createImageDerivatives(bytes, limits);
+        return sourceProcessor.createImageDerivatives(bytes, limits, signal);
       },
     };
   }
@@ -157,6 +161,7 @@ function createPreview(
   const previewConfiguration: FileAttachmentPreviewConfiguration = {
     limits: options.limits,
     observe: options.observe,
+    ...(options.pdfReader ? { pdfReader: options.pdfReader } : {}),
     ...(processor ? { processor } : {}),
   };
   const service = createFileAttachments({
@@ -527,6 +532,140 @@ describe("File Attachments — Dosya sınırları preview seam", () => {
       }),
     ).resolves.toMatchObject({ bytes: original });
     expect(observed).toHaveLength(1);
+  });
+
+  test("rejects an image when decoded memory exceeds the preview limit", async () => {
+    const source = await sharp({
+      create: {
+        background: { b: 0, g: 0, r: 0 },
+        channels: 4,
+        height: 256,
+        width: 256,
+      },
+    })
+      .png()
+      .toBuffer();
+    expect(source.byteLength).toBeLessThan(100_000);
+
+    const memory = createPreview(
+      {
+        contentHash: "m".repeat(64),
+        detectedMimeType: "image/png",
+        extension: ".png",
+        fileName: "compressed.png",
+        mimeType: "image/png",
+        preview: "image",
+      },
+      {
+        bytes: new Uint8Array(source),
+        limits: { maxDecodeBytes: 100_000 },
+        processor: createSharpPreviewProcessor(),
+      },
+    );
+
+    await expect(
+      memory.preview.preview("account-1", {
+        attachmentId: "attachment-1",
+        versionId: "version-1",
+      }),
+    ).resolves.toMatchObject({
+      failure: { attempts: 1, code: "decode-limit", retryable: false },
+      fallback: "Unavailable",
+      status: "unavailable",
+    });
+    await expect(
+      memory.preview.readAsset("account-1", {
+        attachmentId: "attachment-1",
+        variant: "original",
+        versionId: "version-1",
+      }),
+    ).resolves.toMatchObject({ bytes: new Uint8Array(source) });
+  });
+
+  test("aborts image processing when the CPU budget expires", async () => {
+    let aborted = false;
+    let signalReceived = false;
+    const memory = createPreview(
+      {
+        contentHash: "t".repeat(64),
+        detectedMimeType: "image/jpeg",
+        extension: ".jpg",
+        fileName: "slow.jpg",
+        mimeType: "image/jpeg",
+        preview: "image",
+      },
+      {
+        limits: { maxCpuMs: 5 },
+        processor: {
+          createImageDerivatives: (_bytes, _limits, signal) =>
+            new Promise((_resolve, reject) => {
+              signalReceived = Boolean(signal);
+              signal?.addEventListener(
+                "abort",
+                () => {
+                  aborted = true;
+                  reject(new Error("processing aborted"));
+                },
+                { once: true },
+              );
+            }),
+        },
+      },
+    );
+
+    await expect(
+      memory.preview.preview("account-1", {
+        attachmentId: "attachment-1",
+        versionId: "version-1",
+      }),
+    ).resolves.toMatchObject({
+      failure: { attempts: 1, code: "cpu-limit", retryable: false },
+      fallback: "Unavailable",
+      status: "unavailable",
+    });
+    expect(signalReceived).toBe(true);
+    expect(aborted).toBe(true);
+  });
+
+  test("aborts PDF parsing when the CPU budget expires", async () => {
+    let aborted = false;
+    const memory = createPreview(
+      {
+        detectedMimeType: "application/pdf",
+        extension: ".pdf",
+        fileName: "slow.pdf",
+        mimeType: "application/pdf",
+        preview: "pdf",
+      },
+      {
+        limits: { maxCpuMs: 5 },
+        pdfReader: {
+          readPageCount: (_bytes, _limits, signal) =>
+            new Promise((_resolve, reject) => {
+              signal?.addEventListener(
+                "abort",
+                () => {
+                  aborted = true;
+                  reject(new Error("PDF parsing aborted"));
+                },
+                { once: true },
+              );
+            }),
+        },
+      },
+    );
+
+    await expect(
+      memory.preview.preview("account-1", {
+        attachmentId: "attachment-1",
+        versionId: "version-1",
+      }),
+    ).resolves.toMatchObject({
+      failure: { attempts: 1, code: "cpu-limit", retryable: false },
+      fallback: "Unavailable",
+      status: "unavailable",
+    });
+    expect(aborted).toBe(true);
   });
 
   test("retries processing failures a bounded number of times and keeps the original downloadable", async () => {

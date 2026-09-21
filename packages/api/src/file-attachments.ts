@@ -2,12 +2,18 @@ import { z } from "zod";
 
 export const FILE_ATTACHMENT_UI_LABELS = {
   chooseFile: "Choose file",
+  captions: "Captions",
   copy: "Copy",
   download: "Download",
   fileAttachment: "File Attachment",
   finalizing: "Finalizing",
+  fullscreen: "Fullscreen",
+  loop: "Loop",
   move: "Move",
   noFileSelected: "No file selected",
+  playbackSpeed: "Playback speed",
+  preview: "Preview",
+  retryPreview: "Retry preview",
   selectFileAttachment: "Select a File Attachment",
   unavailable: "Unavailable",
   upload: "Upload",
