@@ -91,7 +91,7 @@ describeDatabase("Account Access PostgreSQL integration", () => {
     await database?.$client.end();
   });
 
-  test("a migrated database creates the Workspace on the first GitHub callback", async () => {
+  test("a migrated database creates and reuses the Workspace across GitHub callbacks", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
@@ -104,60 +104,68 @@ describeDatabase("Account Access PostgreSQL integration", () => {
     try {
       const accountAdmission = createDatabaseAccountAdmission(database);
       const auth = createAuth(authConfig, database, accountAdmission);
-      const start = await auth.handler(
-        new Request("https://api.cantiara.example/api/auth/sign-in/social", {
-          body: JSON.stringify({
-            callbackURL: "https://cantiara.example/dashboard",
-            provider: "github",
+      const completeSignIn = async () => {
+        const start = await auth.handler(
+          new Request("https://api.cantiara.example/api/auth/sign-in/social", {
+            body: JSON.stringify({
+              callbackURL: "https://cantiara.example/dashboard",
+              provider: "github",
+            }),
+            headers: {
+              "content-type": "application/json",
+              origin: "https://cantiara.example",
+            },
+            method: "POST",
           }),
-          headers: {
-            "content-type": "application/json",
-            origin: "https://cantiara.example",
-          },
-          method: "POST",
-        }),
-      );
-      const startBody = (await start.json()) as { url: string };
-      const state = new URL(startBody.url).searchParams.get("state");
-      const stateCookie = start.headers.get("set-cookie")?.split(";", 1)[0];
-      if (!(state && stateCookie)) {
-        throw new Error("OAuth state was not created");
-      }
+        );
+        const startBody = (await start.json()) as { url: string };
+        const state = new URL(startBody.url).searchParams.get("state");
+        const stateCookie = start.headers.get("set-cookie")?.split(";", 1)[0];
+        if (!(state && stateCookie)) {
+          throw new Error("OAuth state was not created");
+        }
 
-      const callback = await auth.handler(
-        new Request(
-          `https://api.cantiara.example/api/auth/callback/github?code=test-code&state=${state}`,
-          { headers: { cookie: stateCookie } },
-        ),
-      );
-      expect(callback.status).toBe(302);
-      expect(callback.headers.get("location")).toBe(
-        "https://cantiara.example/dashboard",
-      );
+        const callback = await auth.handler(
+          new Request(
+            `https://api.cantiara.example/api/auth/callback/github?code=test-code&state=${state}`,
+            { headers: { cookie: stateCookie } },
+          ),
+        );
+        expect(callback.status).toBe(302);
+        expect(callback.headers.get("location")).toBe(
+          "https://cantiara.example/dashboard",
+        );
 
-      const sessionCookie = callback.headers
-        .get("set-cookie")
-        ?.match(SESSION_COOKIE_PATTERN)?.[0];
-      expect(sessionCookie).toBeDefined();
+        const sessionCookie = callback.headers
+          .get("set-cookie")
+          ?.match(SESSION_COOKIE_PATTERN)?.[0];
+        expect(sessionCookie).toBeDefined();
 
-      const sessionResponse = await auth.handler(
-        new Request("https://api.cantiara.example/api/auth/get-session", {
-          headers: { cookie: sessionCookie ?? "" },
-        }),
-      );
-      expect(sessionResponse.status).toBe(200);
-      const sessionBody = (await sessionResponse.json()) as {
-        user?: { id: string };
+        const sessionResponse = await auth.handler(
+          new Request("https://api.cantiara.example/api/auth/get-session", {
+            headers: { cookie: sessionCookie ?? "" },
+          }),
+        );
+        expect(sessionResponse.status).toBe(200);
+        const sessionBody = (await sessionResponse.json()) as {
+          user?: { id: string };
+        };
+        const sessionUserId = sessionBody.user?.id;
+        if (!sessionUserId) {
+          throw new Error("Better Auth session did not identify a user");
+        }
+        return sessionUserId;
       };
-      userId = sessionBody.user?.id;
-      expect(userId).toEqual(expect.any(String));
 
+      const firstUserId = await completeSignIn();
+      userId = firstUserId;
+      const firstAdmission = await accountAdmission.admitAccount(firstUserId);
+      const secondUserId = await completeSignIn();
+
+      expect(secondUserId).toBe(firstUserId);
       await expect(
-        accountAdmission.admitAccount(userId as string),
-      ).resolves.toEqual({
-        accountId: userId,
-        workspaceId: expect.any(String),
-      });
+        accountAdmission.admitAccount(secondUserId),
+      ).resolves.toEqual(firstAdmission);
     } finally {
       const cleanupUser =
         userId ??
