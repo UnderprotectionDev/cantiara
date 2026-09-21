@@ -21,7 +21,7 @@ import {
   type FileAttachmentWorkOriginPosition,
   validateFileAttachmentUpload,
 } from "./file-attachments";
-import { createDevelopmentFileAttachmentObjectStore } from "./file-attachments-development";
+import { createFileAttachmentObjectStore } from "./file-attachments-object-store";
 
 const jpegBytes = new Uint8Array([
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
@@ -572,10 +572,16 @@ describe("File Attachments — Dosya sınırları", () => {
 describe("File Attachments — Dosya sınırları finalize seam", () => {
   test("uses development storage through the public File Attachments seam", async () => {
     const memory = createMemoryFileAttachments();
+    const objectStore = createFileAttachmentObjectStore({
+      nodeEnv: "development",
+    });
+    if (!objectStore) {
+      throw new Error("Development object store was not created.");
+    }
     const service = createFileAttachments({
       idGenerator: createIds(),
       now: () => new Date("2026-09-21T10:00:00.000Z"),
-      objectStore: createDevelopmentFileAttachmentObjectStore(),
+      objectStore,
       preview: {
         pdfReader: {
           readPageCount: async () => 1,
