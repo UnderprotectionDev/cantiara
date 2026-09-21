@@ -92,4 +92,69 @@ describe("File Attachment upload", () => {
     ).rejects.toThrow("This file type is not supported.");
     expect(finalize).not.toHaveBeenCalled();
   });
+
+  test("starts finalize only after staging succeeds and reports the barrier", async () => {
+    const { signal } = new AbortController();
+    const request = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBe(signal);
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            fileName: "notes.md",
+            mode: "new",
+            status: "Uploading",
+            uploadId: "upload-1",
+          }),
+          { headers: { "content-type": "application/json" }, status: 200 },
+        ),
+      );
+    });
+    const finalize = vi.fn(
+      async (_input: FileAttachmentFinalizeInput) => receipt,
+    );
+    const onFinalizeStart = vi.fn();
+
+    await uploadFileAttachment(
+      new File(["hello"], "notes.md", { type: "text/markdown" }),
+      projectScope,
+      {
+        createIdempotencyKey: () => "idempotency-1",
+        finalize,
+        request,
+        serverURL: "http://localhost:3000",
+      },
+      { onFinalizeStart, signal },
+    );
+
+    expect(onFinalizeStart).toHaveBeenCalledTimes(1);
+    expect(finalize).toHaveBeenCalledTimes(1);
+    expect(onFinalizeStart.mock.invocationCallOrder[0]).toBeLessThan(
+      finalize.mock.invocationCallOrder[0],
+    );
+  });
+
+  test("does not finalize when staging is cancelled through the signal", async () => {
+    const controller = new AbortController();
+    const request = vi.fn(() => {
+      controller.abort();
+      throw new DOMException("Aborted", "AbortError");
+    });
+    const finalize = vi.fn(
+      async (_input: FileAttachmentFinalizeInput) => receipt,
+    );
+
+    await expect(
+      uploadFileAttachment(
+        new File(["hello"], "notes.md", { type: "text/markdown" }),
+        projectScope,
+        {
+          finalize,
+          request,
+          serverURL: "http://localhost:3000",
+        },
+        { signal: controller.signal },
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(finalize).not.toHaveBeenCalled();
+  });
 });

@@ -721,6 +721,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kaynak görsel | `Source visual` | Paylaşım/yayın önizlemesinde işaretlemeden ayrı onaylanan görsel öğe |
 | İşaretlenen kaynak konumu | `Marked source location` | Dosya Eki sürümünde seçilen Nokta veya Bölgenin görsel köken işareti |
 | İşaretleme kaydedilemedi | `Marking could not be saved. Try again.` | Görsel işaretleme yazımı başarısız olduğunda yeniden denemeyi bildiren hata |
+| İşaretleme geri alınamadı | `Marking could not be undone. Try again.` | Görsel işaretleme geri alımı başarısız olduğunda yeniden denemeyi bildiren hata |
 | Kalem | `Pen` | İşaretleme katmanı aracı |
 | Vurgulayıcı | `Highlighter` | İşaretleme katmanı aracı |
 | Ok | `Arrow` | İşaretleme katmanı aracı |

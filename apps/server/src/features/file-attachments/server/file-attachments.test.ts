@@ -6,7 +6,7 @@ import {
   type FileAttachmentVersion,
   fileAttachmentFinalizeReceiptSchema,
 } from "@cantiara/api/file-attachments";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import {
   createFileAttachments,
@@ -48,6 +48,7 @@ function createMemoryFileAttachments(
     byteLimit?: number;
     commitByteLimit?: number;
     locationWork?: FileAttachmentLocationWorkAccess;
+    readPageCount?: () => Promise<number>;
   } = {},
 ) {
   const objects = new Map<string, Uint8Array>();
@@ -436,7 +437,7 @@ function createMemoryFileAttachments(
       objectStore,
       preview: {
         pdfReader: {
-          readPageCount: async () => 1,
+          readPageCount: options.readPageCount ?? (async () => 1),
         },
       },
       repository,
@@ -1359,5 +1360,54 @@ describe("File Attachments — Görsel işaretleme ve Köken konumu seam", () =>
         workId: "work-1",
       }),
     ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_LOCATION_UNSUPPORTED" });
+  });
+
+  test("resolves the PDF page count once per version for repeated markings", async () => {
+    const readPageCount = vi.fn(async () => 1);
+    const memory = createMemoryFileAttachments({ readPageCount });
+    const input = newInput({
+      declaredMimeType: "application/pdf",
+      fileName: "brief.pdf",
+    });
+    const session = await memory.service.access.stage(
+      accountId,
+      stageInput(input),
+      pdfBytes,
+    );
+    const receipt = await memory.service.access.finalize(accountId, {
+      ...input,
+      uploadId: session.uploadId,
+    });
+    const pageMarking = {
+      attachmentId: receipt.attachment.id,
+      geometry: {
+        kind: "path" as const,
+        page: 1,
+        points: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.3, y: 0.4 },
+        ],
+      },
+      tool: "pen" as const,
+      versionId: receipt.version.id,
+    };
+
+    await memory.service.access.createMarking(accountId, {
+      ...pageMarking,
+      clientIdempotencyKey: "pdf-page-count-1",
+    });
+    await memory.service.access.createMarking(accountId, {
+      ...pageMarking,
+      clientIdempotencyKey: "pdf-page-count-2",
+    });
+    await expect(
+      memory.service.access.createMarking(accountId, {
+        ...pageMarking,
+        clientIdempotencyKey: "pdf-page-count-out-of-range",
+        geometry: { ...pageMarking.geometry, page: 2 },
+      }),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_MARKING_UNSUPPORTED" });
+
+    expect(readPageCount).toHaveBeenCalledTimes(1);
   });
 });

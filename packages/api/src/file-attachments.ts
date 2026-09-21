@@ -24,6 +24,7 @@ export const FILE_ATTACHMENT_UI_LABELS = {
   locationSelectionInstruction:
     "Click a Point or drag a Region on the preview, then click Preview.",
   markingSaveFailed: "Marking could not be saved. Try again.",
+  markingUndoFailed: "Marking could not be undone. Try again.",
   newWork: "New Work",
   newWorkProjectRequired: "A Project is required for a new Work.",
   noFileSelected: "No file selected",
@@ -43,6 +44,7 @@ export const FILE_ATTACHMENT_UI_LABELS = {
   undo: "Undo",
   unavailable: "Unavailable",
   upload: "Upload",
+  uploading: "Uploading",
   uploadNewVersion: "Upload new version",
   versions: "Versions",
   workId: "Work ID",

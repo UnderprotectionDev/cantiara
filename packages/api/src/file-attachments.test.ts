@@ -40,6 +40,7 @@ describe("File Attachments contract", () => {
       highlighter: "Highlighter",
       markingLayer: "Marking layer",
       markingSaveFailed: "Marking could not be saved. Try again.",
+      markingUndoFailed: "Marking could not be undone. Try again.",
       markedSourceLocation: "Marked source location",
       newWork: "New Work",
       pen: "Pen",
@@ -47,6 +48,7 @@ describe("File Attachments contract", () => {
       rectangle: "Rectangle",
       region: "Region",
       undo: "Undo",
+      uploading: "Uploading",
     });
   });
 

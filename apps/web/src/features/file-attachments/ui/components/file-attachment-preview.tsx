@@ -879,12 +879,30 @@ function uploadErrorMessage(error: unknown) {
   return "File Attachment upload could not be completed. Try again.";
 }
 
+function isUploadAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+type UploadPhase = "idle" | "staging" | "finalizing";
+
+function uploadLabelForPhase(phase: UploadPhase) {
+  if (phase === "staging") {
+    return FILE_ATTACHMENT_UI_LABELS.uploading;
+  }
+  if (phase === "finalizing") {
+    return FILE_ATTACHMENT_UI_LABELS.finalizing;
+  }
+  return FILE_ATTACHMENT_UI_LABELS.upload;
+}
+
 function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<UploadPhase>("idle");
   const pendingClientIdempotencyKey = useRef<string | null>(null);
+  const stagingController = useRef<AbortController | null>(null);
   const attachmentsQuery = orpc.fileAttachments.queryOptions({
     input: { scope: { kind: "project", projectId } },
   });
@@ -893,6 +911,9 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
       const clientIdempotencyKey =
         pendingClientIdempotencyKey.current ?? crypto.randomUUID();
       pendingClientIdempotencyKey.current = clientIdempotencyKey;
+      const controller = new AbortController();
+      stagingController.current = controller;
+      setPhase("staging");
       return runOnlineOnlyWrite(() =>
         uploadFileAttachment(
           file,
@@ -901,11 +922,21 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
             projectId,
           },
           { createIdempotencyKey: () => clientIdempotencyKey },
+          {
+            onFinalizeStart: () => setPhase("finalizing"),
+            signal: controller.signal,
+          },
         ),
       );
     },
     onError: (uploadError) => {
-      setError(uploadErrorMessage(uploadError));
+      if (!isUploadAbortError(uploadError)) {
+        setError(uploadErrorMessage(uploadError));
+      }
+    },
+    onSettled: () => {
+      stagingController.current = null;
+      setPhase("idle");
     },
     onSuccess: async () => {
       setError(null);
@@ -941,8 +972,12 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
   }, [selectedFile, uploadMutation]);
 
   const handleCancel = useCallback(() => {
-    if (uploadMutation.isPending) {
+    if (phase === "finalizing") {
+      // The barrier started with finalize; the spec forbids a fake Cancel.
       return;
+    }
+    if (phase === "staging") {
+      stagingController.current?.abort();
     }
     setError(null);
     setSelectedFile(null);
@@ -950,7 +985,9 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [uploadMutation.isPending]);
+  }, [phase]);
+
+  const uploadLabel = uploadLabelForPhase(phase);
 
   return (
     <div className="max-w-3xl rounded-lg border border-border/70 bg-card/50 p-4">
@@ -963,7 +1000,7 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
           type="file"
         />
         <Button
-          disabled={uploadMutation.isPending}
+          disabled={phase !== "idle"}
           onClick={handleChooseFile}
           type="button"
           variant="outline"
@@ -971,15 +1008,13 @@ function FileAttachmentUploadControl({ projectId }: { projectId: string }) {
           {FILE_ATTACHMENT_UI_LABELS.chooseFile}
         </Button>
         <Button
-          disabled={!selectedFile || uploadMutation.isPending}
+          disabled={!selectedFile || phase !== "idle"}
           onClick={handleUpload}
           type="button"
         >
-          {uploadMutation.isPending
-            ? FILE_ATTACHMENT_UI_LABELS.finalizing
-            : FILE_ATTACHMENT_UI_LABELS.upload}
+          {uploadLabel}
         </Button>
-        {selectedFile && !uploadMutation.isPending ? (
+        {selectedFile && phase !== "finalizing" ? (
           <Button onClick={handleCancel} type="button" variant="ghost">
             {FILE_ATTACHMENT_UI_LABELS.cancel}
           </Button>

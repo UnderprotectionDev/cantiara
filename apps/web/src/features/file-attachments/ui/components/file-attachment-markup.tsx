@@ -26,6 +26,10 @@ import {
   Rect,
   Stage,
 } from "react-konva";
+import {
+  clampCoordinate,
+  objectContainBox,
+} from "../../lib/file-attachment-markup-geometry";
 
 interface Point {
   x: number;
@@ -57,10 +61,6 @@ const TOOL_COLORS: Record<FileAttachmentMarkingTool, string> = {
   pen: "#2563eb",
   rectangle: "#16a34a",
 };
-
-function clampCoordinate(value: number) {
-  return Math.min(1, Math.max(0, value));
-}
 
 function pointForEvent(
   event: KonvaEventObject<MouseEvent>,
@@ -311,6 +311,13 @@ function MarkupSurface({
   };
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [surfaceSize, setSurfaceSize] = useState(fallbackSize);
+  const [media, setMedia] = useState<
+    HTMLCanvasElement | HTMLImageElement | null
+  >(null);
+  const [mediaSize, setMediaSize] = useState<{
+    height: number;
+    width: number;
+  } | null>(null);
   const [draft, setDraft] = useState<Point[]>([]);
 
   useEffect(() => {
@@ -330,7 +337,59 @@ function MarkupSurface({
     return () => observer.disconnect();
   }, []);
 
-  const { height, width } = surfaceSize;
+  useEffect(() => {
+    setMedia(
+      surfaceRef.current?.querySelector<HTMLCanvasElement | HTMLImageElement>(
+        "img, canvas",
+      ) ?? null,
+    );
+  });
+
+  useEffect(() => {
+    if (!media) {
+      setMediaSize(null);
+      return;
+    }
+    const measure = () => {
+      const width =
+        media instanceof HTMLImageElement ? media.naturalWidth : media.width;
+      const height =
+        media instanceof HTMLImageElement ? media.naturalHeight : media.height;
+      if (width > 0 && height > 0) {
+        setMediaSize({ height, width });
+      }
+    };
+    measure();
+    media.addEventListener("load", measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(media);
+    return () => {
+      media.removeEventListener("load", measure);
+      observer.disconnect();
+    };
+  }, [media]);
+
+  // Markings and Bind as origin coordinates are relative to the displayed
+  // source visual, so the drawing surface tracks the object-contain content
+  // rect instead of the responsive element box that letterboxes around it.
+  const contentBox = useMemo(
+    () =>
+      mediaSize
+        ? objectContainBox(
+            mediaSize.width,
+            mediaSize.height,
+            surfaceSize.width,
+            surfaceSize.height,
+          )
+        : {
+            height: surfaceSize.height,
+            left: 0,
+            top: 0,
+            width: surfaceSize.width,
+          },
+    [mediaSize, surfaceSize],
+  );
+  const { height, width } = contentBox;
 
   const getPoint = useCallback(
     (event: KonvaEventObject<MouseEvent>) =>
@@ -446,29 +505,33 @@ function MarkupSurface({
       ref={surfaceRef}
     >
       {children}
-      <Stage
-        className="absolute inset-0 h-full w-full"
-        height={height}
-        onMouseDown={handlePointerDown}
-        onMouseMove={handlePointerMove}
-        onMouseUp={handlePointerUp}
-        width={width}
+      <div
+        className="absolute"
+        style={{ left: contentBox.left, top: contentBox.top }}
       >
-        <Layer>
-          <LocationShape
-            height={height}
-            location={draftLocation ?? location}
-            page={page}
-            width={width}
-          />
-          <MarkingShapes
-            height={height}
-            markings={[...markings, ...draftMarking]}
-            page={page}
-            width={width}
-          />
-        </Layer>
-      </Stage>
+        <Stage
+          height={height}
+          onMouseDown={handlePointerDown}
+          onMouseMove={handlePointerMove}
+          onMouseUp={handlePointerUp}
+          width={width}
+        >
+          <Layer>
+            <LocationShape
+              height={height}
+              location={draftLocation ?? location}
+              page={page}
+              width={width}
+            />
+            <MarkingShapes
+              height={height}
+              markings={[...markings, ...draftMarking]}
+              page={page}
+              width={width}
+            />
+          </Layer>
+        </Stage>
+      </div>
     </div>
   );
 }
@@ -549,9 +612,16 @@ export function FileAttachmentMarkup({
     [],
   );
   const handleUndo = useCallback(() => {
-    if (undoTarget) {
-      Promise.resolve(onUndoMarking?.(undoTarget)).catch(() => undefined);
+    if (!(undoTarget && onUndoMarking)) {
+      return;
     }
+    Promise.resolve(onUndoMarking(undoTarget))
+      .then(() => {
+        setMarkingError(null);
+      })
+      .catch(() => {
+        setMarkingError(FILE_ATTACHMENT_UI_LABELS.markingUndoFailed);
+      });
   }, [onUndoMarking, undoTarget]);
   const toggleLocation = useCallback(() => {
     setLocationOpen((current) => !current);

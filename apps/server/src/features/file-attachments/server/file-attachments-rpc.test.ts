@@ -193,4 +193,55 @@ describe("File Attachments RPC", () => {
       expect.objectContaining({ previewId: locationPreview.previewId }),
     );
   });
+
+  test("maps Work lifecycle conflicts raised through the Bind as origin seam", async () => {
+    const staleRevisionError = Object.assign(
+      new Error("Work has changed. Reload and try again."),
+      { code: "STALE_BASE_REVISION", currentRevision: 4 },
+    );
+    const fileAttachments: FileAttachmentAccess = {
+      canSelectIntoExternalSurface: vi.fn(),
+      cleanupVersionDerivatives: vi.fn(),
+      createMarking: vi.fn(),
+      finalize: vi.fn(),
+      getQuota: vi.fn(),
+      list: vi.fn(),
+      listMarkings: vi.fn(),
+      previewLocationBind: vi.fn(),
+      preview: vi.fn(),
+      readAsset: vi.fn(),
+      stage: vi.fn(),
+      undoMarking: vi.fn(),
+      bindLocation: vi.fn().mockRejectedValue(staleRevisionError),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(fileAttachments),
+    });
+
+    await expect(
+      client.bindFileAttachmentLocation({
+        attachmentId: "attachment-1",
+        baseRevision: 2,
+        clientIdempotencyKey: "origin-key-2",
+        location: locationPreview.location,
+        mode: "existing",
+        previewId: locationPreview.previewId,
+        versionId: "version-1",
+        workId: "work-1",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await expect(
+      client.bindFileAttachmentLocation({
+        attachmentId: "attachment-1",
+        baseRevision: 2,
+        clientIdempotencyKey: "origin-key-2",
+        location: locationPreview.location,
+        mode: "existing",
+        previewId: locationPreview.previewId,
+        versionId: "version-1",
+        workId: "work-1",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(fileAttachments.bindLocation).toHaveBeenCalledTimes(2);
+  });
 });

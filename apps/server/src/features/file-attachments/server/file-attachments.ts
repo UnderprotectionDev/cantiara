@@ -521,7 +521,6 @@ export type FileAttachmentErrorCode =
   | "FILE_ATTACHMENT_ACCOUNT_NOT_FOUND"
   | "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT"
   | "FILE_ATTACHMENT_LOCATION_UNSUPPORTED"
-  | "FILE_ATTACHMENT_MARKING_NOT_FOUND"
   | "FILE_ATTACHMENT_MARKING_UNSUPPORTED"
   | "FILE_ATTACHMENT_QUOTA_EXCEEDED"
   | "FILE_ATTACHMENT_REVISION_CONFLICT"
@@ -807,16 +806,18 @@ export function createFileAttachments({
     return source;
   }
 
-  async function validatePdfPage(
+  // PDF page counts never change for a committed File Attachment version, so
+  // one resolved count serves every later marking or Bind as origin call in
+  // this process instead of re-reading and re-parsing the object each time.
+  const pdfPageCounts = new Map<string, number>();
+
+  async function pdfPageCount(
     accountId: string,
     source: FileAttachmentStoredVersion,
-    page: number | undefined,
-    errorCode:
-      | "FILE_ATTACHMENT_LOCATION_UNSUPPORTED"
-      | "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
-  ) {
-    if (source.version.preview !== "pdf" || page === undefined) {
-      return;
+  ): Promise<number> {
+    const cached = pdfPageCounts.get(source.version.id);
+    if (cached !== undefined) {
+      return cached;
     }
     const rendered = await fileAttachmentPreview.preview(accountId, {
       attachmentId: source.attachment.id,
@@ -832,7 +833,22 @@ export function createFileAttachments({
         "The PDF page count is unavailable.",
       );
     }
-    if (page > rendered.pageCount) {
+    pdfPageCounts.set(source.version.id, rendered.pageCount);
+    return rendered.pageCount;
+  }
+
+  async function validatePdfPage(
+    accountId: string,
+    source: FileAttachmentStoredVersion,
+    page: number | undefined,
+    errorCode:
+      | "FILE_ATTACHMENT_LOCATION_UNSUPPORTED"
+      | "FILE_ATTACHMENT_MARKING_UNSUPPORTED",
+  ) {
+    if (source.version.preview !== "pdf" || page === undefined) {
+      return;
+    }
+    if (page > (await pdfPageCount(accountId, source))) {
       throw new FileAttachmentError(
         errorCode,
         "The selected PDF page is outside the available document pages.",
@@ -958,10 +974,13 @@ export function createFileAttachments({
     }
   }
 
-  async function previewLocationBind(
+  async function resolveLocationPreview(
     accountId: string,
     rawInput: FileAttachmentLocationBindPreviewInput,
-  ): Promise<FileAttachmentLocationBindPreview> {
+  ): Promise<{
+    preview: FileAttachmentLocationBindPreview;
+    source: FileAttachmentStoredVersion;
+  }> {
     const input = fileAttachmentLocationBindPreviewInputSchema.parse(rawInput);
     const source = await exactSource(
       accountId,
@@ -1000,7 +1019,7 @@ export function createFileAttachments({
         "The selected Project is unavailable.",
       );
     }
-    const preview = {
+    const preview = fileAttachmentLocationBindPreviewSchema.parse({
       attachmentId: input.attachmentId,
       location: input.location,
       previewId: locationPreviewId(source, input, target),
@@ -1014,8 +1033,16 @@ export function createFileAttachments({
             }
           : { mode: "existing" as const, work: target },
       versionId: input.versionId,
-    };
-    return fileAttachmentLocationBindPreviewSchema.parse(preview);
+    });
+    return { preview, source };
+  }
+
+  async function previewLocationBind(
+    accountId: string,
+    rawInput: FileAttachmentLocationBindPreviewInput,
+  ): Promise<FileAttachmentLocationBindPreview> {
+    const { preview } = await resolveLocationPreview(accountId, rawInput);
+    return preview;
   }
 
   async function bindLocation(
@@ -1042,11 +1069,9 @@ export function createFileAttachments({
             versionId: input.versionId,
             workId: input.workId,
           };
-    const preview = await previewLocationBind(accountId, previewInput);
-    const source = await exactSource(
+    const { preview, source } = await resolveLocationPreview(
       accountId,
-      input.attachmentId,
-      input.versionId,
+      previewInput,
     );
     const position = originPosition(source, input.location);
     if (preview.previewId !== input.previewId) {

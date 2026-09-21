@@ -320,7 +320,6 @@ function rethrowFileAttachmentError(error: unknown): never {
         message,
       });
     case "FILE_ATTACHMENT_ACCOUNT_NOT_FOUND":
-    case "FILE_ATTACHMENT_MARKING_NOT_FOUND":
     case "FILE_ATTACHMENT_TARGET_NOT_FOUND":
     case "FILE_ATTACHMENT_UPLOAD_NOT_FOUND":
       throw new ORPCError("NOT_FOUND", {
@@ -350,6 +349,17 @@ function rethrowFileAttachmentError(error: unknown): never {
       }
       throw error;
   }
+}
+
+function rethrowFileAttachmentWorkError(error: unknown): never {
+  if (
+    isRecord(error) &&
+    typeof error.code === "string" &&
+    error.code.startsWith("FILE_ATTACHMENT_")
+  ) {
+    rethrowFileAttachmentError(error);
+  }
+  rethrowWorkLifecycleError(error);
 }
 
 function requireCaptureInboxTriage(context: Context): CaptureInboxTriageAccess {
@@ -2684,7 +2694,7 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowFileAttachmentError(error);
+        rethrowFileAttachmentWorkError(error);
       }
     }),
   bindFileAttachmentLocation: protectedProcedure
@@ -2696,7 +2706,7 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        rethrowFileAttachmentError(error);
+        rethrowFileAttachmentWorkError(error);
       }
     }),
   finalizeFileAttachment: protectedProcedure

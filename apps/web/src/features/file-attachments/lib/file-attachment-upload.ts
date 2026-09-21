@@ -22,6 +22,13 @@ interface FileAttachmentUploadDependencies {
   serverURL?: string;
 }
 
+interface FileAttachmentUploadOptions {
+  /** Resolves once staging is complete and the finalize barrier begins. */
+  onFinalizeStart?: () => void;
+  /** Cancels the staging upload; finalize has not started in that case. */
+  signal?: AbortSignal;
+}
+
 function defaultDependencies(): Required<FileAttachmentUploadDependencies> {
   return {
     createIdempotencyKey: () => crypto.randomUUID(),
@@ -56,6 +63,7 @@ export async function uploadFileAttachment(
   file: File,
   scope: FileAttachmentScope,
   overrides: FileAttachmentUploadDependencies = {},
+  options: FileAttachmentUploadOptions = {},
 ) {
   const dependencies = { ...defaultDependencies(), ...overrides };
   const clientIdempotencyKey = dependencies.createIdempotencyKey();
@@ -69,20 +77,31 @@ export async function uploadFileAttachment(
   form.set("scope", JSON.stringify(scope));
 
   const headers = await createTauriBearerHeaders(undefined);
-  const response = await dependencies.request(
-    new URL(FILE_ATTACHMENT_STAGE_PATH, dependencies.serverURL),
-    {
-      body: form,
-      credentials: "include",
-      headers,
-      method: "POST",
-    },
-  );
+  let response: Response;
+  try {
+    response = await dependencies.request(
+      new URL(FILE_ATTACHMENT_STAGE_PATH, dependencies.serverURL),
+      {
+        body: form,
+        credentials: "include",
+        headers,
+        method: "POST",
+        signal: options.signal,
+      },
+    );
+  } catch (error) {
+    if (options.signal?.aborted) {
+      // biome-ignore lint/style/useErrorCause: DOMException does not accept ErrorOptions.
+      throw new DOMException("The staging upload was cancelled.", "AbortError");
+    }
+    throw error;
+  }
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response));
   }
 
   const upload = fileAttachmentUploadSessionSchema.parse(await response.json());
+  options.onFinalizeStart?.();
   return dependencies.finalize({
     clientIdempotencyKey,
     declaredMimeType,
