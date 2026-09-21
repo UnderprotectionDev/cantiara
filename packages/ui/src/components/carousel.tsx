@@ -6,19 +6,26 @@ import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import * as React from "react";
+import type * as React from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 
 type CarouselApi = UseEmblaCarouselType[1];
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>;
 type CarouselOptions = UseCarouselParameters[0];
 type CarouselPlugin = UseCarouselParameters[1];
 
-type CarouselProps = {
+interface CarouselProps {
   opts?: CarouselOptions;
-  plugins?: CarouselPlugin;
   orientation?: "horizontal" | "vertical";
+  plugins?: CarouselPlugin;
   setApi?: (api: CarouselApi) => void;
-};
+}
 
 type CarouselContextProps = {
   carouselRef: ReturnType<typeof useEmblaCarousel>[0];
@@ -29,10 +36,10 @@ type CarouselContextProps = {
   canScrollNext: boolean;
 } & CarouselProps;
 
-const CarouselContext = React.createContext<CarouselContextProps | null>(null);
+const CarouselContext = createContext<CarouselContextProps | null>(null);
 
 function useCarousel() {
-  const context = React.useContext(CarouselContext);
+  const context = useContext(CarouselContext);
 
   if (!context) {
     throw new Error("useCarousel must be used within a <Carousel />");
@@ -57,24 +64,26 @@ function Carousel({
     },
     plugins,
   );
-  const [canScrollPrev, setCanScrollPrev] = React.useState(false);
-  const [canScrollNext, setCanScrollNext] = React.useState(false);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
 
-  const onSelect = React.useCallback((api: CarouselApi) => {
-    if (!api) return;
-    setCanScrollPrev(api.canScrollPrev());
-    setCanScrollNext(api.canScrollNext());
+  const onSelect = useCallback((selectedApi: CarouselApi) => {
+    if (!selectedApi) {
+      return;
+    }
+    setCanScrollPrev(selectedApi.canScrollPrev());
+    setCanScrollNext(selectedApi.canScrollNext());
   }, []);
 
-  const scrollPrev = React.useCallback(() => {
+  const scrollPrev = useCallback(() => {
     api?.scrollPrev();
   }, [api]);
 
-  const scrollNext = React.useCallback(() => {
+  const scrollNext = useCallback(() => {
     api?.scrollNext();
   }, [api]);
 
-  const handleKeyDown = React.useCallback(
+  const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key === "ArrowLeft") {
         event.preventDefault();
@@ -87,13 +96,17 @@ function Carousel({
     [scrollPrev, scrollNext],
   );
 
-  React.useEffect(() => {
-    if (!api || !setApi) return;
+  useEffect(() => {
+    if (!(api && setApi)) {
+      return;
+    }
     setApi(api);
   }, [api, setApi]);
 
-  React.useEffect(() => {
-    if (!api) return;
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
     onSelect(api);
     api.on("reInit", onSelect);
     api.on("select", onSelect);
@@ -107,7 +120,7 @@ function Carousel({
     <CarouselContext.Provider
       value={{
         carouselRef,
-        api: api,
+        api,
         opts,
         orientation:
           orientation || (opts?.axis === "y" ? "vertical" : "horizontal"),
@@ -118,11 +131,11 @@ function Carousel({
       }}
     >
       <section
-        onKeyDownCapture={handleKeyDown}
-        className={cn("relative", className)}
-        role="region"
         aria-roledescription="carousel"
+        className={cn("relative", className)}
         data-slot="carousel"
+        onKeyDownCapture={handleKeyDown}
+        role="region"
         {...props}
       >
         {children}
@@ -136,9 +149,9 @@ function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
 
   return (
     <div
-      ref={carouselRef}
       className="overflow-hidden"
       data-slot="carousel-content"
+      ref={carouselRef}
     >
       <div
         className={cn(
@@ -158,14 +171,14 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: A carousel slide is not a form fieldset.
     <div
-      role="group"
       aria-roledescription="slide"
-      data-slot="carousel-item"
       className={cn(
         "min-w-0 shrink-0 grow-0 basis-full",
         orientation === "horizontal" ? "pl-4" : "pt-4",
         className,
       )}
+      data-slot="carousel-item"
+      role="group"
       {...props}
     />
   );
@@ -181,9 +194,6 @@ function CarouselPrevious({
 
   return (
     <Button
-      data-slot="carousel-previous"
-      variant={variant}
-      size={size}
       className={cn(
         "absolute touch-manipulation",
         orientation === "horizontal"
@@ -191,8 +201,11 @@ function CarouselPrevious({
           : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
         className,
       )}
+      data-slot="carousel-previous"
       disabled={!canScrollPrev}
       onClick={scrollPrev}
+      size={size}
+      variant={variant}
       {...props}
     >
       <ChevronLeftIcon />
@@ -211,9 +224,6 @@ function CarouselNext({
 
   return (
     <Button
-      data-slot="carousel-next"
-      variant={variant}
-      size={size}
       className={cn(
         "absolute touch-manipulation",
         orientation === "horizontal"
@@ -221,8 +231,11 @@ function CarouselNext({
           : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
         className,
       )}
+      data-slot="carousel-next"
       disabled={!canScrollNext}
       onClick={scrollNext}
+      size={size}
+      variant={variant}
       {...props}
     >
       <ChevronRightIcon />

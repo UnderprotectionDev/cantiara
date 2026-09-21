@@ -28,8 +28,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "check": "bunx --bun biome check .",
-    "check:ultracite": "bunx --bun biome check --config-path=biome.ultracite.json --write --no-errors-on-unmatched --files-ignore-unknown=true",
+    "check": "bun run check:ultracite",
+    "check:ultracite": "bunx --bun ultracite check",
     "check-types": "turbo run check-types",
     "db:generate": "turbo run db:generate -F @cantiara/db --",
     "db:migrate": "turbo run db:migrate -F @cantiara/db --",
@@ -41,6 +41,7 @@
     "dev:server": "turbo run dev -F server --",
     "dev:types": "tsc -b packages/api --watch",
     "dev:web": "turbo run dev -F web --",
+    "fix:ultracite": "bunx --bun ultracite fix",
     "postinstall": "tsc -b packages/api && bun scripts/install-hooks.ts",
     "test:e2e": "bun run --cwd apps/web test:e2e"
   },

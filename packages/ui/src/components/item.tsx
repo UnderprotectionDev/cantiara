@@ -9,12 +9,12 @@ function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: ItemGroup supports render-polymorphic non-list layouts.
     <div
-      role="list"
-      data-slot="item-group"
       className={cn(
         "group/item-group flex w-full flex-col gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2",
         className,
       )}
+      data-slot="item-group"
+      role="list"
       {...props}
     />
   );
@@ -26,9 +26,9 @@ function ItemSeparator({
 }: React.ComponentProps<typeof Separator>) {
   return (
     <Separator
+      className={cn("my-2", className)}
       data-slot="item-separator"
       orientation="horizontal"
-      className={cn("my-2", className)}
       {...props}
     />
   );
@@ -104,9 +104,9 @@ function ItemMedia({
 }: React.ComponentProps<"div"> & VariantProps<typeof itemMediaVariants>) {
   return (
     <div
+      className={cn(itemMediaVariants({ variant, className }))}
       data-slot="item-media"
       data-variant={variant}
-      className={cn(itemMediaVariants({ variant, className }))}
       {...props}
     />
   );
@@ -115,11 +115,11 @@ function ItemMedia({
 function ItemContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-slot="item-content"
       className={cn(
         "flex flex-1 flex-col gap-1 group-data-[size=xs]/item:gap-0 [&+[data-slot=item-content]]:flex-none",
         className,
       )}
+      data-slot="item-content"
       {...props}
     />
   );
@@ -128,11 +128,11 @@ function ItemContent({ className, ...props }: React.ComponentProps<"div">) {
 function ItemTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-slot="item-title"
       className={cn(
         "line-clamp-1 flex w-fit items-center gap-2 font-medium text-xs underline-offset-4",
         className,
       )}
+      data-slot="item-title"
       {...props}
     />
   );
@@ -141,11 +141,11 @@ function ItemTitle({ className, ...props }: React.ComponentProps<"div">) {
 function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
-      data-slot="item-description"
       className={cn(
         "line-clamp-2 text-left font-normal text-muted-foreground text-xs/relaxed group-data-[size=xs]/item:text-xs/relaxed [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         className,
       )}
+      data-slot="item-description"
       {...props}
     />
   );
@@ -154,8 +154,8 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
 function ItemActions({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-slot="item-actions"
       className={cn("flex items-center gap-2", className)}
+      data-slot="item-actions"
       {...props}
     />
   );
@@ -164,11 +164,11 @@ function ItemActions({ className, ...props }: React.ComponentProps<"div">) {
 function ItemHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-slot="item-header"
       className={cn(
         "flex basis-full items-center justify-between gap-2",
         className,
       )}
+      data-slot="item-header"
       {...props}
     />
   );
@@ -177,11 +177,11 @@ function ItemHeader({ className, ...props }: React.ComponentProps<"div">) {
 function ItemFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-slot="item-footer"
       className={cn(
         "flex basis-full items-center justify-between gap-2",
         className,
       )}
+      data-slot="item-footer"
       {...props}
     />
   );

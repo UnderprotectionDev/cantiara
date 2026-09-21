@@ -7,8 +7,8 @@ import type * as React from "react";
 function BubbleGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      data-slot="bubble-group"
       className={cn("flex min-w-0 flex-col gap-2", className)}
+      data-slot="bubble-group"
       {...props}
     />
   );
@@ -52,10 +52,10 @@ function Bubble({
   }) {
   return (
     <div
+      className={cn(bubbleVariants({ variant }), className)}
+      data-align={align}
       data-slot="bubble"
       data-variant={variant}
-      data-align={align}
-      className={cn(bubbleVariants({ variant }), className)}
       {...props}
     />
   );
@@ -115,10 +115,10 @@ function BubbleReactions({
 }) {
   return (
     <div
-      data-slot="bubble-reactions"
+      className={cn(bubbleReactionsVariants({ side, align }), className)}
       data-align={align}
       data-side={side}
-      className={cn(bubbleReactionsVariants({ side, align }), className)}
+      data-slot="bubble-reactions"
       {...props}
     />
   );

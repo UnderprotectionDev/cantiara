@@ -7,6 +7,7 @@
 ├── .github/
 │   └── workflows/
 │       ├── account-access-integration.yml
+│       ├── code-quality.yml
 │       └── macos-release.yml
 ├── apps/
 │   ├── extension/
@@ -412,8 +413,8 @@
 ├── scripts/
 │   ├── install-hooks.ts
 │   └── neon-local-proxy.ts
+├── biome.base.json
 ├── biome.json
-├── biome.ultracite.json
 ├── bun.lock
 ├── lefthook.yml
 ├── package.json
