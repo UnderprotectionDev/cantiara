@@ -24,12 +24,17 @@
     "file-type": "^21.0.0",
     "hono": "^4.13.7",
     "ipaddr.js": "^1.9.1",
+    "papaparse": "5.5.3",
+    "pdfjs-dist": "^6.3.289",
+    "pg-boss": "^12.33.3",
+    "sharp": "0.35.4",
     "undici": "^7.29.1",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@cantiara/config": "workspace:*",
     "@types/bun": "catalog:",
+    "@types/papaparse": "5.3.16",
     "tsdown": "^0.23.0",
     "typescript": "catalog:"
   }

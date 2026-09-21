@@ -1,6 +1,15 @@
 import { z } from "zod";
 
 import type { MutationContract } from "./mutation-and-undo";
+import {
+  cloneWorkContextLayouts,
+  getDefaultWorkContextLayouts,
+  normalizeWorkContextLayout,
+  repairWorkContextLayouts,
+  type WorkContextLayouts,
+  workContextLayoutSchema,
+} from "./work-context";
+import { workTypeSchema } from "./work-lifecycle";
 
 export const STARTER_CONFIGURATION_OPTIONS = [
   "Blank Project",
@@ -406,6 +415,7 @@ export function getStarterConfigurationDefinition(
 
 export interface ProjectShellConfiguration
   extends StarterConfigurationDefinition {
+  workContextLayouts: WorkContextLayouts;
   workStatuses: readonly ProtectedWorkStatus[];
   workStatusLabels: readonly WorkStatusLabel[];
 }
@@ -418,6 +428,9 @@ export const projectShellConfigurationSchema = z
     preparedStages: projectStagesSchema,
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema,
+    // Work Context Card layouts are repaired on read; storage stays lenient so
+    // an evolved prepared section set cannot invalidate the configuration.
+    workContextLayouts: z.unknown().optional(),
     workStatuses: protectedWorkStatusesSchema,
     workStatusLabels: workStatusLabelsSchema,
   })
@@ -433,6 +446,7 @@ const legacyProjectShellConfigurationSchema = z
     ),
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema.optional(),
+    workContextLayouts: z.unknown().optional(),
     workStatuses: protectedWorkStatusesSchema,
     workStatusLabels: workStatusLabelsSchema.optional(),
   })
@@ -443,6 +457,7 @@ export function getProjectShellConfiguration(
 ): ProjectShellConfiguration {
   return {
     ...getStarterConfigurationDefinition(configuration),
+    workContextLayouts: getDefaultWorkContextLayouts(),
     workStatuses: [...PROTECTED_WORK_STATUS_OPTIONS],
     workStatusLabels: defaultWorkStatusLabels(),
   };
@@ -472,6 +487,9 @@ function cloneProjectShellConfiguration(
     preparedStages: clonePreparedStages(configuration.preparedStages),
     preparedWorkViews: [...configuration.preparedWorkViews],
     starterSkeletons: cloneStarterSkeletons(configuration.starterSkeletons),
+    workContextLayouts: cloneWorkContextLayouts(
+      configuration.workContextLayouts,
+    ),
     workStatuses: [...configuration.workStatuses],
     workStatusLabels: cloneWorkStatusLabels(configuration.workStatusLabels),
   };
@@ -484,15 +502,28 @@ export function resolveProjectShellConfiguration(
   const parsed = projectShellConfigurationSchema.safeParse(value);
   const expected = getProjectShellConfiguration(starterConfiguration);
   if (parsed.success) {
+    const resolved: ProjectShellConfiguration = {
+      enabledAreas: [...parsed.data.enabledAreas],
+      extraPinnedAreas: [...parsed.data.extraPinnedAreas],
+      hiddenAreas: [...parsed.data.hiddenAreas],
+      preparedStages: clonePreparedStages(parsed.data.preparedStages),
+      preparedWorkViews: [...parsed.data.preparedWorkViews],
+      starterSkeletons: cloneStarterSkeletons(parsed.data.starterSkeletons),
+      workContextLayouts: repairWorkContextLayouts(
+        parsed.data.workContextLayouts,
+      ),
+      workStatuses: [...parsed.data.workStatuses],
+      workStatusLabels: cloneWorkStatusLabels(parsed.data.workStatusLabels),
+    };
     return starterSkeletonsEqual(
-      parsed.data.starterSkeletons,
+      resolved.starterSkeletons,
       expected.starterSkeletons,
     )
-      ? cloneProjectShellConfiguration(parsed.data)
-      : cloneProjectShellConfiguration({
-          ...parsed.data,
+      ? resolved
+      : {
+          ...resolved,
           starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
-        });
+        };
   }
 
   const legacy = legacyProjectShellConfigurationSchema.safeParse(value);
@@ -502,6 +533,9 @@ export function resolveProjectShellConfiguration(
         hiddenAreas: [...(legacy.data.hiddenAreas ?? [])],
         preparedStages: normalizeLegacyStages(legacy.data.preparedStages),
         starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
+        workContextLayouts: repairWorkContextLayouts(
+          legacy.data.workContextLayouts,
+        ),
         workStatusLabels: cloneWorkStatusLabels(
           legacy.data.workStatusLabels ?? defaultWorkStatusLabels(),
         ),
@@ -524,10 +558,21 @@ export function enableProjectArea(
     preparedStages: clonePreparedStages(configuration.preparedStages),
     preparedWorkViews: [...configuration.preparedWorkViews],
     starterSkeletons: cloneStarterSkeletons(configuration.starterSkeletons),
+    workContextLayouts: cloneWorkContextLayouts(
+      configuration.workContextLayouts,
+    ),
     workStatuses: [...configuration.workStatuses],
     workStatusLabels: cloneWorkStatusLabels(configuration.workStatusLabels),
   };
 }
+
+export const workContextLayoutChangeSchema = z
+  .object({
+    kind: z.literal("set-work-context-layout"),
+    layout: workContextLayoutSchema,
+    workType: workTypeSchema,
+  })
+  .strict();
 
 export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
   "kind",
@@ -598,6 +643,7 @@ export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
         semantic: protectedWorkStatusSchema,
       })
       .strict(),
+    workContextLayoutChangeSchema,
   ],
 );
 
@@ -618,11 +664,36 @@ export type UpdateProjectConfigurationInput = z.input<
   typeof updateProjectConfigurationInputSchema
 >;
 
+export const previewWorkContextLayoutInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    change: workContextLayoutChangeSchema,
+    projectId: z.string().trim().min(1),
+  })
+  .strict();
+
+export type PreviewWorkContextLayoutInput = z.input<
+  typeof previewWorkContextLayoutInputSchema
+>;
+
+export const undoWorkContextLayoutInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: z.string().trim().min(1).max(255),
+    projectId: z.string().trim().min(1),
+    receiptId: z.string().trim().min(1).max(255),
+  })
+  .strict();
+
+export type UndoWorkContextLayoutInput = z.input<
+  typeof undoWorkContextLayoutInputSchema
+>;
+
 export class ProjectShellConfigurationChangeError extends Error {
   readonly code = "PROJECT_CONFIGURATION_CHANGE_REJECTED" as const;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "ProjectShellConfigurationChangeError";
   }
 }
@@ -768,6 +839,22 @@ export function applyProjectShellConfigurationChange(
           ? { ...status, label: parsedChange.label }
           : status,
       );
+      return next;
+    case "set-work-context-layout":
+      try {
+        next.workContextLayouts[parsedChange.workType] =
+          normalizeWorkContextLayout(
+            parsedChange.workType,
+            parsedChange.layout,
+          );
+      } catch (error) {
+        throw new ProjectShellConfigurationChangeError(
+          error instanceof Error
+            ? error.message
+            : "Work Context Card layout is invalid.",
+          { cause: error },
+        );
+      }
       return next;
     default:
       throw new ProjectShellConfigurationChangeError(
@@ -1000,6 +1087,10 @@ export type ProjectShellCreateRecord = Omit<
 export interface ProjectShellMutationValue {
   project: ProjectProfile | null;
 }
+
+export type WorkContextLayoutMutationResult = ProjectProfile & {
+  receiptId: string;
+};
 
 export type ProjectShellMutationContract =
   MutationContract<ProjectShellMutationValue>;

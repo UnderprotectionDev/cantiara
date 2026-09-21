@@ -29,6 +29,7 @@ import {
   ProjectAreaAvailability,
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
+import WorkContextCardLayoutEditor from "@/features/work-context/ui/components/work-context-card-layout-editor";
 
 export default function ProjectConfigurationForm({
   baseRevision,
@@ -198,6 +199,7 @@ export default function ProjectConfigurationForm({
           <div className="min-w-0 rounded-md border border-border/70 bg-background/55 p-4 sm:p-5">
             {configurationHost ? (
               <ConfigurationHostPanel
+                baseRevision={baseRevision}
                 configuration={configuration}
                 disabled={disabled}
                 error={combinedError}
@@ -251,6 +253,7 @@ function ConfigurationHostButton({
 }
 
 function ConfigurationHostPanel({
+  baseRevision,
   configuration,
   disabled,
   error,
@@ -260,6 +263,7 @@ function ConfigurationHostPanel({
   onReorderPinnedArea,
   projectId,
 }: {
+  baseRevision: number;
   configuration: ProjectShellConfiguration;
   disabled: boolean;
   error: string | null;
@@ -288,6 +292,7 @@ function ConfigurationHostPanel({
         {label}
       </h4>
       <ConfigurationHostContent
+        baseRevision={baseRevision}
         configuration={configuration}
         disabled={disabled}
         error={error}
@@ -303,6 +308,7 @@ function ConfigurationHostPanel({
 }
 
 function ConfigurationHostContent({
+  baseRevision,
   configuration,
   disabled,
   error,
@@ -313,6 +319,7 @@ function ConfigurationHostContent({
   onReorderPinnedArea,
   projectId,
 }: {
+  baseRevision: number;
   configuration: ProjectShellConfiguration;
   disabled: boolean;
   error: string | null;
@@ -357,7 +364,15 @@ function ConfigurationHostContent({
     case "Custom field":
       return <CustomFieldEditor disabled={disabled} projectId={projectId} />;
     case "Work Context Card layout":
-      return <WorkContextCardLayoutEditorHost message={message} />;
+      return (
+        <WorkContextCardLayoutEditor
+          baseRevision={baseRevision}
+          configuration={configuration}
+          disabled={disabled}
+          error={error}
+          projectId={projectId}
+        />
+      );
     default:
       return <p className="mt-1">{message}</p>;
   }
@@ -714,17 +729,6 @@ function WorkStatusesConfiguration({
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function WorkContextCardLayoutEditorHost({ message }: { message: string }) {
-  return (
-    <div
-      className="mt-3 rounded-md border border-border/70 bg-muted/20 p-3"
-      data-configuration-editor-host="work-context-card-layout"
-    >
-      <p>{message}</p>
     </div>
   );
 }

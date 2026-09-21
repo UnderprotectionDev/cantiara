@@ -14,7 +14,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
-
+import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import ProjectOverviewView from "@/features/project-overview/ui/components/project-overview";
 import {
   isProjectShellExplanationDismissed,
@@ -131,6 +131,14 @@ export default function ProjectShellSurface({
           projectId={projectId}
         />
       );
+    }
+
+    if (
+      activeHash === "documents" &&
+      configuration.enabledAreas.includes("Documents") &&
+      !configuration.hiddenAreas.includes("Documents")
+    ) {
+      return <FileAttachmentsSurface projectId={projectId} />;
     }
 
     return (
@@ -328,6 +336,7 @@ function ProjectWorkSurface({
           <ProjectWorkList
             accountFormattingPreferences={accountFormattingPreferences}
             projectId={projectId}
+            workContextLayouts={configuration.workContextLayouts}
             workStatusLabels={configuration.workStatusLabels}
           />
         </div>

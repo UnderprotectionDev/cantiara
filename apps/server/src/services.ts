@@ -31,6 +31,8 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
+import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
+import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
 import { createFileAttachments } from "./features/file-attachments/server/file-attachments";
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createR2FileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-r2";
@@ -120,13 +122,40 @@ const fileAttachmentObjectStore =
         secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       })
     : undefined;
+let processFileAttachmentPreview:
+  | ((
+      job: {
+        accountId: string;
+        attachmentId: string;
+        versionId: string;
+      },
+      options: FileAttachmentPreviewProcessOptions,
+    ) => Promise<void>)
+  | undefined;
+const fileAttachmentPreviewWorker = fileAttachmentObjectStore
+  ? createFileAttachmentPreviewWorker({
+      connectionString: env.DATABASE_URL,
+      process: async (job, options) => {
+        if (!processFileAttachmentPreview) {
+          throw new Error("File Attachment preview worker is not ready.");
+        }
+        await processFileAttachmentPreview(job, options);
+      },
+    })
+  : undefined;
 const fileAttachmentService = fileAttachmentObjectStore
   ? createFileAttachments({
       objectStore: fileAttachmentObjectStore,
       repository: fileAttachmentRepository,
+      schedulePreview: fileAttachmentPreviewWorker?.enqueue,
     })
   : undefined;
+processFileAttachmentPreview = fileAttachmentService?.processPreview;
 export const fileAttachments = fileAttachmentService?.access;
+export const startFileAttachmentPreviewWorker = () =>
+  fileAttachmentPreviewWorker?.start() ?? Promise.resolve();
+export const stopFileAttachmentPreviewWorker = () =>
+  fileAttachmentPreviewWorker?.stop() ?? Promise.resolve();
 export const sweepExpiredFileAttachmentUploads = () =>
   fileAttachmentService?.sweepExpiredUploads() ?? Promise.resolve(0);
 export const captureInbox = createDatabaseCaptureInbox(

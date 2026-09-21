@@ -260,8 +260,12 @@
 │       │   │   ├── work-context/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── work-context-card-layout-editor.test.tsx
+│       │   │   │           ├── work-context-card-layout-editor.tsx
 │       │   │   │           ├── work-context-card.test.tsx
-│       │   │   │           └── work-context-card.tsx
+│       │   │   │           ├── work-context-card.tsx
+│       │   │   │           ├── work-context-markdown.test.ts
+│       │   │   │           └── work-context-markdown.ts
 │       │   │   ├── work-drafts/
 │       │   │   │   └── ui/
 │       │   │   │       └── forms/
@@ -287,7 +291,8 @@
 │       │   │               ├── saved-project-lists.tsx
 │       │   │               └── workspace-overview.tsx
 │       │   ├── lib/
-│       │   │   └── auth-client.ts
+│       │   │   ├── auth-client.ts
+│       │   │   └── clipboard.ts
 │       │   ├── routes/
 │       │   │   ├── _auth/
 │       │   │   │   ├── account/

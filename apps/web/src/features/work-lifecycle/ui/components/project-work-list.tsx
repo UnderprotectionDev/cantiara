@@ -1,7 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
-import type { WorkStatusLabel } from "@cantiara/api/project-shell";
+import type {
+  ProjectShellConfiguration,
+  WorkStatusLabel,
+} from "@cantiara/api/project-shell";
 import {
   WORK_TYPE_OPTIONS,
   type WorkMergeResult,
@@ -31,10 +34,12 @@ import WorkStatusForm from "../forms/work-status-form";
 export default function ProjectWorkList({
   accountFormattingPreferences,
   projectId,
+  workContextLayouts,
   workStatusLabels,
 }: {
   accountFormattingPreferences: AccountPreferences;
   projectId: string;
+  workContextLayouts: ProjectShellConfiguration["workContextLayouts"];
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
@@ -211,6 +216,7 @@ export default function ProjectWorkList({
               <WorkContextCard
                 projectWorks={allProjectWorksQuery.data ?? query.data}
                 work={work}
+                workContextLayouts={workContextLayouts}
                 workStatusLabels={workStatusLabels}
               />
               <CustomFieldValues

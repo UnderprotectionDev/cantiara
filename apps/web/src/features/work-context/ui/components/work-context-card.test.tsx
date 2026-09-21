@@ -1,6 +1,10 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { RelationView } from "@cantiara/api/relations";
-import type { WorkContextPriorityValues } from "@cantiara/api/work-context";
+import {
+  getDefaultWorkContextLayouts,
+  type WorkContextLayouts,
+  type WorkContextPriorityValues,
+} from "@cantiara/api/work-context";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -61,9 +65,16 @@ const work: WorkProfile = {
 function renderCard(
   statusLabels: readonly WorkStatusLabel[],
   relations: readonly RelationView[] = [],
+  workContextLayouts?: Partial<WorkContextLayouts>,
   priorityValues?: WorkContextPriorityValues,
 ) {
   const queryClient = new QueryClient();
+  queryClient.setQueryData(
+    orpc.relations.queryOptions({
+      input: { recordId: work.id, recordType: "Work" },
+    }).queryKey,
+    [...relations],
+  );
   queryClient.setQueryData(
     orpc.workContext.queryOptions({ input: { workId: work.id } }).queryKey,
     {
@@ -83,6 +94,7 @@ function renderCard(
         <WorkContextCard
           priorityValues={priorityValues}
           work={work}
+          workContextLayouts={workContextLayouts}
           workStatusLabels={statusLabels}
         />
       </QueryClientProvider>
@@ -109,6 +121,43 @@ describe("Work Context Card initial fields", () => {
 
     expect(html).toContain("Nothing here yet.");
     expect(html).toContain(">Link</button>");
+  });
+
+  test("uses the Project + Work type layout and does not offer hidden sections", () => {
+    const layouts = getDefaultWorkContextLayouts();
+    layouts.Task = {
+      ...layouts.Task,
+      customSections: [
+        {
+          condition: {
+            kind: "record-type",
+            recordType: "Decision",
+            status: null,
+          },
+          id: "custom-decisions",
+          title: "Decision trail",
+        },
+      ],
+      hiddenSections: ["Description"],
+      sectionOrder: [
+        "custom-decisions",
+        "Dependencies",
+        "Description",
+        "GitHub & Tests",
+        "Target Release",
+      ],
+    };
+    const html = renderCard(workStatusLabels, [], layouts);
+
+    expect(html).toContain("Opens Decision trail.");
+    expect(html).not.toContain("Opens Description.");
+  });
+
+  test("offers Copy Context as Markdown from the Work Context Card", () => {
+    const html = renderCard(workStatusLabels);
+
+    expect(html).toContain("Copy Context as Markdown");
+    expect(html).not.toContain("Create Context");
   });
 
   test("renders live source names, status, and source links in the why chain", () => {
@@ -350,6 +399,7 @@ describe("Work Context Card initial fields", () => {
           },
         },
       ],
+      undefined,
       {
         effort: "3 days",
         priorityMetrics: [

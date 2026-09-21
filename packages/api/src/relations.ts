@@ -33,6 +33,21 @@ export type RelationKind = (typeof RELATION_KIND_OPTIONS)[number];
 export const relationKindSchema = z.enum(RELATION_KIND_OPTIONS);
 
 /**
+ * Evidence Role is optional relation metadata. Evidence owns writing and
+ * history for this field; relation consumers may read the closed catalog.
+ */
+export const RELATION_EVIDENCE_ROLE_OPTIONS = [
+  "Supports",
+  "Contradicts",
+  "Provides context",
+  "Inconclusive",
+  "Unspecified",
+] as const;
+
+export type RelationEvidenceRole =
+  (typeof RELATION_EVIDENCE_ROLE_OPTIONS)[number];
+
+/**
  * This is the shared catalog of possible main-record endpoints. Owned
  * components such as checklist items and canvas nodes are intentionally not
  * record types here: their provenance belongs to their owning main record.
@@ -501,12 +516,14 @@ export interface RelationEndpointView extends RelationEndpoint {
   projectId: string | null;
   status: WorkStatus | null;
   title: string | null;
+  url?: string | null;
   workType: WorkType | null;
 }
 
 export interface RelationView {
   createdAt: string;
   direction: "incoming" | "outgoing";
+  evidenceRole?: RelationEvidenceRole;
   id: string;
   inverseLabel: string;
   kind: RelationKind;

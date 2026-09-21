@@ -5,14 +5,21 @@ import {
   FILE_ATTACHMENT_TYPE_RULES,
   FILE_ATTACHMENT_UI_LABELS,
   fileAttachmentFinalizeInputSchema,
+  fileAttachmentPreviewSchema,
   fileAttachmentScopeSchema,
 } from "./file-attachments";
 
 describe("File Attachments contract", () => {
   test("keeps the product labels and original-byte limits in one matrix", () => {
     expect(FILE_ATTACHMENT_UI_LABELS).toMatchObject({
+      captions: "Captions",
       fileAttachment: "File Attachment",
       finalizing: "Finalizing",
+      fullscreen: "Fullscreen",
+      loop: "Loop",
+      playbackSpeed: "Playback speed",
+      preview: "Preview",
+      retryPreview: "Retry preview",
       uploadNewVersion: "Upload new version",
     });
     expect(FILE_ATTACHMENT_TYPE_RULES.image.maxBytes).toBe(25 * 1024 * 1024);
@@ -64,5 +71,23 @@ describe("File Attachments contract", () => {
         uploadId: "upload-object-2",
       }),
     ).toMatchObject({ mode: "new-version" });
+  });
+
+  test("describes a ZIP as download-only without exposing an object URL", () => {
+    const preview = fileAttachmentPreviewSchema.parse({
+      attachmentId: "attachment-1",
+      downloadPath:
+        "/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+      kind: "download",
+      status: "download-only",
+      versionId: "version-1",
+    });
+
+    expect(preview).toMatchObject({
+      kind: "download",
+      status: "download-only",
+    });
+    expect(preview).not.toHaveProperty("objectKey");
+    expect(preview).not.toHaveProperty("externalUrl");
   });
 });

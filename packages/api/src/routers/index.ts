@@ -48,6 +48,7 @@ import {
 import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
+  fileAttachmentPreviewInputSchema,
 } from "../file-attachments";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
@@ -66,10 +67,13 @@ import {
   enableProjectAreaInputSchema,
   getProjectShellConfiguration,
   type ProjectShellMutationValue,
+  previewWorkContextLayoutInputSchema,
   shortCodeSchema,
   suggestProjectShortCode,
+  undoWorkContextLayoutInputSchema,
   updateProjectConfigurationInputSchema,
   updateProjectShortCodeInputSchema,
+  type WorkContextLayoutMutationResult,
 } from "../project-shell";
 import {
   createUsageLinkMutationInputSchema,
@@ -97,6 +101,7 @@ import {
 } from "../tags";
 import type { WebCaptureAccess } from "../web-capture";
 import {
+  previewWorkContextLayout,
   type WorkContextAccess,
   workContextInputSchema,
 } from "../work-context";
@@ -128,6 +133,7 @@ import {
   workMergePreviewInputSchema,
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
+  workTypeSchema,
 } from "../work-lifecycle";
 import {
   type WorkspaceOverviewAccess,
@@ -139,6 +145,19 @@ function sessionPrincipal(session: NonNullable<Context["session"]>) {
     accountId: session.user.id,
     sessionId: session.session.id,
   };
+}
+
+const WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX =
+  "project.configuration.workContextLayouts.";
+
+function workContextLayoutTypeFromUndoScope(scope: string | undefined) {
+  if (!scope?.startsWith(WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX)) {
+    return null;
+  }
+  const parsed = workTypeSchema.safeParse(
+    scope.slice(WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX.length),
+  );
+  return parsed.success ? parsed.data : null;
 }
 
 const saveAccountPreferencesInputSchema = humanMutationEnvelopeSchema.extend({
@@ -328,6 +347,12 @@ function rethrowFileAttachmentError(error: unknown): never {
     case "FILE_ATTACHMENT_TARGET_NOT_FOUND":
     case "FILE_ATTACHMENT_UPLOAD_NOT_FOUND":
       throw new ORPCError("NOT_FOUND", {
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    case "FILE_ATTACHMENT_PREVIEW_UNAVAILABLE":
+      throw new ORPCError("SERVICE_UNAVAILABLE", {
         data: { code: error.code },
         defined: true,
         message,
@@ -1024,6 +1049,17 @@ function rethrowProjectShellMutationError(
     throw new ORPCError("NOT_FOUND", {
       defined: true,
       message: "Project is unavailable.",
+    });
+  }
+
+  if (code === "UNDO_NOT_SUPPORTED") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: {
+        code,
+        targetId,
+      },
+      defined: true,
+      message: "Work Context Card layout undo is not available.",
     });
   }
 
@@ -2485,12 +2521,145 @@ export const appRouter = {
               },
             } satisfies ProjectShellMutationValue;
           },
+          input.change.kind === "set-work-context-layout"
+            ? {
+                undo: {
+                  kind: "view-metadata",
+                  scope: `${WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX}${input.change.workType}`,
+                },
+              }
+            : undefined,
         );
         const { project } = receipt.nextValue;
         if (!project) {
           throw new ORPCError("NOT_FOUND");
         }
-        return project;
+        return input.change.kind === "set-work-context-layout"
+          ? ({
+              ...project,
+              receiptId: receipt.id,
+            } satisfies WorkContextLayoutMutationResult)
+          : project;
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
+  previewWorkContextLayout: protectedProcedure
+    .input(previewWorkContextLayoutInputSchema)
+    .handler(async ({ context, input }) => {
+      const project = await requireProjectShell(context).find(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!project) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      if (project.revision !== input.baseRevision) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          data: {
+            code: "STALE_BASE_REVISION",
+            currentRevision: project.revision,
+            currentValue: project,
+            label: MUTATION_UI_LABELS.currentValue,
+            targetId: input.projectId,
+          },
+          defined: true,
+          message: MUTATION_UI_LABELS.currentValue,
+        });
+      }
+      try {
+        const nextConfiguration = applyProjectShellConfigurationChange(
+          project.configuration,
+          input.change,
+          project.starterConfiguration,
+        );
+        return {
+          baseRevision: project.revision,
+          preview: previewWorkContextLayout(
+            input.change.workType,
+            project.configuration.workContextLayouts[input.change.workType],
+            nextConfiguration.workContextLayouts[input.change.workType],
+          ),
+          projectId: project.id,
+          workType: input.change.workType,
+        };
+      } catch (error) {
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
+  undoWorkContextLayout: protectedProcedure
+    .input(undoWorkContextLayoutInputSchema)
+    .handler(async ({ context, input }) => {
+      const mutation = requireProjectShellMutationContract(
+        context,
+        "update",
+        context.session.user.id,
+      );
+      if (!(mutation.findReceiptById && mutation.undo)) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const sourceReceipt = await mutation.findReceiptById(input.receiptId);
+        if (!sourceReceipt) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work Context Card layout history is unavailable.",
+          });
+        }
+        const workType = workContextLayoutTypeFromUndoScope(
+          sourceReceipt.undo?.scope,
+        );
+        if (sourceReceipt.targetId !== input.projectId || !workType) {
+          throw new ORPCError("BAD_REQUEST", {
+            data: { code: "WORK_CONTEXT_LAYOUT_UNDO_NOT_SUPPORTED" },
+            defined: true,
+            message: "Only Work Context Card layout changes can be undone.",
+          });
+        }
+        const receipt = await mutation.undo(
+          sourceReceipt,
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: input.projectId,
+          },
+          ({ currentValue, currentRevision, previousValue }) => {
+            if (!(currentValue.project && previousValue.project)) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            return {
+              project: {
+                ...currentValue.project,
+                configuration: {
+                  ...currentValue.project.configuration,
+                  workContextLayouts: {
+                    ...currentValue.project.configuration.workContextLayouts,
+                    [workType]:
+                      previousValue.project.configuration.workContextLayouts[
+                        workType
+                      ],
+                  },
+                },
+                revision: currentRevision + 1,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies ProjectShellMutationValue;
+          },
+        );
+        const { project } = receipt.nextValue;
+        if (!project) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return {
+          ...project,
+          receiptId: receipt.id,
+        } satisfies WorkContextLayoutMutationResult;
       } catch (error) {
         rethrowProjectShellMutationError(error, input.projectId);
       }
@@ -2659,6 +2828,29 @@ export const appRouter = {
           context.session.user.id,
           input,
         );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  previewFileAttachment: protectedProcedure
+    .input(fileAttachmentPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).preview(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  fileAttachmentExternalSurfaceSelection: protectedProcedure
+    .input(fileAttachmentPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(
+          context,
+        ).canSelectIntoExternalSurface(context.session.user.id, input);
       } catch (error) {
         rethrowFileAttachmentError(error);
       }

@@ -47,6 +47,7 @@ function createMemoryFileAttachments(
     string,
     { attachment: FileAttachment; versions: FileAttachmentVersion[] }
   >();
+  const versionObjectKeys = new Map<string, string>();
   const byteLimit = options.byteLimit ?? FILE_ATTACHMENT_QUOTA.maxBytes;
   const commitByteLimit = options.commitByteLimit ?? byteLimit;
 
@@ -196,6 +197,7 @@ function createMemoryFileAttachments(
       const record = existing ?? { attachment, versions: [] };
       record.attachment = attachment;
       record.versions.push(version);
+      versionObjectKeys.set(input.versionId, input.permanentObjectKey);
       attachments.set(input.attachmentId, record);
 
       const receipt = fileAttachmentFinalizeReceiptSchema.parse({
@@ -228,6 +230,34 @@ function createMemoryFileAttachments(
             upload.accountId === candidateAccountId &&
             upload.clientIdempotencyKey === clientIdempotencyKey,
         ) ?? null,
+      );
+    },
+
+    findVersion(candidateAccountId, attachmentId, versionId) {
+      if (candidateAccountId !== accountId) {
+        return Promise.resolve(null);
+      }
+      const record = attachments.get(attachmentId);
+      const version = record?.versions.find(
+        (candidate) => candidate.id === versionId,
+      );
+      const objectKey = versionObjectKeys.get(versionId);
+      return Promise.resolve(
+        record && version && objectKey
+          ? { attachment: record.attachment, objectKey, version }
+          : null,
+      );
+    },
+
+    hasOtherVersionWithContentHash(contentHash, versionId) {
+      return Promise.resolve(
+        [...attachments.values()].some(({ versions }) =>
+          versions.some(
+            (candidate) =>
+              candidate.id !== versionId &&
+              candidate.contentHash === contentHash,
+          ),
+        ),
       );
     },
 
@@ -305,6 +335,16 @@ function createMemoryFileAttachments(
     delete(key) {
       objects.delete(key);
       return Promise.resolve();
+    },
+    has(key) {
+      return Promise.resolve(objects.has(key));
+    },
+    putImmutable({ bytes, key }) {
+      if (objects.has(key)) {
+        return Promise.resolve("existing");
+      }
+      objects.set(key, new Uint8Array(bytes));
+      return Promise.resolve("created");
     },
     promote({ permanentKey, temporaryKey }) {
       const bytes = objects.get(temporaryKey);
