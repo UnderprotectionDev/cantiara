@@ -161,6 +161,7 @@ export default function ProjectWorkList({
                 </p>
               </div>
               <WorkContextCard
+                projectWorks={query.data}
                 work={work}
                 workStatusLabels={workStatusLabels}
               />

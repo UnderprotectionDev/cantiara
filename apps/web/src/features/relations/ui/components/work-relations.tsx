@@ -223,6 +223,7 @@ export default function WorkRelations({
     <section
       aria-label="Relations"
       className="space-y-3 border-border/70 border-t pt-3"
+      id={`work-relations-${work.id}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="font-medium text-sm">Relations</h4>

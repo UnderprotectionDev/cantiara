@@ -5,6 +5,7 @@ import {
   type MutationContract,
   type MutationPayload,
 } from "./mutation-and-undo";
+import type { WorkStatus, WorkType } from "./work-lifecycle";
 
 /**
  * Relation kinds are deliberately closed. A persisted relation can only use
@@ -496,7 +497,9 @@ export interface RelationEndpointView extends RelationEndpoint {
   label: string | null;
   originPosition: RelationOriginPosition | null;
   projectId: string | null;
+  status: WorkStatus | null;
   title: string | null;
+  workType: WorkType | null;
 }
 
 export interface RelationView {

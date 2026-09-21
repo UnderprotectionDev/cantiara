@@ -39,6 +39,7 @@ import {
   type UsedInSummary,
   undoRelationInputSchema,
 } from "@cantiara/api/relations";
+import type { WorkStatus, WorkType } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
@@ -687,7 +688,9 @@ function brokenEndpoint(
     label: null,
     originPosition: null,
     projectId: canOpenSourceRecord ? projectId : null,
+    status: null,
     title: null,
+    workType: null,
   };
 }
 
@@ -696,7 +699,9 @@ interface ResolvedWorkEndpoint {
   key: string | null;
   originPosition: RelationOriginPosition | null;
   projectId: string | null;
+  status: WorkStatus | null;
   title: string | null;
+  workType: WorkType | null;
 }
 
 /**
@@ -733,7 +738,9 @@ const ENDPOINT_RESOLVERS: Partial<
             }
           : null,
       projectId: owned.record.projectId,
+      status: owned.record.status as WorkStatus,
       title: owned.record.title,
+      workType: owned.record.type as WorkType,
     };
   },
 };
@@ -756,7 +763,9 @@ function resolvedEndpointView(
     label: resolved.key,
     originPosition: resolved.originPosition,
     projectId: resolved.projectId,
+    status: resolved.status,
     title: resolved.title,
+    workType: resolved.workType,
   };
 }
 
@@ -1086,7 +1095,9 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
           projectId: source.record.projectId,
           recordId: source.record.id,
           recordType: input.source.recordType,
+          status: source.record.status as WorkStatus,
           title: source.record.title,
+          workType: source.record.type as WorkType,
         },
         target: {
           broken: null,
@@ -1096,7 +1107,9 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
           projectId: target.record.projectId,
           recordId: target.record.id,
           recordType: input.target.recordType,
+          status: target.record.status as WorkStatus,
           title: target.record.title,
+          workType: target.record.type as WorkType,
         },
       } satisfies RelationPreview;
     },

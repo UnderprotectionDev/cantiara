@@ -126,7 +126,12 @@ describeDatabase("Relations PostgreSQL integration", () => {
       direction: "outgoing",
       kind: "Related",
       label: "Related",
-      target: { key: target.key, title: target.title },
+      target: {
+        key: target.key,
+        status: target.status,
+        title: target.title,
+        workType: target.type,
+      },
     });
 
     const originPreview = await relations.previewCreate(accountId, {
