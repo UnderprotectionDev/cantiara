@@ -337,13 +337,13 @@
 │   │   │   ├── project-overview.ts
 │   │   │   ├── project-shell.ts
 │   │   │   ├── relations.ts
-│   │   │   ├── workspace-overview.test.ts
-│   │   │   ├── workspace-overview.ts
 │   │   │   ├── support-reference.ts
 │   │   │   ├── web-capture.ts
 │   │   │   ├── work-drafts.test.ts
 │   │   │   ├── work-drafts.ts
-│   │   │   └── work-lifecycle.ts
+│   │   │   ├── work-lifecycle.ts
+│   │   │   ├── workspace-overview.test.ts
+│   │   │   └── workspace-overview.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   ├── auth/

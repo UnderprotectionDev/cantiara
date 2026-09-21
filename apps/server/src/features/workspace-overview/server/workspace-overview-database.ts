@@ -4,9 +4,12 @@ import {
   buildWorkspaceOverview,
   DEFAULT_WORKSPACE_OVERVIEW_LAYOUT,
   normalizeWorkspaceOverviewLayout,
+  WORKSPACE_OVERVIEW_BLOCKED_WORK_LIMIT,
   WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
+  WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT,
   type WorkspaceOverviewAccess,
   workspaceOverviewPresentationSchema,
+  workspaceOverviewWorkHref,
 } from "@cantiara/api/workspace-overview";
 import type { Database } from "@cantiara/db";
 import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
@@ -106,7 +109,33 @@ export function createDatabaseWorkspaceOverview(
           isNull(work.archivedAt),
         ),
       )
-      .orderBy(desc(work.updatedAt), asc(work.number));
+      .orderBy(desc(work.updatedAt), asc(work.number))
+      .limit(WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT);
+
+    // Open risk, reminder, and goal sources are not persisted yet; registered
+    // attention starts from Blocked Work so older blockers stay in Attention
+    // Required even when they fall outside the Recent Work limit.
+    const blockedWorks = await database
+      .select({
+        id: work.id,
+        projectId: work.projectId,
+        projectName: project.name,
+        status: work.status,
+        title: work.title,
+        type: work.type,
+        updatedAt: work.updatedAt,
+      })
+      .from(work)
+      .innerJoin(project, eq(work.projectId, project.id))
+      .where(
+        and(
+          eq(project.workspaceId, ownedWorkspace.id),
+          isNull(work.archivedAt),
+          eq(work.status, "Blocked"),
+        ),
+      )
+      .orderBy(desc(work.updatedAt), asc(work.number))
+      .limit(WORKSPACE_OVERVIEW_BLOCKED_WORK_LIMIT);
 
     const presentation = workspaceOverviewPresentationSchema.safeParse(
       ownedWorkspace.overviewConfiguration,
@@ -121,6 +150,17 @@ export function createDatabaseWorkspaceOverview(
 
     return buildWorkspaceOverview({
       asOf: todayInTimeZone(ownedWorkspace.timeZone),
+      attention: blockedWorks.map((record) => ({
+        category: "Blocker",
+        href: workspaceOverviewWorkHref(record.projectId, record.id),
+        id: record.id,
+        projectId: record.projectId,
+        projectName: record.projectName,
+        status: workStatusSchema.parse(record.status),
+        title: record.title,
+        type: workTypeSchema.parse(record.type),
+        updatedAt: record.updatedAt.toISOString(),
+      })),
       layout: savedPresentation.layout,
       liveBlockSources: savedPresentation.liveBlockSources,
       projects: projects.map((record) => ({

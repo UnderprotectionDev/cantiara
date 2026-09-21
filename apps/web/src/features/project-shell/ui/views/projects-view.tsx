@@ -8,7 +8,7 @@ import { buttonVariants } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkspaceOverviewView from "@/features/workspace-overview/ui/components/workspace-overview";
 import {
@@ -83,20 +83,29 @@ export default function ProjectsView({
     accountPreferencesQueryOptions(accountId),
   );
   const queryClient = useQueryClient();
+  // Serialize saves so requests reach the server and responses resolve in
+  // issue order; concurrent saves could otherwise resolve out of order and
+  // overwrite the cached overview with an older layout.
+  const lastOverviewSaveRef = useRef<Promise<unknown>>(Promise.resolve());
   const saveWorkspaceOverview = useMutation({
-    mutationFn: (presentation: WorkspaceOverviewPresentation) =>
-      runOnlineOnlyWrite(() =>
-        client.saveWorkspaceOverviewPresentation({
-          layout: {
-            hidden: [...presentation.layout.hidden],
-            order: [...presentation.layout.order],
-          },
-          liveBlockSources: presentation.liveBlockSources.map((source) => ({
-            ...source,
-          })),
-          version: presentation.version,
-        }),
-      ),
+    mutationFn: (presentation: WorkspaceOverviewPresentation) => {
+      const request = lastOverviewSaveRef.current.then(() =>
+        runOnlineOnlyWrite(() =>
+          client.saveWorkspaceOverviewPresentation({
+            layout: {
+              hidden: [...presentation.layout.hidden],
+              order: [...presentation.layout.order],
+            },
+            liveBlockSources: presentation.liveBlockSources.map((source) => ({
+              ...source,
+            })),
+            version: presentation.version,
+          }),
+        ),
+      );
+      lastOverviewSaveRef.current = request.catch(() => undefined);
+      return request;
+    },
     scope: {
       id: `workspace-overview-presentation:${accountId ?? "anonymous"}`,
     },

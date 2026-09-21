@@ -14,6 +14,13 @@ const model: WorkspaceOverviewModel = {
       title: "Checkout notes",
       type: "Document",
     },
+    {
+      href: "/documents/document-2",
+      id: "document-2",
+      source: { recordId: "document-2", recordType: "Document" },
+      title: "Launch checklist",
+      type: "Document",
+    },
   ],
   layout: {
     hidden: [],
@@ -118,6 +125,7 @@ describe("Workspace Overview seam", () => {
     expect(html).toContain('aria-label="Hide Active Projects"');
     expect(html).toContain('aria-label="Move Recent Work up"');
     expect(html).toContain('aria-label="Move Recent Work down"');
+    expect(html).toContain("Choose a source");
     expect(html).toContain('data-live-block-reference="true"');
     expect(html).toContain("Checkout notes");
     expect(html).toContain('href="/documents/document-1"');

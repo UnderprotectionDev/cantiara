@@ -6,6 +6,7 @@ import {
   normalizeWorkspaceOverviewLayout,
   setWorkspaceOverviewModuleVisibility,
   WORKSPACE_OVERVIEW_MODULE_IDS,
+  WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT,
   workspaceOverviewLiveBlockSourceSchema,
 } from "./workspace-overview";
 
@@ -188,6 +189,28 @@ describe("Workspace Overview seam", () => {
       "reminder-future",
       "project-future",
     ]);
+  });
+
+  test("bounds Recent Work to the configured limit and keeps the latest records", () => {
+    const limit = WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT;
+    const overview = buildWorkspaceOverview({
+      projects: [],
+      works: Array.from({ length: limit + 5 }, (_, index) => ({
+        archivedAt: null,
+        id: `work-${index}`,
+        key: `PAY-${index}`,
+        projectId: "project-active",
+        status: "In Progress" as const,
+        title: `Work ${index}`,
+        type: "Task" as const,
+        updatedAt: new Date(Date.UTC(2026, 8, 1 + index, 9)).toISOString(),
+      })),
+    });
+    const [, , , recentWork] = overview.modules;
+
+    expect(recentWork?.id).toBe("recent-work");
+    expect(recentWork?.records).toHaveLength(limit);
+    expect(recentWork?.records[0]?.id).toBe(`work-${limit + 4}`);
   });
 
   test("requires a named view for Smart Collection live blocks", () => {

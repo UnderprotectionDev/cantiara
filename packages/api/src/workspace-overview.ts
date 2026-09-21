@@ -44,6 +44,12 @@ export const WORKSPACE_OVERVIEW_LIVE_BLOCK_SOURCE_TYPES = [
 
 export const WORKSPACE_OVERVIEW_CONFIGURATION_VERSION = 1 as const;
 
+// Recent Work and Attention Required are derived summaries; the module sets are
+// bounded so the overview payload and DOM stay proportional as the Workspace
+// grows. Counts and drill-down open exactly these bounded source sets.
+export const WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT = 30;
+export const WORKSPACE_OVERVIEW_BLOCKED_WORK_LIMIT = 50;
+
 export type WorkspaceOverviewLiveBlockSourceType =
   (typeof WORKSPACE_OVERVIEW_LIVE_BLOCK_SOURCE_TYPES)[number];
 
@@ -178,7 +184,7 @@ function projectHref(projectId: string) {
   return `/projects/${encodeURIComponent(projectId)}`;
 }
 
-function workHref(projectId: string, workId: string) {
+export function workspaceOverviewWorkHref(projectId: string, workId: string) {
   return `${projectHref(projectId)}#work-${encodeURIComponent(workId)}`;
 }
 
@@ -205,7 +211,7 @@ function workRecord(
   projectNames: ReadonlyMap<string, string>,
 ) {
   return {
-    href: workHref(work.projectId, work.id),
+    href: workspaceOverviewWorkHref(work.projectId, work.id),
     id: work.id,
     projectId: work.projectId,
     projectName: projectNames.get(work.projectId) ?? null,
@@ -311,7 +317,10 @@ export function buildWorkspaceOverview(
       ...targetDateRecords,
     ]),
   );
-  const recentWork = sortByUpdatedAt(workRecords);
+  const recentWork = sortByUpdatedAt(workRecords).slice(
+    0,
+    WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT,
+  );
   const activeProjects = projects.filter(
     (record) => record.status === "Active",
   );

@@ -18,6 +18,13 @@ import {
   WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
 } from "@cantiara/api/workspace-overview";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@cantiara/ui/components/select";
 import { cn } from "@cantiara/ui/lib/utils";
 import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -373,37 +380,43 @@ function LiveBlocks({
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <label
-            className="grid gap-1 text-muted-foreground text-xs"
-            htmlFor="workspace-overview-live-block-source"
-          >
-            Existing source
-            <select
-              aria-label="Live block source"
-              className="h-8 min-w-52 rounded-md border border-border/80 bg-background px-2 text-foreground text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+          <div className="grid gap-1 text-muted-foreground text-xs">
+            <span id="workspace-overview-live-block-source-label">
+              Existing source
+            </span>
+            <Select
               disabled={
                 addableBlocks.length === 0 ||
                 selectedSources.length >= MAX_LIVE_BLOCKS
               }
-              id="workspace-overview-live-block-source"
-              onChange={(event) => setChoice(event.target.value)}
-              value={choice}
+              onValueChange={(value) => setChoice(value ?? "")}
+              value={choice === "" ? null : choice}
             >
-              <option value="">
-                {addableBlocks.length === 0
-                  ? "No existing source records"
-                  : "Choose a source"}
-              </option>
-              {addableBlocks.map((block) => (
-                <option
-                  key={liveBlockSourceKey(block.source)}
-                  value={liveBlockSourceKey(block.source)}
-                >
-                  {block.title} · {block.type}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger
+                aria-labelledby="workspace-overview-live-block-source-label"
+                className="w-full min-w-52"
+                size="sm"
+              >
+                <SelectValue
+                  placeholder={
+                    addableBlocks.length === 0
+                      ? "No existing source records"
+                      : "Choose a source"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {addableBlocks.map((block) => (
+                  <SelectItem
+                    key={liveBlockSourceKey(block.source)}
+                    value={liveBlockSourceKey(block.source)}
+                  >
+                    {block.title} · {block.type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             disabled={!choice || selectedSources.length >= MAX_LIVE_BLOCKS}
             onClick={() => {
