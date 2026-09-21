@@ -128,6 +128,7 @@ import {
   workMergePreviewInputSchema,
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
+  workTypeSchema,
 } from "../work-lifecycle";
 import {
   type WorkspaceOverviewAccess,
@@ -139,6 +140,19 @@ function sessionPrincipal(session: NonNullable<Context["session"]>) {
     accountId: session.user.id,
     sessionId: session.session.id,
   };
+}
+
+const WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX =
+  "project.configuration.workContextLayouts.";
+
+function workContextLayoutTypeFromUndoScope(scope: string | undefined) {
+  if (!scope?.startsWith(WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX)) {
+    return null;
+  }
+  const parsed = workTypeSchema.safeParse(
+    scope.slice(WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX.length),
+  );
+  return parsed.success ? parsed.data : null;
 }
 
 const saveAccountPreferencesInputSchema = humanMutationEnvelopeSchema.extend({
@@ -2478,7 +2492,7 @@ export const appRouter = {
             ? {
                 undo: {
                   kind: "view-metadata",
-                  scope: "project.configuration.workContextLayouts",
+                  scope: `${WORK_CONTEXT_LAYOUT_UNDO_SCOPE_PREFIX}${input.change.workType}`,
                 },
               }
             : undefined,
@@ -2562,11 +2576,10 @@ export const appRouter = {
             message: "Work Context Card layout history is unavailable.",
           });
         }
-        if (
-          sourceReceipt.targetId !== input.projectId ||
-          sourceReceipt.undo?.scope !==
-            "project.configuration.workContextLayouts"
-        ) {
+        const workType = workContextLayoutTypeFromUndoScope(
+          sourceReceipt.undo?.scope,
+        );
+        if (sourceReceipt.targetId !== input.projectId || !workType) {
           throw new ORPCError("BAD_REQUEST", {
             data: { code: "WORK_CONTEXT_LAYOUT_UNDO_NOT_SUPPORTED" },
             defined: true,
@@ -2592,8 +2605,13 @@ export const appRouter = {
                 ...currentValue.project,
                 configuration: {
                   ...currentValue.project.configuration,
-                  workContextLayouts:
-                    previousValue.project.configuration.workContextLayouts,
+                  workContextLayouts: {
+                    ...currentValue.project.configuration.workContextLayouts,
+                    [workType]:
+                      previousValue.project.configuration.workContextLayouts[
+                        workType
+                      ],
+                  },
                 },
                 revision: currentRevision + 1,
                 updatedAt: new Date().toISOString(),

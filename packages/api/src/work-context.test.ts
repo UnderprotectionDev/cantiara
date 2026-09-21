@@ -209,9 +209,9 @@ describe("Work Context Card configurable layouts", () => {
       ],
       hiddenSections: ["Dependencies" as const],
       sectionOrder: [
+        "GitHub & Tests",
         "Description",
         "custom-decisions",
-        "GitHub & Tests",
         "Target Release",
         "Dependencies",
       ],
@@ -220,7 +220,7 @@ describe("Work Context Card configurable layouts", () => {
     expect(previewWorkContextLayout("Task", layout, nextLayout)).toEqual({
       added: ["Decision trail"],
       hidden: ["Dependencies"],
-      moved: ["Decision trail", "GitHub & Tests", "Target Release"],
+      moved: ["GitHub & Tests", "Description"],
       shown: [],
     });
 

@@ -628,6 +628,13 @@ describe("Project Shell RPC", () => {
       name: "Concurrent project edit",
       configuration: {
         ...currentProject.configuration,
+        workContextLayouts: {
+          ...currentProject.configuration.workContextLayouts,
+          Feature: {
+            ...currentProject.configuration.workContextLayouts.Feature,
+            hiddenSections: ["Expected Outcome"],
+          },
+        },
         workStatusLabels: currentProject.configuration.workStatusLabels.map(
           (status, index) =>
             index === 0
@@ -645,6 +652,9 @@ describe("Project Shell RPC", () => {
       receiptId: applied.receiptId,
     });
     expect(undone.configuration.workContextLayouts.Task).toEqual(initialLayout);
+    expect(
+      undone.configuration.workContextLayouts.Feature.hiddenSections,
+    ).toEqual(["Expected Outcome"]);
     expect(undone.name).toBe("Concurrent project edit");
     expect(undone.configuration.workStatusLabels[0]?.label).toBe(
       "Concurrent status label",

@@ -1,10 +1,12 @@
 import { z } from "zod";
 
-import type {
-  RelationEndpointView,
-  RelationKind,
-  RelationRecordType,
-  RelationView,
+import {
+  RELATION_EVIDENCE_ROLE_OPTIONS,
+  type RelationEndpointView,
+  type RelationEvidenceRole,
+  type RelationKind,
+  type RelationRecordType,
+  type RelationView,
 } from "./relations";
 import {
   WORK_TYPE_OPTIONS,
@@ -85,16 +87,10 @@ export const WORK_CONTEXT_CUSTOM_RELATION_OPTIONS = [
 export type WorkContextCustomRelation =
   (typeof WORK_CONTEXT_CUSTOM_RELATION_OPTIONS)[number];
 
-export const WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS = [
-  "Supports",
-  "Contradicts",
-  "Provides context",
-  "Inconclusive",
-  "Unspecified",
-] as const;
+export const WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS =
+  RELATION_EVIDENCE_ROLE_OPTIONS;
 
-export type WorkContextEvidenceRole =
-  (typeof WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS)[number];
+export type WorkContextEvidenceRole = RelationEvidenceRole;
 
 const workContextCustomRecordTypeSchema = z.enum(
   WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS,
@@ -387,8 +383,12 @@ export function previewWorkContextLayout(
   const nextVisible = next.sectionOrder.filter(
     (key) => !next.hiddenSections.includes(key),
   );
-  const firstChangedIndex = nextVisible.findIndex(
-    (key, index) => currentVisible[index] !== key,
+  const currentCommon = currentVisible.filter((key) =>
+    nextVisible.includes(key),
+  );
+  const nextCommon = nextVisible.filter((key) => currentVisible.includes(key));
+  const movedKeys = nextCommon.filter(
+    (key, index) => currentCommon[index] !== key,
   );
 
   return {
@@ -398,10 +398,7 @@ export function previewWorkContextLayout(
     hidden: next.hiddenSections
       .filter((key) => !current.hiddenSections.includes(key))
       .map(label),
-    moved:
-      firstChangedIndex === -1
-        ? []
-        : nextVisible.slice(firstChangedIndex).map(label),
+    moved: movedKeys.map(label),
     shown: current.hiddenSections
       .filter((key) => !next.hiddenSections.includes(key))
       .map(label),
@@ -822,11 +819,7 @@ function unavailableSource(
 function evidenceRoleFromRelation(
   relation: RelationView,
 ): WorkContextEvidenceRole {
-  const candidate = (
-    relation as RelationView & {
-      evidenceRole?: unknown;
-    }
-  ).evidenceRole;
+  const candidate = relation.evidenceRole;
   return (WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS as readonly unknown[]).includes(
     candidate,
   )
