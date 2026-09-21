@@ -45,6 +45,7 @@ import {
 } from "./features/tags/server/tags-database";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
+import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 
 const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
@@ -63,6 +64,7 @@ export const mutationContract =
 export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
+export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
