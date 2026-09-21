@@ -5,6 +5,7 @@ const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const TYPE_FIELD_PATTERN = /Type:/;
 const WORK_HASH_PATTERN = /#work-/;
+const WORK_STATUS_COMBOBOX_NAME = /Status for/;
 
 function workListItem(page: Page, title: string) {
   return page.getByRole("listitem").filter({
@@ -12,7 +13,129 @@ function workListItem(page: Page, title: string) {
   });
 }
 
+const PREPARED_LAYOUT_MATRIX = {
+  Bug: [
+    "Observed/Expected Behavior",
+    "Affected Releases",
+    "Evidence",
+    "GitHub & Tests",
+  ],
+  Feature: [
+    "Problem/Opportunity",
+    "Expected Outcome",
+    "Evidence & Decisions",
+    "Risks & Open Questions",
+    "Included Work",
+    "GitHub & Tests",
+    "Target Release",
+  ],
+  Improvement: [
+    "Current Situation",
+    "Expected Outcome",
+    "Evidence",
+    "GitHub & Tests",
+  ],
+  Research: [
+    "Research Question",
+    "Sources & Evidence",
+    "Decisions",
+    "Related Work",
+  ],
+  Task: ["Description", "Dependencies", "GitHub & Tests", "Target Release"],
+} as const;
+
+const STARTER_CONFIGURATION_MATRIX = [
+  "Blank Project",
+  "Solo SaaS",
+  "Open Source Library",
+  "Mobile Application",
+] as const;
+
 test.setTimeout(60_000);
+
+test("shows the same progressive Work Context Card layouts for five types across four Starter Configurations", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  let projectNumber = 0;
+  for (const starterConfiguration of STARTER_CONFIGURATION_MATRIX) {
+    projectNumber += 1;
+    const projectName = `Context ${projectNumber} ${starterConfiguration}`;
+
+    // biome-ignore lint/performance/noAwaitInLoops: Each Starter Configuration needs its own sequential browser journey and project state.
+    await page.goto("/projects/new");
+    await page.getByLabel("Project Name").fill(projectName);
+    await page
+      .getByLabel("Starter Configuration")
+      .selectOption(starterConfiguration);
+    await page.getByRole("button", { name: "Create Project" }).click();
+    await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+    await page.getByRole("link", { name: projectName, exact: true }).click();
+    await expect(page).toHaveURL(PROJECT_DETAIL_URL_PATTERN);
+    await page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "Work", exact: true })
+      .click();
+
+    for (const [workType, sections] of Object.entries(PREPARED_LAYOUT_MATRIX)) {
+      const title = `${starterConfiguration} ${workType} context`;
+      // biome-ignore lint/performance/noAwaitInLoops: Each Work type must be created and checked against the same live list before the next type changes it.
+      await page.getByRole("link", { name: "Create", exact: true }).click();
+      const createForm = page.locator("#work-create");
+      await createForm.getByLabel("Title").fill(title);
+      await createForm.getByLabel("Type").selectOption(workType);
+      await createForm
+        .getByRole("button", { name: "Create", exact: true })
+        .click();
+
+      const record = workListItem(page, title);
+      await expect(record).toBeVisible();
+      const card = record.locator('[data-work-context-card="true"]');
+      await expect(card).toBeVisible();
+      await expect(card.getByText("Title", { exact: true })).toBeVisible();
+      await expect(card.getByText("Type", { exact: true })).toBeVisible();
+      await expect(card.getByText("Status", { exact: true })).toBeVisible();
+      await expect(card.getByText("Planning", { exact: true })).toBeVisible();
+      await expect(
+        card.getByRole("button", { name: "Add Context", exact: true }),
+      ).toBeVisible();
+      await expect(
+        card.getByText("Nothing here yet.", { exact: true }),
+      ).toHaveCount(0);
+
+      for (const section of sections) {
+        // biome-ignore lint/performance/noAwaitInLoops: Each Add Context click must reveal the prior section before the next progressive section can be asserted.
+        await card
+          .getByRole("button", { name: "Add Context", exact: true })
+          .click();
+        await expect(
+          card.getByRole("heading", { name: section, level: 5 }),
+        ).toBeVisible();
+        await expect(
+          card.getByText("Nothing here yet.", { exact: true }).last(),
+        ).toBeVisible();
+      }
+
+      await expect(
+        card.getByRole("button", { name: "Add Context", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        record.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+      ).toBeEnabled();
+    }
+  }
+});
 
 test("creates Work with a Project key, type, and protected start status", async ({
   context,

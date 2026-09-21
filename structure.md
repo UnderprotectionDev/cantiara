@@ -257,6 +257,11 @@
 │       │   │   │           ├── client-shell.tsx
 │       │   │   │           ├── support-reference.test.tsx
 │       │   │   │           └── support-reference.tsx
+│       │   │   ├── work-context/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── work-context-card.test.tsx
+│       │   │   │           └── work-context-card.tsx
 │       │   │   ├── work-drafts/
 │       │   │   │   └── ui/
 │       │   │   │       └── forms/
@@ -343,6 +348,8 @@
 │   │   │   ├── relations.ts
 │   │   │   ├── support-reference.ts
 │   │   │   ├── web-capture.ts
+│   │   │   ├── work-context.test.ts
+│   │   │   ├── work-context.ts
 │   │   │   ├── work-drafts.test.ts
 │   │   │   ├── work-drafts.ts
 │   │   │   ├── work-lifecycle.ts
