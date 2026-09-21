@@ -759,7 +759,9 @@ export function createFileAttachmentPreview({
     }
 
     const terminal =
-      options.finalAttempt || attempts >= maxAttempts || !lastError.retryable;
+      options.finalAttempt ||
+      (!options.oneAttempt && attempts >= maxAttempts) ||
+      !lastError.retryable;
     const storedFailure = terminal
       ? new FileAttachmentPreviewError(lastError.code, lastError.message, false)
       : lastError;

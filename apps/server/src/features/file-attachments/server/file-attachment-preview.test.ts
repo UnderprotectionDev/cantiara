@@ -447,6 +447,48 @@ describe("File Attachments — Dosya sınırları preview seam", () => {
     });
   });
 
+  test("keeps retryable worker failures available for the next queue attempt", async () => {
+    let attempts = 0;
+    const memory = createPreview(
+      {
+        contentHash: "w".repeat(64),
+        detectedMimeType: "image/jpeg",
+        extension: ".jpg",
+        fileName: "retry.jpg",
+        mimeType: "image/jpeg",
+        preview: "image",
+      },
+      {
+        processor: {
+          createImageDerivatives: () => {
+            attempts += 1;
+            return Promise.reject(new Error("decoder busy"));
+          },
+        },
+        schedulePreview: () => Promise.resolve(),
+      },
+    );
+
+    await expect(
+      memory.service.processPreview({
+        accountId: "account-1",
+        attachmentId: "attachment-1",
+        versionId: "version-1",
+      }),
+    ).rejects.toMatchObject({ retryable: true });
+    await expect(
+      memory.service.processPreview(
+        {
+          accountId: "account-1",
+          attachmentId: "attachment-1",
+          versionId: "version-1",
+        },
+        { finalAttempt: true },
+      ),
+    ).rejects.toMatchObject({ retryable: true });
+    expect(attempts).toBe(2);
+  });
+
   test("serves immutable derivatives through the File Attachments seam", async () => {
     const source = new Uint8Array([8, 7, 6, 5]);
     const memory = createPreview(
