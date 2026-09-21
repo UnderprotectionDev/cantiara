@@ -1,3 +1,4 @@
+import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
 import { account, session, user } from "@cantiara/db/schema/auth";
@@ -91,6 +92,22 @@ const workDrafts = createDatabaseWorkDrafts(
   workLifecycle,
   projectShell,
 );
+const unavailableFileAttachmentOperation = (): never => {
+  throw new Error("File Attachment operation is unavailable in this fixture.");
+};
+const fileAttachments = {
+  canSelectIntoExternalSurface: async () => ({
+    allowed: true,
+    reason: null,
+  }),
+  cleanupVersionDerivatives: async () => undefined,
+  finalize: unavailableFileAttachmentOperation,
+  getQuota: unavailableFileAttachmentOperation,
+  list: async () => [],
+  preview: unavailableFileAttachmentOperation,
+  readAsset: unavailableFileAttachmentOperation,
+  stage: unavailableFileAttachmentOperation,
+} satisfies FileAttachmentAccess;
 const githubAvailability = createGitHubAvailability();
 const authOptions = createAuthOptions(
   {
@@ -150,6 +167,7 @@ const app = createApp({
   corsOrigin: webOrigin,
   database,
   desktopOrigins: [],
+  fileAttachments,
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
