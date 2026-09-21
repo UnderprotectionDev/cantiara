@@ -45,6 +45,10 @@ import {
   updateCustomFieldInputSchema,
   updateCustomFieldMutationInputSchema,
 } from "../custom-fields";
+import {
+  fileAttachmentFinalizeInputSchema,
+  fileAttachmentListInputSchema,
+} from "../file-attachments";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   humanMutationEnvelopeSchema,
@@ -284,6 +288,55 @@ function requireWebCapture(context: Context): WebCaptureAccess {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.webCapture;
+}
+
+function requireFileAttachments(context: Context) {
+  if (!context.fileAttachments) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.fileAttachments;
+}
+
+function rethrowFileAttachmentError(error: unknown): never {
+  if (!isRecord(error) || typeof error.code !== "string") {
+    throw error;
+  }
+  const message =
+    typeof error.message === "string"
+      ? error.message
+      : "File Attachment request was rejected.";
+  switch (error.code) {
+    case "FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT":
+    case "FILE_ATTACHMENT_REVISION_CONFLICT":
+      throw new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    case "FILE_ATTACHMENT_ACCOUNT_NOT_FOUND":
+    case "FILE_ATTACHMENT_TARGET_NOT_FOUND":
+    case "FILE_ATTACHMENT_UPLOAD_NOT_FOUND":
+      throw new ORPCError("NOT_FOUND", {
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    case "FILE_ATTACHMENT_QUOTA_EXCEEDED":
+      throw new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    default:
+      if (error.code.startsWith("FILE_ATTACHMENT_")) {
+        throw new ORPCError("BAD_REQUEST", {
+          data: { code: error.code },
+          defined: true,
+          message,
+        });
+      }
+      throw error;
+  }
 }
 
 function requireCaptureInboxTriage(context: Context): CaptureInboxTriageAccess {
@@ -2549,6 +2602,39 @@ export const appRouter = {
         );
       } catch (error) {
         rethrowCaptureInboxError(error);
+      }
+    }),
+  fileAttachments: protectedProcedure
+    .input(fileAttachmentListInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).list(
+          context.session.user.id,
+          input.scope,
+        );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
+      }
+    }),
+  fileAttachmentQuota: protectedProcedure.handler(async ({ context }) => {
+    try {
+      return await requireFileAttachments(context).getQuota(
+        context.session.user.id,
+      );
+    } catch (error) {
+      rethrowFileAttachmentError(error);
+    }
+  }),
+  finalizeFileAttachment: protectedProcedure
+    .input(fileAttachmentFinalizeInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFileAttachments(context).finalize(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFileAttachmentError(error);
       }
     }),
   sessions: protectedProcedure.handler(({ context }) =>

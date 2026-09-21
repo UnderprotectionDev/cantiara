@@ -246,6 +246,13 @@
       "when": 1789947967660,
       "tag": "0034_heavy_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789983653801,
+      "tag": "0035_file-attachments",
+      "breakpoints": true
     }
   ]
 }

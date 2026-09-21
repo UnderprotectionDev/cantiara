@@ -14,6 +14,7 @@ import type {
   CustomFieldsAccess,
 } from "@cantiara/api/custom-fields";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
+import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type {
   MutationContract,
   MutationPayload,
@@ -55,6 +56,7 @@ export interface CreateContextOptions {
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
   database: Database;
+  fileAttachments?: FileAttachmentAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
@@ -90,6 +92,7 @@ export async function createContext({
   customFieldMutationContracts,
   context,
   database,
+  fileAttachments,
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
@@ -133,6 +136,7 @@ export async function createContext({
     desktopApiContract:
       context.req.raw.headers.get(DESKTOP_API_CONTRACT_HEADER) ?? undefined,
     db: database,
+    fileAttachments,
     githubAvailability,
     githubIdentityConfirmation,
     mutationContract,

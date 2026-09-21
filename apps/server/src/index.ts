@@ -1,3 +1,5 @@
+import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
+import { serve } from "bun";
 import { initLogger } from "evlog";
 
 import { createApp } from "./app";
@@ -11,6 +13,7 @@ import {
   captureInbox,
   customFieldMutationContracts,
   customFields,
+  fileAttachments,
   getDb,
   githubAvailability,
   githubIdentityConfirmation,
@@ -19,6 +22,7 @@ import {
   projectShellMutationContracts,
   relations,
   replaySecurityRevocations,
+  sweepExpiredFileAttachmentUploads,
   tagMutationContracts,
   tags,
   tauriSessionAccess,
@@ -35,8 +39,15 @@ initLogger({
 });
 
 await replaySecurityRevocations();
+await sweepExpiredFileAttachmentUploads();
+setInterval(
+  () => {
+    sweepExpiredFileAttachmentUploads().catch(() => undefined);
+  },
+  60 * 60 * 1000,
+);
 
-export default createApp({
+const app = createApp({
   accountSessionAccess,
   accountPreferences,
   accountPreferencesCompatibility,
@@ -52,6 +63,7 @@ export default createApp({
   },
   corsOrigin: env.CORS_ORIGIN,
   database: getDb(),
+  fileAttachments,
   desktopOrigins,
   githubAvailability,
   githubIdentityConfirmation,
@@ -71,4 +83,13 @@ export default createApp({
   workDrafts,
   workLifecycle,
   workspaceOverview,
+});
+
+// Bun's implicit server caps request bodies at 128 MiB, which would reject the
+// largest File Attachment type (250 MB video) before the stage route runs; the
+// explicit limit follows the accepted type matrix plus multipart form overhead.
+serve({
+  fetch: app.fetch,
+  maxRequestBodySize: FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
+  port: Number(process.env.PORT ?? 3000),
 });

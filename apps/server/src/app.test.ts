@@ -3,6 +3,8 @@ import {
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
   type DesktopApiCompatibilityWindow,
 } from "@cantiara/api/desktop-api-window";
+import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
+import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
 import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -47,6 +49,7 @@ function createTestApp(
     desktopApiNow?: () => Date;
     desktopApiWindow?: DesktopApiCompatibilityWindow;
     desktopOrigins?: readonly string[];
+    fileAttachments?: FileAttachmentAccess;
     githubAvailability?: AppDependencies["githubAvailability"];
     githubIdentityConfirmation?: GitHubIdentityConfirmation;
     onGitHubLoginOAuthRevoked?: () => void;
@@ -111,6 +114,7 @@ function createTestApp(
     desktopApiNow: options.desktopApiNow,
     desktopApiWindow: options.desktopApiWindow,
     desktopOrigins: options.desktopOrigins ?? [],
+    fileAttachments: options.fileAttachments,
     githubAvailability: options.githubAvailability ?? availableGitHub,
     githubIdentityConfirmation: options.githubIdentityConfirmation,
     nodeEnv: "test",
@@ -217,6 +221,90 @@ describe("server app Account Access boundary", () => {
 
     expect(response.status).toBe(401);
     expect(webCapture.send).not.toHaveBeenCalled();
+  });
+
+  test("rejects an oversized File Attachment stage body before buffering it", async () => {
+    const fileAttachments = {
+      finalize: vi.fn(),
+      getQuota: vi.fn(),
+      list: vi.fn(),
+      stage: vi.fn(),
+    } satisfies FileAttachmentAccess;
+    const { app } = createTestApp({ authorized: true, fileAttachments });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/file-attachments/stage", {
+        body: "x",
+        headers: {
+          "content-length": String(FILE_ATTACHMENT_UPLOAD_BODY_LIMIT + 1),
+          origin: "https://cantiara.example",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      code: "FILE_ATTACHMENT_FILE_TOO_LARGE",
+    });
+    expect(fileAttachments.stage).not.toHaveBeenCalled();
+  });
+
+  test("stages a multipart File Attachment only for an authorized Founder", async () => {
+    const fileAttachments = {
+      finalize: vi.fn(),
+      getQuota: vi.fn(),
+      list: vi.fn(),
+      stage: vi.fn((_accountId, _input, bytes) => {
+        expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+        return Promise.resolve({
+          fileName: "screen.jpg",
+          mode: "new" as const,
+          status: "Uploading" as const,
+          uploadId: "upload-1",
+        });
+      }),
+    } satisfies FileAttachmentAccess;
+    const { app } = createTestApp({ authorized: true, fileAttachments });
+    const form = new FormData();
+    form.append("clientIdempotencyKey", "key-1");
+    form.append("declaredMimeType", "image/jpeg");
+    form.append("fileName", "screen.jpg");
+    form.append("mode", "new");
+    form.append(
+      "scope",
+      JSON.stringify({ kind: "project", projectId: "project-1" }),
+    );
+    form.append(
+      "file",
+      new File([new Uint8Array([1, 2, 3])], "screen.jpg", {
+        type: "image/jpeg",
+      }),
+    );
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/file-attachments/stage", {
+        body: form,
+        headers: { origin: "https://cantiara.example" },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      fileName: "screen.jpg",
+      mode: "new",
+      status: "Uploading",
+      uploadId: "upload-1",
+    });
+    expect(fileAttachments.stage).toHaveBeenCalledWith(
+      "account-1",
+      expect.objectContaining({
+        clientIdempotencyKey: "key-1",
+        mode: "new",
+      }),
+      new Uint8Array([1, 2, 3]),
+    );
   });
 
   test("allows public GitHub sign-in to recover from a stale revoked cookie", async () => {
