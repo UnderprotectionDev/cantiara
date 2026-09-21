@@ -1,3 +1,4 @@
+import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   getPreparedWorkContextLayout,
   nextPreparedWorkContextSection,
@@ -8,6 +9,8 @@ import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useState } from "react";
 
+import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
+
 const WORK_CONTEXT_SECTION_ID_PATTERN = /[^a-z0-9]+/gi;
 
 interface WorkContextState {
@@ -15,7 +18,13 @@ interface WorkContextState {
   workType: WorkType;
 }
 
-export default function WorkContextCard({ work }: { work: WorkProfile }) {
+export default function WorkContextCard({
+  work,
+  workStatusLabels,
+}: {
+  work: WorkProfile;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
   const layout = getPreparedWorkContextLayout(work.type);
   const [contextState, setContextState] = useState<WorkContextState>({
     visibleSections: [],
@@ -40,7 +49,7 @@ export default function WorkContextCard({ work }: { work: WorkProfile }) {
 
   const initialFieldValues: Record<WorkContextInitialField, string> = {
     Planning: "Not set",
-    Status: work.status,
+    Status: getWorkStatusLabel(work.status, workStatusLabels),
     Title: work.title,
     Type: work.type,
   };

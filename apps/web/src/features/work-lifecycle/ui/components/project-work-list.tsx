@@ -160,7 +160,10 @@ export default function ProjectWorkList({
                   {work.title}
                 </p>
               </div>
-              <WorkContextCard work={work} />
+              <WorkContextCard
+                work={work}
+                workStatusLabels={workStatusLabels}
+              />
               <CustomFieldValues
                 connection={connection}
                 error={customFieldValuesQuery.isError}

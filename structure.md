@@ -256,6 +256,7 @@
 │       │   │   ├── work-context/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── work-context-card.test.tsx
 │       │   │   │           └── work-context-card.tsx
 │       │   │   ├── work-drafts/
 │       │   │   │   └── ui/
