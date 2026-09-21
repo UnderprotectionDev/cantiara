@@ -94,6 +94,20 @@ export const workDescriptionSchema = z
   .max(100_000, "Work description must be 100,000 characters or fewer.")
   .nullable();
 
+export const workTargetDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Target date must use YYYY-MM-DD.")
+  .nullable()
+  .optional();
+
+export const workEffortSchema = z
+  .string()
+  .trim()
+  .min(1, "Effort must not be empty.")
+  .max(255, "Effort must be 255 characters or fewer.")
+  .nullable()
+  .optional();
+
 export const workChecklistItemSchema = z
   .object({
     completed: z.boolean(),
@@ -127,7 +141,9 @@ const createWorkInputObjectSchema = z
     checklist: workChecklistSchema.optional(),
     description: workDescriptionSchema.optional(),
     originPosition: workOriginPositionSchema.optional(),
+    effort: workEffortSchema,
     projectId: identifierSchema,
+    targetDate: workTargetDateSchema,
     title: workTitleSchema,
     type: workTypeSchema.default("Task"),
   })
@@ -333,8 +349,10 @@ export const WORK_MERGE_FIELD_OPTIONS = [
   "type",
   "description",
   "checklist",
+  "effort",
   "featureHealthHistory",
   "status",
+  "targetDate",
   "closureResult",
   "closureReason",
   "archivedAt",
@@ -425,7 +443,9 @@ export interface WorkMergeFieldPreview {
     | "Type"
     | "Description"
     | "Checklist"
+    | "Effort"
     | "Status"
+    | "Target date"
     | "Closure result"
     | "Closure reason"
     | "Archive"
@@ -576,6 +596,7 @@ export interface WorkProfile {
   closureResult: WorkClosureResult | null;
   createdAt: string;
   description: string | null;
+  effort: string | null;
   featureHealthHistory: FeatureHealthUpdate[];
   id: string;
   key: string;
@@ -587,6 +608,7 @@ export interface WorkProfile {
   recreatedFrom: { id: string; key: string } | null;
   revision: number;
   status: WorkStatus;
+  targetDate: string | null;
   title: string;
   type: WorkType;
   updatedAt: string;

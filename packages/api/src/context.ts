@@ -25,6 +25,7 @@ import type {
 } from "./relations";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { WebCaptureAccess } from "./web-capture";
+import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
 import type { WorkLifecycleAccess } from "./work-lifecycle";
 import type { WorkspaceOverviewAccess } from "./workspace-overview";
@@ -139,6 +140,7 @@ export interface Context {
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
+  workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;

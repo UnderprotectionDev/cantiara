@@ -330,17 +330,19 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
       level: 4,
     }),
   ).toBeVisible();
+  await expect(layoutHost.getByLabel("Work type")).toBeVisible();
   await expect(
-    layoutHost.locator(
-      '[data-configuration-editor-host="work-context-card-layout"]',
-    ),
+    layoutHost.getByRole("list", { name: "Work Context Card sections" }),
   ).toBeVisible();
   await expect(
-    layoutHost.getByText(
-      "No layout is changed here. The Work Context Card feature owns its layout engine.",
-      { exact: true },
-    ),
+    layoutHost.getByRole("form", { name: "Add custom section" }),
   ).toBeVisible();
+  await expect(
+    layoutHost.getByRole("button", { name: "Preview" }),
+  ).toBeVisible();
+  await expect(
+    layoutHost.getByRole("button", { name: "Confirm" }),
+  ).toBeDisabled();
 
   await configurationMode.click();
   expect(

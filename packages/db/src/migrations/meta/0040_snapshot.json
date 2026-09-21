@@ -1,6 +1,6 @@
 {
-  "id": "58d6d525-879f-4c7c-9cda-181c0cc5f248",
-  "prevId": "de52b655-a704-4635-8093-eac53425394f",
+  "id": "925d6e03-804b-4359-a335-11490e8036f8",
+  "prevId": "b0286765-9fde-44d3-bfe6-31a134a44fc5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1637,6 +1637,190 @@
       },
       "isRLSEnabled": false
     },
+    "public.file_attachment_marking": {
+      "name": "file_attachment_marking",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attachment_id": {
+          "name": "attachment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_idempotency_key": {
+          "name": "client_idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "geometry": {
+          "name": "geometry",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "payload_fingerprint": {
+          "name": "payload_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tool": {
+          "name": "tool",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "undone_at": {
+          "name": "undone_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "file_attachment_marking_account_key_uidx": {
+          "name": "file_attachment_marking_account_key_uidx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_attachment_marking_attachment_version_idx": {
+          "name": "file_attachment_marking_attachment_version_idx",
+          "columns": [
+            {
+              "expression": "attachment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_attachment_marking_workspace_idx": {
+          "name": "file_attachment_marking_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "file_attachment_marking_account_id_user_id_fk": {
+          "name": "file_attachment_marking_account_id_user_id_fk",
+          "tableFrom": "file_attachment_marking",
+          "tableTo": "user",
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_attachment_marking_attachment_id_file_attachment_id_fk": {
+          "name": "file_attachment_marking_attachment_id_file_attachment_id_fk",
+          "tableFrom": "file_attachment_marking",
+          "tableTo": "file_attachment",
+          "columnsFrom": ["attachment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_attachment_marking_version_id_file_attachment_version_id_fk": {
+          "name": "file_attachment_marking_version_id_file_attachment_version_id_fk",
+          "tableFrom": "file_attachment_marking",
+          "tableTo": "file_attachment_version",
+          "columnsFrom": ["version_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_attachment_marking_workspace_id_workspace_id_fk": {
+          "name": "file_attachment_marking_workspace_id_workspace_id_fk",
+          "tableFrom": "file_attachment_marking",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "file_attachment_marking_payload_fingerprint_check": {
+          "name": "file_attachment_marking_payload_fingerprint_check",
+          "value": "\"file_attachment_marking\".\"payload_fingerprint\" ~ '^[0-9a-fA-F]{64}$'"
+        },
+        "file_attachment_marking_tool_check": {
+          "name": "file_attachment_marking_tool_check",
+          "value": "\"file_attachment_marking\".\"tool\" in ('pen', 'highlighter', 'arrow', 'rectangle')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.file_attachment_upload": {
       "name": "file_attachment_upload",
       "schema": "",
@@ -2895,6 +3079,12 @@
         "origin_component_id": {
           "name": "origin_component_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_location": {
+          "name": "origin_location",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

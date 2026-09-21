@@ -41,6 +41,7 @@ Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürü
 | TanStack Query | Sunucu verisi ve önbellek |
 | TanStack Store | Bileşenler arasında paylaşılan istemci, inspector, toolbar ve Wireframe editör oturumu durumu |
 | TanStack Form | Form state'i ve submission yaşam döngüsü |
+| Browser Clipboard API | Secure-context metin kopyalama; `apps/web/src/lib/clipboard.ts` üzerinden çalışır ve arka planda clipboard izlemez |
 | Zod | Şema/form doğrulama ile sürümlü `WireframeDocument` doğrulaması ve migration sınırları |
 | TanStack Pacer | Yoğun etkileşim kontrolü |
 | TanStack Table | Veri tabloları |

@@ -2,36 +2,64 @@ import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   buildWorkContextModel,
   getPreparedWorkContextLayout,
-  nextPreparedWorkContextSection,
+  getWorkContextLayout,
+  nextWorkContextSection,
   type PreparedWorkContextSection,
+  sourcesForWorkContextCustomSection,
   sourcesForWorkContextSection,
+  type WorkContextCustomSection,
   type WorkContextInitialField,
+  type WorkContextLayouts,
+  type WorkContextPriorityFoundations,
+  type WorkContextPriorityValue,
+  type WorkContextPriorityValues,
   type WorkContextSource,
+  workContextLayoutSections,
+  workContextSourceText,
 } from "@cantiara/api/work-context";
 import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import { workRelationsHash } from "@/features/project-shell/lib/project-shell-navigation";
+import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
+import {
+  workRecordHash,
+  workRecordHref,
+  workRelationsHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
+import {
+  COPY_CONTEXT_AS_MARKDOWN_LABEL,
+  createCopyContextAsMarkdownCommand,
+} from "./work-context-markdown";
 
 const WORK_CONTEXT_SECTION_ID_PATTERN = /[^a-z0-9]+/gi;
 
 interface WorkContextState {
-  visibleSections: PreparedWorkContextSection[];
+  visibleSections: string[];
   workType: WorkType;
 }
 
 export default function WorkContextCard({
   work,
   workStatusLabels,
+  priorityValues,
   projectWorks = [],
+  workContextLayouts,
 }: {
+  priorityValues?: WorkContextPriorityValues;
   projectWorks?: readonly WorkProfile[];
   work: WorkProfile;
+  workContextLayouts?: Partial<WorkContextLayouts>;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const relationsQuery = useQuery(
@@ -39,39 +67,111 @@ export default function WorkContextCard({
       input: { recordId: work.id, recordType: "Work" },
     }),
   );
+  const workContextQuery = useQuery(
+    orpc.workContext.queryOptions({ input: { workId: work.id } }),
+  );
+  const commandPalette = useCommandPalette();
   const layout = getPreparedWorkContextLayout(work.type);
+  const configuredLayout = getWorkContextLayout(work.type, workContextLayouts);
+  const configuredSections = workContextLayoutSections(
+    work.type,
+    configuredLayout,
+  );
   const [contextState, setContextState] = useState<WorkContextState>({
     visibleSections: [],
     workType: work.type,
   });
   const visibleSections =
     contextState.workType === work.type ? contextState.visibleSections : [];
-  const nextSection = nextPreparedWorkContextSection(
+  const nextSection = nextWorkContextSection(
     work.type,
     visibleSections,
+    configuredLayout,
   );
-  const contextModel = buildWorkContextModel({
-    projectWorks,
-    relations: relationsQuery.data ?? [],
-    work,
-  });
+  const displayedSections = configuredSections.filter((section) =>
+    visibleSections.includes(section.key),
+  );
+  const contextModel = useMemo(
+    () =>
+      buildWorkContextModel({
+        projectWorks,
+        priorityValues: priorityValues ?? workContextQuery.data?.priorityValues,
+        relations: relationsQuery.data ?? [],
+        work,
+      }),
+    [
+      priorityValues,
+      projectWorks,
+      relationsQuery.data,
+      work,
+      workContextQuery.data?.priorityValues,
+    ],
+  );
+  const statusLabel = getWorkStatusLabel(work.status, workStatusLabels);
+  const sourceLink = useCallback((source: WorkContextSource) => {
+    if (
+      source.recordType !== "Work" ||
+      !source.projectId ||
+      (source.broken && !source.broken.canOpenSourceRecord)
+    ) {
+      return null;
+    }
+    return workRecordHref(source.projectId, source.recordId);
+  }, []);
+  const copyCommand = useMemo(
+    () =>
+      createCopyContextAsMarkdownCommand({
+        model: contextModel,
+        statusLabel,
+        work,
+        sourceLink,
+      }),
+    [contextModel, sourceLink, statusLabel, work],
+  );
+  useEffect(() => {
+    if (!commandPalette || relationsQuery.isPending || relationsQuery.isError) {
+      return;
+    }
+    return commandPalette.registerCommand(copyCommand);
+  }, [
+    commandPalette,
+    copyCommand,
+    relationsQuery.isError,
+    relationsQuery.isPending,
+  ]);
+  const [copyState, setCopyState] = useState<"idle" | "copying" | "copied">(
+    "idle",
+  );
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   function addContext() {
     if (!nextSection) {
       return;
     }
     setContextState({
-      visibleSections: [...visibleSections, nextSection],
+      visibleSections: [...visibleSections, nextSection.key],
       workType: work.type,
     });
   }
 
   const initialFieldValues: Record<WorkContextInitialField, string> = {
     Planning: "Not set",
-    Status: getWorkStatusLabel(work.status, workStatusLabels),
+    Status: statusLabel,
     Title: work.title,
     Type: work.type,
   };
+
+  const handleCopy = useCallback(async () => {
+    setCopyError(null);
+    setCopyState("copying");
+    try {
+      await copyCommand.run();
+      setCopyState("copied");
+    } catch (error) {
+      setCopyState("idle");
+      setCopyError(copyErrorMessage(error));
+    }
+  }, [copyCommand]);
 
   return (
     <section
@@ -89,8 +189,22 @@ export default function WorkContextCard({
             {work.title}
           </h4>
         </div>
-        {nextSection ? (
-          <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-end justify-end gap-2">
+          <Button
+            data-command-id={copyCommand.id}
+            disabled={
+              relationsQuery.isPending ||
+              relationsQuery.isError ||
+              copyState === "copying"
+            }
+            onClick={handleCopy}
+            size="xs"
+            type="button"
+            variant="outline"
+          >
+            {COPY_CONTEXT_AS_MARKDOWN_LABEL}
+          </Button>
+          {nextSection ? (
             <Button
               aria-describedby={`work-context-next-${work.id}`}
               onClick={addContext}
@@ -99,16 +213,33 @@ export default function WorkContextCard({
             >
               Add Context
             </Button>
+          ) : null}
+          {nextSection ? (
             <span className="sr-only" id={`work-context-next-${work.id}`}>
-              Opens {nextSection}.
+              Opens {nextSection.label}.
             </span>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </header>
 
+      {copyState === "copied" ? (
+        <p aria-live="polite" className="text-muted-foreground text-sm">
+          Context copied.
+        </p>
+      ) : null}
+      {copyError ? (
+        <p
+          aria-live="assertive"
+          className="text-destructive text-sm"
+          role="alert"
+        >
+          {copyError}
+        </p>
+      ) : null}
+
       <WhyChain
-        isError={relationsQuery.isError}
-        isPending={relationsQuery.isPending}
+        isError={workContextQuery.isError}
+        isPending={workContextQuery.isPending}
         sources={contextModel.whyChain}
         work={work}
         workStatusLabels={workStatusLabels}
@@ -127,17 +258,49 @@ export default function WorkContextCard({
         ))}
       </dl>
 
-      {visibleSections.map((section) => (
-        <PreparedSection
-          isError={relationsQuery.isError}
-          isPending={relationsQuery.isPending}
-          key={section}
-          section={section}
-          sources={sourcesForWorkContextSection(section, contextModel.sources)}
-          work={work}
-          workStatusLabels={workStatusLabels}
-        />
-      ))}
+      <PriorityFoundations
+        foundations={contextModel.priorityFoundations}
+        isError={workContextQuery.isError}
+        isPending={workContextQuery.isPending}
+        work={work}
+        workStatusLabels={workStatusLabels}
+      />
+
+      {displayedSections.map((section) => {
+        if (section.prepared) {
+          return (
+            <PreparedSection
+              isError={relationsQuery.isError}
+              isPending={relationsQuery.isPending}
+              key={section.key}
+              section={section.prepared}
+              sources={sourcesForWorkContextSection(
+                section.prepared,
+                contextModel.sources,
+              )}
+              work={work}
+              workStatusLabels={workStatusLabels}
+            />
+          );
+        }
+        if (section.custom) {
+          return (
+            <CustomSection
+              isError={relationsQuery.isError}
+              isPending={relationsQuery.isPending}
+              key={section.key}
+              section={section.custom}
+              sources={sourcesForWorkContextCustomSection(
+                section.custom,
+                contextModel.customSources,
+              )}
+              work={work}
+              workStatusLabels={workStatusLabels}
+            />
+          );
+        }
+        return null;
+      })}
     </section>
   );
 }
@@ -248,6 +411,57 @@ function PreparedSection({
   );
 }
 
+function CustomSection({
+  isError,
+  isPending,
+  section,
+  sources,
+  work,
+  workStatusLabels,
+}: {
+  isError: boolean;
+  isPending: boolean;
+  section: WorkContextCustomSection;
+  sources: readonly WorkContextSource[];
+  work: WorkProfile;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const headingId = workContextSectionId(work.id, section.id);
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="space-y-2 border-border/70 border-t pt-3"
+    >
+      <h5 className="font-medium text-sm" id={headingId}>
+        {section.title}
+      </h5>
+      {isPending ? (
+        <p className="text-muted-foreground text-sm">Loading relations…</p>
+      ) : null}
+      {isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Relations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(isPending || isError) && sources.length > 0 ? (
+        <ul className="space-y-2">
+          {sources.map((source) => (
+            <li key={source.id}>
+              <WorkContextSourceItem
+                source={source}
+                workStatusLabels={workStatusLabels}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {!(isPending || isError) && sources.length === 0 ? (
+        <EmptyContextState work={work} />
+      ) : null}
+    </section>
+  );
+}
+
 function EmptyContextState({ work }: { work: WorkProfile }) {
   const navigate = useNavigate();
   const handleLink = useCallback(() => {
@@ -280,22 +494,8 @@ function WorkContextSourceItem({
   source: WorkContextSource;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
-  let sourceText: string;
-  if (source.broken) {
-    sourceText =
-      source.key && source.title
-        ? `${source.key} ${source.title} — ${source.broken.reason}`
-        : `Broken — ${source.broken.reason}`;
-  } else if (source.key && source.title) {
-    sourceText = `${source.key} ${source.title}`;
-  } else {
-    sourceText = source.title ?? source.recordType;
-  }
-  const canOpenSourceRecord = Boolean(
-    source.recordType === "Work" &&
-      source.projectId &&
-      (!source.broken || source.broken.canOpenSourceRecord),
-  );
+  const sourceText = workContextSourceText(source);
+  const canOpenSourceRecord = canOpenWorkContextSource(source);
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 px-3 py-2 text-sm">
@@ -306,10 +506,13 @@ function WorkContextSourceItem({
           Status: {getWorkStatusLabel(source.status, workStatusLabels)}
         </span>
       ) : null}
-      {canOpenSourceRecord && source.projectId ? (
+      {canOpenSourceRecord &&
+      (source.recordType === "Work" ? source.projectId : source.openPath) ? (
         <OpenSourceRecordLink
+          href={source.openPath ?? null}
           projectId={source.projectId}
           recordId={source.recordId}
+          useRouterLink={source.recordType === "Work"}
         />
       ) : null}
     </div>
@@ -317,30 +520,34 @@ function WorkContextSourceItem({
 }
 
 function OpenSourceRecordLink({
+  href,
   projectId,
   recordId,
+  useRouterLink,
 }: {
-  projectId: string;
+  href: string | null;
+  projectId: string | null;
   recordId: string;
+  useRouterLink: boolean;
 }) {
   const linkProps = useLinkProps({
     activeOptions: { exact: true, includeHash: true },
-    hash: `work-${encodeURIComponent(recordId)}`,
-    params: { projectId },
+    hash: workRecordHash(recordId),
+    params: { projectId: projectId ?? "" },
     to: "/projects/$projectId",
   });
 
   return (
-    <a {...linkProps} className="underline underline-offset-2">
+    <a
+      {...(useRouterLink ? linkProps : { href: href ?? undefined })}
+      className="underline underline-offset-2"
+    >
       Open source record
     </a>
   );
 }
 
-function workContextSectionId(
-  workId: string,
-  section: PreparedWorkContextSection,
-) {
+function workContextSectionId(workId: string, section: string) {
   const sectionSlug = section
     .toLowerCase()
     .replaceAll(WORK_CONTEXT_SECTION_ID_PATTERN, "-");
@@ -360,4 +567,162 @@ function InitialField({
       <dd className="mt-1 font-medium">{value}</dd>
     </div>
   );
+}
+
+function PriorityFoundations({
+  foundations,
+  isError,
+  isPending,
+  work,
+  workStatusLabels,
+}: {
+  foundations: WorkContextPriorityFoundations;
+  isError: boolean;
+  isPending: boolean;
+  work: WorkProfile;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const [openCountId, setOpenCountId] = useState<string | null>(null);
+  const headingId = `work-context-priority-foundations-${work.id}`;
+  const toggleCount = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    const { currentTarget } = event;
+    const { countId } = currentTarget.dataset;
+    if (!countId) {
+      return;
+    }
+    setOpenCountId((current) => (current === countId ? null : countId));
+  }, []);
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="space-y-3 border-border/70 border-t pt-3"
+      data-work-context-priority-foundations="true"
+    >
+      <h5 className="font-medium text-sm" id={headingId}>
+        Priority Foundations
+      </h5>
+      {isPending ? (
+        <p className="text-muted-foreground text-sm">Loading relations…</p>
+      ) : null}
+      {isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Priority Foundations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(isPending || isError) &&
+      foundations.values.length === 0 &&
+      foundations.counts.length === 0 ? (
+        <EmptyContextState work={work} />
+      ) : null}
+      {!(isPending || isError) && foundations.values.length > 0 ? (
+        <ul className="space-y-2">
+          {foundations.values.map((value) => (
+            <PriorityFoundationValue
+              key={value.id}
+              value={value}
+              workStatusLabels={workStatusLabels}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {!(isPending || isError) && foundations.counts.length > 0 ? (
+        <ul className="flex flex-wrap gap-2">
+          {foundations.counts.map((count) => {
+            const isOpen = openCountId === count.id;
+            const listId = `${count.id}-${work.id}`;
+            return (
+              <li key={count.id}>
+                <Button
+                  aria-controls={isOpen ? listId : undefined}
+                  aria-expanded={isOpen}
+                  aria-label={`Show ${count.label} source records (${count.count})`}
+                  className="px-2 text-sm underline-offset-2 hover:underline"
+                  data-count-id={count.id}
+                  onClick={toggleCount}
+                  size="xs"
+                  type="button"
+                  variant="outline"
+                >
+                  {count.label}: {count.count}
+                </Button>
+                {isOpen ? (
+                  <ul
+                    aria-label={`${count.label} source records`}
+                    className="mt-2 space-y-2"
+                    id={listId}
+                  >
+                    {count.sources.map((source) => (
+                      <li key={source.id}>
+                        <WorkContextSourceItem
+                          source={source}
+                          workStatusLabels={workStatusLabels}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function PriorityFoundationValue({
+  value,
+  workStatusLabels,
+}: {
+  value: WorkContextPriorityValue;
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const { source } = value;
+  const workSource = isWorkContextSource(source) ? source : null;
+  const sourceLink =
+    workSource &&
+    canOpenWorkContextSource(workSource) &&
+    (workSource.recordType === "Work"
+      ? workSource.projectId
+      : workSource.openPath)
+      ? {
+          href: workSource.openPath ?? null,
+          projectId: workSource.projectId,
+          recordId: workSource.recordId,
+          useRouterLink: workSource.recordType === "Work",
+        }
+      : null;
+
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 px-3 py-2 text-sm">
+      <span className="text-muted-foreground">{value.label}</span>
+      <span>{value.value}</span>
+      {workSource?.status ? (
+        <span className="text-muted-foreground">
+          Status: {getWorkStatusLabel(workSource.status, workStatusLabels)}
+        </span>
+      ) : null}
+      {sourceLink ? <OpenSourceRecordLink {...sourceLink} /> : null}
+    </li>
+  );
+}
+
+function canOpenWorkContextSource(source: WorkContextSource) {
+  return Boolean(
+    (!source.broken || source.broken.canOpenSourceRecord) &&
+      (source.openPath || (source.recordType === "Work" && source.projectId)),
+  );
+}
+
+function isWorkContextSource(
+  source: WorkContextPriorityValue["source"],
+): source is WorkContextSource {
+  return "recordType" in source;
+}
+
+function copyErrorMessage(error: unknown) {
+  return error instanceof Error && error.message
+    ? error.message
+    : "Context could not be copied.";
 }

@@ -39,6 +39,7 @@ import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
 } from "../src/features/tags/server/tags-database";
+import { createWorkContextAccess } from "../src/features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 
@@ -81,6 +82,7 @@ const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
 const relations = createDatabaseRelations(database);
+const workContext = createWorkContextAccess(workLifecycle, relations);
 const captureInbox = createDatabaseCaptureInbox(
   database,
   createCaptureInboxWorkCreate(workLifecycle),
@@ -182,6 +184,7 @@ const app = createApp({
   tags,
   tagMutationContracts,
   workLifecycle,
+  workContext,
   workDrafts,
   redactSecrets: () => new Error("Redacted E2E server error"),
   trustedProxyIps: [],
