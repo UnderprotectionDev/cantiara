@@ -6,7 +6,9 @@ import {
   buildWorkContextModel,
   getPreparedWorkContextLayout,
   nextPreparedWorkContextSection,
+  renderWorkContextMarkdown,
   sourcesForWorkContextSection,
+  type WorkContextSource,
 } from "./work-context";
 import type { WorkProfile } from "./work-lifecycle";
 import { WORK_TYPE_OPTIONS } from "./work-lifecycle";
@@ -94,6 +96,26 @@ function relation(
     inverseLabel: "Related",
     label: overrides.kind,
     revision: 1,
+    ...overrides,
+  };
+}
+
+function contextSource(
+  overrides: Partial<WorkContextSource> = {},
+): WorkContextSource {
+  return {
+    broken: null,
+    id: "source-1",
+    key: null,
+    label: "Source",
+    projectId: null,
+    recordId: "source-1",
+    recordType: "Source",
+    relationId: "relation-1",
+    relationKind: "Evidence",
+    status: null,
+    title: null,
+    workType: null,
     ...overrides,
   };
 }
@@ -396,6 +418,38 @@ describe("Work Context Card live sources", () => {
     ]);
   });
 
+  test("keeps accessible supported sources and their permitted external link", () => {
+    const githubPullRequest = relation({
+      id: "github-pr-relation",
+      kind: "Evidence",
+      source: endpoint({
+        recordId: work.id,
+        recordType: "Work",
+      }),
+      target: endpoint({
+        key: "PR-7",
+        label: "GitHub PR",
+        recordId: "github-pr-1",
+        recordType: "GitHub PR",
+        title: "Clarify checkout labels",
+        url: "https://github.com/cantiara/web/pull/7",
+      }),
+    });
+
+    const model = buildWorkContextModel({
+      relations: [githubPullRequest],
+      work: { ...work, primaryFeatureId: null, primarySpecId: null },
+    });
+
+    expect(model.sources).toEqual([
+      expect.objectContaining({
+        recordType: "GitHub PR",
+        title: "Clarify checkout labels",
+        url: "https://github.com/cantiara/web/pull/7",
+      }),
+    ]);
+  });
+
   test("does not invent a Primary spec tombstone without a resolved source", () => {
     const model = buildWorkContextModel({
       relations: [],
@@ -433,5 +487,131 @@ describe("Work Context Card live sources", () => {
       label: "Primary Feature",
       title: "Checkout clarity",
     });
+  });
+});
+
+describe("Work Context Card Markdown copy", () => {
+  test("renders readable context and excludes inaccessible or private content", () => {
+    const activeBlocker = contextSource({
+      id: "blocker-1",
+      key: "PAY-8",
+      label: "Work",
+      recordId: "blocker-1",
+      recordType: "Work",
+      relationKind: "Blocks",
+      status: "Blocked",
+      title: "Resolve payment provider timeout",
+      workType: "Bug",
+    });
+    const closedBlocker = contextSource({
+      id: "blocker-2",
+      key: "PAY-9",
+      label: "Work",
+      recordId: "blocker-2",
+      recordType: "Work",
+      relationKind: "Blocks",
+      status: "Closed",
+      title: "Old payment issue",
+      workType: "Bug",
+    });
+    const primarySpec = contextSource({
+      id: "spec-1",
+      key: "SPEC-1",
+      label: "Primary spec",
+      recordId: "spec-1",
+      recordType: "Document version",
+      relationKind: "Primary spec",
+      title: "Checkout clarity spec",
+    });
+    const decision = contextSource({
+      id: "decision-1",
+      key: "DEC-1",
+      label: "Decision",
+      recordId: "decision-1",
+      recordType: "Decision",
+      title: "Use a single checkout summary",
+    });
+    const githubPullRequest = contextSource({
+      id: "github-pr-1",
+      key: "PR-7",
+      label: "GitHub PR",
+      recordId: "github-pr-1",
+      recordType: "GitHub PR",
+      title: "Clarify checkout labels",
+      url: "https://github.com/cantiara/web/pull/7",
+    });
+    const inaccessibleRisk = contextSource({
+      broken: {
+        canOpenSourceRecord: false,
+        establishedAt: "2026-01-01T00:00:00.000Z",
+        reason: "Redacted for security",
+      },
+      id: "private-risk",
+      key: null,
+      label: "Risk",
+      recordId: "private-risk",
+      recordType: "Risk",
+      title: null,
+    });
+
+    const markdown = renderWorkContextMarkdown({
+      model: {
+        sources: [
+          activeBlocker,
+          closedBlocker,
+          primarySpec,
+          decision,
+          githubPullRequest,
+          inaccessibleRisk,
+        ],
+        whyChain: [primarySpec, decision, inaccessibleRisk],
+      },
+      producedAt: "2026-01-01T12:00:00.000Z",
+      statusLabel: "Doing",
+      work: {
+        ...work,
+        captureProvenance: {
+          attachment: null,
+          captureId: "capture-1",
+          capturedAt: "2026-01-01T11:00:00.000Z",
+          content: "super-secret capture content",
+          fields: {},
+          link: null,
+          origin: null,
+          template: null,
+        },
+        checklist: [
+          { completed: true, id: "check-1", text: "Confirm checkout labels" },
+          { completed: false, id: "check-2", text: "Add a summary screen" },
+        ],
+      },
+    });
+
+    expect(markdown).toContain("# PAY-1 Improve checkout clarity");
+    expect(markdown).toContain("- Work key: PAY-1");
+    expect(markdown).toContain("- Title: Improve checkout clarity");
+    expect(markdown).toContain("- Type: Improvement");
+    expect(markdown).toContain("- Status: Doing");
+    expect(markdown).toContain("- Produced at: 2026-01-01T12:00:00.000Z");
+    expect(markdown).toContain("- Primary source is in the app");
+    expect(markdown).toContain("## Description");
+    expect(markdown).toContain("The checkout flow is hard to understand.");
+    expect(markdown).toContain("- [x] Confirm checkout labels");
+    expect(markdown).toContain("- [ ] Add a summary screen");
+    expect(markdown).toContain("## Why am I doing this work?");
+    expect(markdown).toContain("SPEC-1 Checkout clarity spec");
+    expect(markdown).toContain("## Related Decision, Risk, and Open Question");
+    expect(markdown).toContain("DEC-1 Use a single checkout summary");
+    expect(markdown).toContain("## Active blockers");
+    expect(markdown).toContain(
+      "- Blocked by: PAY-8 Resolve payment provider timeout",
+    );
+    expect(markdown).toContain("PAY-8 Resolve payment provider timeout");
+    expect(markdown).not.toContain("PAY-9 Old payment issue");
+    expect(markdown).toContain("## GitHub and external links");
+    expect(markdown).toContain("https://github.com/cantiara/web/pull/7");
+    expect(markdown).not.toContain("super-secret capture content");
+    expect(markdown).not.toContain("Redacted for security");
+    expect(markdown).not.toContain("private-risk");
   });
 });

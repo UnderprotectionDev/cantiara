@@ -499,6 +499,7 @@ export interface RelationEndpointView extends RelationEndpoint {
   projectId: string | null;
   status: WorkStatus | null;
   title: string | null;
+  url?: string | null;
   workType: WorkType | null;
 }
 

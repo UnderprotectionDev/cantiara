@@ -261,7 +261,9 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           ├── work-context-card.test.tsx
-│       │   │   │           └── work-context-card.tsx
+│       │   │   │           ├── work-context-card.tsx
+│       │   │   │           ├── work-context-markdown.test.ts
+│       │   │   │           └── work-context-markdown.ts
 │       │   │   ├── work-drafts/
 │       │   │   │   └── ui/
 │       │   │   │       └── forms/
