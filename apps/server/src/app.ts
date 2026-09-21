@@ -22,6 +22,7 @@ import {
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import {
   FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
+  fileAttachmentAssetInputSchema,
   fileAttachmentScopeSchema,
   fileAttachmentStageInputSchema,
 } from "@cantiara/api/file-attachments";
@@ -703,6 +704,13 @@ function webCaptureUnauthorizedResponse() {
   );
 }
 
+function fileAttachmentUnauthorizedResponse() {
+  return Response.json(
+    { code: "UNAUTHORIZED" },
+    { headers: noStoreHeaders(), status: 401 },
+  );
+}
+
 function fileAttachmentErrorResponse(error: unknown) {
   if (error instanceof ZodError || error instanceof SyntaxError) {
     return Response.json(
@@ -721,6 +729,7 @@ function fileAttachmentErrorResponse(error: unknown) {
       {
         FILE_ATTACHMENT_ACCOUNT_NOT_FOUND: 404,
         FILE_ATTACHMENT_IDEMPOTENCY_CONFLICT: 409,
+        FILE_ATTACHMENT_PREVIEW_UNAVAILABLE: 503,
         FILE_ATTACHMENT_QUOTA_EXCEEDED: 412,
         FILE_ATTACHMENT_REVISION_CONFLICT: 409,
         FILE_ATTACHMENT_TARGET_NOT_FOUND: 404,
@@ -898,6 +907,47 @@ export function createApp(dependencies: AppDependencies) {
       return fileAttachmentErrorResponse(error);
     }
   });
+
+  app.get(
+    "/api/file-attachments/:attachmentId/versions/:versionId/asset",
+    async (c) => {
+      if (!dependencies.fileAttachments) {
+        return fileAttachmentUnavailableResponse();
+      }
+      let principal: Awaited<ReturnType<typeof authorizedPrincipal>>;
+      try {
+        principal = await authorizedPrincipal(c.req.raw, dependencies);
+      } catch {
+        return fileAttachmentUnauthorizedResponse();
+      }
+      if (!principal) {
+        return fileAttachmentUnauthorizedResponse();
+      }
+      try {
+        const input = fileAttachmentAssetInputSchema.parse({
+          attachmentId: c.req.param("attachmentId"),
+          variant: c.req.query("variant") ?? "original",
+          versionId: c.req.param("versionId"),
+        });
+        const asset = await dependencies.fileAttachments.readAsset(
+          principal.accountId,
+          input,
+        );
+        const safeFileName = asset.fileName.replace(/["\\\r\n]/gu, "_");
+        return new Response(asset.bytes, {
+          headers: {
+            ...noStoreHeaders(),
+            "content-disposition": `${asset.disposition}; filename="${safeFileName}"; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`,
+            "content-security-policy": "default-src 'none'",
+            "content-type": asset.contentType,
+            "cross-origin-resource-policy": "same-origin",
+          },
+        });
+      } catch (error) {
+        return fileAttachmentErrorResponse(error);
+      }
+    },
+  );
 
   app.get("/api/web-capture/inboxes", async (c) => {
     if (!dependencies.webCapture) {

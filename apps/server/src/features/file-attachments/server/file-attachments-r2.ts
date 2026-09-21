@@ -84,6 +84,7 @@ function endpointFor(config: R2FileAttachmentConfig) {
 }
 
 async function signedRequest({
+  acceptedStatuses,
   body,
   config,
   contentType,
@@ -99,8 +100,9 @@ async function signedRequest({
   fetcher: R2Fetch;
   headers?: Record<string, string>;
   key: string;
-  method: "DELETE" | "GET" | "PUT";
+  method: "DELETE" | "GET" | "HEAD" | "PUT";
   now: () => Date;
+  acceptedStatuses?: readonly number[];
 }) {
   const endpoint = endpointFor(config);
   const url = `${endpoint}/${encodePathSegment(config.bucket)}/${encodeObjectKey(key)}`;
@@ -160,7 +162,7 @@ async function signedRequest({
     headers: requestHeaders,
     method,
   });
-  if (!response.ok) {
+  if (!(response.ok || acceptedStatuses?.includes(response.status))) {
     throw new Error(
       `R2 File Attachment request failed with ${response.status}: ${await response.text()}`,
     );
@@ -188,6 +190,33 @@ export function createR2FileAttachmentObjectStore(
         method: "DELETE",
         now,
       });
+    },
+
+    async has(key) {
+      const response = await signedRequest({
+        acceptedStatuses: [404],
+        config,
+        fetcher,
+        key,
+        method: "HEAD",
+        now,
+      });
+      return response.ok;
+    },
+
+    async putImmutable({ bytes, contentType, key }) {
+      const response = await signedRequest({
+        acceptedStatuses: [412],
+        body: bytes,
+        config,
+        contentType,
+        fetcher,
+        headers: { "if-none-match": "*" },
+        key,
+        method: "PUT",
+        now,
+      });
+      return response.status === 412 ? "existing" : "created";
     },
 
     async promote({ permanentKey, temporaryKey }) {

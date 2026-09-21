@@ -74,4 +74,51 @@ describe("File Attachments R2 boundary", () => {
     expect(requests[2]?.method).toBe("GET");
     expect(requests[3]?.method).toBe("DELETE");
   });
+
+  test("uses signed conditional writes for immutable derivatives", async () => {
+    const requests: Request[] = [];
+    const fetcher = (input: string | Request | URL, init?: RequestInit) => {
+      const request = new Request(
+        input instanceof Request ? input.url : input.toString(),
+        init,
+      );
+      requests.push(request);
+      return Promise.resolve(
+        request.method === "HEAD"
+          ? new Response(null, { status: 404 })
+          : new Response(null, { status: 412 }),
+      );
+    };
+    const store = createR2FileAttachmentObjectStore(
+      {
+        accessKeyId: "access-key",
+        accountId: "account-id",
+        bucket: "cantiara-files",
+        endpoint: "https://r2.example.test",
+        secretAccessKey: "secret-key",
+      },
+      { fetcher, now: () => NOW },
+    );
+
+    await expect(
+      store.has("file-attachment-derivatives/hash/small.webp"),
+    ).resolves.toBe(false);
+    await expect(
+      store.putImmutable({
+        bytes: new Uint8Array([1, 2]),
+        contentType: "image/webp",
+        key: "file-attachment-derivatives/hash/small.webp",
+      }),
+    ).resolves.toBe("existing");
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.method).toBe("HEAD");
+    expect(requests[1]?.headers.get("if-none-match")).toBe("*");
+    for (const request of requests) {
+      expect(request.headers.get("authorization")).toMatch(
+        AUTHORIZATION_PATTERN,
+      );
+      expect(request.url).not.toContain("r2.cloudflarestorage.com");
+    }
+  });
 });

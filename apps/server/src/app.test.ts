@@ -225,9 +225,13 @@ describe("server app Account Access boundary", () => {
 
   test("rejects an oversized File Attachment stage body before buffering it", async () => {
     const fileAttachments = {
+      canSelectIntoExternalSurface: vi.fn(),
+      cleanupVersionDerivatives: vi.fn(),
       finalize: vi.fn(),
       getQuota: vi.fn(),
       list: vi.fn(),
+      preview: vi.fn(),
+      readAsset: vi.fn(),
       stage: vi.fn(),
     } satisfies FileAttachmentAccess;
     const { app } = createTestApp({ authorized: true, fileAttachments });
@@ -252,9 +256,13 @@ describe("server app Account Access boundary", () => {
 
   test("stages a multipart File Attachment only for an authorized Founder", async () => {
     const fileAttachments = {
+      canSelectIntoExternalSurface: vi.fn(),
+      cleanupVersionDerivatives: vi.fn(),
       finalize: vi.fn(),
       getQuota: vi.fn(),
       list: vi.fn(),
+      preview: vi.fn(),
+      readAsset: vi.fn(),
       stage: vi.fn((_accountId, _input, bytes) => {
         expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
         return Promise.resolve({
@@ -305,6 +313,72 @@ describe("server app Account Access boundary", () => {
       }),
       new Uint8Array([1, 2, 3]),
     );
+  });
+
+  test("serves a product-controlled File Attachment asset without leaking its object key", async () => {
+    const fileAttachments = {
+      canSelectIntoExternalSurface: vi.fn(),
+      cleanupVersionDerivatives: vi.fn(),
+      finalize: vi.fn(),
+      getQuota: vi.fn(),
+      list: vi.fn(),
+      preview: vi.fn(),
+      readAsset: vi.fn(async () => ({
+        bytes: new Uint8Array([1, 2, 3]),
+        contentType: "image/webp",
+        disposition: "inline" as const,
+        fileName: "screen.jpg",
+        versionId: "version-1",
+      })),
+      stage: vi.fn(),
+    } satisfies FileAttachmentAccess;
+    const { app } = createTestApp({ authorized: true, fileAttachments });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/file-attachments/attachment-1/versions/version-1/asset?variant=small",
+        { headers: { origin: "https://cantiara.example" } },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/webp");
+    expect(response.headers.get("content-disposition")).toContain("screen.jpg");
+    expect(response.headers.get("content-security-policy")).toBe(
+      "default-src 'none'",
+    );
+    await expect(response.arrayBuffer()).resolves.toEqual(
+      new Uint8Array([1, 2, 3]).buffer,
+    );
+    expect(fileAttachments.readAsset).toHaveBeenCalledWith("account-1", {
+      attachmentId: "attachment-1",
+      variant: "small",
+      versionId: "version-1",
+    });
+    expect(response.url).not.toContain("r2");
+  });
+
+  test("rejects an unauthenticated File Attachment asset request", async () => {
+    const fileAttachments = {
+      canSelectIntoExternalSurface: vi.fn(),
+      cleanupVersionDerivatives: vi.fn(),
+      finalize: vi.fn(),
+      getQuota: vi.fn(),
+      list: vi.fn(),
+      preview: vi.fn(),
+      readAsset: vi.fn(),
+      stage: vi.fn(),
+    } satisfies FileAttachmentAccess;
+    const { app } = createTestApp({ fileAttachments });
+
+    const response = await app.fetch(
+      new Request(
+        "https://api.cantiara.example/api/file-attachments/attachment-1/versions/version-1/asset?variant=original",
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    expect(fileAttachments.readAsset).not.toHaveBeenCalled();
   });
 
   test("allows public GitHub sign-in to recover from a stale revoked cookie", async () => {
