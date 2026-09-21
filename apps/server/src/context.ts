@@ -31,6 +31,7 @@ import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
+import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
 import type { Context as HonoContext } from "hono";
@@ -68,6 +69,7 @@ export interface CreateContextOptions {
   webCapture?: WebCaptureAccess;
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
+  workspaceOverview?: WorkspaceOverviewAccess;
 }
 
 export function requestClientPlatform(request: Request): AccountAccessClient {
@@ -93,6 +95,7 @@ export async function createContext({
   mutationContract,
   projectShell,
   projectShellMutationContracts,
+  workspaceOverview,
   tags,
   relations,
   tagMutationContracts,
@@ -135,6 +138,7 @@ export async function createContext({
     mutationContract,
     projectShell,
     projectShellMutationContracts,
+    workspaceOverview,
     tags,
     relations,
     auth: null,

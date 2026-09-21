@@ -121,6 +121,10 @@ import {
   workRecreatePreviewInputSchema,
   workTypeChangePreviewInputSchema,
 } from "../work-lifecycle";
+import {
+  type WorkspaceOverviewAccess,
+  workspaceOverviewPresentationSchema,
+} from "../workspace-overview";
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -176,6 +180,21 @@ function requireProjectShell(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectShell;
+}
+
+function requireWorkspaceOverview(context: Context): WorkspaceOverviewAccess {
+  if (!context.workspaceOverview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workspaceOverview;
+}
+
+function requireWorkspaceOverviewWriter(context: Context) {
+  const overview = requireWorkspaceOverview(context);
+  if (!overview.savePresentation) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return overview.savePresentation.bind(overview);
 }
 
 function requireUsageLinks(context: Context) {
@@ -1220,6 +1239,14 @@ export const appRouter = {
   projects: protectedProcedure.handler(({ context }) =>
     requireProjectShell(context).list(context.session.user.id),
   ),
+  workspaceOverview: protectedProcedure.handler(({ context }) =>
+    requireWorkspaceOverview(context).get(context.session.user.id),
+  ),
+  saveWorkspaceOverviewPresentation: protectedProcedure
+    .input(workspaceOverviewPresentationSchema)
+    .handler(({ context, input }) =>
+      requireWorkspaceOverviewWriter(context)(context.session.user.id, input),
+    ),
   project: protectedProcedure
     .input(z.object({ projectId: z.string().trim().min(1) }).strict())
     .handler(async ({ context, input }) => {

@@ -27,6 +27,7 @@ import {
   webCapture,
   workDrafts,
   workLifecycle,
+  workspaceOverview,
 } from "./services";
 
 initLogger({
@@ -69,4 +70,5 @@ export default createApp({
   webCapture,
   workDrafts,
   workLifecycle,
+  workspaceOverview,
 });
