@@ -85,6 +85,12 @@ function createMemoryFileAttachments(
       return Promise.resolve();
     },
 
+    rollbackCapturePromotion({ attachmentId, uploadId }) {
+      attachments.delete(attachmentId);
+      uploads.delete(uploadId);
+      return Promise.resolve();
+    },
+
     commitUpload(input: FileAttachmentCommitInput) {
       const upload = [...uploads.values()].find(
         (candidate) => candidate.id === input.uploadId,
@@ -495,6 +501,189 @@ describe("File Attachments — Dosya sınırları finalize seam", () => {
         uploadId: session.uploadId,
       }),
     ).resolves.toMatchObject({ idempotent: true });
+  });
+
+  test("promotes a Capture staging payload through the File Attachment finalize barrier", async () => {
+    const memory = createMemoryFileAttachments();
+    let finalizeCalls = 0;
+
+    await expect(
+      memory.service.promoteCaptureAttachment({
+        accountId,
+        bytes: jpegBytes,
+        clientIdempotencyKey: "capture-attachment-1",
+        declaredMimeType: "image/jpeg",
+        fileName: "capture.jpg",
+        finalize: () => {
+          finalizeCalls += 1;
+          return Promise.resolve({ recordId: "record-1" });
+        },
+        scope: projectScope,
+      }),
+    ).resolves.toEqual({ recordId: "record-1" });
+
+    expect(finalizeCalls).toBe(1);
+    await expect(
+      memory.service.access.list(accountId, projectScope),
+    ).resolves.toMatchObject([
+      {
+        currentVersion: { fileName: "capture.jpg" },
+        scope: projectScope,
+      },
+    ]);
+    expect(
+      [...memory.objects.keys()].some((key) =>
+        key.startsWith("file-attachments/"),
+      ),
+    ).toBe(true);
+  });
+
+  test("does not create a visible File Attachment when Capture target finalization fails", async () => {
+    const memory = createMemoryFileAttachments();
+
+    await expect(
+      memory.service.promoteCaptureAttachment({
+        accountId,
+        bytes: jpegBytes,
+        clientIdempotencyKey: "capture-attachment-failure",
+        declaredMimeType: "image/jpeg",
+        fileName: "capture.jpg",
+        finalize: () => Promise.reject(new Error("target finalization failed")),
+        scope: projectScope,
+      }),
+    ).rejects.toThrow("target finalization failed");
+
+    expect(await memory.service.access.list(accountId)).toHaveLength(0);
+    expect(
+      [...memory.objects.keys()].some((key) =>
+        key.startsWith("file-attachments/"),
+      ),
+    ).toBe(false);
+    expect([...memory.objects.keys()]).toHaveLength(0);
+    expect(memory.uploads.size).toBe(0);
+  });
+
+  test("promotes a Capture staging payload into a Personal Wiki", async () => {
+    const memory = createMemoryFileAttachments();
+
+    await memory.service.promoteCaptureAttachment({
+      accountId,
+      bytes: jpegBytes,
+      clientIdempotencyKey: "capture-personal-wiki",
+      declaredMimeType: "image/jpeg",
+      fileName: "capture.jpg",
+      finalize: async () => ({ recordId: "wiki-record-1" }),
+      scope: { kind: "personalWiki", personalWikiId: accountId },
+    });
+
+    await expect(
+      memory.service.access.list(accountId, {
+        kind: "personalWiki",
+        personalWikiId: accountId,
+      }),
+    ).resolves.toMatchObject([
+      {
+        scope: { kind: "personalWiki", personalWikiId: accountId },
+      },
+    ]);
+  });
+
+  test("applies forbidden type rules before promoting a Capture staging payload", async () => {
+    const memory = createMemoryFileAttachments();
+    let finalizeCalls = 0;
+
+    await expect(
+      memory.service.promoteCaptureAttachment({
+        accountId,
+        bytes: new TextEncoder().encode("<svg></svg>"),
+        clientIdempotencyKey: "capture-forbidden",
+        declaredMimeType: "image/svg+xml",
+        fileName: "capture.svg",
+        finalize: () => {
+          finalizeCalls += 1;
+          return Promise.resolve({ recordId: "record-1" });
+        },
+        scope: projectScope,
+      }),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_UNSUPPORTED_TYPE" });
+
+    expect(finalizeCalls).toBe(0);
+    expect(await memory.service.access.list(accountId)).toHaveLength(0);
+    expect(memory.objects.size).toBe(0);
+  });
+
+  test("applies the atomic quota barrier to Capture promotion", async () => {
+    const memory = createMemoryFileAttachments({
+      byteLimit: jpegBytes.byteLength,
+      commitByteLimit: jpegBytes.byteLength - 1,
+    });
+    let finalizeCalls = 0;
+
+    await expect(
+      memory.service.promoteCaptureAttachment({
+        accountId,
+        bytes: jpegBytes,
+        clientIdempotencyKey: "capture-quota",
+        declaredMimeType: "image/jpeg",
+        fileName: "capture.jpg",
+        finalize: () => {
+          finalizeCalls += 1;
+          return Promise.resolve({ recordId: "record-1" });
+        },
+        scope: projectScope,
+      }),
+    ).rejects.toMatchObject({ code: "FILE_ATTACHMENT_QUOTA_EXCEEDED" });
+
+    expect(finalizeCalls).toBe(0);
+    expect(await memory.service.access.list(accountId)).toHaveLength(0);
+    expect(
+      [...memory.objects.keys()].filter((key) =>
+        key.startsWith("file-attachments/"),
+      ),
+    ).toHaveLength(0);
+    expect(
+      [...memory.objects.keys()].filter((key) => key.startsWith("temporary/")),
+    ).toHaveLength(1);
+  });
+
+  test("replays a committed Capture promotion without rereading staging", async () => {
+    const memory = createMemoryFileAttachments();
+    let readCalls = 0;
+    let finalizeCalls = 0;
+
+    const input = {
+      accountId,
+      clientIdempotencyKey: "capture-retry-after-commit",
+      declaredMimeType: "image/jpeg",
+      fileName: "capture.jpg",
+      finalize: () => {
+        finalizeCalls += 1;
+        return Promise.resolve({ recordId: "record-1" });
+      },
+      readBytes: () => {
+        readCalls += 1;
+        return Promise.resolve(jpegBytes);
+      },
+      scope: projectScope,
+    };
+
+    await expect(
+      memory.service.promoteCaptureAttachment(input),
+    ).resolves.toEqual({ recordId: "record-1" });
+    await expect(
+      memory.service.promoteCaptureAttachment({
+        ...input,
+        readBytes: () => {
+          readCalls += 1;
+          return Promise.reject(
+            new Error("Capture staging was already deleted."),
+          );
+        },
+      }),
+    ).resolves.toEqual({ recordId: "record-1" });
+
+    expect(readCalls).toBe(1);
+    expect(finalizeCalls).toBe(2);
   });
 
   test("rejects content changed after staging without creating a visible attachment", async () => {
