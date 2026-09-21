@@ -1047,7 +1047,7 @@ export default function FileAttachmentsSurface({
     <section
       aria-labelledby="file-attachments-heading"
       className="space-y-8"
-      id="file-attachments"
+      id="documents"
     >
       <header className="surface-header max-w-3xl">
         <p className="surface-kicker">
