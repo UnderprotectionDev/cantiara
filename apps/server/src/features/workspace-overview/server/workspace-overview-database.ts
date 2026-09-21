@@ -1,4 +1,8 @@
-import { projectLifecycleStatusSchema } from "@cantiara/api/project-shell";
+import {
+  projectLifecycleStatusSchema,
+  resolveProjectShellConfiguration,
+  starterConfigurationSchema,
+} from "@cantiara/api/project-shell";
 import { workStatusSchema, workTypeSchema } from "@cantiara/api/work-lifecycle";
 import {
   buildWorkspaceOverview,
@@ -7,8 +11,10 @@ import {
   WORKSPACE_OVERVIEW_BLOCKED_WORK_LIMIT,
   WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
   WORKSPACE_OVERVIEW_RECENT_WORK_LIMIT,
+  WORKSPACE_OVERVIEW_SAVED_LIST_MAX,
   type WorkspaceOverviewAccess,
   workspaceOverviewPresentationSchema,
+  workspaceOverviewSavedListDefinitionSchema,
   workspaceOverviewWorkHref,
 } from "@cantiara/api/workspace-overview";
 import type { Database } from "@cantiara/db";
@@ -58,6 +64,18 @@ export function createDatabaseWorkspaceOverview(
     });
   }
 
+  function distinctSavedLists(lists: readonly unknown[]) {
+    const seen = new Set<string>();
+    return lists.slice(0, WORKSPACE_OVERVIEW_SAVED_LIST_MAX).flatMap((list) => {
+      const parsed = workspaceOverviewSavedListDefinitionSchema.safeParse(list);
+      if (!parsed.success || seen.has(parsed.data.id)) {
+        return [];
+      }
+      seen.add(parsed.data.id);
+      return [parsed.data];
+    });
+  }
+
   async function read(accountId: string) {
     const [ownedWorkspace] = await database
       .select({
@@ -79,10 +97,13 @@ export function createDatabaseWorkspaceOverview(
 
     const projects = await database
       .select({
+        archivedAt: project.archivedAt,
+        configuration: project.configuration,
         createdAt: project.createdAt,
         id: project.id,
         name: project.name,
         status: project.status,
+        starterConfiguration: project.starterConfiguration,
         targetDate: project.targetDate,
         updatedAt: project.updatedAt,
       })
@@ -145,6 +166,7 @@ export function createDatabaseWorkspaceOverview(
       : {
           layout: DEFAULT_WORKSPACE_OVERVIEW_LAYOUT,
           liveBlockSources: [],
+          savedLists: [],
           version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
         };
 
@@ -163,14 +185,29 @@ export function createDatabaseWorkspaceOverview(
       })),
       layout: savedPresentation.layout,
       liveBlockSources: savedPresentation.liveBlockSources,
-      projects: projects.map((record) => ({
-        createdAt: record.createdAt.toISOString(),
-        id: record.id,
-        name: record.name,
-        status: projectLifecycleStatusSchema.parse(record.status),
-        targetDate: record.targetDate,
-        updatedAt: record.updatedAt.toISOString(),
-      })),
+      projects: projects.map((record) => {
+        const starterConfiguration = starterConfigurationSchema.parse(
+          record.starterConfiguration,
+        );
+        const configuration = resolveProjectShellConfiguration(
+          record.configuration,
+          starterConfiguration,
+        );
+        return {
+          areas: configuration.enabledAreas.filter(
+            (area) => !configuration.hiddenAreas.includes(area),
+          ),
+          archivedAt: record.archivedAt?.toISOString() ?? null,
+          createdAt: record.createdAt.toISOString(),
+          id: record.id,
+          name: record.name,
+          stages: configuration.preparedStages,
+          status: projectLifecycleStatusSchema.parse(record.status),
+          targetDate: record.targetDate,
+          updatedAt: record.updatedAt.toISOString(),
+        };
+      }),
+      savedLists: savedPresentation.savedLists,
       works: works.map((record) => ({
         archivedAt: record.archivedAt?.toISOString() ?? null,
         id: record.id,
@@ -210,6 +247,7 @@ export function createDatabaseWorkspaceOverview(
         liveBlockSources: distinctLiveBlockSources(
           presentation.liveBlockSources,
         ).map((source) => ({ ...source })),
+        savedLists: distinctSavedLists(presentation.savedLists ?? []),
         version: WORKSPACE_OVERVIEW_CONFIGURATION_VERSION,
       };
       await database

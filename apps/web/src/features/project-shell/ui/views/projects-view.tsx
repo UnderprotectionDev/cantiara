@@ -4,6 +4,7 @@ import type {
   WorkspaceOverviewModuleId,
   WorkspaceOverviewPresentation,
 } from "@cantiara/api/workspace-overview";
+import { cloneWorkspaceOverviewSavedListDefinition } from "@cantiara/api/workspace-overview";
 import { buttonVariants } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -73,9 +74,11 @@ function ProjectsListSection({
 export default function ProjectsView({
   accountId,
   selectedModule,
+  selectedSavedList,
 }: {
   accountId?: string;
   selectedModule?: WorkspaceOverviewModuleId;
+  selectedSavedList?: string;
 }) {
   const projects = useQuery(projectsQueryOptions());
   const workspaceOverview = useQuery(workspaceOverviewQueryOptions(accountId));
@@ -99,6 +102,9 @@ export default function ProjectsView({
             liveBlockSources: presentation.liveBlockSources.map((source) => ({
               ...source,
             })),
+            savedLists: presentation.savedLists?.map(
+              cloneWorkspaceOverviewSavedListDefinition,
+            ),
             version: presentation.version,
           }),
         ),
@@ -134,12 +140,12 @@ export default function ProjectsView({
             add context when the Project needs it.
           </p>
         </div>
-        {selectedModule ? (
+        {selectedModule || selectedSavedList ? (
           <Link
             className={buttonVariants({ size: "sm", variant: "outline" })}
             to="/projects"
           >
-            Back to all Projects
+            Back to Projects
           </Link>
         ) : (
           <Link className={buttonVariants({ size: "sm" })} to="/projects/new">
@@ -187,16 +193,17 @@ export default function ProjectsView({
             model={workspaceOverview.data}
             onPresentationChange={handlePresentationChange}
             selectedModule={selectedModule}
+            selectedSavedList={selectedSavedList}
           />
         </div>
       ) : null}
       {saveWorkspaceOverview.isError ? (
         <p className="pt-3 text-destructive text-sm" role="alert">
-          Workspace overview layout could not be saved. Try again.
+          Workspace overview settings could not be saved. Try again.
         </p>
       ) : null}
 
-      {selectedModule ? null : (
+      {selectedModule || selectedSavedList ? null : (
         <ProjectsListSection
           data={projects.data}
           isError={projects.isError}
