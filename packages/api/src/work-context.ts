@@ -99,34 +99,17 @@ export const WORK_CONTEXT_SOURCE_RELATION_KINDS = [
   "Includes",
   "Origin",
   "Primary spec",
+  "Related",
   "Required for completion",
 ] as const satisfies readonly RelationKind[];
 
 type WorkContextSourceRelationKind =
   (typeof WORK_CONTEXT_SOURCE_RELATION_KINDS)[number];
 
-const WORK_CONTEXT_SOURCE_RECORD_TYPES = new Set<RelationRecordType>([
-  "Assumption",
-  "Decision",
-  "Document",
-  "Document version",
-  "Experiment/Validation",
-  "Feature",
-  "Feedback",
-  "GitHub external",
-  "GitHub PR",
-  "Open Question",
-  "Project Goal",
-  "Project Release",
-  "Question",
-  "Risk",
-  "Session Test",
-  "Source",
-  "Spec",
-  "Test",
-  "Test Gap",
-  "Test Session",
-  "User Research Session",
+// Work is the only source record with a resolver and an exact destination in
+// the current product. Other catalog types remain visible when the endpoint
+// is broken, but an unresolved future source must not look live.
+const WORK_CONTEXT_RESOLVED_RECORD_TYPES = new Set<RelationRecordType>([
   "Work",
 ]);
 
@@ -197,14 +180,22 @@ export function buildWorkContextModel({
   }
 
   if (work.primarySpecId) {
-    sources.push(
-      unavailableSource(
-        "Primary spec",
-        work.primarySpecId,
-        "Spec",
-        work.updatedAt,
-      ),
-    );
+    const primarySpecRelation = relations.find((relation) => {
+      if (relation.kind !== "Primary spec") {
+        return false;
+      }
+      const endpoint = relatedEndpoint(relation, work.id);
+      return (
+        endpoint?.recordId === work.primarySpecId &&
+        endpoint.recordType === "Document version"
+      );
+    });
+    if (primarySpecRelation) {
+      const endpoint = relatedEndpoint(primarySpecRelation, work.id);
+      if (endpoint) {
+        sources.push(sourceFromRelation(primarySpecRelation, endpoint));
+      }
+    }
   }
 
   for (const relation of relations) {
@@ -261,7 +252,9 @@ export function sourcesForWorkContextSection(
       case "Included Work":
         return source.relationKind === "Includes";
       case "Related Work":
-        return source.recordType === "Work";
+        return (
+          source.relationKind === "Related" && source.recordType === "Work"
+        );
       case "Risks & Open Questions":
         return (
           source.recordType === "Assumption" ||
@@ -302,11 +295,14 @@ function relationKindFromRelation(
 
 function hasSupportedRelatedEndpoint(relation: RelationView, workId: string) {
   const endpoint = relatedEndpoint(relation, workId);
-  return endpoint ? isSupportedSourceRecordType(endpoint.recordType) : false;
+  return endpoint
+    ? endpoint.broken !== null ||
+        isSupportedSourceRecordType(endpoint.recordType)
+    : false;
 }
 
 function isSupportedSourceRecordType(recordType: RelationRecordType) {
-  return WORK_CONTEXT_SOURCE_RECORD_TYPES.has(recordType);
+  return WORK_CONTEXT_RESOLVED_RECORD_TYPES.has(recordType);
 }
 
 function relatedEndpoint(
@@ -348,7 +344,13 @@ function sourceFromRelation(
 
 function sourceFromWork(label: string, work: WorkProfile): WorkContextSource {
   return {
-    broken: null,
+    broken: work.archivedAt
+      ? {
+          canOpenSourceRecord: true,
+          establishedAt: work.archivedAt,
+          reason: "Archived",
+        }
+      : null,
     id: `work:${work.id}`,
     key: work.key,
     label,

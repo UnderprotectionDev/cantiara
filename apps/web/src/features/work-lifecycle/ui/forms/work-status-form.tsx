@@ -23,7 +23,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 
 function mutationErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -78,6 +78,9 @@ export default function WorkStatusForm({
 
   async function refreshWork() {
     await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: projectWorksQueryPrefix,
+      }),
       queryClient.invalidateQueries({ queryKey: worksQueryKey }),
       queryClient.invalidateQueries({ queryKey: workQueryKey }),
       queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),

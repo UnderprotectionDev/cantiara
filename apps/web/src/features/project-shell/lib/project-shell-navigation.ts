@@ -90,6 +90,12 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
     "Planning remains outside Configuration Mode. Saved views are a separate Project configuration entry.",
 };
 
+const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
+
+export function workRelationsHash(workId: string) {
+  return `${WORK_RELATIONS_HASH_PREFIX}${encodeURIComponent(workId)}`;
+}
+
 export function navigationSurfaceFromHash(
   hash: string,
   enabledAreas: readonly ProjectArea[],
@@ -141,7 +147,11 @@ export function dailyActionFromHash(hash: string) {
 }
 
 export function isWorkSurfaceHash(hash: string) {
-  return hash === "work" || dailyActionFromHash(hash) !== null;
+  return (
+    hash === "work" ||
+    dailyActionFromHash(hash) !== null ||
+    hash.startsWith(WORK_RELATIONS_HASH_PREFIX)
+  );
 }
 
 export function navigationHash(surface: NavigationSurface) {

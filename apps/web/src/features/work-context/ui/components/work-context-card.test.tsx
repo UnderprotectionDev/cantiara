@@ -189,4 +189,49 @@ describe("Work Context Card initial fields", () => {
     expect(html).toContain("Broken — Redacted for security");
     expect(html).not.toContain("secret risk title");
   });
+
+  test("keeps an archived Work source linkable", () => {
+    const html = renderCard(workStatusLabels, [
+      {
+        createdAt: "2026-01-01T00:00:00.000Z",
+        direction: "incoming",
+        id: "archived-origin",
+        inverseLabel: "Derived",
+        kind: "Origin",
+        label: "Derived",
+        revision: 1,
+        source: {
+          broken: {
+            canOpenSourceRecord: true,
+            establishedAt: "2026-01-02T00:00:00.000Z",
+            reason: "Archived",
+          },
+          key: "PAY-2",
+          label: "PAY-2",
+          originPosition: null,
+          projectId: "project-1",
+          recordId: "work-2",
+          recordType: "Work",
+          status: "Closed",
+          title: "Archived checkout work",
+          workType: "Research",
+        },
+        target: {
+          broken: null,
+          key: work.key,
+          label: work.key,
+          originPosition: null,
+          projectId: work.projectId,
+          recordId: work.id,
+          recordType: "Work",
+          status: work.status,
+          title: work.title,
+          workType: work.type,
+        },
+      },
+    ]);
+
+    expect(html).toContain("PAY-2 Archived checkout work — Archived");
+    expect(html).toContain('href="/projects/project-1#work-work-2"');
+  });
 });

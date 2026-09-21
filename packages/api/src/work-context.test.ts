@@ -220,12 +220,33 @@ describe("Work Context Card live sources", () => {
             workType: work.type,
           }),
           target: endpoint({
+            broken: {
+              canOpenSourceRecord: false,
+              establishedAt: "2026-01-01T00:00:00.000Z",
+              reason: "No access",
+            },
             key: "DEC-1",
             label: "DEC-1",
-            projectId: "project-1",
+            projectId: null,
             recordId: "decision-1",
             recordType: "Decision",
-            title: "Use hosted checkout",
+            title: null,
+          }),
+        }),
+        relation({
+          id: "primary-spec-relation",
+          kind: "Primary spec",
+          source: endpoint({
+            recordId: work.id,
+            recordType: "Work",
+          }),
+          target: endpoint({
+            key: "SPEC-1",
+            label: "SPEC-1",
+            projectId: work.projectId,
+            recordId: work.primarySpecId ?? "spec-1",
+            recordType: "Document version",
+            title: "Checkout spec",
           }),
         }),
         relation({
@@ -261,9 +282,33 @@ describe("Work Context Card live sources", () => {
       title: "Checkout interviews",
       workType: "Research",
     });
+    expect(model.whyChain).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          broken: null,
+          key: "SPEC-1",
+          label: "Primary spec",
+          title: "Checkout spec",
+        }),
+      ]),
+    );
     expect(model.whyChain).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ title: "Unrelated context" }),
+      ]),
+    );
+    expect(sourcesForWorkContextSection("Related Work", model.sources)).toEqual(
+      [
+        expect.objectContaining({
+          id: "relation:ignored-related",
+          relationKind: "Related",
+          title: "Unrelated context",
+        }),
+      ],
+    );
+    expect(model.whyChain).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "Use hosted checkout" }),
       ]),
     );
     expect(model.whyChain).not.toContainEqual(
@@ -313,17 +358,22 @@ describe("Work Context Card live sources", () => {
     ).toEqual([risk]);
   });
 
-  test("maps Evidence into the Feature evidence and decision section", () => {
+  test("keeps an inaccessible Evidence source content-free", () => {
     const evidence = relation({
       id: "evidence-relation",
       kind: "Evidence",
       source: endpoint({
-        key: "SRC-1",
-        label: "SRC-1",
-        projectId: work.projectId,
+        broken: {
+          canOpenSourceRecord: false,
+          establishedAt: "2026-01-01T00:00:00.000Z",
+          reason: "No access",
+        },
+        key: null,
+        label: null,
+        projectId: null,
         recordId: "source-1",
         recordType: "Source",
-        title: "Checkout interview notes",
+        title: null,
       }),
       target: endpoint({
         recordId: work.id,
@@ -344,5 +394,44 @@ describe("Work Context Card live sources", () => {
         recordType: "Source",
       }),
     ]);
+  });
+
+  test("does not invent a Primary spec tombstone without a resolved source", () => {
+    const model = buildWorkContextModel({
+      relations: [],
+      work,
+    });
+
+    expect(model.sources).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Primary spec" }),
+      ]),
+    );
+  });
+
+  test("marks an archived Primary Feature while keeping its live identity", () => {
+    const archivedFeature = {
+      ...work,
+      archivedAt: "2026-01-02T00:00:00.000Z",
+      id: "feature-1",
+      key: "PAY-2",
+      primaryFeatureId: null,
+      primarySpecId: null,
+      title: "Checkout clarity",
+      type: "Feature" as const,
+    };
+    const model = buildWorkContextModel({
+      projectWorks: [archivedFeature],
+      relations: [],
+      work: { ...work, primarySpecId: null },
+    });
+
+    expect(model.sources).toHaveLength(1);
+    expect(model.sources[0]).toMatchObject({
+      broken: { canOpenSourceRecord: true, reason: "Archived" },
+      key: "PAY-2",
+      label: "Primary Feature",
+      title: "Checkout clarity",
+    });
   });
 });

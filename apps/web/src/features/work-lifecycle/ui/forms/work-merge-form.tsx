@@ -17,7 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 
 function mergeErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -100,6 +100,9 @@ export default function WorkMergeForm({
           }),
         );
         await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: projectWorksQueryPrefix,
+          }),
           queryClient.invalidateQueries({
             queryKey: orpc.projectWorks.queryOptions({
               input: { archived: false, projectId: work.projectId },

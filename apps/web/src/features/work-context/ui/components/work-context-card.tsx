@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLinkProps, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 
+import { workRelationsHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 
@@ -128,6 +129,8 @@ export default function WorkContextCard({
 
       {visibleSections.map((section) => (
         <PreparedSection
+          isError={relationsQuery.isError}
+          isPending={relationsQuery.isPending}
           key={section}
           section={section}
           sources={sourcesForWorkContextSection(section, contextModel.sources)}
@@ -191,11 +194,15 @@ function WhyChain({
 }
 
 function PreparedSection({
+  isError,
+  isPending,
   section,
   sources,
   work,
   workStatusLabels,
 }: {
+  isError: boolean;
+  isPending: boolean;
   section: PreparedWorkContextSection;
   sources: readonly WorkContextSource[];
   work: WorkProfile;
@@ -214,7 +221,15 @@ function PreparedSection({
       {hasDescription ? (
         <p className="whitespace-pre-wrap text-sm">{work.description}</p>
       ) : null}
-      {sources.length > 0 ? (
+      {isPending ? (
+        <p className="text-muted-foreground text-sm">Loading relations…</p>
+      ) : null}
+      {isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Relations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(isPending || isError) && sources.length > 0 ? (
         <ul className="space-y-2">
           {sources.map((source) => (
             <li key={source.id}>
@@ -226,7 +241,7 @@ function PreparedSection({
           ))}
         </ul>
       ) : null}
-      {!hasDescription && sources.length === 0 ? (
+      {!(hasDescription || isPending || isError) && sources.length === 0 ? (
         <EmptyContextState work={work} />
       ) : null}
     </section>
@@ -237,7 +252,7 @@ function EmptyContextState({ work }: { work: WorkProfile }) {
   const navigate = useNavigate();
   const handleLink = useCallback(() => {
     navigate({
-      hash: `work-relations-${encodeURIComponent(work.id)}`,
+      hash: workRelationsHash(work.id),
       to: ".",
     }).catch(() => undefined);
   }, [navigate, work.id]);
@@ -310,7 +325,7 @@ function OpenSourceRecordLink({
 }) {
   const linkProps = useLinkProps({
     activeOptions: { exact: true, includeHash: true },
-    hash: `work-${recordId}`,
+    hash: `work-${encodeURIComponent(recordId)}`,
     params: { projectId },
     to: "/projects/$projectId",
   });
