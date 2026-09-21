@@ -305,10 +305,18 @@ test("renders bound Custom field values on Work create and edit surfaces", async
   const work = page
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem");
-  await expect(work.getByLabel("Audience")).toHaveValue("Founders");
-  await expect(work.getByLabel("Reviewed")).toHaveValue("false");
-  await expect(work.getByLabel("Review state")).toHaveValue("Ready");
-  await expect(work.getByLabel("Risk severity")).toHaveCount(0);
+  await expect(work.getByLabel("Audience", { exact: true })).toHaveValue(
+    "Founders",
+  );
+  await expect(work.getByLabel("Reviewed", { exact: true })).toHaveValue(
+    "false",
+  );
+  await expect(work.getByLabel("Review state", { exact: true })).toHaveValue(
+    "Ready",
+  );
+  await expect(work.getByLabel("Risk severity", { exact: true })).toHaveCount(
+    0,
+  );
   await expect(work).toContainText("False");
   await expect(work).toContainText("Not evaluated");
 
@@ -318,8 +326,8 @@ test("renders bound Custom field values on Work create and edit surfaces", async
       candidate.url().endsWith("/rpc/setCustomFieldValue") &&
       candidate.ok(),
   );
-  await work.getByLabel("Audience").fill("Operators");
-  await work.getByLabel("Audience").press("Tab");
+  await work.getByLabel("Audience", { exact: true }).fill("Operators");
+  await work.getByLabel("Audience", { exact: true }).press("Tab");
   await setAudienceResponse;
 
   const setReviewedResponse = page.waitForResponse(
@@ -328,7 +336,7 @@ test("renders bound Custom field values on Work create and edit surfaces", async
       candidate.url().endsWith("/rpc/setCustomFieldValue") &&
       candidate.ok(),
   );
-  await work.getByLabel("Reviewed").selectOption("true");
+  await work.getByLabel("Reviewed", { exact: true }).selectOption("true");
   await setReviewedResponse;
 
   const setReviewStateResponse = page.waitForResponse(
@@ -337,16 +345,22 @@ test("renders bound Custom field values on Work create and edit surfaces", async
       candidate.url().endsWith("/rpc/setCustomFieldValue") &&
       candidate.ok(),
   );
-  await work.getByLabel("Review state").selectOption("Later");
+  await work.getByLabel("Review state", { exact: true }).selectOption("Later");
   await setReviewStateResponse;
 
   await page.reload();
   const reloadedWork = page
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem");
-  await expect(reloadedWork.getByLabel("Audience")).toHaveValue("Operators");
-  await expect(reloadedWork.getByLabel("Reviewed")).toHaveValue("true");
-  await expect(reloadedWork.getByLabel("Review state")).toHaveValue("Later");
+  await expect(
+    reloadedWork.getByLabel("Audience", { exact: true }),
+  ).toHaveValue("Operators");
+  await expect(
+    reloadedWork.getByLabel("Reviewed", { exact: true }),
+  ).toHaveValue("true");
+  await expect(
+    reloadedWork.getByLabel("Review state", { exact: true }),
+  ).toHaveValue("Later");
 
   // Draft autosave keeps Custom field values as form state: a refresh does
   // not wipe them and Resume restores them into the Work draft form.
