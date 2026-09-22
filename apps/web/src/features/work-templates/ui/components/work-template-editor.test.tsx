@@ -80,6 +80,7 @@ describe("Work Template editor", () => {
     expect(html).toContain("2026-09-24");
     expect(html).toContain("2026-10-02");
     expect(html).toContain("Move to Trash");
+    expect(html).toContain("Create from template");
     for (const forbidden of [
       "Current status",
       "Closure result",

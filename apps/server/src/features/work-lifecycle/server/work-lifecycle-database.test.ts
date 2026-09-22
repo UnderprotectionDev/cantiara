@@ -148,6 +148,52 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     ).resolves.toEqual([]);
   });
 
+  test("persists ordered checklist items without changing the parent lifecycle", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Checklist Project",
+      shortCode: "CHECK",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "checklist-create",
+      projectId: project.id,
+      title: "Prepare release notes",
+      type: "Task",
+    });
+
+    const updated = await workLifecycle.updateChecklist(accountId, {
+      baseRevision: created.revision,
+      checklist: [
+        { completed: true, id: "item-2", text: "Publish the page" },
+        { completed: false, id: "item-1", text: "Confirm the copy" },
+      ],
+      clientIdempotencyKey: "checklist-update",
+      workId: created.id,
+    });
+
+    expect(updated).toMatchObject({
+      closureResult: null,
+      status: "Not Started",
+    });
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      checklist: [
+        { completed: true, id: "item-2", text: "Publish the page" },
+        { completed: false, id: "item-1", text: "Confirm the copy" },
+      ],
+      closureResult: null,
+      status: "Not Started",
+    });
+  });
+
   test("finalizes Draft Custom field values atomically with one Work", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

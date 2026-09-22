@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import { addDays, format } from "date-fns";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
+const CREATED_WORK_PATTERN = /Created Work [A-Z0-9-]+-1\./;
+const STATUS_FIELD_PATTERN = /Status for/;
+const TYPE_FIELD_PATTERN = /Type for/;
 
 test("defines, previews, edits, and trashes a Project Work Template", async ({
   context,
@@ -94,6 +97,18 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
   await expect(item.getByText("Planned start", { exact: true })).toBeVisible();
   await expect(item.getByText("Target", { exact: true })).toBeVisible();
 
+  await item
+    .getByRole("button", { name: "Create from template", exact: true })
+    .click();
+  const instantiateForm = item.getByRole("form", {
+    name: "Create Work from Release preparation",
+  });
+  await instantiateForm.getByLabel("Title").fill("Prepare the October release");
+  await instantiateForm
+    .getByRole("button", { name: "Create from template", exact: true })
+    .click();
+  await expect(host.getByRole("status")).toContainText(CREATED_WORK_PATTERN);
+
   await item.getByRole("button", { name: "Edit" }).click();
   const editForm = host.getByRole("form", { name: "Edit Work Template" });
   await expect(editForm.getByLabel("Name")).toHaveValue("Release preparation");
@@ -116,6 +131,10 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     "10",
   );
   await editForm.getByLabel("Name").fill("Launch preparation");
+  await editForm.getByLabel("Type").selectOption("Bug");
+  await editForm
+    .getByLabel("Description skeleton")
+    .fill("Edited after Work creation");
   await editForm.getByRole("button", { name: "Save changes" }).click();
   await expect(
     host.getByText("Launch preparation", { exact: true }),
@@ -130,6 +149,20 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     updatedItem.getByText("Planned start", { exact: true }),
   ).toBeVisible();
   await expect(updatedItem.getByText("Target", { exact: true })).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  const createdWork = page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem")
+    .filter({ hasText: "Prepare the October release" });
+  await expect(createdWork).toBeVisible();
+  await expect(createdWork.getByLabel(TYPE_FIELD_PATTERN)).toHaveValue("Task");
+  await expect(createdWork.getByLabel(STATUS_FIELD_PATTERN)).toHaveValue(
+    "Not Started",
+  );
 
   await page.reload();
   await page.getByRole("button", { name: "Configuration Mode" }).click();

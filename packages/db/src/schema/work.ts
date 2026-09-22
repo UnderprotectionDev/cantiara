@@ -36,6 +36,7 @@ export const work = pgTable(
     originLocation: jsonb("origin_location").$type<unknown>(),
     originOwnerRecordId: text("origin_owner_record_id"),
     originSourceVersion: text("origin_source_version"),
+    plannedStartDate: date("planned_start_date", { mode: "string" }),
     primaryFeatureId: text("primary_feature_id").references(
       (): AnyPgColumn => work.id,
       { onDelete: "set null" },
@@ -67,6 +68,10 @@ export const work = pgTable(
     check(
       "work_effort_check",
       sql`${table.effort} is null or length(btrim(${table.effort})) between 1 and 255`,
+    ),
+    check(
+      "work_planned_start_date_check",
+      sql`${table.plannedStartDate} is null or ${table.plannedStartDate}::text ~ '^\\d{4}-\\d{2}-\\d{2}$'`,
     ),
     check(
       "work_target_date_check",

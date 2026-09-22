@@ -22,6 +22,7 @@ import {
   type ScopeTreeWork,
   undoWorkMergeInputSchema,
   updateFeaturePrimarySpecInputSchema,
+  updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   type WorkClosePreview,
@@ -454,6 +455,7 @@ interface WorkCreationPayload {
   description: string | null;
   effort: string | null;
   originPosition?: WorkOriginPosition;
+  plannedStartDate: string | null;
   projectId: string;
   recreatedFrom: WorkProfile["recreatedFrom"];
   targetDate: string | null;
@@ -476,6 +478,7 @@ function replayExistingWork(
       checklist: existing.work.checklist,
       description: existing.work.description,
       originPosition: existing.work.originPosition ?? null,
+      plannedStartDate: existing.work.plannedStartDate ?? null,
       effort: existing.work.effort,
       recreatedFrom: existing.work.recreatedFrom,
       targetDate: existing.work.targetDate,
@@ -485,6 +488,7 @@ function replayExistingWork(
         checklist: payload.checklist,
         description: payload.description,
         originPosition: payload.originPosition ?? null,
+        plannedStartDate: payload.plannedStartDate,
         effort: payload.effort,
         recreatedFrom: payload.recreatedFrom,
         targetDate: payload.targetDate,
@@ -826,6 +830,7 @@ export async function createWork(
   },
   createMutation?: WorkLifecycleMutationContract,
   additionalPayload: Record<string, unknown> = {},
+  idempotencyPayload?: MutationPayload,
 ) {
   const input = createWorkMutationInputSchema.parse(rawInput);
   const selectedRelationIds = recreate
@@ -840,6 +845,7 @@ export async function createWork(
     description: input.description ?? null,
     ...(input.originPosition ? { originPosition: input.originPosition } : {}),
     effort: input.effort ?? null,
+    plannedStartDate: input.plannedStartDate ?? null,
     projectId: input.projectId,
     recreatedFrom,
     ...(recreate
@@ -856,7 +862,9 @@ export async function createWork(
     type: input.type,
     ...additionalPayload,
   };
-  const payloadFingerprint = await fingerprintMutationPayload(createPayload);
+  const payloadFingerprint = await fingerprintMutationPayload(
+    idempotencyPayload ?? createPayload,
+  );
   const existing = await store.findByClientIdempotencyKey(
     accountId,
     input.projectId,
@@ -911,6 +919,7 @@ export async function createWork(
             : {}),
           primaryFeatureId: null,
           primarySpecId: null,
+          plannedStartDate: mutationPayload.plannedStartDate,
           projectId: reservation.projectId,
           recreatedFrom: mutationPayload.recreatedFrom,
           revision: currentRevision + 1,
@@ -1990,6 +1999,26 @@ export function createWorkLifecycle({
         throw new WorkNotFoundError(input.workId);
       }
       return receipt.nextValue.work;
+    },
+
+    updateChecklist(accountId, rawInput) {
+      const input = updateWorkChecklistInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            checklist: input.checklist,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        (work, payload) => ({
+          ...work,
+          checklist: payload.checklist,
+        }),
+      );
     },
 
     unarchive(accountId, input) {

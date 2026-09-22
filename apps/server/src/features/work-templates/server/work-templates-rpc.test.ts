@@ -1,5 +1,6 @@
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
+import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import type {
   WorkTemplate,
   WorkTemplatesAccess,
@@ -20,6 +21,31 @@ const template: WorkTemplate = {
   trashedAt: null,
   type: "Task",
   updatedAt: "2026-09-22T09:00:00.000Z",
+};
+
+const instantiatedWork: WorkProfile = {
+  archivedAt: null,
+  captureProvenance: null,
+  checklist: [{ completed: false, id: "check-1", text: "Draft release notes" }],
+  closureReason: null,
+  closureResult: null,
+  createdAt: "2026-09-22T09:05:00.000Z",
+  description: "## Outcome",
+  effort: null,
+  featureHealthHistory: [],
+  id: "work-1",
+  key: "CAT-1",
+  number: 1,
+  primaryFeatureId: null,
+  primarySpecId: null,
+  projectId: "project-1",
+  recreatedFrom: null,
+  revision: 1,
+  status: "Not Started",
+  targetDate: "2026-10-02",
+  title: "Prepare the October release",
+  type: "Task",
+  updatedAt: "2026-09-22T09:05:00.000Z",
 };
 
 function createContext(workTemplates: WorkTemplatesAccess): Context {
@@ -47,6 +73,7 @@ describe("Work Templates RPC", () => {
   test("defines, edits, lists, and trashes Project Work Templates", async () => {
     const access: WorkTemplatesAccess = {
       create: vi.fn().mockResolvedValue(template),
+      instantiate: vi.fn().mockResolvedValue(instantiatedWork),
       list: vi.fn().mockResolvedValue([template]),
       trash: vi.fn().mockResolvedValue({
         ...template,
@@ -76,6 +103,15 @@ describe("Work Templates RPC", () => {
         type: template.type,
       }),
     ).resolves.toEqual(template);
+    await expect(
+      client.instantiateWorkTemplate({
+        baseRevision: template.revision,
+        clientIdempotencyKey: "instantiate-template-1",
+        createDate: "2026-09-22",
+        templateId: template.id,
+        title: instantiatedWork.title,
+      }),
+    ).resolves.toEqual(instantiatedWork);
     await expect(
       client.workTemplates({ projectId: template.projectId }),
     ).resolves.toEqual([template]);
@@ -109,6 +145,13 @@ describe("Work Templates RPC", () => {
       relativeDates: template.relativeDates,
       type: template.type,
     });
+    expect(access.instantiate).toHaveBeenCalledWith("account-1", {
+      baseRevision: template.revision,
+      clientIdempotencyKey: "instantiate-template-1",
+      createDate: "2026-09-22",
+      templateId: template.id,
+      title: instantiatedWork.title,
+    });
     expect(access.update).toHaveBeenCalledWith(
       "account-1",
       template.id,
@@ -126,6 +169,12 @@ describe("Work Templates RPC", () => {
             "A Work Template named Release preparation already exists in this Project.",
           ),
           { code: "WORK_TEMPLATE_NAME_CONFLICT" },
+        );
+      },
+      instantiate: () => {
+        throw Object.assign(
+          new Error("Work Template changed after this command started."),
+          { code: "WORK_TEMPLATE_STALE_REVISION" },
         );
       },
       list: async () => [template],
@@ -197,5 +246,36 @@ describe("Work Templates RPC", () => {
       staleErrorCode = (error as { code?: string }).code;
     }
     expect(staleErrorCode).toBe("PRECONDITION_FAILED");
+  });
+
+  test("maps a changed-payload instantiate retry to CONFLICT", async () => {
+    const access: WorkTemplatesAccess = {
+      create: vi.fn(),
+      instantiate: () => {
+        throw Object.assign(new Error("Work creation payload changed."), {
+          code: "WORK_CREATION_CONFLICT",
+        });
+      },
+      list: vi.fn(),
+      trash: vi.fn(),
+      update: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+
+    let errorCode: string | undefined;
+    try {
+      await client.instantiateWorkTemplate({
+        baseRevision: template.revision,
+        clientIdempotencyKey: "changed-payload-retry",
+        createDate: "2026-09-22",
+        templateId: template.id,
+        title: "Changed retry title",
+      });
+    } catch (error) {
+      errorCode = (error as { code?: string }).code;
+    }
+    expect(errorCode).toBe("CONFLICT");
   });
 });

@@ -100,6 +100,12 @@ export const workTargetDateSchema = z
   .nullable()
   .optional();
 
+export const workPlannedStartDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Planned start date must use YYYY-MM-DD.")
+  .nullable()
+  .optional();
+
 export const workEffortSchema = z
   .string()
   .trim()
@@ -119,6 +125,17 @@ export const workChecklistItemSchema = z
 export const workChecklistSchema = z.array(workChecklistItemSchema).max(500);
 
 export type WorkChecklistItem = z.infer<typeof workChecklistItemSchema>;
+
+export const updateWorkChecklistInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    checklist: workChecklistSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type UpdateWorkChecklistInput = z.input<
+  typeof updateWorkChecklistInputSchema
+>;
 
 export const workCaptureProvenanceSchema = z
   .object({
@@ -142,6 +159,7 @@ const createWorkInputObjectSchema = z
     description: workDescriptionSchema.optional(),
     originPosition: workOriginPositionSchema.optional(),
     effort: workEffortSchema,
+    plannedStartDate: workPlannedStartDateSchema,
     projectId: identifierSchema,
     targetDate: workTargetDateSchema,
     title: workTitleSchema,
@@ -602,6 +620,7 @@ export interface WorkProfile {
   key: string;
   number: number;
   originPosition?: WorkOriginPosition;
+  plannedStartDate?: string | null;
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
@@ -779,6 +798,10 @@ export interface WorkLifecycleAccess {
   undoMerge: (
     accountId: string,
     input: UndoWorkMergeInput,
+  ) => Promise<WorkProfile>;
+  updateChecklist: (
+    accountId: string,
+    input: UpdateWorkChecklistInput,
   ) => Promise<WorkProfile>;
   updateFeaturePrimarySpec: (
     accountId: string,

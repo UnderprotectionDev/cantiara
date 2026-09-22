@@ -1,10 +1,13 @@
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import type {
+  InstantiateWorkTemplateInput,
   ParsedCreateWorkTemplateInput,
   WorkTemplate,
   WorkTemplateCustomFieldValue,
   WorkTemplatesAccess,
 } from "@cantiara/api/work-templates";
 import {
+  resolveWorkTemplateDates,
   updateWorkTemplateInputSchema,
   workTemplateSchema,
 } from "@cantiara/api/work-templates";
@@ -17,6 +20,8 @@ import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
+import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
+import type { DatabaseWorkLifecycleAccess } from "../../work-lifecycle/server/work-lifecycle-database";
 
 type WorkTemplateRecord = typeof workTemplate.$inferSelect;
 
@@ -168,8 +173,30 @@ async function ownedTemplate(
   return row?.template ?? null;
 }
 
+async function lockOwnedTemplate(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  templateId: string,
+) {
+  const [row] = await executor
+    .select({ template: workTemplate })
+    .from(workTemplate)
+    .innerJoin(project, eq(workTemplate.projectId, project.id))
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(
+      and(
+        eq(workTemplate.id, templateId),
+        eq(workspace.ownerAccountId, accountId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return row?.template ?? null;
+}
+
 export function createDatabaseWorkTemplates(
   database: Database,
+  workLifecycle?: DatabaseWorkLifecycleAccess,
 ): WorkTemplatesAccess {
   return {
     async create(accountId, rawInput) {
@@ -220,6 +247,102 @@ export function createDatabaseWorkTemplates(
         )
         .orderBy(asc(workTemplate.createdAt), asc(workTemplate.nameKey));
       return records.map(toWorkTemplate);
+    },
+
+    async instantiate(accountId, rawInput) {
+      if (!workLifecycle) {
+        throw new Error("Work Lifecycle is required to instantiate Work.");
+      }
+      const input: InstantiateWorkTemplateInput = rawInput;
+      const current = await ownedTemplate(
+        database,
+        accountId,
+        input.templateId,
+      );
+      if (!current) {
+        return null;
+      }
+      const lifecycleIdempotencyKey = `work-template:${await fingerprintMutationPayload(
+        {
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          templateId: input.templateId,
+        },
+      )}`;
+      const idempotencyPayload = {
+        baseRevision: input.baseRevision,
+        createDate: input.createDate,
+        templateId: input.templateId,
+        title: input.title,
+      };
+      const existing = await workLifecycle.findCreatedByIdempotencyKey(
+        accountId,
+        current.projectId,
+        lifecycleIdempotencyKey,
+        idempotencyPayload,
+      );
+      if (existing) {
+        return existing;
+      }
+      if (current.trashedAt !== null) {
+        return null;
+      }
+      if (current.revision !== input.baseRevision) {
+        throw new WorkTemplateStaleRevisionError();
+      }
+      const template = toWorkTemplate(current);
+      const dates = resolveWorkTemplateDates({
+        createDate: input.createDate,
+        relativeDates: template.relativeDates,
+      });
+      const createInput = {
+        baseRevision: 0 as const,
+        checklist: template.checklist.map((item) => ({
+          completed: false,
+          id: item.id,
+          text: item.text,
+        })),
+        clientIdempotencyKey: lifecycleIdempotencyKey,
+        description: template.descriptionSkeleton,
+        plannedStartDate: dates.plannedStartDate,
+        projectId: template.projectId,
+        targetDate: dates.targetDate,
+        title: input.title,
+        type: template.type,
+      };
+      const customFieldValues = template.customFieldDefaults.map((item) => ({
+        definitionId: item.definitionId,
+        payload: item.value,
+      }));
+      if (!workLifecycle.createWithCustomFieldValues) {
+        throw new Error(
+          "Work Lifecycle cannot finalize Work Template creation.",
+        );
+      }
+      const instantiated = await workLifecycle.createWithCustomFieldValues(
+        accountId,
+        createInput,
+        customFieldValues,
+        {
+          idempotencyPayload,
+          async validateFinalization(executor) {
+            const locked = await lockOwnedTemplate(
+              executor,
+              accountId,
+              input.templateId,
+            );
+            if (
+              !locked ||
+              locked.trashedAt !== null ||
+              locked.revision !== input.baseRevision
+            ) {
+              throw new WorkTemplateStaleRevisionError();
+            }
+          },
+        },
+      );
+      return (
+        (await workLifecycle.find(accountId, instantiated.id)) ?? instantiated
+      );
     },
 
     async trash(accountId, templateId, baseRevision) {

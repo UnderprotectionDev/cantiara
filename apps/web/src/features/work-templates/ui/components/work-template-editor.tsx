@@ -190,6 +190,9 @@ export default function WorkTemplateEditor({
   const templates = useWorkTemplates(projectId);
   const customFields = useCustomFields(projectId);
   const [editing, setEditing] = useState<WorkTemplate | null>(null);
+  const [instantiating, setInstantiating] = useState<WorkTemplate | null>(null);
+  const [instantiationTitle, setInstantiationTitle] = useState("");
+  const [createdWorkKey, setCreatedWorkKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const definitions = useMemo(
     () =>
@@ -204,6 +207,7 @@ export default function WorkTemplateEditor({
   const pending =
     disabled ||
     templates.create.isPending ||
+    templates.instantiate.isPending ||
     templates.update.isPending ||
     templates.moveToTrash.isPending;
   const defaultValues = useMemo(
@@ -272,6 +276,27 @@ export default function WorkTemplateEditor({
 
   const list = templates.query.data ?? [];
 
+  async function instantiateTemplate(template: WorkTemplate) {
+    setError(null);
+    try {
+      const work = await templates.instantiate.mutateAsync({
+        baseRevision: template.revision,
+        createDate: previewDate,
+        templateId: template.id,
+        title: instantiationTitle,
+      });
+      setCreatedWorkKey(work.key);
+      setInstantiating(null);
+      setInstantiationTitle("");
+    } catch (mutationError) {
+      setError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : "Work could not be created from this template.",
+      );
+    }
+  }
+
   return (
     <div className="mt-3 space-y-6" data-work-template-editor="true">
       <p className="max-w-2xl text-muted-foreground text-xs/relaxed">
@@ -287,6 +312,11 @@ export default function WorkTemplateEditor({
       {templates.query.isError ? (
         <p className="text-destructive text-sm" role="alert">
           Work Templates could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {createdWorkKey ? (
+        <p className="text-sm" role="status">
+          Created Work {createdWorkKey}.
         </p>
       ) : null}
       {list.length === 0 && !templates.query.isPending ? (
@@ -311,6 +341,19 @@ export default function WorkTemplateEditor({
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      disabled={pending}
+                      onClick={() => {
+                        setInstantiating(template);
+                        setInstantiationTitle("");
+                        setCreatedWorkKey(null);
+                        setError(null);
+                      }}
+                      size="xs"
+                      type="button"
+                    >
+                      Create from template
+                    </Button>
                     <Button
                       disabled={pending}
                       onClick={() => {
@@ -379,6 +422,49 @@ export default function WorkTemplateEditor({
                       </dd>
                     </div>
                   </dl>
+                ) : null}
+                {instantiating?.id === template.id ? (
+                  <form
+                    aria-label={`Create Work from ${template.name}`}
+                    className="mt-4 flex flex-wrap items-end gap-2 border-border/70 border-t pt-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      instantiateTemplate(template).catch(() => undefined);
+                    }}
+                  >
+                    <Field className="min-w-64 flex-1">
+                      <FieldLabel
+                        htmlFor={`work-template-title-${template.id}`}
+                      >
+                        Title
+                      </FieldLabel>
+                      <Input
+                        disabled={pending}
+                        id={`work-template-title-${template.id}`}
+                        onChange={(event) =>
+                          setInstantiationTitle(event.target.value)
+                        }
+                        required
+                        value={instantiationTitle}
+                      />
+                    </Field>
+                    <Button disabled={pending} size="sm" type="submit">
+                      Create from template
+                    </Button>
+                    <Button
+                      disabled={pending}
+                      onClick={() => {
+                        setInstantiating(null);
+                        setInstantiationTitle("");
+                        setError(null);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Cancel
+                    </Button>
+                  </form>
                 ) : null}
               </li>
             );

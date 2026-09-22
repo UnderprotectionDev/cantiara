@@ -130,6 +130,7 @@ import {
   reopenWorkInputSchema,
   undoWorkMergeInputSchema,
   updateFeaturePrimarySpecInputSchema,
+  updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
@@ -143,6 +144,7 @@ import {
 import {
   createWorkTemplateInputSchema,
   createWorkTemplateMutationInputSchema,
+  instantiateWorkTemplateMutationInputSchema,
   trashWorkTemplateMutationInputSchema,
   updateWorkTemplateInputSchema,
   updateWorkTemplateMutationInputSchema,
@@ -309,6 +311,11 @@ function rethrowWorkTemplateError(error: unknown): never {
           ? error.message
           : "The Work Template was rejected.",
     });
+  }
+
+  const lifecycleError = mapWorkLifecycleError(error);
+  if (lifecycleError) {
+    throw lifecycleError;
   }
 
   throw error;
@@ -1440,6 +1447,25 @@ export const appRouter = {
         rethrowWorkTemplateError(error);
       }
     }),
+  instantiateWorkTemplate: protectedProcedure
+    .input(instantiateWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const created = await requireWorkTemplates(context).instantiate(
+          context.session.user.id,
+          input,
+        );
+        if (!created) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work Template is unavailable.",
+          });
+        }
+        return created;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
   updateWorkTemplate: protectedProcedure
     .input(updateWorkTemplateMutationInputSchema)
     .handler(async ({ context, input }) => {
@@ -2109,6 +2135,16 @@ export const appRouter = {
           context.session.user.id,
           input,
           { kind: "Visible user" },
+        ),
+      ),
+    ),
+  updateWorkChecklist: protectedProcedure
+    .input(updateWorkChecklistInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateChecklist(
+          context.session.user.id,
+          input,
         ),
       ),
     ),

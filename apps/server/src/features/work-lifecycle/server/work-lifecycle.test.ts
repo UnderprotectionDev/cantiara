@@ -18,6 +18,7 @@ import {
   type WorkRecreateField,
   type WorkRecreateRelation,
   type WorkRetiredIdentity,
+  workChecklistItemSchema,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
@@ -1982,6 +1983,90 @@ describe("Work Lifecycle seam", () => {
       title: "Ship the first Work",
       type: "Task",
     });
+  });
+
+  test("adds, edits, reorders, and deletes owned checklist items", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    let parentWork = await workLifecycle.create(
+      "account-1",
+      createInput("checklist-crud-create"),
+    );
+
+    parentWork = await workLifecycle.updateChecklist("account-1", {
+      baseRevision: parentWork.revision,
+      checklist: [
+        { completed: false, id: "item-1", text: "First step" },
+        { completed: false, id: "item-2", text: "Second step" },
+      ],
+      clientIdempotencyKey: "checklist-add",
+      workId: parentWork.id,
+    });
+    parentWork = await workLifecycle.updateChecklist("account-1", {
+      baseRevision: parentWork.revision,
+      checklist: [
+        { completed: false, id: "item-2", text: "Edited second step" },
+        { completed: false, id: "item-1", text: "First step" },
+      ],
+      clientIdempotencyKey: "checklist-edit-reorder",
+      workId: parentWork.id,
+    });
+    parentWork = await workLifecycle.updateChecklist("account-1", {
+      baseRevision: parentWork.revision,
+      checklist: [
+        { completed: false, id: "item-2", text: "Edited second step" },
+      ],
+      clientIdempotencyKey: "checklist-delete",
+      workId: parentWork.id,
+    });
+
+    expect(parentWork.checklist).toEqual([
+      { completed: false, id: "item-2", text: "Edited second step" },
+    ]);
+  });
+
+  test("keeps completed checklist items off the Work lifecycle", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const parentWork = await workLifecycle.create(
+      "account-1",
+      createInput("checklist-completion-create"),
+    );
+
+    const updated = await workLifecycle.updateChecklist("account-1", {
+      baseRevision: parentWork.revision,
+      checklist: [{ completed: true, id: "item-1", text: "Finished step" }],
+      clientIdempotencyKey: "checklist-complete",
+      workId: parentWork.id,
+    });
+
+    expect(updated).toMatchObject({
+      checklist: [{ completed: true, id: "item-1", text: "Finished step" }],
+      closureResult: null,
+      status: "Not Started",
+    });
+    await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual([
+      updated,
+    ]);
+  });
+
+  test("rejects lifecycle, planning, Feature, Test Scenario, and Handoff fields on checklist items", () => {
+    for (const forbiddenField of [
+      "dueDate",
+      "featureId",
+      "handoffId",
+      "priority",
+      "relationId",
+      "status",
+      "testScenarioId",
+    ]) {
+      expect(
+        workChecklistItemSchema.safeParse({
+          completed: false,
+          [forbiddenField]: "not-allowed",
+          id: "item-1",
+          text: "Finished step",
+        }).success,
+      ).toBe(false);
+    }
   });
 
   test("archives and unarchives Work without changing identity or closure", async () => {

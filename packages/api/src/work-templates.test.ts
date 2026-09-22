@@ -2,11 +2,32 @@ import { describe, expect, test } from "vitest";
 
 import {
   createWorkTemplateInputSchema,
+  instantiateWorkTemplateMutationInputSchema,
   resolveWorkTemplateDates,
   workTemplateSchema,
 } from "./work-templates";
 
 describe("Work Templates contract", () => {
+  test("accepts only the command data needed to create independent Work", () => {
+    const command = {
+      baseRevision: 3,
+      clientIdempotencyKey: "instantiate-release-1",
+      createDate: "2026-09-22",
+      templateId: "template-1",
+      title: "Prepare the October release",
+    };
+
+    expect(instantiateWorkTemplateMutationInputSchema.parse(command)).toEqual(
+      command,
+    );
+    expect(
+      instantiateWorkTemplateMutationInputSchema.safeParse({
+        ...command,
+        status: "Closed",
+      }).success,
+    ).toBe(false);
+  });
+
   test("defines reusable Project start context and resolves relative dates from the Work creation day", () => {
     const definition = createWorkTemplateInputSchema.parse({
       checklist: [{ id: "check-release-notes", text: "Draft release notes" }],
