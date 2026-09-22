@@ -120,6 +120,7 @@ import {
 } from "../work-drafts";
 import {
   closeWorkInputSchema,
+  convertWorkChecklistItemInputSchema,
   createWorkRpcMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
@@ -134,6 +135,7 @@ import {
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
+  workChecklistConversionPreviewInputSchema,
   workClosePreviewInputSchema,
   workIdentityInputSchema,
   workMergePreviewInputSchema,
@@ -144,11 +146,12 @@ import {
 import {
   createWorkTemplateInputSchema,
   createWorkTemplateMutationInputSchema,
-  duplicateWorkInputSchema,
+  duplicateWorkMutationInputSchema,
+  instantiateWorkTemplateMutationInputSchema,
+  previewDuplicateWorkInputSchema,
   trashWorkTemplateMutationInputSchema,
   updateWorkTemplateInputSchema,
   updateWorkTemplateMutationInputSchema,
-  workDuplicatePreviewInputSchema,
   workTemplatesInputSchema,
 } from "../work-templates";
 import {
@@ -273,6 +276,10 @@ function rethrowWorkTemplateError(error: unknown): never {
     throw error;
   }
 
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowWorkTemplateError(error.cause);
+  }
+
   if (error.code === "WORK_TEMPLATE_PROJECT_NOT_FOUND") {
     throw new ORPCError("NOT_FOUND", {
       defined: true,
@@ -301,8 +308,9 @@ function rethrowWorkTemplateError(error: unknown): never {
 
   if (
     error.code === "WORK_TEMPLATE_CUSTOM_FIELD_UNAVAILABLE" ||
-    error.code === "WORK_DUPLICATE_CUSTOM_FIELD_UNAVAILABLE" ||
-    error.code === "WORK_DUPLICATE_FIELD_REQUIRED" ||
+    error.code === "CUSTOM_FIELD_TRASHED" ||
+    error.code === "CUSTOM_FIELD_NOT_FOUND" ||
+    error.code === "CUSTOM_FIELD_RECORD_TYPE_NOT_BOUND" ||
     error.code === "CUSTOM_FIELD_VALUE_TYPE_MISMATCH" ||
     error.code === "CUSTOM_FIELD_OPTION_INVALID"
   ) {
@@ -316,12 +324,17 @@ function rethrowWorkTemplateError(error: unknown): never {
     });
   }
 
-  if (error.code === "WORK_DUPLICATE_PREVIEW_REQUIRED") {
+  if (error.code === "WORK_DUPLICATE_SOURCE_STALE") {
     throw new ORPCError("PRECONDITION_FAILED", {
       data: { code: error.code },
       defined: true,
-      message: "Duplicate Work preview changed. Preview and try again.",
+      message: "Work changed. Reload and try again.",
     });
+  }
+
+  const lifecycleError = mapWorkLifecycleError(error);
+  if (lifecycleError) {
+    throw lifecycleError;
   }
 
   throw error;
@@ -665,6 +678,27 @@ function mapWorkLifecycleError(
         data: { code: error.code },
         defined: true,
         message: "Review the current recreate preview before confirming.",
+      });
+    case "WORK_CHECKLIST_CONVERT_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Review the current checklist conversion preview before confirming.",
+      });
+    case "WORK_CHECKLIST_CONVERSION_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Converted checklist Work links can only be changed through conversion.",
+      });
+    case "WORK_CHECKLIST_ITEM_TITLE_TOO_LONG":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Checklist item text is too long to become a Work title. Shorten the item text before converting.",
       });
     case "WORK_MERGE_PREVIEW_REQUIRED":
       return new ORPCError("PRECONDITION_FAILED", {
@@ -1436,33 +1470,6 @@ export const appRouter = {
       }
       return templates;
     }),
-  workDuplicatePreview: protectedProcedure
-    .input(workDuplicatePreviewInputSchema)
-    .handler(async ({ context, input }) => {
-      const preview = await requireWorkTemplates(context).previewDuplicate(
-        context.session.user.id,
-        input.sourceWorkId,
-      );
-      if (!preview) {
-        throw new ORPCError("NOT_FOUND", {
-          defined: true,
-          message: "Work is unavailable.",
-        });
-      }
-      return preview;
-    }),
-  duplicateWork: protectedProcedure
-    .input(duplicateWorkInputSchema)
-    .handler(async ({ context, input }) => {
-      try {
-        return await requireWorkTemplates(context).duplicate(
-          context.session.user.id,
-          input,
-        );
-      } catch (error) {
-        rethrowWorkTemplateError(error);
-      }
-    }),
   createWorkTemplate: protectedProcedure
     .input(createWorkTemplateMutationInputSchema)
     .handler(async ({ context, input }) => {
@@ -1476,6 +1483,63 @@ export const appRouter = {
           context.session.user.id,
           createWorkTemplateInputSchema.parse(payload),
         );
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  instantiateWorkTemplate: protectedProcedure
+    .input(instantiateWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const created = await requireWorkTemplates(context).instantiate(
+          context.session.user.id,
+          input,
+        );
+        if (!created) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work Template is unavailable.",
+          });
+        }
+        return created;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  previewDuplicateWork: protectedProcedure
+    .input(previewDuplicateWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireWorkTemplates(context).previewDuplicate(
+          context.session.user.id,
+          input.sourceWorkId,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
+          });
+        }
+        return preview;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  duplicateWork: protectedProcedure
+    .input(duplicateWorkMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const created = await requireWorkTemplates(context).duplicate(
+          context.session.user.id,
+          input,
+        );
+        if (!created) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
+          });
+        }
+        return created;
       } catch (error) {
         rethrowWorkTemplateError(error);
       }
@@ -2066,6 +2130,22 @@ export const appRouter = {
       }
       return preview;
     }),
+  workChecklistConversionPreview: protectedProcedure
+    .input(workChecklistConversionPreviewInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(async () => {
+        const preview = await requireWorkLifecycle(
+          context,
+        ).previewChecklistConversion(context.session.user.id, input);
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work checklist item is unavailable.",
+          });
+        }
+        return preview;
+      }),
+    ),
   workMergePreview: protectedProcedure
     .input(workMergePreviewInputSchema)
     .handler(async ({ context, input }) => {
@@ -2157,6 +2237,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateChecklist(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  convertWorkChecklistItem: protectedProcedure
+    .input(convertWorkChecklistItemInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).convertChecklistItem(
           context.session.user.id,
           input,
         ),

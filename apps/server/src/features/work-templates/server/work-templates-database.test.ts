@@ -4,9 +4,8 @@ import {
   customFieldDefinition,
   customFieldValue,
 } from "@cantiara/db/schema/custom-fields";
-import { work } from "@cantiara/db/schema/index";
 import { project } from "@cantiara/db/schema/project";
-import { workRelation } from "@cantiara/db/schema/relation";
+import { workTemplate } from "@cantiara/db/schema/work-template";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -16,12 +15,13 @@ import {
   expect,
   test,
 } from "vitest";
-import { createDatabaseCustomFields } from "../../custom-fields/server/custom-fields-database";
+
 import { createDatabaseCustomFieldFinalizationWriter } from "../../custom-fields/server/custom-fields-mutation-database";
-import { createDatabaseRelations } from "../../relations/server/relations";
+import { WorkCreationConflictError } from "../../work-lifecycle/server/work-lifecycle";
 import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import {
   createDatabaseWorkTemplates,
+  WorkDuplicateSourceStaleError,
   WorkTemplateNameConflictError,
   WorkTemplateStaleRevisionError,
 } from "./work-templates-database";
@@ -177,167 +177,320 @@ describeDatabase("Work Templates PostgreSQL integration", () => {
     ).resolves.toHaveLength(1);
   });
 
-  test("previews and confirms an independent one-off copy without lifecycle fields or a template", async () => {
+  test("creates independent idempotent Work from the template snapshot", async () => {
     if (!database) {
       throw new Error("DATABASE_URL is required");
     }
     const workLifecycle = createDatabaseWorkLifecycle(database, {
       customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
     });
-    const workTemplates = createDatabaseWorkTemplates(database, {
-      workLifecycle,
+    const definitionId = `field-${crypto.randomUUID()}`;
+    await database.insert(customFieldDefinition).values({
+      id: definitionId,
+      name: "Release audience",
+      nameKey: "release audience",
+      options: [],
+      projectId,
+      recordTypes: ["Work"],
+      type: "Text",
     });
-    const source = await workLifecycle.create(accountId, {
-      baseRevision: 0,
-      checklist: [
-        { completed: true, id: "source-check-1", text: "Keep context" },
+    const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
+    const created = await workTemplates.create(accountId, {
+      checklist: [{ id: "check-1", text: "Draft release notes" }],
+      customFieldDefaults: [
+        {
+          definitionId,
+          value: { kind: "text", text: "Founders" },
+        },
       ],
-      clientIdempotencyKey: "duplicate-source",
-      description: "Source description",
+      descriptionSkeleton: "## Outcome",
+      name: "Release preparation",
       projectId,
-      targetDate: "2026-10-10",
-      title: "Prepare launch",
-      type: "Improvement",
-    });
-    await database
-      .update(work)
-      .set({
-        archivedAt: new Date("2026-09-20T09:00:00.000Z"),
-        closureReason: "Already shipped",
-        closureResult: "Completed",
-        effort: "Large",
-        featureHealthHistory: [
-          {
-            health: "On Track",
-            id: "health-1",
-            reason: "Ready",
-            recordedAt: "2026-09-19T09:00:00.000Z",
-            recordedByAccountId: accountId,
-          },
-        ],
-        status: "Closed",
-      })
-      .where(eq(work.id, source.id));
-    const related = await workLifecycle.create(accountId, {
-      baseRevision: 0,
-      clientIdempotencyKey: "duplicate-related",
-      projectId,
-      title: "Related Work",
+      relativeDates: {
+        plannedStart: { offsetDays: 2 },
+        target: { offsetDays: 10 },
+      },
       type: "Task",
     });
-    await database.insert(workRelation).values({
-      id: `relation-${crypto.randomUUID()}`,
-      kind: "Related",
-      sourceWorkId: source.id,
-      targetLabel: related.key,
-      targetProjectId: projectId,
-      targetRecordId: related.id,
+    const command = {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "instantiate-release-1",
+      createDate: "2026-09-22",
+      templateId: created.id,
+      title: "Prepare the October release",
+    };
+
+    const instantiated = await workTemplates.instantiate(accountId, command);
+    const replayed = await workTemplates.instantiate(accountId, command);
+
+    expect(replayed).toEqual(instantiated);
+    expect(instantiated).toMatchObject({
+      checklist: [
+        { completed: false, id: "check-1", text: "Draft release notes" },
+      ],
+      closureResult: null,
+      description: "## Outcome",
+      plannedStartDate: "2026-09-24",
+      projectId,
+      recreatedFrom: null,
+      status: "Not Started",
+      targetDate: "2026-10-02",
+      title: "Prepare the October release",
+      type: "Task",
     });
+    expect(instantiated?.id).not.toBe(created.id);
+    await expect(
+      database
+        .select({ value: customFieldValue.value })
+        .from(customFieldValue)
+        .where(eq(customFieldValue.recordId, instantiated?.id ?? "")),
+    ).resolves.toEqual([{ value: { kind: "text", text: "Founders" } }]);
+
+    const updated = await workTemplates.update(
+      accountId,
+      created.id,
+      created.revision,
+      {
+        checklist: [],
+        customFieldDefaults: [],
+        descriptionSkeleton: "Edited after creation",
+        name: created.name,
+        relativeDates: {},
+        type: "Bug",
+      },
+    );
+
+    await expect(
+      workTemplates.instantiate(accountId, command),
+    ).resolves.toEqual(instantiated);
+    await expect(
+      workTemplates.instantiate(accountId, {
+        ...command,
+        title: "A conflicting retry",
+      }),
+    ).rejects.toBeInstanceOf(WorkCreationConflictError);
+
+    await workTemplates.trash(
+      accountId,
+      created.id,
+      updated?.revision ?? created.revision + 1,
+    );
+    await expect(
+      workTemplates.instantiate(accountId, command),
+    ).resolves.toEqual(instantiated);
+  });
+
+  test("rejects a template revision that changes before Work finalization", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const created = await createDatabaseWorkTemplates(database).create(
+      accountId,
+      {
+        checklist: [],
+        customFieldDefaults: [],
+        descriptionSkeleton: null,
+        name: "Race-sensitive template",
+        projectId,
+        relativeDates: {},
+        type: "Task",
+      },
+    );
+    const lifecycle = createDatabaseWorkLifecycle(database, {
+      customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+    });
+    const { createWithCustomFieldValues } = lifecycle;
+    if (!createWithCustomFieldValues) {
+      throw new Error("Custom field finalization is required");
+    }
+    const racingLifecycle = {
+      ...lifecycle,
+      async createWithCustomFieldValues(
+        ...args: Parameters<typeof createWithCustomFieldValues>
+      ) {
+        await database
+          .update(workTemplate)
+          .set({ revision: created.revision + 1, updatedAt: new Date() })
+          .where(eq(workTemplate.id, created.id));
+        return createWithCustomFieldValues(...args);
+      },
+    };
+
+    await expect(
+      createDatabaseWorkTemplates(database, racingLifecycle).instantiate(
+        accountId,
+        {
+          baseRevision: created.revision,
+          clientIdempotencyKey: "revision-race",
+          createDate: "2026-09-22",
+          templateId: created.id,
+          title: "Must not be created",
+        },
+      ),
+    ).rejects.toBeInstanceOf(WorkTemplateStaleRevisionError);
+  });
+
+  test("one-off copy duplicates selected non-date start context in the same Project", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const workLifecycle = createDatabaseWorkLifecycle(database, {
+      customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+    });
+    const audienceId = `field-${crypto.randomUUID()}`;
+    const channelId = `field-${crypto.randomUUID()}`;
+    const retiredId = `field-${crypto.randomUUID()}`;
+    const dateOnlyId = `field-${crypto.randomUUID()}`;
     await database.insert(customFieldDefinition).values([
       {
-        id: "duplicate-text-field",
+        id: audienceId,
         name: "Release audience",
         nameKey: "release audience",
+        options: [],
         projectId,
         recordTypes: ["Work"],
         type: "Text",
       },
       {
-        id: "duplicate-date-field",
+        id: channelId,
+        name: "Release channel",
+        nameKey: "release channel",
+        options: [],
+        projectId,
+        recordTypes: ["Work"],
+        type: "Text",
+      },
+      {
+        id: retiredId,
+        name: "Legacy note",
+        nameKey: "legacy note",
+        options: [],
+        projectId,
+        recordTypes: ["Work"],
+        type: "Text",
+      },
+      {
+        id: dateOnlyId,
         name: "Release day",
         nameKey: "release day",
+        options: [],
         projectId,
         recordTypes: ["Work"],
         type: "Date",
       },
     ]);
+    const { createWithCustomFieldValues } = workLifecycle;
+    if (!createWithCustomFieldValues) {
+      throw new Error("Custom field finalization is required");
+    }
+    const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
+    const source = await createWithCustomFieldValues(
+      accountId,
+      {
+        baseRevision: 0,
+        checklist: [
+          { completed: false, id: "check-1", text: "Draft release notes" },
+        ],
+        clientIdempotencyKey: "duplicate-source",
+        description: "## Outcome",
+        plannedStartDate: "2026-09-24",
+        projectId,
+        targetDate: "2026-10-02",
+        title: "Prepare the October release",
+        type: "Task",
+      },
+      [
+        {
+          definitionId: audienceId,
+          payload: { kind: "text", text: "Founders" },
+        },
+        { definitionId: channelId, payload: { kind: "text", text: "Beta" } },
+      ],
+    );
     await database.insert(customFieldValue).values([
       {
-        definitionId: "duplicate-text-field",
-        id: crypto.randomUUID(),
+        definitionId: retiredId,
+        id: `value-${crypto.randomUUID()}`,
         recordId: source.id,
         recordType: "Work",
-        value: { kind: "text", text: "Founders" },
+        value: { kind: "text", text: "Old" },
       },
       {
-        definitionId: "duplicate-date-field",
-        id: crypto.randomUUID(),
+        definitionId: dateOnlyId,
+        id: `value-${crypto.randomUUID()}`,
         recordId: source.id,
         recordType: "Work",
-        value: { date: "2026-10-10", kind: "date" },
+        value: { date: "2026-10-02", kind: "date" },
       },
     ]);
+    await database
+      .update(customFieldDefinition)
+      .set({ trashedAt: new Date() })
+      .where(eq(customFieldDefinition.id, retiredId));
 
     const preview = await workTemplates.previewDuplicate(accountId, source.id);
     expect(preview).toMatchObject({
-      customFields: [
-        {
-          definitionId: "duplicate-text-field",
-          label: "Release audience",
-          value: { kind: "text", text: "Founders" },
-        },
-      ],
-      sourceWork: { id: source.id, key: source.key },
+      checklist: [{ id: "check-1", text: "Draft release notes" }],
+      description: "## Outcome",
+      sourceRevision: source.revision,
+      title: "Prepare the October release",
+      type: "Task",
     });
-    expect(preview?.fields.map((field) => field.label)).toEqual([
-      "Title",
-      "Type",
-      "Description",
-      "Checklist",
+    expect(preview?.customFields).toEqual([
+      {
+        definitionId: audienceId,
+        name: "Release audience",
+        value: { kind: "text", text: "Founders" },
+      },
+      {
+        definitionId: channelId,
+        name: "Release channel",
+        value: { kind: "text", text: "Beta" },
+      },
     ]);
-    if (!preview) {
-      throw new Error("Expected a Duplicate Work preview.");
-    }
 
-    const duplicate = await workTemplates.duplicate(accountId, {
-      baseRevision: 0,
-      clientIdempotencyKey: "duplicate-confirm",
-      previewId: preview.previewId,
-      selectedCustomFieldIds: ["duplicate-text-field"],
-      selectedFields: ["title", "type", "description", "checklist"],
+    const command = {
+      baseRevision: source.revision,
+      clientIdempotencyKey: "duplicate-once",
+      customFieldDefinitionIds: [audienceId],
       sourceWorkId: source.id,
-    });
-
-    expect(duplicate).toMatchObject({
-      archivedAt: null,
-      closureReason: null,
+    };
+    const duplicated = await workTemplates.duplicate(accountId, command);
+    const replayed = await workTemplates.duplicate(accountId, command);
+    expect(replayed).toEqual(duplicated);
+    expect(duplicated).toMatchObject({
+      checklist: [{ completed: false, text: "Draft release notes" }],
       closureResult: null,
-      description: "Source description",
-      effort: null,
-      featureHealthHistory: [],
-      primaryFeatureId: null,
-      primarySpecId: null,
-      projectId,
+      description: "## Outcome",
+      plannedStartDate: null,
       recreatedFrom: null,
       status: "Not Started",
       targetDate: null,
-      title: "Prepare launch",
-      type: "Improvement",
+      title: "Prepare the October release",
+      type: "Task",
     });
-    expect(duplicate.id).not.toBe(source.id);
-    expect(duplicate.key).not.toBe(source.key);
-    expect(duplicate.checklist).toEqual([
-      expect.objectContaining({ completed: true, text: "Keep context" }),
-    ]);
-    expect(duplicate.checklist[0]?.id).not.toBe("source-check-1");
-    await expect(workTemplates.list(accountId, projectId)).resolves.toEqual([]);
+    expect(duplicated?.id).not.toBe(source.id);
+    expect(duplicated?.key).not.toBe(source.key);
     await expect(
-      createDatabaseRelations(database).list(accountId, {
-        recordId: duplicate.id,
-        recordType: "Work",
+      database
+        .select({ value: customFieldValue.value })
+        .from(customFieldValue)
+        .where(eq(customFieldValue.recordId, duplicated?.id ?? "")),
+    ).resolves.toEqual([{ value: { kind: "text", text: "Founders" } }]);
+
+    await expect(
+      workTemplates.duplicate(accountId, {
+        ...command,
+        baseRevision: source.revision + 5,
+        clientIdempotencyKey: "duplicate-stale-source",
       }),
-    ).resolves.toEqual([]);
-    const duplicatedCustomFields = await createDatabaseCustomFields(
-      database,
-    ).values(accountId, {
-      projectId,
-      recordId: duplicate.id,
-      recordType: "Work",
-    });
-    expect(
-      duplicatedCustomFields
-        ?.filter((field) => field.value !== null)
-        .map((field) => field.definition.id),
-    ).toEqual(["duplicate-text-field"]);
-  }, 15_000);
+    ).rejects.toBeInstanceOf(WorkDuplicateSourceStaleError);
+    await expect(
+      workTemplates.duplicate(accountId, {
+        ...command,
+        clientIdempotencyKey: "duplicate-missing-source",
+        sourceWorkId: "missing-work",
+      }),
+    ).resolves.toBeNull();
+  });
 });

@@ -13,6 +13,8 @@ describe("Work Checklists", () => {
           { completed: false, id: "item-2", text: "Publish the page" },
         ],
         disabled: false,
+        onConfirmConvert: vi.fn(),
+        onPreviewConvert: vi.fn(),
         onSave: vi.fn(),
         workKey: "PAY-1",
       }),
@@ -44,6 +46,8 @@ describe("Work Checklists", () => {
       createElement(WorkChecklist, {
         checklist: [],
         disabled: false,
+        onConfirmConvert: vi.fn(),
+        onPreviewConvert: vi.fn(),
         onSave: vi.fn(),
         workKey: "PAY-1",
       }),
@@ -51,5 +55,34 @@ describe("Work Checklists", () => {
 
     expect(html).toContain("Add the first small step for this Work.");
     expect(html).toContain("New item for PAY-1");
+  });
+
+  test("replaces a converted item with a link to the independent Work", () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkChecklist, {
+        checklist: [
+          {
+            completed: true,
+            convertedWork: {
+              id: "work-2",
+              key: "PAY-2",
+              title: "Publish the page",
+            },
+            id: "item-1",
+            text: "Publish the page",
+          },
+        ],
+        disabled: false,
+        onConfirmConvert: vi.fn(),
+        onPreviewConvert: vi.fn(),
+        onSave: vi.fn(),
+        workKey: "PAY-1",
+      }),
+    );
+
+    expect(html).toContain('href="#work-work-2"');
+    expect(html).toContain("PAY-2 — Publish the page");
+    expect(html).not.toContain("Mark Publish the page");
+    expect(html).not.toContain("Convert to independent Work");
   });
 });

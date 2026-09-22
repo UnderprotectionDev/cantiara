@@ -1,6 +1,7 @@
-import type {
-  MutationPayload,
-  MutationTarget,
+import {
+  fingerprintMutationPayload,
+  type MutationPayload,
+  type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
   featureHealthUpdateSchema,
@@ -44,6 +45,7 @@ import {
 import {
   createWork,
   createWorkLifecycle,
+  WorkChecklistConvertPreviewRequiredError,
   WorkCreationConflictError,
   type WorkCreationReservation,
   WorkFeatureExitBlockedError,
@@ -57,6 +59,26 @@ import {
 type WorkDatabaseRecord = typeof work.$inferSelect;
 type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 type WorkRetiredIdentityRecord = typeof workRetiredIdentity.$inferSelect;
+
+export interface WorkCreationFinalizationOptions {
+  idempotencyPayload?: MutationPayload;
+  validateFinalization?: (executor: MutationDatabaseExecutor) => Promise<void>;
+}
+
+export interface DatabaseWorkLifecycleAccess extends WorkLifecycleAccess {
+  createWithCustomFieldValues?: (
+    accountId: string,
+    input: Parameters<WorkLifecycleAccess["create"]>[1],
+    values: readonly CustomFieldValueFinalization[],
+    options?: WorkCreationFinalizationOptions,
+  ) => Promise<WorkProfile>;
+  findCreatedByIdempotencyKey: (
+    accountId: string,
+    projectId: string,
+    clientIdempotencyKey: string,
+    idempotencyPayload: MutationPayload,
+  ) => Promise<WorkProfile | null>;
+}
 
 function originRecordValues(originPosition?: WorkOriginPosition) {
   return {
@@ -99,6 +121,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     ...(originPosition ? { originPosition } : {}),
     primaryFeatureId: record.primaryFeatureId,
     primarySpecId: record.primarySpecId,
+    plannedStartDate: record.plannedStartDate,
     projectId: record.projectId,
     recreatedFrom:
       record.recreatedFromWorkId && record.recreatedFromWorkKey
@@ -281,6 +304,7 @@ function createWorkMutationTarget(
   relations: WorkRelationsMutationAdapter,
   customFieldValueWriter?: CustomFieldValueFinalizationWriter,
   customFieldValues: readonly CustomFieldValueFinalization[] = [],
+  validateFinalization?: (executor: MutationDatabaseExecutor) => Promise<void>,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     find: async (_executor, targetId) => emptyWorkTarget(targetId),
@@ -291,6 +315,8 @@ function createWorkMutationTarget(
       if (!nextWork) {
         return null;
       }
+
+      await validateFinalization?.(executor);
 
       const ownedProject = await findOwnedProject(
         executor,
@@ -349,6 +375,7 @@ function createWorkMutationTarget(
           ...originRecordValues(nextWork.originPosition),
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
+          plannedStartDate: nextWork.plannedStartDate,
           projectId: nextWork.projectId,
           recreatedFromWorkId: nextWork.recreatedFrom?.id,
           recreatedFromWorkKey: nextWork.recreatedFrom?.key,
@@ -479,6 +506,7 @@ function workRecordValues(
     ...originRecordValues(nextWork.originPosition),
     primaryFeatureId: nextWork.primaryFeatureId,
     primarySpecId: nextWork.primarySpecId,
+    plannedStartDate: nextWork.plannedStartDate,
     projectId: nextWork.projectId,
     recreatedFromWorkId: nextWork.recreatedFrom?.id,
     recreatedFromWorkKey: nextWork.recreatedFrom?.key,
@@ -635,6 +663,142 @@ async function updateWorkForMerge(
     id: updated.id,
     revision: updated.revision,
     value: { work: toWorkProfile(updated) },
+  };
+}
+
+async function updateWorkForChecklistConversion(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  relations: WorkRelationsMutationAdapter,
+  input: Parameters<
+    NonNullable<
+      MutationDatabaseTargetAdapter<WorkLifecycleMutationValue>["update"]
+    >
+  >[1],
+) {
+  const nextWork = input.nextValue.work;
+  const conversion = input.nextValue.checklistConversion;
+  if (!(nextWork && conversion) || nextWork.id !== input.targetId) {
+    return null;
+  }
+
+  const sourceWork = await findOwnedWork(
+    executor,
+    accountId,
+    input.targetId,
+    true,
+  );
+  if (
+    !sourceWork ||
+    sourceWork.revision !== input.expectedRevision ||
+    conversion.sourceWorkId !== sourceWork.id ||
+    conversion.sourceWorkRevision !== sourceWork.revision ||
+    conversion.newWork.projectId !== sourceWork.projectId
+  ) {
+    throw new WorkChecklistConvertPreviewRequiredError();
+  }
+
+  const ownedProject = await findOwnedProject(
+    executor,
+    accountId,
+    conversion.newWork.projectId,
+    false,
+  );
+  if (!ownedProject) {
+    throw new WorkProjectNotFoundError(conversion.newWork.projectId);
+  }
+
+  const [allocation] = await executor
+    .select()
+    .from(workKeyAllocation)
+    .where(
+      and(
+        eq(workKeyAllocation.projectId, conversion.newWork.projectId),
+        eq(workKeyAllocation.workId, conversion.newWork.id),
+      ),
+    )
+    .limit(1);
+  if (
+    !allocation ||
+    allocation.key !== conversion.newWork.key ||
+    allocation.number !== conversion.newWork.number
+  ) {
+    throw new WorkCreationConflictError();
+  }
+
+  const [inserted] = await executor
+    .insert(work)
+    .values(
+      workRecordValues(
+        conversion.newWork,
+        conversion.newWork.revision,
+        input.committedAt,
+      ),
+    )
+    .onConflictDoNothing()
+    .returning();
+  const created =
+    inserted ??
+    (
+      await executor
+        .select()
+        .from(work)
+        .where(eq(work.id, conversion.newWork.id))
+        .limit(1)
+    )[0];
+  if (
+    !created ||
+    created.projectId !== conversion.newWork.projectId ||
+    created.key !== conversion.newWork.key ||
+    created.title !== conversion.newWork.title
+  ) {
+    throw new WorkCreationConflictError();
+  }
+
+  await relations.persistChecklistConversion(
+    executor,
+    input.committedAt,
+    {
+      id: sourceWork.id,
+      key: sourceWork.key,
+      projectId: sourceWork.projectId,
+    },
+    {
+      id: created.id,
+      key: created.key,
+      projectId: created.projectId,
+    },
+  );
+
+  const [updated] = await executor
+    .update(work)
+    .set({
+      checklist: nextWork.checklist,
+      revision: input.expectedRevision + 1,
+      updatedAt: input.committedAt,
+    })
+    .where(
+      and(
+        eq(work.id, input.targetId),
+        eq(work.projectId, nextWork.projectId),
+        eq(work.revision, input.expectedRevision),
+      ),
+    )
+    .returning();
+  if (!updated) {
+    throw new WorkChecklistConvertPreviewRequiredError();
+  }
+
+  return {
+    id: updated.id,
+    revision: updated.revision,
+    value: {
+      checklistConversion: {
+        ...conversion,
+        newWork: toWorkProfile(created),
+      },
+      work: toWorkProfile(updated),
+    },
   };
 }
 
@@ -825,6 +989,14 @@ function createWorkUpdateMutationTarget(
       }
 
       const mergeMutation = input.nextValue.merge;
+      if (input.nextValue.checklistConversion) {
+        return updateWorkForChecklistConversion(
+          executor,
+          accountId,
+          relations,
+          input,
+        );
+      }
       if (mergeMutation?.operation === "merge") {
         return updateWorkForMerge(
           executor,
@@ -925,37 +1097,13 @@ export interface WorkLifecycleProjectDocumentAccess {
   ) => Promise<boolean>;
 }
 
-export interface DatabaseWorkLifecycleWithCustomFieldValues
-  extends WorkLifecycleAccess {
-  createWithCustomFieldValues: (
-    accountId: string,
-    rawInput: Parameters<WorkLifecycleAccess["create"]>[1],
-    customFieldValues: readonly CustomFieldValueFinalization[],
-  ) => Promise<WorkProfile>;
-}
-
-export function createDatabaseWorkLifecycle(
-  database: Database,
-  options: {
-    customFieldValueWriter: CustomFieldValueFinalizationWriter;
-    projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
-  },
-): DatabaseWorkLifecycleWithCustomFieldValues;
-export function createDatabaseWorkLifecycle(
-  database: Database,
-  options?: {
-    customFieldValueWriter?: CustomFieldValueFinalizationWriter;
-    projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
-  },
-): WorkLifecycleAccess;
-
 export function createDatabaseWorkLifecycle(
   database: Database,
   options: {
     customFieldValueWriter?: CustomFieldValueFinalizationWriter;
     projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
   } = {},
-) {
+): DatabaseWorkLifecycleAccess {
   const relations = createDatabaseWorkRelations(database);
   const { customFieldValueWriter, projectDocumentAccess } = options;
   const store: WorkLifecycleStore = {
@@ -1248,6 +1396,67 @@ export function createDatabaseWorkLifecycle(
         },
       );
     },
+
+    releaseCreate(accountId, projectId, clientIdempotencyKey, workId) {
+      return database.transaction(async (transaction) => {
+        const ownedProject = await findOwnedProject(
+          transaction,
+          accountId,
+          projectId,
+          true,
+        );
+        if (!ownedProject) {
+          return;
+        }
+
+        const [allocation] = await transaction
+          .select()
+          .from(workKeyAllocation)
+          .where(
+            and(
+              eq(workKeyAllocation.projectId, projectId),
+              eq(workKeyAllocation.clientIdempotencyKey, clientIdempotencyKey),
+              eq(workKeyAllocation.workId, workId),
+            ),
+          )
+          .limit(1)
+          .for("update");
+        if (!allocation) {
+          return;
+        }
+
+        const [existingWork] = await transaction
+          .select({ id: work.id })
+          .from(work)
+          .where(eq(work.id, workId))
+          .limit(1);
+        if (existingWork) {
+          return;
+        }
+
+        await transaction
+          .delete(workKeyAllocation)
+          .where(eq(workKeyAllocation.id, allocation.id));
+
+        if (ownedProject.record.workCount !== allocation.number) {
+          return;
+        }
+
+        await transaction
+          .update(project)
+          .set({
+            revision: ownedProject.record.revision + 1,
+            updatedAt: new Date(),
+            workCount: allocation.number - 1,
+          })
+          .where(
+            and(
+              eq(project.id, projectId),
+              eq(project.revision, ownedProject.record.revision),
+            ),
+          );
+      });
+    },
   };
 
   const mutationContracts = {
@@ -1266,16 +1475,40 @@ export function createDatabaseWorkLifecycle(
     store,
   });
 
+  async function findCreatedByIdempotencyKey(
+    accountId: string,
+    projectId: string,
+    clientIdempotencyKey: string,
+    idempotencyPayload: MutationPayload,
+  ) {
+    const existing = await store.findByClientIdempotencyKey(
+      accountId,
+      projectId,
+      clientIdempotencyKey,
+    );
+    if (!existing) {
+      return null;
+    }
+    const expectedFingerprint =
+      await fingerprintMutationPayload(idempotencyPayload);
+    if (existing.payloadFingerprint !== expectedFingerprint) {
+      throw new WorkCreationConflictError();
+    }
+    return existing.work;
+  }
+
   if (!customFieldValueWriter) {
-    return lifecycle;
+    return { ...lifecycle, findCreatedByIdempotencyKey };
   }
 
   return {
     ...lifecycle,
+    findCreatedByIdempotencyKey,
     createWithCustomFieldValues(
       accountId: string,
       rawInput: Parameters<WorkLifecycleAccess["create"]>[1],
       customFieldValues: readonly CustomFieldValueFinalization[],
+      finalizationOptions: WorkCreationFinalizationOptions = {},
     ) {
       const orderedCustomFieldValues = [...customFieldValues].sort(
         (left, right) => left.definitionId.localeCompare(right.definitionId),
@@ -1287,6 +1520,7 @@ export function createDatabaseWorkLifecycle(
             relations,
             customFieldValueWriter,
             orderedCustomFieldValues,
+            finalizationOptions.validateFinalization,
           ),
         });
       return createWork(
@@ -1297,6 +1531,7 @@ export function createDatabaseWorkLifecycle(
         undefined,
         mutation,
         { customFieldValues: orderedCustomFieldValues },
+        finalizationOptions.idempotencyPayload,
       );
     },
   };

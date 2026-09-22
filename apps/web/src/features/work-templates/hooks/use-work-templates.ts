@@ -1,11 +1,12 @@
 import type {
   CreateWorkTemplateInput,
+  InstantiateWorkTemplateInput,
   UpdateWorkTemplateInput,
 } from "@cantiara/api/work-templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 
 export function useWorkTemplates(projectId: string) {
   const queryClient = useQueryClient();
@@ -24,6 +25,19 @@ export function useWorkTemplates(projectId: string) {
         }),
       ),
     onSuccess: invalidate,
+  });
+  const instantiate = useMutation({
+    mutationFn: (
+      input: Omit<InstantiateWorkTemplateInput, "clientIdempotencyKey">,
+    ) =>
+      runOnlineOnlyWrite(() =>
+        client.instantiateWorkTemplate({
+          ...input,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
   });
   const update = useMutation({
     mutationFn: (
@@ -51,5 +65,5 @@ export function useWorkTemplates(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, moveToTrash, query, update };
+  return { create, instantiate, moveToTrash, query, update };
 }

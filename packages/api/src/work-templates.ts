@@ -1,17 +1,13 @@
 import { addDays, format, isValid, parseISO } from "date-fns";
 import { z } from "zod";
 
-import {
-  type CustomFieldType,
-  customFieldOptionsSchema,
-  type ParsedCustomFieldValuePayload,
-} from "./custom-fields";
+import { customFieldOptionsSchema } from "./custom-fields";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 import {
-  type WorkChecklistItem,
   type WorkProfile,
   type WorkType,
   workDescriptionSchema,
+  workTitleSchema,
   workTypeSchema,
 } from "./work-lifecycle";
 
@@ -159,55 +155,56 @@ export const updateWorkTemplateMutationInputSchema =
 export const trashWorkTemplateMutationInputSchema =
   humanMutationEnvelopeSchema.extend({ templateId: identifierSchema });
 
-export const workTemplatesInputSchema = z
-  .object({ projectId: identifierSchema })
-  .strict();
+export const instantiateWorkTemplateMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend({
+      createDate: calendarDateSchema,
+      templateId: identifierSchema,
+      title: workTitleSchema,
+    })
+    .strict();
 
-export const WORK_DUPLICATE_FIELD_OPTIONS = [
-  "title",
-  "type",
-  "description",
-  "checklist",
-] as const;
+export type InstantiateWorkTemplateInput = z.input<
+  typeof instantiateWorkTemplateMutationInputSchema
+>;
 
-export type WorkDuplicateField = (typeof WORK_DUPLICATE_FIELD_OPTIONS)[number];
-
-export const workDuplicatePreviewInputSchema = z
+export const previewDuplicateWorkInputSchema = z
   .object({ sourceWorkId: identifierSchema })
   .strict();
 
-export const duplicateWorkInputSchema = humanMutationEnvelopeSchema
+export const duplicateWorkMutationInputSchema = humanMutationEnvelopeSchema
   .extend({
-    previewId: identifierSchema,
-    selectedCustomFieldIds: z.array(identifierSchema).max(100),
-    selectedFields: z.array(z.enum(WORK_DUPLICATE_FIELD_OPTIONS)),
+    customFieldDefinitionIds: z.array(identifierSchema).max(100),
     sourceWorkId: identifierSchema,
   })
   .strict();
 
-export type DuplicateWorkInput = z.input<typeof duplicateWorkInputSchema>;
+export type DuplicateWorkInput = z.input<
+  typeof duplicateWorkMutationInputSchema
+>;
+export type ParsedDuplicateWorkInput = z.output<
+  typeof duplicateWorkMutationInputSchema
+>;
 
-export interface WorkDuplicateFieldPreview {
-  key: WorkDuplicateField;
-  label: "Title" | "Type" | "Description" | "Checklist";
-  selectedByDefault: boolean;
-  value: WorkChecklistItem[] | WorkType | string | null;
-}
-
-export interface WorkDuplicateCustomFieldPreview {
+export interface DuplicateWorkPreviewCustomField {
   definitionId: string;
-  label: string;
-  selectedByDefault: true;
-  type: Exclude<CustomFieldType, "Date">;
-  value: ParsedCustomFieldValuePayload;
+  name: string;
+  value: WorkTemplateCustomFieldValue;
 }
 
-export interface WorkDuplicatePreview {
-  customFields: WorkDuplicateCustomFieldPreview[];
-  fields: WorkDuplicateFieldPreview[];
-  previewId: string;
-  sourceWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+export interface DuplicateWorkPreview {
+  checklist: { id: string; text: string }[];
+  customFields: DuplicateWorkPreviewCustomField[];
+  description: string | null;
+  sourceRevision: number;
+  sourceWorkId: string;
+  title: string;
+  type: WorkType;
 }
+
+export const workTemplatesInputSchema = z
+  .object({ projectId: identifierSchema })
+  .strict();
 
 export const workTemplateSchema = workTemplateDefinitionFieldsSchema
   .extend({
@@ -251,8 +248,12 @@ export interface WorkTemplatesAccess {
   ) => Promise<WorkTemplate>;
   duplicate: (
     accountId: string,
-    input: DuplicateWorkInput,
-  ) => Promise<WorkProfile>;
+    input: ParsedDuplicateWorkInput,
+  ) => Promise<WorkProfile | null>;
+  instantiate: (
+    accountId: string,
+    input: InstantiateWorkTemplateInput,
+  ) => Promise<WorkProfile | null>;
   list: (
     accountId: string,
     projectId: string,
@@ -260,7 +261,7 @@ export interface WorkTemplatesAccess {
   previewDuplicate: (
     accountId: string,
     sourceWorkId: string,
-  ) => Promise<WorkDuplicatePreview | null>;
+  ) => Promise<DuplicateWorkPreview | null>;
   trash: (
     accountId: string,
     templateId: string,

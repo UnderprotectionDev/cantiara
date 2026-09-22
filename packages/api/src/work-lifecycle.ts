@@ -102,6 +102,12 @@ export const workTargetDateSchema = z
   .nullable()
   .optional();
 
+export const workPlannedStartDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Planned start date must use YYYY-MM-DD.")
+  .nullable()
+  .optional();
+
 export const workEffortSchema = z
   .string()
   .trim()
@@ -115,10 +121,26 @@ export const workChecklistItemSchema = z
     completed: z.boolean(),
     id: identifierSchema,
     text: z.string().trim().min(1).max(1000),
+    convertedWork: z
+      .object({
+        id: identifierSchema,
+        key: identifierSchema,
+        title: workTitleSchema,
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
 export const workChecklistSchema = z.array(workChecklistItemSchema).max(500);
+
+const workChecklistItemInputSchema = workChecklistItemSchema.omit({
+  convertedWork: true,
+});
+
+export const workChecklistInputSchema = z
+  .array(workChecklistItemInputSchema)
+  .max(500);
 
 export type WorkChecklistItem = z.infer<typeof workChecklistItemSchema>;
 
@@ -131,6 +153,29 @@ export const updateWorkChecklistInputSchema = humanMutationEnvelopeSchema
 
 export type UpdateWorkChecklistInput = z.input<
   typeof updateWorkChecklistInputSchema
+>;
+
+export const workChecklistConversionPreviewInputSchema = z
+  .object({
+    itemId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type WorkChecklistConversionPreviewInput = z.input<
+  typeof workChecklistConversionPreviewInputSchema
+>;
+
+export const convertWorkChecklistItemInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    itemId: identifierSchema,
+    previewId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type ConvertWorkChecklistItemInput = z.input<
+  typeof convertWorkChecklistItemInputSchema
 >;
 
 export const workCaptureProvenanceSchema = z
@@ -155,6 +200,7 @@ const createWorkInputObjectSchema = z
     description: workDescriptionSchema.optional(),
     originPosition: workOriginPositionSchema.optional(),
     effort: workEffortSchema,
+    plannedStartDate: workPlannedStartDateSchema,
     projectId: identifierSchema,
     targetDate: workTargetDateSchema,
     title: workTitleSchema,
@@ -615,6 +661,7 @@ export interface WorkProfile {
   key: string;
   number: number;
   originPosition?: WorkOriginPosition;
+  plannedStartDate?: string | null;
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
@@ -625,6 +672,33 @@ export interface WorkProfile {
   title: string;
   type: WorkType;
   updatedAt: string;
+}
+
+export interface WorkChecklistConversionPreview {
+  item: Pick<WorkChecklistItem, "id" | "text">;
+  newWork: {
+    projectId: string;
+    status: "Not Started";
+    title: string;
+    type: "Task";
+  };
+  originPosition: WorkOriginPosition;
+  previewId: string;
+  sourceWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+  targetProject: { id: string; name: string };
+}
+
+export interface WorkChecklistConversionMutation {
+  itemId: string;
+  newWork: WorkProfile;
+  operation: "convert-checklist-item";
+  sourceWorkId: string;
+  sourceWorkRevision: number;
+}
+
+export interface WorkChecklistConversionResult {
+  sourceWork: WorkProfile;
+  work: WorkProfile;
 }
 
 export interface WorkMergeMutation {
@@ -641,6 +715,7 @@ export interface WorkMergeMutation {
 }
 
 export interface WorkLifecycleMutationValue {
+  checklistConversion?: WorkChecklistConversionMutation;
   merge?: WorkMergeMutation;
   recreate?: {
     selectedRelationIds: string[];
@@ -720,6 +795,10 @@ export interface WorkLifecycleAccess {
     input: CloseWorkInput,
     initiator: WorkVisibleUserInitiator,
   ) => Promise<WorkProfile>;
+  convertChecklistItem: (
+    accountId: string,
+    input: ConvertWorkChecklistItemInput,
+  ) => Promise<WorkChecklistConversionResult>;
   create: (
     accountId: string,
     input: CreateWorkMutationInput,
@@ -747,6 +826,10 @@ export interface WorkLifecycleAccess {
     options?: WorkListOptions,
   ) => Promise<WorkProfile[]>;
   merge: (accountId: string, input: MergeWorkInput) => Promise<WorkMergeResult>;
+  previewChecklistConversion: (
+    accountId: string,
+    input: WorkChecklistConversionPreviewInput,
+  ) => Promise<WorkChecklistConversionPreview | null>;
   previewClose: (
     accountId: string,
     input: WorkClosePreviewInput,

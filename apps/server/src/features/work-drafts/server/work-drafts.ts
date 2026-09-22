@@ -11,7 +11,6 @@ import {
   type SaveWorkDraftInput,
   saveWorkDraftInputSchema,
   type WorkDraft,
-  type WorkDraftCustomFieldValue,
   type WorkDraftMutationValue,
   type WorkDraftsAccess,
   workDraftDeleteMutationPayload,
@@ -22,6 +21,7 @@ import type {
   WorkLifecycleAccess,
   WorkProfile,
 } from "@cantiara/api/work-lifecycle";
+import type { DatabaseWorkLifecycleAccess } from "../../work-lifecycle/server/work-lifecycle-database";
 
 export interface WorkDraftRecord extends WorkDraft {
   consumedAt: string | null;
@@ -56,13 +56,8 @@ export interface WorkDraftStore {
   ) => Promise<WorkDraftFinalizationReservation>;
 }
 
-interface WorkDraftFinalizationLifecycle extends WorkLifecycleAccess {
-  createWithCustomFieldValues?: (
-    accountId: string,
-    input: Parameters<WorkLifecycleAccess["create"]>[1],
-    values: WorkDraftCustomFieldValue[],
-  ) => Promise<WorkProfile>;
-}
+type WorkDraftFinalizationLifecycle = WorkLifecycleAccess &
+  Pick<DatabaseWorkLifecycleAccess, "createWithCustomFieldValues">;
 
 export class WorkDraftNotFoundError extends Error {
   readonly code = "WORK_DRAFT_NOT_FOUND" as const;

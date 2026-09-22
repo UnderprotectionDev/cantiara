@@ -149,7 +149,7 @@ Mevcut bir İşi şablona dönüştürmeden aynı Projede yeni kimlik ve anahtar
 _Avoid_: Başka Projede yeniden oluşturma, şablona çevirme, canlı bağlı kopya
 
 **Hafif kontrol listesi**:
-İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`.
+İş üzerindeki, yalnız metin ve tamamlanma işareti taşıyan sahipli bileşen; bağımsız ana kayıt, İş durumu veya planlama üyeliği değildir ([Hafif iş kontrol listeleri](docs/prd/06-work-management-and-planning.md#hafif-iş-kontrol-listeleri)). UI: `Checklist`; maddeden bağımsız İş üretme eylemi `Convert to independent Work`, önizleme alanı `Start status`, onay eylemi `Confirm convert`.
 _Avoid_: subtask, epic, checklist-as-Work, Test Scenario, Handoff
 
 **Kontrol listesi maddesi**:
