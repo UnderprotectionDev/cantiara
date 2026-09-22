@@ -17,6 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { type FormEvent, useCallback, useState } from "react";
 import CustomFieldEditor from "@/features/custom-fields/ui/components/custom-field-editor";
+import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
 import {
@@ -364,6 +365,8 @@ function ConfigurationHostContent({
       );
     case "Custom field":
       return <CustomFieldEditor disabled={disabled} projectId={projectId} />;
+    case "Priority metrics":
+      return <PriorityMetricEditor disabled={disabled} projectId={projectId} />;
     case "Work Template":
       return <WorkTemplateEditor disabled={disabled} projectId={projectId} />;
     case "Work Context Card layout":

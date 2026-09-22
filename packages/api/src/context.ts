@@ -15,6 +15,10 @@ import type {
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type {
+  PriorityMetricMutationContracts,
+  PriorityMetricsAccess,
+} from "./priority-metrics";
+import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "./project-shell";
@@ -130,6 +134,8 @@ export interface Context {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;
+  priorityMetricMutationContracts?: PriorityMetricMutationContracts;
+  priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   relations?: RelationsAccess;

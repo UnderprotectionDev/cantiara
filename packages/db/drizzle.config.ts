@@ -9,6 +9,7 @@ export default defineConfig({
     "./src/schema/custom-fields.ts",
     "./src/schema/file-attachments.ts",
     "./src/schema/project.ts",
+    "./src/schema/priority-metrics.ts",
     "./src/schema/capture-triage.ts",
     "./src/schema/work.ts",
     "./src/schema/work-draft.ts",

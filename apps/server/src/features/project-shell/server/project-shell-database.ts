@@ -1,10 +1,15 @@
 import {
+  getStarterPriorityMetricTemplate,
+  priorityMetricNameKey,
+} from "@cantiara/api/priority-metrics";
+import {
   projectLifecycleStatusSchema,
   resolveProjectShellConfiguration,
   starterConfigurationSchema,
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
+import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { project, projectShortCode } from "@cantiara/db/schema/project";
 import { and, asc, eq } from "drizzle-orm";
 
@@ -131,6 +136,21 @@ export function createDatabaseProjectShell(database: Database) {
 
         if (!reservation) {
           throw new ProjectShortCodeConflictError(input.shortCode);
+        }
+
+        const priorityMetric = getStarterPriorityMetricTemplate(
+          input.starterConfiguration,
+        );
+        if (priorityMetric) {
+          await transaction.insert(priorityMetricDefinition).values({
+            ...priorityMetric,
+            createdAt: committedAt,
+            id: crypto.randomUUID(),
+            nameKey: priorityMetricNameKey(priorityMetric.name),
+            projectId: id,
+            revision: 0,
+            updatedAt: committedAt,
+          });
         }
 
         return toRecord(created);

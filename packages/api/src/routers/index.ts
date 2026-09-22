@@ -65,6 +65,23 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  clearPriorityMetricValueInputSchema,
+  clearPriorityMetricValueMutationInputSchema,
+  createPriorityMetricInputSchema,
+  createPriorityMetricMutationInputSchema,
+  type PriorityMetricMutationContracts,
+  type PriorityMetricMutationValue,
+  type PriorityMetricsAccess,
+  type PriorityMetricValueMutationValue,
+  priorityMetricProjectValuesInputSchema,
+  priorityMetricValuesInputSchema,
+  setPriorityMetricValueInputSchema,
+  setPriorityMetricValueMutationInputSchema,
+  trashPriorityMetricMutationInputSchema,
+  updatePriorityMetricInputSchema,
+  updatePriorityMetricMutationInputSchema,
+} from "../priority-metrics";
+import {
   applyProjectShellConfigurationChange,
   createProjectInputSchema,
   createProjectMutationInputSchema,
@@ -262,6 +279,22 @@ function requireCustomFields(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.customFields;
+}
+
+function requirePriorityMetrics(context: Context): PriorityMetricsAccess {
+  if (!context.priorityMetrics) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.priorityMetrics;
+}
+
+function requirePriorityMetricMutationContracts(
+  context: Context,
+): PriorityMetricMutationContracts {
+  if (!context.priorityMetricMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.priorityMetricMutationContracts;
 }
 
 function requireWorkTemplates(context: Context) {
@@ -1283,6 +1316,75 @@ function rethrowCustomFieldMutationError(
   throw error;
 }
 
+function rethrowPriorityMetricMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowPriorityMetricMutationError(error.cause, targetId);
+  }
+  if (
+    error.code === "PRIORITY_METRIC_PROJECT_NOT_FOUND" ||
+    error.code === "PRIORITY_METRIC_NOT_FOUND" ||
+    error.code === "PRIORITY_METRIC_WORK_NOT_FOUND" ||
+    error.code === "TARGET_NOT_FOUND"
+  ) {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Priority metric or Work is unavailable.",
+    });
+  }
+  if (error.code === "PRIORITY_METRIC_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message:
+        "A Priority metric with this name already exists in this Project.",
+    });
+  }
+  if (
+    error.code === "23505" &&
+    (error.constraint === "priority_metric_definition_project_name_uidx" ||
+      error.constraint_name === "priority_metric_definition_project_name_uidx")
+  ) {
+    throw new ORPCError("CONFLICT", {
+      data: { targetId },
+      defined: true,
+      message:
+        "A Priority metric with this name already exists in this Project.",
+    });
+  }
+  if (error.code === "23505") {
+    throw new ORPCError("CONFLICT", {
+      data: { targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+  if (
+    error.code === "PRIORITY_METRIC_TRASHED" ||
+    error.code === "PRIORITY_METRIC_PROJECT_MISMATCH" ||
+    error.code === "PRIORITY_METRIC_DISABLED"
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: "This Priority metric is unavailable for Work values.",
+    });
+  }
+  if (error.code === "CONFLICT" || error.code === "REVISION_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+  throw error;
+}
+
 function rethrowTagError(error: unknown): never {
   if (!isRecord(error)) {
     throw error;
@@ -1885,6 +1987,259 @@ export const appRouter = {
         });
       }
       return fields;
+    }),
+  priorityMetrics: protectedProcedure
+    .input(z.object({ projectId: z.string().trim().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      const metrics = await requirePriorityMetrics(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!metrics) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return metrics;
+    }),
+  priorityMetricProjectValues: protectedProcedure
+    .input(priorityMetricProjectValuesInputSchema)
+    .handler(async ({ context, input }) => {
+      const values = await requirePriorityMetrics(context).projectValues(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!values) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return values;
+    }),
+  priorityMetricValues: protectedProcedure
+    .input(priorityMetricValuesInputSchema)
+    .handler(async ({ context, input }) => {
+      const values = await requirePriorityMetrics(context).values(
+        context.session.user.id,
+        input.workId,
+      );
+      if (!values) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return values;
+    }),
+  createPriorityMetric: protectedProcedure
+    .input(createPriorityMetricMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...createInput } = input;
+      const parsed = createPriorityMetricInputSchema.parse(createInput);
+      const mutation = requirePriorityMetricMutationContracts(context).create(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId: clientIdempotencyKey,
+          },
+          ({ currentRevision, payload }) => {
+            const timestamp = new Date().toISOString();
+            return {
+              metric: {
+                createdAt: timestamp,
+                enabled: true,
+                id: crypto.randomUUID(),
+                name: payload.name,
+                projectId: payload.projectId,
+                rankDescriptions: payload.rankDescriptions,
+                revision: currentRevision + 1,
+                shortDescription: payload.shortDescription,
+                trashedAt: null,
+                updatedAt: timestamp,
+              },
+            } satisfies PriorityMetricMutationValue;
+          },
+        );
+        const { metric } = receipt.nextValue;
+        if (!metric) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return metric;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  updatePriorityMetric: protectedProcedure
+    .input(updatePriorityMetricMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, metricId, ...payloadInput } =
+        input;
+      const parsed = updatePriorityMetricInputSchema.parse(payloadInput);
+      const mutation = requirePriorityMetricMutationContracts(context).update(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId: metricId,
+          },
+          ({ currentRevision, currentValue, payload }) => {
+            const current = currentValue.metric;
+            if (!current) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            const timestamp = new Date().toISOString();
+            return {
+              metric: {
+                ...current,
+                enabled: payload.enabled,
+                name: payload.name,
+                rankDescriptions: payload.rankDescriptions,
+                revision: currentRevision + 1,
+                shortDescription: payload.shortDescription,
+                updatedAt: timestamp,
+              },
+            } satisfies PriorityMetricMutationValue;
+          },
+        );
+        const { metric } = receipt.nextValue;
+        if (!metric) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return metric;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, metricId);
+      }
+    }),
+  trashPriorityMetric: protectedProcedure
+    .input(trashPriorityMetricMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, metricId } = input;
+      const mutation = requirePriorityMetricMutationContracts(context).trash(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: metricId,
+          },
+          ({ currentRevision, currentValue }) => {
+            const current = currentValue.metric;
+            if (!current) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            const timestamp = new Date().toISOString();
+            return {
+              metric: {
+                ...current,
+                enabled: false,
+                revision: currentRevision + 1,
+                trashedAt: timestamp,
+                updatedAt: timestamp,
+              },
+            } satisfies PriorityMetricMutationValue;
+          },
+        );
+        const { metric } = receipt.nextValue;
+        if (!metric) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return metric;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, metricId);
+      }
+    }),
+  setPriorityMetricValue: protectedProcedure
+    .input(setPriorityMetricValueMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = setPriorityMetricValueInputSchema.parse(payloadInput);
+      const targetId = `${parsed.workId}:${parsed.metricId}`;
+      const mutation = requirePriorityMetricMutationContracts(context).setValue(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) => {
+            const timestamp = new Date().toISOString();
+            const current = currentValue.value;
+            return {
+              value: {
+                createdAt: current?.createdAt ?? timestamp,
+                id: current?.id ?? crypto.randomUUID(),
+                metricId: payload.metricId,
+                projectId: payload.projectId,
+                rank: payload.rank,
+                revision: currentRevision + 1,
+                updatedAt: timestamp,
+                workId: payload.workId,
+              },
+            } satisfies PriorityMetricValueMutationValue;
+          },
+        );
+        if (!receipt.nextValue.value) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.value;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, targetId);
+      }
+    }),
+  clearPriorityMetricValue: protectedProcedure
+    .input(clearPriorityMetricValueMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = clearPriorityMetricValueInputSchema.parse(payloadInput);
+      const targetId = `${parsed.workId}:${parsed.metricId}`;
+      const mutation = requirePriorityMetricMutationContracts(
+        context,
+      ).clearValue(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          () => ({ value: null }) satisfies PriorityMetricValueMutationValue,
+        );
+        if (receipt.nextValue.value !== null) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return { status: true };
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, targetId);
+      }
     }),
   copyCustomFieldDefinitions: protectedProcedure
     .input(copyCustomFieldDefinitionsInputSchema)

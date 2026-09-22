@@ -57,6 +57,10 @@ import {
   mutationTarget,
 } from "./schema/mutation";
 import {
+  priorityMetricDefinition,
+  workPriorityMetricValue,
+} from "./schema/priority-metrics";
+import {
   workspaceTag,
   workspaceTagAssignment,
   workspaceTagAssignmentRelations,
@@ -95,6 +99,7 @@ const schema = {
   projectRelations,
   projectShortCode,
   projectShortCodeRelations,
+  priorityMetricDefinition,
   rateLimit,
   session,
   sessionRelations,
@@ -108,6 +113,7 @@ const schema = {
   workspace,
   workspaceRelations,
   work,
+  workPriorityMetricValue,
   workDraft,
   workKeyAllocation,
   workKeyAllocationRelations,
