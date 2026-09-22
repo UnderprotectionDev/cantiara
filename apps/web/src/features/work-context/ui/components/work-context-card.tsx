@@ -26,6 +26,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -71,6 +72,7 @@ export default function WorkContextCard({
     orpc.workContext.queryOptions({ input: { workId: work.id } }),
   );
   const commandPalette = useCommandPalette();
+  const registerCommand = commandPalette?.registerCommand;
   const layout = getPreparedWorkContextLayout(work.type);
   const configuredLayout = getWorkContextLayout(work.type, workContextLayouts);
   const configuredSections = workContextLayoutSections(
@@ -128,7 +130,13 @@ export default function WorkContextCard({
       }),
     [contextModel, sourceLink, statusLabel, work],
   );
-  const registerCommand = commandPalette?.registerCommand;
+  const copyCommandRef = useRef(copyCommand);
+  copyCommandRef.current = copyCommand;
+  const copyCommandRegistrationKey = JSON.stringify([
+    copyCommand.id,
+    copyCommand.scope,
+    copyCommand.target,
+  ]);
   useEffect(() => {
     if (
       !registerCommand ||
@@ -137,9 +145,21 @@ export default function WorkContextCard({
     ) {
       return;
     }
-    return registerCommand(copyCommand);
+    const registeredCommand = copyCommandRef.current;
+    const registeredCommandKey = JSON.stringify([
+      registeredCommand.id,
+      registeredCommand.scope,
+      registeredCommand.target,
+    ]);
+    if (registeredCommandKey !== copyCommandRegistrationKey) {
+      return;
+    }
+    return registerCommand({
+      ...registeredCommand,
+      run: () => copyCommandRef.current.run(),
+    });
   }, [
-    copyCommand,
+    copyCommandRegistrationKey,
     registerCommand,
     relationsQuery.isError,
     relationsQuery.isPending,

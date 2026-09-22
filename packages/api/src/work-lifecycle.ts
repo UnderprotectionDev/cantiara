@@ -25,6 +25,8 @@ export type WorkType = (typeof WORK_TYPE_OPTIONS)[number];
 
 export const workTypeSchema = z.enum(WORK_TYPE_OPTIONS);
 
+export const WORK_DEFAULT_TYPE: WorkType = "Task";
+
 export const WORK_STATUS_OPTIONS = [
   "Not Started",
   "In Progress",
@@ -202,7 +204,7 @@ const createWorkInputObjectSchema = z
     projectId: identifierSchema,
     targetDate: workTargetDateSchema,
     title: workTitleSchema,
-    type: workTypeSchema.default("Task"),
+    type: workTypeSchema.default(WORK_DEFAULT_TYPE),
   })
   .strict();
 
