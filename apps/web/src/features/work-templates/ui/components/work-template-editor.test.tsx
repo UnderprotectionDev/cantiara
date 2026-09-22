@@ -1,12 +1,17 @@
 import type { CustomFieldDefinition } from "@cantiara/api/custom-fields";
-import type { WorkTemplate } from "@cantiara/api/work-templates";
+import type {
+  WorkTemplate,
+  WorkTemplateCustomFieldValue,
+} from "@cantiara/api/work-templates";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
 import { orpc } from "@/utils/orpc";
-import WorkTemplateEditor from "./work-template-editor";
+import WorkTemplateEditor, {
+  liveCustomFieldDefaults,
+} from "./work-template-editor";
 
 const template: WorkTemplate = {
   checklist: [{ id: "check-1", text: "Draft release notes" }],
@@ -86,5 +91,29 @@ describe("Work Template editor", () => {
     ]) {
       expect(html).not.toContain(forbidden);
     }
+  });
+
+  test("drops defaults whose Custom field definitions are no longer live", () => {
+    const trashedField: CustomFieldDefinition = {
+      ...field,
+      id: "field-trashed",
+      trashedAt: "2026-09-21T09:00:00.000Z",
+    };
+    const defaults: Record<string, WorkTemplateCustomFieldValue> = {
+      "field-1": { kind: "option", option: "Ready" },
+      "field-trashed": { kind: "text", text: "Stale default" },
+    };
+
+    expect(liveCustomFieldDefaults(defaults, [field, trashedField])).toEqual([
+      { definitionId: "field-1", value: { kind: "option", option: "Ready" } },
+      {
+        definitionId: "field-trashed",
+        value: { kind: "text", text: "Stale default" },
+      },
+    ]);
+    expect(liveCustomFieldDefaults(defaults, [field])).toEqual([
+      { definitionId: "field-1", value: { kind: "option", option: "Ready" } },
+    ]);
+    expect(liveCustomFieldDefaults({}, [field])).toEqual([]);
   });
 });

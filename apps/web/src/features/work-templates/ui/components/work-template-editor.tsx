@@ -111,6 +111,16 @@ function customFieldLabel(
   );
 }
 
+export function liveCustomFieldDefaults(
+  defaults: Record<string, WorkTemplateCustomFieldValue>,
+  definitions: readonly CustomFieldDefinition[],
+) {
+  const live = new Set(definitions.map((definition) => definition.id));
+  return Object.entries(defaults)
+    .filter(([definitionId]) => live.has(definitionId))
+    .map(([definitionId, value]) => ({ definitionId, value }));
+}
+
 function datePreview(template: WorkTemplate, createDate: string) {
   return resolveWorkTemplateDates({
     createDate,
@@ -212,15 +222,22 @@ export default function WorkTemplateEditor({
   }
 
   async function submitDraft(draft: WorkTemplateDraft) {
+    // Defaults for definitions that are no longer live (trashed, unbound from
+    // Work, or Date typed) cannot be removed from the form, so drop them here
+    // instead of making every save fail server-side. While the Custom field
+    // list is unavailable the payload passes through for server validation.
+    const customFieldDefaults = customFields.query.data
+      ? liveCustomFieldDefaults(draft.customFieldDefaults, definitions)
+      : Object.entries(draft.customFieldDefaults).map(
+          ([definitionId, value]) => ({ definitionId, value }),
+        );
     const parsed = createWorkTemplateInputSchema.safeParse({
       checklist: draft.checklistText
         .split("\n")
         .map((text) => text.trim())
         .filter(Boolean)
         .map((text) => ({ id: crypto.randomUUID(), text })),
-      customFieldDefaults: Object.entries(draft.customFieldDefaults).map(
-        ([definitionId, value]) => ({ definitionId, value }),
-      ),
+      customFieldDefaults,
       descriptionSkeleton: draft.descriptionSkeleton || null,
       name: draft.name,
       projectId,
@@ -310,10 +327,20 @@ export default function WorkTemplateEditor({
                     <Button
                       disabled={pending}
                       onClick={() =>
-                        templates.moveToTrash.mutate({
-                          baseRevision: template.revision,
-                          templateId: template.id,
-                        })
+                        templates.moveToTrash.mutate(
+                          {
+                            baseRevision: template.revision,
+                            templateId: template.id,
+                          },
+                          {
+                            onError: (mutationError) =>
+                              setError(
+                                mutationError instanceof Error
+                                  ? mutationError.message
+                                  : "Work Template could not be moved to Trash.",
+                              ),
+                          },
+                        )
                       }
                       size="xs"
                       type="button"

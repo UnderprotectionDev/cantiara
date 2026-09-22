@@ -158,7 +158,7 @@ export const workTemplateSchema = workTemplateDefinitionFieldsSchema
     createdAt: z.string().datetime({ offset: true }),
     id: identifierSchema,
     projectId: identifierSchema,
-    revision: z.number().int().nonnegative().safe(),
+    revision: z.number().int().min(1).safe(),
     trashedAt: z.string().datetime({ offset: true }).nullable(),
     updatedAt: z.string().datetime({ offset: true }),
   })

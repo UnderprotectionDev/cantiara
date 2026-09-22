@@ -13,7 +13,7 @@ import { workspace } from "@cantiara/db/schema/auth";
 import { customFieldDefinition } from "@cantiara/db/schema/custom-fields";
 import { project } from "@cantiara/db/schema/project";
 import { workTemplate } from "@cantiara/db/schema/work-template";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
@@ -32,8 +32,11 @@ export class WorkTemplateProjectNotFoundError extends Error {
 export class WorkTemplateNameConflictError extends Error {
   readonly code = "WORK_TEMPLATE_NAME_CONFLICT" as const;
 
-  constructor(name: string) {
-    super(`A Work Template named ${name} already exists in this Project.`);
+  constructor(name: string, options?: { cause?: unknown }) {
+    super(
+      `A Work Template named ${name} already exists in this Project.`,
+      options,
+    );
     this.name = "WorkTemplateNameConflictError";
   }
 }
@@ -47,6 +50,27 @@ export class WorkTemplateCustomFieldUnavailableError extends Error {
     );
     this.name = "WorkTemplateCustomFieldUnavailableError";
   }
+}
+
+export class WorkTemplateStaleRevisionError extends Error {
+  readonly code = "WORK_TEMPLATE_STALE_REVISION" as const;
+
+  constructor() {
+    super("Work Template changed after this command started.");
+    this.name = "WorkTemplateStaleRevisionError";
+  }
+}
+
+function isUniqueNameViolation(error: unknown) {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    const { code, cause } = current as Error & { code?: unknown };
+    if (code === "23505") {
+      return true;
+    }
+    current = cause;
+  }
+  return false;
 }
 
 function nameKey(name: string) {
@@ -219,7 +243,10 @@ export function createDatabaseWorkTemplates(
           ),
         )
         .returning();
-      return updated ? toWorkTemplate(updated) : null;
+      if (!updated) {
+        throw new WorkTemplateStaleRevisionError();
+      }
+      return toWorkTemplate(updated);
     },
 
     async update(accountId, templateId, baseRevision, rawInput) {
@@ -228,34 +255,59 @@ export function createDatabaseWorkTemplates(
       if (!(current && current.trashedAt === null)) {
         return null;
       }
+      const nextNameKey = nameKey(input.name);
+      const [conflict] = await database
+        .select({ id: workTemplate.id })
+        .from(workTemplate)
+        .where(
+          and(
+            eq(workTemplate.projectId, current.projectId),
+            eq(workTemplate.nameKey, nextNameKey),
+            ne(workTemplate.id, templateId),
+          ),
+        )
+        .limit(1);
+      if (conflict) {
+        throw new WorkTemplateNameConflictError(input.name);
+      }
       await validateCustomFieldDefaults(
         database,
         current.projectId,
         input.customFieldDefaults,
       );
-      const [updated] = await database
-        .update(workTemplate)
-        .set({
-          checklist: input.checklist,
-          customFieldDefaults: input.customFieldDefaults,
-          descriptionSkeleton: input.descriptionSkeleton,
-          name: input.name,
-          nameKey: nameKey(input.name),
-          relativeDates: input.relativeDates,
-          revision: baseRevision + 1,
-          type: input.type,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(workTemplate.id, templateId),
-            eq(workTemplate.revision, baseRevision),
-            isNull(workTemplate.trashedAt),
-          ),
-        )
-        .returning();
+      let updated: WorkTemplateRecord | undefined;
+      try {
+        const [row] = await database
+          .update(workTemplate)
+          .set({
+            checklist: input.checklist,
+            customFieldDefaults: input.customFieldDefaults,
+            descriptionSkeleton: input.descriptionSkeleton,
+            name: input.name,
+            nameKey: nextNameKey,
+            relativeDates: input.relativeDates,
+            revision: baseRevision + 1,
+            type: input.type,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(workTemplate.id, templateId),
+              eq(workTemplate.revision, baseRevision),
+              isNull(workTemplate.trashedAt),
+            ),
+          )
+          .returning();
+        updated = row;
+      } catch (error) {
+        if (isUniqueNameViolation(error)) {
+          throw new WorkTemplateNameConflictError(input.name, { cause: error });
+        }
+        throw error;
+      }
+
       if (!updated) {
-        return null;
+        throw new WorkTemplateStaleRevisionError();
       }
       return toWorkTemplate(updated);
     },

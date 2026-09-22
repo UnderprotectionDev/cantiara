@@ -11,7 +11,11 @@ import {
   test,
 } from "vitest";
 
-import { createDatabaseWorkTemplates } from "./work-templates-database";
+import {
+  createDatabaseWorkTemplates,
+  WorkTemplateNameConflictError,
+  WorkTemplateStaleRevisionError,
+} from "./work-templates-database";
 
 const databaseUrl =
   process.env.ACCOUNT_ACCESS_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -95,5 +99,72 @@ describeDatabase("Work Templates PostgreSQL integration", () => {
     );
     expect(trashed?.trashedAt).not.toBeNull();
     await expect(workTemplates.list(accountId, projectId)).resolves.toEqual([]);
+  });
+
+  test("refuses a rename that collides with another template in the Project", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const workTemplates = createDatabaseWorkTemplates(database);
+    const definition = {
+      checklist: [],
+      customFieldDefaults: [],
+      descriptionSkeleton: null,
+      projectId,
+      relativeDates: {},
+      type: "Task" as const,
+    };
+    const first = await workTemplates.create(accountId, {
+      ...definition,
+      name: "Release preparation",
+    });
+    await workTemplates.create(accountId, {
+      ...definition,
+      name: "Launch preparation",
+    });
+
+    await expect(
+      workTemplates.update(accountId, first.id, first.revision, {
+        checklist: first.checklist,
+        customFieldDefaults: [],
+        descriptionSkeleton: first.descriptionSkeleton,
+        name: "launch preparation",
+        relativeDates: first.relativeDates,
+        type: first.type,
+      }),
+    ).rejects.toBeInstanceOf(WorkTemplateNameConflictError);
+  });
+
+  test("reports stale base revisions instead of the template being unavailable", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const workTemplates = createDatabaseWorkTemplates(database);
+    const created = await workTemplates.create(accountId, {
+      checklist: [],
+      customFieldDefaults: [],
+      descriptionSkeleton: null,
+      name: "Release preparation",
+      projectId,
+      relativeDates: {},
+      type: "Task",
+    });
+
+    await expect(
+      workTemplates.update(accountId, created.id, created.revision + 5, {
+        checklist: created.checklist,
+        customFieldDefaults: [],
+        descriptionSkeleton: created.descriptionSkeleton,
+        name: "Launch preparation",
+        relativeDates: created.relativeDates,
+        type: created.type,
+      }),
+    ).rejects.toBeInstanceOf(WorkTemplateStaleRevisionError);
+    await expect(
+      workTemplates.trash(accountId, created.id, created.revision + 5),
+    ).rejects.toBeInstanceOf(WorkTemplateStaleRevisionError);
+    await expect(
+      workTemplates.list(accountId, projectId),
+    ).resolves.toHaveLength(1);
   });
 });

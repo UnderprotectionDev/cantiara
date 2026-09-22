@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   createWorkTemplateInputSchema,
   resolveWorkTemplateDates,
+  workTemplateSchema,
 } from "./work-templates";
 
 describe("Work Templates contract", () => {
@@ -95,5 +96,27 @@ describe("Work Templates contract", () => {
         relativeDates: { target: { offsetDays: 0 } },
       }),
     ).toThrow("Date must be a real calendar day.");
+  });
+
+  test("keeps the template revision aligned with the database floor of 1", () => {
+    const output = {
+      checklist: [],
+      createdAt: "2026-09-22T09:00:00.000Z",
+      customFieldDefaults: [],
+      descriptionSkeleton: null,
+      id: "template-1",
+      name: "Release preparation",
+      projectId: "project-1",
+      relativeDates: {},
+      revision: 1,
+      trashedAt: null,
+      type: "Task",
+      updatedAt: "2026-09-22T09:00:00.000Z",
+    };
+
+    expect(workTemplateSchema.safeParse(output).success).toBe(true);
+    expect(
+      workTemplateSchema.safeParse({ ...output, revision: 0 }).success,
+    ).toBe(false);
   });
 });

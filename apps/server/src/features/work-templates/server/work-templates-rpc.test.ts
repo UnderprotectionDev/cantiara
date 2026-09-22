@@ -117,4 +117,85 @@ describe("Work Templates RPC", () => {
     );
     expect(access.trash).toHaveBeenCalledWith("account-1", template.id, 2);
   });
+
+  test("maps Work Template domain errors onto the shared error contract", async () => {
+    const failing: WorkTemplatesAccess = {
+      create: () => {
+        throw Object.assign(
+          new Error(
+            "A Work Template named Release preparation already exists in this Project.",
+          ),
+          { code: "WORK_TEMPLATE_NAME_CONFLICT" },
+        );
+      },
+      list: async () => [template],
+      trash: () => {
+        throw Object.assign(
+          new Error("Work Template changed after this command started."),
+          { code: "WORK_TEMPLATE_STALE_REVISION" },
+        );
+      },
+      update: () => {
+        throw Object.assign(
+          new Error(
+            "Custom field field-1 is unavailable for this Work Template.",
+          ),
+          { code: "WORK_TEMPLATE_CUSTOM_FIELD_UNAVAILABLE" },
+        );
+      },
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(failing),
+    });
+
+    await expect(
+      client.createWorkTemplate({
+        baseRevision: 0,
+        checklist: [],
+        clientIdempotencyKey: "conflict-create",
+        customFieldDefaults: [],
+        descriptionSkeleton: null,
+        name: template.name,
+        projectId: template.projectId,
+        relativeDates: {},
+        type: "Task",
+      }),
+    ).rejects.toThrow(
+      "A Work Template named Release preparation already exists in this Project.",
+    );
+    await expect(
+      client.updateWorkTemplate({
+        baseRevision: 1,
+        checklist: [],
+        clientIdempotencyKey: "unavailable-field-update",
+        customFieldDefaults: [],
+        descriptionSkeleton: null,
+        name: template.name,
+        relativeDates: {},
+        templateId: template.id,
+        type: "Task",
+      }),
+    ).rejects.toThrow(
+      "Custom field field-1 is unavailable for this Work Template.",
+    );
+    await expect(
+      client.trashWorkTemplate({
+        baseRevision: 1,
+        clientIdempotencyKey: "stale-trash",
+        templateId: template.id,
+      }),
+    ).rejects.toThrow("Work Template changed. Reload and try again.");
+
+    let staleErrorCode: string | undefined;
+    try {
+      await client.trashWorkTemplate({
+        baseRevision: 1,
+        clientIdempotencyKey: "stale-trash-status",
+        templateId: template.id,
+      });
+    } catch (error) {
+      staleErrorCode = (error as { code?: string }).code;
+    }
+    expect(staleErrorCode).toBe("PRECONDITION_FAILED");
+  });
 });
