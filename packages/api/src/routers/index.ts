@@ -130,6 +130,7 @@ import {
   reopenWorkInputSchema,
   undoWorkMergeInputSchema,
   updateFeaturePrimarySpecInputSchema,
+  updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
@@ -1966,6 +1967,16 @@ export const appRouter = {
           context.session.user.id,
           input,
           { kind: "Visible user" },
+        ),
+      ),
+    ),
+  updateWorkChecklist: protectedProcedure
+    .input(updateWorkChecklistInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateChecklist(
+          context.session.user.id,
+          input,
         ),
       ),
     ),

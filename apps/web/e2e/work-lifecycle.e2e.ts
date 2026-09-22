@@ -6,6 +6,12 @@ const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const TYPE_FIELD_PATTERN = /Type:/;
 const WORK_HASH_PATTERN = /#work-/;
 const WORK_STATUS_COMBOBOX_NAME = /Status for/;
+const CHECKLIST_REGION_NAME = /Checklist for/;
+const CHECKLIST_NEW_ITEM_LABEL = /New item for/;
+const CHECKLIST_FIRST_ITEM_LABEL = /Item 1 for/;
+const CHECKLIST_SECOND_ITEM_LABEL = /Item 2 for/;
+const DOCUMENT_FALLBACK_CHECKBOX_NAME = /Mark Document the fallback/;
+const CONFIRM_COPY_CHECKBOX_NAME = /Mark Confirm the copy/;
 
 function workListItem(page: Page, title: string) {
   return page.getByRole("listitem").filter({
@@ -52,6 +58,104 @@ const STARTER_CONFIGURATION_MATRIX = [
 ] as const;
 
 test.setTimeout(60_000);
+
+test("manages light checklist items without creating or closing Work", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const maximumDepthErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().includes("Maximum update depth exceeded")) {
+      maximumDepthErrors.push(message.text());
+    }
+  });
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Checklist Project");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page
+    .getByRole("link", { name: "Checklist Project", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title").fill("Prepare release notes");
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+
+  const parentWork = workListItem(page, "Prepare release notes");
+  const checklist = parentWork.getByRole("region", {
+    name: CHECKLIST_REGION_NAME,
+  });
+  await expect(checklist).toBeVisible({ timeout: 30_000 });
+  await checklist.getByLabel(CHECKLIST_NEW_ITEM_LABEL).fill("Confirm the copy");
+  await checklist.getByRole("button", { name: "Add item" }).click();
+  await expect(checklist.getByLabel(CHECKLIST_FIRST_ITEM_LABEL)).toHaveValue(
+    "Confirm the copy",
+  );
+
+  await checklist.getByLabel(CHECKLIST_NEW_ITEM_LABEL).fill("Publish the page");
+  await checklist.getByRole("button", { name: "Add item" }).click();
+  const secondItem = checklist.getByLabel(CHECKLIST_SECOND_ITEM_LABEL);
+  await expect(secondItem).toHaveValue("Publish the page");
+  await secondItem.fill("Document the fallback");
+  await checklist.getByRole("button", { name: "Save item 2" }).click();
+  await expect(secondItem).toHaveValue("Document the fallback");
+
+  await checklist.getByRole("button", { name: "Move item 2 up" }).click();
+  await expect(checklist.getByLabel(CHECKLIST_FIRST_ITEM_LABEL)).toHaveValue(
+    "Document the fallback",
+  );
+  await checklist
+    .getByRole("checkbox", { name: "Mark Document the fallback complete" })
+    .click();
+  await expect(
+    checklist.getByRole("checkbox", {
+      name: DOCUMENT_FALLBACK_CHECKBOX_NAME,
+    }),
+  ).toBeChecked({ timeout: 15_000 });
+  await checklist
+    .getByRole("checkbox", { name: "Mark Confirm the copy complete" })
+    .click();
+  await expect(
+    checklist.getByRole("checkbox", { name: CONFIRM_COPY_CHECKBOX_NAME }),
+  ).toBeChecked({ timeout: 15_000 });
+  await expect(
+    parentWork.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+  ).toHaveValue("Not Started");
+  await expect(page.locator('ul[aria-label="Work list"] > li')).toHaveCount(1);
+
+  await page.reload();
+  const persistedWork = workListItem(page, "Prepare release notes");
+  const persistedChecklist = persistedWork.getByRole("region", {
+    name: CHECKLIST_REGION_NAME,
+  });
+  await expect(
+    persistedChecklist.getByLabel(CHECKLIST_FIRST_ITEM_LABEL),
+  ).toHaveValue("Document the fallback");
+  await expect(persistedChecklist.getByRole("checkbox")).toHaveCount(2);
+  await expect(persistedChecklist.getByRole("checkbox").first()).toBeChecked();
+  await expect(persistedChecklist.getByRole("checkbox").last()).toBeChecked();
+  await persistedChecklist
+    .getByRole("button", { name: "Delete item 2" })
+    .click();
+  await expect(persistedChecklist.getByRole("checkbox")).toHaveCount(1);
+  expect(maximumDepthErrors).toEqual([]);
+});
 
 test("shows the same progressive Work Context Card layouts for five types across four Starter Configurations", async ({
   context,

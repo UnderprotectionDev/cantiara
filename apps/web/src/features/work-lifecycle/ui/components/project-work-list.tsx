@@ -25,6 +25,7 @@ import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import WorkChecklist from "@/features/work-checklists/ui/components/work-checklist";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
@@ -219,6 +220,7 @@ export default function ProjectWorkList({
                 workContextLayouts={workContextLayouts}
                 workStatusLabels={workStatusLabels}
               />
+              <WorkChecklistEditor work={work} />
               <CustomFieldValues
                 connection={connection}
                 error={customFieldValuesQuery.isError}
@@ -268,6 +270,69 @@ export default function ProjectWorkList({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function WorkChecklistEditor({ work }: { work: WorkProfile }) {
+  const connection = useClientShellConnection();
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: (checklist: WorkProfile["checklist"]) =>
+      runOnlineOnlyWrite(() =>
+        client.updateWorkChecklist({
+          baseRevision: work.revision,
+          checklist,
+          clientIdempotencyKey: crypto.randomUUID(),
+          workId: work.id,
+        }),
+      ),
+    onError: (mutationError) => {
+      setError(
+        mutationErrorMessage(
+          mutationError,
+          "Checklist could not be saved. Try again.",
+        ),
+      );
+    },
+    onSuccess: (updatedWork) => {
+      setError(null);
+      for (const archived of [work.archivedAt !== null, "all" as const]) {
+        queryClient.setQueryData<WorkProfile[]>(
+          orpc.projectWorks.queryOptions({
+            input: { archived, projectId: work.projectId },
+          }).queryKey,
+          (current) =>
+            current?.map((item) =>
+              item.id === updatedWork.id ? updatedWork : item,
+            ),
+        );
+      }
+      queryClient.setQueryData(
+        orpc.work.queryOptions({ input: { workId: work.id } }).queryKey,
+        updatedWork,
+      );
+    },
+  });
+
+  return (
+    <div className="space-y-1">
+      <WorkChecklist
+        checklist={work.checklist}
+        disabled={
+          connection === "offline" ||
+          mutation.isPending ||
+          work.archivedAt !== null
+        }
+        onSave={(checklist) => mutation.mutate(checklist)}
+        workKey={work.key}
+      />
+      {error ? (
+        <p className="text-destructive text-xs" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

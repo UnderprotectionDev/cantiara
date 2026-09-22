@@ -120,6 +120,17 @@ export const workChecklistSchema = z.array(workChecklistItemSchema).max(500);
 
 export type WorkChecklistItem = z.infer<typeof workChecklistItemSchema>;
 
+export const updateWorkChecklistInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    checklist: workChecklistSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type UpdateWorkChecklistInput = z.input<
+  typeof updateWorkChecklistInputSchema
+>;
+
 export const workCaptureProvenanceSchema = z
   .object({
     attachment: captureAttachmentSchema.nullable(),
@@ -779,6 +790,10 @@ export interface WorkLifecycleAccess {
   undoMerge: (
     accountId: string,
     input: UndoWorkMergeInput,
+  ) => Promise<WorkProfile>;
+  updateChecklist: (
+    accountId: string,
+    input: UpdateWorkChecklistInput,
   ) => Promise<WorkProfile>;
   updateFeaturePrimarySpec: (
     accountId: string,

@@ -873,6 +873,7 @@ function createWorkUpdateMutationTarget(
           archivedAt: nextWork.archivedAt
             ? new Date(nextWork.archivedAt)
             : null,
+          checklist: nextWork.checklist,
           closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           featureHealthHistory: nextWork.featureHealthHistory,

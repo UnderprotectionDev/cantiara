@@ -269,6 +269,11 @@
 │       │   │   │           ├── work-context-card.tsx
 │       │   │   │           ├── work-context-markdown.test.ts
 │       │   │   │           └── work-context-markdown.ts
+│       │   │   ├── work-checklists/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── work-checklist.test.tsx
+│       │   │   │           └── work-checklist.tsx
 │       │   │   ├── work-drafts/
 │       │   │   │   └── ui/
 │       │   │   │       └── forms/
