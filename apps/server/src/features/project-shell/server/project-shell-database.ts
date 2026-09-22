@@ -1,8 +1,4 @@
 import {
-  getStarterPriorityMetricTemplate,
-  priorityMetricNameKey,
-} from "@cantiara/api/priority-metrics";
-import {
   projectLifecycleStatusSchema,
   resolveProjectShellConfiguration,
   starterConfigurationSchema,
@@ -14,6 +10,7 @@ import { project, projectShortCode } from "@cantiara/db/schema/project";
 import { and, asc, eq } from "drizzle-orm";
 
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
+import { starterPriorityMetricDefinitionValues } from "../../priority-metrics/server/priority-metrics-database";
 import {
   createProjectShell,
   type ProjectShellStore,
@@ -138,19 +135,15 @@ export function createDatabaseProjectShell(database: Database) {
           throw new ProjectShortCodeConflictError(input.shortCode);
         }
 
-        const priorityMetric = getStarterPriorityMetricTemplate(
+        const priorityMetricValues = starterPriorityMetricDefinitionValues(
+          id,
           input.starterConfiguration,
+          committedAt,
         );
-        if (priorityMetric) {
-          await transaction.insert(priorityMetricDefinition).values({
-            ...priorityMetric,
-            createdAt: committedAt,
-            id: crypto.randomUUID(),
-            nameKey: priorityMetricNameKey(priorityMetric.name),
-            projectId: id,
-            revision: 0,
-            updatedAt: committedAt,
-          });
+        if (priorityMetricValues) {
+          await transaction
+            .insert(priorityMetricDefinition)
+            .values(priorityMetricValues);
         }
 
         return toRecord(created);

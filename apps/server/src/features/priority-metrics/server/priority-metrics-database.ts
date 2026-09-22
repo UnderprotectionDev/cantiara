@@ -1,9 +1,11 @@
 import {
+  getStarterPriorityMetricTemplate,
   type PriorityMetric,
   type PriorityMetricProjectValues,
   type PriorityMetricStore,
   type PriorityMetricValue,
   type PriorityMetricValueListItem,
+  priorityMetricNameKey,
   priorityMetricSchema,
   priorityMetricValueSchema,
 } from "@cantiara/api/priority-metrics";
@@ -21,6 +23,26 @@ type PriorityMetricDatabaseRecord =
   typeof priorityMetricDefinition.$inferSelect;
 type PriorityMetricValueDatabaseRecord =
   typeof workPriorityMetricValue.$inferSelect;
+
+export function starterPriorityMetricDefinitionValues(
+  projectId: string,
+  starterConfiguration: string,
+  timestamp: Date,
+) {
+  const template = getStarterPriorityMetricTemplate(starterConfiguration);
+  if (!template) {
+    return null;
+  }
+  return {
+    ...template,
+    createdAt: timestamp,
+    id: crypto.randomUUID(),
+    nameKey: priorityMetricNameKey(template.name),
+    projectId,
+    revision: 0,
+    updatedAt: timestamp,
+  };
+}
 
 export function toPriorityMetric(
   record: PriorityMetricDatabaseRecord,
