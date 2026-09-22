@@ -94,6 +94,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── work-lifecycle/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── work-templates/
+│   │   │   │   │   └── server/
 │   │   │   │   └── workspace-overview/
 │   │   │   │       └── server/
 │   │   │   ├── app.test.ts
@@ -287,6 +289,13 @@
 │       │   │               ├── work-recreate-form.tsx
 │       │   │               ├── work-status-form.test.ts
 │       │   │               └── work-status-form.tsx
+│       │   │   ├── work-templates/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-work-templates.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── work-template-editor.test.tsx
+│       │   │   │           └── work-template-editor.tsx
 │       │   │   └── workspace-overview/
 │       │   │       └── ui/
 │       │   │           └── components/
@@ -362,6 +371,8 @@
 │   │   │   ├── work-drafts.test.ts
 │   │   │   ├── work-drafts.ts
 │   │   │   ├── work-lifecycle.ts
+│   │   │   ├── work-templates.test.ts
+│   │   │   ├── work-templates.ts
 │   │   │   ├── workspace-overview.test.ts
 │   │   │   └── workspace-overview.ts
 │   │   ├── package.json
@@ -391,6 +402,7 @@
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
 │   │   │   │   ├── work-draft.ts
+│   │   │   │   ├── work-template.ts
 │   │   │   │   └── work.ts
 │   │   │   ├── config.ts
 │   │   │   ├── env.ts

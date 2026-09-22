@@ -52,6 +52,7 @@ import {
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
+import { createDatabaseWorkTemplates } from "./features/work-templates/server/work-templates-database";
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 
 const db = createDb(env);
@@ -84,6 +85,7 @@ export const customFieldMutationContracts =
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
+export const workTemplates = createDatabaseWorkTemplates(db);
 export const workContext = createWorkContextAccess(workLifecycle, relations);
 export const workDrafts = createDatabaseWorkDrafts(
   db,

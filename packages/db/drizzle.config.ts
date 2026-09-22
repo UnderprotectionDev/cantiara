@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/schema/capture-triage.ts",
     "./src/schema/work.ts",
     "./src/schema/work-draft.ts",
+    "./src/schema/work-template.ts",
     "./src/schema/relation.ts",
     "./src/schema/tags.ts",
   ],

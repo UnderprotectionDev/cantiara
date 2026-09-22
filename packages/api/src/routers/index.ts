@@ -141,6 +141,14 @@ import {
   workTypeSchema,
 } from "../work-lifecycle";
 import {
+  createWorkTemplateInputSchema,
+  createWorkTemplateMutationInputSchema,
+  trashWorkTemplateMutationInputSchema,
+  updateWorkTemplateInputSchema,
+  updateWorkTemplateMutationInputSchema,
+  workTemplatesInputSchema,
+} from "../work-templates";
+import {
   type WorkspaceOverviewAccess,
   workspaceOverviewPresentationSchema,
 } from "../workspace-overview";
@@ -248,6 +256,13 @@ function requireCustomFields(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.customFields;
+}
+
+function requireWorkTemplates(context: Context) {
+  if (!context.workTemplates) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workTemplates;
 }
 
 function requireCustomFieldMutationContracts(context: Context) {
@@ -1344,6 +1359,73 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  workTemplates: protectedProcedure
+    .input(workTemplatesInputSchema)
+    .handler(async ({ context, input }) => {
+      const templates = await requireWorkTemplates(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!templates) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return templates;
+    }),
+  createWorkTemplate: protectedProcedure
+    .input(createWorkTemplateMutationInputSchema)
+    .handler(({ context, input }) => {
+      const {
+        baseRevision: _baseRevision,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      return requireWorkTemplates(context).create(
+        context.session.user.id,
+        createWorkTemplateInputSchema.parse(payload),
+      );
+    }),
+  updateWorkTemplate: protectedProcedure
+    .input(updateWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision,
+        clientIdempotencyKey: _key,
+        templateId,
+        ...payload
+      } = input;
+      const updated = await requireWorkTemplates(context).update(
+        context.session.user.id,
+        templateId,
+        baseRevision,
+        updateWorkTemplateInputSchema.parse(payload),
+      );
+      if (!updated) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work Template is unavailable.",
+        });
+      }
+      return updated;
+    }),
+  trashWorkTemplate: protectedProcedure
+    .input(trashWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const trashed = await requireWorkTemplates(context).trash(
+        context.session.user.id,
+        input.templateId,
+        input.baseRevision,
+      );
+      if (!trashed) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work Template is unavailable.",
+        });
+      }
+      return trashed;
+    }),
   healthCheck: publicProcedure.handler(() => "OK"),
   githubAvailability: publicProcedure.handler(({ context }) => ({
     status: context.githubAvailability.getStatus(),

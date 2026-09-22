@@ -50,6 +50,7 @@ import {
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
+import type { WorkTemplatesAccess } from "@cantiara/api/work-templates";
 import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
 import { TAURI_AUTH_CALLBACK_URL } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
@@ -141,6 +142,7 @@ export interface AppDependencies {
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
+  workTemplates?: WorkTemplatesAccess;
 }
 
 function isRecoverableAuthPath(path: string) {
@@ -1103,6 +1105,7 @@ export function createApp(dependencies: AppDependencies) {
       webCapture: dependencies.webCapture,
       workContext: dependencies.workContext,
       workDrafts: dependencies.workDrafts,
+      workTemplates: dependencies.workTemplates,
       workLifecycle: dependencies.workLifecycle,
       workspaceOverview: dependencies.workspaceOverview,
     });

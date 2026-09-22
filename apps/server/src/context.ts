@@ -33,6 +33,7 @@ import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import type { WorkLifecycleAccess } from "@cantiara/api/work-lifecycle";
+import type { WorkTemplatesAccess } from "@cantiara/api/work-templates";
 import type { WorkspaceOverviewAccess } from "@cantiara/api/workspace-overview";
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
@@ -74,6 +75,7 @@ export interface CreateContextOptions {
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
+  workTemplates?: WorkTemplatesAccess;
 }
 
 export function requestClientPlatform(request: Request): AccountAccessClient {
@@ -111,6 +113,7 @@ export async function createContext({
   workContext,
   workDrafts,
   workLifecycle,
+  workTemplates,
 }: CreateContextOptions): Promise<ApiContext> {
   const candidateSession = await auth.api.getSession({
     headers: context.req.raw.headers,
@@ -157,6 +160,7 @@ export async function createContext({
     workContext,
     workDrafts,
     workLifecycle,
+    workTemplates,
   };
 }
 

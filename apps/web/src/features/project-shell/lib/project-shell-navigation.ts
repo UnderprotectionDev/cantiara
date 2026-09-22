@@ -48,6 +48,12 @@ export const CONFIGURATION_HOSTS = [
   },
   {
     description:
+      "Open the host for reusable Project-specific Work starting points.",
+    label: "Work Template",
+    message: "Define optional start context without changing existing Work.",
+  },
+  {
+    description:
       "Open the host for project priority criteria without creating a scalar priority field.",
     label: "Priority metrics",
     message:

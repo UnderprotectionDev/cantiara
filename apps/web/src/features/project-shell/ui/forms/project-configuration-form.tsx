@@ -30,6 +30,7 @@ import {
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
 import WorkContextCardLayoutEditor from "@/features/work-context/ui/components/work-context-card-layout-editor";
+import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
 
 export default function ProjectConfigurationForm({
   baseRevision,
@@ -363,6 +364,8 @@ function ConfigurationHostContent({
       );
     case "Custom field":
       return <CustomFieldEditor disabled={disabled} projectId={projectId} />;
+    case "Work Template":
+      return <WorkTemplateEditor disabled={disabled} projectId={projectId} />;
     case "Work Context Card layout":
       return (
         <WorkContextCardLayoutEditor
