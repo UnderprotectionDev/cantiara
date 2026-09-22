@@ -194,6 +194,106 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     });
   });
 
+  test("converts a checklist item into a same-Project Work with Origin and replays idempotently", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Checklist Conversion Project",
+      shortCode: "CONVERT",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const source = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      checklist: [
+        { completed: false, id: "item-1", text: "Publish the release" },
+      ],
+      clientIdempotencyKey: "checklist-convert-source",
+      projectId: project.id,
+      title: "Prepare the release",
+      type: "Task",
+    });
+
+    const preview = await workLifecycle.previewChecklistConversion(accountId, {
+      itemId: "item-1",
+      workId: source.id,
+    });
+    expect(preview).toMatchObject({
+      newWork: {
+        projectId: project.id,
+        status: "Not Started",
+        title: "Publish the release",
+        type: "Task",
+      },
+      originPosition: {
+        componentId: "item-1",
+        ownerRecordId: source.id,
+        sourceVersion: String(source.revision),
+      },
+      targetProject: { id: project.id, name: "Checklist Conversion Project" },
+    });
+    await expect(
+      workLifecycle.list(accountId, project.id),
+    ).resolves.toHaveLength(1);
+    if (!preview) {
+      throw new Error("Expected a checklist conversion preview.");
+    }
+
+    const input = {
+      baseRevision: source.revision,
+      clientIdempotencyKey: "checklist-convert-confirm",
+      itemId: "item-1",
+      previewId: preview.previewId,
+      workId: source.id,
+    } as const;
+    const converted = await workLifecycle.convertChecklistItem(
+      accountId,
+      input,
+    );
+    expect(converted.work).toMatchObject({
+      originPosition: preview.originPosition,
+      projectId: project.id,
+      status: "Not Started",
+      title: "Publish the release",
+      type: "Task",
+    });
+    await expect(
+      workLifecycle.find(accountId, source.id),
+    ).resolves.toMatchObject({
+      checklist: [
+        {
+          completed: true,
+          convertedWork: {
+            id: converted.work.id,
+            key: converted.work.key,
+            title: converted.work.title,
+          },
+          id: "item-1",
+        },
+      ],
+    });
+    const [originRelation] = await database
+      .select()
+      .from(workRelation)
+      .where(eq(workRelation.targetRecordId, converted.work.id));
+    expect(originRelation).toMatchObject({
+      kind: "Origin",
+      sourceWorkId: source.id,
+      targetLabel: converted.work.key,
+      targetProjectId: project.id,
+      targetRecordId: converted.work.id,
+    });
+    await expect(
+      workLifecycle.convertChecklistItem(accountId, input),
+    ).resolves.toEqual(converted);
+    await expect(
+      workLifecycle.list(accountId, project.id),
+    ).resolves.toHaveLength(2);
+  });
+
   test("finalizes Draft Custom field values atomically with one Work", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

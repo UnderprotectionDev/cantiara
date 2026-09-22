@@ -120,6 +120,7 @@ import {
 } from "../work-drafts";
 import {
   closeWorkInputSchema,
+  convertWorkChecklistItemInputSchema,
   createWorkRpcMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
@@ -134,6 +135,7 @@ import {
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
+  workChecklistConversionPreviewInputSchema,
   workClosePreviewInputSchema,
   workIdentityInputSchema,
   workMergePreviewInputSchema,
@@ -653,6 +655,13 @@ function mapWorkLifecycleError(
         data: { code: error.code },
         defined: true,
         message: "Review the current recreate preview before confirming.",
+      });
+    case "WORK_CHECKLIST_CONVERT_PREVIEW_REQUIRED":
+      return new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Review the current checklist conversion preview before confirming.",
       });
     case "WORK_MERGE_PREVIEW_REQUIRED":
       return new ORPCError("PRECONDITION_FAILED", {
@@ -2027,6 +2036,20 @@ export const appRouter = {
       }
       return preview;
     }),
+  workChecklistConversionPreview: protectedProcedure
+    .input(workChecklistConversionPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkLifecycle(
+        context,
+      ).previewChecklistConversion(context.session.user.id, input);
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work checklist item is unavailable.",
+        });
+      }
+      return preview;
+    }),
   workMergePreview: protectedProcedure
     .input(workMergePreviewInputSchema)
     .handler(async ({ context, input }) => {
@@ -2118,6 +2141,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateChecklist(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  convertWorkChecklistItem: protectedProcedure
+    .input(convertWorkChecklistItemInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).convertChecklistItem(
           context.session.user.id,
           input,
         ),

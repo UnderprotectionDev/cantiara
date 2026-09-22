@@ -6,6 +6,7 @@ import {
 import {
   bindWorkOriginPositionInputSchema,
   closeWorkInputSchema,
+  convertWorkChecklistItemInputSchema,
   createWorkMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
@@ -25,6 +26,8 @@ import {
   updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  type WorkChecklistConversionPreview,
+  type WorkChecklistConversionResult,
   type WorkClosePreview,
   type WorkClosureContextItem,
   type WorkIdentityInput,
@@ -48,6 +51,7 @@ import {
   type WorkTypeChangePreview,
   type WorkVisibleUserInitiator,
   workArchiveMutationInputSchema,
+  workChecklistConversionPreviewInputSchema,
   workClosePreviewInputSchema,
   workIdentityInputSchema,
   workMergePreviewInputSchema,
@@ -285,6 +289,15 @@ export class WorkRecreatePreviewRequiredError extends Error {
   }
 }
 
+export class WorkChecklistConvertPreviewRequiredError extends Error {
+  readonly code = "WORK_CHECKLIST_CONVERT_PREVIEW_REQUIRED" as const;
+
+  constructor() {
+    super("Review the current checklist conversion preview before confirming.");
+    this.name = "WorkChecklistConvertPreviewRequiredError";
+  }
+}
+
 export class WorkRelationNotPortableError extends Error {
   readonly code = "WORK_RELATION_NOT_PORTABLE" as const;
 
@@ -384,6 +397,7 @@ const WORK_CREATE_TARGET_PREFIX = "work-create:";
 const WORK_MERGE_TARGET_PREFIX = "work-merge:";
 const WORK_TYPE_IMPACT_PREVIEW_PREFIX = "work-type-impact:";
 const WORK_RECREATE_PREVIEW_PREFIX = "work-recreate:";
+const WORK_CHECKLIST_CONVERT_PREVIEW_PREFIX = "work-checklist-convert:";
 
 export function requiresWorkTypeImpactPreview(
   currentType: WorkType,
@@ -572,6 +586,85 @@ async function buildRecreatePreview(
       title: sourceWork.title,
     },
     targetProject,
+  };
+}
+
+async function buildChecklistConversionPreview(
+  store: WorkLifecycleStore,
+  accountId: string,
+  workId: string,
+  itemId: string,
+): Promise<WorkChecklistConversionPreview | null> {
+  const sourceWork = await store.find(accountId, workId);
+  if (!sourceWork || sourceWork.archivedAt !== null) {
+    return null;
+  }
+
+  const item = sourceWork.checklist.find(
+    (candidate) => candidate.id === itemId,
+  );
+  if (!item || item.convertedWork) {
+    return null;
+  }
+
+  const targetProject = await store.findProject(
+    accountId,
+    sourceWork.projectId,
+  );
+  if (!targetProject) {
+    return null;
+  }
+
+  const originPosition: WorkOriginPosition = {
+    componentId: item.id,
+    ownerRecordId: sourceWork.id,
+    sourceVersion: String(sourceWork.revision),
+  };
+  const previewFingerprint = await fingerprintMutationPayload({
+    itemId,
+    newWork: {
+      projectId: sourceWork.projectId,
+      status: "Not Started",
+      title: item.text,
+      type: "Task",
+    },
+    originPosition,
+    sourceRevision: sourceWork.revision,
+    sourceWorkId: sourceWork.id,
+  });
+
+  return {
+    item: { id: item.id, text: item.text },
+    newWork: {
+      projectId: sourceWork.projectId,
+      status: "Not Started",
+      title: item.text,
+      type: "Task",
+    },
+    originPosition,
+    previewId: `${WORK_CHECKLIST_CONVERT_PREVIEW_PREFIX}${previewFingerprint}`,
+    sourceWork: {
+      id: sourceWork.id,
+      key: sourceWork.key,
+      revision: sourceWork.revision,
+      title: sourceWork.title,
+    },
+    targetProject,
+  };
+}
+
+function workChecklistConversionResultFromReceipt(receipt: {
+  nextValue: WorkLifecycleMutationValue;
+}): WorkChecklistConversionResult {
+  const { checklistConversion, work: sourceWork } = receipt.nextValue;
+  if (
+    !(sourceWork && checklistConversion?.operation === "convert-checklist-item")
+  ) {
+    throw new WorkChecklistConvertPreviewRequiredError();
+  }
+  return {
+    sourceWork,
+    work: checklistConversion.newWork,
   };
 }
 
@@ -1244,6 +1337,124 @@ export function createWorkLifecycle({
       return receipt.nextValue.work;
     },
 
+    async convertChecklistItem(accountId, rawInput) {
+      const input = convertWorkChecklistItemInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const payload = {
+        itemId: input.itemId,
+        operation: "convert-checklist-item" as const,
+        previewId: input.previewId,
+        workId: input.workId,
+      };
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload,
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        return workChecklistConversionResultFromReceipt(replay);
+      }
+
+      const preview = await buildChecklistConversionPreview(
+        store,
+        accountId,
+        input.workId,
+        input.itemId,
+      );
+      if (
+        !preview ||
+        preview.previewId !== input.previewId ||
+        preview.sourceWork.revision !== input.baseRevision
+      ) {
+        throw new WorkChecklistConvertPreviewRequiredError();
+      }
+
+      const reservation = await store.reserveCreate(
+        accountId,
+        preview.targetProject.id,
+        input.clientIdempotencyKey,
+        await fingerprintMutationPayload({
+          ...payload,
+          newWork: preview.newWork,
+          originPosition: preview.originPosition,
+          sourceRevision: preview.sourceWork.revision,
+        }),
+      );
+      const timestamp = new Date().toISOString();
+      const newWork: WorkProfile = {
+        archivedAt: null,
+        captureProvenance: null,
+        checklist: [],
+        closureReason: null,
+        closureResult: null,
+        createdAt: timestamp,
+        description: null,
+        effort: null,
+        featureHealthHistory: [],
+        id: reservation.workId,
+        key: reservation.key,
+        number: reservation.number,
+        originPosition: preview.originPosition,
+        primaryFeatureId: null,
+        primarySpecId: null,
+        projectId: reservation.projectId,
+        recreatedFrom: null,
+        revision: 1,
+        status: "Not Started",
+        targetDate: null,
+        title: preview.newWork.title,
+        type: "Task",
+        updatedAt: timestamp,
+      };
+      const receipt = await mutation.mutate(
+        command,
+        ({ currentRevision, currentValue }) => {
+          if (!currentValue.work || currentValue.work.id !== input.workId) {
+            throw new WorkNotFoundError(input.workId);
+          }
+          const item = currentValue.work.checklist.find(
+            (candidate) => candidate.id === input.itemId,
+          );
+          if (!item || item.convertedWork) {
+            throw new WorkChecklistConvertPreviewRequiredError();
+          }
+          const checklist = currentValue.work.checklist.map((candidate) =>
+            candidate.id === input.itemId
+              ? {
+                  ...candidate,
+                  completed: true,
+                  convertedWork: {
+                    id: newWork.id,
+                    key: newWork.key,
+                    title: newWork.title,
+                  },
+                }
+              : candidate,
+          );
+          return {
+            checklistConversion: {
+              itemId: input.itemId,
+              newWork,
+              operation: "convert-checklist-item",
+              sourceWorkId: input.workId,
+              sourceWorkRevision: input.baseRevision,
+            },
+            work: {
+              ...currentValue.work,
+              checklist,
+              revision: currentRevision + 1,
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      return workChecklistConversionResultFromReceipt(receipt);
+    },
+
     create(accountId, rawInput) {
       return createWork(mutationContracts, store, accountId, rawInput);
     },
@@ -1531,6 +1742,16 @@ export function createWorkLifecycle({
         accountId,
         input.sourceWorkId,
         input.targetProjectId,
+      );
+    },
+
+    previewChecklistConversion(accountId, rawInput) {
+      const input = workChecklistConversionPreviewInputSchema.parse(rawInput);
+      return buildChecklistConversionPreview(
+        store,
+        accountId,
+        input.workId,
+        input.itemId,
       );
     },
 

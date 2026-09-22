@@ -164,6 +164,89 @@ test("manages light checklist items without creating or closing Work", async ({
   expect(maximumDepthErrors).toEqual([]);
 });
 
+test("previews and converts a checklist item into independent Work", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Conversion Project");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page
+    .getByRole("link", { name: "Conversion Project", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title").fill("Prepare the release");
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+
+  const sourceWork = workListItem(page, "Prepare the release");
+  const checklist = sourceWork.getByRole("region", {
+    name: CHECKLIST_REGION_NAME,
+  });
+  await expect(checklist).toBeVisible({ timeout: 30_000 });
+  await checklist
+    .getByLabel(CHECKLIST_NEW_ITEM_LABEL)
+    .fill("Publish the release");
+  await checklist.getByRole("button", { name: "Add item" }).click();
+  await expect(checklist.getByLabel(CHECKLIST_FIRST_ITEM_LABEL)).toHaveValue(
+    "Publish the release",
+  );
+
+  await checklist
+    .getByRole("button", {
+      name: "Convert to independent Work",
+      exact: true,
+    })
+    .click();
+  const conversionPreview = checklist.getByRole("status", {
+    name: "Convert to independent Work",
+  });
+  await expect(conversionPreview).toBeVisible();
+  await expect(conversionPreview).toContainText("Title: Publish the release");
+  await expect(conversionPreview).toContainText("Project: Conversion Project");
+  await expect(conversionPreview).toContainText("Start status: Not Started");
+  await expect(conversionPreview).toContainText("Origin Location:");
+  await expect(page.locator('ul[aria-label="Work list"] > li')).toHaveCount(1);
+
+  await conversionPreview
+    .getByRole("button", { name: "Confirm convert", exact: true })
+    .click();
+
+  await expect(page.locator('ul[aria-label="Work list"] > li')).toHaveCount(2);
+  const convertedLink = checklist.getByRole("link", {
+    name: "CON-2 — Publish the release",
+  });
+  await expect(convertedLink).toBeVisible({ timeout: 30_000 });
+  const convertedWork = page
+    .locator('ul[aria-label="Work list"] > li')
+    .filter({ hasText: "CON-2" })
+    .last();
+  await expect(
+    convertedWork.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+  ).toHaveValue("Not Started");
+  await expect(
+    convertedWork.getByRole("region", { name: "Relations" }),
+  ).toContainText("Derived");
+  await expect(convertedWork).toContainText("Prepare the release");
+});
+
 test("shows the same progressive Work Context Card layouts for five types across four Starter Configurations", async ({
   context,
   page,

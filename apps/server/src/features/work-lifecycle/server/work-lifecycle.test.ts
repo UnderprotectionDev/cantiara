@@ -29,6 +29,7 @@ import type {
 } from "../../relations/server/work-relations";
 import {
   createWorkLifecycle,
+  WorkChecklistConvertPreviewRequiredError,
   WorkClosureCheckRequiredError,
   type WorkClosureContext,
   WorkClosureResultRequiredError,
@@ -47,6 +48,7 @@ import {
 const PROJECT_ID = "project-1";
 const VISIBLE_USER = { kind: "Visible user" } as const;
 const WORK_MERGE_PREVIEW_PATTERN = /^work-merge:/;
+const WORK_CHECKLIST_CONVERT_PREVIEW_PATTERN = /^work-checklist-convert:/;
 
 function createMemoryWorkLifecycle(
   options: {
@@ -399,6 +401,12 @@ function createMemoryWorkLifecycle(
     nextValue: WorkLifecycleMutationValue,
     committedAt: string,
   ) {
+    if (nextValue.checklistConversion?.newWork) {
+      works.set(
+        nextValue.checklistConversion.newWork.id,
+        nextValue.checklistConversion.newWork,
+      );
+    }
     if (!(nextValue.work && nextValue.merge)) {
       if (nextValue.work) {
         works.set(nextValue.work.id, nextValue.work);
@@ -704,6 +712,126 @@ function createInput(
 }
 
 describe("Work Lifecycle seam", () => {
+  test("previews and atomically converts a checklist item into independent Work with exact origin", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const sourceWork = await workLifecycle.create(
+      "account-1",
+      createInput("checklist-convert-source", {
+        title: "Prepare the release",
+      }),
+    );
+    const withChecklist = await workLifecycle.updateChecklist("account-1", {
+      baseRevision: sourceWork.revision,
+      checklist: [
+        { completed: false, id: "item-1", text: "Publish the release" },
+      ],
+      clientIdempotencyKey: "checklist-convert-item",
+      workId: sourceWork.id,
+    });
+
+    const preview = await workLifecycle.previewChecklistConversion(
+      "account-1",
+      { itemId: "item-1", workId: sourceWork.id },
+    );
+
+    expect(preview).toMatchObject({
+      item: { id: "item-1", text: "Publish the release" },
+      newWork: {
+        projectId: PROJECT_ID,
+        status: "Not Started",
+        title: "Publish the release",
+        type: "Task",
+      },
+      originPosition: {
+        componentId: "item-1",
+        ownerRecordId: sourceWork.id,
+        sourceVersion: String(withChecklist.revision),
+      },
+      sourceWork: {
+        id: sourceWork.id,
+        key: sourceWork.key,
+        revision: withChecklist.revision,
+      },
+      targetProject: { id: PROJECT_ID, name: "Cantiara" },
+    });
+    expect(preview?.previewId).toMatch(WORK_CHECKLIST_CONVERT_PREVIEW_PATTERN);
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(1);
+    await expect(
+      workLifecycle.find("account-1", sourceWork.id),
+    ).resolves.toMatchObject({
+      checklist: [
+        { completed: false, id: "item-1", text: "Publish the release" },
+      ],
+      revision: withChecklist.revision,
+    });
+
+    if (!preview) {
+      throw new Error("Expected a checklist conversion preview.");
+    }
+
+    await expect(
+      workLifecycle.convertChecklistItem("account-1", {
+        baseRevision: withChecklist.revision,
+        clientIdempotencyKey: "checklist-convert-confirm",
+        itemId: "item-1",
+        previewId: "work-checklist-convert:stale",
+        workId: sourceWork.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkChecklistConvertPreviewRequiredError);
+
+    const converted = await workLifecycle.convertChecklistItem("account-1", {
+      baseRevision: withChecklist.revision,
+      clientIdempotencyKey: "checklist-convert-confirm",
+      itemId: "item-1",
+      previewId: preview.previewId,
+      workId: sourceWork.id,
+    });
+
+    expect(converted.work).toMatchObject({
+      originPosition: {
+        componentId: "item-1",
+        ownerRecordId: sourceWork.id,
+        sourceVersion: String(withChecklist.revision),
+      },
+      primaryFeatureId: null,
+      projectId: PROJECT_ID,
+      status: "Not Started",
+      title: "Publish the release",
+      type: "Task",
+    });
+    expect(converted.sourceWork).toMatchObject({
+      checklist: [
+        {
+          completed: true,
+          convertedWork: {
+            id: converted.work.id,
+            key: converted.work.key,
+            title: converted.work.title,
+          },
+          id: "item-1",
+        },
+      ],
+    });
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(2);
+
+    await expect(
+      workLifecycle.convertChecklistItem("account-1", {
+        baseRevision: withChecklist.revision,
+        clientIdempotencyKey: "checklist-convert-confirm",
+        itemId: "item-1",
+        previewId: preview.previewId,
+        workId: sourceWork.id,
+      }),
+    ).resolves.toMatchObject({
+      sourceWork: { id: sourceWork.id },
+      work: { id: converted.work.id },
+    });
+  });
+
   test("previews an explicitly selected surviving Work without auto-merging similar titles", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
     const survivingWork = await workLifecycle.create(

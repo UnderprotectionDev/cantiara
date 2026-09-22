@@ -44,6 +44,7 @@ import {
 import {
   createWork,
   createWorkLifecycle,
+  WorkChecklistConvertPreviewRequiredError,
   WorkCreationConflictError,
   type WorkCreationReservation,
   WorkFeatureExitBlockedError,
@@ -638,6 +639,142 @@ async function updateWorkForMerge(
   };
 }
 
+async function updateWorkForChecklistConversion(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  relations: WorkRelationsMutationAdapter,
+  input: Parameters<
+    NonNullable<
+      MutationDatabaseTargetAdapter<WorkLifecycleMutationValue>["update"]
+    >
+  >[1],
+) {
+  const nextWork = input.nextValue.work;
+  const conversion = input.nextValue.checklistConversion;
+  if (!(nextWork && conversion) || nextWork.id !== input.targetId) {
+    return null;
+  }
+
+  const sourceWork = await findOwnedWork(
+    executor,
+    accountId,
+    input.targetId,
+    true,
+  );
+  if (
+    !sourceWork ||
+    sourceWork.revision !== input.expectedRevision ||
+    conversion.sourceWorkId !== sourceWork.id ||
+    conversion.sourceWorkRevision !== sourceWork.revision ||
+    conversion.newWork.projectId !== sourceWork.projectId
+  ) {
+    throw new WorkChecklistConvertPreviewRequiredError();
+  }
+
+  const ownedProject = await findOwnedProject(
+    executor,
+    accountId,
+    conversion.newWork.projectId,
+    false,
+  );
+  if (!ownedProject) {
+    throw new WorkProjectNotFoundError(conversion.newWork.projectId);
+  }
+
+  const [allocation] = await executor
+    .select()
+    .from(workKeyAllocation)
+    .where(
+      and(
+        eq(workKeyAllocation.projectId, conversion.newWork.projectId),
+        eq(workKeyAllocation.workId, conversion.newWork.id),
+      ),
+    )
+    .limit(1);
+  if (
+    !allocation ||
+    allocation.key !== conversion.newWork.key ||
+    allocation.number !== conversion.newWork.number
+  ) {
+    throw new WorkCreationConflictError();
+  }
+
+  const [inserted] = await executor
+    .insert(work)
+    .values(
+      workRecordValues(
+        conversion.newWork,
+        conversion.newWork.revision,
+        input.committedAt,
+      ),
+    )
+    .onConflictDoNothing()
+    .returning();
+  const created =
+    inserted ??
+    (
+      await executor
+        .select()
+        .from(work)
+        .where(eq(work.id, conversion.newWork.id))
+        .limit(1)
+    )[0];
+  if (
+    !created ||
+    created.projectId !== conversion.newWork.projectId ||
+    created.key !== conversion.newWork.key ||
+    created.title !== conversion.newWork.title
+  ) {
+    throw new WorkCreationConflictError();
+  }
+
+  await relations.persistChecklistConversion(
+    executor,
+    input.committedAt,
+    {
+      id: sourceWork.id,
+      key: sourceWork.key,
+      projectId: sourceWork.projectId,
+    },
+    {
+      id: created.id,
+      key: created.key,
+      projectId: created.projectId,
+    },
+  );
+
+  const [updated] = await executor
+    .update(work)
+    .set({
+      checklist: nextWork.checklist,
+      revision: input.expectedRevision + 1,
+      updatedAt: input.committedAt,
+    })
+    .where(
+      and(
+        eq(work.id, input.targetId),
+        eq(work.projectId, nextWork.projectId),
+        eq(work.revision, input.expectedRevision),
+      ),
+    )
+    .returning();
+  if (!updated) {
+    throw new WorkChecklistConvertPreviewRequiredError();
+  }
+
+  return {
+    id: updated.id,
+    revision: updated.revision,
+    value: {
+      checklistConversion: {
+        ...conversion,
+        newWork: toWorkProfile(created),
+      },
+      work: toWorkProfile(updated),
+    },
+  };
+}
+
 async function updateWorkForMergeUndo(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -825,6 +962,14 @@ function createWorkUpdateMutationTarget(
       }
 
       const mergeMutation = input.nextValue.merge;
+      if (input.nextValue.checklistConversion) {
+        return updateWorkForChecklistConversion(
+          executor,
+          accountId,
+          relations,
+          input,
+        );
+      }
       if (mergeMutation?.operation === "merge") {
         return updateWorkForMerge(
           executor,

@@ -113,6 +113,14 @@ export const workChecklistItemSchema = z
     completed: z.boolean(),
     id: identifierSchema,
     text: z.string().trim().min(1).max(1000),
+    convertedWork: z
+      .object({
+        id: identifierSchema,
+        key: identifierSchema,
+        title: workTitleSchema,
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -129,6 +137,29 @@ export const updateWorkChecklistInputSchema = humanMutationEnvelopeSchema
 
 export type UpdateWorkChecklistInput = z.input<
   typeof updateWorkChecklistInputSchema
+>;
+
+export const workChecklistConversionPreviewInputSchema = z
+  .object({
+    itemId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type WorkChecklistConversionPreviewInput = z.input<
+  typeof workChecklistConversionPreviewInputSchema
+>;
+
+export const convertWorkChecklistItemInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    itemId: identifierSchema,
+    previewId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type ConvertWorkChecklistItemInput = z.input<
+  typeof convertWorkChecklistItemInputSchema
 >;
 
 export const workCaptureProvenanceSchema = z
@@ -625,6 +656,33 @@ export interface WorkProfile {
   updatedAt: string;
 }
 
+export interface WorkChecklistConversionPreview {
+  item: Pick<WorkChecklistItem, "id" | "text">;
+  newWork: {
+    projectId: string;
+    status: "Not Started";
+    title: string;
+    type: "Task";
+  };
+  originPosition: WorkOriginPosition;
+  previewId: string;
+  sourceWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+  targetProject: { id: string; name: string };
+}
+
+export interface WorkChecklistConversionMutation {
+  itemId: string;
+  newWork: WorkProfile;
+  operation: "convert-checklist-item";
+  sourceWorkId: string;
+  sourceWorkRevision: number;
+}
+
+export interface WorkChecklistConversionResult {
+  sourceWork: WorkProfile;
+  work: WorkProfile;
+}
+
 export interface WorkMergeMutation {
   attributedRelationIds: string[];
   attributedValueKeys: WorkMergeField[];
@@ -639,6 +697,7 @@ export interface WorkMergeMutation {
 }
 
 export interface WorkLifecycleMutationValue {
+  checklistConversion?: WorkChecklistConversionMutation;
   merge?: WorkMergeMutation;
   recreate?: {
     selectedRelationIds: string[];
@@ -718,6 +777,10 @@ export interface WorkLifecycleAccess {
     input: CloseWorkInput,
     initiator: WorkVisibleUserInitiator,
   ) => Promise<WorkProfile>;
+  convertChecklistItem: (
+    accountId: string,
+    input: ConvertWorkChecklistItemInput,
+  ) => Promise<WorkChecklistConversionResult>;
   create: (
     accountId: string,
     input: CreateWorkMutationInput,
@@ -745,6 +808,10 @@ export interface WorkLifecycleAccess {
     options?: WorkListOptions,
   ) => Promise<WorkProfile[]>;
   merge: (accountId: string, input: MergeWorkInput) => Promise<WorkMergeResult>;
+  previewChecklistConversion: (
+    accountId: string,
+    input: WorkChecklistConversionPreviewInput,
+  ) => Promise<WorkChecklistConversionPreview | null>;
   previewClose: (
     accountId: string,
     input: WorkClosePreviewInput,
