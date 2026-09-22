@@ -56,6 +56,7 @@ import {
   workIdentityInputSchema,
   workMergePreviewInputSchema,
   workRecreatePreviewInputSchema,
+  workTitleSchema,
   workTypeChangePreviewInputSchema,
 } from "@cantiara/api/work-lifecycle";
 import type {
@@ -315,6 +316,17 @@ export class WorkChecklistConversionRequiredError extends Error {
   }
 }
 
+export class WorkChecklistItemTitleTooLongError extends Error {
+  readonly code = "WORK_CHECKLIST_ITEM_TITLE_TOO_LONG" as const;
+
+  constructor() {
+    super(
+      "Checklist item text is too long to become a Work title. Shorten the item text before converting.",
+    );
+    this.name = "WorkChecklistItemTitleTooLongError";
+  }
+}
+
 export class WorkRelationNotPortableError extends Error {
   readonly code = "WORK_RELATION_NOT_PORTABLE" as const;
 
@@ -568,7 +580,7 @@ async function buildRecreatePreview(
       key: "checklist",
       label: "Checklist",
       selectedByDefault: true,
-      value: sourceWork.checklist,
+      value: portableChecklist(sourceWork.checklist),
     },
   ];
   const fingerprint = await fingerprintMutationPayload({
@@ -623,6 +635,10 @@ async function buildChecklistConversionPreview(
   if (!item || item.convertedWork) {
     return null;
   }
+  const title = workTitleSchema.safeParse(item.text);
+  if (!title.success) {
+    throw new WorkChecklistItemTitleTooLongError();
+  }
 
   const targetProject = await store.findProject(
     accountId,
@@ -640,7 +656,7 @@ async function buildChecklistConversionPreview(
   const newWork = {
     projectId: sourceWork.projectId,
     status: "Not Started" as const,
-    title: item.text,
+    title: title.data,
     type: "Task" as const,
   };
   const previewFingerprint = await fingerprintMutationPayload({
@@ -731,6 +747,17 @@ function assertChecklistConversionLinksNotPresent(
   if (checklist.some((item) => item.convertedWork)) {
     throw new WorkChecklistConversionRequiredError();
   }
+}
+
+// Recreate copies portable content only: a converted checklist item's Work
+// link is provenance that stays with the source Project, so the copy carries
+// the plain item.
+function portableChecklist(checklist: WorkProfile["checklist"]) {
+  return checklist.map((item) => ({
+    completed: item.completed,
+    id: item.id,
+    text: item.text,
+  }));
 }
 
 function workChecklistConversionResultFromReceipt(receipt: {
@@ -1002,9 +1029,7 @@ export async function createWork(
   additionalPayload: Record<string, unknown> = {},
 ) {
   const input = createWorkMutationInputSchema.parse(rawInput);
-  if (!recreate) {
-    assertChecklistConversionLinksNotPresent(input.checklist ?? []);
-  }
+  assertChecklistConversionLinksNotPresent(input.checklist ?? []);
   const selectedRelationIds = recreate
     ? [...new Set(recreate.selectedRelationIds)].sort()
     : [];
@@ -1903,7 +1928,7 @@ export function createWorkLifecycle({
         {
           baseRevision: input.baseRevision,
           checklist: selectedFields.has("checklist")
-            ? sourceWork.checklist
+            ? portableChecklist(sourceWork.checklist)
             : [],
           clientIdempotencyKey: input.clientIdempotencyKey,
           description: selectedFields.has("description")

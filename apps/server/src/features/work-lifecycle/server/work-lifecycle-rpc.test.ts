@@ -9,6 +9,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import {
   WorkChecklistConvertPreviewRequiredError,
+  WorkChecklistItemTitleTooLongError,
   WorkClosureResultRequiredError,
   WorkFeatureExitBlockedError,
   WorkInclusionConflictError,
@@ -673,6 +674,28 @@ describe("Work Lifecycle RPC", () => {
       code: "PRECONDITION_FAILED",
       data: { code: "WORK_CHECKLIST_CONVERT_PREVIEW_REQUIRED" },
       status: 412,
+    });
+  });
+
+  test("maps an over-long checklist item title to a bad-request response", async () => {
+    const workLifecycle = createWorkLifecycleStub({
+      previewChecklistConversion: vi
+        .fn()
+        .mockRejectedValue(new WorkChecklistItemTitleTooLongError()),
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.workChecklistConversionPreview({
+        itemId: "checklist-item-1",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      data: { code: "WORK_CHECKLIST_ITEM_TITLE_TOO_LONG" },
+      status: 400,
     });
   });
 

@@ -670,6 +670,13 @@ function mapWorkLifecycleError(
         message:
           "Converted checklist Work links can only be changed through conversion.",
       });
+    case "WORK_CHECKLIST_ITEM_TITLE_TOO_LONG":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Checklist item text is too long to become a Work title. Shorten the item text before converting.",
+      });
     case "WORK_MERGE_PREVIEW_REQUIRED":
       return new ORPCError("PRECONDITION_FAILED", {
         data: { code: error.code },
@@ -2045,18 +2052,20 @@ export const appRouter = {
     }),
   workChecklistConversionPreview: protectedProcedure
     .input(workChecklistConversionPreviewInputSchema)
-    .handler(async ({ context, input }) => {
-      const preview = await requireWorkLifecycle(
-        context,
-      ).previewChecklistConversion(context.session.user.id, input);
-      if (!preview) {
-        throw new ORPCError("NOT_FOUND", {
-          defined: true,
-          message: "Work checklist item is unavailable.",
-        });
-      }
-      return preview;
-    }),
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(async () => {
+        const preview = await requireWorkLifecycle(
+          context,
+        ).previewChecklistConversion(context.session.user.id, input);
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work checklist item is unavailable.",
+          });
+        }
+        return preview;
+      }),
+    ),
   workMergePreview: protectedProcedure
     .input(workMergePreviewInputSchema)
     .handler(async ({ context, input }) => {

@@ -31,6 +31,7 @@ import {
   createWorkLifecycle,
   WorkChecklistConversionRequiredError,
   WorkChecklistConvertPreviewRequiredError,
+  WorkChecklistItemTitleTooLongError,
   WorkClosureCheckRequiredError,
   type WorkClosureContext,
   WorkClosureResultRequiredError,
@@ -954,6 +955,105 @@ describe("Work Lifecycle seam", () => {
       sourceWork: { id: sourceWork.id },
       work: { id: converted.work.id },
     });
+  });
+
+  test("keeps checklist conversion markers out of recreated Works", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("recreate-converted-source", {
+        checklist: [
+          { completed: false, id: "item-1", text: "Publish the release" },
+        ],
+      }),
+    );
+    const preview = await workLifecycle.previewChecklistConversion(
+      "account-1",
+      { itemId: "item-1", workId: source.id },
+    );
+    if (!preview) {
+      throw new Error("Expected a checklist conversion preview.");
+    }
+    await workLifecycle.convertChecklistItem("account-1", {
+      baseRevision: source.revision,
+      clientIdempotencyKey: "recreate-converted-confirm",
+      itemId: "item-1",
+      previewId: preview.previewId,
+      workId: source.id,
+    });
+
+    const recreatePreview = await workLifecycle.previewRecreate("account-1", {
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    if (!recreatePreview) {
+      throw new Error("Expected a recreate preview.");
+    }
+    const checklistField = recreatePreview.fields.find(
+      (field) => field.key === "checklist",
+    );
+    expect(checklistField?.value).toEqual([
+      { completed: true, id: "item-1", text: "Publish the release" },
+    ]);
+
+    const recreated = await workLifecycle.recreate("account-1", {
+      baseRevision: 0,
+      clientIdempotencyKey: "recreate-converted",
+      previewId: recreatePreview.previewId,
+      selectedFields: ["title", "checklist"],
+      selectedRelationIds: [],
+      sourceWorkId: source.id,
+      targetProjectId: "project-2",
+    });
+    expect(recreated.checklist).toEqual([
+      { completed: true, id: "item-1", text: "Publish the release" },
+    ]);
+
+    // The plain item on the recreated Work stays editable without the
+    // conversion command.
+    await expect(
+      workLifecycle.updateChecklist("account-1", {
+        baseRevision: recreated.revision,
+        checklist: [
+          { completed: false, id: "item-1", text: "Publish the release" },
+        ],
+        clientIdempotencyKey: "recreate-converted-edit",
+        workId: recreated.id,
+      }),
+    ).resolves.toMatchObject({
+      checklist: [
+        { completed: false, id: "item-1", text: "Publish the release" },
+      ],
+    });
+  });
+
+  test("refuses converting a checklist item whose text exceeds the Work title limit", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const source = await workLifecycle.create(
+      "account-1",
+      createInput("convert-long-title-source", {
+        checklist: [{ completed: false, id: "item-1", text: "a".repeat(256) }],
+      }),
+    );
+
+    await expect(
+      workLifecycle.previewChecklistConversion("account-1", {
+        itemId: "item-1",
+        workId: source.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkChecklistItemTitleTooLongError);
+    await expect(
+      workLifecycle.convertChecklistItem("account-1", {
+        baseRevision: source.revision,
+        clientIdempotencyKey: "convert-long-title-confirm",
+        itemId: "item-1",
+        previewId: "work-checklist-convert:any",
+        workId: source.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkChecklistItemTitleTooLongError);
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(1);
   });
 
   test("previews an explicitly selected surviving Work without auto-merging similar titles", async () => {

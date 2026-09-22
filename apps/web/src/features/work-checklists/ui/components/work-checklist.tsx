@@ -112,8 +112,9 @@ export default function WorkChecklist({
     try {
       setConversionPreview(await onPreviewConvert(itemId));
     } catch {
-      // The parent owns the mutation error display; leave the item ready for a
-      // retry after the failed preview request.
+      // The parent owns the mutation error display; release the item so its
+      // controls unlock and the preview request can be retried.
+      setConversionItemId(null);
     } finally {
       setConversionPending(false);
     }
