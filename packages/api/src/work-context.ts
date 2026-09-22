@@ -612,6 +612,10 @@ export function buildWorkContextModel({
   relations,
   work,
 }: BuildWorkContextModelInput): WorkContextModel {
+  const planningRelations = relations.filter(
+    (relation) =>
+      relation.kind !== "Blocks" || relation.blockingStatus === "Active",
+  );
   const sources: WorkContextSource[] = [];
 
   if (work.primaryFeatureId) {
@@ -632,7 +636,7 @@ export function buildWorkContextModel({
   }
 
   if (work.primarySpecId) {
-    const primarySpecRelation = relations.find((relation) => {
+    const primarySpecRelation = planningRelations.find((relation) => {
       if (relation.kind !== "Primary spec") {
         return false;
       }
@@ -650,7 +654,7 @@ export function buildWorkContextModel({
     }
   }
 
-  for (const relation of relations) {
+  for (const relation of planningRelations) {
     const relationKind = relationKindFromRelation(relation.kind);
     if (!(relationKind && hasRelatedEndpoint(relation, work.id))) {
       continue;
@@ -667,7 +671,7 @@ export function buildWorkContextModel({
   const uniqueSources = deduplicateSources(sources);
   return {
     priorityFoundations: buildPriorityFoundations({
-      relations,
+      relations: planningRelations,
       sources: uniqueSources,
       values: priorityValues,
       work,
@@ -1077,7 +1081,6 @@ export function renderWorkContextMarkdown({
       model.sources.filter(
         (source) =>
           source.relationKind === "Blocks" &&
-          source.status !== "Closed" &&
           (source.direction === undefined ||
             source.direction === null ||
             source.direction === "incoming"),

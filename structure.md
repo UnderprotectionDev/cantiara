@@ -119,6 +119,7 @@
 │       │   ├── custom-fields.e2e.ts
 │       │   ├── project-shell.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
+│       │   ├── work-blockers.e2e.ts
 │       │   ├── work-drafts.e2e.ts
 │       │   ├── work-lifecycle.e2e.ts
 │       │   └── work-templates.e2e.ts

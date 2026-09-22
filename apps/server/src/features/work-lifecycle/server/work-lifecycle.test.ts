@@ -67,6 +67,7 @@ function createMemoryWorkLifecycle(
     projectDocuments?: ReadonlyArray<{ id: string; projectId: string }>;
     recreateRelations?: WorkRecreateRelation[];
     scopeTreeRelations?: ReadonlyArray<{
+      blockingStatus: "Active" | "Resolved" | null;
       id: string;
       kind: "Blocks" | "Contributes to Milestone";
       sourceProjectId: string;
@@ -1799,6 +1800,7 @@ describe("Work Lifecycle seam", () => {
 
   test("derives a read-only Scope Tree from primary inclusion and source relations", async () => {
     const scopeTreeRelations: Array<{
+      blockingStatus: "Active" | "Resolved" | null;
       id: string;
       kind: "Blocks" | "Contributes to Milestone";
       sourceProjectId: string;
@@ -1855,6 +1857,7 @@ describe("Work Lifecycle seam", () => {
     });
     scopeTreeRelations.push(
       {
+        blockingStatus: "Active",
         id: "scope-tree-blocks",
         kind: "Blocks",
         sourceProjectId: "project-2",
@@ -1869,6 +1872,22 @@ describe("Work Lifecycle seam", () => {
         targetRecordId: includedWork.id,
       },
       {
+        blockingStatus: "Resolved",
+        id: "scope-tree-resolved-blocks",
+        kind: "Blocks",
+        sourceProjectId: "project-3",
+        sourceWork: {
+          id: "resolved-blocker",
+          key: "PAY-10",
+          status: "Closed",
+          title: "Completed provider access",
+          type: "Research",
+        },
+        targetLabel: includedWork.key,
+        targetRecordId: includedWork.id,
+      },
+      {
+        blockingStatus: null,
         id: "scope-tree-milestone",
         kind: "Contributes to Milestone",
         sourceProjectId: PROJECT_ID,

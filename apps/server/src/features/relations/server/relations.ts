@@ -56,6 +56,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { relationBlockingStatus } from "./relation-blocking-status";
 
 type WorkRecord = typeof work.$inferSelect;
 type ProjectRecord = typeof project.$inferSelect;
@@ -321,9 +322,11 @@ function relationUsageKind(value: string) {
 function payloadRelationFromRecord(
   record: RelationRecord,
 ): RelationPayloadRelation {
+  const kind = relationKind(record.kind);
   return {
+    blockingStatus: relationBlockingStatus(kind, record.blockingStatus),
     id: record.id,
-    kind: relationKind(record.kind),
+    kind,
     sourceRecordId: record.sourceWorkId,
     sourceRecordType: relationRecordType(record.sourceRecordType),
     targetLabel: record.targetLabel,
@@ -334,10 +337,12 @@ function payloadRelationFromRecord(
 }
 
 function storedRelationFromRecord(record: RelationRecord): StoredRelationValue {
+  const kind = relationKind(record.kind);
   return {
+    blockingStatus: relationBlockingStatus(kind, record.blockingStatus),
     createdAt: record.createdAt.toISOString(),
     id: record.id,
-    kind: relationKind(record.kind),
+    kind,
     sourceRecordId: record.sourceWorkId,
     sourceRecordType: relationRecordType(record.sourceRecordType),
     targetLabel: record.targetLabel,
@@ -472,21 +477,35 @@ async function hasUniquenessConflict(
   excludeRelationId?: string,
 ): Promise<boolean> {
   const uniqueness = relationUniqueness(input.kind);
-  if (uniqueness === "many") {
-    return false;
+  let endpointCondition: ReturnType<typeof and>;
+  switch (uniqueness) {
+    case "unique-per-pair":
+      endpointCondition = and(
+        eq(workRelation.sourceRecordType, input.sourceType),
+        eq(workRelation.sourceWorkId, input.sourceId),
+        eq(workRelation.targetRecordType, input.targetType),
+        eq(workRelation.targetRecordId, input.targetId),
+      );
+      break;
+    case "unique-per-source":
+      endpointCondition = and(
+        eq(workRelation.sourceRecordType, input.sourceType),
+        eq(workRelation.sourceWorkId, input.sourceId),
+      );
+      break;
+    case "unique-per-target":
+      endpointCondition = and(
+        eq(workRelation.targetRecordType, input.targetType),
+        eq(workRelation.targetRecordId, input.targetId),
+      );
+      break;
+    default:
+      return false;
   }
   const conditions = [
     eq(workRelation.kind, input.kind),
     isNull(workRelation.deletedAt),
-    uniqueness === "unique-per-source"
-      ? and(
-          eq(workRelation.sourceRecordType, input.sourceType),
-          eq(workRelation.sourceWorkId, input.sourceId),
-        )
-      : and(
-          eq(workRelation.targetRecordType, input.targetType),
-          eq(workRelation.targetRecordId, input.targetId),
-        ),
+    endpointCondition,
   ];
   if (excludeRelationId) {
     conditions.push(ne(workRelation.id, excludeRelationId));
@@ -630,6 +649,10 @@ function createRelationTarget(
             createdAt: input.committedAt,
             id: nextRelation.id,
             kind: nextRelation.kind,
+            blockingStatus: relationBlockingStatus(
+              nextRelation.kind,
+              nextRelation.blockingStatus,
+            ),
             revision: input.expectedRevision + 1,
             sourceRecordType: nextRelation.sourceRecordType,
             sourceWorkId: nextRelation.sourceRecordId,
@@ -649,6 +672,10 @@ function createRelationTarget(
           brokenReason: null,
           deletedAt: null,
           kind: nextRelation.kind,
+          blockingStatus: relationBlockingStatus(
+            nextRelation.kind,
+            nextRelation.blockingStatus,
+          ),
           revision: input.expectedRevision + 1,
           sourceRecordType: nextRelation.sourceRecordType,
           sourceWorkId: nextRelation.sourceRecordId,
@@ -904,6 +931,7 @@ async function relationView(
   ]);
   const { kind } = stored;
   return {
+    blockingStatus: stored.blockingStatus,
     createdAt: stored.createdAt,
     direction,
     id: stored.id,
@@ -1032,6 +1060,7 @@ function relationCreatePayload(
   return {
     operation: "create",
     relation: {
+      blockingStatus: input.kind === "Blocks" ? "Active" : null,
       id: input.previewId,
       kind: input.kind,
       sourceRecordId: source.record.id,
@@ -1086,6 +1115,7 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         .where(eq(workRelation.id, previewId))
         .limit(1);
       return {
+        blockingStatus: input.kind === "Blocks" ? "Active" : null,
         baseRevision: existing?.revision ?? 0,
         id: previewId,
         inverseLabel: relationDefinition(input.kind).inverseLabel,
@@ -1134,7 +1164,6 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (input.previewId !== expectedPreviewId) {
         throw new RelationPreviewRequiredError();
       }
-      await assertRelationCreatable(database, input);
 
       const stablePayload = relationCreatePayload(input, source, target);
       const mutation = createRelationMutation(database, accountId);
@@ -1150,6 +1179,7 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (replay) {
         return mutationResult(database, accountId, replay);
       }
+      await assertRelationCreatable(database, input);
 
       const receipt = await mutation.mutate(
         command,

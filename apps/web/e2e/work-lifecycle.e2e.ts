@@ -369,6 +369,7 @@ test("opens the exact Priority Foundations count drilldown", async ({
     }
     body.json = [
       {
+        blockingStatus: "Active",
         createdAt: "2026-01-01T00:00:00.000Z",
         direction: "incoming",
         id: "priority-foundations-blocker-relation",

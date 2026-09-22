@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  BLOCKING_RELATION_STATUS_OPTIONS,
   BROKEN_REFERENCE_REASON_OPTIONS,
+  blockingRelationStatusSchema,
   isAllowedRelationEndpoints,
   RELATION_KIND_OPTIONS,
   RELATION_RECORD_TYPE_OPTIONS,
@@ -88,6 +90,36 @@ describe("Relations seam", () => {
     expect(
       isAllowedRelationEndpoints("Origin", "Checklist Item" as never, "Work"),
     ).toBe(false);
+  });
+
+  test("keeps blocking relations unique for their directed endpoint pair", () => {
+    expect(relationDefinition("Blocks")).toMatchObject({
+      cardinality: "at-most-one-current",
+      inverseLabel: "Blocked by",
+      sourceTypes: "blocks-source",
+      targetTypes: "blocks-target",
+      uniqueness: "unique-per-pair",
+    });
+    expect(relationUniqueness("Blocks")).toBe("unique-per-pair");
+    expect(isAllowedRelationEndpoints("Blocks", "Work", "Work")).toBe(true);
+    expect(isAllowedRelationEndpoints("Blocks", "Decision", "Work")).toBe(true);
+    expect(isAllowedRelationEndpoints("Blocks", "Open Question", "Work")).toBe(
+      true,
+    );
+    expect(isAllowedRelationEndpoints("Blocks", "Work", "Decision")).toBe(
+      false,
+    );
+  });
+
+  test("keeps blocking relation life in the Active and Resolved catalog", () => {
+    expect(BLOCKING_RELATION_STATUS_OPTIONS).toEqual(["Active", "Resolved"]);
+    expect(blockingRelationStatusSchema.safeParse("Active").success).toBe(true);
+    expect(blockingRelationStatusSchema.safeParse("Resolved").success).toBe(
+      true,
+    );
+    expect(blockingRelationStatusSchema.safeParse("Blocked").success).toBe(
+      false,
+    );
   });
 
   test("uses only the closed broken-reference reasons", () => {

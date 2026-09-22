@@ -1,3 +1,4 @@
+import type { BlockingRelationStatus } from "@cantiara/api/relations";
 import {
   SCOPE_TREE_RELATION_KIND_OPTIONS,
   type ScopeTreeRelationKind,
@@ -17,6 +18,7 @@ import { project, work, workRelation } from "@cantiara/db/schema/index";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
+import { relationBlockingStatus } from "./relation-blocking-status";
 import { describeWorkRecreateRelation } from "./work-recreate-relations";
 
 export interface RecreateRelationSelectionInput {
@@ -45,6 +47,7 @@ export interface RecreateRelationSelection {
 }
 
 export interface ScopeTreeRelation {
+  blockingStatus: BlockingRelationStatus | null;
   id: string;
   kind: ScopeTreeRelationKind;
   sourceProjectId: string;
@@ -181,10 +184,12 @@ function relationPreview(
 function mergeRelationSnapshot(
   relation: typeof workRelation.$inferSelect,
 ): WorkMergeRelationSnapshot {
+  const kind = parseRelationKind(relation.kind);
   return {
+    blockingStatus: relationBlockingStatus(kind, relation.blockingStatus),
     createdAt: relation.createdAt.toISOString(),
     id: relation.id,
-    kind: parseRelationKind(relation.kind),
+    kind,
     sourceWorkId: relation.sourceWorkId,
     targetLabel: relation.targetLabel,
     targetProjectId: relation.targetProjectId,
@@ -382,6 +387,7 @@ export function createDatabaseWorkRelations(
 
       const records = await database
         .select({
+          blockingStatus: workRelation.blockingStatus,
           id: workRelation.id,
           kind: workRelation.kind,
           sourceProjectId: project.id,
@@ -408,20 +414,24 @@ export function createDatabaseWorkRelations(
         )
         .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
 
-      return records.map((record) => ({
-        id: record.id,
-        kind: scopeTreeRelationKindSchema.parse(record.kind),
-        sourceProjectId: record.sourceProjectId,
-        sourceWork: {
-          id: record.sourceWorkId,
-          key: record.sourceWorkKey,
-          status: workStatusSchema.parse(record.sourceWorkStatus),
-          title: record.sourceWorkTitle,
-          type: workTypeSchema.parse(record.sourceWorkType),
-        },
-        targetLabel: record.targetLabel,
-        targetRecordId: record.targetRecordId,
-      }));
+      return records.map((record) => {
+        const kind = scopeTreeRelationKindSchema.parse(record.kind);
+        return {
+          blockingStatus: relationBlockingStatus(kind, record.blockingStatus),
+          id: record.id,
+          kind,
+          sourceProjectId: record.sourceProjectId,
+          sourceWork: {
+            id: record.sourceWorkId,
+            key: record.sourceWorkKey,
+            status: workStatusSchema.parse(record.sourceWorkStatus),
+            title: record.sourceWorkTitle,
+            type: workTypeSchema.parse(record.sourceWorkType),
+          },
+          targetLabel: record.targetLabel,
+          targetRecordId: record.targetRecordId,
+        };
+      });
     },
 
     async selectRecreateRelations(executor, accountId, workspaceId, input) {
@@ -598,6 +608,9 @@ export function createDatabaseWorkRelations(
             await executor
               .insert(workRelation)
               .values({
+                blockingStatus:
+                  relation.blockingStatus ??
+                  (relation.kind === "Blocks" ? "Active" : null),
                 createdAt: new Date(relation.createdAt),
                 id: relation.id,
                 kind: relation.kind,

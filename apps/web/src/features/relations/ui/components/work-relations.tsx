@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Relation controls close over their current preview and mutation state.
 
 import type {
+  RelationCreatePreviewInput,
   RelationPreview,
   RelationView,
   UsedInSummary,
@@ -18,8 +19,32 @@ import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
-const GENERIC_RELATION_KINDS = ["Related", "Origin"] as const;
-type GenericRelationKind = (typeof GENERIC_RELATION_KINDS)[number];
+const RELATION_SELECTION_OPTIONS = [
+  "Related",
+  "Origin",
+  "Blocks",
+  "Blocked by",
+] as const;
+type RelationSelectionKind = (typeof RELATION_SELECTION_OPTIONS)[number];
+
+function relationPreviewInput(
+  selection: RelationSelectionKind,
+  workId: string,
+  selectedWorkId: string,
+): RelationCreatePreviewInput {
+  const workIsTarget = selection === "Blocked by";
+  return {
+    kind: workIsTarget ? "Blocks" : selection,
+    source: {
+      recordId: workIsTarget ? selectedWorkId : workId,
+      recordType: "Work",
+    },
+    target: {
+      recordId: workIsTarget ? workId : selectedWorkId,
+      recordType: "Work",
+    },
+  };
+}
 
 interface RemovedRelation {
   baseRevision: number;
@@ -43,9 +68,12 @@ export default function WorkRelations({
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const [relationKind, setRelationKind] =
-    useState<GenericRelationKind>("Related");
+    useState<RelationSelectionKind>("Related");
   const [targetWorkId, setTargetWorkId] = useState(candidates[0]?.id ?? "");
   const [preview, setPreview] = useState<RelationPreview | null>(null);
+  const [createIdempotencyKey, setCreateIdempotencyKey] = useState<
+    string | null
+  >(null);
   const [removedRelation, setRemovedRelation] =
     useState<RemovedRelation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,29 +128,28 @@ export default function WorkRelations({
 
   const previewMutation = useMutation({
     mutationFn: () =>
-      client.relationPreview({
-        kind: relationKind,
-        source: { recordId: work.id, recordType: "Work" },
-        target: { recordId: targetWorkId, recordType: "Work" },
-      }),
+      client.relationPreview(
+        relationPreviewInput(relationKind, work.id, targetWorkId),
+      ),
     onError: (mutationError) => {
       setError(mutationErrorMessage(mutationError, "Relation preview failed."));
     },
     onSuccess: (nextPreview) => {
       setError(null);
+      setCreateIdempotencyKey(crypto.randomUUID());
       setPreview(nextPreview);
     },
   });
 
   const createMutation = useMutation({
     mutationFn: () => {
-      if (!preview) {
+      if (!(preview && createIdempotencyKey)) {
         throw new Error("Review the relation preview before confirming.");
       }
       return runOnlineOnlyWrite(() =>
         client.createRelation({
           baseRevision: preview.baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
+          clientIdempotencyKey: createIdempotencyKey,
           kind: preview.kind,
           previewId: preview.previewId,
           source: {
@@ -144,6 +171,7 @@ export default function WorkRelations({
     onSuccess: async () => {
       setError(null);
       setPreview(null);
+      setCreateIdempotencyKey(null);
       await invalidateRelations();
     },
   });
@@ -237,6 +265,7 @@ export default function WorkRelations({
               event.preventDefault();
               setError(null);
               setPreview(null);
+              setCreateIdempotencyKey(null);
               previewMutation.mutate();
             }}
           >
@@ -251,13 +280,14 @@ export default function WorkRelations({
               disabled={!canCreate}
               id={`relation-kind-${work.id}`}
               onChange={(event) => {
-                setRelationKind(event.target.value as GenericRelationKind);
+                setRelationKind(event.target.value as RelationSelectionKind);
                 setPreview(null);
+                setCreateIdempotencyKey(null);
                 setError(null);
               }}
               value={relationKind}
             >
-              {GENERIC_RELATION_KINDS.map((kind) => (
+              {RELATION_SELECTION_OPTIONS.map((kind) => (
                 <NativeSelectOption key={kind} value={kind}>
                   {kind}
                 </NativeSelectOption>
@@ -276,6 +306,7 @@ export default function WorkRelations({
               onChange={(event) => {
                 setTargetWorkId(event.target.value);
                 setPreview(null);
+                setCreateIdempotencyKey(null);
                 setError(null);
               }}
               value={targetWorkId}
@@ -299,6 +330,7 @@ export default function WorkRelations({
                 <p>
                   {preview.label}: {preview.source.label} →{" "}
                   {preview.target.label}
+                  {preview.blockingStatus ? ` · ${preview.blockingStatus}` : ""}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -310,7 +342,10 @@ export default function WorkRelations({
                     Confirm relation
                   </Button>
                   <Button
-                    onClick={() => setPreview(null)}
+                    onClick={() => {
+                      setPreview(null);
+                      setCreateIdempotencyKey(null);
+                    }}
                     size="xs"
                     type="button"
                     variant="outline"
@@ -500,6 +535,11 @@ function RelationItems({
               <span className="mr-2 text-muted-foreground">
                 {relation.label}
               </span>
+              {relation.blockingStatus ? (
+                <span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5 font-medium text-foreground">
+                  {relation.blockingStatus}
+                </span>
+              ) : null}
               <RelationEndpointText
                 endpoint={endpoint}
                 openSourceRecord={openSourceRecord}
@@ -507,14 +547,18 @@ function RelationItems({
               />
             </div>
             <Button
-              aria-label={`Remove ${relation.label}`}
+              aria-label={
+                relation.kind === "Blocks"
+                  ? "Remove relation"
+                  : `Remove ${relation.label}`
+              }
               disabled={removePending}
               onClick={() => onRemove(relation)}
               size="xs"
               type="button"
               variant="ghost"
             >
-              Remove
+              {relation.kind === "Blocks" ? "Remove relation" : "Remove"}
             </Button>
           </li>
         );

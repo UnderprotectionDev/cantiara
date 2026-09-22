@@ -104,6 +104,11 @@ function relation(
   overrides: Partial<RelationView> &
     Pick<RelationView, "kind" | "source" | "target">,
 ): RelationView {
+  let blockingStatus: RelationView["blockingStatus"] | undefined =
+    overrides.blockingStatus;
+  if (blockingStatus === undefined) {
+    blockingStatus = overrides.kind === "Blocks" ? "Active" : null;
+  }
   return {
     createdAt: "2026-01-01T00:00:00.000Z",
     direction: "outgoing",
@@ -112,6 +117,7 @@ function relation(
     label: overrides.kind,
     revision: 1,
     ...overrides,
+    blockingStatus,
   };
 }
 
@@ -1043,8 +1049,24 @@ describe("Work Context Card Priority Foundations", () => {
             projectId: work.projectId,
             recordId: "blocker-1",
             recordType: "Work",
-            status: "In Progress",
+            status: "Closed",
             title: "Waiting for payment provider",
+            workType: "Task",
+          }),
+          target: endpoint({ recordId: work.id, recordType: "Work" }),
+        }),
+        relation({
+          blockingStatus: "Resolved",
+          direction: "incoming",
+          id: "resolved-blocker",
+          kind: "Blocks",
+          source: endpoint({
+            key: "PAY-10",
+            projectId: work.projectId,
+            recordId: "resolved-blocker-1",
+            recordType: "Work",
+            status: "Closed",
+            title: "Completed payment provider access",
             workType: "Task",
           }),
           target: endpoint({ recordId: work.id, recordType: "Work" }),
@@ -1196,6 +1218,20 @@ describe("Work Context Card Priority Foundations", () => {
             kind: "Priority criterion",
             projectId: work.projectId,
           }),
+        }),
+      ]),
+    );
+    expect(model.sources).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ recordId: "resolved-blocker-1" }),
+      ]),
+    );
+    expect(model.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          recordId: "blocker-1",
+          relationKind: "Blocks",
+          status: "Closed",
         }),
       ]),
     );
@@ -1361,7 +1397,7 @@ describe("Work Context Card Markdown copy", () => {
       "- Blocked by: PAY-8 Resolve payment provider timeout",
     );
     expect(markdown).toContain("PAY-8 Resolve payment provider timeout");
-    expect(markdown).not.toContain("PAY-9 Old payment issue");
+    expect(markdown).toContain("- Blocked by: PAY-9 Old payment issue");
     expect(markdown).toContain("## GitHub and external links");
     expect(markdown).toContain("https://github.com/cantiara/web/pull/7");
     expect(markdown).not.toContain("super-secret capture content");

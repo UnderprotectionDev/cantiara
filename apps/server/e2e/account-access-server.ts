@@ -278,6 +278,7 @@ async function createE2EFixture(fixtureKey: string) {
     });
     await database.insert(workRelation).values([
       {
+        blockingStatus: "Active",
         id: `scope-tree-block-${crypto.randomUUID()}`,
         kind: "Blocks",
         sourceWorkId: blocker.id,

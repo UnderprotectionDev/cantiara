@@ -12,6 +12,7 @@ import {
   humanMutationEnvelopeSchema,
   type MutationContract,
 } from "./mutation-and-undo";
+import type { BlockingRelationStatus } from "./relations";
 
 export const WORK_TYPE_OPTIONS = [
   "Feature",
@@ -516,6 +517,7 @@ export interface WorkMergeFieldPreview {
 }
 
 export interface WorkMergeRelationSnapshot {
+  blockingStatus?: BlockingRelationStatus | null;
   createdAt: string;
   id: string;
   kind: WorkRecreateRelationKind;

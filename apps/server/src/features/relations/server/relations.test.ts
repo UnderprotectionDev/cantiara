@@ -174,6 +174,85 @@ describeDatabase("Relations PostgreSQL integration", () => {
     ).toBe(targetStatus);
   }, 30_000);
 
+  test("creates one Active blocker, retries idempotently, and removes it without resolving", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { lifecycle, source, target } = await createWorks();
+    const relations = createDatabaseRelations(database);
+    const input = {
+      kind: "Blocks" as const,
+      source: { recordId: source.id, recordType: "Work" as const },
+      target: { recordId: target.id, recordType: "Work" as const },
+    };
+    const sourceStatus = source.status;
+    const targetStatus = target.status;
+    const preview = await relations.previewCreate(accountId, input);
+    const command = {
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "active-blocker-create",
+      kind: preview.kind,
+      previewId: preview.previewId,
+      source: input.source,
+      target: input.target,
+    };
+    const created = await relations.create(accountId, command);
+
+    expect(preview.blockingStatus).toBe("Active");
+    expect(created.relation).toMatchObject({
+      blockingStatus: "Active",
+      direction: "outgoing",
+      kind: "Blocks",
+      label: "Blocks",
+    });
+    expect(created.relation).not.toHaveProperty("resolvedAt");
+    expect(created.relation).not.toHaveProperty("resolutionNote");
+
+    const replayed = await relations.create(accountId, command);
+    expect(replayed.receiptId).toBe(created.receiptId);
+    await expect(
+      relations.create(accountId, {
+        ...command,
+        clientIdempotencyKey: "active-blocker-second-submit",
+      }),
+    ).rejects.toMatchObject({ code: "RELATION_DUPLICATE" });
+
+    await expect(
+      relations.list(accountId, { recordId: target.id, recordType: "Work" }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        blockingStatus: "Active",
+        direction: "incoming",
+        kind: "Blocks",
+        label: "Blocked by",
+      }),
+    ]);
+    await expect(lifecycle.find(accountId, source.id)).resolves.toMatchObject({
+      status: sourceStatus,
+    });
+    await expect(lifecycle.find(accountId, target.id)).resolves.toMatchObject({
+      status: targetStatus,
+    });
+
+    if (!created.relation) {
+      throw new Error("Expected the Active blocker to be returned");
+    }
+    await relations.remove(accountId, {
+      baseRevision: created.relation.revision,
+      clientIdempotencyKey: "active-blocker-remove",
+      relationId: created.relation.id,
+    });
+    await expect(
+      relations.list(accountId, { recordId: target.id, recordType: "Work" }),
+    ).resolves.toEqual([]);
+    await expect(lifecycle.find(accountId, source.id)).resolves.toMatchObject({
+      status: sourceStatus,
+    });
+    await expect(lifecycle.find(accountId, target.id)).resolves.toMatchObject({
+      status: targetStatus,
+    });
+  }, 30_000);
+
   test("requires a preview and rejects catalog values outside the closed set", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

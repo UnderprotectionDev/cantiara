@@ -33,6 +33,15 @@ export type RelationKind = (typeof RELATION_KIND_OPTIONS)[number];
 
 export const relationKindSchema = z.enum(RELATION_KIND_OPTIONS);
 
+export const BLOCKING_RELATION_STATUS_OPTIONS = ["Active", "Resolved"] as const;
+
+export type BlockingRelationStatus =
+  (typeof BLOCKING_RELATION_STATUS_OPTIONS)[number];
+
+export const blockingRelationStatusSchema = z.enum(
+  BLOCKING_RELATION_STATUS_OPTIONS,
+);
+
 /**
  * Evidence Role is optional relation metadata. Evidence owns writing and
  * history for this field; relation consumers may read the closed catalog.
@@ -155,6 +164,7 @@ export type RelationCardinality =
  */
 export type RelationUniqueness =
   | "many"
+  | "unique-per-pair"
   | "unique-per-source"
   | "unique-per-target";
 
@@ -196,11 +206,11 @@ const RELATION_DEFINITIONS: Record<RelationKind, RelationDefinition> = {
     uniqueness: "many",
   },
   Blocks: {
-    cardinality: "many-to-many",
+    cardinality: "at-most-one-current",
     inverseLabel: "Blocked by",
     sourceTypes: "blocks-source",
     targetTypes: "blocks-target",
-    uniqueness: "many",
+    uniqueness: "unique-per-pair",
   },
   Includes: {
     cardinality: "at-most-one-current",
@@ -523,6 +533,7 @@ export interface RelationEndpointView extends RelationEndpoint {
 }
 
 export interface RelationView {
+  blockingStatus: BlockingRelationStatus | null;
   createdAt: string;
   direction: "incoming" | "outgoing";
   evidenceRole?: RelationEvidenceRole;
@@ -537,6 +548,7 @@ export interface RelationView {
 
 export interface RelationPreview {
   baseRevision: number;
+  blockingStatus: BlockingRelationStatus | null;
   id: string;
   inverseLabel: string;
   kind: RelationKind;
@@ -547,6 +559,7 @@ export interface RelationPreview {
 }
 
 export interface StoredRelationValue extends Record<string, MutationPayload> {
+  blockingStatus: BlockingRelationStatus | null;
   createdAt: string;
   id: string;
   kind: RelationKind;
@@ -565,6 +578,7 @@ export interface StoredRelationValue extends Record<string, MutationPayload> {
  */
 export interface RelationPayloadRelation
   extends Record<string, MutationPayload> {
+  blockingStatus: BlockingRelationStatus | null;
   id: string;
   kind: RelationKind;
   sourceRecordId: string;
