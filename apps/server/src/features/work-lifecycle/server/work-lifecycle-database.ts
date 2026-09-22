@@ -925,6 +925,30 @@ export interface WorkLifecycleProjectDocumentAccess {
   ) => Promise<boolean>;
 }
 
+export interface DatabaseWorkLifecycleWithCustomFieldValues
+  extends WorkLifecycleAccess {
+  createWithCustomFieldValues: (
+    accountId: string,
+    rawInput: Parameters<WorkLifecycleAccess["create"]>[1],
+    customFieldValues: readonly CustomFieldValueFinalization[],
+  ) => Promise<WorkProfile>;
+}
+
+export function createDatabaseWorkLifecycle(
+  database: Database,
+  options: {
+    customFieldValueWriter: CustomFieldValueFinalizationWriter;
+    projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
+  },
+): DatabaseWorkLifecycleWithCustomFieldValues;
+export function createDatabaseWorkLifecycle(
+  database: Database,
+  options?: {
+    customFieldValueWriter?: CustomFieldValueFinalizationWriter;
+    projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
+  },
+): WorkLifecycleAccess;
+
 export function createDatabaseWorkLifecycle(
   database: Database,
   options: {

@@ -2,12 +2,21 @@ import { expect, test } from "@playwright/test";
 import { addDays, format } from "date-fns";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
+const STATUS_FOR_PATTERN = /Status for/;
 
-test("defines, previews, edits, and trashes a Project Work Template", async ({
+test.setTimeout(90_000);
+
+test("manages Work Templates and previews a one-off Duplicate Work before writing", async ({
   context,
   page,
   request,
 }) => {
+  const reactUpdateErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().includes("Maximum update depth")) {
+      reactUpdateErrors.push(message.text());
+    }
+  });
   const setupResponse = await request.get(
     `${E2E_SERVER_URL}/__e2e/setup?fixture=work-templates`,
   );
@@ -147,4 +156,86 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
   await expect(
     host.getByText("Launch preparation", { exact: true }),
   ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  const workCreate = page.locator("#work-create");
+  await workCreate.getByLabel("Title").fill("Prepare one-off launch");
+  await workCreate.getByLabel("Type").selectOption("Improvement");
+  await workCreate
+    .getByLabel("Description")
+    .fill("Keep this source description");
+  await workCreate.getByLabel("Release audience").fill("Founders");
+  const createWorkResponse = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      candidate.url().endsWith("/rpc/finalizeWorkDraft") &&
+      candidate.ok(),
+  );
+  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  await createWorkResponse;
+
+  const workList = page.getByRole("list", { name: "Work list" });
+  const source = workList
+    .getByRole("listitem")
+    .filter({ hasText: "Prepare one-off launch" });
+  await expect(source).toBeVisible({ timeout: 20_000 });
+  await source
+    .getByRole("combobox", { name: STATUS_FOR_PATTERN })
+    .selectOption("In Progress");
+  await expect(
+    source.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
+  ).toHaveValue("In Progress");
+
+  await source.getByRole("button", { name: "Duplicate Work" }).click();
+  await source.getByRole("button", { name: "Preview" }).click();
+  const duplicatePreview = source.getByRole("region", {
+    name: "Duplicate Work preview",
+  });
+  await expect(duplicatePreview).toBeVisible();
+  await expect(duplicatePreview).toContainText("Prepare one-off launch");
+  await expect(duplicatePreview).toContainText("Improvement");
+  await expect(duplicatePreview).toContainText("Keep this source description");
+  await expect(duplicatePreview).toContainText("Release audience");
+  await expect(duplicatePreview).toContainText("Founders");
+  await expect(duplicatePreview).toContainText("Current status");
+  await expect(duplicatePreview).toContainText("Absolute dates");
+  await expect(
+    workList
+      .getByRole("listitem")
+      .filter({ hasText: "Prepare one-off launch" }),
+  ).toHaveCount(1);
+
+  await duplicatePreview
+    .getByRole("button", { name: "Confirm Duplicate" })
+    .click();
+  const copies = workList
+    .getByRole("listitem")
+    .filter({ hasText: "Prepare one-off launch" });
+  await expect(copies).toHaveCount(2);
+  await expect
+    .poll(() =>
+      copies
+        .getByRole("combobox", { name: STATUS_FOR_PATTERN })
+        .evaluateAll((elements) =>
+          elements
+            .map((element) => (element as HTMLSelectElement).value)
+            .sort(),
+        ),
+    )
+    .toEqual(["In Progress", "Not Started"]);
+  await expect
+    .poll(() =>
+      copies
+        .getByLabel("Release audience")
+        .evaluateAll((elements) =>
+          elements.map((element) => (element as HTMLInputElement).value),
+        ),
+    )
+    .toEqual(["Founders", "Founders"]);
+  expect(reactUpdateErrors).toEqual([]);
 });

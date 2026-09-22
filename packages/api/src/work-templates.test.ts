@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import {
   createWorkTemplateInputSchema,
+  duplicateWorkInputSchema,
   resolveWorkTemplateDates,
+  workDuplicatePreviewInputSchema,
   workTemplateSchema,
 } from "./work-templates";
 
@@ -118,5 +120,35 @@ describe("Work Templates contract", () => {
     expect(
       workTemplateSchema.safeParse({ ...output, revision: 0 }).success,
     ).toBe(false);
+  });
+
+  test("requires a preview-backed one-off copy selection without accepting lifecycle fields", () => {
+    expect(
+      workDuplicatePreviewInputSchema.parse({ sourceWorkId: "work-1" }),
+    ).toEqual({ sourceWorkId: "work-1" });
+
+    const command = {
+      baseRevision: 0,
+      clientIdempotencyKey: "duplicate-work-1",
+      previewId: "preview-1",
+      selectedCustomFieldIds: ["field-readiness"],
+      selectedFields: ["title", "type", "description", "checklist"],
+      sourceWorkId: "work-1",
+    } as const;
+    expect(duplicateWorkInputSchema.safeParse(command).success).toBe(true);
+
+    for (const forbidden of [
+      { status: "In Progress" },
+      { targetDate: "2026-10-02" },
+      { closureResult: "Completed" },
+      { relationIds: ["relation-1"] },
+      { planningMemberships: ["Board"] },
+      { templateId: "template-1" },
+    ]) {
+      expect(
+        duplicateWorkInputSchema.safeParse({ ...command, ...forbidden })
+          .success,
+      ).toBe(false);
+    }
   });
 });

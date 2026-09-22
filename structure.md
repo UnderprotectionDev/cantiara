@@ -303,6 +303,8 @@
 │       │   │   │   │   └── use-work-templates.ts
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── work-duplicate-form.test.tsx
+│       │   │   │           ├── work-duplicate-form.tsx
 │       │   │   │           ├── work-template-editor.test.tsx
 │       │   │   │           └── work-template-editor.tsx
 │       │   │   └── workspace-overview/

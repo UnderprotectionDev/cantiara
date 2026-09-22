@@ -144,9 +144,11 @@ import {
 import {
   createWorkTemplateInputSchema,
   createWorkTemplateMutationInputSchema,
+  duplicateWorkInputSchema,
   trashWorkTemplateMutationInputSchema,
   updateWorkTemplateInputSchema,
   updateWorkTemplateMutationInputSchema,
+  workDuplicatePreviewInputSchema,
   workTemplatesInputSchema,
 } from "../work-templates";
 import {
@@ -299,6 +301,8 @@ function rethrowWorkTemplateError(error: unknown): never {
 
   if (
     error.code === "WORK_TEMPLATE_CUSTOM_FIELD_UNAVAILABLE" ||
+    error.code === "WORK_DUPLICATE_CUSTOM_FIELD_UNAVAILABLE" ||
+    error.code === "WORK_DUPLICATE_FIELD_REQUIRED" ||
     error.code === "CUSTOM_FIELD_VALUE_TYPE_MISMATCH" ||
     error.code === "CUSTOM_FIELD_OPTION_INVALID"
   ) {
@@ -309,6 +313,14 @@ function rethrowWorkTemplateError(error: unknown): never {
         typeof error.message === "string"
           ? error.message
           : "The Work Template was rejected.",
+    });
+  }
+
+  if (error.code === "WORK_DUPLICATE_PREVIEW_REQUIRED") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Duplicate Work preview changed. Preview and try again.",
     });
   }
 
@@ -1423,6 +1435,33 @@ export const appRouter = {
         });
       }
       return templates;
+    }),
+  workDuplicatePreview: protectedProcedure
+    .input(workDuplicatePreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireWorkTemplates(context).previewDuplicate(
+        context.session.user.id,
+        input.sourceWorkId,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return preview;
+    }),
+  duplicateWork: protectedProcedure
+    .input(duplicateWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireWorkTemplates(context).duplicate(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
     }),
   createWorkTemplate: protectedProcedure
     .input(createWorkTemplateMutationInputSchema)

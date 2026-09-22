@@ -1,6 +1,8 @@
 import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
+import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import type {
+  WorkDuplicatePreview,
   WorkTemplate,
   WorkTemplatesAccess,
 } from "@cantiara/api/work-templates";
@@ -18,6 +20,50 @@ const template: WorkTemplate = {
   relativeDates: { target: { offsetDays: 10 } },
   revision: 1,
   trashedAt: null,
+  type: "Task",
+  updatedAt: "2026-09-22T09:00:00.000Z",
+};
+
+const duplicatePreview: WorkDuplicatePreview = {
+  customFields: [],
+  fields: [
+    {
+      key: "title",
+      label: "Title",
+      selectedByDefault: true,
+      value: "Prepare launch",
+    },
+  ],
+  previewId: "duplicate-preview-1",
+  sourceWork: {
+    id: "work-1",
+    key: "REL-1",
+    revision: 3,
+    title: "Prepare launch",
+  },
+};
+
+const duplicatedWork: WorkProfile = {
+  archivedAt: null,
+  captureProvenance: null,
+  checklist: [],
+  closureReason: null,
+  closureResult: null,
+  createdAt: "2026-09-22T09:00:00.000Z",
+  description: null,
+  effort: null,
+  featureHealthHistory: [],
+  id: "work-2",
+  key: "REL-2",
+  number: 2,
+  primaryFeatureId: null,
+  primarySpecId: null,
+  projectId: "project-1",
+  recreatedFrom: null,
+  revision: 1,
+  status: "Not Started",
+  targetDate: null,
+  title: "Prepare launch",
   type: "Task",
   updatedAt: "2026-09-22T09:00:00.000Z",
 };
@@ -47,7 +93,9 @@ describe("Work Templates RPC", () => {
   test("defines, edits, lists, and trashes Project Work Templates", async () => {
     const access: WorkTemplatesAccess = {
       create: vi.fn().mockResolvedValue(template),
+      duplicate: vi.fn().mockResolvedValue(duplicatedWork),
       list: vi.fn().mockResolvedValue([template]),
+      previewDuplicate: vi.fn().mockResolvedValue(duplicatePreview),
       trash: vi.fn().mockResolvedValue({
         ...template,
         revision: 3,
@@ -99,6 +147,19 @@ describe("Work Templates RPC", () => {
         templateId: template.id,
       }),
     ).resolves.toMatchObject({ revision: 3, trashedAt: template.updatedAt });
+    await expect(
+      client.workDuplicatePreview({ sourceWorkId: "work-1" }),
+    ).resolves.toEqual(duplicatePreview);
+    await expect(
+      client.duplicateWork({
+        baseRevision: 0,
+        clientIdempotencyKey: "duplicate-work-1",
+        previewId: duplicatePreview.previewId,
+        selectedCustomFieldIds: [],
+        selectedFields: ["title"],
+        sourceWorkId: "work-1",
+      }),
+    ).resolves.toEqual(duplicatedWork);
 
     expect(access.create).toHaveBeenCalledWith("account-1", {
       checklist: template.checklist,
@@ -116,6 +177,11 @@ describe("Work Templates RPC", () => {
       expect.objectContaining({ name: "Launch preparation" }),
     );
     expect(access.trash).toHaveBeenCalledWith("account-1", template.id, 2);
+    expect(access.previewDuplicate).toHaveBeenCalledWith("account-1", "work-1");
+    expect(access.duplicate).toHaveBeenCalledWith(
+      "account-1",
+      expect.objectContaining({ previewId: duplicatePreview.previewId }),
+    );
   });
 
   test("maps Work Template domain errors onto the shared error contract", async () => {
@@ -128,7 +194,14 @@ describe("Work Templates RPC", () => {
           { code: "WORK_TEMPLATE_NAME_CONFLICT" },
         );
       },
+      duplicate: () => {
+        throw Object.assign(
+          new Error("A current Duplicate Work preview is required."),
+          { code: "WORK_DUPLICATE_PREVIEW_REQUIRED" },
+        );
+      },
       list: async () => [template],
+      previewDuplicate: async () => duplicatePreview,
       trash: () => {
         throw Object.assign(
           new Error("Work Template changed after this command started."),
@@ -197,5 +270,16 @@ describe("Work Templates RPC", () => {
       staleErrorCode = (error as { code?: string }).code;
     }
     expect(staleErrorCode).toBe("PRECONDITION_FAILED");
+
+    await expect(
+      client.duplicateWork({
+        baseRevision: 0,
+        clientIdempotencyKey: "stale-duplicate",
+        previewId: duplicatePreview.previewId,
+        selectedCustomFieldIds: [],
+        selectedFields: ["title"],
+        sourceWorkId: "work-1",
+      }),
+    ).rejects.toThrow("Duplicate Work preview changed. Preview and try again.");
   });
 });

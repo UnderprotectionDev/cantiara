@@ -1,22 +1,32 @@
 import type {
+  WorkLifecycleAccess,
+  WorkProfile,
+} from "@cantiara/api/work-lifecycle";
+import type {
+  DuplicateWorkInput,
   ParsedCreateWorkTemplateInput,
+  WorkDuplicatePreview,
   WorkTemplate,
   WorkTemplateCustomFieldValue,
   WorkTemplatesAccess,
 } from "@cantiara/api/work-templates";
 import {
+  duplicateWorkInputSchema,
   updateWorkTemplateInputSchema,
   workTemplateSchema,
 } from "@cantiara/api/work-templates";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import { customFieldDefinition } from "@cantiara/db/schema/custom-fields";
+import {
+  customFieldDefinition,
+  customFieldValue,
+} from "@cantiara/db/schema/custom-fields";
 import { project } from "@cantiara/db/schema/project";
 import { workTemplate } from "@cantiara/db/schema/work-template";
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
-
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
+import type { CustomFieldValueFinalization } from "../../custom-fields/server/custom-fields-mutation-database";
 
 type WorkTemplateRecord = typeof workTemplate.$inferSelect;
 
@@ -59,6 +69,159 @@ export class WorkTemplateStaleRevisionError extends Error {
     super("Work Template changed after this command started.");
     this.name = "WorkTemplateStaleRevisionError";
   }
+}
+
+export class WorkDuplicatePreviewRequiredError extends Error {
+  readonly code = "WORK_DUPLICATE_PREVIEW_REQUIRED" as const;
+
+  constructor() {
+    super(
+      "A current Duplicate Work preview is required before creating the Work.",
+    );
+    this.name = "WorkDuplicatePreviewRequiredError";
+  }
+}
+
+export class WorkDuplicateFieldRequiredError extends Error {
+  readonly code = "WORK_DUPLICATE_FIELD_REQUIRED" as const;
+
+  constructor(field: string) {
+    super(`${field} must be selected to duplicate Work.`);
+    this.name = "WorkDuplicateFieldRequiredError";
+  }
+}
+
+export class WorkDuplicateCustomFieldUnavailableError extends Error {
+  readonly code = "WORK_DUPLICATE_CUSTOM_FIELD_UNAVAILABLE" as const;
+
+  constructor(definitionId: string) {
+    super(`Custom field ${definitionId} is unavailable for Duplicate Work.`);
+    this.name = "WorkDuplicateCustomFieldUnavailableError";
+  }
+}
+
+interface WorkDuplicateLifecycle extends Pick<WorkLifecycleAccess, "find"> {
+  createWithCustomFieldValues: (
+    accountId: string,
+    input: Parameters<WorkLifecycleAccess["create"]>[1],
+    customFieldValues: readonly CustomFieldValueFinalization[],
+  ) => Promise<WorkProfile>;
+}
+
+async function fingerprintDuplicatePreview(value: unknown) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify(value)),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+async function buildDuplicatePreview(
+  database: Database,
+  workLifecycle: WorkDuplicateLifecycle | undefined,
+  accountId: string,
+  sourceWorkId: string,
+): Promise<WorkDuplicatePreview | null> {
+  if (!workLifecycle) {
+    throw new Error("Duplicate Work is unavailable.");
+  }
+  const sourceWork = await workLifecycle.find(accountId, sourceWorkId);
+  if (!sourceWork) {
+    return null;
+  }
+  const valueRows = await database
+    .select({ definition: customFieldDefinition, value: customFieldValue })
+    .from(customFieldValue)
+    .innerJoin(
+      customFieldDefinition,
+      eq(customFieldValue.definitionId, customFieldDefinition.id),
+    )
+    .where(
+      and(
+        eq(customFieldValue.recordId, sourceWork.id),
+        eq(customFieldValue.recordType, "Work"),
+        eq(customFieldDefinition.projectId, sourceWork.projectId),
+        isNull(customFieldDefinition.trashedAt),
+        ne(customFieldDefinition.type, "Date"),
+      ),
+    )
+    .orderBy(asc(customFieldDefinition.name), asc(customFieldDefinition.id));
+  const customFields = valueRows
+    .filter((row) => row.definition.recordTypes.includes("Work"))
+    .map((row) => ({
+      definitionId: row.definition.id,
+      label: row.definition.name,
+      selectedByDefault: true as const,
+      type: row.definition
+        .type as WorkDuplicatePreview["customFields"][number]["type"],
+      value: row.value.value,
+    }));
+  const fields: WorkDuplicatePreview["fields"] = [
+    {
+      key: "title",
+      label: "Title",
+      selectedByDefault: true,
+      value: sourceWork.title,
+    },
+    {
+      key: "type",
+      label: "Type",
+      selectedByDefault: true,
+      value: sourceWork.type,
+    },
+    {
+      key: "description",
+      label: "Description",
+      selectedByDefault: sourceWork.description !== null,
+      value: sourceWork.description,
+    },
+    {
+      key: "checklist",
+      label: "Checklist",
+      selectedByDefault: sourceWork.checklist.length > 0,
+      value: sourceWork.checklist,
+    },
+  ];
+  const source = {
+    id: sourceWork.id,
+    key: sourceWork.key,
+    revision: sourceWork.revision,
+    title: sourceWork.title,
+  };
+  return {
+    customFields,
+    fields,
+    previewId: await fingerprintDuplicatePreview({
+      customFields,
+      fields,
+      sourceWork: source,
+    }),
+    sourceWork: source,
+  };
+}
+
+function selectedDuplicateCustomFields(
+  input: DuplicateWorkInput,
+  preview: WorkDuplicatePreview,
+) {
+  if (!input.selectedFields.includes("title")) {
+    throw new WorkDuplicateFieldRequiredError("Title");
+  }
+  const customFieldsById = new Map(
+    preview.customFields.map((field) => [field.definitionId, field]),
+  );
+  const selectedCustomFields = [...new Set(input.selectedCustomFieldIds)].map(
+    (definitionId) => {
+      const field = customFieldsById.get(definitionId);
+      if (!field) {
+        throw new WorkDuplicateCustomFieldUnavailableError(definitionId);
+      }
+      return field;
+    },
+  );
+  return selectedCustomFields;
 }
 
 function isUniqueNameViolation(error: unknown) {
@@ -170,7 +333,9 @@ async function ownedTemplate(
 
 export function createDatabaseWorkTemplates(
   database: Database,
+  options: { workLifecycle?: WorkDuplicateLifecycle } = {},
 ): WorkTemplatesAccess {
+  const { workLifecycle } = options;
   return {
     async create(accountId, rawInput) {
       const input: ParsedCreateWorkTemplateInput = rawInput;
@@ -220,6 +385,66 @@ export function createDatabaseWorkTemplates(
         )
         .orderBy(asc(workTemplate.createdAt), asc(workTemplate.nameKey));
       return records.map(toWorkTemplate);
+    },
+
+    previewDuplicate(accountId, sourceWorkId) {
+      return buildDuplicatePreview(
+        database,
+        workLifecycle,
+        accountId,
+        sourceWorkId,
+      );
+    },
+
+    async duplicate(accountId, rawInput: DuplicateWorkInput) {
+      if (!workLifecycle) {
+        throw new Error("Duplicate Work is unavailable.");
+      }
+      const input = duplicateWorkInputSchema.parse(rawInput);
+      const preview = await buildDuplicatePreview(
+        database,
+        workLifecycle,
+        accountId,
+        input.sourceWorkId,
+      );
+      if (!preview || preview.previewId !== input.previewId) {
+        throw new WorkDuplicatePreviewRequiredError();
+      }
+      const sourceWork = await workLifecycle.find(
+        accountId,
+        input.sourceWorkId,
+      );
+      if (!sourceWork || sourceWork.revision !== preview.sourceWork.revision) {
+        throw new WorkDuplicatePreviewRequiredError();
+      }
+      const selectedCustomFields = selectedDuplicateCustomFields(
+        input,
+        preview,
+      );
+      const selectedFields = new Set(input.selectedFields);
+      return workLifecycle.createWithCustomFieldValues(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          checklist: selectedFields.has("checklist")
+            ? sourceWork.checklist.map((item) => ({
+                ...item,
+                id: crypto.randomUUID(),
+              }))
+            : [],
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          description: selectedFields.has("description")
+            ? sourceWork.description
+            : null,
+          projectId: sourceWork.projectId,
+          title: sourceWork.title,
+          type: selectedFields.has("type") ? sourceWork.type : "Task",
+        },
+        selectedCustomFields.map((field) => ({
+          definitionId: field.definitionId,
+          payload: field.value,
+        })),
+      );
     },
 
     async trash(accountId, templateId, baseRevision) {

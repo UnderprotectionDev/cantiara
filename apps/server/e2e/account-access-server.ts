@@ -82,7 +82,7 @@ const customFieldMutationContracts =
 const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
-const workTemplates = createDatabaseWorkTemplates(database);
+const workTemplates = createDatabaseWorkTemplates(database, { workLifecycle });
 const relations = createDatabaseRelations(database);
 const workContext = createWorkContextAccess(workLifecycle, relations);
 const captureInbox = createDatabaseCaptureInbox(

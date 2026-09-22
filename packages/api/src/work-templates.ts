@@ -1,9 +1,19 @@
 import { addDays, format, isValid, parseISO } from "date-fns";
 import { z } from "zod";
 
-import { customFieldOptionsSchema } from "./custom-fields";
+import {
+  type CustomFieldType,
+  customFieldOptionsSchema,
+  type ParsedCustomFieldValuePayload,
+} from "./custom-fields";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
-import { workDescriptionSchema, workTypeSchema } from "./work-lifecycle";
+import {
+  type WorkChecklistItem,
+  type WorkProfile,
+  type WorkType,
+  workDescriptionSchema,
+  workTypeSchema,
+} from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 const calendarDateSchema = z
@@ -153,6 +163,52 @@ export const workTemplatesInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
 
+export const WORK_DUPLICATE_FIELD_OPTIONS = [
+  "title",
+  "type",
+  "description",
+  "checklist",
+] as const;
+
+export type WorkDuplicateField = (typeof WORK_DUPLICATE_FIELD_OPTIONS)[number];
+
+export const workDuplicatePreviewInputSchema = z
+  .object({ sourceWorkId: identifierSchema })
+  .strict();
+
+export const duplicateWorkInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    previewId: identifierSchema,
+    selectedCustomFieldIds: z.array(identifierSchema).max(100),
+    selectedFields: z.array(z.enum(WORK_DUPLICATE_FIELD_OPTIONS)),
+    sourceWorkId: identifierSchema,
+  })
+  .strict();
+
+export type DuplicateWorkInput = z.input<typeof duplicateWorkInputSchema>;
+
+export interface WorkDuplicateFieldPreview {
+  key: WorkDuplicateField;
+  label: "Title" | "Type" | "Description" | "Checklist";
+  selectedByDefault: boolean;
+  value: WorkChecklistItem[] | WorkType | string | null;
+}
+
+export interface WorkDuplicateCustomFieldPreview {
+  definitionId: string;
+  label: string;
+  selectedByDefault: true;
+  type: Exclude<CustomFieldType, "Date">;
+  value: ParsedCustomFieldValuePayload;
+}
+
+export interface WorkDuplicatePreview {
+  customFields: WorkDuplicateCustomFieldPreview[];
+  fields: WorkDuplicateFieldPreview[];
+  previewId: string;
+  sourceWork: Pick<WorkProfile, "id" | "key" | "revision" | "title">;
+}
+
 export const workTemplateSchema = workTemplateDefinitionFieldsSchema
   .extend({
     createdAt: z.string().datetime({ offset: true }),
@@ -193,10 +249,18 @@ export interface WorkTemplatesAccess {
     accountId: string,
     input: ParsedCreateWorkTemplateInput,
   ) => Promise<WorkTemplate>;
+  duplicate: (
+    accountId: string,
+    input: DuplicateWorkInput,
+  ) => Promise<WorkProfile>;
   list: (
     accountId: string,
     projectId: string,
   ) => Promise<WorkTemplate[] | null>;
+  previewDuplicate: (
+    accountId: string,
+    sourceWorkId: string,
+  ) => Promise<WorkDuplicatePreview | null>;
   trash: (
     accountId: string,
     templateId: string,
