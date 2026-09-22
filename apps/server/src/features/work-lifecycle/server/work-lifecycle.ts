@@ -22,6 +22,7 @@ import {
   type ScopeTreeWork,
   undoWorkMergeInputSchema,
   updateFeaturePrimarySpecInputSchema,
+  updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   type WorkClosePreview,
@@ -1990,6 +1991,26 @@ export function createWorkLifecycle({
         throw new WorkNotFoundError(input.workId);
       }
       return receipt.nextValue.work;
+    },
+
+    updateChecklist(accountId, rawInput) {
+      const input = updateWorkChecklistInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            checklist: input.checklist,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        (work, payload) => ({
+          ...work,
+          checklist: payload.checklist,
+        }),
+      );
     },
 
     unarchive(accountId, input) {

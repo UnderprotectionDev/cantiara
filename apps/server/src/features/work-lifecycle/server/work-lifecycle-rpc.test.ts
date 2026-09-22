@@ -64,6 +64,7 @@ function createWorkLifecycleStub(
     replayBindOriginPosition: vi.fn(),
     reopen: vi.fn(),
     updateFeaturePrimarySpec: vi.fn(),
+    updateChecklist: vi.fn(),
     updateStatus: vi.fn(),
     updateType: vi.fn(),
     unarchive: vi.fn(),
@@ -185,6 +186,12 @@ describe("Work Lifecycle RPC", () => {
     });
     const resolve = vi.fn().mockResolvedValue({ kind: "Active", work });
     const undoMerge = vi.fn().mockResolvedValue(work);
+    const updateChecklist = vi.fn().mockResolvedValue({
+      ...work,
+      checklist: [
+        { completed: false, id: "checklist-item-1", text: "Draft copy" },
+      ],
+    });
     const workLifecycle = createWorkLifecycleStub({
       archive,
       close,
@@ -227,6 +234,7 @@ describe("Work Lifecycle RPC", () => {
       recreate,
       resolve,
       updateFeaturePrimarySpec: vi.fn().mockResolvedValue(work),
+      updateChecklist,
       reopen,
       updateStatus,
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
@@ -413,6 +421,28 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
     ).resolves.toMatchObject({ status: "In Progress" });
+    await expect(
+      client.updateWorkChecklist({
+        baseRevision: work.revision,
+        checklist: [
+          { completed: false, id: "checklist-item-1", text: "Draft copy" },
+        ],
+        clientIdempotencyKey: "work-checklist-1",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({
+      checklist: [
+        { completed: false, id: "checklist-item-1", text: "Draft copy" },
+      ],
+    });
+    expect(updateChecklist).toHaveBeenCalledWith("account-1", {
+      baseRevision: work.revision,
+      checklist: [
+        { completed: false, id: "checklist-item-1", text: "Draft copy" },
+      ],
+      clientIdempotencyKey: "work-checklist-1",
+      workId: work.id,
+    });
     await expect(
       client.workClosePreview({ workId: work.id }),
     ).resolves.toMatchObject({ workId: work.id });

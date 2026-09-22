@@ -128,14 +128,19 @@ export default function WorkContextCard({
       }),
     [contextModel, sourceLink, statusLabel, work],
   );
+  const registerCommand = commandPalette?.registerCommand;
   useEffect(() => {
-    if (!commandPalette || relationsQuery.isPending || relationsQuery.isError) {
+    if (
+      !registerCommand ||
+      relationsQuery.isPending ||
+      relationsQuery.isError
+    ) {
       return;
     }
-    return commandPalette.registerCommand(copyCommand);
+    return registerCommand(copyCommand);
   }, [
-    commandPalette,
     copyCommand,
+    registerCommand,
     relationsQuery.isError,
     relationsQuery.isPending,
   ]);
