@@ -241,6 +241,7 @@
 │       │   │   │           └── projects-view.tsx
 │       │   │   ├── web-macos-client/
 │       │   │   │   ├── hooks/
+│       │   │   │   │   ├── use-health-check.ts
 │       │   │   │   │   └── use-client-shell.ts
 │       │   │   │   ├── lib/
 │       │   │   │   │   ├── client-shell-format.ts
