@@ -1,6 +1,7 @@
-import type {
-  MutationPayload,
-  MutationTarget,
+import {
+  fingerprintMutationPayload,
+  type MutationPayload,
+  type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
   featureHealthUpdateSchema,
@@ -59,6 +60,26 @@ type WorkDatabaseRecord = typeof work.$inferSelect;
 type WorkKeyAllocationRecord = typeof workKeyAllocation.$inferSelect;
 type WorkRetiredIdentityRecord = typeof workRetiredIdentity.$inferSelect;
 
+export interface WorkCreationFinalizationOptions {
+  idempotencyPayload?: MutationPayload;
+  validateFinalization?: (executor: MutationDatabaseExecutor) => Promise<void>;
+}
+
+export interface DatabaseWorkLifecycleAccess extends WorkLifecycleAccess {
+  createWithCustomFieldValues?: (
+    accountId: string,
+    input: Parameters<WorkLifecycleAccess["create"]>[1],
+    values: readonly CustomFieldValueFinalization[],
+    options?: WorkCreationFinalizationOptions,
+  ) => Promise<WorkProfile>;
+  findCreatedByIdempotencyKey: (
+    accountId: string,
+    projectId: string,
+    clientIdempotencyKey: string,
+    idempotencyPayload: MutationPayload,
+  ) => Promise<WorkProfile | null>;
+}
+
 function originRecordValues(originPosition?: WorkOriginPosition) {
   return {
     originComponentId: originPosition?.componentId ?? null,
@@ -100,6 +121,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     ...(originPosition ? { originPosition } : {}),
     primaryFeatureId: record.primaryFeatureId,
     primarySpecId: record.primarySpecId,
+    plannedStartDate: record.plannedStartDate,
     projectId: record.projectId,
     recreatedFrom:
       record.recreatedFromWorkId && record.recreatedFromWorkKey
@@ -282,6 +304,7 @@ function createWorkMutationTarget(
   relations: WorkRelationsMutationAdapter,
   customFieldValueWriter?: CustomFieldValueFinalizationWriter,
   customFieldValues: readonly CustomFieldValueFinalization[] = [],
+  validateFinalization?: (executor: MutationDatabaseExecutor) => Promise<void>,
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     find: async (_executor, targetId) => emptyWorkTarget(targetId),
@@ -292,6 +315,8 @@ function createWorkMutationTarget(
       if (!nextWork) {
         return null;
       }
+
+      await validateFinalization?.(executor);
 
       const ownedProject = await findOwnedProject(
         executor,
@@ -350,6 +375,7 @@ function createWorkMutationTarget(
           ...originRecordValues(nextWork.originPosition),
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
+          plannedStartDate: nextWork.plannedStartDate,
           projectId: nextWork.projectId,
           recreatedFromWorkId: nextWork.recreatedFrom?.id,
           recreatedFromWorkKey: nextWork.recreatedFrom?.key,
@@ -480,6 +506,7 @@ function workRecordValues(
     ...originRecordValues(nextWork.originPosition),
     primaryFeatureId: nextWork.primaryFeatureId,
     primarySpecId: nextWork.primarySpecId,
+    plannedStartDate: nextWork.plannedStartDate,
     projectId: nextWork.projectId,
     recreatedFromWorkId: nextWork.recreatedFrom?.id,
     recreatedFromWorkKey: nextWork.recreatedFrom?.key,
@@ -1076,7 +1103,7 @@ export function createDatabaseWorkLifecycle(
     customFieldValueWriter?: CustomFieldValueFinalizationWriter;
     projectDocumentAccess?: WorkLifecycleProjectDocumentAccess;
   } = {},
-) {
+): DatabaseWorkLifecycleAccess {
   const relations = createDatabaseWorkRelations(database);
   const { customFieldValueWriter, projectDocumentAccess } = options;
   const store: WorkLifecycleStore = {
@@ -1448,16 +1475,40 @@ export function createDatabaseWorkLifecycle(
     store,
   });
 
+  async function findCreatedByIdempotencyKey(
+    accountId: string,
+    projectId: string,
+    clientIdempotencyKey: string,
+    idempotencyPayload: MutationPayload,
+  ) {
+    const existing = await store.findByClientIdempotencyKey(
+      accountId,
+      projectId,
+      clientIdempotencyKey,
+    );
+    if (!existing) {
+      return null;
+    }
+    const expectedFingerprint =
+      await fingerprintMutationPayload(idempotencyPayload);
+    if (existing.payloadFingerprint !== expectedFingerprint) {
+      throw new WorkCreationConflictError();
+    }
+    return existing.work;
+  }
+
   if (!customFieldValueWriter) {
-    return lifecycle;
+    return { ...lifecycle, findCreatedByIdempotencyKey };
   }
 
   return {
     ...lifecycle,
+    findCreatedByIdempotencyKey,
     createWithCustomFieldValues(
       accountId: string,
       rawInput: Parameters<WorkLifecycleAccess["create"]>[1],
       customFieldValues: readonly CustomFieldValueFinalization[],
+      finalizationOptions: WorkCreationFinalizationOptions = {},
     ) {
       const orderedCustomFieldValues = [...customFieldValues].sort(
         (left, right) => left.definitionId.localeCompare(right.definitionId),
@@ -1469,6 +1520,7 @@ export function createDatabaseWorkLifecycle(
             relations,
             customFieldValueWriter,
             orderedCustomFieldValues,
+            finalizationOptions.validateFinalization,
           ),
         });
       return createWork(
@@ -1479,6 +1531,7 @@ export function createDatabaseWorkLifecycle(
         undefined,
         mutation,
         { customFieldValues: orderedCustomFieldValues },
+        finalizationOptions.idempotencyPayload,
       );
     },
   };

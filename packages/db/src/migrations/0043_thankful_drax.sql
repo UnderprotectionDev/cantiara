@@ -1,0 +1,2 @@
+ALTER TABLE "work" ADD COLUMN "planned_start_date" date;--> statement-breakpoint
+ALTER TABLE "work" ADD CONSTRAINT "work_planned_start_date_check" CHECK ("work"."planned_start_date" is null or "work"."planned_start_date"::text ~ '^\d{4}-\d{2}-\d{2}$');

@@ -100,6 +100,12 @@ export const workTargetDateSchema = z
   .nullable()
   .optional();
 
+export const workPlannedStartDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Planned start date must use YYYY-MM-DD.")
+  .nullable()
+  .optional();
+
 export const workEffortSchema = z
   .string()
   .trim()
@@ -192,6 +198,7 @@ const createWorkInputObjectSchema = z
     description: workDescriptionSchema.optional(),
     originPosition: workOriginPositionSchema.optional(),
     effort: workEffortSchema,
+    plannedStartDate: workPlannedStartDateSchema,
     projectId: identifierSchema,
     targetDate: workTargetDateSchema,
     title: workTitleSchema,
@@ -652,6 +659,7 @@ export interface WorkProfile {
   key: string;
   number: number;
   originPosition?: WorkOriginPosition;
+  plannedStartDate?: string | null;
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;

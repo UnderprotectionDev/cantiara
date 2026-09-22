@@ -2,11 +2,60 @@ import { describe, expect, test } from "vitest";
 
 import {
   createWorkTemplateInputSchema,
+  duplicateWorkMutationInputSchema,
+  instantiateWorkTemplateMutationInputSchema,
+  previewDuplicateWorkInputSchema,
   resolveWorkTemplateDates,
   workTemplateSchema,
 } from "./work-templates";
 
 describe("Work Templates contract", () => {
+  test("accepts only the command data needed to create independent Work", () => {
+    const command = {
+      baseRevision: 3,
+      clientIdempotencyKey: "instantiate-release-1",
+      createDate: "2026-09-22",
+      templateId: "template-1",
+      title: "Prepare the October release",
+    };
+
+    expect(instantiateWorkTemplateMutationInputSchema.parse(command)).toEqual(
+      command,
+    );
+    expect(
+      instantiateWorkTemplateMutationInputSchema.safeParse({
+        ...command,
+        status: "Closed",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("accepts only the start-context selection needed for a one-off copy", () => {
+    const command = {
+      baseRevision: 2,
+      clientIdempotencyKey: "duplicate-work-1",
+      customFieldDefinitionIds: ["field-1"],
+      sourceWorkId: "work-1",
+    };
+
+    expect(duplicateWorkMutationInputSchema.parse(command)).toEqual(command);
+    expect(
+      duplicateWorkMutationInputSchema.safeParse({
+        ...command,
+        targetDate: "2026-10-02",
+      }).success,
+    ).toBe(false);
+    expect(
+      duplicateWorkMutationInputSchema.safeParse({
+        clientIdempotencyKey: "duplicate-work-1",
+        sourceWorkId: "work-1",
+      }).success,
+    ).toBe(false);
+    expect(
+      previewDuplicateWorkInputSchema.parse({ sourceWorkId: "work-1" }),
+    ).toEqual({ sourceWorkId: "work-1" });
+  });
+
   test("defines reusable Project start context and resolves relative dates from the Work creation day", () => {
     const definition = createWorkTemplateInputSchema.parse({
       checklist: [{ id: "check-release-notes", text: "Draft release notes" }],

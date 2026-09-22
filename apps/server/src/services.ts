@@ -85,7 +85,7 @@ export const customFieldMutationContracts =
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
-export const workTemplates = createDatabaseWorkTemplates(db);
+export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
 export const workContext = createWorkContextAccess(workLifecycle, relations);
 export const workDrafts = createDatabaseWorkDrafts(
   db,

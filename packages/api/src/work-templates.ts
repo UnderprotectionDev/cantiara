@@ -3,7 +3,13 @@ import { z } from "zod";
 
 import { customFieldOptionsSchema } from "./custom-fields";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
-import { workDescriptionSchema, workTypeSchema } from "./work-lifecycle";
+import {
+  type WorkProfile,
+  type WorkType,
+  workDescriptionSchema,
+  workTitleSchema,
+  workTypeSchema,
+} from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 const calendarDateSchema = z
@@ -149,6 +155,53 @@ export const updateWorkTemplateMutationInputSchema =
 export const trashWorkTemplateMutationInputSchema =
   humanMutationEnvelopeSchema.extend({ templateId: identifierSchema });
 
+export const instantiateWorkTemplateMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend({
+      createDate: calendarDateSchema,
+      templateId: identifierSchema,
+      title: workTitleSchema,
+    })
+    .strict();
+
+export type InstantiateWorkTemplateInput = z.input<
+  typeof instantiateWorkTemplateMutationInputSchema
+>;
+
+export const previewDuplicateWorkInputSchema = z
+  .object({ sourceWorkId: identifierSchema })
+  .strict();
+
+export const duplicateWorkMutationInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    customFieldDefinitionIds: z.array(identifierSchema).max(100),
+    sourceWorkId: identifierSchema,
+  })
+  .strict();
+
+export type DuplicateWorkInput = z.input<
+  typeof duplicateWorkMutationInputSchema
+>;
+export type ParsedDuplicateWorkInput = z.output<
+  typeof duplicateWorkMutationInputSchema
+>;
+
+export interface DuplicateWorkPreviewCustomField {
+  definitionId: string;
+  name: string;
+  value: WorkTemplateCustomFieldValue;
+}
+
+export interface DuplicateWorkPreview {
+  checklist: { id: string; text: string }[];
+  customFields: DuplicateWorkPreviewCustomField[];
+  description: string | null;
+  sourceRevision: number;
+  sourceWorkId: string;
+  title: string;
+  type: WorkType;
+}
+
 export const workTemplatesInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
@@ -193,10 +246,22 @@ export interface WorkTemplatesAccess {
     accountId: string,
     input: ParsedCreateWorkTemplateInput,
   ) => Promise<WorkTemplate>;
+  duplicate: (
+    accountId: string,
+    input: ParsedDuplicateWorkInput,
+  ) => Promise<WorkProfile | null>;
+  instantiate: (
+    accountId: string,
+    input: InstantiateWorkTemplateInput,
+  ) => Promise<WorkProfile | null>;
   list: (
     accountId: string,
     projectId: string,
   ) => Promise<WorkTemplate[] | null>;
+  previewDuplicate: (
+    accountId: string,
+    sourceWorkId: string,
+  ) => Promise<DuplicateWorkPreview | null>;
   trash: (
     accountId: string,
     templateId: string,

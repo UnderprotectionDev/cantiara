@@ -27,6 +27,7 @@ import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
+import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
@@ -256,6 +257,7 @@ export default function ProjectWorkList({
                 </div>
                 <div className="flex basis-full flex-wrap items-center gap-2 border-border/70 border-t pt-3 sm:basis-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
                   <WorkArchiveAction work={work} />
+                  <WorkDuplicateAction work={work} />
                   <WorkMergeForm
                     candidates={query.data.filter(
                       (candidate) => candidate.id !== work.id,
