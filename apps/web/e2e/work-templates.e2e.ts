@@ -96,11 +96,40 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
 
   await item.getByRole("button", { name: "Edit" }).click();
   const editForm = host.getByRole("form", { name: "Edit Work Template" });
+  await expect(editForm.getByLabel("Name")).toHaveValue("Release preparation");
+  await expect(editForm.getByLabel("Description skeleton")).toHaveValue(
+    "## Outcome\n\n## Notes",
+  );
+  await expect(editForm.getByLabel("Checklist")).toHaveValue(
+    "Draft release notes\nReview copy",
+  );
+  await expect(
+    editForm.getByRole("checkbox", { name: "Release audience" }),
+  ).toBeChecked();
+  await expect(editForm.getByLabel("Release audience default")).toHaveValue(
+    "Founders",
+  );
+  await expect(
+    editForm.getByLabel("Planned start days from creation"),
+  ).toHaveValue("2");
+  await expect(editForm.getByLabel("Target days from creation")).toHaveValue(
+    "10",
+  );
   await editForm.getByLabel("Name").fill("Launch preparation");
   await editForm.getByRole("button", { name: "Save changes" }).click();
   await expect(
     host.getByText("Launch preparation", { exact: true }),
   ).toBeVisible();
+  const updatedItem = host
+    .getByRole("list", { name: "Work Templates" })
+    .getByRole("listitem")
+    .filter({ hasText: "Launch preparation" });
+  await expect(updatedItem).toContainText("2 checklist items");
+  await expect(updatedItem).toContainText("Release audience");
+  await expect(
+    updatedItem.getByText("Planned start", { exact: true }),
+  ).toBeVisible();
+  await expect(updatedItem.getByText("Target", { exact: true })).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "Configuration Mode" }).click();

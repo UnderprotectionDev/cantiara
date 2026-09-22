@@ -196,8 +196,12 @@ export default function WorkTemplateEditor({
     templates.create.isPending ||
     templates.update.isPending ||
     templates.moveToTrash.isPending;
+  const defaultValues = useMemo(
+    () => (editing ? draftFromTemplate(editing) : EMPTY_DRAFT),
+    [editing],
+  );
   const form = useForm({
-    defaultValues: EMPTY_DRAFT,
+    defaultValues,
     onSubmit: ({ value }) => submitDraft(value),
   });
 
