@@ -8,6 +8,8 @@ import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
 import {
+  WorkChecklistConvertPreviewRequiredError,
+  WorkChecklistItemTitleTooLongError,
   WorkClosureResultRequiredError,
   WorkFeatureExitBlockedError,
   WorkInclusionConflictError,
@@ -47,6 +49,7 @@ function createWorkLifecycleStub(
     archive: vi.fn(),
     bindOriginPosition: vi.fn(),
     close: vi.fn(),
+    convertChecklistItem: vi.fn(),
     create: vi.fn(),
     detachFeatureHealthHistory: vi.fn(),
     detachIncludedWork: vi.fn(),
@@ -57,6 +60,7 @@ function createWorkLifecycleStub(
     scopeTree: vi.fn(),
     merge: vi.fn(),
     previewClose: vi.fn(),
+    previewChecklistConversion: vi.fn(),
     previewMerge: vi.fn(),
     previewRecreate: vi.fn(),
     previewTypeChange: vi.fn(),
@@ -192,6 +196,52 @@ describe("Work Lifecycle RPC", () => {
         { completed: false, id: "checklist-item-1", text: "Draft copy" },
       ],
     });
+    const checklistConversionPreview = {
+      item: { id: "checklist-item-1", text: "Draft copy" },
+      newWork: {
+        projectId: work.projectId,
+        status: "Not Started" as const,
+        title: "Draft copy",
+        type: "Task" as const,
+      },
+      originPosition: {
+        componentId: "checklist-item-1",
+        ownerRecordId: work.id,
+        sourceVersion: String(work.revision),
+      },
+      previewId: "work-checklist-convert:preview-1",
+      sourceWork: {
+        id: work.id,
+        key: work.key,
+        revision: work.revision,
+        title: work.title,
+      },
+      targetProject: { id: work.projectId, name: "Payment App" },
+    };
+    const convertChecklistItem = vi.fn().mockResolvedValue({
+      sourceWork: {
+        ...work,
+        checklist: [
+          {
+            completed: true,
+            convertedWork: {
+              id: "work-2",
+              key: "CANT-2",
+              title: "Draft copy",
+            },
+            id: "checklist-item-1",
+            text: "Draft copy",
+          },
+        ],
+      },
+      work: {
+        ...work,
+        id: "work-2",
+        key: "CANT-2",
+        originPosition: checklistConversionPreview.originPosition,
+        title: "Draft copy",
+      },
+    });
     const workLifecycle = createWorkLifecycleStub({
       archive,
       close,
@@ -220,6 +270,9 @@ describe("Work Lifecycle RPC", () => {
         lastingContext: null,
         workId: work.id,
       }),
+      previewChecklistConversion: vi
+        .fn()
+        .mockResolvedValue(checklistConversionPreview),
       previewRecreate,
       previewMerge,
       previewTypeChange: vi.fn().mockResolvedValue({
@@ -235,6 +288,7 @@ describe("Work Lifecycle RPC", () => {
       resolve,
       updateFeaturePrimarySpec: vi.fn().mockResolvedValue(work),
       updateChecklist,
+      convertChecklistItem,
       reopen,
       updateStatus,
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
@@ -435,6 +489,48 @@ describe("Work Lifecycle RPC", () => {
         { completed: false, id: "checklist-item-1", text: "Draft copy" },
       ],
     });
+    await expect(
+      client.workChecklistConversionPreview({
+        itemId: "checklist-item-1",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({
+      newWork: { status: "Not Started", title: "Draft copy" },
+      previewId: "work-checklist-convert:preview-1",
+    });
+    await expect(
+      client.convertWorkChecklistItem({
+        baseRevision: work.revision,
+        clientIdempotencyKey: "work-checklist-convert-1",
+        itemId: "checklist-item-1",
+        previewId: "work-checklist-convert:preview-1",
+        workId: work.id,
+      }),
+    ).resolves.toMatchObject({
+      sourceWork: {
+        checklist: [
+          {
+            convertedWork: { id: "work-2", key: "CANT-2" },
+            id: "checklist-item-1",
+          },
+        ],
+      },
+      work: { id: "work-2", key: "CANT-2" },
+    });
+    expect(workLifecycle.previewChecklistConversion).toHaveBeenCalledWith(
+      "account-1",
+      {
+        itemId: "checklist-item-1",
+        workId: work.id,
+      },
+    );
+    expect(convertChecklistItem).toHaveBeenCalledWith("account-1", {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "work-checklist-convert-1",
+      itemId: "checklist-item-1",
+      previewId: "work-checklist-convert:preview-1",
+      workId: work.id,
+    });
     expect(updateChecklist).toHaveBeenCalledWith("account-1", {
       baseRevision: work.revision,
       checklist: [
@@ -553,6 +649,53 @@ describe("Work Lifecycle RPC", () => {
         previewId: "work-type-impact-work-1-1-Task-Feature",
       },
       status: 412,
+    });
+  });
+
+  test("maps a stale checklist conversion preview to a precondition response", async () => {
+    const workLifecycle = createWorkLifecycleStub({
+      convertChecklistItem: vi
+        .fn()
+        .mockRejectedValue(new WorkChecklistConvertPreviewRequiredError()),
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.convertWorkChecklistItem({
+        baseRevision: 1,
+        clientIdempotencyKey: "stale-checklist-convert",
+        itemId: "checklist-item-1",
+        previewId: "work-checklist-convert:stale",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: { code: "WORK_CHECKLIST_CONVERT_PREVIEW_REQUIRED" },
+      status: 412,
+    });
+  });
+
+  test("maps an over-long checklist item title to a bad-request response", async () => {
+    const workLifecycle = createWorkLifecycleStub({
+      previewChecklistConversion: vi
+        .fn()
+        .mockRejectedValue(new WorkChecklistItemTitleTooLongError()),
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(workLifecycle),
+    });
+
+    await expect(
+      client.workChecklistConversionPreview({
+        itemId: "checklist-item-1",
+        workId: work.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      data: { code: "WORK_CHECKLIST_ITEM_TITLE_TOO_LONG" },
+      status: 400,
     });
   });
 

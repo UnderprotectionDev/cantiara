@@ -12,7 +12,7 @@ import {
   type WorkChecklistItem,
   type WorkProfile,
   type WorkType,
-  workChecklistSchema,
+  workChecklistInputSchema,
   workDescriptionSchema,
   workTypeSchema,
 } from "./work-lifecycle";
@@ -53,7 +53,7 @@ export interface WorkDraftCustomFieldValue {
 
 const workDraftFormObjectSchema = z
   .object({
-    checklist: workChecklistSchema.default([]),
+    checklist: workChecklistInputSchema.default([]),
     customFieldValues: workDraftCustomFieldValuesSchema.default([]),
     description: workDescriptionSchema.default(null),
     projectId: identifierSchema,

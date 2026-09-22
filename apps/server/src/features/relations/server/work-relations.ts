@@ -75,6 +75,12 @@ export interface WorkRelations {
 }
 
 export interface WorkRelationsMutationAdapter extends WorkRelations {
+  persistChecklistConversion: (
+    executor: MutationDatabaseExecutor,
+    committedAt: Date,
+    sourceWork: Pick<WorkRelationSource, "id" | "key" | "projectId">,
+    createdWork: Pick<WorkRelationSource, "id" | "key" | "projectId">,
+  ) => Promise<void>;
   persistMergedInclusions?: (
     executor: MutationDatabaseExecutor,
     committedAt: Date,
@@ -204,6 +210,23 @@ export function createDatabaseWorkRelations(
   database: Database,
 ): WorkRelationsMutationAdapter {
   return {
+    async persistChecklistConversion(
+      executor,
+      committedAt,
+      sourceWork,
+      createdWork,
+    ) {
+      await executor.insert(workRelation).values({
+        createdAt: committedAt,
+        id: crypto.randomUUID(),
+        kind: "Origin",
+        sourceWorkId: sourceWork.id,
+        targetLabel: createdWork.key,
+        targetProjectId: createdWork.projectId,
+        targetRecordId: createdWork.id,
+      });
+    },
+
     async listMergeInclusions(accountId, _survivingWorkId, duplicateWorkId) {
       const workspaceId = await findOwnedWorkspaceId(database, accountId);
       if (!workspaceId) {
