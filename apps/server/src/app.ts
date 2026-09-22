@@ -34,6 +34,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
+import type { RecordActionsAccess } from "@cantiara/api/record-actions";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -129,6 +130,7 @@ export interface AppDependencies {
   nodeEnv: string;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  recordActions?: RecordActionsAccess;
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
   tagMutationContracts?: TagMutationContracts;
@@ -1096,6 +1098,7 @@ export function createApp(dependencies: AppDependencies) {
       mutationContract: dependencies.mutationContract,
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
+      recordActions: dependencies.recordActions,
       tagMutationContracts: dependencies.tagMutationContracts,
       tags: dependencies.tags,
       relations: dependencies.relations,

@@ -40,6 +40,7 @@ import { createFileAttachmentObjectStore } from "./features/file-attachments/ser
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
 import { createDatabaseRelations } from "./features/relations/server/relations";
 import {
   createDatabaseUsageLinkMutationContracts,
@@ -86,6 +87,7 @@ export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
+export const recordActions = createDatabaseRecordActions(db);
 export const workContext = createWorkContextAccess(workLifecycle, relations);
 export const workDrafts = createDatabaseWorkDrafts(
   db,
