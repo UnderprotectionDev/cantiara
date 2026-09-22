@@ -42,6 +42,7 @@ import {
 import { createWorkContextAccess } from "../src/features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
+import { createDatabaseWorkTemplates } from "../src/features/work-templates/server/work-templates-database";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
@@ -81,6 +82,7 @@ const customFieldMutationContracts =
 const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
+const workTemplates = createDatabaseWorkTemplates(database);
 const relations = createDatabaseRelations(database);
 const workContext = createWorkContextAccess(workLifecycle, relations);
 const captureInbox = createDatabaseCaptureInbox(
@@ -184,6 +186,7 @@ const app = createApp({
   tags,
   tagMutationContracts,
   workLifecycle,
+  workTemplates,
   workContext,
   workDrafts,
   redactSecrets: () => new Error("Redacted E2E server error"),

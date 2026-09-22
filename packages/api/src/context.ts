@@ -28,6 +28,7 @@ import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
 import type { WorkLifecycleAccess } from "./work-lifecycle";
+import type { WorkTemplatesAccess } from "./work-templates";
 import type { WorkspaceOverviewAccess } from "./workspace-overview";
 
 export interface AccountSessionPrincipal {
@@ -144,4 +145,5 @@ export interface Context {
   workDrafts?: WorkDraftsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
+  workTemplates?: WorkTemplatesAccess;
 }

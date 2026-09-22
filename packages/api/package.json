@@ -24,6 +24,7 @@
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
     "canonicalize": "^5.0.0",
+    "date-fns": "^4.4.0",
     "zod": "catalog:"
   },
   "devDependencies": {

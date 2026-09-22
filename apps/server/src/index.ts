@@ -34,6 +34,7 @@ import {
   workDrafts,
   workLifecycle,
   workspaceOverview,
+  workTemplates,
 } from "./services";
 
 initLogger({
@@ -86,6 +87,7 @@ const app = createApp({
   workContext,
   workDrafts,
   workLifecycle,
+  workTemplates,
   workspaceOverview,
 });
 

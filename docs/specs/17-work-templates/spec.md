@@ -52,6 +52,7 @@ Kurucu Proje bazında yeniden kullanılabilir İş şablonları oluşturur. Şab
 - **Not other templates.** Document template, Starter Configuration/skeleton, capture mini-template, and contentful Project templates are out. No live link from created Work back to template as a data source.
 - **Trash.** Templates follow configuration trash: preview dependents, ineffective while in trash, restore keeps identity ([PRD 13](../../prd/13-data-security-and-portability.md#cop-kutusu-ve-geri-yukleme)). This feature does not build the global trash UI.
 - **English UI labels.** `Work Template`, `Create from template`, `Duplicate Work`. Add missing labels to the term table in the same change.
+- **Surface.** The template editor mounts as a Configuration Mode host on the Project Shell ([yapılandırma modu](../../prd/04-workspace-and-projects.md#yapılandırma-modu)); Project Shell owns the host entry, and this feature owns the template payload and its writes.
 - **Stack.** Existing API/web stack. No template-marketplace dependency.
 
 ## Testing Decisions

@@ -8,3 +8,4 @@ export * from "./relation";
 export * from "./tags";
 export * from "./work";
 export * from "./work-draft";
+export * from "./work-template";

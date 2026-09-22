@@ -141,6 +141,14 @@ import {
   workTypeSchema,
 } from "../work-lifecycle";
 import {
+  createWorkTemplateInputSchema,
+  createWorkTemplateMutationInputSchema,
+  trashWorkTemplateMutationInputSchema,
+  updateWorkTemplateInputSchema,
+  updateWorkTemplateMutationInputSchema,
+  workTemplatesInputSchema,
+} from "../work-templates";
+import {
   type WorkspaceOverviewAccess,
   workspaceOverviewPresentationSchema,
 } from "../workspace-overview";
@@ -248,6 +256,62 @@ function requireCustomFields(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.customFields;
+}
+
+function requireWorkTemplates(context: Context) {
+  if (!context.workTemplates) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workTemplates;
+}
+
+function rethrowWorkTemplateError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "WORK_TEMPLATE_PROJECT_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Project is unavailable.",
+    });
+  }
+
+  if (error.code === "WORK_TEMPLATE_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "A Work Template with this name already exists in this Project.",
+    });
+  }
+
+  if (error.code === "WORK_TEMPLATE_STALE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Work Template changed. Reload and try again.",
+    });
+  }
+
+  if (
+    error.code === "WORK_TEMPLATE_CUSTOM_FIELD_UNAVAILABLE" ||
+    error.code === "CUSTOM_FIELD_VALUE_TYPE_MISMATCH" ||
+    error.code === "CUSTOM_FIELD_OPTION_INVALID"
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "The Work Template was rejected.",
+    });
+  }
+
+  throw error;
 }
 
 function requireCustomFieldMutationContracts(context: Context) {
@@ -1344,6 +1408,85 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  workTemplates: protectedProcedure
+    .input(workTemplatesInputSchema)
+    .handler(async ({ context, input }) => {
+      const templates = await requireWorkTemplates(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!templates) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return templates;
+    }),
+  createWorkTemplate: protectedProcedure
+    .input(createWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _baseRevision,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        return await requireWorkTemplates(context).create(
+          context.session.user.id,
+          createWorkTemplateInputSchema.parse(payload),
+        );
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  updateWorkTemplate: protectedProcedure
+    .input(updateWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision,
+        clientIdempotencyKey: _key,
+        templateId,
+        ...payload
+      } = input;
+      try {
+        const updated = await requireWorkTemplates(context).update(
+          context.session.user.id,
+          templateId,
+          baseRevision,
+          updateWorkTemplateInputSchema.parse(payload),
+        );
+        if (!updated) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work Template is unavailable.",
+          });
+        }
+        return updated;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  trashWorkTemplate: protectedProcedure
+    .input(trashWorkTemplateMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const trashed = await requireWorkTemplates(context).trash(
+          context.session.user.id,
+          input.templateId,
+          input.baseRevision,
+        );
+        if (!trashed) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work Template is unavailable.",
+          });
+        }
+        return trashed;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
   healthCheck: publicProcedure.handler(() => "OK"),
   githubAvailability: publicProcedure.handler(({ context }) => ({
     status: context.githubAvailability.getStatus(),
