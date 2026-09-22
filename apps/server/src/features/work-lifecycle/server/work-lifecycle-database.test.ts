@@ -205,6 +205,11 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       shortCode: "CONVERT",
       starterConfiguration: "Blank Project",
     });
+    const verificationProject = await projectShell.create(accountId, {
+      name: "Checklist Conversion Verification",
+      shortCode: "VERIFY",
+      starterConfiguration: "Blank Project",
+    });
     const workLifecycle = createDatabaseWorkLifecycle(database);
     const source = await workLifecycle.create(accountId, {
       baseRevision: 0,
@@ -275,17 +280,18 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
         },
       ],
     });
-    const [originRelation] = await database
-      .select()
-      .from(workRelation)
-      .where(eq(workRelation.targetRecordId, converted.work.id));
-    expect(originRelation).toMatchObject({
-      kind: "Origin",
-      sourceWorkId: source.id,
-      targetLabel: converted.work.key,
-      targetProjectId: project.id,
-      targetRecordId: converted.work.id,
+    const originPreview = await workLifecycle.previewRecreate(accountId, {
+      sourceWorkId: converted.work.id,
+      targetProjectId: verificationProject.id,
     });
+    expect(originPreview?.relations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "Origin",
+          targetRecordId: source.id,
+        }),
+      ]),
+    );
     await expect(
       workLifecycle.convertChecklistItem(accountId, input),
     ).resolves.toEqual(converted);

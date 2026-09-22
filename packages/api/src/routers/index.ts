@@ -663,6 +663,13 @@ function mapWorkLifecycleError(
         message:
           "Review the current checklist conversion preview before confirming.",
       });
+    case "WORK_CHECKLIST_CONVERSION_REQUIRED":
+      return new ORPCError("BAD_REQUEST", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Converted checklist Work links can only be changed through conversion.",
+      });
     case "WORK_MERGE_PREVIEW_REQUIRED":
       return new ORPCError("PRECONDITION_FAILED", {
         data: { code: error.code },

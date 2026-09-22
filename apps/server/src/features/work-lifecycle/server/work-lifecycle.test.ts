@@ -29,6 +29,7 @@ import type {
 } from "../../relations/server/work-relations";
 import {
   createWorkLifecycle,
+  WorkChecklistConversionRequiredError,
   WorkChecklistConvertPreviewRequiredError,
   WorkClosureCheckRequiredError,
   type WorkClosureContext,
@@ -222,6 +223,14 @@ function createMemoryWorkLifecycle(
       };
       reservations.set(reservationKey, reservation);
       return Promise.resolve(reservation);
+    },
+    releaseCreate: (_accountId, projectId, key, workId) => {
+      const reservationKey = `${projectId}:${key}`;
+      const reservation = reservations.get(reservationKey);
+      if (reservation?.workId === workId && !works.has(workId)) {
+        reservations.delete(reservationKey);
+      }
+      return Promise.resolve();
     },
   };
 
@@ -772,6 +781,26 @@ describe("Work Lifecycle seam", () => {
     }
 
     await expect(
+      workLifecycle.updateChecklist("account-1", {
+        baseRevision: withChecklist.revision,
+        checklist: [
+          {
+            completed: true,
+            convertedWork: {
+              id: "fake-work",
+              key: "CANT-99",
+              title: "Fake Work",
+            },
+            id: "item-1",
+            text: "Publish the release",
+          },
+        ],
+        clientIdempotencyKey: "checklist-convert-spoof",
+        workId: sourceWork.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkChecklistConversionRequiredError);
+
+    await expect(
       workLifecycle.convertChecklistItem("account-1", {
         baseRevision: withChecklist.revision,
         clientIdempotencyKey: "checklist-convert-confirm",
@@ -817,6 +846,21 @@ describe("Work Lifecycle seam", () => {
     await expect(
       workLifecycle.list("account-1", PROJECT_ID),
     ).resolves.toHaveLength(2);
+
+    await expect(
+      workLifecycle.updateChecklist("account-1", {
+        baseRevision: converted.sourceWork.revision,
+        checklist: [
+          {
+            completed: true,
+            id: "item-1",
+            text: "Publish the release",
+          },
+        ],
+        clientIdempotencyKey: "checklist-convert-remove-link",
+        workId: sourceWork.id,
+      }),
+    ).rejects.toBeInstanceOf(WorkChecklistConversionRequiredError);
 
     await expect(
       workLifecycle.convertChecklistItem("account-1", {

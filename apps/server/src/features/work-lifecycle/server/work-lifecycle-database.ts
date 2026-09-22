@@ -1369,6 +1369,67 @@ export function createDatabaseWorkLifecycle(
         },
       );
     },
+
+    releaseCreate(accountId, projectId, clientIdempotencyKey, workId) {
+      return database.transaction(async (transaction) => {
+        const ownedProject = await findOwnedProject(
+          transaction,
+          accountId,
+          projectId,
+          true,
+        );
+        if (!ownedProject) {
+          return;
+        }
+
+        const [allocation] = await transaction
+          .select()
+          .from(workKeyAllocation)
+          .where(
+            and(
+              eq(workKeyAllocation.projectId, projectId),
+              eq(workKeyAllocation.clientIdempotencyKey, clientIdempotencyKey),
+              eq(workKeyAllocation.workId, workId),
+            ),
+          )
+          .limit(1)
+          .for("update");
+        if (!allocation) {
+          return;
+        }
+
+        const [existingWork] = await transaction
+          .select({ id: work.id })
+          .from(work)
+          .where(eq(work.id, workId))
+          .limit(1);
+        if (existingWork) {
+          return;
+        }
+
+        await transaction
+          .delete(workKeyAllocation)
+          .where(eq(workKeyAllocation.id, allocation.id));
+
+        if (ownedProject.record.workCount !== allocation.number) {
+          return;
+        }
+
+        await transaction
+          .update(project)
+          .set({
+            revision: ownedProject.record.revision + 1,
+            updatedAt: new Date(),
+            workCount: allocation.number - 1,
+          })
+          .where(
+            and(
+              eq(project.id, projectId),
+              eq(project.revision, ownedProject.record.revision),
+            ),
+          );
+      });
+    },
   };
 
   const mutationContracts = {

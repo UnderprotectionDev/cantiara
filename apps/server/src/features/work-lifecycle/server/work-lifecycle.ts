@@ -126,6 +126,12 @@ export interface WorkLifecycleStore {
     accountId: string,
     survivingWorkId: string,
   ) => Promise<string[]>;
+  releaseCreate?: (
+    accountId: string,
+    projectId: string,
+    clientIdempotencyKey: string,
+    workId: string,
+  ) => Promise<void>;
   reserveCreate: (
     accountId: string,
     projectId: string,
@@ -295,6 +301,17 @@ export class WorkChecklistConvertPreviewRequiredError extends Error {
   constructor() {
     super("Review the current checklist conversion preview before confirming.");
     this.name = "WorkChecklistConvertPreviewRequiredError";
+  }
+}
+
+export class WorkChecklistConversionRequiredError extends Error {
+  readonly code = "WORK_CHECKLIST_CONVERSION_REQUIRED" as const;
+
+  constructor() {
+    super(
+      "Converted checklist Work links can only be changed through conversion.",
+    );
+    this.name = "WorkChecklistConversionRequiredError";
   }
 }
 
@@ -620,14 +637,15 @@ async function buildChecklistConversionPreview(
     ownerRecordId: sourceWork.id,
     sourceVersion: String(sourceWork.revision),
   };
+  const newWork = {
+    projectId: sourceWork.projectId,
+    status: "Not Started" as const,
+    title: item.text,
+    type: "Task" as const,
+  };
   const previewFingerprint = await fingerprintMutationPayload({
     itemId,
-    newWork: {
-      projectId: sourceWork.projectId,
-      status: "Not Started",
-      title: item.text,
-      type: "Task",
-    },
+    newWork,
     originPosition,
     sourceRevision: sourceWork.revision,
     sourceWorkId: sourceWork.id,
@@ -635,12 +653,7 @@ async function buildChecklistConversionPreview(
 
   return {
     item: { id: item.id, text: item.text },
-    newWork: {
-      projectId: sourceWork.projectId,
-      status: "Not Started",
-      title: item.text,
-      type: "Task",
-    },
+    newWork,
     originPosition,
     previewId: `${WORK_CHECKLIST_CONVERT_PREVIEW_PREFIX}${previewFingerprint}`,
     sourceWork: {
@@ -651,6 +664,65 @@ async function buildChecklistConversionPreview(
     },
     targetProject,
   };
+}
+
+function sameChecklistConversion(
+  left: NonNullable<WorkProfile["checklist"][number]["convertedWork"]>,
+  right: NonNullable<WorkProfile["checklist"][number]["convertedWork"]>,
+) {
+  return (
+    left.id === right.id && left.key === right.key && left.title === right.title
+  );
+}
+
+function assertChecklistConversionLinksUnchanged(
+  currentChecklist: WorkProfile["checklist"],
+  nextChecklist: WorkProfile["checklist"],
+) {
+  const currentItemsById = new Map(
+    currentChecklist.map((item) => [item.id, item] as const),
+  );
+  const nextItemsById = new Map(
+    nextChecklist.map((item) => [item.id, item] as const),
+  );
+
+  for (const currentItem of currentChecklist) {
+    if (!currentItem.convertedWork) {
+      continue;
+    }
+    const nextItem = nextItemsById.get(currentItem.id);
+    if (!nextItem?.convertedWork) {
+      throw new WorkChecklistConversionRequiredError();
+    }
+    if (
+      nextItem.text !== currentItem.text ||
+      nextItem.completed !== currentItem.completed ||
+      !sameChecklistConversion(
+        currentItem.convertedWork,
+        nextItem.convertedWork,
+      )
+    ) {
+      throw new WorkChecklistConversionRequiredError();
+    }
+  }
+
+  for (const nextItem of nextChecklist) {
+    if (!nextItem.convertedWork) {
+      continue;
+    }
+    const currentItem = currentItemsById.get(nextItem.id);
+    if (!currentItem?.convertedWork) {
+      throw new WorkChecklistConversionRequiredError();
+    }
+    if (
+      !sameChecklistConversion(
+        currentItem.convertedWork,
+        nextItem.convertedWork,
+      )
+    ) {
+      throw new WorkChecklistConversionRequiredError();
+    }
+  }
 }
 
 function workChecklistConversionResultFromReceipt(receipt: {
@@ -1384,75 +1456,89 @@ export function createWorkLifecycle({
           sourceRevision: preview.sourceWork.revision,
         }),
       );
-      const timestamp = new Date().toISOString();
-      const newWork: WorkProfile = {
-        archivedAt: null,
-        captureProvenance: null,
-        checklist: [],
-        closureReason: null,
-        closureResult: null,
-        createdAt: timestamp,
-        description: null,
-        effort: null,
-        featureHealthHistory: [],
-        id: reservation.workId,
-        key: reservation.key,
-        number: reservation.number,
-        originPosition: preview.originPosition,
-        primaryFeatureId: null,
-        primarySpecId: null,
-        projectId: reservation.projectId,
-        recreatedFrom: null,
-        revision: 1,
-        status: "Not Started",
-        targetDate: null,
-        title: preview.newWork.title,
-        type: "Task",
-        updatedAt: timestamp,
-      };
-      const receipt = await mutation.mutate(
-        command,
-        ({ currentRevision, currentValue }) => {
-          if (!currentValue.work || currentValue.work.id !== input.workId) {
-            throw new WorkNotFoundError(input.workId);
-          }
-          const item = currentValue.work.checklist.find(
-            (candidate) => candidate.id === input.itemId,
-          );
-          if (!item || item.convertedWork) {
-            throw new WorkChecklistConvertPreviewRequiredError();
-          }
-          const checklist = currentValue.work.checklist.map((candidate) =>
-            candidate.id === input.itemId
-              ? {
-                  ...candidate,
-                  completed: true,
-                  convertedWork: {
-                    id: newWork.id,
-                    key: newWork.key,
-                    title: newWork.title,
-                  },
-                }
-              : candidate,
-          );
-          return {
-            checklistConversion: {
-              itemId: input.itemId,
-              newWork,
-              operation: "convert-checklist-item",
-              sourceWorkId: input.workId,
-              sourceWorkRevision: input.baseRevision,
-            },
-            work: {
-              ...currentValue.work,
-              checklist,
-              revision: currentRevision + 1,
-              updatedAt: timestamp,
-            },
-          } satisfies WorkLifecycleMutationValue;
-        },
-      );
-      return workChecklistConversionResultFromReceipt(receipt);
+      try {
+        const timestamp = new Date().toISOString();
+        const newWork: WorkProfile = {
+          archivedAt: null,
+          captureProvenance: null,
+          checklist: [],
+          closureReason: null,
+          closureResult: null,
+          createdAt: timestamp,
+          description: null,
+          effort: null,
+          featureHealthHistory: [],
+          id: reservation.workId,
+          key: reservation.key,
+          number: reservation.number,
+          originPosition: preview.originPosition,
+          primaryFeatureId: null,
+          primarySpecId: null,
+          projectId: reservation.projectId,
+          recreatedFrom: null,
+          revision: 1,
+          status: "Not Started",
+          targetDate: null,
+          title: preview.newWork.title,
+          type: "Task",
+          updatedAt: timestamp,
+        };
+        const receipt = await mutation.mutate(
+          command,
+          ({ currentRevision, currentValue }) => {
+            if (!currentValue.work || currentValue.work.id !== input.workId) {
+              throw new WorkNotFoundError(input.workId);
+            }
+            const item = currentValue.work.checklist.find(
+              (candidate) => candidate.id === input.itemId,
+            );
+            if (!item || item.convertedWork) {
+              throw new WorkChecklistConvertPreviewRequiredError();
+            }
+            const checklist = currentValue.work.checklist.map((candidate) =>
+              candidate.id === input.itemId
+                ? {
+                    ...candidate,
+                    completed: true,
+                    convertedWork: {
+                      id: newWork.id,
+                      key: newWork.key,
+                      title: newWork.title,
+                    },
+                  }
+                : candidate,
+            );
+            return {
+              checklistConversion: {
+                itemId: input.itemId,
+                newWork,
+                operation: "convert-checklist-item",
+                sourceWorkId: input.workId,
+                sourceWorkRevision: input.baseRevision,
+              },
+              work: {
+                ...currentValue.work,
+                checklist,
+                revision: currentRevision + 1,
+                updatedAt: timestamp,
+              },
+            } satisfies WorkLifecycleMutationValue;
+          },
+        );
+        return workChecklistConversionResultFromReceipt(receipt);
+      } catch (error) {
+        const committed = await mutation.replay(command);
+        if (committed) {
+          return workChecklistConversionResultFromReceipt(committed);
+        }
+        await store.releaseCreate?.(
+          accountId,
+          preview.targetProject.id,
+          input.clientIdempotencyKey,
+          reservation.workId,
+        );
+        throw error;
+      }
     },
 
     create(accountId, rawInput) {
@@ -2231,6 +2317,12 @@ export function createWorkLifecycle({
           ...work,
           checklist: payload.checklist,
         }),
+        (work, payload) => {
+          assertChecklistConversionLinksUnchanged(
+            work.checklist,
+            payload.checklist,
+          );
+        },
       );
     },
 
