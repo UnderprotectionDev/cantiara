@@ -345,17 +345,14 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   ).toBeDisabled();
 
   await configurationMode.click();
+  expect(
+    nonGetRequests.slice(nonGetRequestCountBeforeConfigurationMode),
+  ).toEqual([`${E2E_SERVER_URL}/rpc/customFields`]);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(
     page.locator('section[aria-label="Configuration Mode"]'),
   ).toHaveCount(0);
   await expectDailyActions(page);
-  expect(
-    nonGetRequests
-      .slice(nonGetRequestCountBeforeConfigurationMode)
-      // oRPC reads use POST and may already be cached before Configuration Mode closes.
-      .filter((url) => url !== `${E2E_SERVER_URL}/rpc/customFields`),
-  ).toEqual([]);
   await expect(
     page.getByRole("heading", { name: projectName, level: 1 }),
   ).toBeVisible();

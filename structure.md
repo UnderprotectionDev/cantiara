@@ -272,6 +272,7 @@
 │       │   │   ├── work-checklists/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── work-checklist-editor.tsx
 │       │   │   │           ├── work-checklist-items.test.ts
 │       │   │   │           ├── work-checklist-items.ts
 │       │   │   │           ├── work-checklist.test.tsx

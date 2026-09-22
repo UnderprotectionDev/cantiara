@@ -4,7 +4,8 @@ import type { WorkChecklistItem } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
-import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { type FormEvent, useState } from "react";
 import { resolveChecklistDrafts } from "./work-checklist-items";
 
 export default function WorkChecklist({
@@ -21,7 +22,6 @@ export default function WorkChecklist({
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(checklist.map((item) => [item.id, item.text])),
   );
-  const [newItem, setNewItem] = useState("");
   const resolvedChecklist = resolveChecklistDrafts(checklist, drafts);
   const completedCount = resolvedChecklist.filter(
     (item) => item.completed,
@@ -31,31 +31,40 @@ export default function WorkChecklist({
   // any item action instead of being silently discarded by it. The parent owns
   // the error display; a failed save leaves local state untouched so typed
   // text is never lost.
-  async function saveNext(next: WorkChecklistItem[]) {
+  async function saveChecklist(nextChecklist: WorkChecklistItem[]) {
     try {
-      await onSave(next);
+      await onSave(nextChecklist);
       return true;
     } catch {
       return false;
     }
   }
 
-  async function addItem() {
-    const text = newItem.trim();
-    if (!text) {
-      return;
-    }
-    const saved = await saveNext([
-      ...resolvedChecklist,
-      { completed: false, id: crypto.randomUUID(), text },
-    ]);
-    if (saved) {
-      setNewItem("");
-    }
+  const addItemForm = useForm({
+    defaultValues: { newItem: "" },
+    onSubmit: async ({ value }) => {
+      const text = value.newItem.trim();
+      if (!text) {
+        return;
+      }
+      const saved = await saveChecklist([
+        ...resolvedChecklist,
+        { completed: false, id: crypto.randomUUID(), text },
+      ]);
+      if (saved) {
+        addItemForm.reset();
+      }
+    },
+  });
+
+  function handleAddItemSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    addItemForm.handleSubmit().catch(() => undefined);
   }
 
   async function toggleItem(itemId: string, completed: boolean) {
-    await saveNext(
+    await saveChecklist(
       resolvedChecklist.map((item) =>
         item.id === itemId ? { ...item, completed } : item,
       ),
@@ -73,11 +82,11 @@ export default function WorkChecklist({
       return;
     }
     reordered.splice(destination, 0, item);
-    await saveNext(reordered);
+    await saveChecklist(reordered);
   }
 
   async function deleteItem(itemId: string) {
-    await saveNext(resolvedChecklist.filter((item) => item.id !== itemId));
+    await saveChecklist(resolvedChecklist.filter((item) => item.id !== itemId));
   }
 
   return (
@@ -133,7 +142,7 @@ export default function WorkChecklist({
                     !draft.trim() ||
                     draft.trim() === checklist[index]?.text
                   }
-                  onClick={() => saveNext(resolvedChecklist)}
+                  onClick={() => saveChecklist(resolvedChecklist)}
                   size="xs"
                   type="button"
                   variant="outline"
@@ -177,29 +186,37 @@ export default function WorkChecklist({
       )}
       <form
         className="flex flex-wrap items-end gap-2 border-border/70 border-t pt-3"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          await addItem();
-        }}
+        onSubmit={handleAddItemSubmit}
       >
-        <label
-          className="min-w-48 flex-1 text-muted-foreground text-xs"
-          htmlFor={`new-checklist-item-${workKey}`}
-        >
-          Item
-          <Input
-            aria-label={`New item for ${workKey}`}
-            className="mt-1"
-            disabled={disabled}
-            id={`new-checklist-item-${workKey}`}
-            maxLength={1000}
-            onChange={(event) => setNewItem(event.target.value)}
-            value={newItem}
-          />
-        </label>
-        <Button disabled={disabled || !newItem.trim()} size="sm" type="submit">
-          Add item
-        </Button>
+        <addItemForm.Field name="newItem">
+          {(field) => (
+            <>
+              <label
+                className="min-w-48 flex-1 text-muted-foreground text-xs"
+                htmlFor={`new-checklist-item-${workKey}`}
+              >
+                Item
+                <Input
+                  aria-label={`New item for ${workKey}`}
+                  className="mt-1"
+                  disabled={disabled}
+                  id={`new-checklist-item-${workKey}`}
+                  maxLength={1000}
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </label>
+              <Button
+                disabled={disabled || !field.state.value.trim()}
+                size="sm"
+                type="submit"
+              >
+                Add item
+              </Button>
+            </>
+          )}
+        </addItemForm.Field>
       </form>
     </section>
   );
