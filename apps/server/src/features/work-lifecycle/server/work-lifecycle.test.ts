@@ -18,6 +18,7 @@ import {
   type WorkRecreateField,
   type WorkRecreateRelation,
   type WorkRetiredIdentity,
+  workChecklistItemSchema,
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 
@@ -2045,6 +2046,27 @@ describe("Work Lifecycle seam", () => {
     await expect(workLifecycle.list("account-1", PROJECT_ID)).resolves.toEqual([
       updated,
     ]);
+  });
+
+  test("rejects lifecycle, planning, Feature, Test Scenario, and Handoff fields on checklist items", () => {
+    for (const forbiddenField of [
+      "dueDate",
+      "featureId",
+      "handoffId",
+      "priority",
+      "relationId",
+      "status",
+      "testScenarioId",
+    ]) {
+      expect(
+        workChecklistItemSchema.safeParse({
+          completed: false,
+          [forbiddenField]: "not-allowed",
+          id: "item-1",
+          text: "Finished step",
+        }).success,
+      ).toBe(false);
+    }
   });
 
   test("archives and unarchives Work without changing identity or closure", async () => {
