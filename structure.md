@@ -8,7 +8,8 @@
 │   └── workflows/
 │       ├── account-access-integration.yml
 │       ├── code-quality.yml
-│       └── macos-release.yml
+│       ├── macos-release.yml
+│       └── pre-merge-validation.yml
 ├── apps/
 │   ├── extension/
 │   │   ├── entrypoints/
@@ -240,6 +241,7 @@
 │       │   │   │           └── projects-view.tsx
 │       │   │   ├── web-macos-client/
 │       │   │   │   ├── hooks/
+│       │   │   │   │   ├── use-health-check.ts
 │       │   │   │   │   └── use-client-shell.ts
 │       │   │   │   ├── lib/
 │       │   │   │   │   ├── client-shell-format.ts

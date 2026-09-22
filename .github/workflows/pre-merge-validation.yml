@@ -1,0 +1,43 @@
+name: Pre-merge validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  project-build:
+    name: Project build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VITE_SERVER_URL: http://127.0.0.1:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build applications and packages
+        run: bun run build
+
+  macos-client-compile:
+    name: macOS client compile
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - name: Compile the macOS client
+        run: cargo check --manifest-path apps/web/src-tauri/Cargo.toml --locked --all-targets

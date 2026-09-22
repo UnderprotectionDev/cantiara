@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { orpc } from "@/utils/orpc";
+import { useClientShellHealthCheck } from "@/features/web-macos-client/hooks/use-health-check";
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
@@ -24,7 +23,7 @@ const TITLE_TEXT = `
  `;
 
 function HomeComponent() {
-  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  const healthCheck = useClientShellHealthCheck();
   let healthStatus = "Disconnected";
 
   if (healthCheck.isLoading) {
