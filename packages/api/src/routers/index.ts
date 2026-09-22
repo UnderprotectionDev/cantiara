@@ -144,7 +144,9 @@ import {
 import {
   createWorkTemplateInputSchema,
   createWorkTemplateMutationInputSchema,
+  duplicateWorkMutationInputSchema,
   instantiateWorkTemplateMutationInputSchema,
+  previewDuplicateWorkInputSchema,
   trashWorkTemplateMutationInputSchema,
   updateWorkTemplateInputSchema,
   updateWorkTemplateMutationInputSchema,
@@ -304,6 +306,9 @@ function rethrowWorkTemplateError(error: unknown): never {
 
   if (
     error.code === "WORK_TEMPLATE_CUSTOM_FIELD_UNAVAILABLE" ||
+    error.code === "CUSTOM_FIELD_TRASHED" ||
+    error.code === "CUSTOM_FIELD_NOT_FOUND" ||
+    error.code === "CUSTOM_FIELD_RECORD_TYPE_NOT_BOUND" ||
     error.code === "CUSTOM_FIELD_VALUE_TYPE_MISMATCH" ||
     error.code === "CUSTOM_FIELD_OPTION_INVALID"
   ) {
@@ -314,6 +319,14 @@ function rethrowWorkTemplateError(error: unknown): never {
         typeof error.message === "string"
           ? error.message
           : "The Work Template was rejected.",
+    });
+  }
+
+  if (error.code === "WORK_DUPLICATE_SOURCE_STALE") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Work changed. Reload and try again.",
     });
   }
 
@@ -1463,6 +1476,44 @@ export const appRouter = {
           throw new ORPCError("NOT_FOUND", {
             defined: true,
             message: "Work Template is unavailable.",
+          });
+        }
+        return created;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  previewDuplicateWork: protectedProcedure
+    .input(previewDuplicateWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireWorkTemplates(context).previewDuplicate(
+          context.session.user.id,
+          input.sourceWorkId,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
+          });
+        }
+        return preview;
+      } catch (error) {
+        rethrowWorkTemplateError(error);
+      }
+    }),
+  duplicateWork: protectedProcedure
+    .input(duplicateWorkMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const created = await requireWorkTemplates(context).duplicate(
+          context.session.user.id,
+          input,
+        );
+        if (!created) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
           });
         }
         return created;

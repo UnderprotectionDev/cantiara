@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import {
   createWorkTemplateInputSchema,
+  duplicateWorkMutationInputSchema,
   instantiateWorkTemplateMutationInputSchema,
+  previewDuplicateWorkInputSchema,
   resolveWorkTemplateDates,
   workTemplateSchema,
 } from "./work-templates";
@@ -26,6 +28,32 @@ describe("Work Templates contract", () => {
         status: "Closed",
       }).success,
     ).toBe(false);
+  });
+
+  test("accepts only the start-context selection needed for a one-off copy", () => {
+    const command = {
+      baseRevision: 2,
+      clientIdempotencyKey: "duplicate-work-1",
+      customFieldDefinitionIds: ["field-1"],
+      sourceWorkId: "work-1",
+    };
+
+    expect(duplicateWorkMutationInputSchema.parse(command)).toEqual(command);
+    expect(
+      duplicateWorkMutationInputSchema.safeParse({
+        ...command,
+        targetDate: "2026-10-02",
+      }).success,
+    ).toBe(false);
+    expect(
+      duplicateWorkMutationInputSchema.safeParse({
+        clientIdempotencyKey: "duplicate-work-1",
+        sourceWorkId: "work-1",
+      }).success,
+    ).toBe(false);
+    expect(
+      previewDuplicateWorkInputSchema.parse({ sourceWorkId: "work-1" }),
+    ).toEqual({ sourceWorkId: "work-1" });
   });
 
   test("defines reusable Project start context and resolves relative dates from the Work creation day", () => {

@@ -2,6 +2,7 @@ import type { Context } from "@cantiara/api/context";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import type {
+  DuplicateWorkPreview,
   WorkTemplate,
   WorkTemplatesAccess,
 } from "@cantiara/api/work-templates";
@@ -48,6 +49,22 @@ const instantiatedWork: WorkProfile = {
   updatedAt: "2026-09-22T09:05:00.000Z",
 };
 
+const duplicatePreview: DuplicateWorkPreview = {
+  checklist: [{ id: "check-1", text: "Draft release notes" }],
+  customFields: [
+    {
+      definitionId: "field-1",
+      name: "Release audience",
+      value: { kind: "text", text: "Founders" },
+    },
+  ],
+  description: "## Outcome",
+  sourceRevision: 1,
+  sourceWorkId: "work-1",
+  title: "Prepare the October release",
+  type: "Task",
+};
+
 function createContext(workTemplates: WorkTemplatesAccess): Context {
   return {
     accountAccess: {
@@ -73,8 +90,10 @@ describe("Work Templates RPC", () => {
   test("defines, edits, lists, and trashes Project Work Templates", async () => {
     const access: WorkTemplatesAccess = {
       create: vi.fn().mockResolvedValue(template),
+      duplicate: vi.fn().mockResolvedValue(instantiatedWork),
       instantiate: vi.fn().mockResolvedValue(instantiatedWork),
       list: vi.fn().mockResolvedValue([template]),
+      previewDuplicate: vi.fn().mockResolvedValue(duplicatePreview),
       trash: vi.fn().mockResolvedValue({
         ...template,
         revision: 3,
@@ -110,6 +129,17 @@ describe("Work Templates RPC", () => {
         createDate: "2026-09-22",
         templateId: template.id,
         title: instantiatedWork.title,
+      }),
+    ).resolves.toEqual(instantiatedWork);
+    await expect(
+      client.previewDuplicateWork({ sourceWorkId: instantiatedWork.id }),
+    ).resolves.toEqual(duplicatePreview);
+    await expect(
+      client.duplicateWork({
+        baseRevision: instantiatedWork.revision,
+        clientIdempotencyKey: "duplicate-work-1",
+        customFieldDefinitionIds: ["field-1"],
+        sourceWorkId: instantiatedWork.id,
       }),
     ).resolves.toEqual(instantiatedWork);
     await expect(
@@ -152,6 +182,16 @@ describe("Work Templates RPC", () => {
       templateId: template.id,
       title: instantiatedWork.title,
     });
+    expect(access.previewDuplicate).toHaveBeenCalledWith(
+      "account-1",
+      instantiatedWork.id,
+    );
+    expect(access.duplicate).toHaveBeenCalledWith("account-1", {
+      baseRevision: instantiatedWork.revision,
+      clientIdempotencyKey: "duplicate-work-1",
+      customFieldDefinitionIds: ["field-1"],
+      sourceWorkId: instantiatedWork.id,
+    });
     expect(access.update).toHaveBeenCalledWith(
       "account-1",
       template.id,
@@ -171,6 +211,12 @@ describe("Work Templates RPC", () => {
           { code: "WORK_TEMPLATE_NAME_CONFLICT" },
         );
       },
+      duplicate: () => {
+        throw Object.assign(
+          new Error("Custom field field-1 is in configuration trash."),
+          { code: "CUSTOM_FIELD_TRASHED" },
+        );
+      },
       instantiate: () => {
         throw Object.assign(new Error("Work creation could not be applied."), {
           cause: {
@@ -181,6 +227,12 @@ describe("Work Templates RPC", () => {
         });
       },
       list: async () => [template],
+      previewDuplicate: () => {
+        throw Object.assign(
+          new Error("Work changed after this command started."),
+          { code: "WORK_DUPLICATE_SOURCE_STALE" },
+        );
+      },
       trash: () => {
         throw Object.assign(
           new Error("Work Template changed after this command started."),
@@ -225,6 +277,17 @@ describe("Work Templates RPC", () => {
       }),
     ).rejects.toThrow("Work Template changed. Reload and try again.");
     await expect(
+      client.duplicateWork({
+        baseRevision: instantiatedWork.revision,
+        clientIdempotencyKey: "trashed-field-duplicate",
+        customFieldDefinitionIds: ["field-1"],
+        sourceWorkId: instantiatedWork.id,
+      }),
+    ).rejects.toThrow("Custom field field-1 is in configuration trash.");
+    await expect(
+      client.previewDuplicateWork({ sourceWorkId: instantiatedWork.id }),
+    ).rejects.toThrow("Work changed. Reload and try again.");
+    await expect(
       client.updateWorkTemplate({
         baseRevision: 1,
         checklist: [],
@@ -258,17 +321,59 @@ describe("Work Templates RPC", () => {
       staleErrorCode = (error as { code?: string }).code;
     }
     expect(staleErrorCode).toBe("PRECONDITION_FAILED");
+
+    let trashedFieldCode: string | undefined;
+    try {
+      await client.duplicateWork({
+        baseRevision: instantiatedWork.revision,
+        clientIdempotencyKey: "trashed-field-code",
+        customFieldDefinitionIds: ["field-1"],
+        sourceWorkId: instantiatedWork.id,
+      });
+    } catch (error) {
+      trashedFieldCode = (error as { code?: string }).code;
+    }
+    expect(trashedFieldCode).toBe("BAD_REQUEST");
+  });
+
+  test("reports a missing one-off copy source as NOT_FOUND", async () => {
+    const access: WorkTemplatesAccess = {
+      create: vi.fn(),
+      duplicate: async () => null,
+      instantiate: vi.fn(),
+      list: vi.fn(),
+      previewDuplicate: async () => null,
+      trash: vi.fn(),
+      update: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+
+    await expect(
+      client.duplicateWork({
+        baseRevision: 1,
+        clientIdempotencyKey: "missing-source-duplicate",
+        customFieldDefinitionIds: [],
+        sourceWorkId: "missing-work",
+      }),
+    ).rejects.toThrow("Work is unavailable.");
+    await expect(
+      client.previewDuplicateWork({ sourceWorkId: "missing-work" }),
+    ).rejects.toThrow("Work is unavailable.");
   });
 
   test("maps a changed-payload instantiate retry to CONFLICT", async () => {
     const access: WorkTemplatesAccess = {
       create: vi.fn(),
+      duplicate: vi.fn(),
       instantiate: () => {
         throw Object.assign(new Error("Work creation payload changed."), {
           code: "WORK_CREATION_CONFLICT",
         });
       },
       list: vi.fn(),
+      previewDuplicate: vi.fn(),
       trash: vi.fn(),
       update: vi.fn(),
     };

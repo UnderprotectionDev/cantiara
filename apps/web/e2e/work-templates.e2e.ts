@@ -164,6 +164,30 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     "Not Started",
   );
 
+  await createdWork
+    .getByRole("button", { name: "Duplicate Work", exact: true })
+    .click();
+  const duplicateForm = createdWork.getByRole("form", {
+    name: "Duplicate Work",
+  });
+  await expect(duplicateForm.getByText("Release audience")).toBeVisible();
+  await duplicateForm
+    .getByRole("button", { name: "Duplicate Work", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("list", { name: "Work list" })
+      .getByRole("listitem")
+      .filter({ hasText: "Prepare the October release" }),
+  ).toHaveCount(2);
+  const duplicatedWork = createdWork.nth(1);
+  await expect(duplicatedWork.getByLabel(TYPE_FIELD_PATTERN)).toHaveValue(
+    "Task",
+  );
+  await expect(duplicatedWork.getByLabel(STATUS_FIELD_PATTERN)).toHaveValue(
+    "Not Started",
+  );
+
   await page.reload();
   await page.getByRole("button", { name: "Configuration Mode" }).click();
   await configuration

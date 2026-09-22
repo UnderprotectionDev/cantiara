@@ -5,6 +5,7 @@ import { customFieldOptionsSchema } from "./custom-fields";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 import {
   type WorkProfile,
+  type WorkType,
   workDescriptionSchema,
   workTitleSchema,
   workTypeSchema,
@@ -167,6 +168,40 @@ export type InstantiateWorkTemplateInput = z.input<
   typeof instantiateWorkTemplateMutationInputSchema
 >;
 
+export const previewDuplicateWorkInputSchema = z
+  .object({ sourceWorkId: identifierSchema })
+  .strict();
+
+export const duplicateWorkMutationInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    customFieldDefinitionIds: z.array(identifierSchema).max(100),
+    sourceWorkId: identifierSchema,
+  })
+  .strict();
+
+export type DuplicateWorkInput = z.input<
+  typeof duplicateWorkMutationInputSchema
+>;
+export type ParsedDuplicateWorkInput = z.output<
+  typeof duplicateWorkMutationInputSchema
+>;
+
+export interface DuplicateWorkPreviewCustomField {
+  definitionId: string;
+  name: string;
+  value: WorkTemplateCustomFieldValue;
+}
+
+export interface DuplicateWorkPreview {
+  checklist: { id: string; text: string }[];
+  customFields: DuplicateWorkPreviewCustomField[];
+  description: string | null;
+  sourceRevision: number;
+  sourceWorkId: string;
+  title: string;
+  type: WorkType;
+}
+
 export const workTemplatesInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
@@ -211,6 +246,10 @@ export interface WorkTemplatesAccess {
     accountId: string,
     input: ParsedCreateWorkTemplateInput,
   ) => Promise<WorkTemplate>;
+  duplicate: (
+    accountId: string,
+    input: ParsedDuplicateWorkInput,
+  ) => Promise<WorkProfile | null>;
   instantiate: (
     accountId: string,
     input: InstantiateWorkTemplateInput,
@@ -219,6 +258,10 @@ export interface WorkTemplatesAccess {
     accountId: string,
     projectId: string,
   ) => Promise<WorkTemplate[] | null>;
+  previewDuplicate: (
+    accountId: string,
+    sourceWorkId: string,
+  ) => Promise<DuplicateWorkPreview | null>;
   trash: (
     accountId: string,
     templateId: string,
