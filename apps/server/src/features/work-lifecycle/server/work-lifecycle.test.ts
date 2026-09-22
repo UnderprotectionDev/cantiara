@@ -721,6 +721,86 @@ function createInput(
 }
 
 describe("Work Lifecycle seam", () => {
+  test("requires the conversion command for converted checklist links", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+
+    await expect(
+      workLifecycle.create(
+        "account-1",
+        createInput("checklist-convert-spoof-create", {
+          checklist: [
+            {
+              completed: true,
+              convertedWork: {
+                id: "fake-work",
+                key: "CANT-99",
+                title: "Fake Work",
+              },
+              id: "item-1",
+              text: "Publish the release",
+            },
+          ],
+        }),
+      ),
+    ).rejects.toBeInstanceOf(WorkChecklistConversionRequiredError);
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(0);
+  });
+
+  test("rolls back a failed conversion so the same command can retry", async () => {
+    const conversionFailures: boolean[] = [];
+    const workLifecycle = createMemoryWorkLifecycle({
+      beforeUpdateApply: async () => {
+        await Promise.resolve();
+        if (!conversionFailures.pop()) {
+          return;
+        }
+        throw new Error("simulated conversion failure");
+      },
+    });
+    const sourceWork = await workLifecycle.create(
+      "account-1",
+      createInput("checklist-convert-rollback-source", {
+        checklist: [
+          { completed: false, id: "item-1", text: "Publish the release" },
+        ],
+      }),
+    );
+    const preview = await workLifecycle.previewChecklistConversion(
+      "account-1",
+      { itemId: "item-1", workId: sourceWork.id },
+    );
+    if (!preview) {
+      throw new Error("Expected a checklist conversion preview.");
+    }
+
+    const input = {
+      baseRevision: sourceWork.revision,
+      clientIdempotencyKey: "checklist-convert-rollback",
+      itemId: "item-1",
+      previewId: preview.previewId,
+      workId: sourceWork.id,
+    } as const;
+    conversionFailures.push(true);
+    await expect(
+      workLifecycle.convertChecklistItem("account-1", input),
+    ).rejects.toThrow("simulated conversion failure");
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(1);
+
+    await expect(
+      workLifecycle.convertChecklistItem("account-1", input),
+    ).resolves.toMatchObject({
+      sourceWork: { id: sourceWork.id },
+      work: { title: "Publish the release" },
+    });
+    await expect(
+      workLifecycle.list("account-1", PROJECT_ID),
+    ).resolves.toHaveLength(2);
+  });
+
   test("previews and atomically converts a checklist item into independent Work with exact origin", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
     const sourceWork = await workLifecycle.create(

@@ -725,6 +725,14 @@ function assertChecklistConversionLinksUnchanged(
   }
 }
 
+function assertChecklistConversionLinksNotPresent(
+  checklist: WorkProfile["checklist"],
+) {
+  if (checklist.some((item) => item.convertedWork)) {
+    throw new WorkChecklistConversionRequiredError();
+  }
+}
+
 function workChecklistConversionResultFromReceipt(receipt: {
   nextValue: WorkLifecycleMutationValue;
 }): WorkChecklistConversionResult {
@@ -994,6 +1002,9 @@ export async function createWork(
   additionalPayload: Record<string, unknown> = {},
 ) {
   const input = createWorkMutationInputSchema.parse(rawInput);
+  if (!recreate) {
+    assertChecklistConversionLinksNotPresent(input.checklist ?? []);
+  }
   const selectedRelationIds = recreate
     ? [...new Set(recreate.selectedRelationIds)].sort()
     : [];

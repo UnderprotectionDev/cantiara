@@ -126,6 +126,14 @@ export const workChecklistItemSchema = z
 
 export const workChecklistSchema = z.array(workChecklistItemSchema).max(500);
 
+const workChecklistItemInputSchema = workChecklistItemSchema.omit({
+  convertedWork: true,
+});
+
+export const workChecklistInputSchema = z
+  .array(workChecklistItemInputSchema)
+  .max(500);
+
 export type WorkChecklistItem = z.infer<typeof workChecklistItemSchema>;
 
 export const updateWorkChecklistInputSchema = humanMutationEnvelopeSchema
