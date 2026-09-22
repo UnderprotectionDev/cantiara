@@ -8,7 +8,8 @@
 │   └── workflows/
 │       ├── account-access-integration.yml
 │       ├── code-quality.yml
-│       └── macos-release.yml
+│       ├── macos-release.yml
+│       └── pre-merge-validation.yml
 ├── apps/
 │   ├── extension/
 │   │   ├── entrypoints/

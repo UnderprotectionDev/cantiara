@@ -52,3 +52,29 @@ test("shows the online-only empty state after the connection is lost", async ({
     page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
 });
+
+test("recovers the API status when the server is still starting", async ({
+  page,
+}) => {
+  let healthCheckAttempts = 0;
+
+  await page.route("**/rpc/healthCheck", async (route) => {
+    healthCheckAttempts += 1;
+    if (healthCheckAttempts === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "API Status" })).toBeVisible();
+  await expect(page.getByText("Connected", { exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByText("You’re offline", { exact: true })).toHaveCount(
+    0,
+  );
+  expect(healthCheckAttempts).toBeGreaterThanOrEqual(2);
+});

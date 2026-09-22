@@ -23,8 +23,23 @@ const TITLE_TEXT = `
     ╚═╝       ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
  `;
 
+const HEALTH_CHECK_RETRY_COUNT = 8;
+const HEALTH_CHECK_RETRY_DELAY_BASE_MS = 250;
+const HEALTH_CHECK_RETRY_DELAY_MAX_MS = 2000;
+
+function healthCheckRetryDelay(attemptIndex: number) {
+  return Math.min(
+    HEALTH_CHECK_RETRY_DELAY_BASE_MS * 2 ** attemptIndex,
+    HEALTH_CHECK_RETRY_DELAY_MAX_MS,
+  );
+}
+
 function HomeComponent() {
-  const healthCheck = useQuery(orpc.healthCheck.queryOptions());
+  const healthCheck = useQuery({
+    ...orpc.healthCheck.queryOptions(),
+    retry: HEALTH_CHECK_RETRY_COUNT,
+    retryDelay: healthCheckRetryDelay,
+  });
   let healthStatus = "Disconnected";
 
   if (healthCheck.isLoading) {
