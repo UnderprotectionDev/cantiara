@@ -325,7 +325,7 @@ function WorkChecklistEditor({ work }: { work: WorkProfile }) {
           mutation.isPending ||
           work.archivedAt !== null
         }
-        onSave={(checklist) => mutation.mutate(checklist)}
+        onSave={(checklist) => mutation.mutateAsync(checklist)}
         workKey={work.key}
       />
       {error ? (

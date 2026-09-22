@@ -11,7 +11,7 @@ const CHECKLIST_NEW_ITEM_LABEL = /New item for/;
 const CHECKLIST_FIRST_ITEM_LABEL = /Item 1 for/;
 const CHECKLIST_SECOND_ITEM_LABEL = /Item 2 for/;
 const DOCUMENT_FALLBACK_CHECKBOX_NAME = /Mark Document the fallback/;
-const CONFIRM_COPY_CHECKBOX_NAME = /Mark Confirm the copy/;
+const CONFIRM_COPY_CHECKBOX_NAME = /Mark Confirm the final copy/;
 
 function workListItem(page: Page, title: string) {
   return page.getByRole("listitem").filter({
@@ -120,6 +120,10 @@ test("manages light checklist items without creating or closing Work", async ({
   await expect(checklist.getByLabel(CHECKLIST_FIRST_ITEM_LABEL)).toHaveValue(
     "Document the fallback",
   );
+
+  // An unsaved text edit rides along with the next checklist save instead of
+  // being silently discarded by a sibling item action.
+  await secondItem.fill("Confirm the final copy");
   await checklist
     .getByRole("checkbox", { name: "Mark Document the fallback complete" })
     .click();
@@ -129,7 +133,7 @@ test("manages light checklist items without creating or closing Work", async ({
     }),
   ).toBeChecked({ timeout: 15_000 });
   await checklist
-    .getByRole("checkbox", { name: "Mark Confirm the copy complete" })
+    .getByRole("checkbox", { name: "Mark Confirm the final copy complete" })
     .click();
   await expect(
     checklist.getByRole("checkbox", { name: CONFIRM_COPY_CHECKBOX_NAME }),
@@ -147,6 +151,9 @@ test("manages light checklist items without creating or closing Work", async ({
   await expect(
     persistedChecklist.getByLabel(CHECKLIST_FIRST_ITEM_LABEL),
   ).toHaveValue("Document the fallback");
+  await expect(
+    persistedChecklist.getByLabel(CHECKLIST_SECOND_ITEM_LABEL),
+  ).toHaveValue("Confirm the final copy");
   await expect(persistedChecklist.getByRole("checkbox")).toHaveCount(2);
   await expect(persistedChecklist.getByRole("checkbox").first()).toBeChecked();
   await expect(persistedChecklist.getByRole("checkbox").last()).toBeChecked();
