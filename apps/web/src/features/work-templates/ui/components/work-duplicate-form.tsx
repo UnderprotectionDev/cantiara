@@ -1,6 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Duplicate Work selections are local to one preview.
 
-import type { WorkProfile } from "@cantiara/api/work-lifecycle";
+import {
+  WORK_DEFAULT_TYPE,
+  type WorkProfile,
+} from "@cantiara/api/work-lifecycle";
 import type {
   WorkDuplicateField,
   WorkDuplicatePreview,
@@ -60,6 +63,19 @@ function ChecklistPreview({
       </span>
     </span>
   );
+}
+
+function FieldValuePreview({
+  field,
+  selected,
+}: {
+  field: WorkDuplicatePreview["fields"][number];
+  selected: boolean;
+}) {
+  if (field.key === "type" && !selected) {
+    return <span>Will be {WORK_DEFAULT_TYPE} (default type)</span>;
+  }
+  return <ChecklistPreview field={field} />;
 }
 
 function customFieldValue(field: WorkDuplicatePreview["customFields"][number]) {
@@ -128,7 +144,11 @@ export function WorkDuplicatePreviewPanel({
               }
             />
             <span>
-              <strong>{field.label}</strong>: <ChecklistPreview field={field} />
+              <strong>{field.label}</strong>:{" "}
+              <FieldValuePreview
+                field={field}
+                selected={selectedFields.includes(field.key)}
+              />
             </span>
           </label>
         ))}

@@ -87,4 +87,24 @@ describe("Duplicate Work preview", () => {
       expect(html).toContain(visible);
     }
   });
+
+  test("discloses the default type when Type is not copied", () => {
+    const optionalTypePreview: WorkDuplicatePreview = {
+      ...preview,
+      fields: preview.fields.map((field) =>
+        field.key === "type" ? { ...field, selectedByDefault: false } : field,
+      ),
+    };
+    const html = renderToStaticMarkup(
+      createElement(WorkDuplicatePreviewPanel, {
+        disabled: false,
+        onCancel: vi.fn(),
+        onConfirm: vi.fn(),
+        preview: optionalTypePreview,
+      }),
+    );
+
+    expect(html).toContain("Will be Task (default type)");
+    expect(html).not.toContain("Improvement");
+  });
 });

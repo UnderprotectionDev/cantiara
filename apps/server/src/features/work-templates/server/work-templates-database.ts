@@ -1,6 +1,7 @@
-import type {
-  WorkLifecycleAccess,
-  WorkProfile,
+import {
+  WORK_DEFAULT_TYPE,
+  type WorkLifecycleAccess,
+  type WorkProfile,
 } from "@cantiara/api/work-lifecycle";
 import type {
   DuplicateWorkInput,
@@ -438,7 +439,9 @@ export function createDatabaseWorkTemplates(
             : null,
           projectId: sourceWork.projectId,
           title: sourceWork.title,
-          type: selectedFields.has("type") ? sourceWork.type : "Task",
+          type: selectedFields.has("type")
+            ? sourceWork.type
+            : WORK_DEFAULT_TYPE,
         },
         selectedCustomFields.map((field) => ({
           definitionId: field.definitionId,

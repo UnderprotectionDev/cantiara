@@ -3,6 +3,7 @@ import { addDays, format } from "date-fns";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const STATUS_FOR_PATTERN = /Status for/;
+const TYPE_CHECKBOX_PATTERN = /Type/;
 
 test.setTimeout(90_000);
 
@@ -209,6 +210,14 @@ test("manages Work Templates and previews a one-off Duplicate Work before writin
       .getByRole("listitem")
       .filter({ hasText: "Prepare one-off launch" }),
   ).toHaveCount(1);
+
+  const typeCheckbox = duplicatePreview.getByRole("checkbox", {
+    name: TYPE_CHECKBOX_PATTERN,
+  });
+  await typeCheckbox.uncheck();
+  await expect(duplicatePreview).toContainText("Will be Task (default type)");
+  await typeCheckbox.check();
+  await expect(duplicatePreview).toContainText("Improvement");
 
   await duplicatePreview
     .getByRole("button", { name: "Confirm Duplicate" })

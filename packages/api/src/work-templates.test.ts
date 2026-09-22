@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { WORK_DEFAULT_TYPE, workTypeSchema } from "./work-lifecycle";
 import {
   createWorkTemplateInputSchema,
   duplicateWorkInputSchema,
@@ -150,5 +151,9 @@ describe("Work Templates contract", () => {
           .success,
       ).toBe(false);
     }
+  });
+
+  test("falls back to the shared default Work type when Type is not copied", () => {
+    expect(workTypeSchema.safeParse(WORK_DEFAULT_TYPE).success).toBe(true);
   });
 });
