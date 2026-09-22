@@ -2,6 +2,7 @@
 
 import type { WorkChecklistItem } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import { Input } from "@cantiara/ui/components/input";
 import { useState } from "react";
 
@@ -77,20 +78,18 @@ export default function WorkChecklist({
             const draft = drafts[item.id] ?? item.text;
             return (
               <li className="flex flex-wrap items-center gap-2" key={item.id}>
-                <input
+                <Checkbox
                   aria-label={`Mark ${item.text} ${
                     item.completed ? "incomplete" : "complete"
                   }`}
                   checked={item.completed}
-                  className="size-4 shrink-0 accent-primary"
                   disabled={disabled}
-                  onChange={(event) =>
+                  onCheckedChange={(checked) =>
                     replaceItem(item.id, (current) => ({
                       ...current,
-                      completed: event.target.checked,
+                      completed: checked,
                     }))
                   }
-                  type="checkbox"
                 />
                 <Input
                   aria-label={`Item ${index + 1} for ${workKey}`}
