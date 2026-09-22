@@ -172,10 +172,13 @@ describe("Work Templates RPC", () => {
         );
       },
       instantiate: () => {
-        throw Object.assign(
-          new Error("Work Template changed after this command started."),
-          { code: "WORK_TEMPLATE_STALE_REVISION" },
-        );
+        throw Object.assign(new Error("Work creation could not be applied."), {
+          cause: {
+            code: "WORK_TEMPLATE_STALE_REVISION",
+            message: "Work Template changed after this command started.",
+          },
+          code: "APPLY_FAILED",
+        });
       },
       list: async () => [template],
       trash: () => {
@@ -212,6 +215,15 @@ describe("Work Templates RPC", () => {
     ).rejects.toThrow(
       "A Work Template named Release preparation already exists in this Project.",
     );
+    await expect(
+      client.instantiateWorkTemplate({
+        baseRevision: template.revision,
+        clientIdempotencyKey: "stale-instantiate",
+        createDate: "2026-09-22",
+        templateId: template.id,
+        title: instantiatedWork.title,
+      }),
+    ).rejects.toThrow("Work Template changed. Reload and try again.");
     await expect(
       client.updateWorkTemplate({
         baseRevision: 1,

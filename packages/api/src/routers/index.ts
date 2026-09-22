@@ -272,6 +272,10 @@ function rethrowWorkTemplateError(error: unknown): never {
     throw error;
   }
 
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowWorkTemplateError(error.cause);
+  }
+
   if (error.code === "WORK_TEMPLATE_PROJECT_NOT_FOUND") {
     throw new ORPCError("NOT_FOUND", {
       defined: true,
