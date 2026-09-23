@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work status controls close over their current Work state.
 
+import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_CLOSURE_RESULT_OPTIONS,
@@ -20,7 +21,9 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import useUserInitiatedWorkSuccess from "@/features/completion-effects/hooks/use-user-initiated-work-success";
+import WorkCompletionFeedback from "@/features/completion-effects/ui/components/work-completion-feedback";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
@@ -46,20 +49,35 @@ export function getWorkStatusLabel(
 }
 
 export default function WorkStatusForm({
+  accountId,
+  completionEffectsPreferences,
   work,
   workStatusLabels,
 }: {
+  accountId?: string;
+  completionEffectsPreferences: CompletionEffectsPreferences | null;
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
+  const completionFeedback = useUserInitiatedWorkSuccess({
+    accountId,
+    preferences: completionEffectsPreferences,
+  });
+  const latestWorkRevision = useRef(work.revision);
   const [selectedStatus, setSelectedStatus] = useState<WorkStatus>(work.status);
   const [closePreview, setClosePreview] = useState<WorkClosePreview | null>(
     null,
   );
   const [reopenTarget, setReopenTarget] = useState<WorkOpenStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pendingCloseRequest = useRef<{
+    fingerprint: string;
+    clientIdempotencyKey: string;
+    visibleAtCloseStart: boolean;
+  } | null>(null);
+  const pendingCloseOpenStatus = useRef<WorkOpenStatus | null>(null);
   const worksQueryKey = orpc.projectWorks.queryOptions({
     input: { projectId: work.projectId },
   }).queryKey;
@@ -71,10 +89,14 @@ export default function WorkStatusForm({
   }).queryKey;
 
   useEffect(() => {
+    if (work.revision < latestWorkRevision.current) {
+      return;
+    }
+    latestWorkRevision.current = work.revision;
     setSelectedStatus(work.status);
     setClosePreview(null);
     setReopenTarget(null);
-  }, [work.status]);
+  }, [work.revision, work.status]);
 
   async function refreshWork() {
     await Promise.all([
@@ -95,6 +117,7 @@ export default function WorkStatusForm({
       setError(mutationErrorMessage(mutationError));
     },
     onSuccess: async (updatedWork) => {
+      latestWorkRevision.current = updatedWork.revision;
       setSelectedStatus(updatedWork.status);
       setError(null);
       await refreshWork();
@@ -116,14 +139,38 @@ export default function WorkStatusForm({
   const closeWork = useMutation({
     mutationFn: (input: Parameters<typeof client.closeWork>[0]) =>
       runOnlineOnlyWrite(() => client.closeWork(input)),
-    onError: (mutationError) => {
+    onError: (mutationError, input) => {
+      if (input.closureResult === "Completed") {
+        completionFeedback.handleCloseOutcome({
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          closureResult: input.closureResult,
+          kind: "failed",
+        });
+      }
       setError(mutationErrorMessage(mutationError));
     },
-    onSuccess: async (closedWork) => {
+    onSuccess: (closedWork, input) => {
+      latestWorkRevision.current = closedWork.revision;
       setSelectedStatus(closedWork.status);
       setClosePreview(null);
       setError(null);
-      await refreshWork();
+      if (closedWork.closureResult === "Completed") {
+        const visibleAtCloseStart =
+          pendingCloseRequest.current?.clientIdempotencyKey ===
+            input.clientIdempotencyKey &&
+          pendingCloseRequest.current.visibleAtCloseStart;
+        const reopenStatus =
+          pendingCloseOpenStatus.current ??
+          (work.status === "Closed" ? "In Progress" : work.status);
+        completionFeedback.handleCloseOutcome({
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "completed",
+          reopenStatus: reopenStatus as WorkOpenStatus,
+          visibleAtCloseStart,
+        });
+      }
+      pendingCloseOpenStatus.current = null;
+      refreshWork().catch(() => undefined);
     },
   });
 
@@ -134,11 +181,12 @@ export default function WorkStatusForm({
       setSelectedStatus(work.status);
       setError(mutationErrorMessage(mutationError));
     },
-    onSuccess: async (reopenedWork) => {
+    onSuccess: (reopenedWork) => {
+      latestWorkRevision.current = reopenedWork.revision;
       setSelectedStatus(reopenedWork.status);
       setReopenTarget(null);
       setError(null);
-      await refreshWork();
+      refreshWork().catch(() => undefined);
     },
   });
 
@@ -151,16 +199,37 @@ export default function WorkStatusForm({
       if (!closePreview) {
         return;
       }
-      await closeWork.mutateAsync({
-        baseRevision: work.revision,
-        clientIdempotencyKey: crypto.randomUUID(),
+      const request = {
+        baseRevision: latestWorkRevision.current,
         ...(hasClosureWarnings(closePreview)
           ? { closureCheck: "Close anyway" as const }
           : {}),
         closureResult: value.closureResult,
         reason: value.reason,
         workId: work.id,
+      };
+      const fingerprint = JSON.stringify(request);
+      const pending = pendingCloseRequest.current;
+      const isRetry = pending?.fingerprint === fingerprint;
+      if (!isRetry) {
+        pendingCloseOpenStatus.current =
+          work.status === "Closed" ? null : (work.status as WorkOpenStatus);
+      }
+      const clientIdempotencyKey = isRetry
+        ? pending.clientIdempotencyKey
+        : crypto.randomUUID();
+      pendingCloseRequest.current = {
+        clientIdempotencyKey,
+        fingerprint,
+        visibleAtCloseStart: isRetry
+          ? pending.visibleAtCloseStart
+          : document.visibilityState === "visible",
+      };
+      await closeWork.mutateAsync({
+        ...request,
+        clientIdempotencyKey,
       });
+      pendingCloseRequest.current = null;
       closeForm.reset();
     },
   });
@@ -170,6 +239,8 @@ export default function WorkStatusForm({
     setReopenTarget(null);
     setSelectedStatus(work.status);
     setError(null);
+    pendingCloseRequest.current = null;
+    pendingCloseOpenStatus.current = null;
     closeForm.reset();
   }
 
@@ -188,7 +259,7 @@ export default function WorkStatusForm({
       return;
     }
     updateStatus.mutate({
-      baseRevision: work.revision,
+      baseRevision: latestWorkRevision.current,
       clientIdempotencyKey: crypto.randomUUID(),
       status: nextStatus,
       workId: work.id,
@@ -206,7 +277,7 @@ export default function WorkStatusForm({
       return;
     }
     reopenWork.mutate({
-      baseRevision: work.revision,
+      baseRevision: latestWorkRevision.current,
       clientIdempotencyKey: crypto.randomUUID(),
       confirmed: true,
       status: reopenTarget,
@@ -253,6 +324,19 @@ export default function WorkStatusForm({
             </span>
           ) : null}
         </div>
+      ) : null}
+      {completionFeedback.noticeVisible ? (
+        <WorkCompletionFeedback
+          effectPlaying={completionFeedback.effect !== null}
+          onReopen={() => {
+            if (completionFeedback.reopenStatus) {
+              setReopenTarget(completionFeedback.reopenStatus);
+            }
+          }}
+          palette={completionFeedback.effect?.palette ?? "Haze"}
+          reopenDisabled={isPending}
+          theme={completionFeedback.effect?.theme ?? "Calm"}
+        />
       ) : null}
       {error ? (
         <p className="text-destructive text-xs" role="alert">

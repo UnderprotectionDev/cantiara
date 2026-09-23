@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work type controls close over their current Work state.
 
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type {
   ProjectShellConfiguration,
   WorkStatusLabel,
@@ -43,17 +44,24 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  completionEffectsPreferencesQueryOptions,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
 import WorkStatusForm from "../forms/work-status-form";
 
 export default function ProjectWorkList({
+  accountId,
   accountFormattingPreferences,
   projectId,
   workContextLayouts,
   workStatusLabels,
 }: {
+  accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   projectId: string;
   workContextLayouts: ProjectShellConfiguration["workContextLayouts"];
@@ -75,6 +83,11 @@ export default function ProjectWorkList({
       input: { archived: showArchived, projectId },
     }),
   );
+  const completionEffectsPreferencesQuery = useQuery(
+    completionEffectsPreferencesQueryOptions(accountId),
+  );
+  const completionEffectsPreferences: CompletionEffectsPreferences | null =
+    completionEffectsPreferencesQuery.data ?? null;
   const recordActionRunner = useRecordActionRunner(projectId);
   const allProjectWorksQuery = useQuery(
     orpc.projectWorks.queryOptions({
@@ -252,7 +265,7 @@ export default function ProjectWorkList({
         <ul aria-label={showArchived ? "Archived Work list" : "Work list"}>
           {query.data.map((work) => (
             <li
-              className="mb-3 grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4 transition-colors last:mb-0 hover:bg-card"
+              className="relative isolate mb-3 grid gap-4 rounded-lg border border-border/70 bg-card/40 px-4 py-4 transition-colors last:mb-0 hover:bg-card"
               id={`work-${encodeURIComponent(work.id)}`}
               key={work.id}
             >
@@ -323,6 +336,8 @@ export default function ProjectWorkList({
                 <div className="flex flex-wrap items-end gap-3">
                   <WorkTypeEditor work={work} />
                   <WorkStatusForm
+                    accountId={accountId}
+                    completionEffectsPreferences={completionEffectsPreferences}
                     work={work}
                     workStatusLabels={workStatusLabels}
                   />

@@ -49,11 +49,13 @@ const PriorityMap = lazy(
 );
 
 export default function ProjectShellSurface({
+  accountId,
   accountFormattingPreferences,
   project,
   projectId,
   scopeTreeQuery,
 }: {
+  accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   project: ProjectProfile;
   projectId: string;
@@ -132,6 +134,7 @@ export default function ProjectShellSurface({
       return (
         <ProjectWorkSurface
           accountFormattingPreferences={accountFormattingPreferences}
+          accountId={accountId}
           activeAction={dailyAction}
           activeHash={activeHash}
           configuration={configuration}
@@ -304,12 +307,14 @@ export default function ProjectShellSurface({
 }
 
 function ProjectWorkSurface({
+  accountId,
   activeHash,
   activeAction,
   accountFormattingPreferences,
   configuration,
   projectId,
 }: {
+  accountId?: string;
   activeHash: string;
   activeAction: DailyAction | null;
   accountFormattingPreferences: AccountPreferences;
@@ -383,6 +388,7 @@ function ProjectWorkSurface({
             />
             <ProjectWorkList
               accountFormattingPreferences={accountFormattingPreferences}
+              accountId={accountId}
               projectId={projectId}
               workContextLayouts={configuration.workContextLayouts}
               workStatusLabels={configuration.workStatusLabels}

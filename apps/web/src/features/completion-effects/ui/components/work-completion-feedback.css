@@ -1,0 +1,111 @@
+.work-completion-effect {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.work-completion-effect > svg {
+  opacity: 0.72;
+}
+
+.work-completion-effect[data-theme="Calm"] [data-effect-shape="calm"] {
+  transform-origin: center;
+  animation: work-completion-drift 1.2s cubic-bezier(0.22, 0.68, 0.31, 1) both;
+}
+
+.work-completion-effect[data-theme="Weave"] [data-effect-shape="weave"] {
+  transform-origin: center;
+  animation: work-completion-weave 1.2s cubic-bezier(0.22, 0.68, 0.31, 1) both;
+}
+
+.work-completion-effect[data-theme="Arc"] [data-effect-shape="arc"] {
+  transform-origin: center;
+  animation: work-completion-arc 1.2s cubic-bezier(0.22, 0.68, 0.31, 1) both;
+}
+
+.work-completion-effect[data-theme="Nova"] [data-effect-shape="nova"] {
+  transform-origin: center;
+  animation: work-completion-nova 1.2s cubic-bezier(0.22, 0.68, 0.31, 1) both;
+}
+
+@keyframes work-completion-drift {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  54% {
+    opacity: 0.72;
+    transform: translateY(-3px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+@keyframes work-completion-weave {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  54% {
+    opacity: 0.72;
+    transform: translateX(4px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+
+@keyframes work-completion-arc {
+  0% {
+    opacity: 0;
+    transform: rotate(-3deg) scale(0.99);
+  }
+
+  54% {
+    opacity: 0.72;
+    transform: rotate(2deg) scale(1.01);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(0) scale(1);
+  }
+}
+
+@keyframes work-completion-nova {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+
+  54% {
+    opacity: 0.72;
+    transform: scale(1.03);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-completion-effect,
+  .work-completion-effect [data-effect-shape] {
+    animation: none !important;
+  }
+
+  .work-completion-effect {
+    display: none;
+  }
+}
