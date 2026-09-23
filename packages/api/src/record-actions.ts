@@ -1,10 +1,22 @@
 import { z } from "zod";
 
-import { customFieldValuePayloadSchema } from "./custom-fields";
+import {
+  customFieldDateValueSchema,
+  customFieldValuePayloadSchema,
+} from "./custom-fields";
+import type {
+  MutationFinalizationReceipt,
+  MutationReceipt,
+} from "./mutation-and-undo";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
-import { workOpenStatusSchema } from "./work-lifecycle";
+import {
+  workClosureResultSchema,
+  workOpenStatusSchema,
+  workStatusSchema,
+} from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
+export const RECORD_ACTION_CUSTOM_FIELD_CHANGE_KEY_PREFIX = "custom-field:";
 
 export const recordActionNameSchema = z
   .string()
@@ -143,6 +155,108 @@ export const recordActionsInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
 
+export const recordActionMutationValueSchema = z
+  .object({
+    customFields: z
+      .record(identifierSchema, customFieldValuePayloadSchema.nullable())
+      .optional(),
+    closureReason: z.string().nullable().optional(),
+    closureResult: workClosureResultSchema.nullable().optional(),
+    dailyFocus: z
+      .object({
+        date: customFieldDateValueSchema,
+        included: z.boolean(),
+      })
+      .strict()
+      .optional(),
+    status: workStatusSchema.optional(),
+  })
+  .strict();
+
+export type RecordActionMutationValue = z.infer<
+  typeof recordActionMutationValueSchema
+>;
+
+const recordActionChangeValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  customFieldValuePayloadSchema,
+  z.null(),
+]);
+
+const recordActionPreviewFields = z
+  .object({
+    actionId: identifierSchema,
+    actionName: recordActionNameSchema,
+    actionRevision: z.number().int().min(1).safe(),
+    baseRevision: z.number().int().nonnegative().safe(),
+    changes: z
+      .array(
+        z
+          .object({
+            after: recordActionChangeValueSchema,
+            before: recordActionChangeValueSchema,
+            key: identifierSchema,
+            label: z.string().trim().min(1),
+          })
+          .strict(),
+      )
+      .max(104),
+    focusDate: customFieldDateValueSchema,
+    nextValue: recordActionMutationValueSchema,
+    previewFingerprint: z.string().regex(/^[0-9a-f]{64}$/i),
+    workId: identifierSchema,
+    workKey: identifierSchema,
+    workTitle: z.string().min(1),
+  })
+  .strict();
+
+export const previewRecordActionInputSchema = z
+  .object({
+    actionId: identifierSchema,
+    focusDate: customFieldDateValueSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type PreviewRecordActionInput = z.infer<
+  typeof previewRecordActionInputSchema
+>;
+
+export type RecordActionPreview = z.infer<typeof recordActionPreviewFields>;
+
+export const recordActionRunPayloadSchema = z
+  .object({
+    actionId: identifierSchema,
+    actionRevision: z.number().int().min(1).safe(),
+    focusDate: customFieldDateValueSchema,
+    previewFingerprint: z.string().regex(/^[0-9a-f]{64}$/i),
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type RecordActionRunPayload = z.infer<
+  typeof recordActionRunPayloadSchema
+>;
+
+export const applyRecordActionInputSchema = humanMutationEnvelopeSchema
+  .extend(recordActionRunPayloadSchema.shape)
+  .strict();
+
+export type ApplyRecordActionInput = z.infer<
+  typeof applyRecordActionInputSchema
+>;
+
+export const undoRecordActionInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    receiptId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type UndoRecordActionInput = z.infer<typeof undoRecordActionInputSchema>;
+
 export const recordActionSchema = recordActionDefinitionFields
   .extend({
     createdAt: z.string().datetime({ offset: true }),
@@ -158,6 +272,10 @@ export const recordActionSchema = recordActionDefinitionFields
 export type RecordAction = z.infer<typeof recordActionSchema>;
 
 export interface RecordActionsAccess {
+  apply: (
+    accountId: string,
+    input: ApplyRecordActionInput,
+  ) => Promise<MutationFinalizationReceipt<RecordActionMutationValue>>;
   create: (
     accountId: string,
     input: ParsedCreateRecordActionInput,
@@ -166,11 +284,19 @@ export interface RecordActionsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<RecordAction[] | null>;
+  preview: (
+    accountId: string,
+    input: PreviewRecordActionInput,
+  ) => Promise<RecordActionPreview | null>;
   trash: (
     accountId: string,
     actionId: string,
     baseRevision: number,
   ) => Promise<RecordAction | null>;
+  undo: (
+    accountId: string,
+    input: UndoRecordActionInput,
+  ) => Promise<MutationReceipt<RecordActionMutationValue>>;
   update: (
     accountId: string,
     actionId: string,

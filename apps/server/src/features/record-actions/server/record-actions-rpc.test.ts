@@ -45,8 +45,12 @@ function createContext(recordActions: RecordActionsAccess): Context {
 describe("Record Actions RPC", () => {
   test("defines, edits, lists, and trashes actions as the signed-in User", async () => {
     const access: RecordActionsAccess = {
+      apply: () => {
+        throw new Error("Not part of this test.");
+      },
       create: vi.fn().mockResolvedValue(action),
       list: vi.fn().mockResolvedValue([action]),
+      preview: async () => null,
       trash: vi.fn().mockResolvedValue({
         ...action,
         revision: 3,
@@ -57,6 +61,9 @@ describe("Record Actions RPC", () => {
         name: "Begin work",
         revision: 2,
       }),
+      undo: () => {
+        throw new Error("Not part of this test.");
+      },
     };
     const client = createRouterClient(appRouter, {
       context: createContext(access),

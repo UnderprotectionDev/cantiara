@@ -17,6 +17,10 @@ import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
+import {
+  createDatabaseRecordActionApplication,
+  type RecordActionApplicationOptions,
+} from "./record-actions-application-database";
 
 type RecordActionRecord = typeof recordAction.$inferSelect;
 type CustomFieldStep = Extract<
@@ -174,8 +178,10 @@ async function validateCustomFieldSteps(
 
 export function createDatabaseRecordActions(
   database: Database,
+  applicationOptions: RecordActionApplicationOptions = {},
 ): RecordActionsAccess {
   return {
+    ...createDatabaseRecordActionApplication(database, applicationOptions),
     async create(accountId, input: ParsedCreateRecordActionInput) {
       if (!(await ownedProject(database, accountId, input.projectId))) {
         throw new RecordActionProjectNotFoundError(input.projectId);
