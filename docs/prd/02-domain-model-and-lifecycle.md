@@ -378,9 +378,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
 | Devirleri görüntüle | `View Handoffs` | Arşivlenmiş İşteki tarihsel dış yürütme devirlerini salt okunur açma eylemi |
-| Devir geçmişi | `Handoff history` | Başlatma, paket dışa aktarma ve iptal olaylarının İş geçmişindeki içeriksiz görünümü |
+| Devir geçmişi | `Handoff history` | Başlatma, paket üretimi, dışa aktarma ve iptal olaylarının `You` atfıyla gösterilen içeriksiz İş geçmişi görünümü |
 | Devir başlatıldı | `Handoff started` | İş geçmişinde Dış yürütme devri başlatma olayı |
+| Gidiş paketi üretildi | `Going package produced` | İş geçmişinde tarihli gidiş paketi üretim olayı |
 | Gidiş paketi kopyalandı | `Going package copied` | İş geçmişinde başarılı panoya kopyalama olayı |
+| Devir geçmişi aktörü | `You` | İş sahibinin kendi İşine ait devir geçmişi olaylarındaki aktör atfı |
 | Serbest metin güvenlik notu | `Free text is copied as entered and is not scanned for secrets. Review the package before sharing.` | Gidiş paketi önizlemesinde serbest metin taraması yapılmadığını ve paylaşmadan önce inceleme gerektiğini açıklayan uyarı |
 | Devir iptal | `Cancel Handoff` | Gerekçeli iptal eylemi; geçmişi silmez |
 | Devir açık | `Open` | Dış yürütme devrinin açık, henüz terminal olmayan durumu |

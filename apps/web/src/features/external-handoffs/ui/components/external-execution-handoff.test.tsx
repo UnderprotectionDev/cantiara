@@ -62,6 +62,34 @@ describe("External Execution Handoff", () => {
         },
       ],
     );
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffHistory.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          actorId: "account-1",
+          eventId: "event-started",
+          eventType: "external-execution-handoff-started",
+          handoffId: "handoff-1",
+          occurredAt: "2026-09-22T10:00:00.000Z",
+        },
+        {
+          actorId: "account-1",
+          eventId: "event-produced",
+          eventType: "external-execution-handoff-package-produced",
+          handoffId: "handoff-1",
+          occurredAt: "2026-09-22T10:00:00.000Z",
+        },
+        {
+          actorId: "account-1",
+          eventId: "event-copied",
+          eventType: "external-execution-handoff-package-exported",
+          handoffId: "handoff-1",
+          occurredAt: "2026-09-22T10:01:00.000Z",
+        },
+      ],
+    );
     const html = renderToStaticMarkup(
       createElement(
         QueryClientProvider,
@@ -94,9 +122,15 @@ describe("External Execution Handoff", () => {
       "Free text is copied as entered and is not scanned for secrets.",
       "Review the package before sharing.",
       "Source of truth is in the app",
+      "Handoff history",
+      "Handoff started",
+      "Going package produced",
+      "Going package copied",
+      "You",
     ]) {
       expect(html).toContain(expected);
     }
+    expect(html.match(/by You/g)).toHaveLength(3);
     expect(html.indexOf("Review the package before sharing.")).toBeLessThan(
       html.indexOf("Copy going package"),
     );
@@ -251,6 +285,20 @@ describe("External Execution Handoff", () => {
         },
       ],
     );
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffHistory.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          actorId: "account-1",
+          eventId: "event-canceled",
+          eventType: "external-execution-handoff-canceled",
+          handoffId: "handoff-canceled",
+          occurredAt: "2026-09-23T11:01:00.000Z",
+        },
+      ],
+    );
     const html = renderToStaticMarkup(
       createElement(
         QueryClientProvider,
@@ -267,6 +315,7 @@ describe("External Execution Handoff", () => {
     );
 
     expect(html).toContain("Canceled");
+    expect(html).toContain("Canceled by You");
     expect(html).toContain("Reason");
     expect(html).toContain("The selected approach changed.");
     expect(html).toContain("Frozen package");

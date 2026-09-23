@@ -112,14 +112,26 @@ describeDatabase("External Execution Handoff seam", () => {
     );
 
     const startedHistory = await handoffs.listHistory(accountId, workId);
-    expect(startedHistory).toEqual([
-      expect.objectContaining({
-        actorId: accountId,
-        eventType: "external-execution-handoff-started",
-        handoffId: "handoff-1",
-        occurredAt: "2026-09-23T12:00:00.000Z",
-      }),
-    ]);
+    expect(startedHistory).toHaveLength(2);
+    expect(startedHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorId: accountId,
+          eventType: "external-execution-handoff-started",
+          handoffId: "handoff-1",
+          occurredAt: "2026-09-23T12:00:00.000Z",
+        }),
+        expect.objectContaining({
+          actorId: accountId,
+          eventType: "external-execution-handoff-package-produced",
+          handoffId: "handoff-1",
+          occurredAt: "2026-09-23T12:00:00.000Z",
+        }),
+      ]),
+    );
+    expect(JSON.stringify(startedHistory)).not.toContain(
+      "Create a frozen Markdown package.",
+    );
 
     const copied = await handoffs.recordPackageExport(accountId, {
       clientEventId: "copy-first-package",
@@ -193,6 +205,21 @@ describeDatabase("External Execution Handoff seam", () => {
       selectedWorkRevision: 1,
     });
     expect(second?.packageMarkdown).toContain("Changed Work title");
+    const secondHandoffHistory = await handoffs.listHistory(accountId, workId);
+    const secondHandoffEvents = secondHandoffHistory?.filter(
+      (event) => event.handoffId === second?.handoffId,
+    );
+    expect(secondHandoffEvents).toHaveLength(2);
+    expect(secondHandoffEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "external-execution-handoff-started",
+        }),
+        expect.objectContaining({
+          eventType: "external-execution-handoff-package-produced",
+        }),
+      ]),
+    );
     await expect(handoffs.list("another-account", workId)).resolves.toBeNull();
 
     await database
@@ -205,6 +232,7 @@ describeDatabase("External Execution Handoff seam", () => {
     expect(archivedHistory?.map((event) => event.eventType)).toEqual(
       expect.arrayContaining([
         "external-execution-handoff-started",
+        "external-execution-handoff-package-produced",
         "external-execution-handoff-package-exported",
       ]),
     );

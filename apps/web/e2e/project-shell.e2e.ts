@@ -243,11 +243,14 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await expect(page.locator("#work-create")).toBeInViewport();
   await expect(page.getByRole("region", { name: "Create" })).toBeVisible();
   const nonGetRequestCountBeforeConfigurationMode = nonGetRequests.length;
+  const customFieldsReadUrl = `${E2E_SERVER_URL}/rpc/customFields`;
+  const configurationWrites = () =>
+    nonGetRequests
+      .slice(nonGetRequestCountBeforeConfigurationMode)
+      .filter((url) => url !== customFieldsReadUrl);
 
   await configurationMode.click();
-  expect(nonGetRequests).toHaveLength(
-    nonGetRequestCountBeforeConfigurationMode,
-  );
+  expect(configurationWrites()).toEqual([]);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "true");
   const configurationRegion = page.locator(
     'section[aria-label="Configuration Mode"]',
@@ -345,9 +348,7 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   ).toBeDisabled();
 
   await configurationMode.click();
-  expect(
-    nonGetRequests.slice(nonGetRequestCountBeforeConfigurationMode),
-  ).toEqual([`${E2E_SERVER_URL}/rpc/customFields`]);
+  expect(configurationWrites()).toEqual([]);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(
     page.locator('section[aria-label="Configuration Mode"]'),

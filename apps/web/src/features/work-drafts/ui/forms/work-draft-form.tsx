@@ -791,6 +791,8 @@ export default function WorkDraftForm({
       queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
         drafts.filter((draft) => draft.id !== saved.id),
       );
+      // The finalization is committed; cache refreshes should not lock the new Draft editor.
+      setIsCreating(false);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: projectWorksQueryPrefix,
