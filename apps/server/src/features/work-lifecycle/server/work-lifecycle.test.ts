@@ -546,6 +546,7 @@ function createMemoryWorkLifecycle(
             throw new Error("simulated commit failure");
           }
           const nextValue = await apply({
+            committedAt: "2026-09-20T09:00:00.000Z",
             currentRevision: 0,
             currentValue: { work: null },
             payload: command.payload,
@@ -626,6 +627,7 @@ function createMemoryWorkLifecycle(
             });
           }
           const nextValue = await apply({
+            committedAt: "2026-09-20T09:00:00.000Z",
             currentRevision: currentWork?.revision ?? 0,
             currentValue: previousValue,
             payload: command.payload,

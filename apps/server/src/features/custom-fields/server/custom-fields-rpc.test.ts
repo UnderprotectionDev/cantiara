@@ -66,6 +66,7 @@ function createFieldMutationContract(): MutationContract<CustomFieldMutationValu
       }
       const previousValue = { field: null };
       const nextValue = await apply({
+        committedAt: "2026-09-19T09:00:00.000Z",
         currentRevision: 0,
         currentValue: previousValue,
         payload: command.payload,
@@ -101,6 +102,7 @@ function createValueMutationContract(): MutationContract<CustomFieldValueMutatio
       }
       const previousValue = { value: null };
       const nextValue = await apply({
+        committedAt: "2026-09-19T09:00:00.000Z",
         currentRevision: 0,
         currentValue: previousValue,
         payload: command.payload,

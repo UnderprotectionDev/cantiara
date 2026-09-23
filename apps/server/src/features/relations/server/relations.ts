@@ -1303,7 +1303,7 @@ async function changeBlockerStatus(
 
   const receipt = await mutation.mutate(
     command,
-    ({ currentValue: { relation } }) => {
+    ({ committedAt, currentValue: { relation } }) => {
       if (
         relation?.kind !== "Blocks" ||
         relation.blockingStatus !== expectedStatus
@@ -1313,7 +1313,7 @@ async function changeBlockerStatus(
       return {
         relation: {
           ...relation,
-          blockingResolvedAt: null,
+          blockingResolvedAt: status === "Resolved" ? committedAt : null,
           blockingResolutionNote: status === "Resolved" ? note : null,
           blockingStatus: status,
         },

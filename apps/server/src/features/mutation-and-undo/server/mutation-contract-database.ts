@@ -940,6 +940,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         }
 
         const nextValue = await input.apply({
+          committedAt: input.committedAt,
           currentRevision: target.revision,
           currentValue: target.value as TValue,
           payload: input.payload,
@@ -1206,6 +1207,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           : input.receiptId;
 
         const nextValue = await input.apply({
+          committedAt: input.committedAt,
           currentRevision: target.revision,
           currentValue: target.value as TValue,
           payload: input.payload,

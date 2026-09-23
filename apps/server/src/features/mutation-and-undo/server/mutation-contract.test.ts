@@ -376,6 +376,7 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
           );
         }
         const nextValue = await input.apply({
+          committedAt: input.committedAt,
           currentRevision: target.revision,
           currentValue: target.value,
           payload: input.payload,
@@ -523,6 +524,7 @@ function createMemoryStore(initial: MutationTarget<FixtureValue>) {
         }
 
         const nextValue = await input.apply({
+          committedAt: input.committedAt,
           currentRevision: target.revision,
           currentValue: target.value,
           payload: input.payload,

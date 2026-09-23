@@ -95,6 +95,7 @@ function createMutationContracts(
     onMutate?.(options);
     const previousValue = { tag };
     const nextValue = await apply({
+      committedAt: "2026-09-20T09:00:00.000Z",
       currentRevision: tag.revision,
       currentValue: previousValue,
       payload: command.payload,

@@ -220,6 +220,7 @@ function createSavingMutationContract(): MutationContract<WorkDraftMutationValue
   return {
     mutate: vi.fn(async (command, apply) => {
       const nextValue = await apply({
+        committedAt: "2026-09-19T09:00:01.000Z",
         currentRevision: 0,
         currentValue: { draft: null },
         payload: command.payload,
