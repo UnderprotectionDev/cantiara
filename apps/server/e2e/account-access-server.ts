@@ -501,7 +501,8 @@ async function createBulkEditProgressFixture(accountId: string) {
         key: `${projectRecord.shortCode}-${number}`,
         number,
         projectId: projectRecord.id,
-        status: number === 1 ? "Blocked" : "Not Started",
+        status:
+          number === BULK_EDIT_PROGRESS_WORK_COUNT ? "Blocked" : "Not Started",
         title: `Bulk Progress ${String(number).padStart(3, "0")}`,
         type: "Task",
       };

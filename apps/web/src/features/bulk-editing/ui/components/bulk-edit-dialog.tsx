@@ -58,6 +58,13 @@ import {
 } from "../../store/bulk-edit-operation";
 
 const BULK_EDIT_CONCURRENCY = 4;
+const BULK_EDIT_WORKER_YIELD_INTERVAL = 16;
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
 
 interface WorkSelectionCheckboxProps {
   checked: boolean;
@@ -100,13 +107,6 @@ function changedPreviewRecords(preview: BulkEditPreview | null) {
     preview?.records.filter(
       ({ work }) => work.status !== preview.targetStatus,
     ) ?? []
-  );
-}
-
-function previewHasClosureWarnings(preview: BulkEditPreview | null) {
-  return changedPreviewRecords(preview).some(
-    ({ closePreview }) =>
-      closePreview !== null && hasClosureWarnings(closePreview),
   );
 }
 
@@ -275,7 +275,7 @@ async function runBulkEditOperation({
   projectId: string;
   queryClient: QueryClient;
 }) {
-  async function applyNextRecord(): Promise<void> {
+  async function applyNextRecord(recordsSinceYield = 0): Promise<void> {
     const recordIndex = claimBulkEditRecord(operationId);
     if (recordIndex === null) {
       return;
@@ -299,10 +299,15 @@ async function runBulkEditOperation({
         });
       }
     }
-    await applyNextRecord();
+    if (recordsSinceYield + 1 === BULK_EDIT_WORKER_YIELD_INTERVAL) {
+      await yieldToBrowser();
+      return applyNextRecord();
+    }
+    return applyNextRecord(recordsSinceYield + 1);
   }
 
   try {
+    await yieldToBrowser();
     await Promise.all(
       Array.from(
         { length: Math.min(BULK_EDIT_CONCURRENCY, preview.records.length) },
@@ -467,20 +472,28 @@ function BulkEditStatusFields({
 }
 
 function BulkEditPreviewSection({
+  changedRecords,
   preview,
   needsRefresh,
   workStatusLabels,
 }: {
+  changedRecords: readonly BulkEditRecordSnapshot[];
   needsRefresh: boolean;
   preview: BulkEditPreview | null;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const previewListRef = useRef<HTMLElement>(null);
+  const virtualizer = useVirtualizer({
+    count: changedRecords.length,
+    estimateSize: () => 56,
+    gap: 8,
+    getScrollElement: () => previewListRef.current,
+    overscan: 4,
+    useFlushSync: false,
+  });
   if (!preview) {
     return null;
   }
-  const changedRecords = preview.records.filter(
-    ({ work }) => work.status !== preview.targetStatus,
-  );
   return (
     <section aria-label="Preview" className="space-y-3">
       <h3 className="font-medium text-sm">Preview</h3>
@@ -492,37 +505,67 @@ function BulkEditPreviewSection({
       {changedRecords.length === 0 ? (
         <p className="text-muted-foreground text-xs">No changes to apply.</p>
       ) : (
-        <ul className="max-h-64 space-y-2 overflow-y-auto rounded-md border p-3">
-          {changedRecords.map(({ closePreview, work }) => (
-            <li className="space-y-1 text-xs" key={work.id}>
-              <p className="font-medium">
-                {work.key} · {work.title}
-              </p>
-              <p className="text-muted-foreground">
-                {getWorkStatusLabel(work.status, workStatusLabels)} →{" "}
-                {getWorkStatusLabel(preview.targetStatus, workStatusLabels)}
-              </p>
-              {preview.targetStatus === "Closed" ? (
-                <p>Closure result: {preview.closureResult}</p>
-              ) : null}
-              {closePreview && hasClosureWarnings(closePreview) ? (
-                <div className="space-y-1 border-amber-500/50 border-l-2 pl-2">
-                  <p className="font-medium">Closure check</p>
-                  <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
-                    {closePreview.closureCheck.incompleteChecklistItems.map(
-                      (item) => (
-                        <li key={item.id}>{item.label}</li>
-                      ),
-                    )}
-                    {closePreview.closureCheck.activeBlockers.map((item) => (
-                      <li key={item.id}>{item.label}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        // biome-ignore-start lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this preview region.
+        <section
+          aria-label="Bulk Edit preview records"
+          className="max-h-64 overflow-y-auto rounded-md border p-3"
+          ref={previewListRef}
+          tabIndex={0}
+        >
+          <ul
+            aria-label="Bulk Edit preview records"
+            className="relative w-full"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const record = changedRecords[virtualItem.index];
+              if (!record) {
+                return null;
+              }
+              const { closePreview, work } = record;
+              return (
+                <li
+                  aria-posinset={virtualItem.index + 1}
+                  aria-setsize={changedRecords.length}
+                  className="absolute top-0 left-0 w-full space-y-1 text-xs"
+                  data-index={virtualItem.index}
+                  key={work.id}
+                  ref={virtualizer.measureElement}
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  <p className="font-medium">
+                    {work.key} · {work.title}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {getWorkStatusLabel(work.status, workStatusLabels)} →{" "}
+                    {getWorkStatusLabel(preview.targetStatus, workStatusLabels)}
+                  </p>
+                  {preview.targetStatus === "Closed" ? (
+                    <p>Closure result: {preview.closureResult}</p>
+                  ) : null}
+                  {closePreview && hasClosureWarnings(closePreview) ? (
+                    <div className="space-y-1 border-amber-500/50 border-l-2 pl-2">
+                      <p className="font-medium">Closure check</p>
+                      <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+                        {closePreview.closureCheck.incompleteChecklistItems.map(
+                          (item) => (
+                            <li key={item.id}>{item.label}</li>
+                          ),
+                        )}
+                        {closePreview.closureCheck.activeBlockers.map(
+                          (item) => (
+                            <li key={item.id}>{item.label}</li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+        // biome-ignore-end lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this preview region.
       )}
     </section>
   );
@@ -725,8 +768,18 @@ export default function BulkEditDialog({
     preview,
     targetStatus,
   });
-  const changedRecords = changedPreviewRecords(displayedPreview);
-  const hasWarnings = previewHasClosureWarnings(displayedPreview);
+  const changedRecords = useMemo(
+    () => changedPreviewRecords(displayedPreview),
+    [displayedPreview],
+  );
+  const hasWarnings = useMemo(
+    () =>
+      changedRecords.some(
+        ({ closePreview }) =>
+          closePreview !== null && hasClosureWarnings(closePreview),
+      ),
+    [changedRecords],
+  );
 
   function resetForm() {
     setTargetStatus("");
@@ -839,6 +892,7 @@ export default function BulkEditDialog({
         />
 
         <BulkEditPreviewSection
+          changedRecords={changedRecords}
           needsRefresh={operation === undefined && !previewMatchesCurrentInput}
           preview={displayedPreview}
           workStatusLabels={workStatusLabels}
