@@ -1,6 +1,6 @@
 {
-  "id": "32473af3-196b-463d-af6f-9a4b62db7a12",
-  "prevId": "0829e017-8edb-441a-a6ff-319d1a2aa999",
+  "id": "3e37441f-7c10-4344-a46d-a30201944d49",
+  "prevId": "84f6ec45-acae-4074-bade-c3a248e61436",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4507,6 +4507,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "blocking_status": {
+          "name": "blocking_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blocking_resolved_at": {
+          "name": "blocking_resolved_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blocking_resolution_note": {
+          "name": "blocking_resolution_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "id": {
           "name": "id",
           "type": "text",
@@ -4685,6 +4703,10 @@
         "work_relation_broken_reason_check": {
           "name": "work_relation_broken_reason_check",
           "value": "\"work_relation\".\"broken_reason\" is null or \"work_relation\".\"broken_reason\" in ('Archived', 'In Trash', 'Permanently deleted', 'Redacted for security', 'No access')"
+        },
+        "work_relation_blocking_status_check": {
+          "name": "work_relation_blocking_status_check",
+          "value": "(\"work_relation\".\"kind\" <> 'Blocks' and \"work_relation\".\"blocking_status\" is null and \"work_relation\".\"blocking_resolved_at\" is null and \"work_relation\".\"blocking_resolution_note\" is null) or (\"work_relation\".\"kind\" = 'Blocks' and \"work_relation\".\"blocking_status\" = 'Active' and \"work_relation\".\"blocking_resolved_at\" is null and \"work_relation\".\"blocking_resolution_note\" is null) or (\"work_relation\".\"kind\" = 'Blocks' and \"work_relation\".\"blocking_status\" = 'Resolved')"
         },
         "work_relation_source_record_type_check": {
           "name": "work_relation_source_record_type_check",

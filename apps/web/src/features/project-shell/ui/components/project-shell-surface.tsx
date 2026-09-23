@@ -284,6 +284,7 @@ export default function ProjectShellSurface({
               configurationHost={configurationHost}
               onConfigurationHostChange={setConfigurationHost}
               projectId={projectId}
+              projectName={name}
               starterConfiguration={starterConfiguration}
             />
           ) : null}

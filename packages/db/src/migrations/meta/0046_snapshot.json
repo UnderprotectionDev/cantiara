@@ -1,5 +1,5 @@
 {
-  "id": "1d8967aa-5611-485f-ac10-26eb5d912646",
+  "id": "0829e017-8edb-441a-a6ff-319d1a2aa999",
   "prevId": "e27feced-1579-40ed-a436-c3ec1d36fac4",
   "version": "7",
   "dialect": "postgresql",
@@ -2487,6 +2487,285 @@
       },
       "isRLSEnabled": false
     },
+    "public.priority_metric_definition": {
+      "name": "priority_metric_definition",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rank_descriptions": {
+          "name": "rank_descriptions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "short_description": {
+          "name": "short_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "priority_metric_definition_project_idx": {
+          "name": "priority_metric_definition_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "priority_metric_definition_project_name_uidx": {
+          "name": "priority_metric_definition_project_name_uidx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "priority_metric_definition_project_id_project_id_fk": {
+          "name": "priority_metric_definition_project_id_project_id_fk",
+          "tableFrom": "priority_metric_definition",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "priority_metric_definition_project_id_uidx": {
+          "name": "priority_metric_definition_project_id_uidx",
+          "nullsNotDistinct": false,
+          "columns": ["project_id", "id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "priority_metric_definition_name_check": {
+          "name": "priority_metric_definition_name_check",
+          "value": "length(btrim(\"priority_metric_definition\".\"name\")) between 1 and 200"
+        },
+        "priority_metric_definition_short_description_check": {
+          "name": "priority_metric_definition_short_description_check",
+          "value": "length(btrim(\"priority_metric_definition\".\"short_description\")) between 1 and 500"
+        },
+        "priority_metric_definition_rank_descriptions_check": {
+          "name": "priority_metric_definition_rank_descriptions_check",
+          "value": "jsonb_typeof(\"priority_metric_definition\".\"rank_descriptions\") = 'object'\n        and \"priority_metric_definition\".\"rank_descriptions\" ?& array['Very low', 'Low', 'Medium', 'High', 'Very high']\n        and \"priority_metric_definition\".\"rank_descriptions\" - array['Very low', 'Low', 'Medium', 'High', 'Very high'] = '{}'::jsonb"
+        },
+        "priority_metric_definition_revision_check": {
+          "name": "priority_metric_definition_revision_check",
+          "value": "\"priority_metric_definition\".\"revision\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.work_priority_metric_value": {
+      "name": "work_priority_metric_value",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "metric_id": {
+          "name": "metric_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rank": {
+          "name": "rank",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "work_id": {
+          "name": "work_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "work_priority_metric_value_project_work_idx": {
+          "name": "work_priority_metric_value_project_work_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "work_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_priority_metric_value_work_metric_uidx": {
+          "name": "work_priority_metric_value_work_metric_uidx",
+          "columns": [
+            {
+              "expression": "work_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "metric_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_priority_metric_value_project_metric_fk": {
+          "name": "work_priority_metric_value_project_metric_fk",
+          "tableFrom": "work_priority_metric_value",
+          "tableTo": "priority_metric_definition",
+          "columnsFrom": ["project_id", "metric_id"],
+          "columnsTo": ["project_id", "id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_priority_metric_value_rank_check": {
+          "name": "work_priority_metric_value_rank_check",
+          "value": "\"work_priority_metric_value\".\"rank\" is null or \"work_priority_metric_value\".\"rank\" in ('Very low', 'Low', 'Medium', 'High', 'Very high')"
+        },
+        "work_priority_metric_value_revision_check": {
+          "name": "work_priority_metric_value_revision_check",
+          "value": "\"work_priority_metric_value\".\"revision\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.capture_extension_link": {
       "name": "capture_extension_link",
       "schema": "",
@@ -3271,7 +3550,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "work_project_id_uidx": {
+          "name": "work_project_id_uidx",
+          "nullsNotDistinct": false,
+          "columns": ["project_id", "id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "work_number_check": {
@@ -4213,12 +4498,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "blocking_status": {
-          "name": "blocking_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "id": {
           "name": "id",
           "type": "text",
@@ -4397,10 +4676,6 @@
         "work_relation_broken_reason_check": {
           "name": "work_relation_broken_reason_check",
           "value": "\"work_relation\".\"broken_reason\" is null or \"work_relation\".\"broken_reason\" in ('Archived', 'In Trash', 'Permanently deleted', 'Redacted for security', 'No access')"
-        },
-        "work_relation_blocking_status_check": {
-          "name": "work_relation_blocking_status_check",
-          "value": "(\"work_relation\".\"kind\" <> 'Blocks' and \"work_relation\".\"blocking_status\" is null) or (\"work_relation\".\"kind\" = 'Blocks' and \"work_relation\".\"blocking_status\" is not null and \"work_relation\".\"blocking_status\" in ('Active', 'Resolved'))"
         },
         "work_relation_source_record_type_check": {
           "name": "work_relation_source_record_type_check",

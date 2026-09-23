@@ -38,6 +38,13 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
+import { createPriorityMetricsAccess } from "./features/priority-metrics/server/priority-metrics";
+import { createDatabasePriorityMetrics } from "./features/priority-metrics/server/priority-metrics-database";
+import { createDatabasePriorityMetricMutationContracts } from "./features/priority-metrics/server/priority-metrics-mutation-database";
+import {
+  createDatabasePriorityMetricPermanentDeleteEvents,
+  createDatabasePriorityMetricTrashMaintenance,
+} from "./features/priority-metrics/server/priority-metrics-trash-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
@@ -60,6 +67,13 @@ const db = createDb(env);
 const securityEventDb = createSecurityEventDb({
   DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
 });
+const priorityMetricPermanentDeleteEvents =
+  createDatabasePriorityMetricPermanentDeleteEvents(securityEventDb);
+const priorityMetricTrashMaintenance =
+  createDatabasePriorityMetricTrashMaintenance(
+    db,
+    priorityMetricPermanentDeleteEvents,
+  );
 const accountAdmission = createDatabaseAccountAdmission(db);
 const databaseAccountPreferences = createDatabaseAccountPreferences(db);
 export const accountPreferences = databaseAccountPreferences;
@@ -73,6 +87,13 @@ export const mutationContract =
 export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
+const priorityMetricStore = createDatabasePriorityMetrics(db);
+export const priorityMetrics = createPriorityMetricsAccess(priorityMetricStore);
+export const priorityMetricMutationContracts =
+  createDatabasePriorityMetricMutationContracts(
+    db,
+    priorityMetricPermanentDeleteEvents,
+  );
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const usageLinks = createDatabaseUsageLinks(db);
@@ -88,7 +109,22 @@ export const workLifecycle = createDatabaseWorkLifecycle(db, {
 });
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
 export const recordActions = createDatabaseRecordActions(db);
-export const workContext = createWorkContextAccess(workLifecycle, relations);
+export const workContext = createWorkContextAccess(workLifecycle, relations, {
+  priorityValues: async (accountId, work) => {
+    const values = await priorityMetrics.values(accountId, work.id);
+    return {
+      effort: work.effort,
+      priorityMetrics:
+        values?.map(({ definition, value }) => ({
+          id: definition.id,
+          name: definition.name,
+          projectId: definition.projectId,
+          value: value?.rank ?? null,
+        })) ?? [],
+      targetDate: work.targetDate,
+    };
+  },
+});
 export const workDrafts = createDatabaseWorkDrafts(
   db,
   workLifecycle,
@@ -219,6 +255,7 @@ export function replaySecurityRevocations() {
     securityReplay = Promise.all([
       accountSessionAccess.replaySessionRevocations(),
       webCapture.replayRevocations(),
+      priorityMetricTrashMaintenance.replayPermanentDeletes(),
     ])
       .then(() => undefined)
       .catch((error) => {
@@ -227,6 +264,10 @@ export function replaySecurityRevocations() {
       });
   }
   return securityReplay;
+}
+
+export function sweepExpiredPriorityMetrics(now = new Date()) {
+  return priorityMetricTrashMaintenance.sweepExpired(now);
 }
 
 // The GitHub login OAuth adapter calls this signal when its authorization is revoked.

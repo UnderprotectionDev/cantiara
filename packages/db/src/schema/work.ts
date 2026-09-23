@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
@@ -60,6 +61,7 @@ export const work = pgTable(
   (table) => [
     index("work_project_idx").on(table.projectId),
     index("work_primary_feature_idx").on(table.primaryFeatureId),
+    unique("work_project_id_uidx").on(table.projectId, table.id),
     uniqueIndex("work_project_number_uidx").on(table.projectId, table.number),
     uniqueIndex("work_project_key_uidx").on(table.projectId, table.key),
     check("work_number_check", sql`${table.number} >= 1`),

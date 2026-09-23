@@ -54,18 +54,30 @@ export type MutationDatabaseExecutor = Pick<
 >;
 
 export interface MutationDatabaseTargetAdapter<TValue> {
+  committedValue?: (target: MutationTarget<TValue>) => TValue;
   find: (
     executor: MutationDatabaseExecutor,
     targetId: string,
     lock: boolean,
     context?: { payload?: MutationPayload },
   ) => Promise<MutationTarget<TValue> | null>;
+  historyPreviousValue?: (value: TValue) => TValue;
+  receiptIdForCommit?: (input: {
+    expectedRevision: number;
+    idempotencyKey: MutationIdempotencyKey;
+    payloadFingerprint: string;
+    targetId: string;
+  }) => string | Promise<string>;
   update: (
     executor: MutationDatabaseExecutor,
     input: {
+      actor?: MutationActor;
       committedAt: Date;
       expectedRevision: number;
+      historyId?: string;
+      idempotencyKey: MutationIdempotencyKey;
       nextValue: TValue;
+      payloadFingerprint: string;
       targetId: string;
     },
   ) => Promise<MutationTarget<TValue> | null>;
@@ -951,9 +963,13 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         let targetUpdate: MutationTarget<TValue> | null;
         try {
           targetUpdate = await targetAdapter.update(transaction, {
+            actor: input.actor,
             committedAt,
             expectedRevision: input.expectedRevision,
+            historyId: input.historyId,
+            idempotencyKey: input.idempotencyKey,
             nextValue,
+            payloadFingerprint: input.payloadFingerprint,
             targetId: input.targetId,
           });
         } catch (cause) {
@@ -977,6 +993,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             current ?? target,
           );
         }
+        const committedValue =
+          targetAdapter.committedValue?.(targetUpdate) ?? nextValue;
 
         const receiptValues = {
           committedAt,
@@ -984,10 +1002,12 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           id: input.receiptId,
           idempotencyKey: input.idempotencyKey.key,
           idempotencyScope: input.idempotencyKey.scope,
-          nextValue,
+          nextValue: committedValue,
           originKind: input.origin.kind,
           payloadFingerprint: input.payloadFingerprint,
-          previousValue: target.value,
+          previousValue: targetAdapter.historyPreviousValue
+            ? targetAdapter.historyPreviousValue(target.value as TValue)
+            : target.value,
           revision,
           targetId: input.targetId,
           ...(undo ? { undo } : {}),
@@ -1002,10 +1022,12 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         await transaction.insert(mutationHistory).values({
           occurredAt: committedAt,
           id: input.historyId,
-          nextValue,
+          nextValue: committedValue,
           originKind: input.origin.kind,
           payloadFingerprint: input.payloadFingerprint,
-          previousValue: target.value as TValue,
+          previousValue: targetAdapter.historyPreviousValue
+            ? targetAdapter.historyPreviousValue(target.value as TValue)
+            : (target.value as TValue),
           revision,
           targetId: input.targetId,
           ...(undo ? { undo } : {}),
@@ -1041,10 +1063,12 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           actor: input.actor,
           committedAt: input.committedAt,
           id: input.receiptId,
-          nextValue,
+          nextValue: committedValue,
           origin: input.origin,
           payloadFingerprint: input.payloadFingerprint,
-          previousValue: target.value as TValue,
+          previousValue: targetAdapter.historyPreviousValue
+            ? targetAdapter.historyPreviousValue(target.value as TValue)
+            : (target.value as TValue),
           revision,
           targetId: input.targetId,
           ...(undo ? { undo } : {}),
@@ -1172,6 +1196,15 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           return staleCommitResult<TValue>(target);
         }
 
+        const receiptId = targetAdapter.receiptIdForCommit
+          ? await targetAdapter.receiptIdForCommit({
+              expectedRevision: input.expectedRevision,
+              idempotencyKey: input.idempotencyKey,
+              payloadFingerprint: input.payloadFingerprint,
+              targetId: input.targetId,
+            })
+          : input.receiptId;
+
         const nextValue = await input.apply({
           currentRevision: target.revision,
           currentValue: target.value as TValue,
@@ -1188,9 +1221,13 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         const revision = target.revision + 1;
         const committedAt = new Date(input.committedAt);
         const targetUpdate = await targetAdapter.update(transaction, {
+          actor: input.actor,
           committedAt,
           expectedRevision: input.expectedRevision,
+          historyId: input.historyId,
+          idempotencyKey: input.idempotencyKey,
           nextValue,
+          payloadFingerprint: input.payloadFingerprint,
           targetId: input.targetId,
         });
         if (!targetUpdate) {
@@ -1212,17 +1249,21 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           );
           return staleCommitResult<TValue>(current ?? target);
         }
+        const committedValue =
+          targetAdapter.committedValue?.(targetUpdate) ?? nextValue;
 
         const receiptValues = {
           committedAt,
           expectedRevision: input.expectedRevision,
-          id: input.receiptId,
+          id: receiptId,
           idempotencyKey: input.idempotencyKey.key,
           idempotencyScope: input.idempotencyKey.scope,
-          nextValue,
+          nextValue: committedValue,
           originKind: input.origin.kind,
           payloadFingerprint: input.payloadFingerprint,
-          previousValue: target.value,
+          previousValue: targetAdapter.historyPreviousValue
+            ? targetAdapter.historyPreviousValue(target.value as TValue)
+            : target.value,
           revision,
           targetId: input.targetId,
           ...(undo ? { undo } : {}),
@@ -1235,11 +1276,13 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         const historyValues: MutationHistoryEntry<TValue> = {
           actor: input.actor,
           id: input.historyId,
-          nextValue,
+          nextValue: committedValue,
           occurredAt: input.committedAt,
           origin: input.origin,
           payloadFingerprint: input.payloadFingerprint,
-          previousValue: target.value as TValue,
+          previousValue: targetAdapter.historyPreviousValue
+            ? targetAdapter.historyPreviousValue(target.value as TValue)
+            : (target.value as TValue),
           revision,
           targetId: input.targetId,
           ...(undo ? { undo } : {}),
@@ -1264,11 +1307,13 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           receipt: {
             actor: input.actor,
             committedAt: input.committedAt,
-            id: input.receiptId,
-            nextValue,
+            id: receiptId,
+            nextValue: committedValue,
             origin: input.origin,
             payloadFingerprint: input.payloadFingerprint,
-            previousValue: target.value as TValue,
+            previousValue: targetAdapter.historyPreviousValue
+              ? targetAdapter.historyPreviousValue(target.value as TValue)
+              : (target.value as TValue),
             revision,
             targetId: input.targetId,
             ...(undo ? { undo } : {}),
