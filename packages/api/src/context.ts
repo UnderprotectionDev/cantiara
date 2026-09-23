@@ -17,6 +17,7 @@ import type {
   CustomFieldMutationContracts,
   CustomFieldsAccess,
 } from "./custom-fields";
+import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type {
@@ -166,6 +167,7 @@ export interface Context {
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
+  workHandoffs?: ExternalExecutionHandoffsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
   workTemplates?: WorkTemplatesAccess;
