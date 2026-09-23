@@ -1,21 +1,158 @@
 import {
   type ExternalExecutionHandoff,
+  type ExternalExecutionHandoffHistoryEvent,
   type ExternalExecutionHandoffStartCommand,
   type ExternalExecutionHandoffsAccess,
+  externalExecutionHandoffHistoryEventSchema,
+  externalExecutionHandoffHistoryEventTypeSchema,
   externalExecutionHandoffSchema,
   externalExecutionHandoffSelectedVersionsSchema,
   externalExecutionHandoffWorkSnapshotSchema,
+  type RecordExternalExecutionHandoffPackageExportInput,
   renderExternalExecutionHandoffPackage,
 } from "@cantiara/api/external-handoffs";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { workExternalExecutionHandoff } from "@cantiara/db/schema/work-external-handoff";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 type HandoffRecord = typeof workExternalExecutionHandoff.$inferSelect;
+type MutationHistoryRecord = typeof mutationHistory.$inferSelect;
+
+const historyEventKind = "external-execution-handoff-history-event";
+
+function historyPayload(
+  eventType: ExternalExecutionHandoffHistoryEvent["eventType"],
+  handoffId: string,
+) {
+  return { eventType, handoffId, kind: historyEventKind };
+}
+
+function historyEventFromRecord(
+  record: Pick<
+    MutationHistoryRecord,
+    "actorId" | "id" | "nextValue" | "occurredAt"
+  >,
+): ExternalExecutionHandoffHistoryEvent | null {
+  if (
+    typeof record.nextValue !== "object" ||
+    record.nextValue === null ||
+    !("kind" in record.nextValue) ||
+    record.nextValue.kind !== historyEventKind ||
+    !("eventType" in record.nextValue) ||
+    !("handoffId" in record.nextValue)
+  ) {
+    return null;
+  }
+  const eventType = externalExecutionHandoffHistoryEventTypeSchema.safeParse(
+    record.nextValue.eventType,
+  );
+  if (!eventType.success || typeof record.nextValue.handoffId !== "string") {
+    return null;
+  }
+  return externalExecutionHandoffHistoryEventSchema.parse({
+    actorId: record.actorId,
+    eventId: record.id,
+    eventType: eventType.data,
+    handoffId: record.nextValue.handoffId,
+    occurredAt: record.occurredAt.toISOString(),
+  });
+}
+
+async function handoffHistoryValues(input: {
+  accountId: string;
+  clientEventId: string;
+  eventType: ExternalExecutionHandoffHistoryEvent["eventType"];
+  handoffId: string;
+  occurredAt: Date;
+  revision: number;
+  workId: string;
+}) {
+  const payloadFingerprint = await fingerprintMutationPayload({
+    clientEventId: input.clientEventId,
+    eventType: input.eventType,
+    handoffId: input.handoffId,
+    workId: input.workId,
+  });
+  const eventId = `external-handoff-event-${payloadFingerprint}`;
+  const event = externalExecutionHandoffHistoryEventSchema.parse({
+    actorId: input.accountId,
+    eventId,
+    eventType: input.eventType,
+    handoffId: input.handoffId,
+    occurredAt: input.occurredAt.toISOString(),
+  });
+
+  return {
+    event,
+    history: {
+      actorId: input.accountId,
+      actorType: "User",
+      clientIdempotencyKey: input.clientEventId,
+      id: eventId,
+      nextValue: historyPayload(input.eventType, input.handoffId),
+      occurredAt: input.occurredAt,
+      originKind: "human",
+      payloadFingerprint,
+      previousValue: { handoffId: input.handoffId, kind: historyEventKind },
+      revision: input.revision,
+      targetId: input.workId,
+    },
+  };
+}
+
+async function findExistingHandoff(
+  executor: Pick<Database, "select">,
+  command: ExternalExecutionHandoffStartCommand,
+  fingerprint: string,
+) {
+  const [existing] = await executor
+    .select()
+    .from(workExternalExecutionHandoff)
+    .where(
+      and(
+        eq(workExternalExecutionHandoff.workId, command.workId),
+        eq(
+          workExternalExecutionHandoff.clientIdempotencyKey,
+          command.clientIdempotencyKey,
+        ),
+      ),
+    )
+    .limit(1);
+  if (!existing) {
+    return null;
+  }
+  if (existing.payloadFingerprint !== fingerprint) {
+    throw new ExternalExecutionHandoffIdempotencyConflictError();
+  }
+  return toExternalExecutionHandoff(existing);
+}
+
+async function recordStartedHistory(
+  executor: Pick<Database, "insert">,
+  handoff: HandoffRecord | undefined,
+  input: {
+    accountId: string;
+    clientEventId: string;
+    occurredAt: Date;
+    revision: number;
+    workId: string;
+  },
+) {
+  if (!handoff) {
+    return;
+  }
+  const startedHistory = await handoffHistoryValues({
+    ...input,
+    eventType: "external-execution-handoff-started",
+    handoffId: handoff.handoffId,
+  });
+  await executor.insert(mutationHistory).values(startedHistory.history);
+}
 
 export class ExternalExecutionHandoffStaleWorkError extends Error {
   readonly code = "EXTERNAL_HANDOFF_STALE_WORK" as const;
@@ -103,6 +240,7 @@ export function createDatabaseExternalExecutionHandoffs(
     accountId: string,
     workId: string,
     lock: boolean,
+    includeArchived = false,
   ) {
     const query = executor
       .select({ record: work })
@@ -114,7 +252,7 @@ export function createDatabaseExternalExecutionHandoffs(
         and(
           eq(work.id, workId),
           eq(user.id, accountId),
-          isNull(work.archivedAt),
+          ...(includeArchived ? [] : [isNull(work.archivedAt)]),
           isNull(project.archivedAt),
         ),
       )
@@ -125,7 +263,13 @@ export function createDatabaseExternalExecutionHandoffs(
 
   return {
     async list(accountId, workId) {
-      const ownerWork = await ownedWork(database, accountId, workId, false);
+      const ownerWork = await ownedWork(
+        database,
+        accountId,
+        workId,
+        false,
+        true,
+      );
       if (!ownerWork) {
         return null;
       }
@@ -138,6 +282,38 @@ export function createDatabaseExternalExecutionHandoffs(
           asc(workExternalExecutionHandoff.handoffId),
         );
       return records.map(toExternalExecutionHandoff);
+    },
+
+    async listHistory(accountId, workId) {
+      const ownerWork = await ownedWork(
+        database,
+        accountId,
+        workId,
+        false,
+        true,
+      );
+      if (!ownerWork) {
+        return null;
+      }
+      const records = await database
+        .select({
+          actorId: mutationHistory.actorId,
+          id: mutationHistory.id,
+          nextValue: mutationHistory.nextValue,
+          occurredAt: mutationHistory.occurredAt,
+        })
+        .from(mutationHistory)
+        .where(
+          and(
+            eq(mutationHistory.targetId, workId),
+            sql`${mutationHistory.nextValue}->>'kind' = ${historyEventKind}`,
+          ),
+        )
+        .orderBy(asc(mutationHistory.occurredAt), asc(mutationHistory.id));
+      return records.flatMap((record) => {
+        const event = historyEventFromRecord(record);
+        return event ? [event] : [];
+      });
     },
 
     async start(accountId, command) {
@@ -153,24 +329,13 @@ export function createDatabaseExternalExecutionHandoffs(
           return null;
         }
 
-        const [existing] = await transaction
-          .select()
-          .from(workExternalExecutionHandoff)
-          .where(
-            and(
-              eq(workExternalExecutionHandoff.workId, command.workId),
-              eq(
-                workExternalExecutionHandoff.clientIdempotencyKey,
-                command.clientIdempotencyKey,
-              ),
-            ),
-          )
-          .limit(1);
+        const existing = await findExistingHandoff(
+          transaction,
+          command,
+          fingerprint,
+        );
         if (existing) {
-          if (existing.payloadFingerprint !== fingerprint) {
-            throw new ExternalExecutionHandoffIdempotencyConflictError();
-          }
-          return toExternalExecutionHandoff(existing);
+          return existing;
         }
 
         if (ownerWork.revision !== command.baseRevision) {
@@ -225,7 +390,86 @@ export function createDatabaseExternalExecutionHandoffs(
             workId: ownerWork.id,
           })
           .returning();
+        await recordStartedHistory(transaction, created, {
+          accountId,
+          clientEventId: command.clientIdempotencyKey,
+          occurredAt: producedAt,
+          revision: ownerWork.revision,
+          workId: ownerWork.id,
+        });
         return created ? toExternalExecutionHandoff(created) : null;
+      });
+    },
+
+    recordPackageExport(
+      accountId,
+      input: RecordExternalExecutionHandoffPackageExportInput,
+    ) {
+      return database.transaction(async (transaction) => {
+        const [handoff] = await transaction
+          .select({
+            handoffId: workExternalExecutionHandoff.handoffId,
+            workId: workExternalExecutionHandoff.workId,
+          })
+          .from(workExternalExecutionHandoff)
+          .where(eq(workExternalExecutionHandoff.handoffId, input.handoffId))
+          .limit(1);
+        if (!handoff) {
+          return null;
+        }
+        const ownerWork = await ownedWork(
+          transaction,
+          accountId,
+          handoff.workId,
+          true,
+          true,
+        );
+        if (!ownerWork) {
+          return null;
+        }
+
+        const historyValues = await handoffHistoryValues({
+          accountId,
+          clientEventId: input.clientEventId,
+          eventType: "external-execution-handoff-package-exported",
+          handoffId: handoff.handoffId,
+          occurredAt: now(),
+          revision: ownerWork.revision,
+          workId: ownerWork.id,
+        });
+        const [inserted] = await transaction
+          .insert(mutationHistory)
+          .values(historyValues.history)
+          .onConflictDoNothing()
+          .returning({ id: mutationHistory.id });
+        if (inserted) {
+          return historyValues.event;
+        }
+
+        const [existing] = await transaction
+          .select({
+            actorId: mutationHistory.actorId,
+            id: mutationHistory.id,
+            nextValue: mutationHistory.nextValue,
+            occurredAt: mutationHistory.occurredAt,
+            payloadFingerprint: mutationHistory.payloadFingerprint,
+          })
+          .from(mutationHistory)
+          .where(eq(mutationHistory.id, historyValues.event.eventId))
+          .limit(1);
+        if (
+          existing?.payloadFingerprint !==
+          historyValues.history.payloadFingerprint
+        ) {
+          throw new ExternalExecutionHandoffIdempotencyConflictError();
+        }
+        const existingEvent = existing
+          ? historyEventFromRecord(existing)
+          : null;
+        if (!existingEvent) {
+          throw new ExternalExecutionHandoffIdempotencyConflictError();
+        }
+        return existingEvent;
       });
     },
   };

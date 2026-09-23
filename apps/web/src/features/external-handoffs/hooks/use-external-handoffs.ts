@@ -13,7 +13,11 @@ export function useExternalExecutionHandoffs(
   const options = orpc.externalExecutionHandoffs.queryOptions({
     input: { workId: work.id },
   });
+  const historyOptions = orpc.externalExecutionHandoffHistory.queryOptions({
+    input: { workId: work.id },
+  });
   const query = useQuery({ ...options, enabled });
+  const history = useQuery({ ...historyOptions, enabled });
   const start = useMutation({
     mutationFn: (input: Omit<ExternalExecutionHandoffInput, "workId">) =>
       runOnlineOnlyWrite(() =>
@@ -24,9 +28,21 @@ export function useExternalExecutionHandoffs(
           workId: work.id,
         }),
       ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+        queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
+      ]);
+    },
+  });
+  const recordPackageExport = useMutation({
+    mutationFn: (input: { clientEventId: string; handoffId: string }) =>
+      runOnlineOnlyWrite(() =>
+        client.recordExternalExecutionHandoffPackageExport(input),
+      ),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
   });
 
-  return { query, start };
+  return { history, query, recordPackageExport, start };
 }

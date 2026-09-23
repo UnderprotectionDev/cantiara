@@ -1,4 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work-owned handoff controls close over their Work, form, and package state.
+
+import type { ExternalExecutionHandoffHistoryEvent } from "@cantiara/api/external-handoffs";
 import { externalExecutionHandoffInputSchema } from "@cantiara/api/external-handoffs";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -34,6 +36,33 @@ const EMPTY_DRAFT: HandoffDraft = {
   purpose: "",
 };
 
+function HandoffHistory({
+  events,
+}: {
+  events: readonly ExternalExecutionHandoffHistoryEvent[];
+}) {
+  if (events.length === 0) {
+    return null;
+  }
+
+  return (
+    <section aria-label="Handoff history" className="space-y-2">
+      <h5 className="font-medium text-xs">Handoff history</h5>
+      <ul className="space-y-1 text-muted-foreground text-xs">
+        {events.map((event) => (
+          <li key={event.eventId}>
+            {event.eventType === "external-execution-handoff-started"
+              ? "Handoff started"
+              : "Going package copied"}
+            {" · "}
+            <time dateTime={event.occurredAt}>{event.occurredAt}</time>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function githubIdentifiers(value: string) {
   return value
     .split("\n")
@@ -60,7 +89,8 @@ export default function ExternalExecutionHandoff({
   const [writeError, setWriteError] = useState<string | null>(null);
   const [copiedHandoffId, setCopiedHandoffId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
-  const { query, start } = useExternalExecutionHandoffs(work, expanded);
+  const { history, query, recordPackageExport, start } =
+    useExternalExecutionHandoffs(work, expanded);
   const form = useForm({
     defaultValues: EMPTY_DRAFT,
     onSubmit: async ({ value }) => {
@@ -91,16 +121,30 @@ export default function ExternalExecutionHandoff({
       }
     },
   });
-  const pending = start.isPending || connection === "offline";
+  const pending =
+    start.isPending ||
+    recordPackageExport.isPending ||
+    connection === "offline";
 
   async function copyPackage(handoffId: string, markdown: string) {
     setCopyError(null);
     setCopiedHandoffId(null);
     try {
       await writeTextToClipboard(markdown);
-      setCopiedHandoffId(handoffId);
     } catch {
       setCopyError("Going package could not be copied.");
+      return;
+    }
+    setCopiedHandoffId(handoffId);
+    try {
+      await recordPackageExport.mutateAsync({
+        clientEventId: crypto.randomUUID(),
+        handoffId,
+      });
+    } catch {
+      setCopyError(
+        "Going package was copied, but its Work history could not be recorded.",
+      );
     }
   }
 
@@ -123,7 +167,7 @@ export default function ExternalExecutionHandoff({
           </p>
         </div>
         <Button
-          disabled={connection === "offline" || work.archivedAt !== null}
+          disabled={connection === "offline"}
           onClick={() => {
             setExpanded(true);
             setWriteError(null);
@@ -133,7 +177,7 @@ export default function ExternalExecutionHandoff({
           type="button"
           variant="outline"
         >
-          Start Handoff
+          {work.archivedAt === null ? "Start Handoff" : "View Handoffs"}
         </Button>
       </header>
 
@@ -147,6 +191,12 @@ export default function ExternalExecutionHandoff({
           {query.isError ? (
             <p className="text-destructive text-xs" role="alert">
               External Execution Handoffs could not be loaded. Try again.
+            </p>
+          ) : null}
+          <HandoffHistory events={history.data ?? []} />
+          {history.isError ? (
+            <p className="text-destructive text-xs" role="alert">
+              Handoff history could not be loaded. Try again.
             </p>
           ) : null}
           {query.data?.map((handoff) => (
@@ -183,10 +233,15 @@ export default function ExternalExecutionHandoff({
                   Going package
                 </summary>
                 <div className="space-y-2 border-border/70 border-t p-3">
+                  <p className="text-muted-foreground text-xs" role="note">
+                    Free text is copied as entered and is not scanned for
+                    secrets. Review the package before sharing.
+                  </p>
                   <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
                     {handoff.packageMarkdown}
                   </pre>
                   <Button
+                    disabled={pending}
                     onClick={() =>
                       copyPackage(handoff.handoffId, handoff.packageMarkdown)
                     }
@@ -205,10 +260,16 @@ export default function ExternalExecutionHandoff({
               </details>
             </article>
           ))}
+          {copyError ? (
+            <p className="text-destructive text-xs" role="alert">
+              {copyError}
+            </p>
+          ) : null}
 
           <form
             aria-label="Start Handoff"
             className="space-y-4 rounded-md border border-border/70 bg-card/45 p-3"
+            hidden={work.archivedAt !== null}
             onSubmit={async (event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -348,11 +409,6 @@ export default function ExternalExecutionHandoff({
             {writeError ? (
               <p className="text-destructive text-xs" role="alert">
                 {writeError}
-              </p>
-            ) : null}
-            {copyError ? (
-              <p className="text-destructive text-xs" role="alert">
-                {copyError}
               </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">

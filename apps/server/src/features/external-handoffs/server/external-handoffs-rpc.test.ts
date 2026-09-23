@@ -1,6 +1,7 @@
 import type { Context } from "@cantiara/api/context";
 import type {
   ExternalExecutionHandoff,
+  ExternalExecutionHandoffHistoryEvent,
   ExternalExecutionHandoffsAccess,
 } from "@cantiara/api/external-handoffs";
 import { appRouter } from "@cantiara/api/routers/index";
@@ -21,6 +22,14 @@ const handoff: ExternalExecutionHandoff = {
   selectedWorkRevision: 4,
   status: "Open",
   workId: "work-1",
+};
+
+const historyEvent: ExternalExecutionHandoffHistoryEvent = {
+  actorId: "account-1",
+  eventId: "external-handoff:handoff-1:started",
+  eventType: "external-execution-handoff-started",
+  handoffId: handoff.handoffId,
+  occurredAt: "2026-09-23T12:00:00.000Z",
 };
 
 function createContext(workHandoffs: ExternalExecutionHandoffsAccess): Context {
@@ -48,6 +57,12 @@ describe("External Execution Handoff RPC", () => {
   test("lists and starts a handoff through its owning Work", async () => {
     const access: ExternalExecutionHandoffsAccess = {
       list: vi.fn().mockResolvedValue([handoff]),
+      listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      recordPackageExport: vi.fn().mockResolvedValue({
+        ...historyEvent,
+        eventId: "external-handoff:handoff-1:export:copy-1",
+        eventType: "external-execution-handoff-package-exported",
+      }),
       start: vi.fn().mockResolvedValue(handoff),
     };
     const client = createRouterClient(appRouter, {
@@ -57,6 +72,19 @@ describe("External Execution Handoff RPC", () => {
     await expect(
       client.externalExecutionHandoffs({ workId: handoff.workId }),
     ).resolves.toEqual([handoff]);
+    await expect(
+      client.externalExecutionHandoffHistory({ workId: handoff.workId }),
+    ).resolves.toEqual([historyEvent]);
+    await expect(
+      client.recordExternalExecutionHandoffPackageExport({
+        clientEventId: "copy-1",
+        handoffId: handoff.handoffId,
+      }),
+    ).resolves.toEqual({
+      ...historyEvent,
+      eventId: "external-handoff:handoff-1:export:copy-1",
+      eventType: "external-execution-handoff-package-exported",
+    });
     await expect(
       client.startExternalExecutionHandoff({
         baseRevision: handoff.selectedWorkRevision ?? 0,
@@ -72,6 +100,14 @@ describe("External Execution Handoff RPC", () => {
     ).resolves.toEqual(handoff);
 
     expect(access.list).toHaveBeenCalledWith("account-1", handoff.workId);
+    expect(access.listHistory).toHaveBeenCalledWith(
+      "account-1",
+      handoff.workId,
+    );
+    expect(access.recordPackageExport).toHaveBeenCalledWith("account-1", {
+      clientEventId: "copy-1",
+      handoffId: handoff.handoffId,
+    });
     expect(access.start).toHaveBeenCalledWith("account-1", {
       baseRevision: 4,
       clientIdempotencyKey: "start-handoff-1",
@@ -83,5 +119,43 @@ describe("External Execution Handoff RPC", () => {
       purpose: handoff.purpose,
       workId: handoff.workId,
     });
+  });
+
+  test("rejects unsupported source versions and GitHub URLs before writing", async () => {
+    const access: ExternalExecutionHandoffsAccess = {
+      list: vi.fn().mockResolvedValue([handoff]),
+      listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      recordPackageExport: vi.fn().mockResolvedValue(historyEvent),
+      start: vi.fn().mockResolvedValue(handoff),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+    const input = {
+      baseRevision: 4,
+      clientIdempotencyKey: "start-invalid-handoff",
+      constraints: "",
+      executor: "Local coding agent",
+      expectedOutput: "A tested implementation.",
+      githubContext: [
+        "https://github.com/acme/cantiara/issues/166?access_token=secret",
+      ],
+      includeWork: true,
+      purpose: "Implement external handoffs.",
+      workId: handoff.workId,
+    };
+
+    await expect(
+      client.startExternalExecutionHandoff(input),
+    ).rejects.toBeDefined();
+    const unsupportedSelection = {
+      ...input,
+      documentVersions: [{ recordId: "document-1", revision: 1 }],
+      githubContext: [],
+    };
+    await expect(
+      client.startExternalExecutionHandoff(unsupportedSelection),
+    ).rejects.toBeDefined();
+    expect(access.start).not.toHaveBeenCalled();
   });
 });

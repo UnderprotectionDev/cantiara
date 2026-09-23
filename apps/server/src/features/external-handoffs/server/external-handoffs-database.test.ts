@@ -1,6 +1,7 @@
 import type { ExternalExecutionHandoffStartCommand } from "@cantiara/api/external-handoffs";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
@@ -61,6 +62,9 @@ describeDatabase("External Execution Handoff seam", () => {
   });
 
   afterEach(async () => {
+    await database
+      ?.delete(mutationHistory)
+      .where(eq(mutationHistory.actorId, accountId));
     await database?.delete(user).where(eq(user.id, accountId));
   });
 
@@ -103,6 +107,52 @@ describeDatabase("External Execution Handoff seam", () => {
       "Create a frozen Markdown package.",
     );
 
+    const startedHistory = await handoffs.listHistory(accountId, workId);
+    expect(startedHistory).toEqual([
+      expect.objectContaining({
+        actorId: accountId,
+        eventType: "external-execution-handoff-started",
+        handoffId: "handoff-1",
+        occurredAt: "2026-09-23T12:00:00.000Z",
+      }),
+    ]);
+
+    const copied = await handoffs.recordPackageExport(accountId, {
+      clientEventId: "copy-first-package",
+      handoffId: "handoff-1",
+    });
+    expect(copied).toMatchObject({
+      actorId: accountId,
+      eventType: "external-execution-handoff-package-exported",
+      handoffId: "handoff-1",
+      occurredAt: "2026-09-23T12:00:00.000Z",
+    });
+    expect(copied?.eventId?.startsWith("external-handoff-event-")).toBe(true);
+    expect(copied?.eventId).toHaveLength("external-handoff-event-".length + 64);
+    await expect(
+      handoffs.recordPackageExport(accountId, {
+        clientEventId: "copy-first-package",
+        handoffId: "handoff-1",
+      }),
+    ).resolves.toEqual(copied);
+
+    const withoutWork = await handoffs.start(accountId, {
+      ...firstCommand,
+      clientIdempotencyKey: "start-without-work-version",
+      includeWork: false,
+      purpose: "Run without the Work body.",
+    });
+    expect(withoutWork).toMatchObject({
+      handoffId: "handoff-2",
+      selectedWorkRevision: null,
+    });
+    expect(withoutWork?.packageMarkdown).toContain(
+      "- No Work version selected.",
+    );
+    expect(withoutWork?.packageMarkdown).not.toContain(
+      "Create a frozen Markdown package.",
+    );
+
     await expect(handoffs.start(accountId, firstCommand)).resolves.toEqual(
       first,
     );
@@ -130,15 +180,39 @@ describeDatabase("External Execution Handoff seam", () => {
     });
     const listed = await handoffs.list(accountId, workId);
 
-    expect(listed).toHaveLength(2);
+    expect(listed).toHaveLength(3);
     expect(listed?.[0]?.packageMarkdown).toBe(first?.packageMarkdown);
     expect(listed?.[0]?.packageMarkdown).not.toContain("Changed Work title");
-    expect(listed?.[1]).toMatchObject({
-      handoffId: "handoff-2",
+    expect(listed?.[2]).toMatchObject({
+      handoffId: "handoff-3",
       purpose: "Run a second pass.",
       selectedWorkRevision: 1,
     });
     expect(second?.packageMarkdown).toContain("Changed Work title");
     await expect(handoffs.list("another-account", workId)).resolves.toBeNull();
+
+    await database
+      .update(work)
+      .set({ archivedAt: new Date("2026-09-23T13:00:00.000Z") })
+      .where(eq(work.id, workId));
+
+    const archivedHistory = await handoffs.listHistory(accountId, workId);
+    expect(await handoffs.list(accountId, workId)).toHaveLength(3);
+    expect(archivedHistory?.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining([
+        "external-execution-handoff-started",
+        "external-execution-handoff-package-exported",
+      ]),
+    );
+    await expect(
+      handoffs.start(accountId, {
+        ...firstCommand,
+        baseRevision: 1,
+        clientIdempotencyKey: "start-archived-work",
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      handoffs.listHistory("another-account", workId),
+    ).resolves.toBeNull();
   });
 });

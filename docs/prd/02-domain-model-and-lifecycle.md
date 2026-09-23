@@ -377,6 +377,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ana kaynak uygulamadadır | `Primary source is in the app` | Kopyalanan Markdown'ın asıl kaydın uygulamada kaldığını belirten not |
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
+| Devirleri görüntüle | `View Handoffs` | Arşivlenmiş İşteki tarihsel dış yürütme devirlerini salt okunur açma eylemi |
+| Devir geçmişi | `Handoff history` | Başlatma ve paket dışa aktarma olaylarının İş geçmişindeki içeriksiz görünümü |
+| Devir başlatıldı | `Handoff started` | İş geçmişinde Dış yürütme devri başlatma olayı |
+| Gidiş paketi kopyalandı | `Going package copied` | İş geçmişinde başarılı panoya kopyalama olayı |
+| Serbest metin güvenlik notu | `Free text is copied as entered and is not scanned for secrets. Review the package before sharing.` | Gidiş paketi önizlemesinde serbest metin taraması yapılmadığını ve paylaşmadan önce inceleme gerektiğini açıklayan uyarı |
 | Devir iptal | `Cancel Handoff` | Gerekçeli iptal eylemi; geçmişi silmez |
 | Devir açık | `Open` | Dış yürütme devrinin açık, henüz terminal olmayan durumu |
 | Devir iptal edildi | `Canceled` | Gerekçeli iptalin terminal durumu |

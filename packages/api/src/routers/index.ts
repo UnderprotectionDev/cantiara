@@ -56,7 +56,9 @@ import {
   updateCustomFieldMutationInputSchema,
 } from "../custom-fields";
 import {
+  listExternalExecutionHandoffHistoryInputSchema,
   listExternalExecutionHandoffsInputSchema,
+  recordExternalExecutionHandoffPackageExportInputSchema,
   startExternalExecutionHandoffMutationInputSchema,
 } from "../external-handoffs";
 import {
@@ -1895,6 +1897,20 @@ export const appRouter = {
       }
       return handoffs;
     }),
+  externalExecutionHandoffHistory: protectedProcedure
+    .input(listExternalExecutionHandoffHistoryInputSchema)
+    .handler(async ({ context, input }) => {
+      const history = await requireExternalExecutionHandoffs(
+        context,
+      ).listHistory(context.session.user.id, input.workId);
+      if (!history) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return history;
+    }),
   startExternalExecutionHandoff: protectedProcedure
     .input(startExternalExecutionHandoffMutationInputSchema)
     .handler(async ({ context, input }) => {
@@ -1913,6 +1929,20 @@ export const appRouter = {
       } catch (error) {
         rethrowExternalExecutionHandoffError(error);
       }
+    }),
+  recordExternalExecutionHandoffPackageExport: protectedProcedure
+    .input(recordExternalExecutionHandoffPackageExportInputSchema)
+    .handler(async ({ context, input }) => {
+      const event = await requireExternalExecutionHandoffs(
+        context,
+      ).recordPackageExport(context.session.user.id, input);
+      if (!event) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Handoff is unavailable.",
+        });
+      }
+      return event;
     }),
   workTemplates: protectedProcedure
     .input(workTemplatesInputSchema)

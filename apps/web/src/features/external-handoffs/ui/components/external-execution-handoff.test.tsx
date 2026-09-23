@@ -61,7 +61,6 @@ describe("External Execution Handoff", () => {
         },
       ],
     );
-
     const html = renderToStaticMarkup(
       createElement(
         QueryClientProvider,
@@ -91,10 +90,85 @@ describe("External Execution Handoff", () => {
       "Prepare release changes",
       "CAT-1 · revision 3",
       "Copy going package",
+      "Free text is copied as entered and is not scanned for secrets.",
+      "Review the package before sharing.",
       "Source of truth is in the app",
     ]) {
       expect(html).toContain(expected);
     }
-    expect(html).not.toContain("secret");
+    expect(html.indexOf("Review the package before sharing.")).toBeLessThan(
+      html.indexOf("Copy going package"),
+    );
+    expect(html).not.toContain("secret_token");
+  });
+
+  test("keeps frozen handoffs readable from archived Work without a start form", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffs.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          constraints: "Do not change the release scope.",
+          createdAt: "2026-09-22T10:00:00.000Z",
+          executor: "Build agent",
+          expectedOutput: "A reviewed implementation.",
+          githubContext: [],
+          handoffId: "handoff-archived",
+          includeWork: true,
+          packageMarkdown: "# External Execution Handoff\nFrozen package",
+          packageProducedAt: "2026-09-22T10:00:00.000Z",
+          purpose: "Prepare release changes",
+          selectedWorkRevision: 3,
+          status: "Open",
+          workId: work.id,
+        },
+      ],
+    );
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffHistory.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          actorId: "account-1",
+          eventId: "event-started",
+          eventType: "external-execution-handoff-started",
+          handoffId: "handoff-archived",
+          occurredAt: "2026-09-22T10:00:00.000Z",
+        },
+        {
+          actorId: "account-1",
+          eventId: "event-copied",
+          eventType: "external-execution-handoff-package-exported",
+          handoffId: "handoff-archived",
+          occurredAt: "2026-09-22T10:01:00.000Z",
+        },
+      ],
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(
+          ClientShellProvider,
+          { shell: createClientShell() },
+          createElement(ExternalExecutionHandoff, {
+            defaultExpanded: true,
+            work: { ...work, archivedAt: "2026-09-23T12:00:00.000Z" },
+          }),
+        ),
+      ),
+    );
+
+    expect(html).toContain("View Handoffs");
+    expect(html).toContain("Frozen package");
+    expect(html).toContain("Handoff history");
+    expect(html).toContain("Handoff started");
+    expect(html).toContain("Going package copied");
+    expect(html).toContain('aria-label="Start Handoff"');
+    expect(html).toContain('hidden=""');
   });
 });

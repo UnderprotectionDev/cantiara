@@ -105,6 +105,40 @@ export const listExternalExecutionHandoffsInputSchema = z
   .object({ workId: identifierSchema })
   .strict();
 
+export const externalExecutionHandoffHistoryEventTypeSchema = z.enum([
+  "external-execution-handoff-started",
+  "external-execution-handoff-package-exported",
+]);
+
+export const externalExecutionHandoffHistoryEventSchema = z
+  .object({
+    actorId: identifierSchema,
+    eventId: identifierSchema,
+    eventType: externalExecutionHandoffHistoryEventTypeSchema,
+    handoffId: identifierSchema,
+    occurredAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
+export type ExternalExecutionHandoffHistoryEvent = z.infer<
+  typeof externalExecutionHandoffHistoryEventSchema
+>;
+
+export const listExternalExecutionHandoffHistoryInputSchema = z
+  .object({ workId: identifierSchema })
+  .strict();
+
+export const recordExternalExecutionHandoffPackageExportInputSchema = z
+  .object({
+    clientEventId: identifierSchema,
+    handoffId: identifierSchema,
+  })
+  .strict();
+
+export type RecordExternalExecutionHandoffPackageExportInput = z.infer<
+  typeof recordExternalExecutionHandoffPackageExportInputSchema
+>;
+
 export const externalExecutionHandoffWorkSnapshotSchema = z
   .object({
     description: z.string().nullable(),
@@ -167,6 +201,14 @@ export interface ExternalExecutionHandoffsAccess {
     accountId: string,
     workId: string,
   ) => Promise<ExternalExecutionHandoff[] | null>;
+  listHistory: (
+    accountId: string,
+    workId: string,
+  ) => Promise<ExternalExecutionHandoffHistoryEvent[] | null>;
+  recordPackageExport: (
+    accountId: string,
+    input: RecordExternalExecutionHandoffPackageExportInput,
+  ) => Promise<ExternalExecutionHandoffHistoryEvent | null>;
   start: (
     accountId: string,
     command: ExternalExecutionHandoffStartCommand,
