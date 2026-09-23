@@ -8,6 +8,11 @@ import {
   appearanceSchema,
 } from "../account-preferences";
 import {
+  projectBacklogInputSchema,
+  updateBacklogOrderInputSchema,
+  updateBacklogOrderMutationInputSchema,
+} from "../backlog";
+import {
   type CaptureInboxAccess,
   type CaptureInboxTriageAccess,
   captureAttachInputSchema,
@@ -64,6 +69,20 @@ import {
   type MutationPayload,
   type MutationReceipt,
 } from "../mutation-and-undo";
+import {
+  closePrioritizationSessionInputSchema,
+  closePrioritizationSessionMutationInputSchema,
+  createPrioritizationSessionInputSchema,
+  createPrioritizationSessionMutationInputSchema,
+  type PrioritizationSessionMutationValue,
+  prioritizationSessionsProjectInputSchema,
+  restorePrioritizationSessionInputSchema,
+  restorePrioritizationSessionMutationInputSchema,
+  trashPrioritizationSessionInputSchema,
+  trashPrioritizationSessionMutationInputSchema,
+  updatePrioritizationSessionOrderInputSchema,
+  updatePrioritizationSessionOrderMutationInputSchema,
+} from "../prioritization-sessions";
 import {
   clearPriorityMetricValueInputSchema,
   clearPriorityMetricValueMutationInputSchema,
@@ -291,6 +310,20 @@ function requireUsageLinkMutationContracts(context: Context) {
   return context.usageLinkMutationContracts;
 }
 
+function requireBacklog(context: Context) {
+  if (!context.backlog) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.backlog;
+}
+
+function requireBacklogMutationContracts(context: Context) {
+  if (!context.backlogMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.backlogMutationContracts;
+}
+
 function requireCustomFields(context: Context) {
   if (!context.customFields) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -312,6 +345,20 @@ function requirePriorityMetricMutationContracts(
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.priorityMetricMutationContracts;
+}
+
+function requirePrioritizationSessions(context: Context) {
+  if (!context.prioritizationSessions) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.prioritizationSessions;
+}
+
+function requirePrioritizationSessionMutationContracts(context: Context) {
+  if (!context.prioritizationSessionMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.prioritizationSessionMutationContracts;
 }
 
 function requireWorkTemplates(context: Context) {
@@ -1492,6 +1539,80 @@ function rethrowPriorityMetricMutationError(
   throw error;
 }
 
+function rethrowBacklogMutationError(error: unknown, targetId: string): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowBacklogMutationError(error.cause, targetId);
+  }
+  if (error.code === "TARGET_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "The Project Backlog is unavailable.",
+    });
+  }
+  if (error.code === "BACKLOG_ORDER_MISMATCH") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: "The Backlog changed. Reload it before reordering Work.",
+    });
+  }
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+  throw error;
+}
+
+function rethrowPrioritizationSessionMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowPrioritizationSessionMutationError(error.cause, targetId);
+  }
+  if (
+    error.code === "PRIORITIZATION_SESSION_PROJECT_NOT_FOUND" ||
+    error.code === "PRIORITIZATION_SESSION_WORK_NOT_FOUND" ||
+    error.code === "TARGET_NOT_FOUND"
+  ) {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "The Prioritization session or its Work is unavailable.",
+    });
+  }
+  if (
+    error.code === "PRIORITIZATION_SESSION_CLOSED" ||
+    error.code === "PRIORITIZATION_SESSION_TRASHED" ||
+    error.code === "PRIORITIZATION_SESSION_NOT_TRASHED"
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "The Prioritization session cannot be changed in its current state.",
+    });
+  }
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+  throw error;
+}
+
 function rethrowTagError(error: unknown): never {
   if (!isRecord(error)) {
     throw error;
@@ -2619,6 +2740,289 @@ export const appRouter = {
         return { status: true };
       } catch (error) {
         rethrowPriorityMetricMutationError(error, targetId);
+      }
+    }),
+  projectBacklogOrder: protectedProcedure
+    .input(projectBacklogInputSchema)
+    .handler(async ({ context, input }) => {
+      const order = await requireBacklog(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!order) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Project Backlog is unavailable.",
+        });
+      }
+      return order;
+    }),
+  updateBacklogOrder: protectedProcedure
+    .input(updateBacklogOrderMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = updateBacklogOrderInputSchema.parse(payloadInput);
+      const targetId = parsed.projectId;
+      const mutation = requireBacklogMutationContracts(context).updateOrder(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) => ({
+            order: currentValue.order
+              ? {
+                  ...currentValue.order,
+                  revision: currentRevision + 1,
+                  workIds: payload.workIds,
+                }
+              : null,
+          }),
+        );
+        if (!receipt.nextValue.order) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.order;
+      } catch (error) {
+        rethrowBacklogMutationError(error, targetId);
+      }
+    }),
+  prioritizationSessions: protectedProcedure
+    .input(prioritizationSessionsProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const sessions = await requirePrioritizationSessions(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!sessions) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Project Prioritization sessions are unavailable.",
+        });
+      }
+      return sessions;
+    }),
+  createPrioritizationSession: protectedProcedure
+    .input(createPrioritizationSessionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = createPrioritizationSessionInputSchema.parse(payloadInput);
+      const targetId = clientIdempotencyKey;
+      const mutation = requirePrioritizationSessionMutationContracts(
+        context,
+      ).create(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, payload }) => {
+            const timestamp = new Date().toISOString();
+            return {
+              session: {
+                closedAt: null,
+                createdAt: timestamp,
+                id: crypto.randomUUID(),
+                name: payload.name,
+                projectId: payload.projectId,
+                revision: currentRevision + 1,
+                trashedAt: null,
+                updatedAt: timestamp,
+                workIds: payload.workIds,
+              },
+            } satisfies PrioritizationSessionMutationValue;
+          },
+        );
+        if (!receipt.nextValue.session) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.session;
+      } catch (error) {
+        rethrowPrioritizationSessionMutationError(error, targetId);
+      }
+    }),
+  updatePrioritizationSessionOrder: protectedProcedure
+    .input(updatePrioritizationSessionOrderMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed =
+        updatePrioritizationSessionOrderInputSchema.parse(payloadInput);
+      const targetId = parsed.sessionId;
+      const mutation = requirePrioritizationSessionMutationContracts(
+        context,
+      ).updateOrder(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) => {
+            const current = currentValue.session;
+            if (!current) {
+              return { session: null };
+            }
+            return {
+              session: {
+                ...current,
+                revision: currentRevision + 1,
+                updatedAt: new Date().toISOString(),
+                workIds: payload.workIds,
+              },
+            } satisfies PrioritizationSessionMutationValue;
+          },
+        );
+        if (!receipt.nextValue.session) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.session;
+      } catch (error) {
+        rethrowPrioritizationSessionMutationError(error, targetId);
+      }
+    }),
+  closePrioritizationSession: protectedProcedure
+    .input(closePrioritizationSessionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = closePrioritizationSessionInputSchema.parse(payloadInput);
+      const targetId = parsed.sessionId;
+      const mutation = requirePrioritizationSessionMutationContracts(
+        context,
+      ).close(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue }) => {
+            const current = currentValue.session;
+            if (!current) {
+              return { session: null };
+            }
+            const timestamp = new Date().toISOString();
+            return {
+              session: {
+                ...current,
+                closedAt: timestamp,
+                revision: currentRevision + 1,
+                updatedAt: timestamp,
+              },
+            } satisfies PrioritizationSessionMutationValue;
+          },
+        );
+        if (!receipt.nextValue.session) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.session;
+      } catch (error) {
+        rethrowPrioritizationSessionMutationError(error, targetId);
+      }
+    }),
+  trashPrioritizationSession: protectedProcedure
+    .input(trashPrioritizationSessionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = trashPrioritizationSessionInputSchema.parse(payloadInput);
+      const targetId = parsed.sessionId;
+      const mutation = requirePrioritizationSessionMutationContracts(
+        context,
+      ).trash(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue }) => {
+            const current = currentValue.session;
+            if (!current) {
+              return { session: null };
+            }
+            const timestamp = new Date().toISOString();
+            return {
+              session: {
+                ...current,
+                revision: currentRevision + 1,
+                trashedAt: timestamp,
+                updatedAt: timestamp,
+              },
+            } satisfies PrioritizationSessionMutationValue;
+          },
+        );
+        if (!receipt.nextValue.session) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.session;
+      } catch (error) {
+        rethrowPrioritizationSessionMutationError(error, targetId);
+      }
+    }),
+  restorePrioritizationSession: protectedProcedure
+    .input(restorePrioritizationSessionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed =
+        restorePrioritizationSessionInputSchema.parse(payloadInput);
+      const targetId = parsed.sessionId;
+      const mutation = requirePrioritizationSessionMutationContracts(
+        context,
+      ).restore(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue }) => {
+            const current = currentValue.session;
+            if (!current) {
+              return { session: null };
+            }
+            return {
+              session: {
+                ...current,
+                revision: currentRevision + 1,
+                trashedAt: null,
+                updatedAt: new Date().toISOString(),
+              },
+            } satisfies PrioritizationSessionMutationValue;
+          },
+        );
+        if (!receipt.nextValue.session) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.session;
+      } catch (error) {
+        rethrowPrioritizationSessionMutationError(error, targetId);
       }
     }),
   copyCustomFieldDefinitions: protectedProcedure

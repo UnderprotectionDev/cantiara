@@ -7,6 +7,7 @@ import type {
   AccountPreferencesSnapshot,
   Appearance,
 } from "./account-preferences";
+import type { BacklogAccess, BacklogMutationContracts } from "./backlog";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type {
   CustomFieldMutationContracts,
@@ -14,6 +15,10 @@ import type {
 } from "./custom-fields";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
+import type {
+  PrioritizationSessionMutationContracts,
+  PrioritizationSessionsAccess,
+} from "./prioritization-sessions";
 import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
@@ -124,6 +129,8 @@ export interface Context {
   accountPreferencesCompatibility?: AccountPreferencesCompatibilityAccess;
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   auth: null;
+  backlog?: BacklogAccess;
+  backlogMutationContracts?: BacklogMutationContracts;
   captureInbox?: CaptureInboxAccess;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;
@@ -135,6 +142,8 @@ export interface Context {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;
+  prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
+  prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;

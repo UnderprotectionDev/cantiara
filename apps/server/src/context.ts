@@ -2,6 +2,10 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type {
+  BacklogAccess,
+  BacklogMutationContracts,
+} from "@cantiara/api/backlog";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
   AccountAccessClient,
@@ -19,6 +23,10 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type {
+  PrioritizationSessionMutationContracts,
+  PrioritizationSessionsAccess,
+} from "@cantiara/api/prioritization-sessions";
 import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
@@ -58,6 +66,8 @@ export interface CreateContextOptions {
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
+  backlog?: BacklogAccess;
+  backlogMutationContracts?: BacklogMutationContracts;
   captureInbox?: CaptureInboxAccess;
   context: HonoContext;
   customFieldMutationContracts?: CustomFieldMutationContracts;
@@ -67,6 +77,8 @@ export interface CreateContextOptions {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
+  prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
+  prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
@@ -99,6 +111,8 @@ export async function createContext({
   accountPreferencesCompatibility,
   accountPreferencesMutationContract,
   auth,
+  backlog,
+  backlogMutationContracts,
   captureInbox,
   customFields,
   customFieldMutationContracts,
@@ -112,6 +126,8 @@ export async function createContext({
   projectShellMutationContracts,
   priorityMetricMutationContracts,
   priorityMetrics,
+  prioritizationSessionMutationContracts,
+  prioritizationSessions,
   recordActions,
   workspaceOverview,
   tags,
@@ -145,6 +161,8 @@ export async function createContext({
     accountPreferences,
     accountPreferencesCompatibility,
     accountPreferencesMutationContract,
+    backlog,
+    backlogMutationContracts,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
     captureInbox,
@@ -161,6 +179,8 @@ export async function createContext({
     projectShellMutationContracts,
     priorityMetricMutationContracts,
     priorityMetrics,
+    prioritizationSessionMutationContracts,
+    prioritizationSessions,
     recordActions,
     workspaceOverview,
     tags,

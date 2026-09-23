@@ -15,6 +15,7 @@ import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
+import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import ProjectOverviewView from "@/features/project-overview/ui/components/project-overview";
 import {
   isProjectShellExplanationDismissed,
@@ -340,6 +341,7 @@ function ProjectWorkSurface({
             workContextLayouts={configuration.workContextLayouts}
             workStatusLabels={configuration.workStatusLabels}
           />
+          <PrioritizationSurface projectId={projectId} />
         </div>
         <aside className="border-border/70 border-t pt-5 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
           <p className="surface-kicker">Saved views</p>

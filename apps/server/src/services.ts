@@ -15,6 +15,9 @@ import {
   accountPreferencesMutationTarget,
   createDatabaseAccountPreferences,
 } from "./features/account-preferences/server/account-preferences-database";
+import { createBacklogAccess } from "./features/backlog/server/backlog";
+import { createDatabaseBacklog } from "./features/backlog/server/backlog-database";
+import { createDatabaseBacklogMutationContracts } from "./features/backlog/server/backlog-mutation-database";
 import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
@@ -38,6 +41,9 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
+import { createPrioritizationSessionsAccess } from "./features/prioritization-sessions/server/prioritization-sessions";
+import { createDatabasePrioritizationSessions } from "./features/prioritization-sessions/server/prioritization-sessions-database";
+import { createDatabasePrioritizationSessionMutationContracts } from "./features/prioritization-sessions/server/prioritization-sessions-mutation-database";
 import { createPriorityMetricsAccess } from "./features/priority-metrics/server/priority-metrics";
 import { createDatabasePriorityMetrics } from "./features/priority-metrics/server/priority-metrics-database";
 import { createDatabasePriorityMetricMutationContracts } from "./features/priority-metrics/server/priority-metrics-mutation-database";
@@ -87,6 +93,10 @@ export const mutationContract =
 export const projectShell = createDatabaseProjectShell(db);
 export const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(db);
+const backlogStore = createDatabaseBacklog(db);
+export const backlog = createBacklogAccess(backlogStore);
+export const backlogMutationContracts =
+  createDatabaseBacklogMutationContracts(db);
 const priorityMetricStore = createDatabasePriorityMetrics(db);
 export const priorityMetrics = createPriorityMetricsAccess(priorityMetricStore);
 export const priorityMetricMutationContracts =
@@ -94,6 +104,12 @@ export const priorityMetricMutationContracts =
     db,
     priorityMetricPermanentDeleteEvents,
   );
+const prioritizationSessionStore = createDatabasePrioritizationSessions(db);
+export const prioritizationSessions = createPrioritizationSessionsAccess(
+  prioritizationSessionStore,
+);
+export const prioritizationSessionMutationContracts =
+  createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
 export const usageLinks = createDatabaseUsageLinks(db);
