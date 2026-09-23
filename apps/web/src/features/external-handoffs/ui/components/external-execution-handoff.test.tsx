@@ -44,6 +44,7 @@ describe("External Execution Handoff", () => {
       }).queryKey,
       [
         {
+          cancellationReason: null,
           constraints: "Do not change the release scope.",
           createdAt: "2026-09-22T10:00:00.000Z",
           executor: "Build agent",
@@ -110,6 +111,7 @@ describe("External Execution Handoff", () => {
       }).queryKey,
       [
         {
+          cancellationReason: null,
           constraints: "Do not change the release scope.",
           createdAt: "2026-09-22T10:00:00.000Z",
           executor: "Build agent",
@@ -170,5 +172,103 @@ describe("External Execution Handoff", () => {
     expect(html).toContain("Going package copied");
     expect(html).toContain('aria-label="Start Handoff"');
     expect(html).toContain('hidden=""');
+  });
+
+  test("offers reasoned cancellation while a returned handoff remains open", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffs.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          cancellationReason: null,
+          constraints: "Keep the project history.",
+          createdAt: "2026-09-23T11:00:00.000Z",
+          executor: "Local coding agent",
+          expectedOutput: "A reviewed implementation.",
+          githubContext: ["https://github.com/acme/release/pull/42"],
+          handoffId: "handoff-returned",
+          includeWork: true,
+          packageMarkdown: "# External Execution Handoff\nFrozen package",
+          packageProducedAt: "2026-09-23T11:00:00.000Z",
+          purpose: "Make a coding pass",
+          selectedWorkRevision: 3,
+          status: "Result returned",
+          workId: work.id,
+        },
+      ],
+    );
+    const html = renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(
+          ClientShellProvider,
+          { shell: createClientShell() },
+          createElement(ExternalExecutionHandoff, {
+            defaultExpanded: true,
+            work,
+          }),
+        ),
+      ),
+    );
+
+    expect(html).toContain("Result returned");
+    expect(html).toContain('aria-label="Cancel Handoff"');
+    expect(html).toContain("Reason");
+    expect(html).toContain('required=""');
+    expect(html).toContain("Cancel Handoff");
+    expect(html).toContain("Frozen package");
+    expect(html).not.toContain("Test Handoff");
+    expect(html).not.toContain("Test Session");
+    expect(html).not.toContain("Dış Araca Kaçış");
+  });
+
+  test("keeps a canceled handoff and its reason without reopening it", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffs.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          cancellationReason: "The selected approach changed.",
+          constraints: "Keep the project history.",
+          createdAt: "2026-09-23T11:00:00.000Z",
+          executor: "Local coding agent",
+          expectedOutput: "A reviewed implementation.",
+          githubContext: [],
+          handoffId: "handoff-canceled",
+          includeWork: true,
+          packageMarkdown: "# External Execution Handoff\nFrozen package",
+          packageProducedAt: "2026-09-23T11:00:00.000Z",
+          purpose: "Make a coding pass",
+          selectedWorkRevision: 3,
+          status: "Canceled",
+          workId: work.id,
+        },
+      ],
+    );
+    const html = renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(
+          ClientShellProvider,
+          { shell: createClientShell() },
+          createElement(ExternalExecutionHandoff, {
+            defaultExpanded: true,
+            work,
+          }),
+        ),
+      ),
+    );
+
+    expect(html).toContain("Canceled");
+    expect(html).toContain("Reason");
+    expect(html).toContain("The selected approach changed.");
+    expect(html).toContain("Frozen package");
+    expect(html).not.toContain('aria-label="Cancel Handoff"');
   });
 });

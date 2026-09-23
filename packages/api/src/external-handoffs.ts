@@ -89,6 +89,23 @@ export type ExternalExecutionHandoffInput = z.infer<
   typeof externalExecutionHandoffInputSchema
 >;
 
+export const externalExecutionHandoffStatusSchema = z.enum([
+  "Open",
+  "Result returned",
+  "Reconciled",
+  "Canceled",
+]);
+
+export type ExternalExecutionHandoffStatus = z.infer<
+  typeof externalExecutionHandoffStatusSchema
+>;
+
+export function isTerminalExternalExecutionHandoffStatus(
+  status: ExternalExecutionHandoffStatus,
+) {
+  return status === "Reconciled" || status === "Canceled";
+}
+
 export const startExternalExecutionHandoffMutationInputSchema =
   humanMutationEnvelopeSchema
     .extend(externalExecutionHandoffInputSchema.shape)
@@ -105,9 +122,22 @@ export const listExternalExecutionHandoffsInputSchema = z
   .object({ workId: identifierSchema })
   .strict();
 
+export const cancelExternalExecutionHandoffInputSchema = z
+  .object({
+    clientEventId: identifierSchema,
+    handoffId: identifierSchema,
+    reason: textFieldSchema,
+  })
+  .strict();
+
+export type CancelExternalExecutionHandoffInput = z.infer<
+  typeof cancelExternalExecutionHandoffInputSchema
+>;
+
 export const externalExecutionHandoffHistoryEventTypeSchema = z.enum([
   "external-execution-handoff-started",
   "external-execution-handoff-package-exported",
+  "external-execution-handoff-canceled",
 ]);
 
 export const externalExecutionHandoffHistoryEventSchema = z
@@ -176,6 +206,7 @@ export type ExternalExecutionHandoffSelectedVersions = z.infer<
 
 export const externalExecutionHandoffSchema = z
   .object({
+    cancellationReason: optionalTextFieldSchema.nullable(),
     constraints: optionalTextFieldSchema,
     createdAt: z.string().datetime({ offset: true }),
     executor: textFieldSchema,
@@ -187,8 +218,24 @@ export const externalExecutionHandoffSchema = z
     packageProducedAt: z.string().datetime({ offset: true }),
     purpose: textFieldSchema,
     selectedWorkRevision: z.number().int().nonnegative().safe().nullable(),
-    status: z.literal("Open"),
+    status: externalExecutionHandoffStatusSchema,
     workId: identifierSchema,
+  })
+  .superRefine((handoff, context) => {
+    if (handoff.status === "Canceled" && !handoff.cancellationReason) {
+      context.addIssue({
+        code: "custom",
+        message: "Canceled handoffs require a reason.",
+        path: ["cancellationReason"],
+      });
+    }
+    if (handoff.status !== "Canceled" && handoff.cancellationReason !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Only canceled handoffs can have a cancellation reason.",
+        path: ["cancellationReason"],
+      });
+    }
   })
   .strict();
 
@@ -197,6 +244,10 @@ export type ExternalExecutionHandoff = z.infer<
 >;
 
 export interface ExternalExecutionHandoffsAccess {
+  cancel: (
+    accountId: string,
+    input: CancelExternalExecutionHandoffInput,
+  ) => Promise<ExternalExecutionHandoff | null>;
   list: (
     accountId: string,
     workId: string,

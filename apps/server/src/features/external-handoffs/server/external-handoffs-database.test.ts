@@ -1,9 +1,13 @@
-import type { ExternalExecutionHandoffStartCommand } from "@cantiara/api/external-handoffs";
+import type {
+  CancelExternalExecutionHandoffInput,
+  ExternalExecutionHandoffStartCommand,
+} from "@cantiara/api/external-handoffs";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
+import { workExternalExecutionHandoff } from "@cantiara/db/schema/work-external-handoff";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -214,5 +218,121 @@ describeDatabase("External Execution Handoff seam", () => {
     await expect(
       handoffs.listHistory("another-account", workId),
     ).resolves.toBeNull();
+  });
+
+  test("cancels with a reason, preserves history, and starts a new handoff", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    let now = new Date("2026-09-23T12:00:00.000Z");
+    let nextId = 0;
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      now: () => now,
+      newId: () => {
+        nextId += 1;
+        return `handoff-${nextId}`;
+      },
+    });
+    const firstCommand: ExternalExecutionHandoffStartCommand = {
+      baseRevision: 0,
+      clientIdempotencyKey: "start-cancelled-pass",
+      constraints: "Keep the existing API contract.",
+      executor: "Local coding agent",
+      expectedOutput: "A tested implementation.",
+      githubContext: ["https://github.com/acme/cantiara/pull/173"],
+      includeWork: true,
+      purpose: "First coding pass",
+      workId,
+    };
+    const first = await handoffs.start(accountId, firstCommand);
+
+    expect(first).toMatchObject({
+      cancellationReason: null,
+      handoffId: "handoff-1",
+      status: "Open",
+    });
+
+    now = new Date("2026-09-23T12:05:00.000Z");
+    const cancelInput: CancelExternalExecutionHandoffInput = {
+      clientEventId: "cancel-first-pass",
+      handoffId: "handoff-1",
+      reason: "The selected approach changed.",
+    };
+    const canceled = await handoffs.cancel(accountId, cancelInput);
+
+    expect(canceled).toMatchObject({
+      cancellationReason: cancelInput.reason,
+      handoffId: "handoff-1",
+      packageMarkdown: first?.packageMarkdown,
+      status: "Canceled",
+    });
+    await expect(handoffs.cancel(accountId, cancelInput)).resolves.toEqual(
+      canceled,
+    );
+    await expect(
+      handoffs.cancel(accountId, {
+        ...cancelInput,
+        reason: "A different reason.",
+      }),
+    ).rejects.toMatchObject({ code: "EXTERNAL_HANDOFF_IDEMPOTENCY_CONFLICT" });
+
+    now = new Date("2026-09-23T12:10:00.000Z");
+    const second = await handoffs.start(accountId, {
+      ...firstCommand,
+      clientIdempotencyKey: "start-second-pass",
+      purpose: "Second coding pass",
+    });
+    expect(second).toMatchObject({
+      cancellationReason: null,
+      handoffId: "handoff-2",
+      status: "Open",
+    });
+    await database
+      .update(workExternalExecutionHandoff)
+      .set({ status: "Result returned" })
+      .where(eq(workExternalExecutionHandoff.handoffId, "handoff-2"));
+
+    await database
+      .update(work)
+      .set({
+        closureResult: "Completed",
+        revision: 1,
+        status: "Closed",
+      })
+      .where(eq(work.id, workId));
+
+    const listed = await handoffs.list(accountId, workId);
+    expect(listed).toMatchObject([
+      { handoffId: "handoff-1", status: "Canceled" },
+      { handoffId: "handoff-2", status: "Result returned" },
+    ]);
+    now = new Date("2026-09-23T12:15:00.000Z");
+    const canceledReturn = await handoffs.cancel(accountId, {
+      clientEventId: "cancel-returned-pass",
+      handoffId: "handoff-2",
+      reason: "The returned work is no longer needed.",
+    });
+    expect(canceledReturn).toMatchObject({
+      cancellationReason: "The returned work is no longer needed.",
+      handoffId: "handoff-2",
+      packageMarkdown: second?.packageMarkdown,
+      status: "Canceled",
+    });
+    await expect(
+      handoffs.cancel(accountId, {
+        clientEventId: "cancel-returned-pass-again",
+        handoffId: "handoff-2",
+        reason: "A second cancellation cannot reopen or rewrite the handoff.",
+      }),
+    ).rejects.toMatchObject({ code: "EXTERNAL_HANDOFF_TERMINAL" });
+    const history = await handoffs.listHistory(accountId, workId);
+    expect(history?.map((event) => event.eventType)).toEqual([
+      "external-execution-handoff-started",
+      "external-execution-handoff-canceled",
+      "external-execution-handoff-started",
+      "external-execution-handoff-canceled",
+    ]);
+    expect(history?.[1]).not.toHaveProperty("reason");
+    expect(history?.[3]).not.toHaveProperty("reason");
   });
 });

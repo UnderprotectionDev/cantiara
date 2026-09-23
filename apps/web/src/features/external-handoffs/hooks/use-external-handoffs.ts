@@ -1,4 +1,7 @@
-import type { ExternalExecutionHandoffInput } from "@cantiara/api/external-handoffs";
+import type {
+  CancelExternalExecutionHandoffInput,
+  ExternalExecutionHandoffInput,
+} from "@cantiara/api/external-handoffs";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -43,6 +46,16 @@ export function useExternalExecutionHandoffs(
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
   });
+  const cancel = useMutation({
+    mutationFn: (input: CancelExternalExecutionHandoffInput) =>
+      runOnlineOnlyWrite(() => client.cancelExternalExecutionHandoff(input)),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+        queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
+      ]);
+    },
+  });
 
-  return { history, query, recordPackageExport, start };
+  return { cancel, history, query, recordPackageExport, start };
 }

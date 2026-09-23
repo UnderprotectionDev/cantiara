@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import { selectMigrations } from "./migration-selection";
+import {
+  migrationRepairTagFromArgs,
+  selectMigrations,
+} from "./migration-selection";
 
 const migrations = [
   { breakpoints: true, idx: 0, tag: "001", version: "7", when: 1 },
@@ -11,6 +14,13 @@ const migrations = [
     tag: "0054_repair_prioritization_schema",
     version: "7",
     when: 3,
+  },
+  {
+    breakpoints: true,
+    idx: 3,
+    tag: "0058_external-handoff-cancellation-compatibility",
+    version: "7",
+    when: 4,
   },
 ];
 
@@ -46,5 +56,21 @@ describe("selectMigrations", () => {
         compatibilityOnly: true,
       }),
     ).toThrow("Expected exactly one compatibility migration");
+  });
+
+  test("selects one named compatibility repair and rejects conflicting modes", () => {
+    expect(
+      migrationRepairTagFromArgs([
+        "migrate.ts",
+        "--repair-external-handoff-cancellation",
+      ]),
+    ).toBe("0058_external-handoff-cancellation-compatibility");
+    expect(migrationRepairTagFromArgs(["migrate.ts"])).toBeNull();
+    expect(() =>
+      migrationRepairTagFromArgs([
+        "--repair-prioritization-schema",
+        "--repair-external-handoff-cancellation",
+      ]),
+    ).toThrow("Select exactly one compatibility repair");
   });
 });
