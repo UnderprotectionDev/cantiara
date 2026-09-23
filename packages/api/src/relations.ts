@@ -563,6 +563,266 @@ export interface RelationView {
   target: RelationEndpointView;
 }
 
+export interface WorkDependencyEdge {
+  blocked: RelationEndpointView;
+  blocker: RelationEndpointView;
+  relationId: string;
+  status: BlockingRelationStatus;
+}
+
+export interface WorkDependencyCycle {
+  edges: WorkDependencyEdge[];
+  records: RelationEndpointView[];
+}
+
+export interface WorkDependenciesProjection {
+  cycles: WorkDependencyCycle[];
+  edges: WorkDependencyEdge[];
+  nodes: RelationEndpointView[];
+}
+
+function compareText(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+function relationEndpointKey(endpoint: RelationEndpoint): string {
+  return JSON.stringify([endpoint.recordType, endpoint.recordId]);
+}
+
+function compareRelationEndpoints(
+  left: RelationEndpointView,
+  right: RelationEndpointView,
+): number {
+  return (
+    compareText(left.recordType, right.recordType) ||
+    compareText(left.recordId, right.recordId)
+  );
+}
+
+interface WorkDependencyGraph {
+  incoming: Map<string, Set<string>>;
+  outgoing: Map<string, Set<string>>;
+  records: Map<string, RelationEndpointView>;
+}
+
+interface DependencyDfsFrame {
+  neighbors: string[];
+  nextNeighborIndex: number;
+  recordKey: string;
+}
+
+function setIfMissing<T>(map: Map<string, Set<T>>, key: string): void {
+  if (!map.has(key)) {
+    map.set(key, new Set());
+  }
+}
+
+function addDependencyEdgeToGraph(
+  graph: WorkDependencyGraph,
+  edge: WorkDependencyEdge,
+): void {
+  const blockerKey = relationEndpointKey(edge.blocker);
+  const blockedKey = relationEndpointKey(edge.blocked);
+  graph.records.set(blockerKey, edge.blocker);
+  graph.records.set(blockedKey, edge.blocked);
+  setIfMissing(graph.outgoing, blockerKey);
+  setIfMissing(graph.outgoing, blockedKey);
+  setIfMissing(graph.incoming, blockerKey);
+  setIfMissing(graph.incoming, blockedKey);
+  graph.outgoing.get(blockerKey)?.add(blockedKey);
+  graph.incoming.get(blockedKey)?.add(blockerKey);
+}
+
+function workDependencyGraph(edges: WorkDependencyEdge[]): WorkDependencyGraph {
+  const records = new Map<string, RelationEndpointView>();
+  const outgoing = new Map<string, Set<string>>();
+  const incoming = new Map<string, Set<string>>();
+  const graph = { incoming, outgoing, records };
+  for (const edge of edges) {
+    addDependencyEdgeToGraph(graph, edge);
+  }
+  return graph;
+}
+
+function depthFirstFinishOrder(outgoing: Map<string, Set<string>>): string[] {
+  const visited = new Set<string>();
+  const finishOrder: string[] = [];
+  for (const root of [...outgoing.keys()].sort(compareText)) {
+    if (visited.has(root)) {
+      continue;
+    }
+    visited.add(root);
+    const stack: DependencyDfsFrame[] = [dependencyDfsFrame(root, outgoing)];
+    while (stack.length > 0) {
+      const frame = stack.at(-1);
+      if (!frame) {
+        break;
+      }
+      const neighbor = frame.neighbors[frame.nextNeighborIndex];
+      if (neighbor === undefined) {
+        finishOrder.push(frame.recordKey);
+        stack.pop();
+        continue;
+      }
+      frame.nextNeighborIndex += 1;
+      if (visited.has(neighbor)) {
+        continue;
+      }
+      visited.add(neighbor);
+      stack.push(dependencyDfsFrame(neighbor, outgoing));
+    }
+  }
+  return finishOrder;
+}
+
+function dependencyDfsFrame(
+  recordKey: string,
+  outgoing: Map<string, Set<string>>,
+): DependencyDfsFrame {
+  return {
+    neighbors: [...(outgoing.get(recordKey) ?? [])].sort(compareText),
+    nextNeighborIndex: 0,
+    recordKey,
+  };
+}
+
+function stronglyConnectedComponents(
+  incoming: Map<string, Set<string>>,
+  finishOrder: string[],
+): string[][] {
+  const assigned = new Set<string>();
+  const components: string[][] = [];
+  for (let index = finishOrder.length - 1; index >= 0; index -= 1) {
+    const root = finishOrder[index];
+    if (root === undefined || assigned.has(root)) {
+      continue;
+    }
+    assigned.add(root);
+    const component: string[] = [];
+    const stack = [root];
+    while (stack.length > 0) {
+      const recordKey = stack.pop();
+      if (recordKey === undefined) {
+        continue;
+      }
+      component.push(recordKey);
+      for (const blocker of incoming.get(recordKey) ?? []) {
+        if (!assigned.has(blocker)) {
+          assigned.add(blocker);
+          stack.push(blocker);
+        }
+      }
+    }
+    components.push(component);
+  }
+  return components;
+}
+
+function isDependencyCycle(
+  component: string[],
+  outgoing: Map<string, Set<string>>,
+): boolean {
+  const [onlyRecord] = component;
+  return (
+    component.length > 1 ||
+    (onlyRecord !== undefined &&
+      (outgoing.get(onlyRecord)?.has(onlyRecord) ?? false))
+  );
+}
+
+function dependencyCycle(
+  component: string[],
+  records: Map<string, RelationEndpointView>,
+): WorkDependencyCycle {
+  const componentRecords = component
+    .map((key) => records.get(key))
+    .filter((record): record is RelationEndpointView => record !== undefined)
+    .sort(compareRelationEndpoints);
+  return { edges: [], records: componentRecords };
+}
+
+function compareDependencyCycles(
+  left: WorkDependencyCycle,
+  right: WorkDependencyCycle,
+): number {
+  const [leftFirst] = left.records;
+  const [rightFirst] = right.records;
+  if (leftFirst && rightFirst) {
+    return compareRelationEndpoints(leftFirst, rightFirst);
+  }
+  return left.records.length - right.records.length;
+}
+
+function dependencyCycles(edges: WorkDependencyEdge[]): WorkDependencyCycle[] {
+  const graph = workDependencyGraph(edges);
+  const finishOrder = depthFirstFinishOrder(graph.outgoing);
+  const components = stronglyConnectedComponents(graph.incoming, finishOrder);
+  const cycles = components
+    .filter((component) => isDependencyCycle(component, graph.outgoing))
+    .map((component) => dependencyCycle(component, graph.records));
+  const cycleByRecord = new Map<string, WorkDependencyCycle>();
+  for (const cycle of cycles) {
+    for (const record of cycle.records) {
+      cycleByRecord.set(relationEndpointKey(record), cycle);
+    }
+  }
+  for (const edge of edges) {
+    const cycle = cycleByRecord.get(relationEndpointKey(edge.blocker));
+    if (cycle === cycleByRecord.get(relationEndpointKey(edge.blocked))) {
+      cycle?.edges.push(edge);
+    }
+  }
+  return cycles.sort(compareDependencyCycles);
+}
+
+/**
+ * Projects only existing blocking relations. Edges point from blocker to
+ * blocked Work; cycles retain the Active or Resolved status of every edge so
+ * consumers can explain the state of each relation in a cycle.
+ */
+export function projectWorkDependencies(
+  relations: readonly RelationView[],
+): WorkDependenciesProjection {
+  const edgeById = new Map<string, WorkDependencyEdge>();
+  for (const relation of relations) {
+    if (
+      relation.kind === "Blocks" &&
+      (relation.blockingStatus === "Active" ||
+        relation.blockingStatus === "Resolved") &&
+      !edgeById.has(relation.id)
+    ) {
+      edgeById.set(relation.id, {
+        blocked: relation.target,
+        blocker: relation.source,
+        relationId: relation.id,
+        status: relation.blockingStatus,
+      });
+    }
+  }
+
+  const edges = [...edgeById.values()].sort((left, right) =>
+    compareText(left.relationId, right.relationId),
+  );
+
+  const nodesByKey = new Map<string, RelationEndpointView>();
+  for (const edge of edges) {
+    nodesByKey.set(relationEndpointKey(edge.blocker), edge.blocker);
+    nodesByKey.set(relationEndpointKey(edge.blocked), edge.blocked);
+  }
+
+  return {
+    cycles: dependencyCycles(edges),
+    edges,
+    nodes: [...nodesByKey.values()].sort(compareRelationEndpoints),
+  };
+}
+
 export interface BlockingRelationHistoryEntry {
   id: string;
   isUndo: boolean;

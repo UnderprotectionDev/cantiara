@@ -1,3 +1,9 @@
+import {
+  projectWorkDependencies,
+  type RelationEndpointView,
+  type RelationRecordType,
+  type RelationView,
+} from "@cantiara/api/relations";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -19,6 +25,124 @@ import {
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
 import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import { assertAcyclicSupersedes, createDatabaseRelations } from "./relations";
+
+function dependencyEndpoint(
+  recordId: string,
+  recordType: RelationRecordType = "Work",
+): RelationEndpointView {
+  return {
+    broken: null,
+    key: null,
+    label: recordId,
+    originPosition: null,
+    projectId: "project-1",
+    recordId,
+    recordType,
+    status: null,
+    title: recordId,
+    workType: null,
+  };
+}
+
+function dependencyRelation(
+  id: string,
+  blocker: RelationEndpointView,
+  blocked: RelationEndpointView,
+  blockingStatus: RelationView["blockingStatus"] = "Active",
+  kind: RelationView["kind"] = "Blocks",
+): RelationView {
+  return {
+    blockingHistory: [],
+    blockingResolutionNote: null,
+    blockingResolvedAt: null,
+    blockingStatus,
+    createdAt: "2026-09-23T00:00:00.000Z",
+    direction: "incoming",
+    id,
+    inverseLabel: "Blocked by",
+    kind,
+    label: "Blocked by",
+    revision: 1,
+    source: blocker,
+    target: blocked,
+  };
+}
+
+describe("Work Blockers Dependencies projection", () => {
+  test("derives existing Active and Resolved relations in blocker-to-blocked direction", () => {
+    const blocker = dependencyEndpoint("work-blocker");
+    const blocked = dependencyEndpoint("work-blocked");
+    const resolved = dependencyRelation(
+      "relation-resolved",
+      blocked,
+      dependencyEndpoint("work-next"),
+      "Resolved",
+    );
+    const active = dependencyRelation("relation-active", blocker, blocked);
+    const relations = [
+      active,
+      { ...active, direction: "outgoing" as const },
+      resolved,
+      dependencyRelation(
+        "relation-unrelated",
+        blocker,
+        dependencyEndpoint("work-next"),
+        null,
+        "Related",
+      ),
+    ];
+    const originalRelations = structuredClone(relations);
+
+    const projection = projectWorkDependencies(relations);
+
+    expect(projection.edges).toMatchObject([
+      {
+        blocked: { recordId: "work-blocked", recordType: "Work" },
+        blocker: { recordId: "work-blocker", recordType: "Work" },
+        relationId: "relation-active",
+        status: "Active",
+      },
+      {
+        blocked: { recordId: "work-next", recordType: "Work" },
+        blocker: { recordId: "work-blocked", recordType: "Work" },
+        relationId: "relation-resolved",
+        status: "Resolved",
+      },
+    ]);
+    expect(projection.nodes.map(({ recordId }) => recordId)).toEqual([
+      "work-blocked",
+      "work-blocker",
+      "work-next",
+    ]);
+    expect(projection.cycles).toEqual([]);
+    expect(projection).not.toHaveProperty("mermaidSource");
+    expect(projection).not.toHaveProperty("manualPositions");
+    expect(relations).toEqual(originalRelations);
+  });
+
+  test("explains cycles from Active and Resolved relations with their statuses", () => {
+    const first = dependencyEndpoint("work-first");
+    const second = dependencyEndpoint("work-second");
+    const projection = projectWorkDependencies([
+      dependencyRelation("relation-first-to-second", first, second),
+      dependencyRelation("relation-second-to-first", second, first, "Resolved"),
+    ]);
+    expect(projection.cycles).toHaveLength(1);
+    expect(
+      projection.cycles[0]?.records.map(({ recordId }) => recordId),
+    ).toEqual(["work-first", "work-second"]);
+    expect(
+      projection.cycles[0]?.edges.map(({ relationId, status }) => ({
+        relationId,
+        status,
+      })),
+    ).toEqual([
+      { relationId: "relation-first-to-second", status: "Active" },
+      { relationId: "relation-second-to-first", status: "Resolved" },
+    ]);
+    expect(projection).not.toHaveProperty("signals");
+  });
+});
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -219,6 +343,8 @@ describeDatabase("Relations PostgreSQL integration", () => {
       relationId: preview.previewId,
       source: { recordId: source.id, recordType: "Work" },
     });
+    expect(created.signals[0]?.eventId).toBe(created.receiptId);
+    expect(created.signals[0]?.occurredAt).toBe(created.relation?.createdAt);
     expect(created.relation).toMatchObject({
       blockingResolvedAt: null,
       blockingResolutionNote: null,
@@ -343,6 +469,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       relationId: created.relation.id,
     });
     expect(resolvedReplay.receiptId).toBe(resolved.receiptId);
+    expect(resolvedReplay.signals).toEqual([]);
     expect(resolvedReplay.relation?.blockingResolvedAt).toBe(
       resolved.relation?.blockingResolvedAt,
     );
@@ -365,6 +492,10 @@ describeDatabase("Relations PostgreSQL integration", () => {
       relationId: created.relation.id,
       source: { recordId: source.id, recordType: "Work" },
     });
+    expect(reactivated.signals[0]?.eventId).toBe(reactivated.receiptId);
+    expect(reactivated.signals[0]?.occurredAt).toBe(
+      reactivated.relation?.blockingHistory.at(-1)?.occurredAt,
+    );
     expect(reactivated.signals[0]?.eventId).not.toBe(
       created.signals[0]?.eventId,
     );
@@ -382,6 +513,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       note: "Provider access regressed",
       relationId: created.relation.id,
     });
+    expect(resolvedAgain.signals).toEqual([]);
     expect(
       resolvedAgain.relation?.blockingHistory.map(({ status }) => status),
     ).toEqual(["Active", "Resolved", "Active", "Resolved"]);
@@ -399,6 +531,10 @@ describeDatabase("Relations PostgreSQL integration", () => {
       receiptId: resolvedAgain.receiptId,
       relationId: created.relation.id,
     });
+    expect(undoneResolution.signals).toHaveLength(1);
+    expect(undoneResolution.signals[0]?.occurredAt).toBe(
+      undoneResolution.relation?.blockingHistory.at(-1)?.occurredAt,
+    );
     expect(
       undoneResolution.relation?.blockingHistory.map(({ status }) => status),
     ).toEqual(["Active", "Resolved", "Active", "Resolved", "Active"]);
@@ -431,6 +567,7 @@ describeDatabase("Relations PostgreSQL integration", () => {
       receiptId: reactivationForUndo.receiptId,
       relationId: created.relation.id,
     });
+    expect(undoneReactivation.signals).toEqual([]);
     expect(undoneReactivation.relation).toMatchObject({
       blockingResolutionNote: "Provider access is verified",
       blockingResolvedAt: resolutionForUndo.relation?.blockingResolvedAt,
