@@ -248,6 +248,68 @@ test("shows a stale Work conflict without hiding other selected results", async 
   await concurrentPage.close();
 });
 
+test("shows virtualized results for a large Work selection", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=bulk-edit-large-progress`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+    workCount: number;
+  };
+  expect(setup.workCount).toBeGreaterThan(128);
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto(`/projects/${setup.projectId}`);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+
+  const workRows = page.locator('ul[aria-label="Work list"] > li');
+  await expect(workRows).toHaveCount(setup.workCount, { timeout: 30_000 });
+  const workCheckboxes = await workRows.getByRole("checkbox").all();
+  await Promise.all(workCheckboxes.map((checkbox) => checkbox.check()));
+  await expect(
+    page.getByText(`${setup.workCount} selected`, { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Bulk Edit" }).click();
+
+  const bulkEdit = page.getByRole("dialog", { name: "Bulk Edit" });
+  await bulkEdit
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("Not Started");
+  await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
+  await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
+
+  const progress = bulkEdit.getByRole("progressbar", { name: "Progress" });
+  await expect(progress).toBeVisible({ timeout: 2000 });
+  await expect(progress).toHaveAttribute("value", String(setup.workCount), {
+    timeout: 30_000,
+  });
+
+  const resultsRegion = bulkEdit.getByRole("region", {
+    name: "Bulk Edit results",
+  });
+  const results = bulkEdit.getByRole("list", { name: "Bulk Edit results" });
+  expect(await results.locator("li").count()).toBeLessThan(setup.workCount);
+  await resultsRegion.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const lastResult = results.locator(`li[aria-posinset="${setup.workCount}"]`);
+  await expect(lastResult).toContainText("Succeeded");
+  await expect(lastResult).toHaveAttribute(
+    "aria-setsize",
+    String(setup.workCount),
+  );
+});
+
 test("collects a closure result when Bulk Edit closes selected Work", async ({
   context,
   page,
