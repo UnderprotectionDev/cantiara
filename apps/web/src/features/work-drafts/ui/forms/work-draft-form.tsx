@@ -791,10 +791,9 @@ export default function WorkDraftForm({
       queryClient.setQueryData<WorkDraft[]>(draftsQueryKey, (drafts = []) =>
         drafts.filter((draft) => draft.id !== saved.id),
       );
-      // The Work is finalized and the Draft is removed locally. Active views
-      // can refresh independently; waiting for every refetch keeps Create
-      // disabled even after the server has completed the write.
-      Promise.all([
+      // The finalization is committed; cache refreshes should not lock the new Draft editor.
+      setIsCreating(false);
+      await Promise.all([
         queryClient.invalidateQueries({
           queryKey: projectWorksQueryPrefix,
         }),
@@ -829,7 +828,7 @@ export default function WorkDraftForm({
                 }).queryKey,
               }),
             ]),
-      ]).catch(() => undefined);
+      ]);
     } catch (error) {
       setFormError(
         errorMessage(error, "Work could not be created. Try again."),

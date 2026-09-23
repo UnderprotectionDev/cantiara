@@ -225,7 +225,8 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
       .getByText("Saved payment investigation", { exact: true }),
   ).toHaveCount(0);
 
-  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(createButton).toBeEnabled({ timeout: 20_000 });
+  await expect(workList.getByRole("listitem")).toHaveCount(1);
   await expect(workList).not.toContainText("PAY-2");
 
   // Drafts are personal to the account: a Draft saved here stays visible and
