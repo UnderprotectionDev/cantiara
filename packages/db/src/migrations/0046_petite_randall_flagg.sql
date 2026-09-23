@@ -34,7 +34,6 @@ CREATE TABLE "work_priority_metric_value" (
 --> statement-breakpoint
 ALTER TABLE "priority_metric_definition" ADD CONSTRAINT "priority_metric_definition_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_priority_metric_value" ADD CONSTRAINT "work_priority_metric_value_project_metric_fk" FOREIGN KEY ("project_id","metric_id") REFERENCES "public"."priority_metric_definition"("project_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "work_priority_metric_value" ADD CONSTRAINT "work_priority_metric_value_project_work_fk" FOREIGN KEY ("project_id","work_id") REFERENCES "public"."work"("project_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "priority_metric_definition_project_idx" ON "priority_metric_definition" USING btree ("project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "priority_metric_definition_project_name_uidx" ON "priority_metric_definition" USING btree ("project_id","name_key");--> statement-breakpoint
 CREATE INDEX "work_priority_metric_value_project_work_idx" ON "work_priority_metric_value" USING btree ("project_id","work_id");--> statement-breakpoint
