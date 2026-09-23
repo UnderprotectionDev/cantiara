@@ -1,4 +1,5 @@
 import {
+  type CancelExternalExecutionHandoffInput,
   type ExternalExecutionHandoff,
   type ExternalExecutionHandoffHistoryEvent,
   type ExternalExecutionHandoffStartCommand,
@@ -7,7 +8,9 @@ import {
   externalExecutionHandoffHistoryEventTypeSchema,
   externalExecutionHandoffSchema,
   externalExecutionHandoffSelectedVersionsSchema,
+  externalExecutionHandoffStatusSchema,
   externalExecutionHandoffWorkSnapshotSchema,
+  isTerminalExternalExecutionHandoffStatus,
   type RecordExternalExecutionHandoffPackageExportInput,
   renderExternalExecutionHandoffPackage,
 } from "@cantiara/api/external-handoffs";
@@ -69,16 +72,23 @@ async function handoffHistoryValues(input: {
   eventType: ExternalExecutionHandoffHistoryEvent["eventType"];
   handoffId: string;
   occurredAt: Date;
+  reason?: string;
   revision: number;
   workId: string;
 }) {
-  const payloadFingerprint = await fingerprintMutationPayload({
+  const idempotencyPayload = {
     clientEventId: input.clientEventId,
     eventType: input.eventType,
     handoffId: input.handoffId,
     workId: input.workId,
+  };
+  const eventIdFingerprint =
+    await fingerprintMutationPayload(idempotencyPayload);
+  const payloadFingerprint = await fingerprintMutationPayload({
+    ...idempotencyPayload,
+    ...(input.reason === undefined ? {} : { reason: input.reason }),
   });
-  const eventId = `external-handoff-event-${payloadFingerprint}`;
+  const eventId = `external-handoff-event-${eventIdFingerprint}`;
   const event = externalExecutionHandoffHistoryEventSchema.parse({
     actorId: input.accountId,
     eventId,
@@ -103,6 +113,40 @@ async function handoffHistoryValues(input: {
       targetId: input.workId,
     },
   };
+}
+
+async function cancellationAlreadyApplied(
+  executor: Pick<Database, "select">,
+  handoff: HandoffRecord,
+  historyValues: Awaited<ReturnType<typeof handoffHistoryValues>>,
+  reason: string,
+) {
+  const [existingHistory] = await executor
+    .select({
+      actorId: mutationHistory.actorId,
+      id: mutationHistory.id,
+      nextValue: mutationHistory.nextValue,
+      occurredAt: mutationHistory.occurredAt,
+      payloadFingerprint: mutationHistory.payloadFingerprint,
+    })
+    .from(mutationHistory)
+    .where(eq(mutationHistory.id, historyValues.event.eventId))
+    .limit(1);
+  if (!existingHistory) {
+    return false;
+  }
+  if (
+    existingHistory.payloadFingerprint !==
+      historyValues.history.payloadFingerprint ||
+    handoff.status !== "Canceled" ||
+    handoff.cancellationReason !== reason
+  ) {
+    throw new ExternalExecutionHandoffIdempotencyConflictError();
+  }
+  if (!historyEventFromRecord(existingHistory)) {
+    throw new ExternalExecutionHandoffIdempotencyConflictError();
+  }
+  return true;
 }
 
 async function findExistingHandoff(
@@ -179,6 +223,22 @@ export class ExternalExecutionHandoffIdempotencyConflictError extends Error {
   }
 }
 
+export class ExternalExecutionHandoffTerminalError extends Error {
+  readonly code = "EXTERNAL_HANDOFF_TERMINAL" as const;
+
+  constructor() {
+    super("A terminal handoff cannot be changed.");
+    this.name = "ExternalExecutionHandoffTerminalError";
+  }
+}
+
+function assertHandoffIsNotTerminal(status: string) {
+  const parsedStatus = externalExecutionHandoffStatusSchema.parse(status);
+  if (isTerminalExternalExecutionHandoffStatus(parsedStatus)) {
+    throw new ExternalExecutionHandoffTerminalError();
+  }
+}
+
 function toExternalExecutionHandoff(
   record: HandoffRecord,
 ): ExternalExecutionHandoff {
@@ -186,6 +246,7 @@ function toExternalExecutionHandoff(
     record.selectedVersions,
   );
   return externalExecutionHandoffSchema.parse({
+    cancellationReason: record.cancellationReason,
     constraints: record.constraints,
     createdAt: record.createdAt.toISOString(),
     executor: record.executor,
@@ -269,6 +330,72 @@ export function createDatabaseExternalExecutionHandoffs(
   }
 
   return {
+    cancel(accountId, input: CancelExternalExecutionHandoffInput) {
+      return database.transaction(async (transaction) => {
+        const [owner] = await transaction
+          .select({ workId: workExternalExecutionHandoff.workId })
+          .from(workExternalExecutionHandoff)
+          .where(eq(workExternalExecutionHandoff.handoffId, input.handoffId))
+          .limit(1);
+        if (!owner) {
+          return null;
+        }
+        const ownerWork = await ownedWork(
+          transaction,
+          accountId,
+          owner.workId,
+          true,
+        );
+        if (!ownerWork) {
+          return null;
+        }
+        const [handoff] = await transaction
+          .select()
+          .from(workExternalExecutionHandoff)
+          .where(eq(workExternalExecutionHandoff.handoffId, input.handoffId))
+          .limit(1)
+          .for("update");
+        if (!handoff) {
+          return null;
+        }
+
+        const reason = input.reason.trim();
+        const historyValues = await handoffHistoryValues({
+          accountId,
+          clientEventId: input.clientEventId,
+          eventType: "external-execution-handoff-canceled",
+          handoffId: handoff.handoffId,
+          occurredAt: now(),
+          reason,
+          revision: ownerWork.revision,
+          workId: ownerWork.id,
+        });
+        if (
+          await cancellationAlreadyApplied(
+            transaction,
+            handoff,
+            historyValues,
+            reason,
+          )
+        ) {
+          return toExternalExecutionHandoff(handoff);
+        }
+
+        assertHandoffIsNotTerminal(handoff.status);
+
+        const [canceled] = await transaction
+          .update(workExternalExecutionHandoff)
+          .set({ cancellationReason: reason, status: "Canceled" })
+          .where(eq(workExternalExecutionHandoff.handoffId, handoff.handoffId))
+          .returning();
+        if (!canceled) {
+          return null;
+        }
+        await transaction.insert(mutationHistory).values(historyValues.history);
+        return toExternalExecutionHandoff(canceled);
+      });
+    },
+
     async list(accountId, workId) {
       const ownerWork = await ownedWork(
         database,

@@ -400,6 +400,20 @@
       "when": 1790190000775,
       "tag": "0056_work-external-execution-handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790192880035,
+      "tag": "0057_external-handoff-cancellation",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790193170928,
+      "tag": "0058_external-handoff-cancellation-compatibility",
+      "breakpoints": true
     }
   ]
 }

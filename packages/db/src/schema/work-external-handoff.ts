@@ -15,6 +15,7 @@ import { work } from "./work";
 export const workExternalExecutionHandoff = pgTable(
   "work_external_execution_handoff",
   {
+    cancellationReason: text("cancellation_reason"),
     clientIdempotencyKey: text("client_idempotency_key").notNull(),
     constraints: text("constraints").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -51,6 +52,10 @@ export const workExternalExecutionHandoff = pgTable(
     check(
       "work_external_handoff_status_check",
       sql`${table.status} in ('Open', 'Result returned', 'Reconciled', 'Canceled')`,
+    ),
+    check(
+      "work_external_handoff_cancellation_reason_check",
+      sql`(${table.status} = 'Canceled' and ${table.cancellationReason} is not null and length(btrim(${table.cancellationReason})) > 0) or (${table.status} <> 'Canceled' and ${table.cancellationReason} is null)`,
     ),
     check(
       "work_external_handoff_payload_fingerprint_check",
