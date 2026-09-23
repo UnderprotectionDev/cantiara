@@ -519,6 +519,6 @@ Backlog order and Prioritization Sessions are separate Project-scoped sources of
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).
 
-Bulk Editing owns explicit Work selection and status preview/apply UI under `apps/web/src/features/bulk-editing/`; it uses the existing Work lifecycle API for status changes and does not own additional persistence.
+Bulk Editing owns explicit Work selection, status preview/apply UI, and in-memory operation progress under `apps/web/src/features/bulk-editing/`; it uses the Work Lifecycle API for status changes and safe Undo receipts.
 
 Daily Focus membership persistence is owned by the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`); Record Actions consumes that membership through its atomic write boundary.

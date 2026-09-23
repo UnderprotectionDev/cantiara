@@ -185,6 +185,7 @@ import {
   recreateWorkInputSchema,
   reopenWorkInputSchema,
   undoWorkMergeInputSchema,
+  undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
@@ -923,6 +924,12 @@ function mapWorkLifecycleError(
         data: { code: error.code },
         defined: true,
         message: "This Work merge is no longer available for Undo.",
+      });
+    case "WORK_STATUS_UNDO_UNAVAILABLE":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This Work status change is no longer available for Undo.",
       });
     case "WORK_RELATION_NOT_PORTABLE":
     case "WORK_RECREATE_FIELD_REQUIRED":
@@ -3347,6 +3354,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).undoMerge(context.session.user.id, input),
+      ),
+    ),
+  undoWorkStatus: protectedProcedure
+    .input(undoWorkStatusInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).undoStatus(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   recreateWork: protectedProcedure

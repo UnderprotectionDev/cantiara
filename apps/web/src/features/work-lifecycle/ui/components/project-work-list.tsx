@@ -20,6 +20,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useBulkWorkSelection } from "@/features/bulk-editing/hooks/use-bulk-work-selection";
 import BulkEditDialog, {
   WorkSelectionCheckbox,
 } from "@/features/bulk-editing/ui/components/bulk-edit-dialog";
@@ -60,9 +61,8 @@ export default function ProjectWorkList({
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const handledWorkHash = useRef<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [selectedWorkIds, setSelectedWorkIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const { clearSelection, selectedWorkIds, setWorkSelected } =
+    useBulkWorkSelection();
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [lastMergeResult, setLastMergeResult] =
     useState<WorkMergeResult | null>(null);
@@ -204,7 +204,7 @@ export default function ProjectWorkList({
           <Button
             aria-pressed={showArchived}
             onClick={() => {
-              setSelectedWorkIds(new Set());
+              clearSelection();
               setIsBulkEditOpen(false);
               setShowArchived((current) => !current);
             }}
@@ -260,15 +260,7 @@ export default function ProjectWorkList({
                   <WorkSelectionCheckbox
                     checked={selectedWorkIds.has(work.id)}
                     onCheckedChange={(checked) =>
-                      setSelectedWorkIds((current) => {
-                        const next = new Set(current);
-                        if (checked) {
-                          next.add(work.id);
-                        } else {
-                          next.delete(work.id);
-                        }
-                        return next;
-                      })
+                      setWorkSelected(work.id, checked)
                     }
                     workKey={work.key}
                   />

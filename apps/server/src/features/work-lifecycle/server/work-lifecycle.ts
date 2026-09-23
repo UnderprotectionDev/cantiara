@@ -22,6 +22,7 @@ import {
   type ScopeTreeReference,
   type ScopeTreeWork,
   undoWorkMergeInputSchema,
+  undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
   updateWorkStatusInputSchema,
@@ -47,6 +48,7 @@ import {
   type WorkRecreateFieldPreview,
   type WorkRecreatePreview,
   type WorkRetiredIdentity,
+  type WorkStatusMutationResult,
   type WorkType,
   type WorkTypeChangePreview,
   type WorkVisibleUserInitiator,
@@ -419,6 +421,15 @@ export class WorkMergeUndoUnavailableError extends Error {
   constructor() {
     super("This Work merge is no longer available for Undo.");
     this.name = "WorkMergeUndoUnavailableError";
+  }
+}
+
+export class WorkStatusUndoUnavailableError extends Error {
+  readonly code = "WORK_STATUS_UNDO_UNAVAILABLE" as const;
+
+  constructor() {
+    super("This Work status change is no longer available for Undo.");
+    this.name = "WorkStatusUndoUnavailableError";
   }
 }
 
@@ -1389,7 +1400,11 @@ export function createWorkLifecycle({
       );
     },
 
-    async close(accountId, rawInput, initiator) {
+    async close(
+      accountId,
+      rawInput,
+      initiator,
+    ): Promise<WorkStatusMutationResult> {
       requireVisibleUserInitiator(initiator);
       const input = closeWorkInputSchema.parse(rawInput);
       const mutation = mutationContracts.update(accountId);
@@ -1411,7 +1426,7 @@ export function createWorkLifecycle({
         if (!replay.nextValue.work) {
           throw new WorkNotFoundError(input.workId);
         }
-        return replay.nextValue.work;
+        return { ...replay.nextValue.work, receiptId: replay.id };
       }
 
       const currentWork = await store.find(accountId, input.workId);
@@ -1448,11 +1463,12 @@ export function createWorkLifecycle({
             },
           } satisfies WorkLifecycleMutationValue;
         },
+        { undo: { kind: "atomic-transform", scope: "work.status" } },
       );
       if (!receipt.nextValue.work) {
         throw new WorkNotFoundError(input.workId);
       }
-      return receipt.nextValue.work;
+      return { ...receipt.nextValue.work, receiptId: receipt.id };
     },
 
     async convertChecklistItem(accountId, rawInput) {
@@ -2169,7 +2185,11 @@ export function createWorkLifecycle({
       );
     },
 
-    async reopen(accountId, rawInput, initiator) {
+    async reopen(
+      accountId,
+      rawInput,
+      initiator,
+    ): Promise<WorkStatusMutationResult> {
       requireVisibleUserInitiator(initiator);
       const input = reopenWorkInputSchema.parse(rawInput);
       const mutation = mutationContracts.update(accountId);
@@ -2191,7 +2211,7 @@ export function createWorkLifecycle({
         if (!replay.nextValue.work) {
           throw new WorkNotFoundError(input.workId);
         }
-        return replay.nextValue.work;
+        return { ...replay.nextValue.work, receiptId: replay.id };
       }
 
       const currentWork = await store.find(accountId, input.workId);
@@ -2220,11 +2240,12 @@ export function createWorkLifecycle({
             },
           } satisfies WorkLifecycleMutationValue;
         },
+        { undo: { kind: "atomic-transform", scope: "work.status" } },
       );
       if (!receipt.nextValue.work) {
         throw new WorkNotFoundError(input.workId);
       }
-      return receipt.nextValue.work;
+      return { ...receipt.nextValue.work, receiptId: receipt.id };
     },
 
     async undoMerge(accountId, rawInput) {
@@ -2292,12 +2313,93 @@ export function createWorkLifecycle({
       return receipt.nextValue.work;
     },
 
-    async updateStatus(accountId, rawInput, initiator) {
+    async undoStatus(accountId, rawInput) {
+      const input = undoWorkStatusInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      if (!(mutation.findReceiptById && mutation.undo)) {
+        throw new WorkStatusUndoUnavailableError();
+      }
+      const sourceReceipt = await mutation.findReceiptById(input.receiptId);
+      if (
+        !sourceReceipt ||
+        sourceReceipt.targetId !== input.workId ||
+        sourceReceipt.actor.type !== "User" ||
+        sourceReceipt.actor.actorId !== accountId ||
+        sourceReceipt.undo?.kind !== "atomic-transform" ||
+        sourceReceipt.undo.scope !== "work.status"
+      ) {
+        throw new WorkStatusUndoUnavailableError();
+      }
+
+      const receipt = await mutation.undo(
+        sourceReceipt,
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: {
+            operation: "undo-work-status",
+            receiptId: input.receiptId,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        ({ currentRevision, currentValue, previousValue }) => {
+          if (!(currentValue.work && previousValue.work)) {
+            throw new WorkStatusUndoUnavailableError();
+          }
+          return {
+            ...currentValue,
+            work: {
+              ...currentValue.work,
+              closureReason: previousValue.work.closureReason,
+              closureResult: previousValue.work.closureResult,
+              revision: currentRevision + 1,
+              status: previousValue.work.status,
+              updatedAt: new Date().toISOString(),
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkStatusUndoUnavailableError();
+      }
+      return receipt.nextValue.work;
+    },
+
+    async updateStatus(
+      accountId,
+      rawInput,
+      initiator,
+    ): Promise<WorkStatusMutationResult> {
       requireVisibleUserInitiator(initiator);
       const input = updateWorkStatusInputSchema.parse(rawInput);
       if (input.status === "Closed") {
         throw new WorkClosureResultRequiredError();
       }
+      const mutation = mutationContracts.update(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload: {
+          closureReason: null,
+          closureResult: null,
+          status: input.status,
+          workId: input.workId,
+        },
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        if (!replay.nextValue.work) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return { ...replay.nextValue.work, receiptId: replay.id };
+      }
+
       const currentWork = await store.find(accountId, input.workId);
       if (!currentWork) {
         throw new WorkNotFoundError(input.workId);
@@ -2306,24 +2408,12 @@ export function createWorkLifecycle({
         throw new WorkReopenConfirmationRequiredError();
       }
       if (currentWork.status === input.status) {
-        return currentWork;
+        return { ...currentWork, receiptId: null };
       }
 
       const timestamp = new Date().toISOString();
-      const receipt = await mutationContracts.update(accountId).mutate(
-        {
-          actor: { actorId: accountId, type: "User" },
-          baseRevision: input.baseRevision,
-          clientIdempotencyKey: input.clientIdempotencyKey,
-          kind: "human",
-          payload: {
-            closureReason: null,
-            closureResult: null,
-            status: input.status,
-            workId: input.workId,
-          },
-          targetId: input.workId,
-        },
+      const receipt = await mutation.mutate(
+        command,
         ({ currentRevision, currentValue, payload }) => {
           if (!currentValue.work || currentValue.work.id !== input.workId) {
             throw new WorkNotFoundError(input.workId);
@@ -2339,11 +2429,12 @@ export function createWorkLifecycle({
             },
           } satisfies WorkLifecycleMutationValue;
         },
+        { undo: { kind: "atomic-transform", scope: "work.status" } },
       );
       if (!receipt.nextValue.work) {
         throw new WorkNotFoundError(input.workId);
       }
-      return receipt.nextValue.work;
+      return { ...receipt.nextValue.work, receiptId: receipt.id };
     },
 
     updateChecklist(accountId, rawInput) {
