@@ -285,7 +285,7 @@ test("copies the Work Context Card and exposes the same action in Command Palett
     page,
     context,
     request,
-    "scope-tree",
+    "command-palette-scope-tree",
   );
   if (!setup.projectId) {
     throw new Error("The Work Context E2E fixture did not create a Project.");
@@ -352,7 +352,7 @@ test("announces clipboard failures from the Work Context Card", async ({
     page,
     context,
     request,
-    "scope-tree",
+    "command-palette-scope-tree",
   );
   if (!setup.projectId) {
     throw new Error("The Work Context E2E fixture did not create a Project.");

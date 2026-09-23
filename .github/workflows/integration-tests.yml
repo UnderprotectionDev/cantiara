@@ -1,0 +1,191 @@
+name: Integration tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The local Neon transport shim makes this an integration signal, not canonical
+# product acceptance evidence under docs/tech-stack.md.
+jobs:
+  core-integration:
+    name: Core integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cantiara
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cantiara"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ACCOUNT_ACCESS_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      BETTER_AUTH_SECRET: account-access-integration-secret-123456789
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      NEON_LOCAL: "true"
+      SECURITY_EVENT_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara_security
+      VITE_SERVER_URL: http://127.0.0.1:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Prepare PostgreSQL boundaries
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
+      - name: Run type checks and unit tests
+        run: |
+          set -euo pipefail
+          bun scripts/neon-local-proxy.ts &
+          proxy_pid=$!
+          trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+          bun run --cwd packages/db db:migrate:deploy
+          bun run --cwd packages/db db:security:migrate:deploy
+          bun run check-types
+          bun run --cwd apps/server test -- --no-file-parallelism
+          bun run --cwd apps/web test
+
+  # Fixture identities are isolated across spec files and tests within a file
+  # stay sequential, so functional E2E can use two workers. Keep the reference-
+  # scale measurement on its own runner so test work cannot distort its budget.
+  browser-integration:
+    name: Browser integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cantiara
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cantiara"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ACCOUNT_ACCESS_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      BETTER_AUTH_SECRET: account-access-integration-secret-123456789
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      NEON_LOCAL: "true"
+      SECURITY_EVENT_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara_security
+      VITE_SERVER_URL: http://127.0.0.1:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Prepare PostgreSQL boundaries
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
+      - name: Install integration browsers
+        run: bunx playwright install --with-deps chromium firefox
+        working-directory: apps/web
+      - name: Run browser integration tests
+        run: |
+          set -euo pipefail
+          bun scripts/neon-local-proxy.ts &
+          proxy_pid=$!
+          trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+          bun run --cwd packages/db db:migrate:deploy
+          bun run --cwd packages/db db:security:migrate:deploy
+          bun run test:e2e -- \
+            --workers=2 \
+            --grep-invert \
+            "Web Capture|measures Command Palette visibility at the reference workspace scale"
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run --cwd apps/web test:e2e:extension
+
+  command-palette-performance:
+    name: Command Palette performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cantiara
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cantiara"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ACCOUNT_ACCESS_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      BETTER_AUTH_SECRET: account-access-integration-secret-123456789
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara
+      NEON_LOCAL: "true"
+      SECURITY_EVENT_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cantiara_security
+      VITE_SERVER_URL: http://127.0.0.1:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Prepare PostgreSQL boundaries
+        run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Measure Command Palette performance
+        run: |
+          set -euo pipefail
+          bun scripts/neon-local-proxy.ts &
+          proxy_pid=$!
+          trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+          bun run --cwd packages/db db:migrate:deploy
+          bun run --cwd packages/db db:security:migrate:deploy
+          bun run test:e2e -- \
+            --workers=1 \
+            --grep \
+            "measures Command Palette visibility at the reference workspace scale"
+
+  integration-gate:
+    name: Integration gate
+    needs:
+      - core-integration
+      - browser-integration
+      - command-palette-performance
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require all integration jobs to pass
+        env:
+          CORE_RESULT: ${{ needs.core-integration.result }}
+          BROWSER_RESULT: ${{ needs.browser-integration.result }}
+          PERFORMANCE_RESULT: ${{ needs.command-palette-performance.result }}
+        run: |
+          if [[ "$CORE_RESULT" != "success" || \
+                "$BROWSER_RESULT" != "success" || \
+                "$PERFORMANCE_RESULT" != "success" ]]; then
+            echo "Core integration: $CORE_RESULT"
+            echo "Browser integration: $BROWSER_RESULT"
+            echo "Command Palette performance: $PERFORMANCE_RESULT"
+            exit 1
+          fi
