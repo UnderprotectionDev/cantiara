@@ -174,6 +174,53 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     ).rejects.toBeInstanceOf(RecordActionStepUnavailableError);
   });
 
+  test("rejects runtime inputs for fields outside the Date, Number, and Select catalog", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const definitions = [
+      {
+        id: `field-${crypto.randomUUID()}`,
+        name: "Approval required",
+        nameKey: `approval-required-${crypto.randomUUID()}`,
+        type: "Boolean" as const,
+      },
+      {
+        id: `field-${crypto.randomUUID()}`,
+        name: "Run notes",
+        nameKey: `run-notes-${crypto.randomUUID()}`,
+        type: "Text" as const,
+      },
+    ];
+    await database.insert(customFieldDefinition).values(
+      definitions.map((definition) => ({
+        ...definition,
+        projectId,
+        recordTypes: ["Work"],
+      })),
+    );
+    const access = createTestRecordActions(database);
+
+    await Promise.all(
+      definitions.map(async (definition) =>
+        expect(
+          access.create(accountId, {
+            name: `Ask for ${definition.name}`,
+            projectId,
+            steps: [
+              {
+                definitionId: definition.id,
+                kind: "custom-field-value",
+                operation: "set",
+                value: { kind: "runtime-input" },
+              },
+            ],
+          }),
+        ).rejects.toBeInstanceOf(RecordActionStepUnavailableError),
+      ),
+    );
+  });
+
   test("enforces project-local names and optimistic revisions", async () => {
     if (!database) {
       throw new Error("DATABASE_URL is required");
@@ -515,6 +562,44 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       throw new Error("The Record Action preview should be available.");
     }
 
+    const missingInputsResult = await access.apply(accountId, {
+      actionId: action.id,
+      actionRevision: action.revision,
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "runtime-input-action-missing-1",
+      focusDate: preview.focusDate,
+      previewFingerprint: preview.previewFingerprint,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
+      workId,
+    });
+    expect(missingInputsResult).toMatchObject({
+      receipt: { reason: "target-not-found", status: "rolled-back" },
+      status: "rolled-back",
+    });
+    const [
+      workAfterMissingInputs,
+      valuesAfterMissingInputs,
+      relationsAfterMissingInputs,
+    ] = await Promise.all([
+      database
+        .select({ revision: work.revision, status: work.status })
+        .from(work)
+        .where(eq(work.id, workId)),
+      database
+        .select()
+        .from(customFieldValue)
+        .where(eq(customFieldValue.recordId, workId)),
+      database
+        .select()
+        .from(workRelation)
+        .where(eq(workRelation.sourceWorkId, workId)),
+    ]);
+    expect(workAfterMissingInputs).toEqual([
+      { revision: 0, status: "Not Started" },
+    ]);
+    expect(valuesAfterMissingInputs).toEqual([]);
+    expect(relationsAfterMissingInputs).toEqual([]);
+
     expect(preview.runtimeInputs).toEqual(runtimeInputs);
     expect(preview.changes).toEqual(
       expect.arrayContaining([
@@ -607,7 +692,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       .from(customFieldValue)
       .where(eq(customFieldValue.recordId, workId));
     expect(undoneValues).toEqual([]);
-  }, 20_000);
+  }, 45_000);
 
   test("uses an active Related Work row ahead of an older deleted row", async () => {
     if (!database) {
