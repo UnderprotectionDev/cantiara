@@ -27,6 +27,15 @@ interface HandoffDraft {
   purpose: string;
 }
 
+const HISTORY_EVENT_LABELS: Record<
+  ExternalExecutionHandoffHistoryEvent["eventType"],
+  string
+> = {
+  "external-execution-handoff-package-exported": "Going package copied",
+  "external-execution-handoff-package-produced": "Going package produced",
+  "external-execution-handoff-started": "Handoff started",
+};
+
 const EMPTY_DRAFT: HandoffDraft = {
   constraints: "",
   executor: "",
@@ -51,9 +60,7 @@ function HandoffHistory({
       <ul className="space-y-1 text-muted-foreground text-xs">
         {events.map((event) => (
           <li key={event.eventId}>
-            {event.eventType === "external-execution-handoff-started"
-              ? "Handoff started"
-              : "Going package copied"}
+            {HISTORY_EVENT_LABELS[event.eventType]} by You
             {" · "}
             <time dateTime={event.occurredAt}>{event.occurredAt}</time>
           </li>

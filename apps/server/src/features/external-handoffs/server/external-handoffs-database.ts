@@ -132,7 +132,7 @@ async function findExistingHandoff(
   return toExternalExecutionHandoff(existing);
 }
 
-async function recordStartedHistory(
+async function recordHandoffCreationHistory(
   executor: Pick<Database, "insert">,
   handoff: HandoffRecord | undefined,
   input: {
@@ -151,7 +151,14 @@ async function recordStartedHistory(
     eventType: "external-execution-handoff-started",
     handoffId: handoff.handoffId,
   });
-  await executor.insert(mutationHistory).values(startedHistory.history);
+  const packageProducedHistory = await handoffHistoryValues({
+    ...input,
+    eventType: "external-execution-handoff-package-produced",
+    handoffId: handoff.handoffId,
+  });
+  await executor
+    .insert(mutationHistory)
+    .values([startedHistory.history, packageProducedHistory.history]);
 }
 
 export class ExternalExecutionHandoffStaleWorkError extends Error {
@@ -390,7 +397,7 @@ export function createDatabaseExternalExecutionHandoffs(
             workId: ownerWork.id,
           })
           .returning();
-        await recordStartedHistory(transaction, created, {
+        await recordHandoffCreationHistory(transaction, created, {
           accountId,
           clientEventId: command.clientIdempotencyKey,
           occurredAt: producedAt,

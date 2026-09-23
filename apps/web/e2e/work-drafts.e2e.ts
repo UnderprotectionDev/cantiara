@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
+const CREATE_BUTTON_NAME_PATTERN = /Create|Creating/;
 const QUEUE_TEXT_PATTERN = /queue/i;
 
 test.setTimeout(90_000);
@@ -71,6 +72,9 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
   await page.getByRole("link", { name: "Create", exact: true }).click();
 
   const workCreate = page.locator("#work-create");
+  const createButton = workCreate.getByRole("button", {
+    name: CREATE_BUTTON_NAME_PATTERN,
+  });
   const title = page.getByLabel("Title");
   const releaseReadiness = page.getByRole("checkbox", {
     name: "Release readiness",
@@ -135,15 +139,34 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
   const finalizationGate = new Promise<void>((resolve) => {
     releaseFinalization = resolve;
   });
+  let releaseWorkListRefresh: () => void = () => undefined;
+  let signalWorkListRefresh: () => void = () => undefined;
+  let signalWorkListRefreshFulfilled: () => void = () => undefined;
+  const workListRefreshReached = new Promise<void>((resolve) => {
+    signalWorkListRefresh = resolve;
+  });
+  const workListRefreshFulfilled = new Promise<void>((resolve) => {
+    signalWorkListRefreshFulfilled = resolve;
+  });
+  const workListRefreshGate = new Promise<void>((resolve) => {
+    releaseWorkListRefresh = resolve;
+  });
   await page.route("**/rpc/finalizeWorkDraft", async (route) => {
     const response = await route.fetch();
     signalFinalizationResponse();
     await finalizationGate;
     await route.fulfill({ response });
   });
-  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  await createButton.click();
   await finalizationResponseReached;
   const titleDisabledWhileFinalizing = await title.isDisabled();
+  await page.route("**/rpc/projectWorks", async (route) => {
+    const response = await route.fetch();
+    signalWorkListRefresh();
+    await workListRefreshGate;
+    await route.fulfill({ response });
+    signalWorkListRefreshFulfilled();
+  });
   releaseFinalization();
   const finalizedWork = (
     (await (await finalizeWorkResponse).json()) as {
@@ -185,6 +208,14 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
     ]),
   );
   const workList = page.getByRole("list", { name: "Work list" });
+  await workListRefreshReached;
+  try {
+    await expect(createButton).toBeEnabled({ timeout: 10_000 });
+  } finally {
+    releaseWorkListRefresh();
+    await workListRefreshFulfilled;
+    await page.unroute("**/rpc/projectWorks");
+  }
   await expect(workList).toContainText("PAY-1 Saved payment investigation", {
     timeout: 20_000,
   });
@@ -194,9 +225,7 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
       .getByText("Saved payment investigation", { exact: true }),
   ).toHaveCount(0);
 
-  await expect(
-    workCreate.getByRole("button", { name: "Create", exact: true }),
-  ).toBeEnabled({ timeout: 20_000 });
+  await expect(createButton).toBeEnabled({ timeout: 20_000 });
   await expect(workList.getByRole("listitem")).toHaveCount(1);
   await expect(workList).not.toContainText("PAY-2");
 
