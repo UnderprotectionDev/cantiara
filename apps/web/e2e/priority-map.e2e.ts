@@ -6,9 +6,10 @@ const MAP_URL_PATTERN = /#priority-map$/;
 const WORK_STATUS_COMBOBOX_NAME = /Status for/;
 
 function workListItem(page: Page, title: string) {
-  return page.getByRole("listitem").filter({
-    has: page.locator("p").filter({ hasText: title }),
-  });
+  return page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem")
+    .filter({ has: page.locator("p").filter({ hasText: title }) });
 }
 
 test.setTimeout(120_000);

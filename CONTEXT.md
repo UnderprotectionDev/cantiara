@@ -303,7 +303,7 @@ Henüz planlanmamış İşler dahil değerlendirilecek İşlerin hazır dinamik 
 _Avoid_: Klasör, etiket, statik liste, Kanban sırası
 
 **Backlog manuel sırası**:
-Projedeki tek kalıcı manuel İş sıralaması; İş alanı, Kanban konumu, Akıllı Koleksiyon rank’i veya Önceliklendirme oturumu rank’i değildir ve alternatif sunum seçilince arka planda korunur ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Manual order`.
+Projedeki tek kalıcı manuel İş sıralaması; İş alanı, Kanban konumu, Akıllı Koleksiyon rank’i veya Önceliklendirme oturumu rank’i değildir ve alternatif sunum seçilince arka planda korunur ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Manual order`, `Backlog order`.
 _Avoid_: Kanban sırası, öncelik puanı, kapanış, sprint
 
 **Deferred**:

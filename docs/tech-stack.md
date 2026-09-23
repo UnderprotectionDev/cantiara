@@ -26,6 +26,8 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 
 Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürümlü SQL olarak üretilir. Dağıtılmış veritabanı migration geçmişiyle gerçek şema ayrışmış ve kaynak şema zaten hedef durumu ifade ediyorsa, geçmiş migration'ları değiştirmek veya paylaşılan veritabanında `drizzle-kit push` kullanmak yerine `drizzle-kit generate --custom` ile idempotent bir compatibility migration oluşturulur. Bu migration da `bun run db:migrate` ile uygulanır ve gerekli Drizzle metadata'sını taşır.
 
+Dar kapsamlı tarihsel Prioritization şeması onarımı yalnızca mevcut veritabanında `0046–0048` önkoşulları ile beklenen şema nesneleri zaten bulunduğunda kullanılır. Bu kip, kanonik migration komutunun `bun run db:migrate -- --repair-prioritization-schema` biçimindeki seçici çalıştırmasıdır; yalnızca `0054_repair_prioritization_schema` girdisini uygular ve bu girdiyi normal Drizzle migration geçmişine kaydeder. Migration beklenen önkoşulları doğrular, eksik bulursa durur. Bu kip ilk kurulum veya olağan migration akışı yerine kullanılmaz; yeni ve normal veritabanlarında bayraksız `bun run db:migrate` çalıştırılır.
+
 ## Arayüz ve durum yönetimi
 
 | Teknoloji | Amaç |

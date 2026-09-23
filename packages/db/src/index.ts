@@ -41,6 +41,7 @@ import {
   workspace,
   workspaceRelations,
 } from "./schema";
+import { projectBacklogOrder } from "./schema/backlog";
 import {
   captureExtensionLink,
   captureExtensionPairingCode,
@@ -59,6 +60,10 @@ import {
   mutationTarget,
 } from "./schema/mutation";
 import {
+  prioritizationSession,
+  prioritizationSessionWork,
+} from "./schema/prioritization-session";
+import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "./schema/priority-metrics";
@@ -75,6 +80,7 @@ const schema = {
   accountPreferencesRelations,
   accountRelations,
   auditRecord,
+  projectBacklogOrder,
   fileAttachment,
   fileAttachmentMarking,
   fileAttachmentMarkingRelations,
@@ -103,6 +109,8 @@ const schema = {
   projectShortCode,
   projectShortCodeRelations,
   priorityMetricDefinition,
+  prioritizationSession,
+  prioritizationSessionWork,
   rateLimit,
   recordAction,
   session,

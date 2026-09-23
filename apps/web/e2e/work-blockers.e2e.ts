@@ -4,9 +4,10 @@ const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ??
 const STATUS_FOR_PATTERN = /Status for/;
 
 function workListItem(page: Page, title: string) {
-  return page.getByRole("listitem").filter({
-    has: page.locator("p").filter({ hasText: title }),
-  });
+  return page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem")
+    .filter({ has: page.locator("p").filter({ hasText: title }) });
 }
 
 async function createWork(page: Page, title: string) {

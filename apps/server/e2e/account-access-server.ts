@@ -20,6 +20,9 @@ import {
   accountPreferencesMutationTarget,
   createDatabaseAccountPreferences,
 } from "../src/features/account-preferences/server/account-preferences-database";
+import { createBacklogAccess } from "../src/features/backlog/server/backlog";
+import { createDatabaseBacklog } from "../src/features/backlog/server/backlog-database";
+import { createDatabaseBacklogMutationContracts } from "../src/features/backlog/server/backlog-mutation-database";
 import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
@@ -32,6 +35,9 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
+import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
+import { createDatabasePrioritizationSessions } from "../src/features/prioritization-sessions/server/prioritization-sessions-database";
+import { createDatabasePrioritizationSessionMutationContracts } from "../src/features/prioritization-sessions/server/prioritization-sessions-mutation-database";
 import { createPriorityMetricsAccess } from "../src/features/priority-metrics/server/priority-metrics";
 import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/server/priority-metrics-database";
 import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
@@ -78,9 +84,20 @@ const captureInboxMutationContract = createDatabaseMutationContract(database, {
 const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
+const backlogStore = createDatabaseBacklog(database);
+const backlog = createBacklogAccess(backlogStore);
+const backlogMutationContracts =
+  createDatabaseBacklogMutationContracts(database);
 const priorityMetrics = createPriorityMetricsAccess(
   createDatabasePriorityMetrics(database),
 );
+const prioritizationSessionStore =
+  createDatabasePrioritizationSessions(database);
+const prioritizationSessions = createPrioritizationSessionsAccess(
+  prioritizationSessionStore,
+);
+const prioritizationSessionMutationContracts =
+  createDatabasePrioritizationSessionMutationContracts(database);
 const priorityMetricMutationContracts =
   createDatabasePriorityMetricMutationContracts(database);
 const tags = createDatabaseTags(database);
@@ -194,6 +211,8 @@ const app = createApp({
   accountPreferences,
   accountPreferencesCompatibility: accountPreferences,
   accountPreferencesMutationContract,
+  backlog,
+  backlogMutationContracts,
   auth,
   captureInbox,
   customFields,
@@ -209,6 +228,8 @@ const app = createApp({
   priorityMetrics,
   projectShell,
   projectShellMutationContracts,
+  prioritizationSessionMutationContracts,
+  prioritizationSessions,
   recordActions,
   relations,
   tags,

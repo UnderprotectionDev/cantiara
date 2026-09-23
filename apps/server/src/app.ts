@@ -2,6 +2,10 @@ import type {
   AccountPreferences,
   AccountPreferencesAccess,
 } from "@cantiara/api/account-preferences";
+import type {
+  BacklogAccess,
+  BacklogMutationContracts,
+} from "@cantiara/api/backlog";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import {
   type AccountPreferencesCompatibilityAccess,
@@ -30,6 +34,10 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type {
+  PrioritizationSessionMutationContracts,
+  PrioritizationSessionsAccess,
+} from "@cantiara/api/prioritization-sessions";
 import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
@@ -116,6 +124,8 @@ export interface AppDependencies {
   accountPreferencesMutationContract?: MutationContract<AccountPreferences>;
   accountSessionAccess: AccountSessionAccessRuntime;
   auth: AccountAccessAuth;
+  backlog?: BacklogAccess;
+  backlogMutationContracts?: BacklogMutationContracts;
   captureInbox?: CaptureInboxAccess;
   corsOrigin: string;
   customFieldMutationContracts?: CustomFieldMutationContracts;
@@ -132,6 +142,8 @@ export interface AppDependencies {
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
+  prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
+  prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
@@ -1093,6 +1105,8 @@ export function createApp(dependencies: AppDependencies) {
       accountPreferencesMutationContract:
         dependencies.accountPreferencesMutationContract,
       auth: dependencies.auth,
+      backlog: dependencies.backlog,
+      backlogMutationContracts: dependencies.backlogMutationContracts,
       captureInbox: dependencies.captureInbox,
       customFields: dependencies.customFields,
       customFieldMutationContracts: dependencies.customFieldMutationContracts,
@@ -1107,6 +1121,9 @@ export function createApp(dependencies: AppDependencies) {
       priorityMetricMutationContracts:
         dependencies.priorityMetricMutationContracts,
       priorityMetrics: dependencies.priorityMetrics,
+      prioritizationSessionMutationContracts:
+        dependencies.prioritizationSessionMutationContracts,
+      prioritizationSessions: dependencies.prioritizationSessions,
       recordActions: dependencies.recordActions,
       tagMutationContracts: dependencies.tagMutationContracts,
       tags: dependencies.tags,

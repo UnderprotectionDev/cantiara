@@ -72,6 +72,8 @@
 │   │   │   └── account-access-server.ts
 │   │   ├── src/
 │   │   │   ├── features/
+│   │   │   │   ├── backlog/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── account-access/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── account-preferences/
@@ -87,6 +89,8 @@
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── priority-metrics/
+│   │   │   │   ├── prioritization-sessions/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── record-actions/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── relations/
@@ -115,6 +119,7 @@
 │   └── web/
 │       ├── e2e/
 │       │   ├── account-preferences.e2e.ts
+│       │   ├── prioritization-sessions.e2e.ts
 │       │   ├── account-sessions.e2e.ts
 │       │   ├── capture-inbox.e2e.ts
 │       │   ├── client-shell.e2e.ts
@@ -220,6 +225,15 @@
 │       │   │   │           ├── priority-metric-editor.test.tsx
 │       │   │   │           ├── priority-metric-editor.tsx
 │       │   │   │           └── priority-metric-values-form.tsx
+│       │   │   ├── prioritization-sessions/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-prioritization-sessions.ts
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── session-order.test.ts
+│       │   │   │   │   └── session-order.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           └── prioritization-surface.tsx
 │       │   │   ├── relations/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -397,6 +411,10 @@
 │   │   │   ├── custom-fields.ts
 │   │   │   ├── priority-metrics.test.ts
 │   │   │   ├── priority-metrics.ts
+│   │   │   ├── backlog.test.ts
+│   │   │   ├── backlog.ts
+│   │   │   ├── prioritization-sessions.test.ts
+│   │   │   ├── prioritization-sessions.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
 │   │   │   ├── index.ts
@@ -429,6 +447,8 @@
 │   │   └── tsconfig.base.json
 │   ├── db/
 │   │   ├── scripts/
+│   │   │   ├── migration-selection.test.ts
+│   │   │   ├── migration-selection.ts
 │   │   │   └── migrate.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
@@ -442,7 +462,9 @@
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
+│   │   │   │   ├── backlog.ts
 │   │   │   │   ├── priority-metrics.ts
+│   │   │   │   ├── prioritization-session.ts
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
@@ -486,6 +508,9 @@ Tags source ownership is split across the API contract (`packages/api/src/tags.t
 File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).
 
 Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
+
+Backlog order and Prioritization Sessions are separate Project-scoped sources of truth. Their API contracts live in `packages/api/src/backlog.ts` and `packages/api/src/prioritization-sessions.ts`; Drizzle schemas live in `packages/db/src/schema/backlog.ts` and `packages/db/src/schema/prioritization-session.ts`; server access and mutations live under `apps/server/src/features/backlog/server/` and `apps/server/src/features/prioritization-sessions/server/`; the comparison surface and session controls live in `apps/web/src/features/prioritization-sessions/`.
+
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).
 
