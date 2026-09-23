@@ -54,6 +54,13 @@ export const CONFIGURATION_HOSTS = [
   },
   {
     description:
+      "Open the host for named actions built from existing Work fields and Daily Focus membership.",
+    label: "Record Action",
+    message:
+      "Define fixed steps for one Work record from the closed field and membership catalog.",
+  },
+  {
+    description:
       "Open the host for project priority criteria without creating a scalar priority field.",
     label: "Priority metrics",
     message:

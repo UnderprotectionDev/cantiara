@@ -86,6 +86,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── record-actions/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── relations/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── web-macos-client/
@@ -118,6 +120,7 @@
 │       │   ├── command-palette.e2e.ts
 │       │   ├── custom-fields.e2e.ts
 │       │   ├── project-shell.e2e.ts
+│       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
 │       │   ├── work-blockers.e2e.ts
 │       │   ├── work-drafts.e2e.ts
@@ -228,6 +231,7 @@
 │       │   │   │   │   ├── project-area-navigation.ts
 │       │   │   │   │   ├── project-list.ts
 │       │   │   │   │   ├── project-shell-explanation.ts
+│       │   │   │   │   ├── project-shell-navigation.test.ts
 │       │   │   │   │   └── project-shell-navigation.ts
 │       │   │   │   └── ui/
 │       │   │   │       ├── components/
@@ -265,6 +269,13 @@
 │       │   │   │           ├── client-shell.tsx
 │       │   │   │           ├── support-reference.test.tsx
 │       │   │   │           └── support-reference.tsx
+│       │   │   ├── record-actions/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-record-actions.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── record-action-editor.test.tsx
+│       │   │   │           └── record-action-editor.tsx
 │       │   │   ├── work-context/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -376,6 +387,8 @@
 │   │   │   ├── mutation-and-undo.ts
 │   │   │   ├── project-overview.ts
 │   │   │   ├── project-shell.ts
+│   │   │   ├── record-actions.test.ts
+│   │   │   ├── record-actions.ts
 │   │   │   ├── relations.ts
 │   │   │   ├── support-reference.ts
 │   │   │   ├── web-capture.ts
@@ -412,6 +425,7 @@
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
+│   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
 │   │   │   │   ├── work-draft.ts
@@ -452,3 +466,5 @@
 Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).
 
 File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).
+
+Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor (`apps/web/src/features/record-actions/`).

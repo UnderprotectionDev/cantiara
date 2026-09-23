@@ -1,5 +1,5 @@
 {
-  "id": "57add4cc-9187-4515-8c52-800b40527a94",
+  "id": "10778542-4f94-4db5-a54b-7792dbf45f3d",
   "prevId": "ada73feb-c640-4369-806d-28c13850db40",
   "version": "7",
   "dialect": "postgresql",
@@ -3898,6 +3898,133 @@
       },
       "isRLSEnabled": false
     },
+    "public.record_action": {
+      "name": "record_action",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "steps": {
+          "name": "steps",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "record_action_project_idx": {
+          "name": "record_action_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "record_action_project_name_uidx": {
+          "name": "record_action_project_name_uidx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "record_action_project_id_project_id_fk": {
+          "name": "record_action_project_id_project_id_fk",
+          "tableFrom": "record_action",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "record_action_name_check": {
+          "name": "record_action_name_check",
+          "value": "length(btrim(\"record_action\".\"name\")) > 0"
+        },
+        "record_action_revision_check": {
+          "name": "record_action_revision_check",
+          "value": "\"record_action\".\"revision\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.usage_link": {
       "name": "usage_link",
       "schema": "",
@@ -4086,12 +4213,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "blocking_status": {
-          "name": "blocking_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "id": {
           "name": "id",
           "type": "text",
@@ -4270,10 +4391,6 @@
         "work_relation_broken_reason_check": {
           "name": "work_relation_broken_reason_check",
           "value": "\"work_relation\".\"broken_reason\" is null or \"work_relation\".\"broken_reason\" in ('Archived', 'In Trash', 'Permanently deleted', 'Redacted for security', 'No access')"
-        },
-        "work_relation_blocking_status_check": {
-          "name": "work_relation_blocking_status_check",
-          "value": "(\"work_relation\".\"kind\" <> 'Blocks' and \"work_relation\".\"blocking_status\" is null) or (\"work_relation\".\"kind\" = 'Blocks' and \"work_relation\".\"blocking_status\" is not null and \"work_relation\".\"blocking_status\" in ('Active', 'Resolved'))"
         },
         "work_relation_source_record_type_check": {
           "name": "work_relation_source_record_type_check",

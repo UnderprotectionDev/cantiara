@@ -34,6 +34,7 @@ import {
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
 import {
   createDatabaseTagMutationContracts,
@@ -83,6 +84,7 @@ const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
+const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
 const workContext = createWorkContextAccess(workLifecycle, relations);
 const captureInbox = createDatabaseCaptureInbox(
@@ -182,6 +184,7 @@ const app = createApp({
   nodeEnv: "test",
   projectShell,
   projectShellMutationContracts,
+  recordActions,
   relations,
   tags,
   tagMutationContracts,

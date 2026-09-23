@@ -80,6 +80,15 @@ import {
   updateProjectShortCodeInputSchema,
   type WorkContextLayoutMutationResult,
 } from "../project-shell";
+import type { RecordActionsAccess } from "../record-actions";
+import {
+  createRecordActionInputSchema,
+  createRecordActionMutationInputSchema,
+  recordActionsInputSchema,
+  trashRecordActionMutationInputSchema,
+  updateRecordActionInputSchema,
+  updateRecordActionMutationInputSchema,
+} from "../record-actions";
 import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
@@ -271,6 +280,65 @@ function requireWorkTemplates(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.workTemplates;
+}
+
+function requireRecordActions(context: Context): RecordActionsAccess {
+  if (!context.recordActions) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.recordActions;
+}
+
+function rethrowRecordActionError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "RECORD_ACTION_PROJECT_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Project is unavailable.",
+    });
+  }
+
+  if (error.code === "RECORD_ACTION_NAME_CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "A Record Action with this name already exists in this Project.",
+    });
+  }
+
+  if (error.code === "RECORD_ACTION_STALE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Record Action changed. Reload and try again.",
+    });
+  }
+
+  if (
+    error.code === "RECORD_ACTION_STEP_UNAVAILABLE" ||
+    error.code === "CUSTOM_FIELD_TRASHED" ||
+    error.code === "CUSTOM_FIELD_NOT_FOUND" ||
+    error.code === "CUSTOM_FIELD_RECORD_TYPE_NOT_BOUND" ||
+    error.code === "CUSTOM_FIELD_VALUE_TYPE_MISMATCH" ||
+    error.code === "CUSTOM_FIELD_OPTION_INVALID"
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "The Record Action was rejected.",
+    });
+  }
+
+  throw error;
 }
 
 function rethrowWorkTemplateError(error: unknown): never {
@@ -1597,6 +1665,85 @@ export const appRouter = {
         return trashed;
       } catch (error) {
         rethrowWorkTemplateError(error);
+      }
+    }),
+  recordActions: protectedProcedure
+    .input(recordActionsInputSchema)
+    .handler(async ({ context, input }) => {
+      const actions = await requireRecordActions(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!actions) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Project is unavailable.",
+        });
+      }
+      return actions;
+    }),
+  createRecordAction: protectedProcedure
+    .input(createRecordActionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision: _baseRevision,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        return await requireRecordActions(context).create(
+          context.session.user.id,
+          createRecordActionInputSchema.parse(payload),
+        );
+      } catch (error) {
+        rethrowRecordActionError(error);
+      }
+    }),
+  updateRecordAction: protectedProcedure
+    .input(updateRecordActionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        actionId,
+        baseRevision,
+        clientIdempotencyKey: _key,
+        ...payload
+      } = input;
+      try {
+        const updated = await requireRecordActions(context).update(
+          context.session.user.id,
+          actionId,
+          baseRevision,
+          updateRecordActionInputSchema.parse(payload),
+        );
+        if (!updated) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Record Action is unavailable.",
+          });
+        }
+        return updated;
+      } catch (error) {
+        rethrowRecordActionError(error);
+      }
+    }),
+  trashRecordAction: protectedProcedure
+    .input(trashRecordActionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const trashed = await requireRecordActions(context).trash(
+          context.session.user.id,
+          input.actionId,
+          input.baseRevision,
+        );
+        if (!trashed) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Record Action is unavailable.",
+          });
+        }
+        return trashed;
+      } catch (error) {
+        rethrowRecordActionError(error);
       }
     }),
   healthCheck: publicProcedure.handler(() => "OK"),
