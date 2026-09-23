@@ -47,17 +47,17 @@ Kurucu kapalı adım kataloğundan tek hedef kayıt üzerinde çalışan adland�
 - **Closed catalog.** Primitive steps are a closed catalog of in-app field and supported membership writes (status, Daily Focus add/remove, other already-existing fields the action designer selects). Founder names a combination as a Record Action. The catalog is not open-ended macros, scripts, or new record creation. First shipped example: `Start Work` = status `In Progress` + add to Daily Focus. Daily Focus UI is workflow 27; this step writes membership if that model exists or is stubbed at the seam.
 - **Single target.** One main record per run. Multi-record field updates of existing fields stay Bulk Editing (22). No reusable multi-record action buttons.
 - **Preview then apply.** Explicit start → exact diff (and any runtime inputs) → one atomic commit. Previewed diff equals applied result. No silent partial success. After the commit barrier, UI is `Finalizing` rather than a fake cancel that still writes.
-- **Runtime inputs.** Optional `Date`, `Number`, `Select`, or `Relation` to an existing main record, declared at design time. Values and resulting changes are previewed together before run.
+- **Runtime inputs.** Optional `Date`, `Number`, `Select`, or `Relation` to an existing main record, declared at design time. Work Relations use the existing `Related` kind, shown as `Related Work`, and select another existing Work in the Project. Values and resulting changes are previewed together before run and remain part of the action fingerprint.
 - **Idempotency.** User command carries base revision and client idempotency key. Same key + payload returns prior receipt; different payload conflicts. Actor remains `User`.
 - **Undo.** Reversible field changes use the common safe undo contract as one action when the product can invert the whole combination; if a step is not safely invertible, undo is refused with explanation rather than a partial rewind.
 - **Not other writers.** No GitHub mutation, publish, PR-merge close, import, capture, or automation-trigger chain. An action must not trigger automation rules as a synthetic event beyond the original user command (PRD automation: actions from automation do not chain; here the actor is the user).
 - **Trash.** Action definitions follow configuration trash (PRD 13).
-- **English UI labels.** `Record Action`, `Start Work`, preview/apply/`Finalizing`. Add missing labels to the term table in the same change.
+- **English UI labels.** `Record Action`, `Start Work`, `Related Work`, `Ask when running`, `Runtime inputs`, `Inputs selected`, `Preview changes`, `Change inputs`, preview/apply/`Finalizing`. Add missing labels to the term table in the same change.
 - **Stack.** Existing API. No workflow-engine product, no JS sandbox.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Record Actions through its public interface: define from catalog, preview diff, atomic apply, idempotent retry, runtime inputs, and negatives (no script, no multi-record, preview=apply). They do not inspect job payloads.
+- **What a good test is.** Tests observe Record Actions through its public interface: define from catalog, preview diff, selected runtime values and Relation target, atomic apply, idempotent retry, and negatives (missing or invalid runtime input, no script, no multi-record, preview=apply). They do not inspect job payloads.
 - **Seam (one).** Record Actions — the product-facing named-action preview/apply interface. Bulk Editing and import are counterparts. Playwright for Mutasyon sözleşmesi human-command class is this seam through the UI.
 - **Modules under test.** Record Actions only.
 - **Prior art.** Contract tests at this seam with four origin classes already required by Mutasyon sözleşmesi (human command is this feature's class). Evidence: [Mutasyon sözleşmesi](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (`Sentetik fixture`).

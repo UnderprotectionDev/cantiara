@@ -27,6 +27,11 @@ import {
   usePriorityMetricProjectValues,
 } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
+import { useRecordActionRunner } from "@/features/record-actions/hooks/use-record-action-runner";
+import {
+  RecordActionButtons,
+  RecordActionRunDialog,
+} from "@/features/record-actions/ui/components/record-action-runner";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -62,6 +67,7 @@ export default function ProjectWorkList({
       input: { archived: showArchived, projectId },
     }),
   );
+  const recordActionRunner = useRecordActionRunner(projectId);
   const allProjectWorksQuery = useQuery(
     orpc.projectWorks.queryOptions({
       input: { archived: "all", projectId },
@@ -181,6 +187,11 @@ export default function ProjectWorkList({
           Archived
         </Button>
       </div>
+      {recordActionRunner.actionsError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Record Actions could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
       {lastMergeResult ? (
         <div className="flex flex-wrap items-center gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-muted-foreground text-sm">
           <p role="status">
@@ -275,6 +286,18 @@ export default function ProjectWorkList({
                     work={work}
                     workStatusLabels={workStatusLabels}
                   />
+                  <RecordActionButtons
+                    actions={recordActionRunner.actions}
+                    disabled={
+                      connection === "offline" ||
+                      work.archivedAt !== null ||
+                      recordActionRunner.isPreviewing ||
+                      recordActionRunner.isApplying ||
+                      recordActionRunner.isUndoing
+                    }
+                    onStart={recordActionRunner.start}
+                    work={work}
+                  />
                 </div>
                 <div className="flex basis-full flex-wrap items-center gap-2 border-border/70 border-t pt-3 sm:basis-auto sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4">
                   <WorkArchiveAction work={work} />
@@ -293,6 +316,7 @@ export default function ProjectWorkList({
           ))}
         </ul>
       )}
+      <RecordActionRunDialog runner={recordActionRunner} />
     </div>
   );
 }

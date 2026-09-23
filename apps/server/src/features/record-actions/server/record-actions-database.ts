@@ -1,13 +1,9 @@
 import type {
   ParsedCreateRecordActionInput,
-  RecordAction,
   RecordActionStep,
   RecordActionsAccess,
 } from "@cantiara/api/record-actions";
-import {
-  recordActionSchema,
-  updateRecordActionInputSchema,
-} from "@cantiara/api/record-actions";
+import { updateRecordActionInputSchema } from "@cantiara/api/record-actions";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { customFieldDefinition } from "@cantiara/db/schema/custom-fields";
@@ -17,8 +13,12 @@ import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
+import { toRecordAction } from "./record-action-database-mappers";
+import {
+  createDatabaseRecordActionApplication,
+  type RecordActionApplicationOptions,
+} from "./record-actions-application-database";
 
-type RecordActionRecord = typeof recordAction.$inferSelect;
 type CustomFieldStep = Extract<
   RecordActionStep,
   { kind: "custom-field-value" }
@@ -82,19 +82,6 @@ function isUniqueNameViolation(error: unknown) {
 
 function nameKey(name: string) {
   return name.trim().toLocaleLowerCase("en-US");
-}
-
-function toRecordAction(record: RecordActionRecord): RecordAction {
-  return recordActionSchema.parse({
-    createdAt: record.createdAt.toISOString(),
-    id: record.id,
-    name: record.name,
-    projectId: record.projectId,
-    revision: record.revision,
-    steps: record.steps,
-    trashedAt: record.trashedAt?.toISOString() ?? null,
-    updatedAt: record.updatedAt.toISOString(),
-  });
 }
 
 async function ownedProject(
@@ -165,17 +152,29 @@ async function validateCustomFieldSteps(
     if (!definition?.recordTypes.includes("Work")) {
       throw new RecordActionStepUnavailableError(step.definitionId);
     }
-    assertValueMatchesDefinition(
-      toCustomFieldDefinition(definition),
-      step.value,
-    );
+    if (step.value.kind === "runtime-input") {
+      if (
+        !["Date", "Number", "Single select", "Multi select"].includes(
+          definition.type,
+        )
+      ) {
+        throw new RecordActionStepUnavailableError(step.definitionId);
+      }
+    } else {
+      assertValueMatchesDefinition(
+        toCustomFieldDefinition(definition),
+        step.value,
+      );
+    }
   }
 }
 
 export function createDatabaseRecordActions(
   database: Database,
+  applicationOptions: RecordActionApplicationOptions = {},
 ): RecordActionsAccess {
   return {
+    ...createDatabaseRecordActionApplication(database, applicationOptions),
     async create(accountId, input: ParsedCreateRecordActionInput) {
       if (!(await ownedProject(database, accountId, input.projectId))) {
         throw new RecordActionProjectNotFoundError(input.projectId);
@@ -272,7 +271,7 @@ export function createDatabaseRecordActions(
         throw new RecordActionNameConflictError(input.name);
       }
       await validateCustomFieldSteps(database, current.projectId, input.steps);
-      let updated: RecordActionRecord | undefined;
+      let updated: typeof recordAction.$inferSelect | undefined;
       try {
         const [row] = await database
           .update(recordAction)

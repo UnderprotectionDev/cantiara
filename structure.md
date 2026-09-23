@@ -283,11 +283,13 @@
 │       │   │   │           └── support-reference.tsx
 │       │   │   ├── record-actions/
 │       │   │   │   ├── hooks/
+│       │   │   │   │   ├── use-record-action-runner.ts
 │       │   │   │   │   └── use-record-actions.ts
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           ├── record-action-editor.test.tsx
-│       │   │   │           └── record-action-editor.tsx
+│       │   │   │           ├── record-action-editor.tsx
+│       │   │   │           └── record-action-runner.tsx
 │       │   │   ├── work-context/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -435,6 +437,7 @@
 │   │   │   │   ├── auth.ts
 │   │   │   │   ├── capture-triage.ts
 │   │   │   │   ├── custom-fields.ts
+│   │   │   │   ├── daily-focus.ts
 │   │   │   │   ├── file-attachments.ts
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
@@ -483,4 +486,7 @@ Tags source ownership is split across the API contract (`packages/api/src/tags.t
 File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).
 
 Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
-Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor (`apps/web/src/features/record-actions/`).
+
+Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).
+
+Daily Focus membership persistence is owned by the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`); Record Actions consumes that membership through its atomic write boundary.
