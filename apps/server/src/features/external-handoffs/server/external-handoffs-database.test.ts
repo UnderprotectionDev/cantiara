@@ -361,13 +361,46 @@ describeDatabase("External Execution Handoff seam", () => {
       }),
     ).rejects.toMatchObject({ code: "EXTERNAL_HANDOFF_TERMINAL" });
     const history = await handoffs.listHistory(accountId, workId);
-    expect(history?.map((event) => event.eventType)).toEqual([
-      "external-execution-handoff-started",
-      "external-execution-handoff-canceled",
-      "external-execution-handoff-started",
-      "external-execution-handoff-canceled",
-    ]);
-    expect(history?.[1]).not.toHaveProperty("reason");
-    expect(history?.[3]).not.toHaveProperty("reason");
+    const historyEvents = history?.map(({ eventType, handoffId }) => ({
+      eventType,
+      handoffId,
+    }));
+    expect(historyEvents).toHaveLength(6);
+    expect(historyEvents).toEqual(
+      expect.arrayContaining([
+        {
+          eventType: "external-execution-handoff-started",
+          handoffId: "handoff-1",
+        },
+        {
+          eventType: "external-execution-handoff-package-produced",
+          handoffId: "handoff-1",
+        },
+        {
+          eventType: "external-execution-handoff-canceled",
+          handoffId: "handoff-1",
+        },
+        {
+          eventType: "external-execution-handoff-started",
+          handoffId: "handoff-2",
+        },
+        {
+          eventType: "external-execution-handoff-package-produced",
+          handoffId: "handoff-2",
+        },
+        {
+          eventType: "external-execution-handoff-canceled",
+          handoffId: "handoff-2",
+        },
+      ]),
+    );
+    const cancellationEvents =
+      history?.filter(
+        (event) => event.eventType === "external-execution-handoff-canceled",
+      ) ?? [];
+    expect(cancellationEvents).toHaveLength(2);
+    for (const event of cancellationEvents) {
+      expect(event).not.toHaveProperty("reason");
+    }
   });
 });
