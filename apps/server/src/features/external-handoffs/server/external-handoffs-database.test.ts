@@ -216,6 +216,13 @@ describeDatabase("External Execution Handoff seam", () => {
       }),
     ).resolves.toBeNull();
     await expect(
+      handoffs.cancel(accountId, {
+        clientEventId: "cancel-archived-work",
+        handoffId: "handoff-1",
+        reason: "Archived handoffs are read-only.",
+      }),
+    ).resolves.toBeNull();
+    await expect(
       handoffs.listHistory("another-account", workId),
     ).resolves.toBeNull();
   });

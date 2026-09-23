@@ -338,7 +338,6 @@ export function createDatabaseExternalExecutionHandoffs(
           accountId,
           owner.workId,
           true,
-          true,
         );
         if (!ownerWork) {
           return null;

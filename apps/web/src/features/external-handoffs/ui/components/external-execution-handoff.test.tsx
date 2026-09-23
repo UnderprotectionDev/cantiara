@@ -172,6 +172,7 @@ describe("External Execution Handoff", () => {
     expect(html).toContain("Going package copied");
     expect(html).toContain('aria-label="Start Handoff"');
     expect(html).toContain('hidden=""');
+    expect(html).not.toContain('aria-label="Cancel Handoff"');
   });
 
   test("offers reasoned cancellation while a returned handoff remains open", () => {

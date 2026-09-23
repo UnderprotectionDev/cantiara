@@ -20,7 +20,7 @@ import {
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useExternalExecutionHandoffs } from "@/features/external-handoffs/hooks/use-external-handoffs";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { writeTextToClipboard } from "@/lib/clipboard";
@@ -88,12 +88,21 @@ function CancelHandoffForm({
   pending: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const retryInput = useRef<{
+    clientEventId: string;
+    reason: string;
+  } | null>(null);
   const form = useForm({
     defaultValues: { reason: "" },
     onSubmit: async ({ value }) => {
       setError(null);
+      const reason = value.reason.trim();
+      const clientEventId =
+        retryInput.current?.reason === reason
+          ? retryInput.current.clientEventId
+          : crypto.randomUUID();
       const parsed = cancelExternalExecutionHandoffInputSchema.safeParse({
-        clientEventId: crypto.randomUUID(),
+        clientEventId,
         handoffId,
         reason: value.reason,
       });
@@ -103,8 +112,10 @@ function CancelHandoffForm({
         );
         return;
       }
+      retryInput.current = { clientEventId, reason: parsed.data.reason };
       try {
         await onCancel(parsed.data);
+        retryInput.current = null;
         form.reset();
       } catch (cancelError) {
         setError(errorMessage(cancelError));
@@ -320,15 +331,14 @@ export default function ExternalExecutionHandoff({
                   {handoff.cancellationReason}
                 </p>
               ) : null}
-              {isTerminalExternalExecutionHandoffStatus(
-                handoff.status,
-              ) ? null : (
+              {work.archivedAt === null &&
+              !isTerminalExternalExecutionHandoffStatus(handoff.status) ? (
                 <CancelHandoffForm
                   handoffId={handoff.handoffId}
                   onCancel={(input) => cancel.mutateAsync(input)}
                   pending={pending}
                 />
-              )}
+              ) : null}
               <details
                 className="group rounded-sm border border-border/70 bg-card/55"
                 open

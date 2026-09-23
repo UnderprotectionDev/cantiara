@@ -55,6 +55,12 @@ export function useExternalExecutionHandoffs(
         queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
       ]);
     },
+    onError: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+        queryClient.invalidateQueries({ queryKey: historyOptions.queryKey }),
+      ]);
+    },
   });
 
   return { cancel, history, query, recordPackageExport, start };
