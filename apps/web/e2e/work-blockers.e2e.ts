@@ -122,7 +122,7 @@ test("creates and removes an Active blocker without changing Work status", async
   ).toHaveValue("Not Started");
 });
 
-test("resolves and reactivates the same blocker with its note and history", async ({
+test("resolves, reactivates, and keeps an Active blocker when its source closes", async ({
   context,
   page,
   request,
@@ -206,4 +206,29 @@ test("resolves and reactivates the same blocker with its note and history", asyn
   await expect(
     reloadedBlockedWork.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
   ).toHaveValue("Not Started");
+
+  await blocker
+    .getByRole("combobox", { name: STATUS_FOR_PATTERN })
+    .selectOption("Closed");
+  await blocker.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(
+    blocker.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
+  ).toHaveValue("Closed");
+  await expect(
+    reloadedBlockedWork
+      .locator('section[aria-label="Relations"]')
+      .getByText("Active", { exact: true }),
+  ).toBeVisible();
+
+  await page.reload();
+  const closedBlocker = workListItem(page, "Wait for provider approval");
+  const stillBlockedWork = workListItem(page, "Prepare the launch checklist");
+  await expect(
+    closedBlocker.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
+  ).toHaveValue("Closed");
+  await expect(
+    stillBlockedWork
+      .locator('section[aria-label="Relations"]')
+      .getByText("Active", { exact: true }),
+  ).toBeVisible();
 });
