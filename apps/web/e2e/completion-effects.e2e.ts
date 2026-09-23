@@ -1,3 +1,11 @@
+import AxeBuilder from "@axe-core/playwright";
+import {
+  DESKTOP_API_CONTRACT_HEADER,
+  DESKTOP_API_CURRENT_CONTRACT,
+} from "@cantiara/api/desktop-api-window";
+import type { AppRouterClient } from "@cantiara/api/routers/index";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import {
   type APIRequestContext,
   type BrowserContext,
@@ -19,18 +27,21 @@ interface AccountSessionSetup {
     secure: boolean;
     value: string;
   };
+  tauriBearerToken?: string;
 }
 
 async function signInWithAccountPreferencesFixture(
   context: BrowserContext,
   request: APIRequestContext,
+  fixture = "account-preferences",
 ) {
   const setupResponse = await request.get(
-    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-preferences`,
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=${fixture}`,
   );
   expect(setupResponse).toBeOK();
   const setup = (await setupResponse.json()) as AccountSessionSetup;
   await context.addCookies([setup.cookie]);
+  return setup;
 }
 
 test("keeps Completion Effects samples still until Preview and saves one Account choice", async ({
@@ -49,6 +60,12 @@ test("keeps Completion Effects samples still until Preview and saves one Account
   await expect(
     page.getByRole("heading", { name: "Preview", level: 2 }),
   ).toBeVisible();
+
+  const accessibilityScan = await new AxeBuilder({ page })
+    .include("main")
+    .analyze();
+  expect(accessibilityScan.violations).toEqual([]);
+
   await expect(page.getByRole("switch", { name: "Enable" })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Calm" })).toHaveAttribute(
     "aria-pressed",
@@ -181,4 +198,80 @@ test("keeps Preview static and describes its motion under Reduce Motion", async 
   await expect(
     page.locator('.completion-effect-specimen [data-sample-element="calm"]'),
   ).toHaveCSS("animation-name", "none");
+});
+
+test("shares Completion Effects preferences with an authenticated Tauri client", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setup = await signInWithAccountPreferencesFixture(
+    context,
+    request,
+    "completion-effects",
+  );
+  if (!setup.tauriBearerToken) {
+    throw new Error(
+      "The Completion Effects fixture did not provide a Tauri session.",
+    );
+  }
+  const tauriClient = createORPCClient<AppRouterClient>(
+    new RPCLink({
+      url: `${E2E_SERVER_URL}/rpc`,
+      fetch(input, init) {
+        const headers = new Headers(
+          input instanceof Request ? input.headers : undefined,
+        );
+        new Headers(init?.headers).forEach((value, key) => {
+          headers.set(key, value);
+        });
+        headers.set("authorization", `Bearer ${setup.tauriBearerToken}`);
+        headers.set(DESKTOP_API_CONTRACT_HEADER, DESKTOP_API_CURRENT_CONTRACT);
+        headers.set("origin", "http://tauri.localhost");
+        return fetch(input, { ...init, headers });
+      },
+    }),
+  );
+
+  await page.goto("/account/completion-effects");
+  await page.getByRole("button", { name: "Nova" }).click();
+  await page.getByRole("button", { name: "Flare" }).click();
+  await page.getByRole("switch", { name: "Enable" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByText("Completion effects saved.", { exact: true }),
+  ).toBeVisible();
+
+  const webPreferences = await tauriClient.completionEffectsPreferences();
+  expect(webPreferences).toMatchObject({
+    enabled: true,
+    palette: "Flare",
+    theme: "Nova",
+  });
+
+  const tauriPreferences = await tauriClient.saveCompletionEffectsPreferences({
+    baseRevision: webPreferences.revision,
+    clientIdempotencyKey: crypto.randomUUID(),
+    preferences: {
+      enabled: false,
+      palette: "Halo",
+      theme: "Arc",
+    },
+  });
+  expect(tauriPreferences).toMatchObject({
+    enabled: false,
+    palette: "Halo",
+    theme: "Arc",
+  });
+
+  await page.reload();
+  await expect(page.getByRole("switch", { name: "Enable" })).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Arc" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "Halo" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

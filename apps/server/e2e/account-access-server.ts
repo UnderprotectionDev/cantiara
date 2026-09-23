@@ -194,7 +194,7 @@ const auth = betterAuth({
       "/get-session": false,
     },
   },
-  plugins: [testUtils()],
+  plugins: [...(authOptions.plugins ?? []), testUtils()],
 });
 const accountSessionAccess = createDatabaseAccountSessionAccess(
   database,
@@ -459,6 +459,9 @@ async function createE2EFixture(fixtureKey: string) {
   return {
     currentCookie,
     otherCookie,
+    ...(fixtureKey === "completion-effects"
+      ? { tauriBearerToken: currentCookie.value }
+      : {}),
     ...(projectId ? { projectId } : {}),
     ...(usedInSourceProjectId && usedInSourceWorkId
       ? { usedInSourceProjectId, usedInSourceWorkId }
@@ -484,12 +487,14 @@ serve({
         currentCookie,
         otherCookie,
         projectId,
+        tauriBearerToken,
         usedInSourceProjectId,
         usedInSourceWorkId,
       } = await createE2EFixture(fixtureKey);
       return Response.json({
         cookie: currentCookie,
         otherCookie,
+        ...(tauriBearerToken ? { tauriBearerToken } : {}),
         ...(projectId ? { projectId } : {}),
         ...(usedInSourceProjectId && usedInSourceWorkId
           ? { usedInSourceProjectId, usedInSourceWorkId }
