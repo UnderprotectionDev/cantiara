@@ -61,9 +61,9 @@ jobs:
           bun run --cwd apps/server test -- --no-file-parallelism
           bun run --cwd apps/web test
 
-  # Fixture identities are isolated across spec files and tests within a file
-  # stay sequential, so functional E2E can use two workers. Keep the reference-
-  # scale measurement on its own runner so test work cannot distort its budget.
+  # Keep functional E2E sequential because all requests share one local client
+  # identity and rate-limit bucket. Run the reference-scale measurement on its
+  # own runner so test work cannot distort its budget.
   browser-integration:
     name: Browser integration
     runs-on: ubuntu-latest
@@ -110,7 +110,7 @@ jobs:
           bun run --cwd packages/db db:migrate:deploy
           bun run --cwd packages/db db:security:migrate:deploy
           bun run test:e2e -- \
-            --workers=2 \
+            --workers=1 \
             --grep-invert \
             "Web Capture|measures Command Palette visibility at the reference workspace scale"
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run --cwd apps/web test:e2e:extension
