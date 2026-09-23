@@ -24,15 +24,13 @@ CREATE TABLE "work_priority_metric_value" (
 	"id" text PRIMARY KEY NOT NULL,
 	"metric_id" text NOT NULL,
 	"project_id" text NOT NULL,
-	"rank" text NOT NULL,
+	"rank" text,
 	"revision" integer DEFAULT 0 NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"work_id" text NOT NULL,
-	CONSTRAINT "work_priority_metric_value_rank_check" CHECK ("work_priority_metric_value"."rank" in ('Very low', 'Low', 'Medium', 'High', 'Very high')),
+	CONSTRAINT "work_priority_metric_value_rank_check" CHECK ("work_priority_metric_value"."rank" is null or "work_priority_metric_value"."rank" in ('Very low', 'Low', 'Medium', 'High', 'Very high')),
 	CONSTRAINT "work_priority_metric_value_revision_check" CHECK ("work_priority_metric_value"."revision" >= 0)
 );
---> statement-breakpoint
-ALTER TABLE "work" ADD CONSTRAINT "work_project_id_uidx" UNIQUE("project_id","id");
 --> statement-breakpoint
 ALTER TABLE "priority_metric_definition" ADD CONSTRAINT "priority_metric_definition_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "work_priority_metric_value" ADD CONSTRAINT "work_priority_metric_value_project_metric_fk" FOREIGN KEY ("project_id","metric_id") REFERENCES "public"."priority_metric_definition"("project_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -41,3 +39,4 @@ CREATE INDEX "priority_metric_definition_project_idx" ON "priority_metric_defini
 CREATE UNIQUE INDEX "priority_metric_definition_project_name_uidx" ON "priority_metric_definition" USING btree ("project_id","name_key");--> statement-breakpoint
 CREATE INDEX "work_priority_metric_value_project_work_idx" ON "work_priority_metric_value" USING btree ("project_id","work_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "work_priority_metric_value_work_metric_uidx" ON "work_priority_metric_value" USING btree ("work_id","metric_id");--> statement-breakpoint
+ALTER TABLE "work" ADD CONSTRAINT "work_project_id_uidx" UNIQUE("project_id","id");

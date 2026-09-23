@@ -30,6 +30,7 @@ import {
   ProjectAreaAvailability,
   projectAreaAvailabilityLabel,
 } from "@/features/project-shell/ui/components/project-area-availability";
+import RecordActionEditor from "@/features/record-actions/ui/components/record-action-editor";
 import WorkContextCardLayoutEditor from "@/features/work-context/ui/components/work-context-card-layout-editor";
 import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
 
@@ -383,6 +384,8 @@ function ConfigurationHostContent({
       );
     case "Work Template":
       return <WorkTemplateEditor disabled={disabled} projectId={projectId} />;
+    case "Record Action":
+      return <RecordActionEditor disabled={disabled} projectId={projectId} />;
     case "Work Context Card layout":
       return (
         <WorkContextCardLayoutEditor

@@ -47,6 +47,7 @@ import {
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
 import { createDatabaseRelations } from "./features/relations/server/relations";
 import {
   createDatabaseUsageLinkMutationContracts,
@@ -107,6 +108,7 @@ export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
+export const recordActions = createDatabaseRecordActions(db);
 export const workContext = createWorkContextAccess(workLifecycle, relations, {
   priorityValues: async (accountId, work) => {
     const values = await priorityMetrics.values(accountId, work.id);

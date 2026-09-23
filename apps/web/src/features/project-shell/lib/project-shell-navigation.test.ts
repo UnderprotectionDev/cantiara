@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  CONFIGURATION_HOSTS,
+  configurationHostId,
   isWorkSurfaceHash,
   navigationSurfaceFromHash,
   workRecordHash,
@@ -9,6 +11,15 @@ import {
 } from "./project-shell-navigation";
 
 describe("Project Shell Work navigation", () => {
+  test("exposes Record Action as a Project configuration host", () => {
+    expect(CONFIGURATION_HOSTS.map((host) => host.label)).toContain(
+      "Record Action",
+    );
+    expect(configurationHostId("Record Action")).toBe(
+      "configuration-host-record-action",
+    );
+  });
+
   test("keeps Work relation anchors on the Work surface", () => {
     const hash = workRelationsHash("work-1");
 

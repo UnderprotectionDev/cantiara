@@ -5,6 +5,7 @@ export * from "./custom-fields";
 export * from "./file-attachments";
 export * from "./priority-metrics";
 export * from "./project";
+export * from "./record-action";
 export * from "./relation";
 export * from "./tags";
 export * from "./work";

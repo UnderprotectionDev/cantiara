@@ -27,6 +27,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
+import type { RecordActionsAccess } from "@cantiara/api/record-actions";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -70,6 +71,7 @@ export interface CreateContextOptions {
   priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  recordActions?: RecordActionsAccess;
   relations?: RelationsAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
@@ -110,6 +112,7 @@ export async function createContext({
   projectShellMutationContracts,
   priorityMetricMutationContracts,
   priorityMetrics,
+  recordActions,
   workspaceOverview,
   tags,
   relations,
@@ -158,6 +161,7 @@ export async function createContext({
     projectShellMutationContracts,
     priorityMetricMutationContracts,
     priorityMetrics,
+    recordActions,
     workspaceOverview,
     tags,
     relations,

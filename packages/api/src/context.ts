@@ -22,6 +22,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "./project-shell";
+import type { RecordActionsAccess } from "./record-actions";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -138,6 +139,7 @@ export interface Context {
   priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  recordActions?: RecordActionsAccess;
   relations?: RelationsAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
