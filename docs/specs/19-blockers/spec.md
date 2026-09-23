@@ -51,12 +51,12 @@ Her engelleme ilişkisi `Active` veya `Resolved` taşır. Aktif ilişkiler engel
 - **Signal.** Emit `work-blocked` only for: new Active relation on the blocked Work; Resolved → Active again. Payload: blocked Work, source, relation time. Show later in the center under Needs Action, grouped by source. Do not emit on duration, source status change, cycle detection, or transition to Resolved. This feature owns emission contract; 71 owns the inbox UI.
 - **Dependencies projection.** Feature and Focus Period may open an optional read-only `Dependencies` view derived only from existing Active and Resolved relations in that scope. Nodes open main records. Active/Resolved, direction, and safely detected cycles are explainable and not color-only. The view does not create relations, a separate Mermaid source, manual node positions, or second planning data. This spec defines the derivation contract; those details UIs are not delivered in this workflow.
 - **Out.** No Workspace-wide editable graphs, cross-team resource planning, automatic reschedule, critical path. GitHub merge is not silent resolve.
-- **English UI labels.** `Active`, `Resolved`, `Mark blocker resolved`, `Remove relation`. Consumer label `Dependencies`. Add missing labels to the term table in the same change.
+- **English UI labels.** `Active`, `Resolved`, `Mark blocker resolved`, `Confirm resolution`, `Reactivate blocker`, `Blocker history`, `Undo`, `Resolution date`, `Remove relation`. Consumer label `Dependencies`. Add missing labels to the term table in the same change.
 - **Stack.** Existing relation persistence. No graph-database or auto-layout product.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Work Blockers through its public interface: create Active relation, resolve, reactivate, close-source-without-resolve, remove-versus-resolve, and signal emission matrix. They assert history and the two emission events — not notification-center DOM.
+- **What a good test is.** Tests observe Work Blockers through its public interface: create Active relation, resolve, reactivate, repeated Resolve → Reactivate cycles and Undo history (including Undo of Reactivate restoring the original resolution date), close-source-without-resolve, remove-versus-resolve, and signal emission matrix. They assert readable history on the same relation and the two emission events — not notification-center DOM.
 - **Seam (one).** Work Blockers — the product-facing blocking-relation and `work-blocked` emission interface. The center and Feature/Focus Period views are adapters/consumers. Playwright for Blokaj is this seam through Work detail.
 - **Modules under test.** Work Blockers only. Notification center, Kanban, GitHub, Prioritization, and Focus Period UI are counterparts.
 - **Prior art.** Contract tests at this seam. Evidence: [Blokaj](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (`Gerçek proje`; relation lifecycle; source close does not auto-resolve).

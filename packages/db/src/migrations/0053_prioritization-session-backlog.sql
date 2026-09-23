@@ -1,7 +1,5 @@
--- Custom SQL migration file, put your code below! --
--- Safely reconcile Prioritization databases where 0046–0048 are present but
--- their recorded timestamps precede the current journal. This migration is
--- also a no-op after the canonical 0049 migration has run.
+-- Idempotently reconcile the Prioritization schema for fresh and historical databases.
+-- Partial prerequisite schemas fail closed; existing complete tables remain untouched.
 DO $$
 DECLARE
 	missing text[];
@@ -156,7 +154,7 @@ BEGIN
 				AND pg_attribute.attnotnull = expected.not_null
 		);
 	IF missing IS NOT NULL THEN
-		RAISE EXCEPTION 'Prioritization schema repair found partially created 0049 tables: %', missing;
+		RAISE EXCEPTION 'Prioritization schema repair found incomplete tables: %', missing;
 	END IF;
 END $$;
 --> statement-breakpoint

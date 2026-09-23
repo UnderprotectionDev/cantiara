@@ -33,6 +33,15 @@ export type RelationKind = (typeof RELATION_KIND_OPTIONS)[number];
 
 export const relationKindSchema = z.enum(RELATION_KIND_OPTIONS);
 
+export const BLOCKING_RELATION_STATUS_OPTIONS = ["Active", "Resolved"] as const;
+
+export type BlockingRelationStatus =
+  (typeof BLOCKING_RELATION_STATUS_OPTIONS)[number];
+
+export const blockingRelationStatusSchema = z.enum(
+  BLOCKING_RELATION_STATUS_OPTIONS,
+);
+
 /**
  * Evidence Role is optional relation metadata. Evidence owns writing and
  * history for this field; relation consumers may read the closed catalog.
@@ -150,11 +159,13 @@ export type RelationCardinality =
 
 /**
  * Live-row uniqueness enforced by the store alongside the PRD 02 cardinality
- * rules: `unique-per-source` keeps one current relation per source record,
+ * rules: `unique-per-pair` prevents duplicate directed endpoint pairs,
+ * `unique-per-source` keeps one current relation per source record, and
  * `unique-per-target` one per target record. Soft-deleted rows never count.
  */
 export type RelationUniqueness =
   | "many"
+  | "unique-per-pair"
   | "unique-per-source"
   | "unique-per-target";
 
@@ -200,7 +211,7 @@ const RELATION_DEFINITIONS: Record<RelationKind, RelationDefinition> = {
     inverseLabel: "Blocked by",
     sourceTypes: "blocks-source",
     targetTypes: "blocks-target",
-    uniqueness: "many",
+    uniqueness: "unique-per-pair",
   },
   Includes: {
     cardinality: "at-most-one-current",
@@ -430,6 +441,15 @@ export const removeRelationInputSchema = humanMutationEnvelopeSchema
   })
   .strict();
 
+export const resolveBlockerInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    note: z.string().trim().max(1000).optional(),
+    relationId: identifierSchema,
+  })
+  .strict();
+
+export const reactivateBlockerInputSchema = removeRelationInputSchema;
+
 export const undoRelationInputSchema = humanMutationEnvelopeSchema
   .extend({
     receiptId: identifierSchema,
@@ -439,6 +459,10 @@ export const undoRelationInputSchema = humanMutationEnvelopeSchema
 
 export type RelationsInput = z.infer<typeof relationsInputSchema>;
 export type RemoveRelationInput = z.infer<typeof removeRelationInputSchema>;
+export type ResolveBlockerInput = z.infer<typeof resolveBlockerInputSchema>;
+export type ReactivateBlockerInput = z.infer<
+  typeof reactivateBlockerInputSchema
+>;
 export type UndoRelationInput = z.infer<typeof undoRelationInputSchema>;
 
 /**
@@ -523,6 +547,10 @@ export interface RelationEndpointView extends RelationEndpoint {
 }
 
 export interface RelationView {
+  blockingHistory: BlockingRelationHistoryEntry[];
+  blockingResolutionNote: string | null;
+  blockingResolvedAt: string | null;
+  blockingStatus: BlockingRelationStatus | null;
   createdAt: string;
   direction: "incoming" | "outgoing";
   evidenceRole?: RelationEvidenceRole;
@@ -535,8 +563,18 @@ export interface RelationView {
   target: RelationEndpointView;
 }
 
+export interface BlockingRelationHistoryEntry {
+  id: string;
+  isUndo: boolean;
+  note: string | null;
+  occurredAt: string;
+  resolutionAt: string | null;
+  status: BlockingRelationStatus;
+}
+
 export interface RelationPreview {
   baseRevision: number;
+  blockingStatus: BlockingRelationStatus | null;
   id: string;
   inverseLabel: string;
   kind: RelationKind;
@@ -547,6 +585,9 @@ export interface RelationPreview {
 }
 
 export interface StoredRelationValue extends Record<string, MutationPayload> {
+  blockingResolutionNote: string | null;
+  blockingResolvedAt: string | null;
+  blockingStatus: BlockingRelationStatus | null;
   createdAt: string;
   id: string;
   kind: RelationKind;
@@ -565,6 +606,9 @@ export interface StoredRelationValue extends Record<string, MutationPayload> {
  */
 export interface RelationPayloadRelation
   extends Record<string, MutationPayload> {
+  blockingResolutionNote: string | null;
+  blockingResolvedAt: string | null;
+  blockingStatus: BlockingRelationStatus | null;
   id: string;
   kind: RelationKind;
   sourceRecordId: string;
@@ -583,6 +627,16 @@ export interface RelationMutationResult {
   receiptId: string;
   relation: RelationView | null;
   relationId: string;
+  signals: WorkBlockedSignal[];
+}
+
+export interface WorkBlockedSignal {
+  blockedWork: { recordId: string; recordType: "Work" };
+  eventId: string;
+  kind: "work-blocked";
+  occurredAt: string;
+  relationId: string;
+  source: RelationEndpoint;
 }
 
 export interface UsedInSummary {
@@ -612,6 +666,10 @@ export interface RelationsAccess {
     accountId: string,
     input: RelationCreatePreviewInput,
   ) => Promise<RelationPreview>;
+  reactivateBlocker: (
+    accountId: string,
+    input: ReactivateBlockerInput,
+  ) => Promise<RelationMutationResult>;
   remove: (
     accountId: string,
     input: RemoveRelationInput,
@@ -620,6 +678,10 @@ export interface RelationsAccess {
     accountId: string,
     input: RelationUsageRemoveInput,
   ) => Promise<void>;
+  resolveBlocker: (
+    accountId: string,
+    input: ResolveBlockerInput,
+  ) => Promise<RelationMutationResult>;
   undo: (
     accountId: string,
     input: UndoRelationInput,

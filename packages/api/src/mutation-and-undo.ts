@@ -354,6 +354,7 @@ export interface MutationApplyContext<
   TValue,
   TPayload extends MutationPayload = MutationPayload,
 > {
+  committedAt: string;
   currentRevision: number;
   currentValue: TValue;
   payload: TPayload;

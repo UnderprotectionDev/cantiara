@@ -91,6 +91,7 @@ function createProjectUpdateMutation(
       }
       const previousProject = getCurrentProject();
       const nextValue = await apply({
+        committedAt: "2026-09-17T09:00:00.000Z",
         currentRevision: previousProject.revision,
         currentValue: { project: previousProject },
         payload: command.payload,
@@ -682,6 +683,7 @@ describe("Project Shell RPC", () => {
           throw new Error("Expected a human Project command.");
         }
         const nextValue = await apply({
+          committedAt: "2026-09-17T09:00:00.000Z",
           currentRevision: 0,
           currentValue: { project: null },
           payload: command.payload,

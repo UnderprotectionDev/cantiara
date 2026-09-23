@@ -8,7 +8,7 @@ const migrations = [
   {
     breakpoints: true,
     idx: 2,
-    tag: "0050_repair_prioritization_schema",
+    tag: "0054_repair_prioritization_schema",
     version: "7",
     when: 3,
   },
@@ -18,7 +18,7 @@ describe("selectMigrations", () => {
   test("keeps the full migration list for the normal migration path", () => {
     expect(
       selectMigrations(migrations, {
-        compatibilityTag: "0050_repair_prioritization_schema",
+        compatibilityTag: "0054_repair_prioritization_schema",
       }),
     ).toBe(migrations);
   });
@@ -26,7 +26,7 @@ describe("selectMigrations", () => {
   test("selects only the requested compatibility migration in repair mode", () => {
     expect(
       selectMigrations(migrations, {
-        compatibilityTag: "0050_repair_prioritization_schema",
+        compatibilityTag: "0054_repair_prioritization_schema",
         compatibilityOnly: true,
       }),
     ).toEqual([migrations[2]]);
@@ -42,7 +42,7 @@ describe("selectMigrations", () => {
 
     expect(() =>
       selectMigrations([...migrations, migrations[2]], {
-        compatibilityTag: "0050_repair_prioritization_schema",
+        compatibilityTag: "0054_repair_prioritization_schema",
         compatibilityOnly: true,
       }),
     ).toThrow("Expected exactly one compatibility migration");

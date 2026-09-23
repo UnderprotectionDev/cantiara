@@ -1,5 +1,5 @@
 {
-  "id": "ac2e3cba-61d2-4620-9b71-7e753645e78a",
+  "id": "51c6b1e1-f944-4f51-a637-9b3951dd5688",
   "prevId": "d993edac-2ba7-4cf6-ab50-297f13c1129a",
   "version": "7",
   "dialect": "postgresql",
@@ -2892,292 +2892,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.project_backlog_order": {
-      "name": "project_backlog_order",
-      "schema": "",
-      "columns": {
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "work_ids": {
-          "name": "work_ids",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "project_backlog_order_project_id_project_id_fk": {
-          "name": "project_backlog_order_project_id_project_id_fk",
-          "tableFrom": "project_backlog_order",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_backlog_order_work_ids_check": {
-          "name": "project_backlog_order_work_ids_check",
-          "value": "jsonb_typeof(\"project_backlog_order\".\"work_ids\") = 'array'"
-        },
-        "project_backlog_order_revision_check": {
-          "name": "project_backlog_order_revision_check",
-          "value": "\"project_backlog_order\".\"revision\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.prioritization_session": {
-      "name": "prioritization_session",
-      "schema": "",
-      "columns": {
-        "closed_at": {
-          "name": "closed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "trashed_at": {
-          "name": "trashed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "prioritization_session_project_idx": {
-          "name": "prioritization_session_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "prioritization_session_project_id_project_id_fk": {
-          "name": "prioritization_session_project_id_project_id_fk",
-          "tableFrom": "prioritization_session",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "prioritization_session_project_id_uidx": {
-          "name": "prioritization_session_project_id_uidx",
-          "nullsNotDistinct": false,
-          "columns": ["project_id", "id"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "prioritization_session_name_check": {
-          "name": "prioritization_session_name_check",
-          "value": "length(btrim(\"prioritization_session\".\"name\")) between 1 and 200"
-        },
-        "prioritization_session_revision_check": {
-          "name": "prioritization_session_revision_check",
-          "value": "\"prioritization_session\".\"revision\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.prioritization_session_work": {
-      "name": "prioritization_session_work",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "work_id": {
-          "name": "work_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "prioritization_session_work_project_session_idx": {
-          "name": "prioritization_session_work_project_session_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "prioritization_session_work_session_position_uidx": {
-          "name": "prioritization_session_work_session_position_uidx",
-          "columns": [
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "position",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "prioritization_session_work_session_work_uidx": {
-          "name": "prioritization_session_work_session_work_uidx",
-          "columns": [
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "work_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "prioritization_session_work_project_session_fk": {
-          "name": "prioritization_session_work_project_session_fk",
-          "tableFrom": "prioritization_session_work",
-          "tableTo": "prioritization_session",
-          "columnsFrom": ["project_id", "session_id"],
-          "columnsTo": ["project_id", "id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "prioritization_session_work_position_check": {
-          "name": "prioritization_session_work_position_check",
-          "value": "\"prioritization_session_work\".\"position\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.capture_extension_link": {
       "name": "capture_extension_link",
       "schema": "",
@@ -4906,6 +4620,24 @@
         },
         "broken_reason": {
           "name": "broken_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blocking_status": {
+          "name": "blocking_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blocking_resolved_at": {
+          "name": "blocking_resolved_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blocking_resolution_note": {
+          "name": "blocking_resolution_note",
           "type": "text",
           "primaryKey": false,
           "notNull": false

@@ -163,6 +163,10 @@ describe("Work Context Card initial fields", () => {
   test("renders live source names, status, and source links in the why chain", () => {
     const html = renderCard(workStatusLabels, [
       {
+        blockingHistory: [],
+        blockingStatus: null,
+        blockingResolvedAt: null,
+        blockingResolutionNote: null,
         createdAt: "2026-01-01T00:00:00.000Z",
         direction: "incoming",
         id: "origin-1",
@@ -207,6 +211,10 @@ describe("Work Context Card initial fields", () => {
   test("does not leak inaccessible source content", () => {
     const html = renderCard(workStatusLabels, [
       {
+        blockingHistory: [],
+        blockingStatus: null,
+        blockingResolvedAt: null,
+        blockingResolutionNote: null,
         createdAt: "2026-01-01T00:00:00.000Z",
         direction: "incoming",
         id: "decision-1",
@@ -252,6 +260,10 @@ describe("Work Context Card initial fields", () => {
   test("keeps an archived Work source linkable", () => {
     const html = renderCard(workStatusLabels, [
       {
+        blockingHistory: [],
+        blockingStatus: null,
+        blockingResolvedAt: null,
+        blockingResolutionNote: null,
         createdAt: "2026-01-01T00:00:00.000Z",
         direction: "incoming",
         id: "archived-origin",
@@ -299,6 +311,10 @@ describe("Work Context Card initial fields", () => {
       workStatusLabels,
       [
         {
+          blockingHistory: [],
+          blockingStatus: null,
+          blockingResolvedAt: null,
+          blockingResolutionNote: null,
           createdAt: "2026-01-01T00:00:00.000Z",
           direction: "incoming",
           id: "feedback-1",
@@ -333,6 +349,10 @@ describe("Work Context Card initial fields", () => {
           },
         },
         {
+          blockingHistory: [],
+          blockingStatus: null,
+          blockingResolvedAt: null,
+          blockingResolutionNote: null,
           createdAt: "2026-01-01T00:00:00.000Z",
           direction: "outgoing",
           id: "feedback-participant-1",
@@ -366,6 +386,10 @@ describe("Work Context Card initial fields", () => {
           },
         },
         {
+          blockingHistory: [],
+          blockingStatus: null,
+          blockingResolvedAt: null,
+          blockingResolutionNote: null,
           createdAt: "2026-01-01T00:00:00.000Z",
           direction: "outgoing",
           id: "contact-company-1",

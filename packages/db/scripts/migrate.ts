@@ -68,7 +68,7 @@ async function runMigrations<TSchema extends Record<string, unknown>>(
     return;
   }
 
-  const compatibilityTag = "0050_repair_prioritization_schema";
+  const compatibilityTag = "0054_repair_prioritization_schema";
   const repairFile = join(folder, `${compatibilityTag}.sql`);
   const journalPath = join(folder, "meta", "_journal.json");
   const journal = JSON.parse(readFileSync(journalPath, "utf8"));

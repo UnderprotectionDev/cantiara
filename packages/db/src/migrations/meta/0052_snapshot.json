@@ -1,6 +1,6 @@
 {
-  "id": "8c7e11da-d897-4419-bb7b-0bf320ad9d13",
-  "prevId": "51c6b1e1-f944-4f51-a637-9b3951dd5688",
+  "id": "75df0919-de43-46c7-9f48-852c70eacd86",
+  "prevId": "3211345e-36e8-4210-b33e-92693e469044",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4820,6 +4820,10 @@
         "work_relation_broken_reason_check": {
           "name": "work_relation_broken_reason_check",
           "value": "\"work_relation\".\"broken_reason\" is null or \"work_relation\".\"broken_reason\" in ('Archived', 'In Trash', 'Permanently deleted', 'Redacted for security', 'No access')"
+        },
+        "work_relation_blocking_status_check": {
+          "name": "work_relation_blocking_status_check",
+          "value": "(\"work_relation\".\"kind\" <> 'Blocks' and \"work_relation\".\"blocking_status\" is null and \"work_relation\".\"blocking_resolved_at\" is null and \"work_relation\".\"blocking_resolution_note\" is null) or (\"work_relation\".\"kind\" = 'Blocks' and \"work_relation\".\"blocking_status\" = 'Active' and \"work_relation\".\"blocking_resolved_at\" is null and \"work_relation\".\"blocking_resolution_note\" is null) or (\"work_relation\".\"kind\" = 'Blocks' and \"work_relation\".\"blocking_status\" = 'Resolved')"
         },
         "work_relation_source_record_type_check": {
           "name": "work_relation_source_record_type_check",

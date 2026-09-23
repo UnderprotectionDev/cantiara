@@ -1207,7 +1207,9 @@ function scopeTreeNode(
     relations
       .filter(
         (relation) =>
-          relation.kind === "Blocks" && relation.targetRecordId === work.id,
+          relation.kind === "Blocks" &&
+          relation.blockingStatus === "Active" &&
+          relation.targetRecordId === work.id,
       )
       .map((relation) => ({
         id: relation.sourceWork.id,

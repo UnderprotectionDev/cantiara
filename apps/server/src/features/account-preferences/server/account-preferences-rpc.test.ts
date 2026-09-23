@@ -59,6 +59,7 @@ describe("Account Preferences RPC", () => {
         });
         const previousValue = storedPreferences;
         const nextValue = await apply({
+          committedAt: "2026-09-16T09:00:00.000Z",
           currentRevision: revision,
           currentValue: previousValue,
           payload: command.payload,

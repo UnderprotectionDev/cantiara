@@ -40,6 +40,7 @@ import { createDatabasePrioritizationSessions } from "../src/features/prioritiza
 import { createDatabasePrioritizationSessionMutationContracts } from "../src/features/prioritization-sessions/server/prioritization-sessions-mutation-database";
 import { createPriorityMetricsAccess } from "../src/features/priority-metrics/server/priority-metrics";
 import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/server/priority-metrics-database";
+import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
@@ -97,6 +98,8 @@ const prioritizationSessions = createPrioritizationSessionsAccess(
 );
 const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(database);
+const priorityMetricMutationContracts =
+  createDatabasePriorityMetricMutationContracts(database);
 const tags = createDatabaseTags(database);
 const tagMutationContracts = createDatabaseTagMutationContracts(database);
 const customFields = createDatabaseCustomFields(database);
@@ -108,7 +111,22 @@ const workLifecycle = createDatabaseWorkLifecycle(database, {
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
 const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
-const workContext = createWorkContextAccess(workLifecycle, relations);
+const workContext = createWorkContextAccess(workLifecycle, relations, {
+  priorityValues: async (accountId, work) => {
+    const values = await priorityMetrics.values(accountId, work.id);
+    return {
+      effort: work.effort,
+      priorityMetrics:
+        values?.map(({ definition, value }) => ({
+          id: definition.id,
+          name: definition.name,
+          projectId: definition.projectId,
+          value: value?.rank ?? null,
+        })) ?? [],
+      targetDate: work.targetDate,
+    };
+  },
+});
 const captureInbox = createDatabaseCaptureInbox(
   database,
   createCaptureInboxWorkCreate(workLifecycle),
@@ -206,9 +224,10 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
+  priorityMetricMutationContracts,
+  priorityMetrics,
   projectShell,
   projectShellMutationContracts,
-  priorityMetrics,
   prioritizationSessionMutationContracts,
   prioritizationSessions,
   recordActions,
@@ -270,14 +289,15 @@ async function createE2EFixture(fixtureKey: string) {
         })
       : null;
 
-  const scopeTreeProject =
-    fixtureKey === "scope-tree"
-      ? await projectShell.create(founder.id, {
-          name: "Scope Tree Project",
-          shortCode: "SCOPE",
-          starterConfiguration: "Blank Project",
-        })
-      : null;
+  const isScopeTreeFixture =
+    fixtureKey === "scope-tree" || fixtureKey === "command-palette-scope-tree";
+  const scopeTreeProject = isScopeTreeFixture
+    ? await projectShell.create(founder.id, {
+        name: "Scope Tree Project",
+        shortCode: "SCOPE",
+        starterConfiguration: "Blank Project",
+      })
+    : null;
   if (scopeTreeProject) {
     const feature = await workLifecycle.create(founder.id, {
       baseRevision: 0,
@@ -308,6 +328,7 @@ async function createE2EFixture(fixtureKey: string) {
     });
     await database.insert(workRelation).values([
       {
+        blockingStatus: "Active",
         id: `scope-tree-block-${crypto.randomUUID()}`,
         kind: "Blocks",
         sourceWorkId: blocker.id,

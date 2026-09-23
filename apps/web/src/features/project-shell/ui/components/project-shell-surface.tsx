@@ -13,7 +13,7 @@ import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import ProjectOverviewView from "@/features/project-overview/ui/components/project-overview";
@@ -34,6 +34,7 @@ import {
   type NavigationSurface,
   navigationHash,
   navigationSurfaceFromHash,
+  PRIORITY_MAP_HASH,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
@@ -42,6 +43,10 @@ import { ClientShellStatus } from "@/features/web-macos-client/ui/components/cli
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
+
+const PriorityMap = lazy(
+  () => import("@/features/priority-metrics/ui/components/priority-map"),
+);
 
 export default function ProjectShellSurface({
   accountFormattingPreferences,
@@ -128,6 +133,7 @@ export default function ProjectShellSurface({
         <ProjectWorkSurface
           accountFormattingPreferences={accountFormattingPreferences}
           activeAction={dailyAction}
+          activeHash={activeHash}
           configuration={configuration}
           projectId={projectId}
         />
@@ -298,11 +304,13 @@ export default function ProjectShellSurface({
 }
 
 function ProjectWorkSurface({
+  activeHash,
   activeAction,
   accountFormattingPreferences,
   configuration,
   projectId,
 }: {
+  activeHash: string;
   activeAction: DailyAction | null;
   accountFormattingPreferences: AccountPreferences;
   configuration: ProjectShellConfiguration;
@@ -328,35 +336,74 @@ function ProjectWorkSurface({
         </p>
       </header>
 
-      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-10">
-        <div className="min-w-0">
-          <DailyWorkActions
-            accountFormattingPreferences={accountFormattingPreferences}
-            activeAction={activeAction}
-            projectId={projectId}
-          />
-          <ProjectWorkList
-            accountFormattingPreferences={accountFormattingPreferences}
-            projectId={projectId}
-            workContextLayouts={configuration.workContextLayouts}
-            workStatusLabels={configuration.workStatusLabels}
-          />
-          <PrioritizationSurface projectId={projectId} />
+      <nav aria-label="Work views" className="flex flex-wrap gap-2">
+        <Link
+          aria-current={activeHash === PRIORITY_MAP_HASH ? undefined : "page"}
+          className={buttonVariants({
+            size: "sm",
+            variant: activeHash === PRIORITY_MAP_HASH ? "ghost" : "secondary",
+          })}
+          hash="work"
+          params={{ projectId }}
+          to="/projects/$projectId"
+        >
+          Work
+        </Link>
+        <Link
+          aria-current={activeHash === PRIORITY_MAP_HASH ? "page" : undefined}
+          className={buttonVariants({
+            size: "sm",
+            variant: activeHash === PRIORITY_MAP_HASH ? "secondary" : "ghost",
+          })}
+          hash={PRIORITY_MAP_HASH}
+          params={{ projectId }}
+          to="/projects/$projectId"
+        >
+          Priority Map
+        </Link>
+      </nav>
+
+      {activeHash === PRIORITY_MAP_HASH ? (
+        <Suspense
+          fallback={
+            <p className="text-muted-foreground text-sm" role="status">
+              Loading…
+            </p>
+          }
+        >
+          <PriorityMap projectId={projectId} />
+        </Suspense>
+      ) : (
+        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-10">
+          <div className="min-w-0">
+            <DailyWorkActions
+              accountFormattingPreferences={accountFormattingPreferences}
+              activeAction={activeAction}
+              projectId={projectId}
+            />
+            <ProjectWorkList
+              accountFormattingPreferences={accountFormattingPreferences}
+              projectId={projectId}
+              workContextLayouts={configuration.workContextLayouts}
+              workStatusLabels={configuration.workStatusLabels}
+            />
+            <PrioritizationSurface projectId={projectId} />
+          </div>
+          <aside className="border-border/70 border-t pt-5 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
+            <p className="surface-kicker">Saved views</p>
+            <ul aria-label="Saved views" className="mt-3 space-y-1">
+              {configuration.preparedWorkViews.map((view) => (
+                <li
+                  className="rounded-md px-2.5 py-2 text-muted-foreground text-sm"
+                  key={view}
+                >
+                  {view}
+                </li>
+              ))}
+            </ul>
+          </aside>
         </div>
-        <aside className="border-border/70 border-t pt-5 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
-          <p className="surface-kicker">Saved views</p>
-          <ul aria-label="Saved views" className="mt-3 space-y-1">
-            {configuration.preparedWorkViews.map((view) => (
-              <li
-                className="rounded-md px-2.5 py-2 text-muted-foreground text-sm"
-                key={view}
-              >
-                {view}
-              </li>
-            ))}
-          </ul>
-        </aside>
-      </div>
+      )}
     </section>
   );
 }

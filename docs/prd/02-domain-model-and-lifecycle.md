@@ -437,8 +437,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Değerlendirilmemiş | `Unevaluated` | Eksen veya ölçüt değeri henüz seçilmemiş İş |
 | Kanıt gücü | `Evidence strength` | Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü |
 | Öncelik Haritası | `Priority Map` | İki ölçütü eksen alan karşılaştırma görünümü; skor, otomatik sıra veya Backlog sırası değildir |
-| Yatay | `Horizontal` | Öncelik Haritası yatay eksen seçimi |
-| Dikey | `Vertical` | Öncelik Haritası dikey eksen seçimi |
+| Yatay | `Horizontal axis` | Öncelik Haritası yatay eksen seçimi |
+| Dikey | `Vertical axis` | Öncelik Haritası dikey eksen seçimi |
+| Kanıt sinyallerini göster | `Show evidence signals` | Öncelik Haritası'nda Feedback ve benzersiz Contact/Company sayılarını yalnızca bağlam olarak gösteren, varsayılan kapalı kontrol |
+| Eksen değerlerini düzenle | `Edit axis values` | Öncelik Haritası'nda seçili eksenlerin aynı İş için Öncelik ölçütü değerlerini açık kullanıcı eylemiyle düzenleme |
 | Benzersiz Contact | `Unique Contact` | Haritada isteğe bağlı kanıt bağlamı |
 | Benzersiz Company | `Unique Company` | Haritada isteğe bağlı kanıt bağlamı |
 | Kayıtlı görünüm | `Saved views` | Yapılandırma modunda adlandırılmış İş görünümü girişi; günlük planlama eylemi değildir |
@@ -618,7 +620,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Aktif engelleme | `Active` | Engelleme ilişkisinin bekleyen durumu; İş akışı durumu `Blocked` değildir |
 | Çözülmüş engelleme | `Resolved` | Engelleme ilişkisinin tarihsel durumu; aktif blokaj sinyalinden çıkar |
 | Engel çözüldü | `Mark blocker resolved` | Çözüm tarihi ve isteğe bağlı not yazan eylem; kaynak kapanışı değildir |
+| Çözümü onayla | `Confirm resolution` | Çözüm tarihini ve isteğe bağlı notu kaydeden eylemi onaylar |
 | Çözüm notu | `Note` | Engel çözüldü eyleminin isteğe bağlı notu |
+| Blokaj geçmişi | `Blocker history` | Aynı engelleme ilişkisindeki Active ve Resolved geçişlerini, Undo işaretlerini ve geri yüklenen çözüm tarihini gösterir |
+| Geri alma | `Undo` | Blokaj geçmişindeki geri alınmış geçişi belirtir |
+| Çözüm tarihi | `Resolution date` | Undo ile geri yüklenen çözüm tarihini gösterir |
+| Engeli yeniden etkinleştir | `Reactivate blocker` | Çözülmüş aynı ilişkiyi yeniden aktif beklemeye döndürür |
 | İlişkiyi kaldır | `Remove relation` | Yanlış kurulmuş engelleme bağını silme; çözüm geçmişi değildir |
 | Açıklama | `Description` | İşin taşınabilir gövde alanı; Task hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Hafif kontrol listesi | `Checklist` | İşteki metin maddeleri; bağımsız İş değildir |

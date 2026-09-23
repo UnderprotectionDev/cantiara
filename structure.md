@@ -6,7 +6,7 @@
 .
 ├── .github/
 │   └── workflows/
-│       ├── account-access-integration.yml
+│       ├── integration-tests.yml
 │       ├── code-quality.yml
 │       ├── macos-release.yml
 │       └── pre-merge-validation.yml
@@ -128,6 +128,7 @@
 │       │   ├── project-shell.e2e.ts
 │       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
+│       │   ├── work-blockers.e2e.ts
 │       │   ├── work-drafts.e2e.ts
 │       │   ├── work-lifecycle.e2e.ts
 │       │   └── work-templates.e2e.ts
@@ -236,6 +237,7 @@
 │       │   │   ├── relations/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── work-relations.test.tsx
 │       │   │   │           └── work-relations.tsx
 │       │   │   ├── project-overview/
 │       │   │   │   ├── lib/

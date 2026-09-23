@@ -1,8 +1,55 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const DAILY_FOCUS_DATE_LABEL = /Daily Focus · \d{4}-\d{2}-\d{2}/;
 const WORK_STATUS_COMBOBOX_NAME = /Status for/;
+
+type WorkCustomFieldInput =
+  | { name: string; type: "Date" | "Number" }
+  | { name: string; options: string; type: "Single select" };
+
+async function askWhenRunningForField(form: Locator, fieldName: string) {
+  const field = form.getByRole("checkbox", { name: fieldName });
+  await field.check();
+  await field
+    .locator("xpath=../..")
+    .getByRole("checkbox", { name: "Ask when running" })
+    .check();
+}
+
+async function createWorkCustomField(
+  page: Page,
+  host: Locator,
+  field: WorkCustomFieldInput,
+) {
+  await host.getByLabel("Field name").fill(field.name);
+  await host.getByLabel("Type").selectOption(field.type);
+  if ("options" in field) {
+    await host.getByLabel("Options").fill(field.options);
+  }
+  await host.getByRole("checkbox", { name: "Work" }).check();
+  const response = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      candidate.url().endsWith("/rpc/createCustomField") &&
+      candidate.ok(),
+  );
+  await host.getByRole("button", { name: "Add custom field" }).click();
+  await response;
+}
+
+async function fillStartWorkRuntimeInputs(form: Locator) {
+  await form.getByLabel("Target date").fill("2026-10-01");
+  await form.getByLabel("Estimate").fill("5");
+  await form.getByLabel("Readiness").selectOption("Ready");
+  const relatedWorkSelect = form.getByLabel("Related Work");
+  const relatedWorkOption = relatedWorkSelect
+    .locator("option")
+    .filter({ hasText: "Prepare the release notes" });
+  await relatedWorkSelect.selectOption(
+    (await relatedWorkOption.getAttribute("value")) ?? "",
+  );
+}
 
 test("defines, reloads, and trashes a single-record Start Work action", async ({
   context,
@@ -142,19 +189,19 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     exact: true,
     name: "Custom field",
   });
-  await customFieldHost.getByLabel("Field name").fill("Target date");
-  await customFieldHost.getByLabel("Type").selectOption("Date");
-  await customFieldHost.getByRole("checkbox", { name: "Work" }).check();
-  const customFieldResponse = page.waitForResponse(
-    (candidate) =>
-      candidate.request().method() === "POST" &&
-      candidate.url().endsWith("/rpc/createCustomField") &&
-      candidate.ok(),
-  );
-  await customFieldHost
-    .getByRole("button", { name: "Add custom field" })
-    .click();
-  await customFieldResponse;
+  await createWorkCustomField(page, customFieldHost, {
+    name: "Target date",
+    type: "Date",
+  });
+  await createWorkCustomField(page, customFieldHost, {
+    name: "Estimate",
+    type: "Number",
+  });
+  await createWorkCustomField(page, customFieldHost, {
+    name: "Readiness",
+    options: "Ready\nLater",
+    type: "Single select",
+  });
 
   await configuration
     .getByRole("button", { name: "Record Action", exact: true })
@@ -167,8 +214,9 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await form.getByLabel("Name").fill("Start Work");
   await form.getByLabel("Work status").selectOption("In Progress");
   await form.getByLabel("Daily Focus").selectOption("add");
-  await form.getByRole("checkbox", { name: "Target date" }).check();
-  await form.getByRole("checkbox", { name: "Ask when running" }).check();
+  await askWhenRunningForField(form, "Target date");
+  await askWhenRunningForField(form, "Estimate");
+  await askWhenRunningForField(form, "Readiness");
   await form.getByLabel("Related Work").selectOption("add");
   await form.getByRole("button", { name: "Save", exact: true }).click();
 
@@ -183,14 +231,13 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   const runtimeInputForm = preview.getByRole("form", {
     name: "Record Action inputs",
   });
-  await runtimeInputForm.getByLabel("Target date").fill("2026-10-01");
-  const relatedWorkOption = runtimeInputForm
-    .getByLabel("Related Work")
-    .locator("option")
-    .filter({ hasText: "Prepare the release notes" });
-  await runtimeInputForm
-    .getByLabel("Related Work")
-    .selectOption((await relatedWorkOption.getAttribute("value")) ?? "");
+  await expect(
+    runtimeInputForm.getByRole("button", { name: "Preview changes" }),
+  ).toBeDisabled();
+  await expect(
+    preview.getByRole("button", { name: "Apply", exact: true }),
+  ).toHaveCount(0);
+  await fillStartWorkRuntimeInputs(runtimeInputForm);
   await runtimeInputForm
     .getByRole("button", { name: "Preview changes" })
     .click();
@@ -199,10 +246,21 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   ).toContainText("2026-10-01");
   await expect(
     preview.getByRole("region", { name: "Runtime inputs selected" }),
+  ).toContainText("5");
+  await expect(
+    preview.getByRole("region", { name: "Runtime inputs selected" }),
+  ).toContainText("Ready");
+  await expect(
+    preview.getByRole("region", { name: "Runtime inputs selected" }),
   ).toContainText("Prepare the release notes");
   await expect(preview).toContainText("Not Started → In Progress");
   await expect(preview).toContainText("Not in Daily Focus → In Daily Focus");
+  await expect(preview).toContainText("Empty → 2026-10-01");
   await expect(preview).toContainText("Target date");
+  await expect(preview).toContainText("Estimate");
+  await expect(preview).toContainText("Readiness");
+  await expect(preview).toContainText("Empty → 5");
+  await expect(preview).toContainText("Empty → Ready");
   await expect(preview).toContainText("Not related → Related");
   await expect(preview).toContainText(DAILY_FOCUS_DATE_LABEL);
   await preview.getByRole("button", { name: "Apply", exact: true }).click();
@@ -214,6 +272,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await preview.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(preview.getByRole("status")).toHaveText(
     "Start Work was undone.",
+    { timeout: 30_000 },
   );
   await preview.getByRole("button", { name: "Close", exact: true }).click();
   await expect(
@@ -240,14 +299,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   const staleRuntimeInputForm = stalePreview.getByRole("form", {
     name: "Record Action inputs",
   });
-  await staleRuntimeInputForm.getByLabel("Target date").fill("2026-10-01");
-  const staleRelatedWorkOption = staleRuntimeInputForm
-    .getByLabel("Related Work")
-    .locator("option")
-    .filter({ hasText: "Prepare the release notes" });
-  await staleRuntimeInputForm
-    .getByLabel("Related Work")
-    .selectOption((await staleRelatedWorkOption.getAttribute("value")) ?? "");
+  await fillStartWorkRuntimeInputs(staleRuntimeInputForm);
   await staleRuntimeInputForm
     .getByRole("button", { name: "Preview changes" })
     .click();

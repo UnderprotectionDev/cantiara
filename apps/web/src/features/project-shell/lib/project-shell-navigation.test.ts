@@ -27,6 +27,13 @@ describe("Project Shell Work navigation", () => {
     expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
   });
 
+  test("keeps the Priority Map on the Work surface", () => {
+    expect(isWorkSurfaceHash("priority-map")).toBe(true);
+    expect(navigationSurfaceFromHash("priority-map", ["Work"], [], [])).toBe(
+      "Work",
+    );
+  });
+
   test("builds the Work record link used by copied context", () => {
     expect(workRecordHash("work/2")).toBe("work-work%2F2");
     expect(workRecordHref("project/1", "work/2")).toBe(
