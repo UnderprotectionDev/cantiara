@@ -54,7 +54,7 @@ Birleşik Bildirim Merkezi yalnız kapalı registrydeki Dikkat sinyallerini `Act
 | `personal-reminder` | `Action Required` | kişisel hatırlatmalar (06) |
 | `review-later` | `Action Required` | Yeniden bak (06) |
 | `open-risk` | `Action Required` | Risk (09) |
-| `work-blocked` | `Action Required` | blokaj (06 / workflow 19) |
+| `work-blocked` | `Needs Action` | blokaj (06 / workflow 19) |
 | `source-version-in-use` | `Action Required` | Kaynak sürüm kullanımı (08) |
 | `external-run-returned` | `Action Required` | Dış yürütme devri (06) |
 | `release-observation-missing` | `Action Required` | Proje Sürümü iletişimi (12) |
@@ -70,6 +70,7 @@ Birleşik Bildirim Merkezi yalnız kapalı registrydeki Dikkat sinyallerini `Act
 | `smart-collection-entry` | `Information Flow` | Akıllı Koleksiyon aboneliği (08 / workflow 34) |
 | `github-activity` | `Information Flow` | GitHub geliştirme kayıtları (12) |
 
+- **Registry class to section mapping.** `Needs Action` is the closed-registry presentation class for `work-blocked`, not a third center section. The center displays it in `Action Required`; `Information Flow` remains the other section.
 - **Enforcement versus emission.** This feature owns: reject unregistered ids; require exact source event id + target id; dedupe on that identity; persist read/closed separately from source domain outcome; group by source inside a section; default-open `Action Required`; open exact event or explain missing target. The same kesin Kaynak sürümü change with several usage sites is one Kaynak group; each usage keeps its own review decision and is not collapsed into a single rewritten notification. Producers own trigger, negatives, and close conditions. Tests may use a producer test-double; they must not reimplement producer negatives except `public-roadmap-review-due`.
 - **`public-roadmap-review-due`.** Optional per-Proje whole-day interval in `[7, 180]`. No default → no signal. Fires in `Action Required` when the last Onaylı snapshot revizyonu of an *active* public-labeled Roadmap record is older than the interval. At most one signal per interval until a new approved snapshot exists. Does not cover completed/closed public records. Does not mutate internal status, public label, or snapshot.
 - **Negatives the journey names (producer-owned, center must not invent).** Ordinary reminder does not start a missing-observation signal. A single observation does not close an open review tour. Cancelled Dış yürütme devri, time-alone without a returned result, ordinary value-chain breaks, and Source age are not signals. Center tests assert unknown ids cannot be used to fake those.
@@ -79,7 +80,7 @@ Birleşik Bildirim Merkezi yalnız kapalı registrydeki Dikkat sinyallerini `Act
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Attention Signals through its public interface: list by section, group by source, same Kaynak sürümü with several usages keeping separate review decisions, mark read/close without source mutation, open exact event, reject unregistered id, dedupe, follow-up preview, `public-roadmap-review-due` matrix. They do not assert queue internals. Expected values are registry rows and PRD negatives, not recomputed producer rules for foreign ids.
+- **What a good test is.** Tests observe Attention Signals through its public interface: list by section; verify each registry presentation class maps to exactly one section, including `work-blocked` / `Needs Action` → `Action Required`; group by source; same Kaynak sürümü with several usages keeping separate review decisions; mark read/close without source mutation; open exact event; reject unregistered id; dedupe; follow-up preview; `public-roadmap-review-due` matrix. They do not assert queue internals. Expected values are registry rows and PRD negatives, not recomputed producer rules for foreign ids.
 - **Seam (one).** Attention Signals — the product-facing center + registry gate. Producers are adapters/test doubles behind emit. Playwright for the Dikkat sinyalleri journey is the same seam through the UI.
 - **Modules under test.** Attention Signals only. Producer packages are not in this suite except emit doubles and “source unchanged” counterparts.
 - **Prior art.** No Vitest/Playwright suite yet. Contract tests at this seam. Evidence binds to [Dikkat sinyalleri](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (`Gerçek proje` plus the listed positive/negative matrix). Also supports [kanıt tazeliği](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) presentation of `source-version-in-use` without owning its emission.
