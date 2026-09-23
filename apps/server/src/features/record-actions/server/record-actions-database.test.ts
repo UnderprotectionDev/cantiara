@@ -263,6 +263,24 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       .from(work)
       .where(eq(work.id, workId));
     expect(previewedWork).toEqual([{ revision: 0, status: "Not Started" }]);
+    const mismatchedPreview = await access.apply(accountId, {
+      actionId: action.id,
+      actionRevision: action.revision,
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "start-work-mismatched-preview-1",
+      focusDate: preview.focusDate,
+      previewFingerprint: "0".repeat(64),
+      runtimeInputs: preview.runtimeInputs,
+      workId,
+    });
+    expect(mismatchedPreview.status).toBe("rolled-back");
+    const unchangedAfterMismatch = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(unchangedAfterMismatch).toEqual([
+      { revision: 0, status: "Not Started" },
+    ]);
 
     const command = {
       actionId: action.id,
@@ -302,7 +320,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
         focusDate: "2026-09-24",
       }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
-  });
+  }, 20_000);
 
   test("assigns Daily Focus to the saved profile calendar day", async () => {
     if (!database) {
@@ -562,6 +580,14 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       targetRecordId: relatedWorkId,
       targetRecordType: "Work",
     });
+    const [relatedWorkAfterApply] = await database
+      .select({ revision: work.revision, status: work.status })
+      .from(work)
+      .where(eq(work.id, relatedWorkId));
+    expect(relatedWorkAfterApply).toEqual({
+      revision: 0,
+      status: "Not Started",
+    });
     if (applied.status !== "committed") {
       throw new Error("The Record Action should have committed.");
     }
@@ -581,6 +607,117 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       .from(customFieldValue)
       .where(eq(customFieldValue.recordId, workId));
     expect(undoneValues).toEqual([]);
+  }, 20_000);
+
+  test("uses an active Related Work row ahead of an older deleted row", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const workId = `work-${crypto.randomUUID()}`;
+    const relatedWorkId = `work-${crypto.randomUUID()}`;
+    const deletedRelationId = `record-action-deleted-${crypto.randomUUID()}`;
+    const activeRelationId = `relation-preview:${crypto.randomUUID()}`;
+    await database.insert(work).values([
+      {
+        id: workId,
+        key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-1`,
+        number: 1,
+        projectId,
+        title: "Ship the first release",
+        type: "Task",
+      },
+      {
+        id: relatedWorkId,
+        key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-2`,
+        number: 2,
+        projectId,
+        title: "Prepare the release notes",
+        type: "Task",
+      },
+    ]);
+    await database.insert(workRelation).values([
+      {
+        createdAt: new Date("2026-09-20T12:00:00.000Z"),
+        deletedAt: new Date("2026-09-21T12:00:00.000Z"),
+        id: deletedRelationId,
+        kind: "Related",
+        revision: 2,
+        sourceRecordType: "Work",
+        sourceWorkId: workId,
+        targetLabel: "Prepare the release notes",
+        targetProjectId: projectId,
+        targetRecordId: relatedWorkId,
+        targetRecordType: "Work",
+      },
+      {
+        createdAt: new Date("2026-09-22T12:00:00.000Z"),
+        id: activeRelationId,
+        kind: "Related",
+        revision: 1,
+        sourceRecordType: "Work",
+        sourceWorkId: workId,
+        targetLabel: "Prepare the release notes",
+        targetProjectId: projectId,
+        targetRecordId: relatedWorkId,
+        targetRecordType: "Work",
+      },
+    ]);
+
+    const access = createTestRecordActions(database);
+    const action = await access.create(accountId, {
+      name: "Remove related Work",
+      projectId,
+      steps: [
+        {
+          inputId: "related-record",
+          kind: "related-work",
+          operation: "remove",
+        },
+      ],
+    });
+    const runtimeInputs = {
+      customFieldValues: {},
+      relations: {
+        "related-record": {
+          recordId: relatedWorkId,
+          recordType: "Work" as const,
+        },
+      },
+    };
+    const preview = await access.preview(accountId, {
+      actionId: action.id,
+      runtimeInputs,
+      workId,
+    });
+
+    expect(preview?.changes).toContainEqual(
+      expect.objectContaining({ after: false, before: true }),
+    );
+    if (!preview) {
+      throw new Error("The active Related Work preview should be available.");
+    }
+    const applied = await access.apply(accountId, {
+      actionId: action.id,
+      actionRevision: action.revision,
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "remove-recreated-related-work-1",
+      focusDate: preview.focusDate,
+      previewFingerprint: preview.previewFingerprint,
+      runtimeInputs,
+      workId,
+    });
+    expect(applied.status).toBe("committed");
+    const relationHistory = await database
+      .select({ deletedAt: workRelation.deletedAt, id: workRelation.id })
+      .from(workRelation)
+      .where(eq(workRelation.targetRecordId, relatedWorkId));
+    expect(relationHistory).toHaveLength(2);
+    expect(relationHistory).toEqual(
+      expect.arrayContaining([
+        { deletedAt: expect.any(Date), id: deletedRelationId },
+        { deletedAt: expect.any(Date), id: activeRelationId },
+      ]),
+    );
   }, 20_000);
 
   test("rolls back every Record Action write when a later step fails", async () => {

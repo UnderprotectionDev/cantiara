@@ -38,7 +38,7 @@ import { project } from "@cantiara/db/schema/project";
 import { recordAction } from "@cantiara/db/schema/record-action";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
@@ -389,7 +389,11 @@ async function findRelatedWorkRelation(
         ),
       ),
     )
-    .orderBy(asc(workRelation.createdAt), asc(workRelation.id))
+    .orderBy(
+      desc(isNull(workRelation.deletedAt)),
+      asc(workRelation.createdAt),
+      asc(workRelation.id),
+    )
     .limit(1);
   const [relation] = lock
     ? await relationQuery.for("update")
@@ -756,7 +760,7 @@ function recordActionChanges(
         addRecordActionChange(
           changes,
           `relation:Related:${relatedWork?.id ?? step.inputId}`,
-          `Related · ${relatedWork?.key ?? "Work"}`,
+          `Related Work · ${relatedWork?.key ?? "Work"}`,
           before.relatedWork?.included ?? false,
           after.relatedWork?.included ?? false,
         );

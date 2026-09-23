@@ -439,7 +439,7 @@ function RecordActionRuntimeInputForm({
         return (
           <Field key={step.inputId}>
             <FieldLabel htmlFor={`record-action-input-${step.inputId}`}>
-              Relation
+              Related Work
             </FieldLabel>
             <NativeSelect
               disabled={
@@ -525,7 +525,7 @@ function RecordActionRuntimeInputSummary({
           return (
             <li className="flex justify-between gap-3" key={inputId}>
               <span className="font-medium text-muted-foreground">
-                Relation
+                Related Work
               </span>
               <span className="text-right">
                 {work ? `${work.key} · ${work.title}` : endpoint.recordId}

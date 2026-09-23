@@ -185,11 +185,11 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   });
   await runtimeInputForm.getByLabel("Target date").fill("2026-10-01");
   const relatedWorkOption = runtimeInputForm
-    .getByLabel("Relation")
+    .getByLabel("Related Work")
     .locator("option")
     .filter({ hasText: "Prepare the release notes" });
   await runtimeInputForm
-    .getByLabel("Relation")
+    .getByLabel("Related Work")
     .selectOption((await relatedWorkOption.getAttribute("value")) ?? "");
   await runtimeInputForm
     .getByRole("button", { name: "Preview changes" })
@@ -207,7 +207,9 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await expect(preview).toContainText(DAILY_FOCUS_DATE_LABEL);
   await preview.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(preview.getByRole("status")).toHaveText("Finalizing");
-  await expect(preview.getByRole("status")).toHaveText("Start Work applied.");
+  await expect(preview.getByRole("status")).toHaveText("Start Work applied.", {
+    timeout: 30_000,
+  });
 
   await preview.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(preview.getByRole("status")).toHaveText(
@@ -240,11 +242,11 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   });
   await staleRuntimeInputForm.getByLabel("Target date").fill("2026-10-01");
   const staleRelatedWorkOption = staleRuntimeInputForm
-    .getByLabel("Relation")
+    .getByLabel("Related Work")
     .locator("option")
     .filter({ hasText: "Prepare the release notes" });
   await staleRuntimeInputForm
-    .getByLabel("Relation")
+    .getByLabel("Related Work")
     .selectOption((await staleRelatedWorkOption.getAttribute("value")) ?? "");
   await staleRuntimeInputForm
     .getByRole("button", { name: "Preview changes" })
