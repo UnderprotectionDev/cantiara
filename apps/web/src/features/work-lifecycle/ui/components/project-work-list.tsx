@@ -22,6 +22,11 @@ import { useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
+import {
+  priorityMetricItemsForWork,
+  usePriorityMetricProjectValues,
+} from "@/features/priority-metrics/hooks/use-priority-metrics";
+import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
 import { useRecordActionRunner } from "@/features/record-actions/hooks/use-record-action-runner";
 import {
   RecordActionButtons,
@@ -112,6 +117,7 @@ export default function ProjectWorkList({
       input: { projectId, recordType: "Work" },
     }),
   );
+  const priorityMetricValues = usePriorityMetricProjectValues(projectId);
   const undoMerge = useMutation({
     mutationFn: async () => {
       if (!lastMergeResult) {
@@ -231,6 +237,20 @@ export default function ProjectWorkList({
                 work={work}
                 workContextLayouts={workContextLayouts}
                 workStatusLabels={workStatusLabels}
+              />
+              {priorityMetricValues.query.isError ? (
+                <p className="text-destructive text-sm" role="alert">
+                  Priority metrics are unavailable. Try loading this page again.
+                </p>
+              ) : null}
+              <PriorityMetricValuesForm
+                items={priorityMetricItemsForWork(
+                  priorityMetricValues.query.data,
+                  work.id,
+                )}
+                projectId={projectId}
+                workId={work.id}
+                workKey={work.key}
               />
               <WorkChecklistEditor work={work} />
               <CustomFieldValues

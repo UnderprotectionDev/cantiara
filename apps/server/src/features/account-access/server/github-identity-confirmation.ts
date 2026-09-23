@@ -303,7 +303,7 @@ async function handoffIdentifier(code: string) {
   return `${CONFIRM_GITHUB_IDENTITY_HANDOFF_IDENTIFIER_PREFIX}${await identifierFor("", code)}`;
 }
 
-function actorAlias(accountId: string) {
+export function accountActorAlias(accountId: string) {
   return identifierFor("account:", accountId);
 }
 
@@ -326,7 +326,7 @@ export function createGitHubIdentityConfirmation({
     occurredAt: Date,
   ): Promise<GitHubIdentityConfirmationAuditRecord> {
     return {
-      actorAlias: await actorAlias(principal.accountId),
+      actorAlias: await accountActorAlias(principal.accountId),
       id: crypto.randomUUID(),
       occurredAt: occurredAt.toISOString(),
       targetSessionAlias,

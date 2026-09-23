@@ -1,6 +1,6 @@
 {
-  "id": "0829e017-8edb-441a-a6ff-319d1a2aa999",
-  "prevId": "e27feced-1579-40ed-a436-c3ec1d36fac4",
+  "id": "d993edac-2ba7-4cf6-ab50-297f13c1129a",
+  "prevId": "32473af3-196b-463d-af6f-9a4b62db7a12",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1470,6 +1470,123 @@
       },
       "isRLSEnabled": false
     },
+    "public.daily_focus_membership": {
+      "name": "daily_focus_membership",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "focus_date": {
+          "name": "focus_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "work_id": {
+          "name": "work_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "daily_focus_membership_day_idx": {
+          "name": "daily_focus_membership_day_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "focus_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "daily_focus_membership_work_day_uidx": {
+          "name": "daily_focus_membership_work_day_uidx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "work_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "focus_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "daily_focus_membership_work_id_work_id_fk": {
+          "name": "daily_focus_membership_work_id_work_id_fk",
+          "tableFrom": "daily_focus_membership",
+          "tableTo": "work",
+          "columnsFrom": ["work_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "daily_focus_membership_workspace_id_workspace_id_fk": {
+          "name": "daily_focus_membership_workspace_id_workspace_id_fk",
+          "tableFrom": "daily_focus_membership",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "daily_focus_membership_date_check": {
+          "name": "daily_focus_membership_date_check",
+          "value": "\"daily_focus_membership\".\"focus_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.file_attachment": {
       "name": "file_attachment",
       "schema": "",
@@ -2746,6 +2863,15 @@
           "tableFrom": "work_priority_metric_value",
           "tableTo": "priority_metric_definition",
           "columnsFrom": ["project_id", "metric_id"],
+          "columnsTo": ["project_id", "id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "work_priority_metric_value_project_work_fk": {
+          "name": "work_priority_metric_value_project_work_fk",
+          "tableFrom": "work_priority_metric_value",
+          "tableTo": "work",
+          "columnsFrom": ["project_id", "work_id"],
           "columnsTo": ["project_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

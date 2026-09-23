@@ -1,6 +1,6 @@
 {
-  "id": "0829e017-8edb-441a-a6ff-319d1a2aa999",
-  "prevId": "e27feced-1579-40ed-a436-c3ec1d36fac4",
+  "id": "32473af3-196b-463d-af6f-9a4b62db7a12",
+  "prevId": "0829e017-8edb-441a-a6ff-319d1a2aa999",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2746,6 +2746,15 @@
           "tableFrom": "work_priority_metric_value",
           "tableTo": "priority_metric_definition",
           "columnsFrom": ["project_id", "metric_id"],
+          "columnsTo": ["project_id", "id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "work_priority_metric_value_project_work_fk": {
+          "name": "work_priority_metric_value_project_work_fk",
+          "tableFrom": "work_priority_metric_value",
+          "tableTo": "work",
+          "columnsFrom": ["project_id", "work_id"],
           "columnsTo": ["project_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

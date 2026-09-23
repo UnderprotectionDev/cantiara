@@ -5,10 +5,12 @@ import {
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
+import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { project, projectShortCode } from "@cantiara/db/schema/project";
 import { and, asc, eq } from "drizzle-orm";
 
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
+import { starterPriorityMetricDefinitionValues } from "../../priority-metrics/server/priority-metrics-database";
 import {
   createProjectShell,
   type ProjectShellStore,
@@ -131,6 +133,17 @@ export function createDatabaseProjectShell(database: Database) {
 
         if (!reservation) {
           throw new ProjectShortCodeConflictError(input.shortCode);
+        }
+
+        const priorityMetricValues = starterPriorityMetricDefinitionValues(
+          id,
+          input.starterConfiguration,
+          committedAt,
+        );
+        if (priorityMetricValues) {
+          await transaction
+            .insert(priorityMetricDefinition)
+            .values(priorityMetricValues);
         }
 
         return toRecord(created);

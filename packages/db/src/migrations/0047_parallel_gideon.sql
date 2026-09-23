@@ -1,0 +1,1 @@
+ALTER TABLE "work_priority_metric_value" ADD CONSTRAINT "work_priority_metric_value_project_work_fk" FOREIGN KEY ("project_id","work_id") REFERENCES "public"."work"("project_id","id") ON DELETE cascade ON UPDATE no action;

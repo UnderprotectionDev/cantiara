@@ -1,5 +1,6 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { project as projectTable } from "@cantiara/db/schema/project";
 import { eq } from "drizzle-orm";
 import {
@@ -134,5 +135,52 @@ describeDatabase("Project Shell PostgreSQL integration", () => {
     } finally {
       await database.delete(user).where(eq(user.id, otherAccountId));
     }
+  });
+
+  test("prepares an independent default-off Evidence strength per opinionated Project", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const first = await projectShell.create(accountId, {
+      name: "Payment App",
+      starterConfiguration: "Solo SaaS",
+    });
+    const second = await projectShell.create(accountId, {
+      name: "Payment Reports",
+      starterConfiguration: "Mobile Application",
+    });
+    const blank = await projectShell.create(accountId, {
+      name: "Blank Project",
+      starterConfiguration: "Blank Project",
+    });
+    const firstMetrics = await database
+      .select()
+      .from(priorityMetricDefinition)
+      .where(eq(priorityMetricDefinition.projectId, first.id));
+    const secondMetrics = await database
+      .select()
+      .from(priorityMetricDefinition)
+      .where(eq(priorityMetricDefinition.projectId, second.id));
+    const blankMetrics = await database
+      .select()
+      .from(priorityMetricDefinition)
+      .where(eq(priorityMetricDefinition.projectId, blank.id));
+
+    expect(firstMetrics).toHaveLength(1);
+    expect(secondMetrics).toHaveLength(1);
+    expect(firstMetrics[0]).toMatchObject({
+      enabled: false,
+      name: "Evidence strength",
+      projectId: first.id,
+    });
+    expect(secondMetrics[0]).toMatchObject({
+      enabled: false,
+      name: "Evidence strength",
+      projectId: second.id,
+    });
+    expect(firstMetrics[0]?.id).not.toBe(secondMetrics[0]?.id);
+    expect(blankMetrics).toEqual([]);
   });
 });

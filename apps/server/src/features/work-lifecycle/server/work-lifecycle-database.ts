@@ -405,6 +405,8 @@ function createWorkMutationTarget(
           await customFieldValueWriter.apply(executor, {
             accountId,
             committedAt: input.committedAt,
+            idempotencyKey: input.idempotencyKey,
+            payloadFingerprint: input.payloadFingerprint,
             projectId: created.projectId,
             recordId: created.id,
             values: customFieldValues,

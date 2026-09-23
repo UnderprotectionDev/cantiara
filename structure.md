@@ -86,6 +86,7 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── priority-metrics/
 │   │   │   │   ├── record-actions/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── relations/
@@ -138,6 +139,9 @@
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-account-sessions.ts
 │       │   │   │   ├── lib/
+│       │   │   │   │   ├── github-identity-confirmation.test.ts
+│       │   │   │   │   ├── github-identity-confirmation.ts
+│       │   │   │   │   ├── github-identity-grant-events.ts
 │       │   │   │   │   ├── github-sign-in-url.test.ts
 │       │   │   │   │   ├── github-sign-in-url.ts
 │       │   │   │   │   ├── tauri-session.test.ts
@@ -207,6 +211,14 @@
 │       │   │   │           └── custom-field-editor.tsx
 │       │   │   │           ├── custom-field-values-form.test.tsx
 │       │   │   │           └── custom-field-values-form.tsx
+│       │   │   ├── priority-metrics/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-priority-metrics.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── priority-metric-editor.test.tsx
+│       │   │   │           ├── priority-metric-editor.tsx
+│       │   │   │           └── priority-metric-values-form.tsx
 │       │   │   ├── relations/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -381,6 +393,8 @@
 │   │   │   ├── file-attachments.ts
 │   │   │   ├── custom-fields.test.ts
 │   │   │   ├── custom-fields.ts
+│   │   │   ├── priority-metrics.test.ts
+│   │   │   ├── priority-metrics.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
 │   │   │   ├── index.ts
@@ -426,6 +440,7 @@
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
+│   │   │   │   ├── priority-metrics.ts
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
@@ -467,6 +482,8 @@
 Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).
 
 File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).
+
+Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).
 
