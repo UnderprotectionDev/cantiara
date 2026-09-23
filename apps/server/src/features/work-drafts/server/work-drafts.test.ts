@@ -187,6 +187,7 @@ function createWorkLifecycleStub(): WorkLifecycleAccess {
     scopeTree: vi.fn(),
     unarchive: vi.fn(),
     undoMerge: vi.fn(),
+    undoStatus: vi.fn(),
     updateFeaturePrimarySpec: vi.fn(),
     updateChecklist: vi.fn(),
     updateStatus: vi.fn(),

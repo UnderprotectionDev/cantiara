@@ -388,24 +388,34 @@ function createMemoryWorkLifecycle(
     } else if ("undo" in mutationOptions) {
       candidate = mutationOptions.undo;
     }
-    if (
-      !candidate ||
-      typeof candidate !== "object" ||
-      !("kind" in candidate) ||
-      candidate.kind !== "merge" ||
-      !("merge" in candidate)
-    ) {
+    if (!candidate || typeof candidate !== "object" || !("kind" in candidate)) {
       return;
     }
-    return {
-      after: {},
-      afterPresent: true,
-      before: {},
-      beforePresent: true,
-      kind: "merge" as const,
-      merge: candidate.merge,
-      scope: "$",
-    } as MutationReceipt<WorkLifecycleMutationValue>["undo"];
+    if (candidate.kind === "merge" && "merge" in candidate) {
+      return {
+        after: {},
+        afterPresent: true,
+        before: {},
+        beforePresent: true,
+        kind: "merge" as const,
+        merge: candidate.merge,
+        scope: "$",
+      } as MutationReceipt<WorkLifecycleMutationValue>["undo"];
+    }
+    if (
+      candidate.kind === "atomic-transform" &&
+      "scope" in candidate &&
+      typeof candidate.scope === "string"
+    ) {
+      return {
+        after: null,
+        afterPresent: true,
+        before: null,
+        beforePresent: true,
+        kind: "atomic-transform" as const,
+        scope: candidate.scope,
+      };
+    }
   }
 
   async function applyMergedState(
@@ -2801,6 +2811,35 @@ describe("Work Lifecycle seam", () => {
     },
   );
 
+  test("replays a status update with the original undo receipt", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("status-replay-create"),
+    );
+    const input = {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "status-replay",
+      status: "In Progress" as const,
+      workId: work.id,
+    };
+
+    const first = await workLifecycle.updateStatus(
+      "account-1",
+      input,
+      VISIBLE_USER,
+    );
+    const replay = await workLifecycle.updateStatus(
+      "account-1",
+      input,
+      VISIBLE_USER,
+    );
+
+    expect(first.receiptId).toBeTruthy();
+    expect(replay.receiptId).toBe(first.receiptId);
+    expect(replay.revision).toBe(first.revision);
+  });
+
   test("rejects Closed when a planning-style status write skips the close step", async () => {
     const workLifecycle = createMemoryWorkLifecycle();
     const work = await workLifecycle.create(
@@ -2910,6 +2949,41 @@ describe("Work Lifecycle seam", () => {
       });
     },
   );
+
+  test("undoes a close receipt and restores the prior lifecycle fields", async () => {
+    const workLifecycle = createMemoryWorkLifecycle();
+    const work = await workLifecycle.create(
+      "account-1",
+      createInput("status-undo-close-create"),
+    );
+    const closed = await workLifecycle.close(
+      "account-1",
+      {
+        baseRevision: work.revision,
+        clientIdempotencyKey: "status-undo-close",
+        closureResult: "Abandoned",
+        reason: "The dependency was removed.",
+        workId: work.id,
+      },
+      VISIBLE_USER,
+    );
+    if (!closed.receiptId) {
+      throw new Error("The close did not return its mutation receipt.");
+    }
+
+    const restored = await workLifecycle.undoStatus("account-1", {
+      baseRevision: closed.revision,
+      clientIdempotencyKey: "status-undo-close-undo",
+      receiptId: closed.receiptId,
+      workId: work.id,
+    });
+
+    expect(restored).toMatchObject({
+      closureReason: null,
+      closureResult: null,
+      status: "Not Started",
+    });
+  });
 
   test("replays a close for the same client idempotency key", async () => {
     const workLifecycle = createMemoryWorkLifecycle();

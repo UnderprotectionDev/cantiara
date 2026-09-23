@@ -75,6 +75,7 @@ function createWorkLifecycleStub(
     recreate: vi.fn(),
     resolve: vi.fn(),
     undoMerge: vi.fn(),
+    undoStatus: vi.fn(),
     ...overrides,
   };
 }
@@ -114,6 +115,7 @@ describe("Work Lifecycle RPC", () => {
     const close = vi.fn().mockResolvedValue({
       ...work,
       closureResult: "Completed",
+      receiptId: "receipt-close",
       status: "Closed",
     });
     const create = vi.fn().mockResolvedValue(work);
@@ -128,10 +130,12 @@ describe("Work Lifecycle RPC", () => {
     });
     const reopen = vi.fn().mockResolvedValue({
       ...work,
+      receiptId: "receipt-reopen",
       status: "In Progress",
     });
     const updateStatus = vi.fn().mockResolvedValue({
       ...work,
+      receiptId: "receipt-status",
       status: "In Progress",
     });
     const previewRecreate = vi.fn().mockResolvedValue({
@@ -190,6 +194,7 @@ describe("Work Lifecycle RPC", () => {
     });
     const resolve = vi.fn().mockResolvedValue({ kind: "Active", work });
     const undoMerge = vi.fn().mockResolvedValue(work);
+    const undoStatus = vi.fn().mockResolvedValue(work);
     const updateChecklist = vi.fn().mockResolvedValue({
       ...work,
       checklist: [
@@ -294,6 +299,7 @@ describe("Work Lifecycle RPC", () => {
       updateType: vi.fn().mockResolvedValue({ ...work, type: "Bug" }),
       unarchive,
       undoMerge,
+      undoStatus,
     });
     const client = createRouterClient(appRouter, {
       context: createContext(workLifecycle),
@@ -562,6 +568,20 @@ describe("Work Lifecycle RPC", () => {
         workId: work.id,
       }),
     ).resolves.toMatchObject({ status: "In Progress" });
+    await expect(
+      client.undoWorkStatus({
+        baseRevision: work.revision + 1,
+        clientIdempotencyKey: "work-status-undo-1",
+        receiptId: "receipt-status",
+        workId: work.id,
+      }),
+    ).resolves.toEqual(work);
+    expect(undoStatus).toHaveBeenCalledWith("account-1", {
+      baseRevision: work.revision + 1,
+      clientIdempotencyKey: "work-status-undo-1",
+      receiptId: "receipt-status",
+      workId: work.id,
+    });
     expect(updateStatus).toHaveBeenCalledWith(
       "account-1",
       expect.objectContaining({ status: "In Progress", workId: work.id }),

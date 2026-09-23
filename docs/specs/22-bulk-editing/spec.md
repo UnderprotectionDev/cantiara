@@ -8,7 +8,7 @@ Kurucu liste, Kanban, Akıllı Koleksiyon ve benzeri çok kayıtlı yüzeylerde 
 
 ## Solution
 
-Kurucu açıkça seçtiği İşlerde mevcut alanları fark önizlemesi, ilerleme ve kayıt bazlı sonuçla günceller. Seçilmeyen kayıt dokunulmaz. UI donmadan ilk ilerleme bütçe içinde görünür. Her İş için başarı veya başarısızlık görünür; gizli kısmi başarı yoktur. Geri alınabilir alan değişiklikleri ortak undo sözleşmesini kullanır. İlk ürün tekrar kullanılabilir çok kayıtlı eylem düğmeleri sunmaz.
+Kurucu açıkça seçtiği İşlerde mevcut alanları fark önizlemesi, ilerleme ve kayıt bazlı sonuçla günceller. Seçilmeyen kayıt dokunulmaz. UI donmadan ilk ilerleme bütçe içinde görünür. Her İş için başarı, başarısızlık veya iptal sonucu görünür; gizli kısmi başarı yoktur. Geri alınabilir alan değişiklikleri ortak undo sözleşmesini kullanır ve yalnızca kendi kapsamındaki alanları geri yükler. İlk ürün tekrar kullanılabilir çok kayıtlı eylem düğmeleri sunmaz.
 
 ## User Stories
 
@@ -43,20 +43,20 @@ Kurucu açıkça seçtiği İşlerde mevcut alanları fark önizlemesi, ilerleme
 - **Glossary.** Use İş, Liste görünümü, Kanban, Akıllı Koleksiyon. Avoid: select-all-unspecified, schema migration, import, record-action catalog, silent partial.
 - **Selection.** Only explicitly selected Work on list, Kanban, Smart Collection, import-result, and similar multi-record surfaces. No selection-less “all records” write. Unselected rows are untouched.
 - **Existing fields.** Bulk updates existing fields only. No new field definitions, schema migration, or record creation.
-- **Preview, progress, results.** Show the field change preview, then progress without freezing UI, then per-record success/failure. Every selected Work has a visible result. First progress indicator meets the bulk budget. Cancel is allowed only before the defined commit barrier; after barrier show `Finalizing`.
-- **Per-record atomicity.** Each Work apply is an idempotent command with base revision. A conflict on one record fails that record visibly and does not last-write-win. Other selected records may still succeed; that is not silent because results are listed. Undo for reversible field changes uses the common contract and must not rewind unrelated later edits.
+- **Preview, progress, results.** Show the field change preview, then progress without freezing UI, then per-record `Succeeded`, `Failed`, or `Canceled` results. Every selected Work has a visible result. First progress indicator meets the bulk budget. Cancel stops queued writes before their commit barrier; already-dispatched writes settle under `Finalizing`. Keep operation progress and results in the Bulk Editing store so they remain visible after SPA route navigation and return.
+- **Per-record atomicity.** Each Work apply is an idempotent command with base revision. A conflict on one record fails that record visibly and does not last-write-win. Other selected records may still succeed; that is not silent because results are listed. Successful reversible status changes expose `Undo` from their receipt. Undo uses the common contract, restores status and closure fields, and must not rewind unrelated later edits. A successful undo is shown as `Undone`.
 - **Lifecycle hooks.** Status-to-`Closed` must still collect close result (`Completed`/`Abandoned`) via the lifecycle close step; bulk cannot skip it. This feature invokes that rule rather than owning close UX long-term.
 - **Not 21 / 80.** Named multi-step catalog stays Record Actions. Import stays 80. No reusable multi-record action buttons.
-- **English UI labels.** `Bulk Edit` plus progress/result copy in English. Add missing labels to the term table in the same change.
+- **English UI labels.** `Bulk Edit` plus progress/result copy in English. Results include `Succeeded`, `Failed`, `Canceled`, and `Undone`; failures show a safe `Support reference`. Add missing labels to the term table in the same change.
 - **Stack.** TanStack Table/virtual for large selections. pg-boss if a large job must progress asynchronously; first progress still meets budget. No new spreadsheet product.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Bulk Editing through its public interface: selection, preview, progress, per-record results, unselected untouched, conflict on one record, cancel-before-barrier. They do not assert job table internals.
+- **What a good test is.** Tests observe Bulk Editing through its public interface: selection, preview, progress, per-record results, unselected untouched, conflict and support reference on one record, per-record Undo, cancellation of queued work, and progress/results after route return. They do not assert job table internals.
 - **Seam (one).** Bulk Editing — the product-facing selected-Work field update interface. Record Actions and import are counterparts. Playwright for Mutasyon sözleşmesi / list surfaces is this seam through the UI.
 - **Modules under test.** Bulk Editing only.
 - **Prior art.** Contract tests at this seam. Evidence: [Mutasyon sözleşmesi](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (concurrent/stale writes) and [günlük planlama](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) when Kanban selection is used. Reference Workspace size for progress budget.
-- **Required counterparts.** Unselected untouched; no silent failures; stale revision fails that row; schema/import UI absent; Record Action catalog absent.
+- **Required counterparts.** Unselected untouched; no silent failures; stale revision fails that row with a safe support reference; Undo preserves later unrelated values; canceled queued rows never write; route return restores progress/results; schema/import UI absent; Record Action catalog absent.
 
 ## Out of Scope
 

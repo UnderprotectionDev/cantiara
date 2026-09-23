@@ -120,6 +120,7 @@
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
+│       │   ├── bulk-editing.e2e.ts
 │       │   ├── account-preferences.e2e.ts
 │       │   ├── completion-effects.e2e.ts
 │       │   ├── prioritization-sessions.e2e.ts
@@ -144,6 +145,10 @@
 │       │   │   ├── theme-provider.tsx
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
+│       │   │   ├── bulk-editing/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           └── bulk-edit-dialog.tsx
 │       │   │   ├── account-access/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-account-sessions.ts
@@ -532,6 +537,8 @@ Backlog order and Prioritization Sessions are separate Project-scoped sources of
 
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).
+
+Bulk Editing owns explicit Work selection, status preview/apply UI, and in-memory operation progress under `apps/web/src/features/bulk-editing/`; it uses the Work Lifecycle API for status changes and safe Undo receipts.
 
 Daily Focus membership persistence is owned by the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`); Record Actions consumes that membership through its atomic write boundary.
 

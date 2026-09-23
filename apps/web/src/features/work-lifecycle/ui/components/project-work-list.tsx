@@ -20,6 +20,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useBulkWorkSelection } from "@/features/bulk-editing/hooks/use-bulk-work-selection";
+import BulkEditDialog, {
+  WorkSelectionCheckbox,
+} from "@/features/bulk-editing/ui/components/bulk-edit-dialog";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import {
@@ -57,6 +61,9 @@ export default function ProjectWorkList({
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const handledWorkHash = useRef<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const { clearSelection, selectedWorkIds, setWorkSelected } =
+    useBulkWorkSelection();
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [lastMergeResult, setLastMergeResult] =
     useState<WorkMergeResult | null>(null);
   const [mergeUndoError, setMergeUndoError] = useState<string | null>(null);
@@ -73,6 +80,8 @@ export default function ProjectWorkList({
       input: { archived: "all", projectId },
     }),
   );
+  const selectedWorks =
+    query.data?.filter((work) => selectedWorkIds.has(work.id)) ?? [];
   useEffect(() => {
     if (!allProjectWorksQuery.data) {
       return;
@@ -177,15 +186,35 @@ export default function ProjectWorkList({
     <div className="mt-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-b pb-3">
         <h3 className="font-medium text-sm">Work records</h3>
-        <Button
-          aria-pressed={showArchived}
-          onClick={() => setShowArchived((current) => !current)}
-          size="sm"
-          type="button"
-          variant={showArchived ? "secondary" : "outline"}
-        >
-          Archived
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {selectedWorks.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs">
+                {selectedWorks.length} selected
+              </span>
+              <Button
+                onClick={() => setIsBulkEditOpen(true)}
+                size="sm"
+                type="button"
+              >
+                Bulk Edit
+              </Button>
+            </div>
+          ) : null}
+          <Button
+            aria-pressed={showArchived}
+            onClick={() => {
+              clearSelection();
+              setIsBulkEditOpen(false);
+              setShowArchived((current) => !current);
+            }}
+            size="sm"
+            type="button"
+            variant={showArchived ? "secondary" : "outline"}
+          >
+            Archived
+          </Button>
+        </div>
       </div>
       {recordActionRunner.actionsError ? (
         <p className="text-destructive text-sm" role="alert">
@@ -227,10 +256,19 @@ export default function ProjectWorkList({
               key={work.id}
             >
               <div className="flex min-w-0 items-start justify-between gap-4">
-                <p className="min-w-0 font-medium text-sm">
-                  <span className="text-muted-foreground">{work.key}</span>{" "}
-                  {work.title}
-                </p>
+                <div className="flex min-w-0 items-start gap-3">
+                  <WorkSelectionCheckbox
+                    checked={selectedWorkIds.has(work.id)}
+                    onCheckedChange={(checked) =>
+                      setWorkSelected(work.id, checked)
+                    }
+                    workKey={work.key}
+                  />
+                  <p className="min-w-0 font-medium text-sm">
+                    <span className="text-muted-foreground">{work.key}</span>{" "}
+                    {work.title}
+                  </p>
+                </div>
               </div>
               <WorkContextCard
                 projectWorks={allProjectWorksQuery.data ?? query.data}
@@ -316,6 +354,14 @@ export default function ProjectWorkList({
           ))}
         </ul>
       )}
+      <BulkEditDialog
+        archived={showArchived}
+        onOpenChange={setIsBulkEditOpen}
+        open={isBulkEditOpen}
+        projectId={projectId}
+        selectedWorks={selectedWorks}
+        workStatusLabels={workStatusLabels}
+      />
       <RecordActionRunDialog runner={recordActionRunner} />
     </div>
   );

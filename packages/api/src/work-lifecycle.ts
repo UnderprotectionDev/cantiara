@@ -464,6 +464,15 @@ export const undoWorkMergeInputSchema = z
   })
   .strict();
 
+export const undoWorkStatusInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    receiptId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
 export const workIdentityInputSchema = z.union([
   z.object({ workId: identifierSchema }).strict(),
   z
@@ -477,6 +486,7 @@ export const workIdentityInputSchema = z.union([
 export type WorkMergePreviewInput = z.input<typeof workMergePreviewInputSchema>;
 export type MergeWorkInput = z.input<typeof mergeWorkInputSchema>;
 export type UndoWorkMergeInput = z.input<typeof undoWorkMergeInputSchema>;
+export type UndoWorkStatusInput = z.input<typeof undoWorkStatusInputSchema>;
 export type WorkIdentityInput = z.input<typeof workIdentityInputSchema>;
 
 export interface WorkRecreateFieldPreview {
@@ -676,6 +686,10 @@ export interface WorkProfile {
   updatedAt: string;
 }
 
+export interface WorkStatusMutationResult extends WorkProfile {
+  receiptId: string | null;
+}
+
 export interface WorkChecklistConversionPreview {
   item: Pick<WorkChecklistItem, "id" | "text">;
   newWork: {
@@ -796,7 +810,7 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: CloseWorkInput,
     initiator: WorkVisibleUserInitiator,
-  ) => Promise<WorkProfile>;
+  ) => Promise<WorkStatusMutationResult>;
   convertChecklistItem: (
     accountId: string,
     input: ConvertWorkChecklistItemInput,
@@ -860,7 +874,7 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: ReopenWorkInput,
     initiator: WorkVisibleUserInitiator,
-  ) => Promise<WorkProfile>;
+  ) => Promise<WorkStatusMutationResult>;
   replayBindOriginPosition: (
     accountId: string,
     input: BindWorkOriginPositionInput,
@@ -878,6 +892,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: UndoWorkMergeInput,
   ) => Promise<WorkProfile>;
+  undoStatus: (
+    accountId: string,
+    input: UndoWorkStatusInput,
+  ) => Promise<WorkProfile>;
   updateChecklist: (
     accountId: string,
     input: UpdateWorkChecklistInput,
@@ -890,7 +908,7 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: UpdateWorkStatusInput,
     initiator: WorkVisibleUserInitiator,
-  ) => Promise<WorkProfile>;
+  ) => Promise<WorkStatusMutationResult>;
   updateType: (
     accountId: string,
     input: UpdateWorkTypeInput,
