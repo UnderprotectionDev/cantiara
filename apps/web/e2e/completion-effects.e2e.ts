@@ -222,9 +222,6 @@ test("shares Completion Effects preferences with an authenticated Tauri client",
         const headers = new Headers(
           input instanceof Request ? input.headers : undefined,
         );
-        new Headers(init?.headers).forEach((value, key) => {
-          headers.set(key, value);
-        });
         headers.set("authorization", `Bearer ${setup.tauriBearerToken}`);
         headers.set(DESKTOP_API_CONTRACT_HEADER, DESKTOP_API_CURRENT_CONTRACT);
         headers.set("origin", "http://tauri.localhost");
