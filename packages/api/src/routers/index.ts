@@ -104,10 +104,13 @@ import {
 } from "../project-shell";
 import type { RecordActionsAccess } from "../record-actions";
 import {
+  applyRecordActionInputSchema,
   createRecordActionInputSchema,
   createRecordActionMutationInputSchema,
+  previewRecordActionInputSchema,
   recordActionsInputSchema,
   trashRecordActionMutationInputSchema,
+  undoRecordActionInputSchema,
   updateRecordActionInputSchema,
   updateRecordActionMutationInputSchema,
 } from "../record-actions";
@@ -353,6 +356,30 @@ function rethrowRecordActionError(error: unknown): never {
       data: { code: error.code },
       defined: true,
       message: "Record Action changed. Reload and try again.",
+    });
+  }
+
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code },
+      defined: true,
+      message: "Conflict",
+    });
+  }
+
+  if (error.code === "STALE_BASE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Work changed. Start the Record Action again to review it.",
+    });
+  }
+
+  if (error.code === "UNDO_NOT_SUPPORTED") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: { code: error.code },
+      defined: true,
+      message: "Record Action could not be undone safely.",
     });
   }
 
@@ -1787,6 +1814,45 @@ export const appRouter = {
         });
       }
       return actions;
+    }),
+  previewRecordAction: protectedProcedure
+    .input(previewRecordActionInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requireRecordActions(context).preview(
+        context.session.user.id,
+        input,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Record Action or Work is unavailable.",
+        });
+      }
+      return preview;
+    }),
+  applyRecordAction: protectedProcedure
+    .input(applyRecordActionInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireRecordActions(context).apply(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowRecordActionError(error);
+      }
+    }),
+  undoRecordAction: protectedProcedure
+    .input(undoRecordActionInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireRecordActions(context).undo(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowRecordActionError(error);
+      }
     }),
   createRecordAction: protectedProcedure
     .input(createRecordActionMutationInputSchema)
