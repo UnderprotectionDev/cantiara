@@ -6,6 +6,7 @@ const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
 const TYPE_FIELD_PATTERN = /Type:/;
 const WORK_HASH_PATTERN = /#work-/;
 const WORK_STATUS_COMBOBOX_NAME = /Status for/;
+const WORK_LIST_NAME = /^(?:Archived )?Work list$/;
 const CHECKLIST_REGION_NAME = /Checklist for/;
 const CHECKLIST_NEW_ITEM_LABEL = /New item for/;
 const CHECKLIST_FIRST_ITEM_LABEL = /Item 1 for/;
@@ -14,9 +15,10 @@ const DOCUMENT_FALLBACK_CHECKBOX_NAME = /Mark Document the fallback/;
 const CONFIRM_COPY_CHECKBOX_NAME = /Mark Confirm the final copy/;
 
 function workListItem(page: Page, title: string) {
-  return page.getByRole("listitem").filter({
-    has: page.locator("p").filter({ hasText: title }),
-  });
+  return page
+    .getByRole("list", { name: WORK_LIST_NAME })
+    .getByRole("listitem")
+    .filter({ has: page.locator("p").filter({ hasText: title }) });
 }
 
 const PREPARED_LAYOUT_MATRIX = {
