@@ -422,6 +422,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlgili iş | `Related Work` | Research hazır İş Bağlam Kartı bölümü |
 | Mevcut durum | `Current Situation` | Improvement hazır İş Bağlam Kartı bölümü |
 | Öncelik ölçütü | `Priority metrics` | İş önceliğini ifade eden Proje yapılandırması; skaler öncelik alanı değildir |
+| Öncelik ölçütü ekle | `Add metric` | Proje'ye bağımsız öncelik ölçütü tanımı ekleme eylemi |
+| Kısa açıklama | `Short description` | Öncelik ölçütünün kapsamını anlatan kısa metin |
+| Kademe açıklamaları | `Rank descriptions` | Beş sabit öncelik kademesinin Proje bazında düzenlenebilir açıklamaları |
+| Ölçütü devre dışı bırak | `Disable` | Öncelik ölçütünü silmeden Work değerleri için kullanılamaz duruma getirme |
 | Öncelik kademesi | `Very low`, `Low`, `Medium`, `High`, `Very high` | Beş sabit sıralı düzey; boş durum bu beşin dışındadır |
 | Değerlendirilmemiş | `Unevaluated` | Eksen veya ölçüt değeri henüz seçilmemiş İş |
 | Kanıt gücü | `Evidence strength` | Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü |

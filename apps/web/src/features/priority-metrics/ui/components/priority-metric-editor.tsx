@@ -14,6 +14,7 @@ import {
 } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import { requestGitHubIdentityGrant } from "@/features/account-access/lib/github-identity-confirmation";
 
@@ -448,7 +449,6 @@ export default function PriorityMetricEditor({
 }) {
   const { create, deletePermanently, query, restore, trash, update } =
     usePriorityMetrics(projectId);
-  const [draft, setDraft] = useState<PriorityMetricDraft>(EMPTY_DRAFT);
   const [formError, setFormError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -468,26 +468,34 @@ export default function PriorityMetricEditor({
     deletePermanently.isPending ||
     confirmationPending;
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+  const createForm = useForm({
+    defaultValues: EMPTY_DRAFT,
+    onSubmit: async ({ value }) => {
+      const parsed = createPriorityMetricInputSchema.safeParse({
+        ...value,
+        projectId,
+      });
+      if (!parsed.success) {
+        setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
+        return;
+      }
+      setFormError(null);
+      setActionError(null);
+      try {
+        await create.mutateAsync(parsed.data);
+        createForm.reset();
+      } catch (error) {
+        setActionError(
+          errorMessage(error, "Priority metric could not be created."),
+        );
+      }
+    },
+  });
+
+  function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const parsed = createPriorityMetricInputSchema.safeParse({
-      ...draft,
-      projectId,
-    });
-    if (!parsed.success) {
-      setFormError(parsed.error.issues[0]?.message ?? "Check the form.");
-      return;
-    }
-    setFormError(null);
-    setActionError(null);
-    try {
-      await create.mutateAsync(parsed.data);
-      setDraft(EMPTY_DRAFT);
-    } catch (error) {
-      setActionError(
-        errorMessage(error, "Priority metric could not be created."),
-      );
-    }
+    event.stopPropagation();
+    createForm.handleSubmit().catch(() => undefined);
   }
 
   async function requestDeleteConfirmation() {
@@ -711,59 +719,69 @@ export default function PriorityMetricEditor({
       >
         <h5 className="font-medium text-sm">Add metric</h5>
         <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="priority-metric-name">Name</FieldLabel>
-            <Input
-              disabled={disabled || create.isPending}
-              id="priority-metric-name"
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-              value={draft.name}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="priority-metric-short-description">
-              Short description
-            </FieldLabel>
-            <Textarea
-              disabled={disabled || create.isPending}
-              id="priority-metric-short-description"
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  shortDescription: event.target.value,
-                }))
-              }
-              value={draft.shortDescription}
-            />
-          </Field>
-          <RankDescriptionsFields
-            disabled={disabled || create.isPending}
-            idPrefix="priority-metric-new"
-            onChange={(rank, value) =>
-              setDraft((current) => ({
-                ...current,
-                rankDescriptions: {
-                  ...current.rankDescriptions,
-                  [rank]: value,
-                },
-              }))
-            }
-            rankDescriptions={draft.rankDescriptions}
-          />
+          <createForm.Field name="name">
+            {(field) => (
+              <Field>
+                <FieldLabel htmlFor="priority-metric-name">Name</FieldLabel>
+                <Input
+                  disabled={disabled || create.isPending}
+                  id="priority-metric-name"
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </createForm.Field>
+          <createForm.Field name="shortDescription">
+            {(field) => (
+              <Field>
+                <FieldLabel htmlFor="priority-metric-short-description">
+                  Short description
+                </FieldLabel>
+                <Textarea
+                  disabled={disabled || create.isPending}
+                  id="priority-metric-short-description"
+                  name={field.name}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </createForm.Field>
+          <createForm.Subscribe
+            selector={(state) => state.values.rankDescriptions}
+          >
+            {(rankDescriptions) => (
+              <RankDescriptionsFields
+                disabled={disabled || create.isPending}
+                idPrefix="priority-metric-new"
+                onChange={(rank, value) =>
+                  createForm.setFieldValue("rankDescriptions", {
+                    ...rankDescriptions,
+                    [rank]: value,
+                  })
+                }
+                rankDescriptions={rankDescriptions}
+              />
+            )}
+          </createForm.Subscribe>
         </FieldGroup>
         {formError ? (
           <p className="text-destructive text-sm" role="alert">
             {formError}
           </p>
         ) : null}
-        <Button disabled={disabled || create.isPending} type="submit">
-          Add metric
-        </Button>
+        <createForm.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
+            <Button
+              disabled={disabled || create.isPending || isSubmitting}
+              type="submit"
+            >
+              Add metric
+            </Button>
+          )}
+        </createForm.Subscribe>
       </form>
     </div>
   );
@@ -790,27 +808,35 @@ function PriorityMetricRow({
   onSave: (draft: PriorityMetricDraft) => Promise<boolean>;
   onToggleEnabled: () => Promise<void>;
 }) {
-  const [draft, setDraft] = useState(() => draftFromMetric(metric));
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsed = createPriorityMetricInputSchema.safeParse({
-      ...draft,
-      projectId: metric.projectId,
-    });
-    if (!parsed.success) {
-      setValidationError(parsed.error.issues[0]?.message ?? "Check the form.");
-      return;
-    }
-    setValidationError(null);
-    if (await onSave(parsed.data)) {
-      setDraft({
-        name: parsed.data.name,
-        rankDescriptions: parsed.data.rankDescriptions,
-        shortDescription: parsed.data.shortDescription,
+  const editForm = useForm({
+    defaultValues: draftFromMetric(metric),
+    onSubmit: async ({ value }) => {
+      const parsed = createPriorityMetricInputSchema.safeParse({
+        ...value,
+        projectId: metric.projectId,
       });
-    }
+      if (!parsed.success) {
+        setValidationError(
+          parsed.error.issues[0]?.message ?? "Check the form.",
+        );
+        return;
+      }
+      setValidationError(null);
+      if (await onSave(parsed.data)) {
+        editForm.reset({
+          name: parsed.data.name,
+          rankDescriptions: parsed.data.rankDescriptions,
+          shortDescription: parsed.data.shortDescription,
+        });
+      }
+    },
+  });
+
+  function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    editForm.handleSubmit().catch(() => undefined);
   }
 
   return (
@@ -838,7 +864,7 @@ function PriorityMetricRow({
           <Button
             disabled={disabled}
             onClick={() => {
-              setDraft(draftFromMetric(metric));
+              editForm.reset(draftFromMetric(metric));
               setValidationError(null);
               onEdit();
             }}
@@ -867,52 +893,57 @@ function PriorityMetricRow({
           onSubmit={handleSave}
         >
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={`priority-metric-name-${metric.id}`}>
-                Name
-              </FieldLabel>
-              <Input
-                disabled={disabled}
-                id={`priority-metric-name-${metric.id}`}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                value={draft.name}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={`priority-metric-description-${metric.id}`}>
-                Short description
-              </FieldLabel>
-              <Textarea
-                disabled={disabled}
-                id={`priority-metric-description-${metric.id}`}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    shortDescription: event.target.value,
-                  }))
-                }
-                value={draft.shortDescription}
-              />
-            </Field>
-            <RankDescriptionsFields
-              disabled={disabled}
-              idPrefix={`priority-metric-${metric.id}`}
-              onChange={(rank, value) =>
-                setDraft((current) => ({
-                  ...current,
-                  rankDescriptions: {
-                    ...current.rankDescriptions,
-                    [rank]: value,
-                  },
-                }))
-              }
-              rankDescriptions={draft.rankDescriptions}
-            />
+            <editForm.Field name="name">
+              {(field) => (
+                <Field>
+                  <FieldLabel htmlFor={`priority-metric-name-${metric.id}`}>
+                    Name
+                  </FieldLabel>
+                  <Input
+                    disabled={disabled}
+                    id={`priority-metric-name-${metric.id}`}
+                    name={field.name}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
+                </Field>
+              )}
+            </editForm.Field>
+            <editForm.Field name="shortDescription">
+              {(field) => (
+                <Field>
+                  <FieldLabel
+                    htmlFor={`priority-metric-description-${metric.id}`}
+                  >
+                    Short description
+                  </FieldLabel>
+                  <Textarea
+                    disabled={disabled}
+                    id={`priority-metric-description-${metric.id}`}
+                    name={field.name}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
+                </Field>
+              )}
+            </editForm.Field>
+            <editForm.Subscribe
+              selector={(state) => state.values.rankDescriptions}
+            >
+              {(rankDescriptions) => (
+                <RankDescriptionsFields
+                  disabled={disabled}
+                  idPrefix={`priority-metric-${metric.id}`}
+                  onChange={(rank, value) =>
+                    editForm.setFieldValue("rankDescriptions", {
+                      ...rankDescriptions,
+                      [rank]: value,
+                    })
+                  }
+                  rankDescriptions={rankDescriptions}
+                />
+              )}
+            </editForm.Subscribe>
           </FieldGroup>
           {validationError ? (
             <p className="text-destructive text-sm" role="alert">

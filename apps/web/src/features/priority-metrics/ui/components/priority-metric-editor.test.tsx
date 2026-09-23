@@ -79,6 +79,9 @@ describe("Priority metric editor", () => {
     expect(html).toContain("Evidence strength");
     expect(html).toContain("Disabled");
     expect(html).toContain(">Enable<");
+    expect(html).toContain("Add metric");
+    expect(html).toContain("Short description");
+    expect(html).toContain("Rank descriptions");
     expect(html).toContain("Move to Trash");
     for (const forbidden of [
       "Score",
@@ -88,6 +91,12 @@ describe("Priority metric editor", () => {
     ]) {
       expect(html).not.toContain(forbidden);
     }
+  });
+
+  test("shows Disable for an enabled criterion", () => {
+    const html = renderEditor([{ ...metric, enabled: true }]);
+
+    expect(html).toContain(">Disable<");
   });
 
   test("offers restore and permanent delete for trashed metrics", () => {

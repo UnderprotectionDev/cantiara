@@ -137,6 +137,9 @@
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-account-sessions.ts
 │       │   │   │   ├── lib/
+│       │   │   │   │   ├── github-identity-confirmation.test.ts
+│       │   │   │   │   ├── github-identity-confirmation.ts
+│       │   │   │   │   ├── github-identity-grant-events.ts
 │       │   │   │   │   ├── github-sign-in-url.test.ts
 │       │   │   │   │   ├── github-sign-in-url.ts
 │       │   │   │   │   ├── tauri-session.test.ts
