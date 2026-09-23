@@ -32,6 +32,9 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
+import { createPriorityMetricsAccess } from "../src/features/priority-metrics/server/priority-metrics";
+import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/server/priority-metrics-database";
+import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
@@ -75,6 +78,11 @@ const captureInboxMutationContract = createDatabaseMutationContract(database, {
 const projectShell = createDatabaseProjectShell(database);
 const projectShellMutationContracts =
   createDatabaseProjectShellMutationContracts(database);
+const priorityMetrics = createPriorityMetricsAccess(
+  createDatabasePriorityMetrics(database),
+);
+const priorityMetricMutationContracts =
+  createDatabasePriorityMetricMutationContracts(database);
 const tags = createDatabaseTags(database);
 const tagMutationContracts = createDatabaseTagMutationContracts(database);
 const customFields = createDatabaseCustomFields(database);
@@ -86,7 +94,22 @@ const workLifecycle = createDatabaseWorkLifecycle(database, {
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
 const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
-const workContext = createWorkContextAccess(workLifecycle, relations);
+const workContext = createWorkContextAccess(workLifecycle, relations, {
+  priorityValues: async (accountId, work) => {
+    const values = await priorityMetrics.values(accountId, work.id);
+    return {
+      effort: work.effort,
+      priorityMetrics:
+        values?.map(({ definition, value }) => ({
+          id: definition.id,
+          name: definition.name,
+          projectId: definition.projectId,
+          value: value?.rank ?? null,
+        })) ?? [],
+      targetDate: work.targetDate,
+    };
+  },
+});
 const captureInbox = createDatabaseCaptureInbox(
   database,
   createCaptureInboxWorkCreate(workLifecycle),
@@ -182,6 +205,8 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
+  priorityMetricMutationContracts,
+  priorityMetrics,
   projectShell,
   projectShellMutationContracts,
   recordActions,
