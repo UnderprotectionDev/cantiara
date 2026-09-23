@@ -370,7 +370,8 @@
 │       │   │               └── workspace-overview.tsx
 │       │   ├── lib/
 │       │   │   ├── auth-client.ts
-│       │   │   └── clipboard.ts
+│       │   │   ├── clipboard.ts
+│       │   │   └── mutation-messages.ts
 │       │   ├── routes/
 │       │   │   ├── _auth/
 │       │   │   │   ├── account/

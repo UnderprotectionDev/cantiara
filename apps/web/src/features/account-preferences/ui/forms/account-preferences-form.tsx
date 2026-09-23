@@ -30,6 +30,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
 import { accountPreferencesQueryOptions, client } from "@/utils/orpc";
 import {
   formatAccountDateTime,
@@ -98,7 +99,7 @@ function saveStatusDescription(
     return "Reconnect to save.";
   }
   if (saveError?.code === "STALE_BASE_REVISION") {
-    return "This page is out of date. Refresh to load the current value.";
+    return STALE_BASE_REVISION_MESSAGE;
   }
   return "Try Save again.";
 }

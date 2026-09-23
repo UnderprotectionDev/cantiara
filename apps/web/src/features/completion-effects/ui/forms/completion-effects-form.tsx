@@ -24,6 +24,7 @@ import {
   useState,
 } from "react";
 
+import { STALE_BASE_REVISION_MESSAGE } from "@/lib/mutation-messages";
 import { client, completionEffectsPreferencesQueryOptions } from "@/utils/orpc";
 import {
   COMPLETION_EFFECT_MOTION_DESCRIPTIONS,
@@ -64,7 +65,7 @@ function getSaveErrorMessage(error: unknown) {
     "code" in error.data &&
     error.data.code === "STALE_BASE_REVISION"
   ) {
-    return "This page is out of date. Refresh to load the current value.";
+    return STALE_BASE_REVISION_MESSAGE;
   }
   return "Completion effects could not be saved. Refresh to try again.";
 }
