@@ -6,9 +6,12 @@ import type {
   ExternalExecutionHandoffsAccess,
 } from "@cantiara/api/external-handoffs";
 import {
+import {
+  externalExecutionHandoffProposedRelationSchema,
   externalExecutionHandoffSchema,
   externalExecutionHandoffStatusSchema,
   isTerminalExternalExecutionHandoffStatus,
+} from "@cantiara/api/external-handoffs";
 } from "@cantiara/api/external-handoffs";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
@@ -93,6 +96,20 @@ describe("External Execution Handoff RPC", () => {
     });
   });
 
+  test("accepts only Work targets in reconcile relation proposals", () => {
+    const nonWorkTargets = ["Decision", "Risk", "Document"];
+    const results = nonWorkTargets.map(
+      (recordType) =>
+        externalExecutionHandoffProposedRelationSchema.safeParse({
+          id: `relation-${recordType.toLowerCase()}`,
+          kind: "Related",
+          targetRecordType: recordType,
+          targetWorkId: `${recordType.toLowerCase()}-1`,
+        }).success,
+    );
+
+    expect(results).toEqual([false, false, false]);
+  });
 
   test("lists and starts a handoff through its owning Work", async () => {
     const access: ExternalExecutionHandoffsAccess = {

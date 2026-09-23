@@ -21,7 +21,10 @@ import {
   test,
 } from "vitest";
 
-import { createDatabaseExternalExecutionHandoffs } from "./external-handoffs-database";
+import {
+  createDatabaseExternalExecutionHandoffs,
+  ExternalExecutionHandoffReconcileUnavailableError,
+} from "./external-handoffs-database";
 import { createDatabaseRelations } from "../../relations/server/relations";
 
 const databaseUrl =
@@ -494,6 +497,99 @@ describeDatabase("External Execution Handoff seam", () => {
         handoffId: "handoff-return",
         occurredAt: "2026-09-23T12:30:00.000Z",
       }),
+    ]);
+  });
+
+  test("rejects owner, archived, and cross-Project relation targets", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      newId: () => "handoff-cross-project-relation",
+    });
+    const otherProjectId = `other-project-${crypto.randomUUID()}`;
+    const otherWorkId = `other-work-${crypto.randomUUID()}`;
+    const archivedWorkId = `archived-work-${crypto.randomUUID()}`;
+    await database.insert(work).values({
+      archivedAt: new Date("2026-09-22T00:00:00.000Z"),
+      id: archivedWorkId,
+      key: "EH-2",
+      number: 2,
+      projectId,
+      title: "Archived Work",
+      type: "Task",
+    });
+    await database.insert(project).values({
+      id: otherProjectId,
+      name: "Other Handoff Project",
+      shortCode: `OH-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
+    await database.insert(work).values({
+      id: otherWorkId,
+      key: "OH-1",
+      number: 1,
+      projectId: otherProjectId,
+      title: "Other project Work",
+      type: "Task",
+    });
+    const handoff = await recordReturnedHandoff(
+      handoffs,
+      accountId,
+      workId,
+      "handoff-cross-project-relation",
+    );
+    const planForTarget = (id: string, targetWorkId: string) => ({
+      followUpWorks: [],
+      handoffId: handoff.handoffId,
+      proposedRelations: [
+        {
+          id,
+          kind: "Related" as const,
+          targetWorkId,
+        },
+      ],
+    });
+    const crossProjectPlan = planForTarget(
+      "relation-cross-project",
+      otherWorkId,
+    );
+
+    await expect(handoffs.listRelatedWorks(accountId, workId)).resolves.toEqual(
+      [],
+    );
+    await expect(
+      handoffs.previewReconcile(
+        accountId,
+        planForTarget("relation-owner-work", workId),
+      ),
+    ).rejects.toThrow(ExternalExecutionHandoffReconcileUnavailableError);
+    await expect(
+      handoffs.previewReconcile(
+        accountId,
+        planForTarget("relation-archived-work", archivedWorkId),
+      ),
+    ).rejects.toThrow(ExternalExecutionHandoffReconcileUnavailableError);
+    await expect(
+      handoffs.previewReconcile(
+        accountId,
+        planForTarget("relation-cross-project", otherWorkId),
+      ),
+    ).rejects.toThrow(ExternalExecutionHandoffReconcileUnavailableError);
+    await expect(
+      handoffs.confirmReconcile(accountId, {
+        ...crossProjectPlan,
+        clientEventId: "confirm-cross-project-relation",
+        previewId: "unissued-preview",
+        selectedFollowUpWorkIds: [],
+        selectedRelationIds: ["relation-cross-project"],
+      }),
+    ).rejects.toThrow(ExternalExecutionHandoffReconcileUnavailableError);
+
+    await expect(listWorkRelations()).resolves.toEqual([]);
+    await expect(handoffs.list(accountId, workId)).resolves.toMatchObject([
+      { handoffId: handoff.handoffId, status: "Result returned" },
     ]);
   });
 

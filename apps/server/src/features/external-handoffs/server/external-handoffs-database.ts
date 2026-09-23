@@ -354,6 +354,25 @@ async function reconcilePreview(
   const plan = previewExternalExecutionHandoffReconcileInputSchema
     .pick({ followUpWorks: true, proposedRelations: true })
     .parse(rawPlan);
+  const targetWorkIds = [
+    ...new Set(plan.proposedRelations.map((proposal) => proposal.targetWorkId)),
+  ];
+  if (targetWorkIds.length > 0) {
+    const sameProjectTargets = await database
+      .select({ id: work.id })
+      .from(work)
+      .where(
+        and(
+          eq(work.projectId, ownerWork.projectId),
+          inArray(work.id, targetWorkIds),
+          ne(work.id, ownerWork.id),
+          isNull(work.archivedAt),
+        ),
+      );
+    if (sameProjectTargets.length !== targetWorkIds.length) {
+      throw new ExternalExecutionHandoffReconcileUnavailableError();
+    }
+  }
   const relationAccess = createDatabaseRelations(database);
   const relationPreviews = await Promise.all(
     plan.proposedRelations.map(async (proposal) => {
