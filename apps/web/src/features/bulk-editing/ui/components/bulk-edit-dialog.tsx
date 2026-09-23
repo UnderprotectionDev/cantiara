@@ -28,7 +28,8 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import {
   buildSupportReferenceFailure,
@@ -44,13 +45,16 @@ import {
   type BulkEditRecordSnapshot,
   type BulkEditResult,
   bulkEditOperationStore,
+  bulkEditResultAt,
   cancelBulkEditOperation,
   claimBulkEditRecord,
   completeBulkEditOperation,
+  findBulkEditResultIndex,
   recordBulkEditResult,
   removeBulkEditOperation,
   startBulkEditOperation,
   updateBulkEditOperation,
+  updateBulkEditResultAt,
 } from "../../store/bulk-edit-operation";
 
 const BULK_EDIT_CONCURRENCY = 4;
@@ -280,14 +284,14 @@ async function runBulkEditOperation({
     if (record) {
       try {
         const receiptId = await applyStatusToWork(record, preview);
-        recordBulkEditResult(operationId, recordIndex, {
+        recordBulkEditResult(operationId, {
           key: record.work.key,
           ...(receiptId ? { receiptId } : {}),
           status: "Succeeded",
           workId: record.work.id,
         });
       } catch (error) {
-        recordBulkEditResult(operationId, recordIndex, {
+        recordBulkEditResult(operationId, {
           failure: buildSupportReferenceFailure(error, { kind: "mutation" }),
           key: record.work.key,
           status: "Failed",
@@ -323,25 +327,31 @@ async function undoBulkEditResult(
   if (!result.receiptId) {
     return;
   }
-  const recordIndex = operation.preview.records.findIndex(
-    ({ work }) => work.id === result.workId,
+  const resultIndex = findBulkEditResultIndex(
+    operation.resultPages,
+    result.workId,
   );
-  if (recordIndex < 0) {
+  if (resultIndex === null) {
     return;
   }
   updateBulkEditOperation(operation.id, (current) => {
-    const nextResults = [...current.results];
-    const currentResult = nextResults[recordIndex];
+    const currentResult = bulkEditResultAt(current.resultPages, resultIndex);
     if (!currentResult) {
       return current;
     }
-    nextResults[recordIndex] = {
-      ...currentResult,
-      undoError: undefined,
-      undoAttempts: (currentResult.undoAttempts ?? 0) + 1,
-      undoing: true,
+    return {
+      ...current,
+      resultPages: updateBulkEditResultAt(
+        current.resultPages,
+        resultIndex,
+        (candidate) => ({
+          ...candidate,
+          undoError: undefined,
+          undoAttempts: (candidate.undoAttempts ?? 0) + 1,
+          undoing: true,
+        }),
+      ),
     };
-    return { ...current, results: nextResults };
   });
   try {
     const currentWork = await client.work({ workId: result.workId });
@@ -359,22 +369,26 @@ async function undoBulkEditResult(
       records: operation.preview.records,
     });
     updateBulkEditOperation(operation.id, (current) => {
-      const nextResults = [...current.results];
-      const currentResult = nextResults[recordIndex];
+      const currentResult = bulkEditResultAt(current.resultPages, resultIndex);
       if (!currentResult) {
         return current;
       }
-      nextResults[recordIndex] = {
-        key: currentResult.key,
-        status: "Undone",
-        workId: currentResult.workId,
+      return {
+        ...current,
+        resultPages: updateBulkEditResultAt(
+          current.resultPages,
+          resultIndex,
+          (candidate) => ({
+            key: candidate.key,
+            status: "Undone",
+            workId: candidate.workId,
+          }),
+        ),
       };
-      return { ...current, results: nextResults };
     });
   } catch (error) {
     updateBulkEditOperation(operation.id, (current) => {
-      const nextResults = [...current.results];
-      const currentResult = nextResults[recordIndex];
+      const currentResult = bulkEditResultAt(current.resultPages, resultIndex);
       if (!currentResult) {
         return current;
       }
@@ -382,12 +396,18 @@ async function undoBulkEditResult(
         kind: "mutation",
         retryCount: Math.max(0, (currentResult.undoAttempts ?? 1) - 1),
       });
-      nextResults[recordIndex] = {
-        ...currentResult,
-        undoError: failure,
-        undoing: false,
+      return {
+        ...current,
+        resultPages: updateBulkEditResultAt(
+          current.resultPages,
+          resultIndex,
+          (candidate) => ({
+            ...candidate,
+            undoError: failure,
+            undoing: false,
+          }),
+        ),
       };
-      return { ...current, results: nextResults };
     });
   }
 }
@@ -538,31 +558,52 @@ function BulkEditProgressSection({
   operation,
   progress,
   queryClient,
-  results,
   connection,
 }: {
   connection: ReturnType<typeof useClientShellConnection>;
   operation: BulkEditOperation | undefined;
   progress: { completed: number; total: number } | null;
   queryClient: QueryClient;
-  results: BulkEditResult[] | null;
 }) {
-  if (!progress) {
-    return null;
-  }
-  return (
-    <>
-      <div aria-label="Progress" className="space-y-2" role="status">
-        <p className="font-medium">Progress</p>
-        <progress
-          aria-label="Progress"
-          className="w-full accent-primary"
-          max={progress.total}
-          value={progress.completed}
-        />
-        <ul aria-label="Bulk Edit results" className="space-y-1">
-          {results?.map((result) => (
-            <li className="space-y-1 text-xs" key={result.workId}>
+  const resultListRef = useRef<HTMLDivElement>(null);
+  const resultCount = operation?.completed ?? 0;
+  const resultPages = operation?.resultPages ?? [];
+  const virtualizer = useVirtualizer({
+    count: resultCount,
+    estimateSize: () => 56,
+    gap: 4,
+    getScrollElement: () => resultListRef.current,
+    overscan: 4,
+    useFlushSync: false,
+  });
+  // biome-ignore-start lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this results region.
+  const resultsList = (
+    <section
+      aria-label="Bulk Edit results"
+      className="max-h-64 overflow-y-auto rounded-md border p-3"
+      ref={resultListRef}
+      tabIndex={0}
+    >
+      <ul
+        aria-label="Bulk Edit results"
+        className="relative w-full"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const result = bulkEditResultAt(resultPages, virtualItem.index);
+          if (!result) {
+            return null;
+          }
+          return (
+            <li
+              aria-posinset={virtualItem.index + 1}
+              aria-setsize={resultCount}
+              className="absolute top-0 left-0 w-full space-y-1 text-xs"
+              data-index={virtualItem.index}
+              key={result.workId}
+              ref={virtualizer.measureElement}
+              style={{ transform: `translateY(${virtualItem.start}px)` }}
+            >
               <p>
                 <span className="font-medium">{result.key}</span>:{" "}
                 {result.status}
@@ -598,8 +639,27 @@ function BulkEditProgressSection({
                 </Button>
               ) : null}
             </li>
-          ))}
-        </ul>
+          );
+        })}
+      </ul>
+    </section>
+  );
+  // biome-ignore-end lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this results region.
+
+  if (!progress) {
+    return null;
+  }
+  return (
+    <>
+      <div aria-label="Progress" className="space-y-2" role="status">
+        <p className="font-medium">Progress</p>
+        <progress
+          aria-label="Progress"
+          className="w-full accent-primary"
+          max={progress.total}
+          value={progress.completed}
+        />
+        {resultsList}
       </div>
       {operation?.phase === "finalizing" ? (
         <p className="font-medium text-sm" role="status">
@@ -667,18 +727,12 @@ export default function BulkEditDialog({
     completed: number;
     total: number;
   } | null>(null);
-  const [results, setResults] = useState<BulkEditResult[] | null>(null);
   const displayedTargetStatus = operation?.preview.targetStatus ?? targetStatus;
   const displayedClosureResult =
     operation?.preview.closureResult ?? closureResult;
   const displayedClosureReason =
     operation?.preview.closureReason ?? closureReason;
   const displayedPreview = operation?.preview ?? preview;
-  const displayedResults = operation
-    ? operation.results.filter(
-        (result): result is BulkEditResult => result !== null,
-      )
-    : results;
   const displayedProgress = operation
     ? {
         completed: operation.completed,
@@ -707,7 +761,6 @@ export default function BulkEditDialog({
     setPreview(null);
     setPreviewError(null);
     setProgress(null);
-    setResults(null);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -720,7 +773,6 @@ export default function BulkEditDialog({
     }
     setPreviewError(null);
     setIsPreviewing(true);
-    setResults(null);
     setProgress(null);
     try {
       setPreview(
@@ -750,7 +802,6 @@ export default function BulkEditDialog({
     const previewToApply = preview;
     const operationId = crypto.randomUUID();
     setPreviewError(null);
-    setResults([]);
     setProgress({ completed: 0, total: previewToApply.records.length });
     startBulkEditOperation({
       archived,
@@ -772,19 +823,16 @@ export default function BulkEditDialog({
     setTargetStatus(status);
     setPreviewError(null);
     setProgress(null);
-    setResults(null);
   }
 
   function changeClosureResult(result: WorkClosureResult) {
     setClosureResult(result);
     setProgress(null);
-    setResults(null);
   }
 
   function changeClosureReason(reason: string) {
     setClosureReason(reason);
     setProgress(null);
-    setResults(null);
   }
 
   return (
@@ -817,9 +865,7 @@ export default function BulkEditDialog({
         />
 
         <BulkEditPreviewSection
-          needsRefresh={
-            displayedResults === null && !previewMatchesCurrentInput
-          }
+          needsRefresh={operation === undefined && !previewMatchesCurrentInput}
           preview={displayedPreview}
           workStatusLabels={workStatusLabels}
         />
@@ -838,7 +884,6 @@ export default function BulkEditDialog({
           operation={operation}
           progress={displayedProgress}
           queryClient={queryClient}
-          results={displayedResults}
         />
 
         <DialogFooter>
@@ -870,8 +915,7 @@ export default function BulkEditDialog({
                 operation !== undefined ||
                 isPreviewing ||
                 !previewMatchesCurrentInput ||
-                changedRecords.length === 0 ||
-                displayedResults !== null
+                changedRecords.length === 0
               }
               onClick={apply}
               type="button"

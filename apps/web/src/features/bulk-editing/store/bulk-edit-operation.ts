@@ -39,7 +39,63 @@ export interface BulkEditOperation {
   phase: "applying" | "complete" | "finalizing";
   preview: BulkEditPreview;
   projectId: string;
-  results: Array<BulkEditResult | null>;
+  resultPages: readonly (readonly BulkEditResult[])[];
+}
+
+const BULK_EDIT_RESULT_PAGE_SIZE = 128;
+
+function appendBulkEditResult(
+  pages: BulkEditOperation["resultPages"],
+  result: BulkEditResult,
+): BulkEditOperation["resultPages"] {
+  const lastPage = pages.at(-1);
+  if (!lastPage || lastPage.length === BULK_EDIT_RESULT_PAGE_SIZE) {
+    return [...pages, [result]];
+  }
+  return [...pages.slice(0, -1), [...lastPage, result]];
+}
+
+export function bulkEditResultAt(
+  pages: BulkEditOperation["resultPages"],
+  index: number,
+) {
+  return pages[Math.floor(index / BULK_EDIT_RESULT_PAGE_SIZE)]?.[
+    index % BULK_EDIT_RESULT_PAGE_SIZE
+  ];
+}
+
+export function findBulkEditResultIndex(
+  pages: BulkEditOperation["resultPages"],
+  workId: string,
+) {
+  let resultIndex = 0;
+  for (const page of pages) {
+    const indexInPage = page.findIndex((result) => result.workId === workId);
+    if (indexInPage !== -1) {
+      return resultIndex + indexInPage;
+    }
+    resultIndex += page.length;
+  }
+  return null;
+}
+
+export function updateBulkEditResultAt(
+  pages: BulkEditOperation["resultPages"],
+  index: number,
+  update: (result: BulkEditResult) => BulkEditResult,
+): BulkEditOperation["resultPages"] {
+  const pageIndex = Math.floor(index / BULK_EDIT_RESULT_PAGE_SIZE);
+  const indexInPage = index % BULK_EDIT_RESULT_PAGE_SIZE;
+  const currentPage = pages[pageIndex];
+  const currentResult = currentPage?.[indexInPage];
+  if (!(currentPage && currentResult)) {
+    return pages;
+  }
+  const nextPages = [...pages];
+  const nextPage = [...currentPage];
+  nextPage[indexInPage] = update(currentResult);
+  nextPages[pageIndex] = nextPage;
+  return nextPages;
 }
 
 interface BulkEditStoreState {
@@ -53,7 +109,7 @@ export const bulkEditOperationStore = createStore<BulkEditStoreState>({
 export function startBulkEditOperation(
   operation: Omit<
     BulkEditOperation,
-    "completed" | "nextRecordIndex" | "results"
+    "completed" | "nextRecordIndex" | "resultPages"
   >,
 ) {
   bulkEditOperationStore.setState((state) => ({
@@ -63,7 +119,7 @@ export function startBulkEditOperation(
         ...operation,
         completed: 0,
         nextRecordIndex: 0,
-        results: operation.preview.records.map(() => null),
+        resultPages: [],
       },
     ],
   }));
@@ -95,20 +151,12 @@ export function claimBulkEditRecord(id: string) {
   return claimedIndex;
 }
 
-export function recordBulkEditResult(
-  id: string,
-  index: number,
-  result: BulkEditResult,
-) {
-  updateBulkEditOperation(id, (operation) => {
-    const results = [...operation.results];
-    results[index] = result;
-    return {
-      ...operation,
-      completed: results.filter((candidate) => candidate !== null).length,
-      results,
-    };
-  });
+export function recordBulkEditResult(id: string, result: BulkEditResult) {
+  updateBulkEditOperation(id, (operation) => ({
+    ...operation,
+    completed: operation.completed + 1,
+    resultPages: appendBulkEditResult(operation.resultPages, result),
+  }));
 }
 
 export function cancelBulkEditOperation(id: string) {
@@ -116,18 +164,19 @@ export function cancelBulkEditOperation(id: string) {
     if (operation.phase !== "applying") {
       return operation;
     }
-    const results = [...operation.results];
+    const { nextRecordIndex, preview } = operation;
+    let { completed, resultPages } = operation;
     for (
-      let index = operation.nextRecordIndex;
-      index < operation.preview.records.length;
+      let index = nextRecordIndex;
+      index < preview.records.length;
       index += 1
     ) {
-      const record = operation.preview.records[index];
+      const record = preview.records[index];
       if (!record) {
         continue;
       }
-      results[index] =
-        record.work.status === operation.preview.targetStatus
+      const result: BulkEditResult =
+        record.work.status === preview.targetStatus
           ? {
               key: record.work.key,
               status: "Succeeded",
@@ -138,12 +187,14 @@ export function cancelBulkEditOperation(id: string) {
               status: "Canceled",
               workId: record.work.id,
             };
+      resultPages = appendBulkEditResult(resultPages, result);
+      completed += 1;
     }
     return {
       ...operation,
-      completed: results.filter((candidate) => candidate !== null).length,
+      completed,
       phase: "finalizing",
-      results,
+      resultPages,
     };
   });
 }

@@ -1,3 +1,4 @@
+import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
@@ -14,6 +15,10 @@ function workStatusControl(work: Locator) {
   return work.locator('select[aria-label^="Status for"]');
 }
 
+function workTypeControl(work: Locator) {
+  return work.locator('select[aria-label^="Type for"]');
+}
+
 test("previews and applies a status change only to selected Work", async ({
   context,
   page,
@@ -21,7 +26,7 @@ test("previews and applies a status change only to selected Work", async ({
 }) => {
   test.setTimeout(120_000);
   const setupResponse = await request.get(
-    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=bulk-edit-basic`,
   );
   expect(setupResponse.ok()).toBe(true);
   const setup = (await setupResponse.json()) as {
@@ -112,10 +117,22 @@ test("previews and applies a status change only to selected Work", async ({
     name: "Bulk Edit results",
   });
   await expect(undoResults).toContainText("Succeeded");
+  const typeUpdate = page.waitForResponse(
+    (response) =>
+      response.url().includes("/rpc/updateWorkType") &&
+      response.request().method() === "POST",
+  );
+  await expect(workStatusControl(changedWork)).toHaveValue("Not Started", {
+    timeout: 30_000,
+  });
+  await workTypeControl(changedWork).selectOption("Bug");
+  await typeUpdate;
+  await expect(workTypeControl(changedWork)).toHaveValue("Bug");
   await undoResults.getByRole("button", { name: "Undo" }).click();
   await expect(workStatusControl(changedWork)).toHaveValue("In Progress", {
     timeout: 30_000,
   });
+  await expect(workTypeControl(changedWork)).toHaveValue("Bug");
   await expect(undoResults).toContainText("Undone");
 
   await undoDialog.getByRole("button", { name: "Cancel" }).click();
@@ -140,6 +157,97 @@ test("previews and applies a status change only to selected Work", async ({
   await page.unroute("**/rpc/updateWorkStatus");
 });
 
+test("shows a stale Work conflict without hiding other selected results", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=bulk-edit-stale-results`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Bulk Stale Project");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page
+    .getByRole("link", { name: "Bulk Stale Project", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+
+  async function createWork(title: string): Promise<void> {
+    const createLink = page.getByRole("link", {
+      name: "Create",
+      exact: true,
+    });
+    await expect(createLink).toBeVisible({ timeout: 10_000 });
+    await createLink.click();
+    await page.getByLabel("Title").fill(title);
+    await page
+      .locator("#work-create")
+      .getByRole("button", { name: "Create", exact: true })
+      .click();
+    await expect(workListItem(page, title)).toBeVisible({ timeout: 30_000 });
+  }
+  await createWork("Stale Work");
+  await createWork("Current Work");
+
+  const workUrl = page.url();
+  const staleWork = workListItem(page, "Stale Work");
+  const currentWork = workListItem(page, "Current Work");
+  const staleWorkKey = await staleWork.locator("p span").innerText();
+  const currentWorkKey = await currentWork.locator("p span").innerText();
+  await expect(staleWork.getByRole("checkbox")).toHaveCount(1, {
+    timeout: 5000,
+  });
+  await staleWork.getByRole("checkbox").check();
+  await currentWork.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Bulk Edit" }).click();
+
+  const bulkEdit = page.getByRole("dialog", { name: "Bulk Edit" });
+  await bulkEdit
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("In Progress");
+  await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
+
+  const concurrentPage = await context.newPage();
+  await concurrentPage.goto(workUrl);
+  const concurrentStaleWork = workListItem(concurrentPage, "Stale Work");
+  await expect(concurrentStaleWork).toBeVisible();
+  await workStatusControl(concurrentStaleWork).selectOption("Blocked");
+  await expect(workStatusControl(concurrentStaleWork)).toHaveValue("Blocked");
+
+  await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
+  const progress = bulkEdit.getByRole("progressbar", { name: "Progress" });
+  await expect(progress).toBeVisible({ timeout: 2000 });
+
+  const results = bulkEdit.getByRole("list", { name: "Bulk Edit results" });
+  await expect(results.locator("li")).toHaveCount(2);
+  const staleResult = results.locator("li").filter({
+    hasText: `${staleWorkKey}: Failed`,
+  });
+  const currentResult = results.locator("li").filter({
+    hasText: `${currentWorkKey}: Succeeded`,
+  });
+  await expect(staleResult).toContainText("Failed");
+  await expect(staleResult.locator("code")).toHaveText(
+    SUPPORT_REFERENCE_PATTERN,
+  );
+  await expect(currentResult).toContainText("Succeeded");
+  await expect(workStatusControl(staleWork)).toHaveValue("Blocked");
+  await expect(workStatusControl(currentWork)).toHaveValue("In Progress");
+
+  await concurrentPage.close();
+});
+
 test("collects a closure result when Bulk Edit closes selected Work", async ({
   context,
   page,
@@ -147,7 +255,7 @@ test("collects a closure result when Bulk Edit closes selected Work", async ({
 }) => {
   test.setTimeout(120_000);
   const setupResponse = await request.get(
-    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=bulk-edit-closure`,
   );
   expect(setupResponse.ok()).toBe(true);
   const setup = (await setupResponse.json()) as {
@@ -206,7 +314,7 @@ test("cancels queued status writes and restores progress after returning", async
 }) => {
   test.setTimeout(120_000);
   const setupResponse = await request.get(
-    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=bulk-edit-cancel`,
   );
   expect(setupResponse.ok()).toBe(true);
   const setup = (await setupResponse.json()) as {
@@ -283,6 +391,9 @@ test("cancels queued status writes and restores progress after returning", async
     .selectOption("In Progress");
   await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
   await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    bulkEdit.getByRole("progressbar", { name: "Progress" }),
+  ).toBeVisible({ timeout: 2000 });
   await firstFourStarted;
 
   const cancel = bulkEdit.getByRole("button", { name: "Cancel" });
