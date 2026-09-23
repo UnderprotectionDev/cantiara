@@ -74,6 +74,7 @@ import {
   workspaceTagAssignmentRelations,
   workspaceTagRelations,
 } from "./schema/tags";
+import { workExternalExecutionHandoff } from "./schema/work-external-handoff";
 
 const schema = {
   account,
@@ -132,6 +133,7 @@ const schema = {
   workKeyAllocation,
   workKeyAllocationRelations,
   workRelations,
+  workExternalExecutionHandoff,
 };
 
 export function createDb(env: DatabaseConfig) {

@@ -22,6 +22,7 @@ import type {
   CustomFieldsAccess,
 } from "@cantiara/api/custom-fields";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
+import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type {
   MutationContract,
@@ -99,6 +100,7 @@ export interface CreateContextOptions {
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
+  workHandoffs?: ExternalExecutionHandoffsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
   workTemplates?: WorkTemplatesAccess;
@@ -127,6 +129,7 @@ export async function createContext({
   context,
   database,
   fileAttachments,
+  workHandoffs,
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
@@ -182,6 +185,7 @@ export async function createContext({
       context.req.raw.headers.get(DESKTOP_API_CONTRACT_HEADER) ?? undefined,
     db: database,
     fileAttachments,
+    workHandoffs,
     githubAvailability,
     githubIdentityConfirmation,
     mutationContract,

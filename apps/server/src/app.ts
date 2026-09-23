@@ -27,6 +27,7 @@ import {
   type DesktopApiCompatibilityWindow,
   evaluateDesktopApiCompatibility,
 } from "@cantiara/api/desktop-api-window";
+import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import {
   FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
@@ -166,6 +167,7 @@ export interface AppDependencies {
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
+  workHandoffs?: ExternalExecutionHandoffsAccess;
   workLifecycle?: WorkLifecycleAccess;
   workspaceOverview?: WorkspaceOverviewAccess;
   workTemplates?: WorkTemplatesAccess;
@@ -1122,6 +1124,7 @@ export function createApp(dependencies: AppDependencies) {
       context: c,
       database: dependencies.database,
       fileAttachments: dependencies.fileAttachments,
+      workHandoffs: dependencies.workHandoffs,
       githubAvailability: dependencies.githubAvailability,
       githubIdentityConfirmation: dependencies.githubIdentityConfirmation,
       mutationContract: dependencies.mutationContract,

@@ -26,6 +26,7 @@ import BulkEditDialog, {
 } from "@/features/bulk-editing/ui/components/bulk-edit-dialog";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
+import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
 import {
   priorityMetricItemsForWork,
   usePriorityMetricProjectValues,
@@ -276,6 +277,7 @@ export default function ProjectWorkList({
                 workContextLayouts={workContextLayouts}
                 workStatusLabels={workStatusLabels}
               />
+              <ExternalExecutionHandoff work={work} />
               {priorityMetricValues.query.isError ? (
                 <p className="text-destructive text-sm" role="alert">
                   Priority metrics are unavailable. Try loading this page again.

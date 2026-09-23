@@ -39,6 +39,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
 import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
@@ -135,6 +136,7 @@ export const workLifecycle = createDatabaseWorkLifecycle(db, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
+export const workHandoffs = createDatabaseExternalExecutionHandoffs(db);
 export const recordActions = createDatabaseRecordActions(db);
 export const workContext = createWorkContextAccess(workLifecycle, relations, {
   priorityValues: async (accountId, work) => {
