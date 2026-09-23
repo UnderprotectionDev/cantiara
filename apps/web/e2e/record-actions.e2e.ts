@@ -38,6 +38,19 @@ async function createWorkCustomField(
   await response;
 }
 
+async function fillStartWorkRuntimeInputs(form: Locator) {
+  await form.getByLabel("Target date").fill("2026-10-01");
+  await form.getByLabel("Estimate").fill("5");
+  await form.getByLabel("Readiness").selectOption("Ready");
+  const relatedWorkSelect = form.getByLabel("Related Work");
+  const relatedWorkOption = relatedWorkSelect
+    .locator("option")
+    .filter({ hasText: "Prepare the release notes" });
+  await relatedWorkSelect.selectOption(
+    (await relatedWorkOption.getAttribute("value")) ?? "",
+  );
+}
+
 test("defines, reloads, and trashes a single-record Start Work action", async ({
   context,
   page,
@@ -224,16 +237,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await expect(
     preview.getByRole("button", { name: "Apply", exact: true }),
   ).toHaveCount(0);
-  await runtimeInputForm.getByLabel("Target date").fill("2026-10-01");
-  await runtimeInputForm.getByLabel("Estimate").fill("5");
-  await runtimeInputForm.getByLabel("Readiness").selectOption("Ready");
-  const relatedWorkOption = runtimeInputForm
-    .getByLabel("Related Work")
-    .locator("option")
-    .filter({ hasText: "Prepare the release notes" });
-  await runtimeInputForm
-    .getByLabel("Related Work")
-    .selectOption((await relatedWorkOption.getAttribute("value")) ?? "");
+  await fillStartWorkRuntimeInputs(runtimeInputForm);
   await runtimeInputForm
     .getByRole("button", { name: "Preview changes" })
     .click();
@@ -295,16 +299,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   const staleRuntimeInputForm = stalePreview.getByRole("form", {
     name: "Record Action inputs",
   });
-  await staleRuntimeInputForm.getByLabel("Target date").fill("2026-10-01");
-  await staleRuntimeInputForm.getByLabel("Estimate").fill("5");
-  await staleRuntimeInputForm.getByLabel("Readiness").selectOption("Ready");
-  const staleRelatedWorkOption = staleRuntimeInputForm
-    .getByLabel("Related Work")
-    .locator("option")
-    .filter({ hasText: "Prepare the release notes" });
-  await staleRuntimeInputForm
-    .getByLabel("Related Work")
-    .selectOption((await staleRelatedWorkOption.getAttribute("value")) ?? "");
+  await fillStartWorkRuntimeInputs(staleRuntimeInputForm);
   await staleRuntimeInputForm
     .getByRole("button", { name: "Preview changes" })
     .click();
