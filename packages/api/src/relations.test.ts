@@ -1,17 +1,21 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  BLOCKING_RELATION_STATUS_OPTIONS,
   BROKEN_REFERENCE_REASON_OPTIONS,
+  blockingRelationStatusSchema,
   isAllowedRelationEndpoints,
   RELATION_KIND_OPTIONS,
   RELATION_RECORD_TYPE_OPTIONS,
   RELATION_USAGE_KIND_OPTIONS,
+  reactivateBlockerInputSchema,
   relationDefinition,
   relationEndpointSchema,
   relationKindSchema,
   relationRecordTypeSchema,
   relationUniqueness,
   relationUsageKindSchema,
+  resolveBlockerInputSchema,
 } from "./relations";
 
 describe("Relations seam", () => {
@@ -88,6 +92,61 @@ describe("Relations seam", () => {
     expect(
       isAllowedRelationEndpoints("Origin", "Checklist Item" as never, "Work"),
     ).toBe(false);
+  });
+
+  test("keeps blocking relations unique for their directed endpoint pair", () => {
+    expect(relationDefinition("Blocks")).toMatchObject({
+      cardinality: "many-to-many",
+      inverseLabel: "Blocked by",
+      sourceTypes: "blocks-source",
+      targetTypes: "blocks-target",
+      uniqueness: "unique-per-pair",
+    });
+    expect(relationUniqueness("Blocks")).toBe("unique-per-pair");
+    expect(isAllowedRelationEndpoints("Blocks", "Work", "Work")).toBe(true);
+    expect(isAllowedRelationEndpoints("Blocks", "Decision", "Work")).toBe(true);
+    expect(isAllowedRelationEndpoints("Blocks", "Open Question", "Work")).toBe(
+      true,
+    );
+    expect(isAllowedRelationEndpoints("Blocks", "Work", "Decision")).toBe(
+      false,
+    );
+  });
+
+  test("keeps blocking relation life in the Active and Resolved catalog", () => {
+    expect(BLOCKING_RELATION_STATUS_OPTIONS).toEqual(["Active", "Resolved"]);
+    expect(blockingRelationStatusSchema.safeParse("Active").success).toBe(true);
+    expect(blockingRelationStatusSchema.safeParse("Resolved").success).toBe(
+      true,
+    );
+    expect(blockingRelationStatusSchema.safeParse("Blocked").success).toBe(
+      false,
+    );
+  });
+
+  test("accepts an optional resolution note and explicit reactivation command", () => {
+    expect(
+      resolveBlockerInputSchema.parse({
+        baseRevision: 1,
+        clientIdempotencyKey: "blocker-resolution-1",
+        note: "  Provider access is available  ",
+        relationId: "relation-1",
+      }),
+    ).toMatchObject({
+      note: "Provider access is available",
+      relationId: "relation-1",
+    });
+    expect(
+      reactivateBlockerInputSchema.parse({
+        baseRevision: 2,
+        clientIdempotencyKey: "blocker-reactivation-1",
+        relationId: "relation-1",
+      }),
+    ).toEqual({
+      baseRevision: 2,
+      clientIdempotencyKey: "blocker-reactivation-1",
+      relationId: "relation-1",
+    });
   });
 
   test("uses only the closed broken-reference reasons", () => {

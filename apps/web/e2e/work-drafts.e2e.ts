@@ -127,12 +127,31 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
       response.url().endsWith("/rpc/finalizeWorkDraft") &&
       response.ok(),
   );
+  let releaseFinalization: () => void = () => undefined;
+  let signalFinalizationResponse: () => void = () => undefined;
+  const finalizationResponseReached = new Promise<void>((resolve) => {
+    signalFinalizationResponse = resolve;
+  });
+  const finalizationGate = new Promise<void>((resolve) => {
+    releaseFinalization = resolve;
+  });
+  await page.route("**/rpc/finalizeWorkDraft", async (route) => {
+    const response = await route.fetch();
+    signalFinalizationResponse();
+    await finalizationGate;
+    await route.fulfill({ response });
+  });
   await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  await finalizationResponseReached;
+  const titleDisabledWhileFinalizing = await title.isDisabled();
+  releaseFinalization();
   const finalizedWork = (
     (await (await finalizeWorkResponse).json()) as {
       json: { id: string; key: string };
     }
   ).json;
+  await page.unroute("**/rpc/finalizeWorkDraft");
+  expect(titleDisabledWhileFinalizing).toBe(true);
   await expect(
     page.getByText("Work PAY-1 created.", { exact: true }),
   ).toBeVisible({ timeout: 20_000 });

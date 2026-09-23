@@ -992,6 +992,7 @@ export default function WorkDraftForm({
                 <Input
                   autoComplete="off"
                   autoFocus
+                  disabled={isBusy}
                   id="work-draft-title"
                   name={field.name}
                   onChange={(event) => {
@@ -1013,6 +1014,7 @@ export default function WorkDraftForm({
               <Field>
                 <FieldLabel htmlFor="work-draft-type">Type</FieldLabel>
                 <NativeSelect
+                  disabled={isBusy}
                   id="work-draft-type"
                   name={field.name}
                   onChange={(event) => {
@@ -1040,6 +1042,7 @@ export default function WorkDraftForm({
                 Description
               </FieldLabel>
               <Textarea
+                disabled={isBusy}
                 id="work-draft-description"
                 name={field.name}
                 onChange={(event) => {

@@ -733,6 +733,7 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     expect(replayedInclusion).toEqual(included);
     await database.insert(workRelation).values([
       {
+        blockingStatus: "Active",
         id: `database-scope-tree-block-${crypto.randomUUID()}`,
         kind: "Blocks",
         sourceWorkId: blocker.id,

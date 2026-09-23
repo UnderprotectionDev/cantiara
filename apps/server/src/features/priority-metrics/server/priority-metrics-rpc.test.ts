@@ -167,6 +167,7 @@ function createMutationContract<TValue>(
       onPayload(command.payload);
       const nextValue = transformNextValue(
         await apply({
+          committedAt: "2026-09-20T09:00:00.000Z",
           currentRevision,
           currentValue: previousValue,
           payload: command.payload,

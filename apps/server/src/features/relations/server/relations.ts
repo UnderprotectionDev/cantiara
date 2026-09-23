@@ -6,9 +6,12 @@ import type {
 } from "@cantiara/api/mutation-and-undo";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
+  type BlockingRelationHistoryEntry,
+  type BlockingRelationStatus,
   type BrokenReferenceReason,
   brokenReferenceReasonSchema,
   isAllowedRelationEndpoints,
+  type ReactivateBlockerInput,
   type RelationCreateInput,
   type RelationCreatePreviewInput,
   type RelationEndpoint,
@@ -23,6 +26,8 @@ import {
   type RelationUsageView,
   type RelationView,
   type RemoveRelationInput,
+  type ResolveBlockerInput,
+  reactivateBlockerInputSchema,
   relationCreateInputSchema,
   relationCreatePreviewInputSchema,
   relationDefinition,
@@ -35,6 +40,7 @@ import {
   relationUsageKindSchema,
   relationUsageRemoveInputSchema,
   removeRelationInputSchema,
+  resolveBlockerInputSchema,
   type StoredRelationValue,
   type UndoRelationInput,
   type UsedInSummary,
@@ -49,6 +55,7 @@ import {
   work,
   workRelation,
 } from "@cantiara/db/schema/index";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import {
@@ -56,6 +63,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { relationBlockingStatus } from "./relation-blocking-status";
 
 type WorkRecord = typeof work.$inferSelect;
 type ProjectRecord = typeof project.$inferSelect;
@@ -63,9 +71,9 @@ type RelationRecord = typeof workRelation.$inferSelect;
 type UsageLinkRecord = typeof usageLink.$inferSelect;
 
 /**
- * The value stored by the Mutation Contract for a relation target. It carries
- * no wall-clock fields: deterministic payloads keep retries replayable, and
- * `createdAt` is read from the row when presenting.
+ * The value stored by the Mutation Contract for a relation target. Creation
+ * time stays on the row; blocker resolution metadata travels with target
+ * snapshots so Undo can restore the resolved state.
  */
 export interface RelationStoreValue {
   relation: RelationPayloadRelation | null;
@@ -75,6 +83,12 @@ type RelationMutationPayload =
   | {
       operation: "create";
       relation: RelationPayloadRelation;
+    }
+  | {
+      operation: "blocking-status";
+      blockingStatus: "Active" | "Resolved";
+      note: string | null;
+      relationId: string;
     }
   | {
       operation: "remove";
@@ -114,6 +128,15 @@ export class RelationRecordUnavailableError extends RelationsError {
 export class RelationDuplicateError extends RelationsError {
   constructor() {
     super("RELATION_DUPLICATE", "This relation already exists.");
+  }
+}
+
+export class BlockingRelationStateError extends RelationsError {
+  constructor() {
+    super(
+      "BLOCKING_RELATION_STATE_CONFLICT",
+      "The blocker is no longer in the expected state.",
+    );
   }
 }
 
@@ -186,6 +209,12 @@ function parseMutationPayload(
   }
   if (
     payload.operation === "remove" &&
+    typeof payload.relationId === "string"
+  ) {
+    return payload as unknown as RelationMutationPayload;
+  }
+  if (
+    payload.operation === "blocking-status" &&
     typeof payload.relationId === "string"
   ) {
     return payload as unknown as RelationMutationPayload;
@@ -321,9 +350,13 @@ function relationUsageKind(value: string) {
 function payloadRelationFromRecord(
   record: RelationRecord,
 ): RelationPayloadRelation {
+  const kind = relationKind(record.kind);
   return {
+    blockingStatus: relationBlockingStatus(kind, record.blockingStatus),
+    blockingResolvedAt: record.blockingResolvedAt?.toISOString() ?? null,
+    blockingResolutionNote: record.blockingResolutionNote,
     id: record.id,
-    kind: relationKind(record.kind),
+    kind,
     sourceRecordId: record.sourceWorkId,
     sourceRecordType: relationRecordType(record.sourceRecordType),
     targetLabel: record.targetLabel,
@@ -334,10 +367,14 @@ function payloadRelationFromRecord(
 }
 
 function storedRelationFromRecord(record: RelationRecord): StoredRelationValue {
+  const kind = relationKind(record.kind);
   return {
+    blockingStatus: relationBlockingStatus(kind, record.blockingStatus),
+    blockingResolvedAt: record.blockingResolvedAt?.toISOString() ?? null,
+    blockingResolutionNote: record.blockingResolutionNote,
     createdAt: record.createdAt.toISOString(),
     id: record.id,
-    kind: relationKind(record.kind),
+    kind,
     sourceRecordId: record.sourceWorkId,
     sourceRecordType: relationRecordType(record.sourceRecordType),
     targetLabel: record.targetLabel,
@@ -472,21 +509,35 @@ async function hasUniquenessConflict(
   excludeRelationId?: string,
 ): Promise<boolean> {
   const uniqueness = relationUniqueness(input.kind);
-  if (uniqueness === "many") {
-    return false;
+  let endpointCondition: ReturnType<typeof and>;
+  switch (uniqueness) {
+    case "unique-per-pair":
+      endpointCondition = and(
+        eq(workRelation.sourceRecordType, input.sourceType),
+        eq(workRelation.sourceWorkId, input.sourceId),
+        eq(workRelation.targetRecordType, input.targetType),
+        eq(workRelation.targetRecordId, input.targetId),
+      );
+      break;
+    case "unique-per-source":
+      endpointCondition = and(
+        eq(workRelation.sourceRecordType, input.sourceType),
+        eq(workRelation.sourceWorkId, input.sourceId),
+      );
+      break;
+    case "unique-per-target":
+      endpointCondition = and(
+        eq(workRelation.targetRecordType, input.targetType),
+        eq(workRelation.targetRecordId, input.targetId),
+      );
+      break;
+    default:
+      return false;
   }
   const conditions = [
     eq(workRelation.kind, input.kind),
     isNull(workRelation.deletedAt),
-    uniqueness === "unique-per-source"
-      ? and(
-          eq(workRelation.sourceRecordType, input.sourceType),
-          eq(workRelation.sourceWorkId, input.sourceId),
-        )
-      : and(
-          eq(workRelation.targetRecordType, input.targetType),
-          eq(workRelation.targetRecordId, input.targetId),
-        ),
+    endpointCondition,
   ];
   if (excludeRelationId) {
     conditions.push(ne(workRelation.id, excludeRelationId));
@@ -577,6 +628,24 @@ async function assertRelationWritable(
   await assertAcyclicSupersedes(executor, ends);
 }
 
+function blockerResolutionFields(
+  relation: RelationPayloadRelation,
+  committedAt: Date,
+) {
+  if (relation.kind !== "Blocks" || relation.blockingStatus !== "Resolved") {
+    return {
+      blockingResolvedAt: null,
+      blockingResolutionNote: null,
+    };
+  }
+  return {
+    blockingResolvedAt: relation.blockingResolvedAt
+      ? new Date(relation.blockingResolvedAt)
+      : committedAt,
+    blockingResolutionNote: relation.blockingResolutionNote,
+  };
+}
+
 function createRelationTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<RelationStoreValue> {
@@ -627,9 +696,14 @@ function createRelationTarget(
         const [inserted] = await executor
           .insert(workRelation)
           .values({
+            ...blockerResolutionFields(nextRelation, input.committedAt),
             createdAt: input.committedAt,
             id: nextRelation.id,
             kind: nextRelation.kind,
+            blockingStatus: relationBlockingStatus(
+              nextRelation.kind,
+              nextRelation.blockingStatus,
+            ),
             revision: input.expectedRevision + 1,
             sourceRecordType: nextRelation.sourceRecordType,
             sourceWorkId: nextRelation.sourceRecordId,
@@ -646,9 +720,14 @@ function createRelationTarget(
       const [updated] = await executor
         .update(workRelation)
         .set({
+          ...blockerResolutionFields(nextRelation, input.committedAt),
           brokenReason: null,
           deletedAt: null,
           kind: nextRelation.kind,
+          blockingStatus: relationBlockingStatus(
+            nextRelation.kind,
+            nextRelation.blockingStatus,
+          ),
           revision: input.expectedRevision + 1,
           sourceRecordType: nextRelation.sourceRecordType,
           sourceWorkId: nextRelation.sourceRecordId,
@@ -883,6 +962,131 @@ async function usageView(
   };
 }
 
+function blockingStateFromMutationValue(
+  value: unknown,
+  relationId: string,
+): {
+  note: string | null;
+  resolvedAt: string | null;
+  status: BlockingRelationStatus;
+} | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const { relation } = value as { relation?: unknown };
+  if (typeof relation !== "object" || relation === null) {
+    return null;
+  }
+  const snapshot = relation as {
+    blockingResolutionNote?: unknown;
+    blockingResolvedAt?: unknown;
+    blockingStatus?: unknown;
+    id?: unknown;
+    kind?: unknown;
+  };
+  if (snapshot.id !== relationId || snapshot.kind !== "Blocks") {
+    return null;
+  }
+  const status = relationBlockingStatus(
+    "Blocks",
+    typeof snapshot.blockingStatus === "string"
+      ? snapshot.blockingStatus
+      : null,
+  );
+  if (!status) {
+    return null;
+  }
+  return {
+    note:
+      typeof snapshot.blockingResolutionNote === "string"
+        ? snapshot.blockingResolutionNote
+        : null,
+    resolvedAt:
+      typeof snapshot.blockingResolvedAt === "string"
+        ? snapshot.blockingResolvedAt
+        : null,
+    status,
+  };
+}
+
+async function blockerHistory(
+  executor: MutationDatabaseExecutor,
+  record: RelationRecord,
+): Promise<BlockingRelationHistoryEntry[]> {
+  const kind = relationKind(record.kind);
+  if (kind !== "Blocks") {
+    return [];
+  }
+  const records = await executor
+    .select({
+      id: mutationHistory.id,
+      nextValue: mutationHistory.nextValue,
+      occurredAt: mutationHistory.occurredAt,
+      previousValue: mutationHistory.previousValue,
+      undoOf: mutationHistory.undoOf,
+    })
+    .from(mutationHistory)
+    .where(eq(mutationHistory.targetId, record.id))
+    .orderBy(asc(mutationHistory.revision));
+  const history: BlockingRelationHistoryEntry[] = [];
+  for (const item of records) {
+    const previous = blockingStateFromMutationValue(
+      item.previousValue,
+      record.id,
+    );
+    const next = blockingStateFromMutationValue(item.nextValue, record.id);
+    if (!next || previous?.status === next.status) {
+      continue;
+    }
+    history.push({
+      id: item.id,
+      isUndo: item.undoOf !== null,
+      note: next.status === "Resolved" ? next.note : null,
+      occurredAt: item.occurredAt.toISOString(),
+      resolutionAt: next.status === "Resolved" ? next.resolvedAt : null,
+      status: next.status,
+    });
+  }
+
+  const currentStatus = relationBlockingStatus(kind, record.blockingStatus);
+  if (history.length === 0) {
+    history.push({
+      id: `${record.id}:created`,
+      isUndo: false,
+      note: null,
+      occurredAt: record.createdAt.toISOString(),
+      resolutionAt: null,
+      status: "Active",
+    });
+  } else if (history[0]?.status !== "Active") {
+    history.unshift({
+      id: `${record.id}:created`,
+      isUndo: false,
+      note: null,
+      occurredAt: record.createdAt.toISOString(),
+      resolutionAt: null,
+      status: "Active",
+    });
+  }
+  if (history.at(-1)?.status !== currentStatus) {
+    history.push({
+      id: `${record.id}:${currentStatus}:${record.revision}`,
+      isUndo: false,
+      note: currentStatus === "Resolved" ? record.blockingResolutionNote : null,
+      occurredAt:
+        currentStatus === "Resolved" && record.blockingResolvedAt
+          ? record.blockingResolvedAt.toISOString()
+          : record.createdAt.toISOString(),
+      resolutionAt:
+        currentStatus === "Resolved" && record.blockingResolvedAt
+          ? record.blockingResolvedAt.toISOString()
+          : null,
+      status: currentStatus as BlockingRelationStatus,
+    });
+  }
+  return history;
+}
+
 async function relationView(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -898,12 +1102,17 @@ async function relationView(
     recordId: stored.targetRecordId,
     recordType: stored.targetRecordType,
   };
-  const [sourceView, targetView] = await Promise.all([
+  const [sourceView, targetView, history] = await Promise.all([
     endpointView(executor, accountId, source, record.relation, "source"),
     endpointView(executor, accountId, target, record.relation, "target"),
+    blockerHistory(executor, record.relation),
   ]);
   const { kind } = stored;
   return {
+    blockingHistory: history,
+    blockingStatus: stored.blockingStatus,
+    blockingResolvedAt: stored.blockingResolvedAt,
+    blockingResolutionNote: stored.blockingResolutionNote,
     createdAt: stored.createdAt,
     direction,
     id: stored.id,
@@ -1015,13 +1224,104 @@ async function mutationResult(
   receipt: MutationReceipt<RelationStoreValue>,
 ): Promise<RelationMutationResult> {
   const relationId = receipt.targetId;
+  const previousRelation = receipt.previousValue.relation;
+  const nextRelation = receipt.nextValue.relation;
+  const emittedSignal =
+    nextRelation?.kind === "Blocks" &&
+    nextRelation.blockingStatus === "Active" &&
+    previousRelation?.blockingStatus !== "Active"
+      ? {
+          blockedWork: {
+            recordId: nextRelation.targetRecordId,
+            recordType: "Work" as const,
+          },
+          eventId: receipt.id,
+          kind: "work-blocked" as const,
+          occurredAt: receipt.committedAt,
+          relationId: nextRelation.id,
+          source: {
+            recordId: nextRelation.sourceRecordId,
+            recordType: nextRelation.sourceRecordType,
+          },
+        }
+      : null;
   return {
+    signals: emittedSignal ? [emittedSignal] : [],
     receiptId: receipt.id,
     relation: receipt.nextValue.relation
       ? await findRelationViewById(database, accountId, relationId)
       : null,
     relationId,
   };
+}
+
+async function changeBlockerStatus(
+  database: Database,
+  accountId: string,
+  input: ResolveBlockerInput | ReactivateBlockerInput,
+  status: "Active" | "Resolved",
+  note: string | null,
+): Promise<RelationMutationResult> {
+  const mutation = createRelationMutation(database, accountId);
+  const command: MutationCommand<RelationMutationPayload> = {
+    actor: { actorId: accountId, type: "User" },
+    baseRevision: input.baseRevision,
+    clientIdempotencyKey: input.clientIdempotencyKey,
+    kind: "human",
+    payload: {
+      blockingStatus: status,
+      note,
+      operation: "blocking-status",
+      relationId: input.relationId,
+    },
+    targetId: input.relationId,
+  };
+  const replay = await mutation.replay(command);
+  if (replay) {
+    return mutationResult(database, accountId, replay);
+  }
+
+  const current = await findRelationWithSource(
+    database,
+    accountId,
+    input.relationId,
+    false,
+  );
+  if (!current || current.relation.deletedAt) {
+    throw new RelationNotFoundError();
+  }
+  const expectedStatus = status === "Resolved" ? "Active" : "Resolved";
+  if (
+    current.relation.kind !== "Blocks" ||
+    relationBlockingStatus(
+      current.relation.kind,
+      current.relation.blockingStatus,
+    ) !== expectedStatus
+  ) {
+    throw new BlockingRelationStateError();
+  }
+
+  const receipt = await mutation.mutate(
+    command,
+    ({ committedAt, currentValue: { relation } }) => {
+      if (
+        relation?.kind !== "Blocks" ||
+        relation.blockingStatus !== expectedStatus
+      ) {
+        throw new BlockingRelationStateError();
+      }
+      return {
+        relation: {
+          ...relation,
+          blockingResolvedAt: status === "Resolved" ? committedAt : null,
+          blockingResolutionNote: status === "Resolved" ? note : null,
+          blockingStatus: status,
+        },
+      };
+    },
+    { undo: { kind: "relation", scope: "relation" } },
+  );
+  return mutationResult(database, accountId, receipt);
 }
 
 function relationCreatePayload(
@@ -1032,6 +1332,9 @@ function relationCreatePayload(
   return {
     operation: "create",
     relation: {
+      blockingStatus: input.kind === "Blocks" ? "Active" : null,
+      blockingResolvedAt: null,
+      blockingResolutionNote: null,
       id: input.previewId,
       kind: input.kind,
       sourceRecordId: source.record.id,
@@ -1086,6 +1389,7 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         .where(eq(workRelation.id, previewId))
         .limit(1);
       return {
+        blockingStatus: input.kind === "Blocks" ? "Active" : null,
         baseRevision: existing?.revision ?? 0,
         id: previewId,
         inverseLabel: relationDefinition(input.kind).inverseLabel,
@@ -1134,7 +1438,6 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (input.previewId !== expectedPreviewId) {
         throw new RelationPreviewRequiredError();
       }
-      await assertRelationCreatable(database, input);
 
       const stablePayload = relationCreatePayload(input, source, target);
       const mutation = createRelationMutation(database, accountId);
@@ -1150,6 +1453,7 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
       if (replay) {
         return mutationResult(database, accountId, replay);
       }
+      await assertRelationCreatable(database, input);
 
       const receipt = await mutation.mutate(
         command,
@@ -1165,6 +1469,22 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         { undo: { kind: "relation", scope: "relation" } },
       );
       return mutationResult(database, accountId, receipt);
+    },
+
+    resolveBlocker(accountId, rawInput) {
+      const input = resolveBlockerInputSchema.parse(rawInput);
+      return changeBlockerStatus(
+        database,
+        accountId,
+        input,
+        "Resolved",
+        input.note?.trim() || null,
+      );
+    },
+
+    reactivateBlocker(accountId, rawInput) {
+      const input = reactivateBlockerInputSchema.parse(rawInput);
+      return changeBlockerStatus(database, accountId, input, "Active", null);
     },
 
     async list(accountId, rawInput) {

@@ -117,10 +117,12 @@ import {
 import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
+  reactivateBlockerInputSchema,
   relationCreateInputSchema,
   relationCreatePreviewInputSchema,
   relationsInputSchema,
   removeRelationInputSchema,
+  resolveBlockerInputSchema,
   type UsageLinkMutationValue,
   undoRelationInputSchema,
   unlinkUsageLinkInputSchema,
@@ -1198,6 +1200,12 @@ function mapRelationsError(error: Record<string, unknown>) {
         data: { code: error.code },
         defined: true,
         message: "This relation already exists.",
+      });
+    case "BLOCKING_RELATION_STATE_CONFLICT":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "The blocker has changed. Reload and try again.",
       });
     case "RELATION_CYCLE":
       return new ORPCError("BAD_REQUEST", {
@@ -2699,6 +2707,26 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runRelationsOperation(() =>
         requireRelations(context).create(context.session.user.id, input),
+      ),
+    ),
+  resolveBlocker: protectedProcedure
+    .input(resolveBlockerInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).resolveBlocker(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  reactivateBlocker: protectedProcedure
+    .input(reactivateBlockerInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        requireRelations(context).reactivateBlocker(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   removeRelation: protectedProcedure
