@@ -92,6 +92,7 @@ export const DAILY_ACTION_HASHES: Record<DailyAction, string> = {
   Planning: "work-planning",
   Status: "work-status",
 };
+export const PRIORITY_MAP_HASH = "priority-map";
 
 export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
   Create:
@@ -171,6 +172,7 @@ export function dailyActionFromHash(hash: string) {
 export function isWorkSurfaceHash(hash: string) {
   return (
     hash === "work" ||
+    hash === PRIORITY_MAP_HASH ||
     dailyActionFromHash(hash) !== null ||
     hash.startsWith(WORK_RELATIONS_HASH_PREFIX)
   );
