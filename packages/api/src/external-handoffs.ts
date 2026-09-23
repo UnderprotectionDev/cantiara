@@ -107,6 +107,7 @@ export const listExternalExecutionHandoffsInputSchema = z
 
 export const externalExecutionHandoffHistoryEventTypeSchema = z.enum([
   "external-execution-handoff-started",
+  "external-execution-handoff-package-produced",
   "external-execution-handoff-package-exported",
 ]);
 
