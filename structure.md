@@ -189,12 +189,18 @@
 │       │   │   │           ├── preferences-view.test.tsx
 │       │   │   │           └── preferences-view.tsx
 │       │   │   ├── completion-effects/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-user-initiated-work-success.ts
 │       │   │   │   ├── lib/
 │       │   │   │   │   └── completion-effects-presentation.ts
+│       │   │   │   ├── store/
+│       │   │   │   │   └── user-initiated-work-success.ts
 │       │   │   │   └── ui/
 │       │   │   │       ├── components/
 │       │   │   │       │   ├── completion-effect-specimen.css
 │       │   │   │       │   └── completion-effect-specimen.tsx
+│       │   │   │       │   ├── work-completion-feedback.css
+│       │   │   │       │   └── work-completion-feedback.tsx
 │       │   │   │       ├── forms/
 │       │   │   │       │   └── completion-effects-form.tsx
 │       │   │   │       └── views/

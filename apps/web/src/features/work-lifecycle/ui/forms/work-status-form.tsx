@@ -1,6 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Work status controls close over their current Work state.
 
-import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import {
   WORK_CLOSURE_RESULT_OPTIONS,
@@ -22,7 +21,10 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import useUserInitiatedWorkSuccess from "@/features/completion-effects/hooks/use-user-initiated-work-success";
+import type {
+  UserInitiatedWorkCloseOutcome,
+  WorkCompletionFeedbackState,
+} from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import WorkCompletionFeedback from "@/features/completion-effects/ui/components/work-completion-feedback";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -49,22 +51,18 @@ export function getWorkStatusLabel(
 }
 
 export default function WorkStatusForm({
-  accountId,
-  completionEffectsPreferences,
+  completionFeedback,
+  onCloseOutcome,
   work,
   workStatusLabels,
 }: {
-  accountId?: string;
-  completionEffectsPreferences: CompletionEffectsPreferences | null;
+  completionFeedback: WorkCompletionFeedbackState;
+  onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
-  const completionFeedback = useUserInitiatedWorkSuccess({
-    accountId,
-    preferences: completionEffectsPreferences,
-  });
   const latestWorkRevision = useRef(work.revision);
   const [selectedStatus, setSelectedStatus] = useState<WorkStatus>(work.status);
   const [closePreview, setClosePreview] = useState<WorkClosePreview | null>(
@@ -141,15 +139,16 @@ export default function WorkStatusForm({
       runOnlineOnlyWrite(() => client.closeWork(input)),
     onError: (mutationError, input) => {
       if (input.closureResult === "Completed") {
-        completionFeedback.handleCloseOutcome({
+        onCloseOutcome({
           clientIdempotencyKey: input.clientIdempotencyKey,
           closureResult: input.closureResult,
           kind: "failed",
+          workId: work.id,
         });
       }
       setError(mutationErrorMessage(mutationError));
     },
-    onSuccess: (closedWork, input) => {
+    onSuccess: async (closedWork, input) => {
       latestWorkRevision.current = closedWork.revision;
       setSelectedStatus(closedWork.status);
       setClosePreview(null);
@@ -162,15 +161,16 @@ export default function WorkStatusForm({
         const reopenStatus =
           pendingCloseOpenStatus.current ??
           (work.status === "Closed" ? "In Progress" : work.status);
-        completionFeedback.handleCloseOutcome({
+        onCloseOutcome({
           clientIdempotencyKey: input.clientIdempotencyKey,
           kind: "completed",
           reopenStatus: reopenStatus as WorkOpenStatus,
           visibleAtCloseStart,
+          workId: work.id,
         });
       }
       pendingCloseOpenStatus.current = null;
-      refreshWork().catch(() => undefined);
+      await refreshWork();
     },
   });
 
@@ -181,12 +181,12 @@ export default function WorkStatusForm({
       setSelectedStatus(work.status);
       setError(mutationErrorMessage(mutationError));
     },
-    onSuccess: (reopenedWork) => {
+    onSuccess: async (reopenedWork) => {
       latestWorkRevision.current = reopenedWork.revision;
       setSelectedStatus(reopenedWork.status);
       setReopenTarget(null);
       setError(null);
-      refreshWork().catch(() => undefined);
+      await refreshWork();
     },
   });
 

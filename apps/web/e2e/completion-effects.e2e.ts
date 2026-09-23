@@ -55,13 +55,38 @@ function createAccountApiClient(cookie: AccountSessionSetup["cookie"]) {
     new RPCLink({
       url: `${E2E_SERVER_URL}/rpc`,
       fetch(input, init) {
-        const headers = new Headers(init?.headers);
+        const requestInit = init as RequestInit;
+        const headers = new Headers(requestInit.headers);
         headers.set("cookie", `${cookie.name}=${cookie.value}`);
         headers.set("origin", E2E_WEB_URL);
-        return globalThis.fetch(input, { ...init, headers });
+        return globalThis.fetch(input, { ...requestInit, headers });
       },
     }),
   );
+}
+
+function createRequestGate() {
+  let releaseGate!: () => void;
+  let notifyStarted!: () => void;
+  let wasStarted = false;
+  const wait = new Promise<void>((resolve) => {
+    releaseGate = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    notifyStarted = resolve;
+  });
+
+  return {
+    notifyStarted: () => {
+      if (!wasStarted) {
+        wasStarted = true;
+        notifyStarted();
+      }
+    },
+    release: () => releaseGate(),
+    started,
+    wait: () => wait,
+  };
 }
 
 async function enableCompletionEffects(page: Page) {
@@ -773,4 +798,176 @@ test("plays a new event after the same Work is reopened and completed again", as
   await expect(
     reopenedWork.locator('.work-completion-effect[data-playing="true"]'),
   ).toBeVisible();
+});
+
+test("shows Completion Effects feedback for a bulk Completed close", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithAccountPreferencesFixture(context, request, "work-lifecycle");
+  await enableCompletionEffects(page);
+  await openProjectWorkSurface(page, "Bulk Completion Effects Project");
+  const work = await createWork(page, "Complete through Bulk Edit");
+  const workElementId = await work.getAttribute("id");
+  if (!workElementId) {
+    throw new Error("The selected Work row did not expose its record id.");
+  }
+  const workRow = page.locator(`[id="${workElementId}"]`);
+
+  await work.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Bulk Edit" }).click();
+  const bulkEdit = page.getByRole("dialog", { name: "Bulk Edit" });
+  await bulkEdit
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("Closed");
+  await expect(bulkEdit.getByLabel("Closure result")).toBeVisible();
+  await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.evaluate(() => {
+    let frameAt = 0;
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) =>
+      window.setTimeout(() => {
+        frameAt += 16;
+        callback(frameAt);
+      }, 16)) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((frameId: number) =>
+      window.clearTimeout(frameId)) as typeof window.cancelAnimationFrame;
+  });
+  await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
+
+  await expect(
+    bulkEdit
+      .getByRole("list", { name: "Bulk Edit results" })
+      .getByText("Succeeded"),
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(
+    workRow.locator('[role="status"]').filter({
+      hasText: "Work completed",
+    }),
+  ).toBeVisible();
+  const effect = workRow.locator(
+    '.work-completion-effect[data-playing="true"]',
+  );
+  await expect(effect).toBeVisible();
+
+  await bulkEdit.getByRole("button", { name: "Cancel", exact: true }).click();
+  if (await bulkEdit.isVisible()) {
+    const finalizing = bulkEdit.getByRole("button", {
+      name: "Finalizing",
+      exact: true,
+    });
+    await expect(finalizing).toBeVisible();
+    await expect(finalizing).toBeHidden({ timeout: 20_000 });
+    await bulkEdit.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
+  await expect(bulkEdit).toBeHidden();
+  await expect(
+    workRow.locator('[role="status"]').filter({
+      hasText: "Work completed",
+    }),
+  ).toBeVisible();
+});
+
+test("keeps the Work completed notice when the drawing budget is missed", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithAccountPreferencesFixture(context, request, "work-lifecycle");
+  await enableCompletionEffects(page);
+  await openProjectWorkSurface(
+    page,
+    "Completion Effects Drawing Budget Project",
+  );
+  const work = await createWork(page, "Keep feedback on a slow device");
+  await work
+    .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
+    .selectOption("Closed");
+  const closeDialog = work.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
+  await expect(closeDialog).toBeVisible();
+
+  await page.evaluate(() => {
+    let frameAt = 0;
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) =>
+      window.setTimeout(() => {
+        frameAt += 16;
+        callback(frameAt);
+      }, 16)) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((frameId: number) =>
+      window.clearTimeout(frameId)) as typeof window.cancelAnimationFrame;
+  });
+  await closeDialog.getByRole("button", { name: "Close", exact: true }).click();
+
+  await expect(work.getByText("Work completed", { exact: true })).toBeVisible();
+  const effect = work.locator('.work-completion-effect[data-playing="true"]');
+  await expect(effect).toBeVisible();
+  await page.evaluate(() => {
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) =>
+      window.setTimeout(
+        () => callback(performance.now()),
+        80,
+      )) as typeof window.requestAnimationFrame;
+  });
+  await expect(effect).toHaveCount(0, { timeout: 1500 });
+  await expect(work.getByText("Work completed", { exact: true })).toBeVisible();
+});
+
+test("keeps Work status controls pending until the accepted close refresh completes", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithAccountPreferencesFixture(context, request, "work-lifecycle");
+  await openProjectWorkSurface(page, "Completion Effects Refresh Project");
+  const work = await createWork(page, "Wait for the refreshed Work status");
+  const status = work.getByRole("combobox", {
+    name: WORK_STATUS_COMBOBOX_NAME,
+  });
+  await status.selectOption("Closed");
+  const closeDialog = work.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
+
+  let activeRefreshGate: ReturnType<typeof createRequestGate> | null = null;
+  await page.route("**/rpc/projectWorks", async (route) => {
+    const refreshGate = activeRefreshGate;
+    if (refreshGate) {
+      refreshGate.notifyStarted();
+      await refreshGate.wait();
+    }
+    await route.continue();
+  });
+
+  const closeRefreshGate = createRequestGate();
+  activeRefreshGate = closeRefreshGate;
+  try {
+    await closeDialog
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
+    await closeRefreshGate.started;
+    await expect(status).toBeDisabled();
+  } finally {
+    activeRefreshGate = null;
+    closeRefreshGate.release();
+  }
+  await expect(status).toBeEnabled();
+  await expect(status).toHaveValue("Closed");
+
+  const reopenRefreshGate = createRequestGate();
+  activeRefreshGate = reopenRefreshGate;
+  try {
+    await work.getByRole("button", { name: "Reopen", exact: true }).click();
+    await work
+      .getByRole("dialog", { name: REOPEN_DIALOG_NAME })
+      .getByRole("button", { name: "Confirm reopen", exact: true })
+      .click();
+    await reopenRefreshGate.started;
+    await expect(status).toBeDisabled();
+  } finally {
+    activeRefreshGate = null;
+    reopenRefreshGate.release();
+  }
+  await expect(status).toBeEnabled();
+  await expect(status).toHaveValue("Not Started");
 });

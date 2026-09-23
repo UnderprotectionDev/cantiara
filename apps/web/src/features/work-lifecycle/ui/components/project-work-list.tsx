@@ -25,6 +25,7 @@ import { useBulkWorkSelection } from "@/features/bulk-editing/hooks/use-bulk-wor
 import BulkEditDialog, {
   WorkSelectionCheckbox,
 } from "@/features/bulk-editing/ui/components/bulk-edit-dialog";
+import useUserInitiatedWorkSuccess from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
@@ -88,6 +89,10 @@ export default function ProjectWorkList({
   );
   const completionEffectsPreferences: CompletionEffectsPreferences | null =
     completionEffectsPreferencesQuery.data ?? null;
+  const completionFeedback = useUserInitiatedWorkSuccess({
+    accountId,
+    preferences: completionEffectsPreferences,
+  });
   const recordActionRunner = useRecordActionRunner(projectId);
   const allProjectWorksQuery = useQuery(
     orpc.projectWorks.queryOptions({
@@ -336,8 +341,8 @@ export default function ProjectWorkList({
                 <div className="flex flex-wrap items-end gap-3">
                   <WorkTypeEditor work={work} />
                   <WorkStatusForm
-                    accountId={accountId}
-                    completionEffectsPreferences={completionEffectsPreferences}
+                    completionFeedback={completionFeedback.feedbackFor(work.id)}
+                    onCloseOutcome={completionFeedback.handleCloseOutcome}
                     work={work}
                     workStatusLabels={workStatusLabels}
                   />
@@ -373,6 +378,7 @@ export default function ProjectWorkList({
       )}
       <BulkEditDialog
         archived={showArchived}
+        onCloseOutcome={completionFeedback.handleCloseOutcome}
         onOpenChange={setIsBulkEditOpen}
         open={isBulkEditOpen}
         projectId={projectId}
