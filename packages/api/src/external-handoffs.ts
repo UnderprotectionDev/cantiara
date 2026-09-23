@@ -308,6 +308,19 @@ const reconcilePlanSchema = z
         seen.add(item.id);
       });
     }
+
+    const seenRelations = new Set<string>();
+    plan.proposedRelations.forEach((relation, index) => {
+      const identity = JSON.stringify([relation.kind, relation.targetWorkId]);
+      if (seenRelations.has(identity)) {
+        context.addIssue({
+          code: "custom",
+          message: "Relation proposals must be unique per Work and kind.",
+          path: ["proposedRelations", index],
+        });
+      }
+      seenRelations.add(identity);
+    });
   });
 
 export const previewExternalExecutionHandoffReconcileInputSchema =

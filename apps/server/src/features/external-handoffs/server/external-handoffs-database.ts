@@ -351,9 +351,13 @@ async function reconcilePreview(
     "followUpWorks" | "proposedRelations"
   >,
 ): Promise<ExternalExecutionHandoffReconcilePreview> {
-  const plan = previewExternalExecutionHandoffReconcileInputSchema
-    .pick({ followUpWorks: true, proposedRelations: true })
-    .parse(rawPlan);
+  const { followUpWorks, proposedRelations } =
+    previewExternalExecutionHandoffReconcileInputSchema.parse({
+      handoffId: handoff.handoffId,
+      followUpWorks: rawPlan.followUpWorks,
+      proposedRelations: rawPlan.proposedRelations,
+    });
+  const plan = { followUpWorks, proposedRelations };
   const targetWorkIds = [
     ...new Set(plan.proposedRelations.map((proposal) => proposal.targetWorkId)),
   ];
