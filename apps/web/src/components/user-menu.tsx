@@ -63,6 +63,9 @@ export default function UserMenu() {
           <DropdownMenuItem render={<Link to="/account/preferences" />}>
             Preferences
           </DropdownMenuItem>
+          <DropdownMenuItem render={<Link to="/account/completion-effects" />}>
+            Completion effects
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={signOut} variant="destructive">
             Sign Out
           </DropdownMenuItem>

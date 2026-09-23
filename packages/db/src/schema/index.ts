@@ -2,6 +2,7 @@
 export * from "./auth";
 export * from "./backlog";
 export * from "./capture-triage";
+export * from "./completion-effects";
 export * from "./custom-fields";
 export * from "./daily-focus";
 export * from "./file-attachments";

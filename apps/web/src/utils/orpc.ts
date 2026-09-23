@@ -49,6 +49,8 @@ export const orpc = createTanstackQueryUtils(client);
 
 const accountPreferencesQueryPrefix =
   orpc.accountPreferences.queryOptions().queryKey;
+const completionEffectsPreferencesQueryPrefix =
+  orpc.completionEffectsPreferences.queryOptions().queryKey;
 export const projectsQueryPrefix = orpc.projects.queryOptions().queryKey;
 export const workspaceOverviewQueryPrefix =
   orpc.workspaceOverview.queryOptions().queryKey;
@@ -67,7 +69,21 @@ export function accountPreferencesQueryOptions(accountId?: string) {
   };
 }
 
-export { accountPreferencesQueryPrefix };
+export function completionEffectsPreferencesQueryOptions(accountId?: string) {
+  return {
+    ...orpc.completionEffectsPreferences.queryOptions(),
+    enabled: Boolean(accountId),
+    queryKey: [
+      ...completionEffectsPreferencesQueryPrefix,
+      accountId ?? "anonymous",
+    ] as const,
+  };
+}
+
+export {
+  accountPreferencesQueryPrefix,
+  completionEffectsPreferencesQueryPrefix,
+};
 
 export function projectsQueryOptions() {
   return {

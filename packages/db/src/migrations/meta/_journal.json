@@ -386,6 +386,13 @@
       "when": 1790169942265,
       "tag": "0054_repair_prioritization_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1790175296625,
+      "tag": "0055_completion_effect_preferences",
+      "breakpoints": true
     }
   ]
 }

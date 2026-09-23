@@ -10,6 +10,10 @@ import type {
 import type { BacklogAccess, BacklogMutationContracts } from "./backlog";
 import type { CaptureInboxAccess } from "./capture-triage";
 import type {
+  CompletionEffectsPreferences,
+  CompletionEffectsPreferencesAccess,
+} from "./completion-effects";
+import type {
   CustomFieldMutationContracts,
   CustomFieldsAccess,
 } from "./custom-fields";
@@ -134,6 +138,8 @@ export interface Context {
   captureInbox?: CaptureInboxAccess;
   clientKey?: string;
   clientPlatform?: AccountAccessClient;
+  completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
+  completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
   db: Database;

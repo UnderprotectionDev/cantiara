@@ -1,3 +1,4 @@
+import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
@@ -29,6 +30,10 @@ import {
 } from "../src/features/capture-triage/server/capture-inbox-database";
 import { createDevelopmentCaptureInboxTriageAdapter } from "../src/features/capture-triage/server/capture-inbox-development-adapter";
 import { createCaptureInboxWorkCreate } from "../src/features/capture-triage/server/capture-work-create";
+import {
+  completionEffectsPreferencesMutationTarget,
+  createDatabaseCompletionEffectsPreferences,
+} from "../src/features/completion-effects/server/completion-effects-database";
 import { createDatabaseCustomFields } from "../src/features/custom-fields/server/custom-fields-database";
 import {
   createDatabaseCustomFieldFinalizationWriter,
@@ -78,6 +83,12 @@ const accountPreferencesMutationContract = createDatabaseMutationContract(
   database,
   { target: accountPreferencesMutationTarget },
 );
+const completionEffectsPreferences =
+  createDatabaseCompletionEffectsPreferences(database);
+const completionEffectsPreferencesMutationContract =
+  createDatabaseMutationContract<CompletionEffectsPreferences>(database, {
+    target: completionEffectsPreferencesMutationTarget,
+  });
 const captureInboxMutationContract = createDatabaseMutationContract(database, {
   target: captureInboxMutationTarget,
 });
@@ -183,7 +194,7 @@ const auth = betterAuth({
       "/get-session": false,
     },
   },
-  plugins: [testUtils()],
+  plugins: [...(authOptions.plugins ?? []), testUtils()],
 });
 const accountSessionAccess = createDatabaseAccountSessionAccess(
   database,
@@ -215,6 +226,8 @@ const app = createApp({
   backlogMutationContracts,
   auth,
   captureInbox,
+  completionEffectsPreferences,
+  completionEffectsPreferencesMutationContract,
   customFields,
   customFieldMutationContracts,
   corsOrigin: webOrigin,
@@ -446,6 +459,9 @@ async function createE2EFixture(fixtureKey: string) {
   return {
     currentCookie,
     otherCookie,
+    ...(fixtureKey === "completion-effects"
+      ? { tauriBearerToken: currentCookie.value }
+      : {}),
     ...(projectId ? { projectId } : {}),
     ...(usedInSourceProjectId && usedInSourceWorkId
       ? { usedInSourceProjectId, usedInSourceWorkId }
@@ -471,12 +487,14 @@ serve({
         currentCookie,
         otherCookie,
         projectId,
+        tauriBearerToken,
         usedInSourceProjectId,
         usedInSourceWorkId,
       } = await createE2EFixture(fixtureKey);
       return Response.json({
         cookie: currentCookie,
         otherCookie,
+        ...(tauriBearerToken ? { tauriBearerToken } : {}),
         ...(projectId ? { projectId } : {}),
         ...(usedInSourceProjectId && usedInSourceWorkId
           ? { usedInSourceProjectId, usedInSourceWorkId }

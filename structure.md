@@ -78,6 +78,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── account-preferences/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── completion-effects/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── file-attachments/
@@ -119,6 +121,7 @@
 │   └── web/
 │       ├── e2e/
 │       │   ├── account-preferences.e2e.ts
+│       │   ├── completion-effects.e2e.ts
 │       │   ├── prioritization-sessions.e2e.ts
 │       │   ├── account-sessions.e2e.ts
 │       │   ├── capture-inbox.e2e.ts
@@ -178,6 +181,17 @@
 │       │   │   │       └── views/
 │       │   │   │           ├── preferences-view.test.tsx
 │       │   │   │           └── preferences-view.tsx
+│       │   │   ├── completion-effects/
+│       │   │   │   ├── lib/
+│       │   │   │   │   └── completion-effects-presentation.ts
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       │   ├── completion-effect-specimen.css
+│       │   │   │       │   └── completion-effect-specimen.tsx
+│       │   │   │       ├── forms/
+│       │   │   │       │   └── completion-effects-form.tsx
+│       │   │   │       └── views/
+│       │   │   │           └── completion-effects-view.tsx
 │       │   │   ├── capture-triage/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   ├── use-capture-inbox.ts
@@ -356,11 +370,13 @@
 │       │   │               └── workspace-overview.tsx
 │       │   ├── lib/
 │       │   │   ├── auth-client.ts
-│       │   │   └── clipboard.ts
+│       │   │   ├── clipboard.ts
+│       │   │   └── mutation-messages.ts
 │       │   ├── routes/
 │       │   │   ├── _auth/
 │       │   │   │   ├── account/
 │       │   │   │   │   ├── index.tsx
+│       │   │   │   │   ├── completion-effects.tsx
 │       │   │   │   │   └── preferences.tsx
 │       │   │   │   ├── capture/
 │       │   │   │   │   └── index.tsx
@@ -403,6 +419,8 @@
 │   │   │   ├── routers/
 │   │   │   │   └── index.ts
 │   │   │   ├── account-preferences.ts
+│   │   │   ├── completion-effects.test.ts
+│   │   │   ├── completion-effects.ts
 │   │   │   ├── capture-triage.ts
 │   │   │   ├── context.ts
 │   │   │   ├── file-attachments.test.ts
@@ -456,6 +474,7 @@
 │   │   │   ├── schema/
 │   │   │   │   ├── auth.ts
 │   │   │   │   ├── capture-triage.ts
+│   │   │   │   ├── completion-effects.ts
 │   │   │   │   ├── custom-fields.ts
 │   │   │   │   ├── daily-focus.ts
 │   │   │   │   ├── file-attachments.ts
@@ -515,3 +534,5 @@ Backlog order and Prioritization Sessions are separate Project-scoped sources of
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).
 
 Daily Focus membership persistence is owned by the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`); Record Actions consumes that membership through its atomic write boundary.
+
+Completion Effects preferences are an Account-scoped catalog owned by `packages/api/src/completion-effects.ts`, persisted in `packages/db/src/schema/completion-effects.ts`, served from `apps/server/src/features/completion-effects/server/`, and configured through `apps/web/src/features/completion-effects/`.

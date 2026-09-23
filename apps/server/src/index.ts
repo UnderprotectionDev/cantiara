@@ -13,6 +13,8 @@ import {
   backlog,
   backlogMutationContracts,
   captureInbox,
+  completionEffectsPreferences,
+  completionEffectsPreferencesMutationContract,
   customFieldMutationContracts,
   customFields,
   fileAttachments,
@@ -75,6 +77,8 @@ const app = createApp({
   backlog,
   backlogMutationContracts,
   captureInbox,
+  completionEffectsPreferences,
+  completionEffectsPreferencesMutationContract,
   customFields,
   customFieldMutationContracts,
   desktopApiWindow: {
