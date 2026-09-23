@@ -84,6 +84,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── file-attachments/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── external-handoffs/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── custom-fields/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── mutation-and-undo/
@@ -231,6 +233,13 @@
 │       │   │   │           └── custom-field-editor.tsx
 │       │   │   │           ├── custom-field-values-form.test.tsx
 │       │   │   │           └── custom-field-values-form.tsx
+│       │   │   ├── external-handoffs/
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── use-external-handoffs.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── external-execution-handoff.test.tsx
+│       │   │   │           └── external-execution-handoff.tsx
 │       │   │   ├── priority-metrics/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-priority-metrics.ts
@@ -435,6 +444,8 @@
 │   │   │   ├── prioritization-sessions.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
+│   │   │   ├── external-handoffs.test.ts
+│   │   │   ├── external-handoffs.ts
 │   │   │   ├── index.ts
 │   │   │   ├── mutation-and-undo.ts
 │   │   │   ├── project-overview.ts
@@ -487,6 +498,7 @@
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
+│   │   │   │   ├── work-external-handoff.ts
 │   │   │   │   ├── work-draft.ts
 │   │   │   │   ├── work-template.ts
 │   │   │   │   └── work.ts
@@ -527,6 +539,8 @@ Tags source ownership is split across the API contract (`packages/api/src/tags.t
 File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).
 
 Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
+
+External Execution Handoff source ownership is split across the API contract (`packages/api/src/external-handoffs.ts`), the PostgreSQL schema and migration (`packages/db/src/schema/work-external-handoff.ts`, `packages/db/src/migrations/0055_work-external-execution-handoff.sql`), the Work-owned server boundary (`apps/server/src/features/external-handoffs/server/`), and the Work-list surface (`apps/web/src/features/external-handoffs/`).
 
 Backlog order and Prioritization Sessions are separate Project-scoped sources of truth. Their API contracts live in `packages/api/src/backlog.ts` and `packages/api/src/prioritization-sessions.ts`; Drizzle schemas live in `packages/db/src/schema/backlog.ts` and `packages/db/src/schema/prioritization-session.ts`; server access and mutations live under `apps/server/src/features/backlog/server/` and `apps/server/src/features/prioritization-sessions/server/`; the comparison surface and session controls live in `apps/web/src/features/prioritization-sessions/`.
 

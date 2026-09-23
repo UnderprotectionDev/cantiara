@@ -56,6 +56,10 @@ import {
   updateCustomFieldMutationInputSchema,
 } from "../custom-fields";
 import {
+  listExternalExecutionHandoffsInputSchema,
+  startExternalExecutionHandoffMutationInputSchema,
+} from "../external-handoffs";
+import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
   fileAttachmentLocationBindInputSchema,
@@ -392,6 +396,29 @@ function requireWorkTemplates(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.workTemplates;
+}
+
+function requireExternalExecutionHandoffs(context: Context) {
+  if (!context.workHandoffs) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.workHandoffs;
+}
+
+function rethrowExternalExecutionHandoffError(error: unknown): never {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "EXTERNAL_HANDOFF_STALE_WORK" ||
+      error.code === "EXTERNAL_HANDOFF_IDEMPOTENCY_CONFLICT")
+  ) {
+    throw new ORPCError("CONFLICT", {
+      defined: true,
+      message: "This handoff could not be written.",
+    });
+  }
+  throw error;
 }
 
 function requireRecordActions(context: Context): RecordActionsAccess {
@@ -1853,6 +1880,40 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  externalExecutionHandoffs: protectedProcedure
+    .input(listExternalExecutionHandoffsInputSchema)
+    .handler(async ({ context, input }) => {
+      const handoffs = await requireExternalExecutionHandoffs(context).list(
+        context.session.user.id,
+        input.workId,
+      );
+      if (!handoffs) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work is unavailable.",
+        });
+      }
+      return handoffs;
+    }),
+  startExternalExecutionHandoff: protectedProcedure
+    .input(startExternalExecutionHandoffMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const handoff = await requireExternalExecutionHandoffs(context).start(
+          context.session.user.id,
+          input,
+        );
+        if (!handoff) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Work is unavailable.",
+          });
+        }
+        return handoff;
+      } catch (error) {
+        rethrowExternalExecutionHandoffError(error);
+      }
+    }),
   workTemplates: protectedProcedure
     .input(workTemplatesInputSchema)
     .handler(async ({ context, input }) => {

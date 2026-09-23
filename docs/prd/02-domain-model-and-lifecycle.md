@@ -407,11 +407,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Seçilen sürüm ekle | `Add selected version` | Gidiş paketi manifestine kesin sürüm satırı ekleme |
 | Seçilen sürümü kaldır | `Remove selected version` | Gidiş paketi manifestinden kesin sürüm satırını çıkarma |
 | Gidiş paketi | `Going package` | Seçilen kesin sürümlerden üretilen tarihli Markdown kopyası; canlı senkron değildir |
+| Gidiş paketini kopyala | `Copy going package` | İşe ait tarihli gidiş paketi Markdown'ını panoya kopyalama eylemi |
 | Bu İşi dahil et | `Include this Work` | Sahip İşin kesin sürümünü gidiş paketine alma |
 | Üretildi | `Produced at` | Markdown kopyasının üretim zamanı etiketi; kalıcı snapshot zamanı değildir |
+| Amaç | `Purpose` | Dış yürütme devrinin nedenini açıklayan kullanıcı metni |
 | İlgili Karar, Risk ve Açık Soru | `Related Decision, Risk, and Open Question` | Markdown kopyasındaki belirsizlik bölümü |
 | Aktif blokajlar | `Active blockers` | Markdown kopyasındaki aktif blokaj bölümü |
-| GitHub ve dış bağlantılar | `GitHub and external links` | Markdown kopyasındaki izinli GitHub ve dış bağlantı bölümü |
+| GitHub bağlamı | `GitHub context` | Gidiş paketindeki izinli GitHub kimlikleri; diğer kayıt kaynakları sürüm sözleşmeleri hazır olduğunda seçilir |
 | Problem/Fırsat | `Problem/Opportunity` | Feature hazır İş Bağlam Kartı bölümü |
 | Beklenen sonuç | `Expected Outcome` | Feature ve Improvement hazır İş Bağlam Kartı bölümü |
 | Kanıt ve kararlar | `Evidence & Decisions` | Feature hazır İş Bağlam Kartı bölümü |
