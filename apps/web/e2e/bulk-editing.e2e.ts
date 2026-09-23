@@ -131,6 +131,7 @@ test("previews and applies a status change only to selected Work", async ({
   await expect(workStatusControl(changedWork)).toHaveValue("In Progress", {
     timeout: 30_000,
   });
+  await expect(workTypeControl(changedWork)).toHaveValue("Bug");
   await expect(undoResults).toContainText("Undone");
 
   await undoDialog.getByRole("button", { name: "Cancel" }).click();
@@ -201,6 +202,8 @@ test("shows a stale Work conflict without hiding other selected results", async 
   const workUrl = page.url();
   const staleWork = workListItem(page, "Stale Work");
   const currentWork = workListItem(page, "Current Work");
+  const staleWorkKey = await staleWork.locator("p span").innerText();
+  const currentWorkKey = await currentWork.locator("p span").innerText();
   await expect(staleWork.getByRole("checkbox")).toHaveCount(1, {
     timeout: 5000,
   });
@@ -227,8 +230,9 @@ test("shows a stale Work conflict without hiding other selected results", async 
 
   const results = bulkEdit.getByRole("list", { name: "Bulk Edit results" });
   await expect(results.locator("li")).toHaveCount(2);
-  await expect(results).toContainText("Failed");
-  await expect(results).toContainText("Succeeded");
+  const resultRows = await results.locator("li > p").allTextContents();
+  expect(resultRows).toContain(`${staleWorkKey}: Failed`);
+  expect(resultRows).toContain(`${currentWorkKey}: Succeeded`);
   await expect(results).toContainText("Support reference");
   await expect(workStatusControl(staleWork)).toHaveValue("Blocked");
   await expect(workStatusControl(currentWork)).toHaveValue("In Progress");
