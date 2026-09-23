@@ -54,7 +54,7 @@ Birleşik Bildirim Merkezi yalnız kapalı registrydeki Dikkat sinyallerini `Act
 | `personal-reminder` | `Action Required` | kişisel hatırlatmalar (06) |
 | `review-later` | `Action Required` | Yeniden bak (06) |
 | `open-risk` | `Action Required` | Risk (09) |
-| `work-blocked` | `Action Required` | blokaj (06 / workflow 19) |
+| `work-blocked` | `Needs Action` | blokaj (06 / workflow 19) |
 | `source-version-in-use` | `Action Required` | Kaynak sürüm kullanımı (08) |
 | `external-run-returned` | `Action Required` | Dış yürütme devri (06) |
 | `release-observation-missing` | `Action Required` | Proje Sürümü iletişimi (12) |
