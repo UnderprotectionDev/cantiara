@@ -1,0 +1,2 @@
+ALTER TABLE "work_external_execution_handoff" ADD COLUMN "cancellation_reason" text;--> statement-breakpoint
+ALTER TABLE "work_external_execution_handoff" ADD CONSTRAINT "work_external_handoff_cancellation_reason_check" CHECK (("work_external_execution_handoff"."status" = 'Canceled' and "work_external_execution_handoff"."cancellation_reason" is not null and length(btrim("work_external_execution_handoff"."cancellation_reason")) > 0) or ("work_external_execution_handoff"."status" <> 'Canceled' and "work_external_execution_handoff"."cancellation_reason" is null));

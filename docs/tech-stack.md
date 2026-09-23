@@ -28,6 +28,8 @@ Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürü
 
 Dar kapsamlı tarihsel Prioritization şeması onarımı yalnızca mevcut veritabanında `0046–0048` önkoşulları ile beklenen şema nesneleri zaten bulunduğunda kullanılır. Bu kip, kanonik migration komutunun `bun run db:migrate -- --repair-prioritization-schema` biçimindeki seçici çalıştırmasıdır; yalnızca `0054_repair_prioritization_schema` girdisini uygular ve bu girdiyi normal Drizzle migration geçmişine kaydeder. Migration beklenen önkoşulları doğrular, eksik bulursa durur. Bu kip ilk kurulum veya olağan migration akışı yerine kullanılmaz; yeni ve normal veritabanlarında bayraksız `bun run db:migrate` çalıştırılır.
 
+Önceden oluşturulmuş `work_external_execution_handoff` tablosu bulunup `0056_work-external-execution-handoff` migration geçmişinde kayıtlı değilse, iptal alanı değişikliği için `bun run db:migrate -- --repair-external-handoff-cancellation` seçici onarımı kullanılır. Yalnızca idempotent `0058_external-handoff-cancellation-compatibility` girdisini çalıştırır; temel Handoff alanlarını doğrular, iptal gerekçesi sütununu ve kısıtını ekler, çelişkili kayıt bulursa durur. Yeni ve normal veritabanlarında standart `bun run db:migrate` yolu `0056` ve `0057` sonrasında bu uyumluluk migration'ını da güvenle no-op olarak kaydeder.
+
 ## Arayüz ve durum yönetimi
 
 | Teknoloji | Amaç |

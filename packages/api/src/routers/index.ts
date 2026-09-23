@@ -56,6 +56,7 @@ import {
   updateCustomFieldMutationInputSchema,
 } from "../custom-fields";
 import {
+  cancelExternalExecutionHandoffInputSchema,
   listExternalExecutionHandoffHistoryInputSchema,
   listExternalExecutionHandoffsInputSchema,
   recordExternalExecutionHandoffPackageExportInputSchema,
@@ -414,7 +415,8 @@ function rethrowExternalExecutionHandoffError(error: unknown): never {
     error !== null &&
     "code" in error &&
     (error.code === "EXTERNAL_HANDOFF_STALE_WORK" ||
-      error.code === "EXTERNAL_HANDOFF_IDEMPOTENCY_CONFLICT")
+      error.code === "EXTERNAL_HANDOFF_IDEMPOTENCY_CONFLICT" ||
+      error.code === "EXTERNAL_HANDOFF_TERMINAL")
   ) {
     throw new ORPCError("CONFLICT", {
       defined: true,
@@ -1930,6 +1932,25 @@ export const appRouter = {
           throw new ORPCError("NOT_FOUND", {
             defined: true,
             message: "Work is unavailable.",
+          });
+        }
+        return handoff;
+      } catch (error) {
+        rethrowExternalExecutionHandoffError(error);
+      }
+    }),
+  cancelExternalExecutionHandoff: protectedProcedure
+    .input(cancelExternalExecutionHandoffInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const handoff = await requireExternalExecutionHandoffs(context).cancel(
+          context.session.user.id,
+          input,
+        );
+        if (!handoff) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Handoff is unavailable.",
           });
         }
         return handoff;

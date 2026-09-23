@@ -14,12 +14,13 @@ import { migrate } from "drizzle-orm/neon-serverless/migrator";
 
 import { createDb } from "../src/index";
 import { createSecurityEventDb } from "../src/security-events";
-import { selectMigrations } from "./migration-selection";
+import {
+  migrationRepairTagFromArgs,
+  selectMigrations,
+} from "./migration-selection";
 
 const securityEvents = process.argv.includes("--security-events");
-const prioritizationRepair = process.argv.includes(
-  "--repair-prioritization-schema",
-);
+const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
 const databaseUrl = securityEvents
   ? process.env.SECURITY_EVENT_DATABASE_URL
   : process.env.DATABASE_URL;
@@ -32,9 +33,9 @@ if (!databaseUrl) {
   );
 }
 
-if (prioritizationRepair && securityEvents) {
+if (compatibilityRepairTag && securityEvents) {
   throw new Error(
-    "Prioritization schema repair cannot target security-event migrations",
+    "Compatibility repairs cannot target security-event migrations",
   );
 }
 
@@ -45,14 +46,14 @@ const migrationsFolder = securityEvents
 if (securityEvents) {
   const database = createSecurityEventDb({ DATABASE_URL: databaseUrl });
   try {
-    await runMigrations(database, migrationsFolder, prioritizationRepair);
+    await runMigrations(database, migrationsFolder, compatibilityRepairTag);
   } finally {
     await database.$client.end();
   }
 } else {
   const database = createDb({ DATABASE_URL: databaseUrl });
   try {
-    await runMigrations(database, migrationsFolder, prioritizationRepair);
+    await runMigrations(database, migrationsFolder, compatibilityRepairTag);
   } finally {
     await database.$client.end();
   }
@@ -61,14 +62,13 @@ if (securityEvents) {
 async function runMigrations<TSchema extends Record<string, unknown>>(
   database: NeonDatabase<TSchema>,
   folder: string,
-  repairPrioritizationSchema: boolean,
+  compatibilityTag: string | null,
 ) {
-  if (!repairPrioritizationSchema) {
+  if (!compatibilityTag) {
     await migrate(database, { migrationsFolder: folder });
     return;
   }
 
-  const compatibilityTag = "0054_repair_prioritization_schema";
   const repairFile = join(folder, `${compatibilityTag}.sql`);
   const journalPath = join(folder, "meta", "_journal.json");
   const journal = JSON.parse(readFileSync(journalPath, "utf8"));
@@ -77,7 +77,7 @@ async function runMigrations<TSchema extends Record<string, unknown>>(
     compatibilityOnly: true,
   });
   const temporaryFolder = mkdtempSync(
-    join(tmpdir(), "cantiara-prioritization-repair-"),
+    join(tmpdir(), "cantiara-migration-repair-"),
   );
 
   try {
