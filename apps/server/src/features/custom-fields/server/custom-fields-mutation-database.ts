@@ -22,7 +22,7 @@ import {
 } from "@cantiara/db/schema/custom-fields";
 import { project } from "@cantiara/db/schema/project";
 import { and, eq, inArray, sql } from "drizzle-orm";
-
+import type { MutationIdempotencyKey } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
@@ -66,6 +66,8 @@ export interface CustomFieldValueFinalizationWriter {
     input: {
       accountId: string;
       committedAt: Date;
+      idempotencyKey: MutationIdempotencyKey;
+      payloadFingerprint: string;
       projectId: string;
       recordId: string;
       values: readonly CustomFieldValueFinalization[];
@@ -588,6 +590,7 @@ export function createDatabaseCustomFieldFinalizationWriter(): CustomFieldValueF
         const updated = await valueTarget.update(executor, {
           committedAt: input.committedAt,
           expectedRevision: valueRow?.revision ?? 0,
+          idempotencyKey: input.idempotencyKey,
           nextValue: {
             value: {
               createdAt:
@@ -602,6 +605,7 @@ export function createDatabaseCustomFieldFinalizationWriter(): CustomFieldValueF
               value: draftValue.payload,
             },
           },
+          payloadFingerprint: input.payloadFingerprint,
           targetId,
         });
         if (!updated) {

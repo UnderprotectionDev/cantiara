@@ -17,6 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { type FormEvent, useCallback, useState } from "react";
 import CustomFieldEditor from "@/features/custom-fields/ui/components/custom-field-editor";
+import PriorityMetricEditor from "@/features/priority-metrics/ui/components/priority-metric-editor";
 import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project-area-enable";
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
 import {
@@ -39,6 +40,7 @@ export default function ProjectConfigurationForm({
   configurationHost,
   onConfigurationHostChange,
   projectId,
+  projectName,
   starterConfiguration,
 }: {
   baseRevision: number;
@@ -46,6 +48,7 @@ export default function ProjectConfigurationForm({
   configurationHost: ConfigurationHost | null;
   onConfigurationHostChange: (host: ConfigurationHost | null) => void;
   projectId: string;
+  projectName: string;
   starterConfiguration: StarterConfiguration;
 }) {
   const { error, mutation } = useProjectConfiguration(projectId, baseRevision);
@@ -210,6 +213,7 @@ export default function ProjectConfigurationForm({
                 onEnableProjectArea={requestEnableProjectArea}
                 onReorderPinnedArea={requestReorderPinnedArea}
                 projectId={projectId}
+                projectName={projectName}
               />
             ) : (
               <div className="flex min-h-32 items-center">
@@ -264,6 +268,7 @@ function ConfigurationHostPanel({
   onEnableProjectArea,
   onReorderPinnedArea,
   projectId,
+  projectName,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
@@ -274,6 +279,7 @@ function ConfigurationHostPanel({
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
   projectId: string;
+  projectName: string;
 }) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
@@ -304,6 +310,7 @@ function ConfigurationHostPanel({
         onEnableProjectArea={onEnableProjectArea}
         onReorderPinnedArea={onReorderPinnedArea}
         projectId={projectId}
+        projectName={projectName}
       />
     </section>
   );
@@ -320,6 +327,7 @@ function ConfigurationHostContent({
   onEnableProjectArea,
   onReorderPinnedArea,
   projectId,
+  projectName,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
@@ -331,6 +339,7 @@ function ConfigurationHostContent({
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
   projectId: string;
+  projectName: string;
 }) {
   switch (label) {
     case "Stages":
@@ -365,6 +374,14 @@ function ConfigurationHostContent({
       );
     case "Custom field":
       return <CustomFieldEditor disabled={disabled} projectId={projectId} />;
+    case "Priority metrics":
+      return (
+        <PriorityMetricEditor
+          disabled={disabled}
+          projectId={projectId}
+          projectName={projectName}
+        />
+      );
     case "Work Template":
       return <WorkTemplateEditor disabled={disabled} projectId={projectId} />;
     case "Record Action":

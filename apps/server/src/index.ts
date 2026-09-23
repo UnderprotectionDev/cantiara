@@ -18,6 +18,8 @@ import {
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
+  priorityMetricMutationContracts,
+  priorityMetrics,
   projectShell,
   projectShellMutationContracts,
   recordActions,
@@ -25,6 +27,7 @@ import {
   replaySecurityRevocations,
   startFileAttachmentPreviewWorker,
   sweepExpiredFileAttachmentUploads,
+  sweepExpiredPriorityMetrics,
   tagMutationContracts,
   tags,
   tauriSessionAccess,
@@ -45,9 +48,16 @@ initLogger({
 await replaySecurityRevocations();
 await startFileAttachmentPreviewWorker();
 await sweepExpiredFileAttachmentUploads();
+await sweepExpiredPriorityMetrics();
 setInterval(
   () => {
     sweepExpiredFileAttachmentUploads().catch(() => undefined);
+  },
+  60 * 60 * 1000,
+);
+setInterval(
+  () => {
+    sweepExpiredPriorityMetrics().catch(() => undefined);
   },
   60 * 60 * 1000,
 );
@@ -73,6 +83,8 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
+  priorityMetricMutationContracts,
+  priorityMetrics,
   projectShell,
   projectShellMutationContracts,
   recordActions,

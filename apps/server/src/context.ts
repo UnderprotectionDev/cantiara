@@ -20,6 +20,10 @@ import type {
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import type {
+  PriorityMetricMutationContracts,
+  PriorityMetricsAccess,
+} from "@cantiara/api/priority-metrics";
+import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
@@ -63,6 +67,8 @@ export interface CreateContextOptions {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
+  priorityMetricMutationContracts?: PriorityMetricMutationContracts;
+  priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   recordActions?: RecordActionsAccess;
@@ -104,6 +110,8 @@ export async function createContext({
   mutationContract,
   projectShell,
   projectShellMutationContracts,
+  priorityMetricMutationContracts,
+  priorityMetrics,
   recordActions,
   workspaceOverview,
   tags,
@@ -151,6 +159,8 @@ export async function createContext({
     mutationContract,
     projectShell,
     projectShellMutationContracts,
+    priorityMetricMutationContracts,
+    priorityMetrics,
     recordActions,
     workspaceOverview,
     tags,

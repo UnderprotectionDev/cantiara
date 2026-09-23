@@ -11,6 +11,7 @@ import {
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
+import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { project, projectShortCode } from "@cantiara/db/schema/project";
 import { and, eq } from "drizzle-orm";
 
@@ -19,6 +20,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { starterPriorityMetricDefinitionValues } from "../../priority-metrics/server/priority-metrics-database";
 import {
   ProjectShortCodeConflictError,
   ProjectShortCodeLockedError,
@@ -208,6 +210,16 @@ async function createProjectShellRecord(
     nextProject.id,
     nextProject.shortCode,
   );
+  const priorityMetricValues = starterPriorityMetricDefinitionValues(
+    nextProject.id,
+    nextProject.starterConfiguration,
+    committedAt,
+  );
+  if (priorityMetricValues) {
+    await executor
+      .insert(priorityMetricDefinition)
+      .values(priorityMetricValues);
+  }
   return toTarget(created);
 }
 

@@ -31,6 +31,10 @@ import type {
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import type {
+  PriorityMetricMutationContracts,
+  PriorityMetricsAccess,
+} from "@cantiara/api/priority-metrics";
+import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
@@ -128,6 +132,8 @@ export interface AppDependencies {
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
+  priorityMetricMutationContracts?: PriorityMetricMutationContracts;
+  priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   recordActions?: RecordActionsAccess;
@@ -1098,6 +1104,9 @@ export function createApp(dependencies: AppDependencies) {
       mutationContract: dependencies.mutationContract,
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
+      priorityMetricMutationContracts:
+        dependencies.priorityMetricMutationContracts,
+      priorityMetrics: dependencies.priorityMetrics,
       recordActions: dependencies.recordActions,
       tagMutationContracts: dependencies.tagMutationContracts,
       tags: dependencies.tags,
