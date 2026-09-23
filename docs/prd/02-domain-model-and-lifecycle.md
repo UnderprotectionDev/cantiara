@@ -432,8 +432,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Değerlendirilmemiş | `Unevaluated` | Eksen veya ölçüt değeri henüz seçilmemiş İş |
 | Kanıt gücü | `Evidence strength` | Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü |
 | Öncelik Haritası | `Priority Map` | İki ölçütü eksen alan karşılaştırma görünümü; skor, otomatik sıra veya Backlog sırası değildir |
-| Yatay | `Horizontal` | Öncelik Haritası yatay eksen seçimi |
-| Dikey | `Vertical` | Öncelik Haritası dikey eksen seçimi |
+| Yatay | `Horizontal axis` | Öncelik Haritası yatay eksen seçimi |
+| Dikey | `Vertical axis` | Öncelik Haritası dikey eksen seçimi |
+| Kanıt sinyallerini göster | `Show evidence signals` | Öncelik Haritası'nda Feedback ve benzersiz Contact/Company sayılarını yalnızca bağlam olarak gösteren, varsayılan kapalı kontrol |
+| Eksen değerlerini düzenle | `Edit axis values` | Öncelik Haritası'nda seçili eksenlerin aynı İş için Öncelik ölçütü değerlerini açık kullanıcı eylemiyle düzenleme |
 | Benzersiz Contact | `Unique Contact` | Haritada isteğe bağlı kanıt bağlamı |
 | Benzersiz Company | `Unique Company` | Haritada isteğe bağlı kanıt bağlamı |
 | Kayıtlı görünüm | `Saved views` | Yapılandırma modunda adlandırılmış İş görünümü girişi; günlük planlama eylemi değildir |
