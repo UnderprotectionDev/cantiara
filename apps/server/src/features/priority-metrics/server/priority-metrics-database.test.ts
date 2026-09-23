@@ -19,6 +19,7 @@ import {
 import { accountActorAlias } from "../../account-access/server/github-identity-confirmation";
 import { MutationConflictError } from "../../mutation-and-undo/server/mutation-contract";
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
+import { PriorityMetricNameConflictError } from "./priority-metrics";
 import { createDatabasePriorityMetrics } from "./priority-metrics-database";
 import {
   createDatabasePriorityMetricMutationContracts,
@@ -72,6 +73,202 @@ describeDatabase("Priority metrics PostgreSQL boundary", () => {
   afterAll(async () => {
     await database?.$client.end();
   });
+
+  test("copies active criterion definitions as independent Project identities", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const source = await projectShell.create(accountId, {
+      name: "Priority metrics copy source",
+      starterConfiguration: "Blank Project",
+    });
+    const target = await projectShell.create(accountId, {
+      name: "Priority metrics copy target",
+      starterConfiguration: "Blank Project",
+    });
+    const sourceMetricId = `metric-${crypto.randomUUID()}`;
+    const trashedMetricId = `metric-${crypto.randomUUID()}`;
+    const rankDescriptions = {
+      High: "Repeated direct evidence.",
+      Low: "Limited evidence.",
+      Medium: "Some evidence.",
+      "Very high": "Strong validated evidence.",
+      "Very low": "No supporting evidence.",
+    };
+
+    await database.insert(priorityMetricDefinition).values([
+      {
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        enabled: false,
+        id: sourceMetricId,
+        name: "Evidence strength",
+        nameKey: priorityMetricNameKey("Evidence strength"),
+        projectId: source.id,
+        rankDescriptions,
+        shortDescription: "How strongly evidence supports this Work.",
+      },
+      {
+        createdAt: new Date("2026-01-02T00:00:00.000Z"),
+        enabled: true,
+        id: trashedMetricId,
+        name: "Retired criterion",
+        nameKey: priorityMetricNameKey("Retired criterion"),
+        projectId: source.id,
+        rankDescriptions,
+        shortDescription: "No longer used.",
+        trashedAt: new Date("2026-01-03T00:00:00.000Z"),
+      },
+    ]);
+
+    const copyInput = {
+      sourceProjectId: source.id,
+      targetProjectId: target.id,
+    };
+    const key = crypto.randomUUID();
+    const mutation =
+      createDatabasePriorityMetricMutationContracts(database).copyDefinitions(
+        accountId,
+      );
+    const command = {
+      actor: { actorId: accountId, type: "User" as const },
+      baseRevision: 0,
+      clientIdempotencyKey: key,
+      kind: "human" as const,
+      payload: copyInput,
+      targetId: `priority-metric-copy:${key}`,
+    };
+    const apply = ({ payload }: { payload: typeof copyInput }) => ({
+      definitions: [],
+      sourceProjectId: payload.sourceProjectId,
+      targetProjectId: payload.targetProjectId,
+    });
+    const receipt = await mutation.mutate(command, apply);
+    const replay = await mutation.mutate(command, apply);
+    const metrics = createDatabasePriorityMetrics(database);
+    const copied = await metrics.list(workspaceId, target.id);
+
+    expect(replay).toEqual(receipt);
+    expect(receipt.nextValue.definitions).toHaveLength(1);
+    expect(receipt.nextValue.definitions[0]).toMatchObject({
+      enabled: false,
+      name: "Evidence strength",
+      projectId: target.id,
+      rankDescriptions,
+      revision: 0,
+      shortDescription: "How strongly evidence supports this Work.",
+    });
+    await expect(
+      mutation.mutate(
+        {
+          ...command,
+          payload: {
+            sourceProjectId: target.id,
+            targetProjectId: source.id,
+          },
+        },
+        apply,
+      ),
+    ).rejects.toBeInstanceOf(MutationConflictError);
+
+    expect(copied).toHaveLength(1);
+    expect(copied?.[0]).toMatchObject({
+      enabled: false,
+      name: "Evidence strength",
+      projectId: target.id,
+      rankDescriptions,
+      revision: 0,
+      shortDescription: "How strongly evidence supports this Work.",
+      trashedAt: null,
+    });
+    expect(copied?.[0]?.id).not.toBe(sourceMetricId);
+    await expect(metrics.list(workspaceId, source.id)).resolves.toHaveLength(2);
+    await expect(metrics.list(workspaceId, target.id)).resolves.toEqual(copied);
+  }, 20_000);
+
+  test("rolls back Project structure copy when a target criterion name conflicts", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const source = await projectShell.create(accountId, {
+      name: "Priority metrics conflict source",
+      starterConfiguration: "Blank Project",
+    });
+    const target = await projectShell.create(accountId, {
+      name: "Priority metrics conflict target",
+      starterConfiguration: "Blank Project",
+    });
+    const rankDescriptions = {
+      High: "Repeated direct evidence.",
+      Low: "Limited evidence.",
+      Medium: "Some evidence.",
+      "Very high": "Strong validated evidence.",
+      "Very low": "No supporting evidence.",
+    };
+    await database.insert(priorityMetricDefinition).values([
+      {
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        enabled: true,
+        id: `metric-${crypto.randomUUID()}`,
+        name: "Audience",
+        nameKey: priorityMetricNameKey("Audience"),
+        projectId: source.id,
+        rankDescriptions,
+        shortDescription: "Who needs this Work.",
+      },
+      {
+        createdAt: new Date("2026-01-02T00:00:00.000Z"),
+        enabled: true,
+        id: `metric-${crypto.randomUUID()}`,
+        name: "Urgency",
+        nameKey: priorityMetricNameKey("Urgency"),
+        projectId: source.id,
+        rankDescriptions,
+        shortDescription: "How soon this Work is needed.",
+      },
+      {
+        enabled: true,
+        id: `metric-${crypto.randomUUID()}`,
+        name: "Urgency",
+        nameKey: priorityMetricNameKey("Urgency"),
+        projectId: target.id,
+        rankDescriptions,
+        shortDescription: "Target Project's existing criterion.",
+      },
+    ]);
+
+    const metrics = createDatabasePriorityMetrics(database);
+    const copyInput = {
+      sourceProjectId: source.id,
+      targetProjectId: target.id,
+    };
+    const key = crypto.randomUUID();
+    const mutation =
+      createDatabasePriorityMetricMutationContracts(database).copyDefinitions(
+        accountId,
+      );
+    await expect(
+      mutation.mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: 0,
+          clientIdempotencyKey: key,
+          kind: "human",
+          payload: copyInput,
+          targetId: `priority-metric-copy:${key}`,
+        },
+        ({ payload }) => ({
+          definitions: [],
+          sourceProjectId: payload.sourceProjectId,
+          targetProjectId: payload.targetProjectId,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(PriorityMetricNameConflictError);
+    await expect(metrics.list(workspaceId, target.id)).resolves.toHaveLength(1);
+  }, 20_000);
 
   test("makes a trashed criterion ineffective for reads and value writes", async () => {
     if (!database) {

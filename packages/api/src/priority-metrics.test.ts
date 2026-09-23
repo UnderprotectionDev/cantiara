@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  copyPriorityMetricDefinitionsInputSchema,
   createPriorityMetricInputSchema,
   EVIDENCE_STRENGTH_TEMPLATE,
   getStarterPriorityMetricTemplate,
@@ -47,6 +48,31 @@ describe("Priority metrics API contract", () => {
         rankDescriptions,
         shortDescription: "How strongly evidence supports this Work.",
         weight: 2,
+      }).success,
+    ).toBe(false);
+  });
+
+  test("requires the Mutation Contract envelope for Project structure copy", () => {
+    const payload = {
+      sourceProjectId: "project-1",
+      targetProjectId: "project-2",
+    };
+    expect(
+      copyPriorityMetricDefinitionsInputSchema.safeParse({
+        baseRevision: 0,
+        clientIdempotencyKey: "copy-1",
+        ...payload,
+      }).success,
+    ).toBe(true);
+    expect(
+      copyPriorityMetricDefinitionsInputSchema.safeParse(payload).success,
+    ).toBe(false);
+    expect(
+      copyPriorityMetricDefinitionsInputSchema.safeParse({
+        baseRevision: 0,
+        clientIdempotencyKey: "copy-2",
+        sourceProjectId: "project-1",
+        targetProjectId: "project-1",
       }).success,
     ).toBe(false);
   });

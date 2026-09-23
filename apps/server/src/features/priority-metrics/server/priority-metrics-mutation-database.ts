@@ -9,7 +9,10 @@ import {
 } from "@cantiara/api/mutation-and-undo";
 import {
   clearPriorityMetricValueInputSchema,
+  copyPriorityMetricDefinitionsPayloadSchema,
   createPriorityMetricInputSchema,
+  type PriorityMetric,
+  type PriorityMetricDefinitionsCopyMutationValue,
   type PriorityMetricMutationContracts,
   type PriorityMetricMutationValue,
   type PriorityMetricValue,
@@ -28,7 +31,7 @@ import {
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import { accountActorAlias } from "../../account-access/server/github-identity-confirmation";
 import {
   MutationConflictError,
@@ -40,6 +43,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { PriorityMetricNameConflictError } from "./priority-metrics";
 import {
   toPriorityMetric,
   toPriorityMetricValue,
@@ -60,6 +64,9 @@ type DefinitionUpdateInput = Parameters<
 type ValueUpdateInput = Parameters<
   MutationDatabaseTargetAdapter<PriorityMetricValueMutationValue>["update"]
 >[1];
+type DefinitionsCopyUpdateInput = Parameters<
+  MutationDatabaseTargetAdapter<PriorityMetricDefinitionsCopyMutationValue>["update"]
+>[1];
 type PriorityMetricValueDatabaseRecord =
   typeof workPriorityMetricValue.$inferSelect;
 
@@ -77,15 +84,6 @@ export class PriorityMetricProjectNotFoundError extends Error {
   constructor(projectId: string) {
     super(`Project ${projectId} was not found.`);
     this.name = "PriorityMetricProjectNotFoundError";
-  }
-}
-
-export class PriorityMetricNameConflictError extends Error {
-  readonly code = "PRIORITY_METRIC_NAME_CONFLICT" as const;
-
-  constructor(name: string) {
-    super(`A Priority metric named ${name} already exists in this Project.`);
-    this.name = "PriorityMetricNameConflictError";
   }
 }
 
@@ -285,6 +283,107 @@ async function findCreateDefinitionTarget(
     throw new PriorityMetricNameConflictError(parsed.data.name);
   }
   return emptyMetricTarget(targetId);
+}
+
+async function findDefinitionsCopyTarget(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  targetId: string,
+  payload: MutationPayload | undefined,
+) {
+  const parsed = copyPriorityMetricDefinitionsPayloadSchema.safeParse(payload);
+  if (!parsed.success) {
+    return null;
+  }
+  const [sourceOwned, targetOwned] = await Promise.all([
+    projectIsOwned(executor, accountId, parsed.data.sourceProjectId),
+    projectIsOwned(executor, accountId, parsed.data.targetProjectId),
+  ]);
+  if (!sourceOwned) {
+    throw new PriorityMetricProjectNotFoundError(parsed.data.sourceProjectId);
+  }
+  if (!targetOwned) {
+    throw new PriorityMetricProjectNotFoundError(parsed.data.targetProjectId);
+  }
+  return {
+    id: targetId,
+    revision: 0,
+    value: { ...parsed.data, definitions: [] },
+  } satisfies MutationTarget<PriorityMetricDefinitionsCopyMutationValue>;
+}
+
+async function copyMetricDefinitions(
+  executor: MutationDatabaseExecutor,
+  input: DefinitionsCopyUpdateInput,
+) {
+  const definitions: PriorityMetric[] = [];
+  const sourceRecords = await executor
+    .select()
+    .from(priorityMetricDefinition)
+    .where(
+      and(
+        eq(priorityMetricDefinition.projectId, input.nextValue.sourceProjectId),
+        isNull(priorityMetricDefinition.trashedAt),
+      ),
+    )
+    .orderBy(
+      asc(priorityMetricDefinition.createdAt),
+      asc(priorityMetricDefinition.nameKey),
+    );
+
+  for (const sourceRecord of sourceRecords) {
+    const source = toPriorityMetric(sourceRecord);
+    const [created] =
+      // biome-ignore lint/performance/noAwaitInLoops: Copy definitions in deterministic order and roll the entire Mutation Contract transaction back on a name conflict.
+      await executor
+        .insert(priorityMetricDefinition)
+        .values({
+          enabled: source.enabled,
+          id: crypto.randomUUID(),
+          name: source.name,
+          nameKey: priorityMetricNameKey(source.name),
+          projectId: input.nextValue.targetProjectId,
+          rankDescriptions: source.rankDescriptions,
+          shortDescription: source.shortDescription,
+        })
+        .onConflictDoNothing({
+          target: [
+            priorityMetricDefinition.projectId,
+            priorityMetricDefinition.nameKey,
+          ],
+        })
+        .returning();
+    if (!created) {
+      throw new PriorityMetricNameConflictError(source.name);
+    }
+    definitions.push(toPriorityMetric(created));
+  }
+
+  return {
+    id: input.targetId,
+    revision: input.expectedRevision + 1,
+    value: { ...input.nextValue, definitions },
+  } satisfies MutationTarget<PriorityMetricDefinitionsCopyMutationValue>;
+}
+
+function createDefinitionsCopyMutationTarget(
+  accountId: string,
+): MutationDatabaseTargetAdapter<PriorityMetricDefinitionsCopyMutationValue> {
+  return {
+    committedValue: (target) => target.value,
+    find(executor, targetId, _lock, context) {
+      return findDefinitionsCopyTarget(
+        executor,
+        accountId,
+        targetId,
+        context?.payload,
+      );
+    },
+
+    update(executor, input) {
+      return copyMetricDefinitions(executor, input);
+    },
+  };
 }
 
 function assertDefinitionOperationState(
@@ -966,6 +1065,11 @@ export function createDatabasePriorityMetricMutationContracts(
       createDatabaseMutationContract<PriorityMetricValueMutationValue>(
         database,
         { target: createValueMutationTarget(accountId, "clear") },
+      ),
+    copyDefinitions: (accountId) =>
+      createDatabaseMutationContract<PriorityMetricDefinitionsCopyMutationValue>(
+        database,
+        { target: createDefinitionsCopyMutationTarget(accountId) },
       ),
     create: (accountId) =>
       createDatabaseMutationContract<PriorityMetricMutationValue>(database, {

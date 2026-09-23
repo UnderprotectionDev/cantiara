@@ -11,6 +11,7 @@ import { describe, expect, test } from "vitest";
 import { priorityMetricItemsForWork } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { orpc } from "@/utils/orpc";
 import PriorityMetricEditor, {
+  PriorityMetricPermanentDeleteConfirmation,
   PriorityMetricTrashImpact,
 } from "./priority-metric-editor";
 import PriorityMetricValuesForm from "./priority-metric-values-form";
@@ -97,6 +98,32 @@ describe("Priority metric editor", () => {
     const html = renderEditor([{ ...metric, enabled: true }]);
 
     expect(html).toContain(">Disable<");
+  });
+
+  test("shows the exact permanent-delete Project name confirmation label", () => {
+    const html = renderToStaticMarkup(
+      createElement(PriorityMetricPermanentDeleteConfirmation, {
+        confirmationPending: false,
+        deleteGrant: null,
+        deleting: false,
+        disabled: false,
+        effect: {
+          attachedExternalSurfaceCount: 0,
+          dependentRuleCount: 0,
+          dependentViewCount: 0,
+          storedWorkValueCount: 0,
+        },
+        error: false,
+        loading: false,
+        onCancel: () => undefined,
+        onRequestConfirmation: () => undefined,
+        onSubmit: async () => undefined,
+        projectName: "Cantiara",
+        target: metric,
+      }),
+    );
+
+    expect(html).toContain("Type the Project name to confirm");
   });
 
   test("offers restore and permanent delete for trashed metrics", () => {

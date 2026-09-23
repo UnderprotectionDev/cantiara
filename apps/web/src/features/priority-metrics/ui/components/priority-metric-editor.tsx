@@ -207,7 +207,7 @@ function PriorityMetricMoveConfirmation({
   );
 }
 
-function PriorityMetricPermanentDeleteConfirmation({
+export function PriorityMetricPermanentDeleteConfirmation({
   confirmationPending,
   deleteGrant,
   deleting,
@@ -216,12 +216,10 @@ function PriorityMetricPermanentDeleteConfirmation({
   error,
   loading,
   onCancel,
-  onProjectNameChange,
   onRequestConfirmation,
   onSubmit,
   projectName,
   target,
-  typedProjectName,
 }: {
   confirmationPending: boolean;
   deleteGrant: string | null;
@@ -231,18 +229,27 @@ function PriorityMetricPermanentDeleteConfirmation({
   error: boolean;
   loading: boolean;
   onCancel: () => void;
-  onProjectNameChange: (value: string) => void;
   onRequestConfirmation: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (typedProjectName: string) => Promise<void>;
   projectName: string;
   target: PriorityMetric;
-  typedProjectName: string;
 }) {
+  const deleteForm = useForm({
+    defaultValues: { typedProjectName: "" },
+    onSubmit: async ({ value }) => onSubmit(value.typedProjectName),
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteForm.handleSubmit().catch(() => undefined);
+  }
+
   return (
     <form
       aria-label="Permanently Delete priority metric"
       className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-4"
-      onSubmit={onSubmit}
+      onSubmit={handleSubmit}
     >
       <div>
         <h6 className="font-medium text-sm">
@@ -274,33 +281,44 @@ function PriorityMetricPermanentDeleteConfirmation({
           </span>
         ) : null}
       </div>
-      <label
-        className="block space-y-1 text-sm"
-        htmlFor="priority-metric-delete-project-name"
-      >
-        <span>Type the Project name to confirm</span>
-        <Input
-          autoComplete="off"
-          disabled={disabled || deleting}
-          id="priority-metric-delete-project-name"
-          onChange={(event) => onProjectNameChange(event.target.value)}
-          value={typedProjectName}
-        />
-      </label>
+      <deleteForm.Field name="typedProjectName">
+        {(field) => (
+          <label
+            className="block space-y-1 text-sm"
+            htmlFor="priority-metric-delete-project-name"
+          >
+            <span>Type the Project name to confirm</span>
+            <Input
+              autoComplete="off"
+              disabled={disabled || deleting}
+              id="priority-metric-delete-project-name"
+              name={field.name}
+              onChange={(event) => field.handleChange(event.target.value)}
+              value={field.state.value}
+            />
+          </label>
+        )}
+      </deleteForm.Field>
       <div className="flex gap-2">
-        <Button
-          disabled={
-            disabled ||
-            deleting ||
-            !deleteGrant ||
-            !effect ||
-            typedProjectName.trim() !== projectName
-          }
-          type="submit"
-          variant="destructive"
+        <deleteForm.Subscribe
+          selector={(state) => state.values.typedProjectName}
         >
-          Permanently Delete
-        </Button>
+          {(typedProjectName) => (
+            <Button
+              disabled={
+                disabled ||
+                deleting ||
+                !deleteGrant ||
+                !effect ||
+                typedProjectName.trim() !== projectName
+              }
+              type="submit"
+              variant="destructive"
+            >
+              Permanently Delete
+            </Button>
+          )}
+        </deleteForm.Subscribe>
         <Button
           disabled={deleting}
           onClick={onCancel}
@@ -324,14 +342,12 @@ function PriorityMetricTrash({
   trashTarget,
   onCancelDelete,
   onCancelTrash,
-  onProjectNameChange,
   onRequestDelete,
   onRequestConfirmation,
   onRestore,
   onSubmitDelete,
   onSubmitTrash,
   projectName,
-  typedProjectName,
   deleting,
   trashing,
 }: {
@@ -345,14 +361,12 @@ function PriorityMetricTrash({
   trashTarget: PriorityMetric | null;
   onCancelDelete: () => void;
   onCancelTrash: () => void;
-  onProjectNameChange: (value: string) => void;
   onRequestDelete: (metric: PriorityMetric) => void;
   onRequestConfirmation: () => void;
   onRestore: (metric: PriorityMetric) => void;
-  onSubmitDelete: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmitDelete: (typedProjectName: string) => Promise<void>;
   onSubmitTrash: (event: FormEvent<HTMLFormElement>) => void;
   projectName: string;
-  typedProjectName: string;
   trashing: boolean;
 }) {
   const impactPreview = usePriorityMetricTrashImpactPreview(
@@ -424,14 +438,13 @@ function PriorityMetricTrash({
           disabled={disabled}
           effect={impactPreview.data}
           error={impactPreview.isError}
+          key={deleteTarget.id}
           loading={impactPreview.isPending}
           onCancel={onCancelDelete}
-          onProjectNameChange={onProjectNameChange}
           onRequestConfirmation={onRequestConfirmation}
           onSubmit={onSubmitDelete}
           projectName={projectName}
           target={deleteTarget}
-          typedProjectName={typedProjectName}
         />
       ) : null}
     </section>
@@ -454,7 +467,6 @@ export default function PriorityMetricEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [trashTarget, setTrashTarget] = useState<PriorityMetric | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PriorityMetric | null>(null);
-  const [typedProjectName, setTypedProjectName] = useState("");
   const [deleteGrant, setDeleteGrant] = useState<string | null>(null);
   const [confirmationPending, setConfirmationPending] = useState(false);
   const metrics = query.data ?? [];
@@ -513,8 +525,7 @@ export default function PriorityMetricEditor({
     }
   }
 
-  async function handlePermanentDelete(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handlePermanentDelete(typedProjectName: string) {
     if (!(deleteTarget && deleteGrant)) {
       return;
     }
@@ -527,7 +538,6 @@ export default function PriorityMetricEditor({
         typedProjectName,
       });
       setDeleteTarget(null);
-      setTypedProjectName("");
       setDeleteGrant(null);
     } catch (error) {
       setActionError(
@@ -543,7 +553,6 @@ export default function PriorityMetricEditor({
     setActionError(null);
     if (deleteTarget?.id === metric.id) {
       setDeleteTarget(null);
-      setTypedProjectName("");
       setDeleteGrant(null);
     }
     try {
@@ -558,13 +567,11 @@ export default function PriorityMetricEditor({
   function openDeleteDialog(metric: PriorityMetric) {
     setActionError(null);
     setDeleteTarget(metric);
-    setTypedProjectName("");
     setDeleteGrant(null);
   }
 
   function closeDeleteDialog() {
     setDeleteTarget(null);
-    setTypedProjectName("");
     setDeleteGrant(null);
     setActionError(null);
   }
@@ -693,7 +700,6 @@ export default function PriorityMetricEditor({
         metrics={trashedMetrics}
         onCancelDelete={closeDeleteDialog}
         onCancelTrash={() => setTrashTarget(null)}
-        onProjectNameChange={setTypedProjectName}
         onRequestConfirmation={requestDeleteConfirmation}
         onRequestDelete={openDeleteDialog}
         onRestore={handleRestore}
@@ -702,7 +708,6 @@ export default function PriorityMetricEditor({
         projectName={projectName}
         trashing={trash.isPending}
         trashTarget={trashTarget}
-        typedProjectName={typedProjectName}
       />
 
       {actionError ? (

@@ -54,6 +54,7 @@ export type MutationDatabaseExecutor = Pick<
 >;
 
 export interface MutationDatabaseTargetAdapter<TValue> {
+  committedValue?: (target: MutationTarget<TValue>) => TValue;
   find: (
     executor: MutationDatabaseExecutor,
     targetId: string,
@@ -992,6 +993,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             current ?? target,
           );
         }
+        const committedValue =
+          targetAdapter.committedValue?.(targetUpdate) ?? nextValue;
 
         const receiptValues = {
           committedAt,
@@ -999,7 +1002,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           id: input.receiptId,
           idempotencyKey: input.idempotencyKey.key,
           idempotencyScope: input.idempotencyKey.scope,
-          nextValue,
+          nextValue: committedValue,
           originKind: input.origin.kind,
           payloadFingerprint: input.payloadFingerprint,
           previousValue: targetAdapter.historyPreviousValue
@@ -1019,7 +1022,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         await transaction.insert(mutationHistory).values({
           occurredAt: committedAt,
           id: input.historyId,
-          nextValue,
+          nextValue: committedValue,
           originKind: input.origin.kind,
           payloadFingerprint: input.payloadFingerprint,
           previousValue: targetAdapter.historyPreviousValue
@@ -1060,7 +1063,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           actor: input.actor,
           committedAt: input.committedAt,
           id: input.receiptId,
-          nextValue,
+          nextValue: committedValue,
           origin: input.origin,
           payloadFingerprint: input.payloadFingerprint,
           previousValue: targetAdapter.historyPreviousValue
@@ -1246,6 +1249,8 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           );
           return staleCommitResult<TValue>(current ?? target);
         }
+        const committedValue =
+          targetAdapter.committedValue?.(targetUpdate) ?? nextValue;
 
         const receiptValues = {
           committedAt,
@@ -1253,7 +1258,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
           id: receiptId,
           idempotencyKey: input.idempotencyKey.key,
           idempotencyScope: input.idempotencyKey.scope,
-          nextValue,
+          nextValue: committedValue,
           originKind: input.origin.kind,
           payloadFingerprint: input.payloadFingerprint,
           previousValue: targetAdapter.historyPreviousValue
@@ -1271,7 +1276,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
         const historyValues: MutationHistoryEntry<TValue> = {
           actor: input.actor,
           id: input.historyId,
-          nextValue,
+          nextValue: committedValue,
           occurredAt: input.committedAt,
           origin: input.origin,
           payloadFingerprint: input.payloadFingerprint,
@@ -1303,7 +1308,7 @@ export function createDatabaseMutationContract<TValue = MutationPayload>(
             actor: input.actor,
             committedAt: input.committedAt,
             id: receiptId,
-            nextValue,
+            nextValue: committedValue,
             origin: input.origin,
             payloadFingerprint: input.payloadFingerprint,
             previousValue: targetAdapter.historyPreviousValue

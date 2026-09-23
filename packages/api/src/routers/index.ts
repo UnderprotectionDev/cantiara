@@ -67,9 +67,11 @@ import {
 import {
   clearPriorityMetricValueInputSchema,
   clearPriorityMetricValueMutationInputSchema,
+  copyPriorityMetricDefinitionsInputSchema,
   createPriorityMetricInputSchema,
   createPriorityMetricMutationInputSchema,
   deletePriorityMetricMutationInputSchema,
+  type PriorityMetricDefinitionsCopyMutationValue,
   type PriorityMetricMutationContracts,
   type PriorityMetricMutationValue,
   type PriorityMetricsAccess,
@@ -2012,6 +2014,35 @@ export const appRouter = {
         });
       }
       return metrics;
+    }),
+  copyPriorityMetricDefinitions: protectedProcedure
+    .input(copyPriorityMetricDefinitionsInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...copyInput } = input;
+      const mutation = requirePriorityMetricMutationContracts(
+        context,
+      ).copyDefinitions(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: copyInput,
+            targetId: `priority-metric-copy:${clientIdempotencyKey}`,
+          },
+          ({ payload }) =>
+            ({
+              definitions: [],
+              sourceProjectId: payload.sourceProjectId,
+              targetProjectId: payload.targetProjectId,
+            }) satisfies PriorityMetricDefinitionsCopyMutationValue,
+        );
+        return receipt.nextValue.definitions;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, clientIdempotencyKey);
+      }
     }),
   priorityMetricProjectValues: protectedProcedure
     .input(priorityMetricProjectValuesInputSchema)

@@ -7,6 +7,7 @@ import type {
 } from "@cantiara/api/mutation-and-undo";
 import type {
   PriorityMetric,
+  PriorityMetricDefinitionsCopyMutationValue,
   PriorityMetricMutationContracts,
   PriorityMetricMutationValue,
   PriorityMetricProjectValues,
@@ -153,6 +154,7 @@ function createMutationContract<TValue>(
   previousValue: TValue,
   onPayload: (payload: MutationPayload) => void = () => undefined,
   currentRevision = 0,
+  transformNextValue: (value: TValue) => TValue = (value) => value,
 ): MutationContract<TValue> {
   return {
     mutate: async <TPayload extends MutationPayload>(
@@ -163,11 +165,13 @@ function createMutationContract<TValue>(
         throw new Error("Expected a human Priority metric command.");
       }
       onPayload(command.payload);
-      const nextValue = await apply({
-        currentRevision,
-        currentValue: previousValue,
-        payload: command.payload,
-      });
+      const nextValue = transformNextValue(
+        await apply({
+          currentRevision,
+          currentValue: previousValue,
+          payload: command.payload,
+        }),
+      );
       return {
         actor: command.actor,
         committedAt: "2026-09-20T09:00:00.000Z",
@@ -190,10 +194,32 @@ function createMutationContract<TValue>(
 function createMutationContracts(
   recordedRanks: string[],
   currentMetric: PriorityMetric = metric,
+  recordedCopies: MutationPayload[] = [],
 ) {
   return {
     clearValue: () =>
       createMutationContract<PriorityMetricValueMutationValue>({ value: null }),
+    copyDefinitions: () =>
+      createMutationContract<PriorityMetricDefinitionsCopyMutationValue>(
+        {
+          definitions: [],
+          sourceProjectId: "project-1",
+          targetProjectId: "project-2",
+        },
+        (payload) => recordedCopies.push(payload),
+        0,
+        (value) => ({
+          ...value,
+          definitions: [
+            {
+              ...metric,
+              id: "metric-copy-1",
+              projectId: value.targetProjectId,
+              revision: 0,
+            },
+          ],
+        }),
+      ),
     create: () =>
       createMutationContract<PriorityMetricMutationValue>({ metric: null }),
     delete: () =>
@@ -244,6 +270,40 @@ describe("Priority metrics RPC", () => {
       client.priorityMetrics({ projectId: "project-1" }),
     ).resolves.toEqual([metric]);
     expect(recorded.accountIds).toEqual(["account-1"]);
+  });
+
+  test("copies criterion definitions to another owned Project", async () => {
+    const recorded = { accountIds: [] as string[] };
+    const recordedCopies: MutationPayload[] = [];
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess(recorded),
+        createMutationContracts([], metric, recordedCopies),
+      ),
+    });
+
+    await expect(
+      client.copyPriorityMetricDefinitions({
+        baseRevision: 0,
+        clientIdempotencyKey: "copy-priority-metrics-1",
+        sourceProjectId: "project-1",
+        targetProjectId: "project-2",
+      }),
+    ).resolves.toMatchObject([
+      { id: "metric-copy-1", projectId: "project-2", revision: 0 },
+    ]);
+    expect(recorded.accountIds).toEqual([]);
+    expect(recordedCopies).toEqual([
+      { sourceProjectId: "project-1", targetProjectId: "project-2" },
+    ]);
+    await expect(
+      client.copyPriorityMetricDefinitions({
+        baseRevision: 0,
+        clientIdempotencyKey: "copy-priority-metrics-same-project",
+        sourceProjectId: "project-1",
+        targetProjectId: "project-1",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   test("returns an unset value without inventing a rank", async () => {

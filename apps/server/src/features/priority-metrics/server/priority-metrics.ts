@@ -3,6 +3,15 @@ import type {
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
 
+export class PriorityMetricNameConflictError extends Error {
+  readonly code = "PRIORITY_METRIC_NAME_CONFLICT" as const;
+
+  constructor(name: string) {
+    super(`A Priority metric named ${name} already exists in this Project.`);
+    this.name = "PriorityMetricNameConflictError";
+  }
+}
+
 export function createPriorityMetricsAccess(
   store: PriorityMetricStore,
 ): PriorityMetricsAccess {

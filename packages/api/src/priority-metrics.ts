@@ -70,6 +70,39 @@ export type ParsedCreatePriorityMetricInput = z.output<
   typeof createPriorityMetricInputSchema
 >;
 
+const copyPriorityMetricDefinitionsFieldsSchema = z
+  .object({
+    sourceProjectId: identifierSchema,
+    targetProjectId: identifierSchema,
+  })
+  .strict();
+
+export const copyPriorityMetricDefinitionsPayloadSchema =
+  copyPriorityMetricDefinitionsFieldsSchema.refine(
+    (input) => input.sourceProjectId !== input.targetProjectId,
+    {
+      message: "Source and target Projects must be different.",
+      path: ["targetProjectId"],
+    },
+  );
+
+export const copyPriorityMetricDefinitionsInputSchema =
+  humanMutationEnvelopeSchema
+    .extend(copyPriorityMetricDefinitionsFieldsSchema.shape)
+    .strict()
+    .refine((input) => input.sourceProjectId !== input.targetProjectId, {
+      message: "Source and target Projects must be different.",
+      path: ["targetProjectId"],
+    });
+
+export type CopyPriorityMetricDefinitionsInput = z.input<
+  typeof copyPriorityMetricDefinitionsInputSchema
+>;
+
+export type ParsedCopyPriorityMetricDefinitionsPayload = z.output<
+  typeof copyPriorityMetricDefinitionsPayloadSchema
+>;
+
 export const priorityMetricSchema = z
   .object({
     createdAt: z.string().datetime(),
@@ -280,10 +313,19 @@ export interface PriorityMetricValueMutationValue {
   value: PriorityMetricValue | null;
 }
 
+export interface PriorityMetricDefinitionsCopyMutationValue {
+  definitions: PriorityMetric[];
+  sourceProjectId: string;
+  targetProjectId: string;
+}
+
 export interface PriorityMetricMutationContracts {
   clearValue: (
     accountId: string,
   ) => MutationContract<PriorityMetricValueMutationValue>;
+  copyDefinitions: (
+    accountId: string,
+  ) => MutationContract<PriorityMetricDefinitionsCopyMutationValue>;
   create: (accountId: string) => MutationContract<PriorityMetricMutationValue>;
   delete: (accountId: string) => MutationContract<PriorityMetricMutationValue>;
   restore: (accountId: string) => MutationContract<PriorityMetricMutationValue>;

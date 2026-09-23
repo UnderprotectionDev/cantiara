@@ -426,6 +426,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Kısa açıklama | `Short description` | Öncelik ölçütünün kapsamını anlatan kısa metin |
 | Kademe açıklamaları | `Rank descriptions` | Beş sabit öncelik kademesinin Proje bazında düzenlenebilir açıklamaları |
 | Ölçütü devre dışı bırak | `Disable` | Öncelik ölçütünü silmeden Work değerleri için kullanılamaz duruma getirme |
+| Ölçüt devre dışı | `Disabled` | Ölçütün silinmeden Work değerleri için kapalı olduğunu gösteren durum |
+| Silme için Proje adını doğrula | `Type the Project name to confirm` | Ölçütü kalıcı silmeden önce kesin Proje adını tekrar girdirme |
 | Öncelik kademesi | `Very low`, `Low`, `Medium`, `High`, `Very high` | Beş sabit sıralı düzey; boş durum bu beşin dışındadır |
 | Değerlendirilmemiş | `Unevaluated` | Eksen veya ölçüt değeri henüz seçilmemiş İş |
 | Kanıt gücü | `Evidence strength` | Görüşlü Başlangıç yapılandırmasının varsayılan kapalı hazır Öncelik ölçütü |
