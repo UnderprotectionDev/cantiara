@@ -259,7 +259,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Çalışma anı girdileri | `Runtime inputs` | Kayıt Eyleminin tasarımda tanımlanıp çalıştırmada seçilen alan değerleri ve mevcut Work ilişkisi |
 | Çalıştırırken sor | `Ask when running` | Özel alan adımında sabit değer yerine çalıştırma sırasında değer isteme seçeneği |
 | Seçilen girdiler | `Inputs selected` | Önizlemede seçilen çalışma anı girdilerini gösteren özet |
-| Değişiklikleri önizle | `Preview changes` | Gerekli çalışma anı girdileri seçildikten sonra kesin farkı gösterme eylemi |
+| Değişiklikleri önizle | `Preview changes` | Çalışma anı girdileri veya dış yürütme önerileri seçildikten sonra kesin farkı gösterme eylemi |
 | Girdileri değiştir | `Change inputs` | Yeni önizleme için seçilen çalışma anı girdilerine geri dönme eylemi |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
 | Favoriler | `Favorites` | Desteklenen kayda Hesap/Çalışma Alanı kişisel sık erişim işareti; kaydın Projesini, türünü veya durumunu değiştirmez |
@@ -378,7 +378,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dış yürütme devri | `External Execution Handoff` | İşe ait test-dışı dış yürütme bileşeni; bağımsız Handoff ana kaydı değildir |
 | Devir başlat | `Start Handoff` | Dış yürütme devri başlatma eylemi |
 | Devirleri görüntüle | `View Handoffs` | Arşivlenmiş İşteki tarihsel dış yürütme devirlerini salt okunur açma eylemi |
-| Devir geçmişi | `Handoff history` | Başlatma, paket üretimi, dışa aktarma ve iptal olaylarının `You` atfıyla gösterilen içeriksiz İş geçmişi görünümü |
+| Devir geçmişi | `Handoff history` | Başlatma, paket üretimi ve dışa aktarma, dönüş, uzlaştırma ve iptal olaylarının `You` atfıyla gösterilen içeriksiz İş geçmişi görünümü |
 | Devir başlatıldı | `Handoff started` | İş geçmişinde Dış yürütme devri başlatma olayı |
 | Gidiş paketi üretildi | `Going package produced` | İş geçmişinde tarihli gidiş paketi üretim olayı |
 | Gidiş paketi kopyalandı | `Going package copied` | İş geçmişinde başarılı panoya kopyalama olayı |
@@ -398,6 +398,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İzinli dış bağlantılar | `Permitted external links` | Dönüşte kaydedilen izinli dış bağlantılar |
 | Kapanmamış sorular | `Open questions` | Dönüşte duran kapanmamış sorular; onaydan önce Açık Soru kaydı değildir |
 | Takip İşi | `Follow-up Work` | Uzlaştırma onayında açıkça oluşturulacak yeni İş |
+| Önerilen ilişkiler | `Proposed relations` | Uzlaştırma formunda kurulması önerilen desteklenen İş ilişkileri grubu |
+| Uzlaştırma önizlemesi açıklaması | `Review each relation and Follow-up Work before confirming.` | Seçilen ilişkiler ve takip İşlerinin onaydan önce incelenmesini ister |
 | Önerilen ilişki ekle | `Add proposed relation` | Uzlaştırma önizlemesine kurulacak ilişki adayı ekleme |
 | Önerilen ilişkiyi kaldır | `Remove proposed relation` | Uzlaştırma önizlemesinden ilişki adayını çıkarma |
 | Takip İşi ekle | `Add follow-up Work` | Uzlaştırma önizlemesine takip İş adayı ekleme |

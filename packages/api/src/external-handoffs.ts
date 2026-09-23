@@ -134,11 +134,17 @@ export type CancelExternalExecutionHandoffInput = z.infer<
   typeof cancelExternalExecutionHandoffInputSchema
 >;
 
+export const listExternalExecutionHandoffRelatedWorksInputSchema = z
+  .object({ workId: identifierSchema })
+  .strict();
+
 export const externalExecutionHandoffHistoryEventTypeSchema = z.enum([
   "external-execution-handoff-started",
   "external-execution-handoff-package-produced",
   "external-execution-handoff-package-exported",
   "external-execution-handoff-canceled",
+  "external-execution-handoff-return-recorded",
+  "external-execution-handoff-reconciled",
 ]);
 
 export const externalExecutionHandoffHistoryEventSchema = z
@@ -205,6 +211,235 @@ export type ExternalExecutionHandoffSelectedVersions = z.infer<
   typeof externalExecutionHandoffSelectedVersionsSchema
 >;
 
+const externalLinkSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2000)
+  .url()
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, "Use an HTTPS link without embedded credentials.");
+
+const returnTextListSchema = z.array(textFieldSchema).max(50);
+
+export const externalExecutionHandoffResultInputSchema = z
+  .object({
+    changedAssumptions: returnTextListSchema,
+    executorSummary: textFieldSchema,
+    externalLinks: z.array(externalLinkSchema).max(25),
+    openQuestions: returnTextListSchema,
+    producedEvidence: returnTextListSchema,
+  })
+  .strict();
+
+export const externalExecutionHandoffResultSchema =
+  externalExecutionHandoffResultInputSchema
+    .extend({ returnedAt: z.string().datetime({ offset: true }) })
+    .strict();
+
+export type ExternalExecutionHandoffResult = z.infer<
+  typeof externalExecutionHandoffResultSchema
+>;
+
+export const recordExternalExecutionHandoffReturnInputSchema =
+  externalExecutionHandoffResultInputSchema
+    .extend({
+      clientEventId: identifierSchema,
+      handoffId: identifierSchema,
+    })
+    .strict();
+
+export type RecordExternalExecutionHandoffReturnInput = z.infer<
+  typeof recordExternalExecutionHandoffReturnInputSchema
+>;
+
+export const EXTERNAL_HANDOFF_RELATION_OPTIONS = [
+  "Related",
+  "Origin",
+  "Blocks",
+  "Blocked by",
+] as const;
+
+export const externalExecutionHandoffProposedRelationSchema = z
+  .object({
+    id: identifierSchema,
+    kind: z.enum(EXTERNAL_HANDOFF_RELATION_OPTIONS),
+    targetWorkId: identifierSchema,
+  })
+  .strict();
+
+export const externalExecutionHandoffFollowUpWorkSchema = z
+  .object({
+    description: optionalTextFieldSchema.nullable(),
+    id: identifierSchema,
+    title: textFieldSchema.max(255),
+    type: workTypeSchema,
+  })
+  .strict();
+
+const reconcilePlanSchema = z
+  .object({
+    followUpWorks: z.array(externalExecutionHandoffFollowUpWorkSchema).max(25),
+    proposedRelations: z
+      .array(externalExecutionHandoffProposedRelationSchema)
+      .max(25),
+  })
+  .strict()
+  .superRefine((plan, context) => {
+    for (const [field, items] of [
+      ["followUpWorks", plan.followUpWorks],
+      ["proposedRelations", plan.proposedRelations],
+    ] as const) {
+      const seen = new Set<string>();
+      items.forEach((item, index) => {
+        if (seen.has(item.id)) {
+          context.addIssue({
+            code: "custom",
+            message: "Proposal identities must be unique.",
+            path: [field, index, "id"],
+          });
+        }
+        seen.add(item.id);
+      });
+    }
+  });
+
+export const previewExternalExecutionHandoffReconcileInputSchema =
+  reconcilePlanSchema.extend({ handoffId: identifierSchema }).strict();
+
+export type PreviewExternalExecutionHandoffReconcileInput = z.infer<
+  typeof previewExternalExecutionHandoffReconcileInputSchema
+>;
+
+export const externalExecutionHandoffRelatedWorkSchema = z
+  .object({
+    id: identifierSchema,
+    key: identifierSchema,
+    status: workStatusSchema,
+    title: textFieldSchema.max(255),
+    type: workTypeSchema,
+  })
+  .strict();
+
+export type ExternalExecutionHandoffRelatedWork = z.infer<
+  typeof externalExecutionHandoffRelatedWorkSchema
+>;
+
+export const externalExecutionHandoffReconcileRelationPreviewSchema = z
+  .object({
+    id: identifierSchema,
+    kind: z.enum(EXTERNAL_HANDOFF_RELATION_OPTIONS),
+    sourceLabel: textFieldSchema.max(1000),
+    sourceWorkId: identifierSchema,
+    target: externalExecutionHandoffRelatedWorkSchema,
+  })
+  .strict();
+
+export const externalExecutionHandoffFollowUpWorkPreviewSchema =
+  externalExecutionHandoffFollowUpWorkSchema
+    .extend({
+      projectId: identifierSchema,
+      projectName: textFieldSchema.max(255),
+      relatedToWorkId: identifierSchema,
+      relationKind: z.literal("Origin"),
+    })
+    .strict();
+
+export const externalExecutionHandoffReconcilePreviewSchema = z
+  .object({
+    followUpWorks: z.array(externalExecutionHandoffFollowUpWorkPreviewSchema),
+    handoffId: identifierSchema,
+    previewId: identifierSchema,
+    proposedRelations: z.array(
+      externalExecutionHandoffReconcileRelationPreviewSchema,
+    ),
+  })
+  .strict();
+
+export type ExternalExecutionHandoffReconcilePreview = z.infer<
+  typeof externalExecutionHandoffReconcilePreviewSchema
+>;
+
+export const confirmExternalExecutionHandoffReconcileInputSchema =
+  reconcilePlanSchema
+    .extend({
+      clientEventId: identifierSchema,
+      handoffId: identifierSchema,
+      previewId: identifierSchema,
+      selectedFollowUpWorkIds: z.array(identifierSchema).max(25),
+      selectedRelationIds: z.array(identifierSchema).max(25),
+    })
+    .strict()
+    .superRefine((input, context) => {
+      const relationIds = new Set(input.proposedRelations.map(({ id }) => id));
+      const workIds = new Set(input.followUpWorks.map(({ id }) => id));
+      for (const [field, selectedIds, availableIds] of [
+        ["selectedRelationIds", input.selectedRelationIds, relationIds],
+        ["selectedFollowUpWorkIds", input.selectedFollowUpWorkIds, workIds],
+      ] as const) {
+        if (new Set(selectedIds).size !== selectedIds.length) {
+          context.addIssue({
+            code: "custom",
+            message: "A proposal can be selected only once.",
+            path: [field],
+          });
+        }
+        selectedIds.forEach((id, index) => {
+          if (!availableIds.has(id)) {
+            context.addIssue({
+              code: "custom",
+              message: "Select only items shown in the reconcile preview.",
+              path: [field, index],
+            });
+          }
+        });
+      }
+    });
+
+export type ConfirmExternalExecutionHandoffReconcileInput = z.infer<
+  typeof confirmExternalExecutionHandoffReconcileInputSchema
+>;
+
+export const externalExecutionHandoffReconcileDecisionSchema = z
+  .object({
+    confirmedAt: z.string().datetime({ offset: true }),
+    confirmedBy: identifierSchema,
+    decisionId: identifierSchema,
+    previewId: identifierSchema,
+    selectedFollowUpWorkIds: z.array(identifierSchema),
+    selectedRelationIds: z.array(identifierSchema),
+    createdFollowUpWorks: z.array(
+      z
+        .object({
+          id: identifierSchema,
+          key: identifierSchema,
+          title: textFieldSchema.max(255),
+        })
+        .strict(),
+    ),
+    createdRelations: z.array(
+      z
+        .object({
+          id: identifierSchema,
+          kind: z.enum(["Related", "Origin", "Blocks"]),
+          sourceWorkId: identifierSchema,
+          targetWorkId: identifierSchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export type ExternalExecutionHandoffReconcileDecision = z.infer<
+  typeof externalExecutionHandoffReconcileDecisionSchema
+>;
+
 export const externalExecutionHandoffSchema = z
   .object({
     cancellationReason: optionalTextFieldSchema.nullable(),
@@ -218,6 +453,9 @@ export const externalExecutionHandoffSchema = z
     packageMarkdown: z.string().min(1),
     packageProducedAt: z.string().datetime({ offset: true }),
     purpose: textFieldSchema,
+    reconcileDecision:
+      externalExecutionHandoffReconcileDecisionSchema.nullable(),
+    result: externalExecutionHandoffResultSchema.nullable(),
     selectedWorkRevision: z.number().int().nonnegative().safe().nullable(),
     status: externalExecutionHandoffStatusSchema,
     workId: identifierSchema,
@@ -249,6 +487,10 @@ export interface ExternalExecutionHandoffsAccess {
     accountId: string,
     input: CancelExternalExecutionHandoffInput,
   ) => Promise<ExternalExecutionHandoff | null>;
+  confirmReconcile: (
+    accountId: string,
+    input: ConfirmExternalExecutionHandoffReconcileInput,
+  ) => Promise<ExternalExecutionHandoff | null>;
   list: (
     accountId: string,
     workId: string,
@@ -257,10 +499,22 @@ export interface ExternalExecutionHandoffsAccess {
     accountId: string,
     workId: string,
   ) => Promise<ExternalExecutionHandoffHistoryEvent[] | null>;
+  listRelatedWorks: (
+    accountId: string,
+    workId: string,
+  ) => Promise<ExternalExecutionHandoffRelatedWork[] | null>;
+  previewReconcile: (
+    accountId: string,
+    input: PreviewExternalExecutionHandoffReconcileInput,
+  ) => Promise<ExternalExecutionHandoffReconcilePreview | null>;
   recordPackageExport: (
     accountId: string,
     input: RecordExternalExecutionHandoffPackageExportInput,
   ) => Promise<ExternalExecutionHandoffHistoryEvent | null>;
+  recordReturn: (
+    accountId: string,
+    input: RecordExternalExecutionHandoffReturnInput,
+  ) => Promise<ExternalExecutionHandoff | null>;
   start: (
     accountId: string,
     command: ExternalExecutionHandoffStartCommand,

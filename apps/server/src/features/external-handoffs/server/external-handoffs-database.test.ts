@@ -1,7 +1,10 @@
 import type {
   CancelExternalExecutionHandoffInput,
   ExternalExecutionHandoffStartCommand,
+  ExternalExecutionHandoffsAccess,
+  RecordExternalExecutionHandoffReturnInput,
 } from "@cantiara/api/external-handoffs";
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
@@ -19,10 +22,46 @@ import {
 } from "vitest";
 
 import { createDatabaseExternalExecutionHandoffs } from "./external-handoffs-database";
+import { createDatabaseRelations } from "../../relations/server/relations";
 
 const databaseUrl =
   process.env.ACCOUNT_ACCESS_DATABASE_URL ?? process.env.DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
+
+async function recordReturnedHandoff(
+  handoffs: ExternalExecutionHandoffsAccess,
+  accountId: string,
+  workId: string,
+  handoffId: string,
+) {
+  const started = await handoffs.start(accountId, {
+    baseRevision: 0,
+    clientIdempotencyKey: `start-${handoffId}`,
+    constraints: "Keep the existing API contract.",
+    executor: "Local coding agent",
+    expectedOutput: "A tested implementation.",
+    githubContext: [],
+    includeWork: true,
+    purpose: "Implement external handoffs.",
+    workId,
+  });
+  if (!started) {
+    throw new Error("Could not start the test handoff.");
+  }
+  const returned = await handoffs.recordReturn(accountId, {
+    changedAssumptions: ["The result must be reviewed by the founder."],
+    clientEventId: `return-${handoffId}`,
+    executorSummary: "The external implementation is ready for review.",
+    externalLinks: ["https://github.com/acme/cantiara/pull/42"],
+    handoffId,
+    openQuestions: ["Is a second pass needed?"],
+    producedEvidence: ["The contract test completed."],
+  });
+  if (!returned) {
+    throw new Error("Could not record the test handoff return.");
+  }
+  return returned;
+}
 
 describeDatabase("External Execution Handoff seam", () => {
   const database = databaseUrl
@@ -32,6 +71,16 @@ describeDatabase("External Execution Handoff seam", () => {
   const workspaceId = `workspace-${crypto.randomUUID()}`;
   const projectId = `project-${crypto.randomUUID()}`;
   const workId = `work-${crypto.randomUUID()}`;
+
+  async function listWorkRelations() {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    return createDatabaseRelations(database).list(accountId, {
+      recordId: workId,
+      recordType: "Work",
+    });
+  }
 
   beforeEach(async () => {
     if (!database) {
@@ -382,5 +431,455 @@ describeDatabase("External Execution Handoff seam", () => {
     for (const event of cancellationEvents) {
       expect(event).not.toHaveProperty("reason");
     }
+  });
+
+  test("records a late return on its handoff without changing Work or making records", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      now: () => new Date("2026-09-23T12:30:00.000Z"),
+      newId: () => "handoff-return",
+    });
+    const started = await handoffs.start(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "start-return-handoff",
+      constraints: "Keep the existing API contract.",
+      executor: "Local coding agent",
+      expectedOutput: "A tested implementation.",
+      githubContext: [],
+      includeWork: true,
+      purpose: "Implement external handoffs.",
+      workId,
+    });
+    const beforeWork = await database
+      .select({ revision: work.revision, status: work.status })
+      .from(work)
+      .where(eq(work.id, workId));
+
+    const returned = await handoffs.recordReturn(accountId, {
+      changedAssumptions: ["The server owns relationship validation."],
+      clientEventId: "return-late-handoff",
+      executorSummary: "The executor returned after the review window.",
+      externalLinks: ["https://github.com/acme/cantiara/pull/42"],
+      handoffId: started?.handoffId ?? "missing-handoff",
+      openQuestions: ["Should the next handoff add more context?"],
+      producedEvidence: ["The contract check passed."],
+    } satisfies RecordExternalExecutionHandoffReturnInput);
+
+    expect(returned).toMatchObject({
+      handoffId: "handoff-return",
+      result: {
+        executorSummary: "The executor returned after the review window.",
+        producedEvidence: ["The contract check passed."],
+      },
+      status: "Result returned",
+      workId,
+    });
+    expect(
+      await database
+        .select({ revision: work.revision, status: work.status })
+        .from(work)
+        .where(eq(work.id, workId)),
+    ).toEqual(beforeWork);
+    expect(await database.select({ id: work.id }).from(work)).toHaveLength(1);
+    await expect(listWorkRelations()).resolves.toEqual([]);
+    expect(await handoffs.listHistory(accountId, workId)).toEqual([
+      expect.objectContaining({
+        eventType: "external-execution-handoff-started",
+        handoffId: "handoff-return",
+      }),
+      expect.objectContaining({
+        eventType: "external-execution-handoff-return-recorded",
+        handoffId: "handoff-return",
+        occurredAt: "2026-09-23T12:30:00.000Z",
+      }),
+    ]);
+  });
+
+  test("previews and reconciles only the chosen Work binding and follow-up", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      now: () => new Date("2026-09-23T12:30:00.000Z"),
+      newId: () => "handoff-reconcile-partial",
+    });
+    const relatedWorkIds = ["related-work-a", "related-work-b"] as const;
+    await database.insert(work).values(
+      relatedWorkIds.map((id, index) => ({
+        id,
+        key: `EH-${index + 2}`,
+        number: index + 2,
+        projectId,
+        title: `Review result ${index + 1}`,
+        type: "Task",
+      })),
+    );
+    await database
+      .update(project)
+      .set({ workCount: 3 })
+      .where(eq(project.id, projectId));
+
+    await recordReturnedHandoff(
+      handoffs,
+      accountId,
+      workId,
+      "handoff-reconcile-partial",
+    );
+    const plan = {
+      followUpWorks: [
+        {
+          description: "Confirm the implementation after merge.",
+          id: "follow-up-accepted",
+          title: "Verify the external result",
+          type: "Task" as const,
+        },
+        {
+          description: "This draft is not selected.",
+          id: "follow-up-rejected",
+          title: "Review another result",
+          type: "Research" as const,
+        },
+      ],
+      handoffId: "handoff-reconcile-partial",
+      proposedRelations: [
+        {
+          id: "relation-accepted",
+          kind: "Related" as const,
+          targetWorkId: relatedWorkIds[0],
+        },
+        {
+          id: "relation-rejected",
+          kind: "Blocks" as const,
+          targetWorkId: relatedWorkIds[1],
+        },
+      ],
+    };
+
+    const preview = await handoffs.previewReconcile(accountId, plan);
+    expect(preview).toMatchObject({
+      handoffId: plan.handoffId,
+      proposedRelations: [
+        {
+          id: "relation-accepted",
+          kind: "Related",
+          sourceLabel: "EH-1",
+          target: { id: "related-work-a", key: "EH-2" },
+        },
+        {
+          id: "relation-rejected",
+          kind: "Blocks",
+          target: { id: "related-work-b", key: "EH-3" },
+        },
+      ],
+      followUpWorks: [
+        {
+          id: "follow-up-accepted",
+          relationKind: "Origin",
+          relatedToWorkId: workId,
+          title: "Verify the external result",
+        },
+        {
+          id: "follow-up-rejected",
+          title: "Review another result",
+        },
+      ],
+    });
+    expect(
+      await database
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toHaveLength(3);
+    await expect(listWorkRelations()).resolves.toEqual([]);
+
+    const reconciled = await handoffs.confirmReconcile(accountId, {
+      ...plan,
+      clientEventId: "confirm-reconcile-partial",
+      previewId: preview?.previewId ?? "missing-preview",
+      selectedFollowUpWorkIds: ["follow-up-accepted"],
+      selectedRelationIds: ["relation-accepted"],
+    });
+    expect(reconciled).toMatchObject({
+      handoffId: plan.handoffId,
+      reconcileDecision: {
+        createdFollowUpWorks: [{ title: "Verify the external result" }],
+        createdRelations: [
+          {
+            kind: "Origin",
+            sourceWorkId: expect.any(String),
+            targetWorkId: workId,
+          },
+          {
+            kind: "Related",
+            sourceWorkId: workId,
+            targetWorkId: "related-work-a",
+          },
+        ],
+        selectedFollowUpWorkIds: ["follow-up-accepted"],
+        selectedRelationIds: ["relation-accepted"],
+      },
+      status: "Reconciled",
+    });
+    expect(
+      await database
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toHaveLength(4);
+    await expect(listWorkRelations()).resolves.toMatchObject([
+      {
+        kind: "Related",
+        source: { recordId: workId },
+        target: { recordId: "related-work-a" },
+      },
+    ]);
+    await expect(handoffs.list(accountId, workId)).resolves.toEqual([
+      reconciled,
+    ]);
+  });
+
+  test("rejecting or bypassing the reconcile preview creates no Work or relation", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      newId: () => "handoff-reconcile-reject",
+    });
+    const relatedWorkId = "related-work-reject";
+    await database.insert(work).values({
+      id: relatedWorkId,
+      key: "EH-2",
+      number: 2,
+      projectId,
+      title: "Possible relation target",
+      type: "Task",
+    });
+    await database
+      .update(project)
+      .set({ workCount: 2 })
+      .where(eq(project.id, projectId));
+    const handoff = await recordReturnedHandoff(
+      handoffs,
+      accountId,
+      workId,
+      "handoff-reconcile-reject",
+    );
+    const plan = {
+      followUpWorks: [
+        {
+          description: null,
+          id: "reject-follow-up",
+          title: "Create only after approval",
+          type: "Task" as const,
+        },
+      ],
+      handoffId: handoff.handoffId,
+      proposedRelations: [
+        {
+          id: "reject-relation",
+          kind: "Related" as const,
+          targetWorkId: relatedWorkId,
+        },
+      ],
+    };
+    const preview = await handoffs.previewReconcile(accountId, plan);
+
+    expect(
+      await database
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toHaveLength(2);
+    await expect(listWorkRelations()).resolves.toEqual([]);
+    await expect(handoffs.list(accountId, workId)).resolves.toMatchObject([
+      { handoffId: handoff.handoffId, status: "Result returned" },
+    ]);
+    await expect(
+      handoffs.confirmReconcile(accountId, {
+        ...plan,
+        clientEventId: "previewless-confirm",
+        previewId: "not-a-preview-id",
+        selectedFollowUpWorkIds: ["reject-follow-up"],
+        selectedRelationIds: [],
+      }),
+    ).rejects.toMatchObject({
+      code: "EXTERNAL_HANDOFF_RECONCILE_PREVIEW_REQUIRED",
+    });
+    expect(preview?.previewId).not.toBe("not-a-preview-id");
+    expect(
+      await database
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toHaveLength(2);
+    await expect(listWorkRelations()).resolves.toEqual([]);
+  });
+
+  test("rejects a changed relation preview without creating Work or relation records", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      newId: () => "handoff-reconcile-rollback",
+    });
+    const relatedWorkId = "related-work-rollback";
+    await database.insert(work).values({
+      id: relatedWorkId,
+      key: "EH-2",
+      number: 2,
+      projectId,
+      title: "Target to archive after preview",
+      type: "Task",
+    });
+    await database
+      .update(project)
+      .set({ workCount: 2 })
+      .where(eq(project.id, projectId));
+    const handoff = await recordReturnedHandoff(
+      handoffs,
+      accountId,
+      workId,
+      "handoff-reconcile-rollback",
+    );
+    const plan = {
+      followUpWorks: [
+        {
+          description: null,
+          id: "rollback-follow-up",
+          title: "This Work must roll back",
+          type: "Task" as const,
+        },
+      ],
+      handoffId: handoff.handoffId,
+      proposedRelations: [
+        {
+          id: "rollback-relation",
+          kind: "Related" as const,
+          targetWorkId: relatedWorkId,
+        },
+      ],
+    };
+    const preview = await handoffs.previewReconcile(accountId, plan);
+    if (!preview) {
+      throw new Error("The reconcile preview was unavailable.");
+    }
+    await database
+      .update(work)
+      .set({ title: "Target changed after preview" })
+      .where(eq(work.id, relatedWorkId));
+
+    await expect(
+      handoffs.confirmReconcile(accountId, {
+        ...plan,
+        clientEventId: "rollback-confirm",
+        previewId: preview.previewId,
+        selectedFollowUpWorkIds: ["rollback-follow-up"],
+        selectedRelationIds: ["rollback-relation"],
+      }),
+    ).rejects.toMatchObject({
+      code: "EXTERNAL_HANDOFF_RECONCILE_PREVIEW_REQUIRED",
+    });
+    expect(
+      await database
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toHaveLength(2);
+    await expect(listWorkRelations()).resolves.toEqual([]);
+    await expect(handoffs.list(accountId, workId)).resolves.toMatchObject([
+      { handoffId: handoff.handoffId, status: "Result returned" },
+    ]);
+  });
+
+  test("rolls selected Works and relations back when recording the decision fails", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      newId: () => "handoff-reconcile-rollback",
+    });
+    const relatedWorkId = "related-work-rollback";
+    await database.insert(work).values({
+      id: relatedWorkId,
+      key: "EH-2",
+      number: 2,
+      projectId,
+      title: "Selected relation target",
+      type: "Task",
+    });
+    await database
+      .update(project)
+      .set({ workCount: 2 })
+      .where(eq(project.id, projectId));
+    const handoff = await recordReturnedHandoff(
+      handoffs,
+      accountId,
+      workId,
+      "handoff-reconcile-rollback",
+    );
+    const clientEventId = "rollback-decision-event";
+    const plan = {
+      followUpWorks: [
+        {
+          description: null,
+          id: "rollback-follow-up",
+          title: "This Work must roll back",
+          type: "Task" as const,
+        },
+      ],
+      handoffId: handoff.handoffId,
+      proposedRelations: [
+        {
+          id: "rollback-relation",
+          kind: "Related" as const,
+          targetWorkId: relatedWorkId,
+        },
+      ],
+    };
+    const preview = await handoffs.previewReconcile(accountId, plan);
+    if (!preview) {
+      throw new Error("The reconcile preview was unavailable.");
+    }
+    const collisionFingerprint = await fingerprintMutationPayload({
+      clientEventId,
+      eventType: "external-execution-handoff-reconciled",
+      handoffId: handoff.handoffId,
+      workId,
+    });
+    await database.insert(mutationHistory).values({
+      actorId: accountId,
+      actorType: "User",
+      clientIdempotencyKey: clientEventId,
+      id: `external-handoff-event-${collisionFingerprint}`,
+      nextValue: { kind: "rollback-test-collision" },
+      occurredAt: new Date("2026-09-23T12:45:00.000Z"),
+      originKind: "human",
+      payloadFingerprint: collisionFingerprint,
+      previousValue: { kind: "rollback-test-collision" },
+      revision: 0,
+      targetId: workId,
+    });
+
+    await expect(
+      handoffs.confirmReconcile(accountId, {
+        ...plan,
+        clientEventId,
+        previewId: preview.previewId,
+        selectedFollowUpWorkIds: ["rollback-follow-up"],
+        selectedRelationIds: ["rollback-relation"],
+      }),
+    ).rejects.toBeDefined();
+    expect(
+      await database
+        .select({ id: work.id })
+        .from(work)
+        .where(eq(work.projectId, projectId)),
+    ).toHaveLength(2);
+    await expect(listWorkRelations()).resolves.toEqual([]);
+    await expect(handoffs.list(accountId, workId)).resolves.toMatchObject([
+      { handoffId: handoff.handoffId, status: "Result returned" },
+    ]);
   });
 });
