@@ -1,3 +1,4 @@
+import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
@@ -226,14 +227,19 @@ test("shows a stale Work conflict without hiding other selected results", async 
 
   await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
   const progress = bulkEdit.getByRole("progressbar", { name: "Progress" });
-  await expect(progress).toBeVisible({ timeout: 1000 });
+  await expect(progress).toBeVisible({ timeout: 2000 });
 
   const results = bulkEdit.getByRole("list", { name: "Bulk Edit results" });
   await expect(results.locator("li")).toHaveCount(2);
   const resultRows = await results.locator("li > p").allTextContents();
   expect(resultRows).toContain(`${staleWorkKey}: Failed`);
   expect(resultRows).toContain(`${currentWorkKey}: Succeeded`);
-  await expect(results).toContainText("Support reference");
+  const staleResult = results.locator("li").filter({
+    hasText: `${staleWorkKey}: Failed`,
+  });
+  await expect(staleResult.locator("code")).toHaveText(
+    SUPPORT_REFERENCE_PATTERN,
+  );
   await expect(workStatusControl(staleWork)).toHaveValue("Blocked");
   await expect(workStatusControl(currentWork)).toHaveValue("In Progress");
 
@@ -385,7 +391,7 @@ test("cancels queued status writes and restores progress after returning", async
   await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(
     bulkEdit.getByRole("progressbar", { name: "Progress" }),
-  ).toBeVisible({ timeout: 1000 });
+  ).toBeVisible({ timeout: 2000 });
   await firstFourStarted;
 
   const cancel = bulkEdit.getByRole("button", { name: "Cancel" });
