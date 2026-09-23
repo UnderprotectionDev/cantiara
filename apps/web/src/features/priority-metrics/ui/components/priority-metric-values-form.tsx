@@ -47,7 +47,7 @@ export default function PriorityMetricValuesForm({
       if (rank === null) {
         if (item.value) {
           await clearValue.mutateAsync({
-            baseRevision: item.value.revision,
+            baseRevision: item.valueRevision,
             metricId: item.definition.id,
             workId,
           });
@@ -55,7 +55,7 @@ export default function PriorityMetricValuesForm({
         return;
       }
       await setValue.mutateAsync({
-        baseRevision: item.value?.revision ?? 0,
+        baseRevision: item.valueRevision,
         metricId: item.definition.id,
         rank,
         workId,

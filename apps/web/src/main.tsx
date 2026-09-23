@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
+import { deliverTauriGitHubIdentityGrant } from "./features/account-access/lib/github-identity-grant-events";
 import { initializeTauriAuth } from "./features/account-access/lib/tauri-session";
 import { routeTree } from "./routeTree.gen";
 import { orpc, queryClient } from "./utils/orpc";
@@ -34,7 +35,9 @@ if (!rootElement) {
 const appElement = rootElement;
 
 async function startApplication() {
-  await initializeTauriAuth().catch(() => undefined);
+  await initializeTauriAuth({
+    onGitHubIdentityConfirmation: deliverTauriGitHubIdentityGrant,
+  }).catch(() => undefined);
   if (!appElement.innerHTML) {
     const root = ReactDOM.createRoot(appElement);
     root.render(<RouterProvider router={router} />);

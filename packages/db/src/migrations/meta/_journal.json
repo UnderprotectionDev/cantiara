@@ -316,6 +316,13 @@
       "when": 1790115988257,
       "tag": "0044_talented_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1790121030426,
+      "tag": "0045_clammy_sister_grimm",
+      "breakpoints": true
     }
   ]
 }

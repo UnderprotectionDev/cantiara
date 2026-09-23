@@ -15,6 +15,12 @@ export function createPriorityMetricsAccess(
       const workspaceId = await store.findWorkspaceId(accountId);
       return workspaceId ? store.projectValues(workspaceId, projectId) : null;
     },
+    async trashImpactPreview(accountId, metricId) {
+      const workspaceId = await store.findWorkspaceId(accountId);
+      return workspaceId
+        ? store.trashImpactPreview(workspaceId, metricId)
+        : null;
+    },
     async values(accountId, workId) {
       const workspaceId = await store.findWorkspaceId(accountId);
       return workspaceId ? store.values(workspaceId, workId) : null;

@@ -122,6 +122,24 @@ export const trashPriorityMetricInputSchema = priorityMetricRevisionInputSchema;
 export const trashPriorityMetricMutationInputSchema =
   priorityMetricRevisionMutationInputSchema;
 
+export const restorePriorityMetricInputSchema =
+  priorityMetricRevisionInputSchema;
+
+export const restorePriorityMetricMutationInputSchema =
+  priorityMetricRevisionMutationInputSchema;
+
+export const deletePriorityMetricInputSchema =
+  priorityMetricRevisionInputSchema;
+
+export const deletePriorityMetricMutationInputSchema =
+  priorityMetricRevisionMutationInputSchema
+    .extend({
+      grant: z.string().min(1).max(512),
+      projectId: identifierSchema,
+      typedProjectName: z.string().trim().min(1).max(200),
+    })
+    .strict();
+
 export const priorityMetricValueSchema = z
   .object({
     createdAt: z.string().datetime(),
@@ -137,10 +155,23 @@ export const priorityMetricValueSchema = z
 
 export type PriorityMetricValue = z.infer<typeof priorityMetricValueSchema>;
 
+export const priorityMetricValueRevisionSchema = z
+  .object({
+    metricId: identifierSchema,
+    revision: z.number().int().nonnegative(),
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type PriorityMetricValueRevision = z.infer<
+  typeof priorityMetricValueRevisionSchema
+>;
+
 export const priorityMetricValueListItemSchema = z
   .object({
     definition: priorityMetricSchema,
     value: priorityMetricValueSchema.nullable(),
+    valueRevision: z.number().int().nonnegative(),
   })
   .strict();
 
@@ -154,6 +185,19 @@ export const priorityMetricProjectValuesInputSchema = z
 
 export const priorityMetricValuesInputSchema = z
   .object({ workId: identifierSchema })
+  .strict();
+
+export const priorityMetricTrashImpactPreviewInputSchema = z
+  .object({ metricId: identifierSchema })
+  .strict();
+
+export const priorityMetricTrashImpactPreviewSchema = z
+  .object({ storedWorkValueCount: z.number().int().nonnegative() })
+  .extend({
+    attachedExternalSurfaceCount: z.number().int().nonnegative(),
+    dependentRuleCount: z.number().int().nonnegative(),
+    dependentViewCount: z.number().int().nonnegative(),
+  })
   .strict();
 
 export const setPriorityMetricValueInputSchema = z
@@ -185,6 +229,7 @@ export const clearPriorityMetricValueMutationInputSchema =
 
 export interface PriorityMetricProjectValues {
   definitions: PriorityMetric[];
+  valueRevisions: PriorityMetricValueRevision[];
   values: PriorityMetricValue[];
 }
 
@@ -198,6 +243,10 @@ export interface PriorityMetricStore {
     workspaceId: string,
     projectId: string,
   ) => Promise<PriorityMetricProjectValues | null>;
+  trashImpactPreview: (
+    workspaceId: string,
+    metricId: string,
+  ) => Promise<z.infer<typeof priorityMetricTrashImpactPreviewSchema> | null>;
   values: (
     workspaceId: string,
     workId: string,
@@ -213,6 +262,10 @@ export interface PriorityMetricsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<PriorityMetricProjectValues | null>;
+  trashImpactPreview: (
+    accountId: string,
+    metricId: string,
+  ) => Promise<z.infer<typeof priorityMetricTrashImpactPreviewSchema> | null>;
   values: (
     accountId: string,
     workId: string,
@@ -232,6 +285,8 @@ export interface PriorityMetricMutationContracts {
     accountId: string,
   ) => MutationContract<PriorityMetricValueMutationValue>;
   create: (accountId: string) => MutationContract<PriorityMetricMutationValue>;
+  delete: (accountId: string) => MutationContract<PriorityMetricMutationValue>;
+  restore: (accountId: string) => MutationContract<PriorityMetricMutationValue>;
   setValue: (
     accountId: string,
   ) => MutationContract<PriorityMetricValueMutationValue>;

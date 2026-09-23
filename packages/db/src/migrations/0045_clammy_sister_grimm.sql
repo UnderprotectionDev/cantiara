@@ -1,0 +1,3 @@
+ALTER TABLE "work_priority_metric_value" DROP CONSTRAINT "work_priority_metric_value_rank_check";--> statement-breakpoint
+ALTER TABLE "work_priority_metric_value" ALTER COLUMN "rank" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "work_priority_metric_value" ADD CONSTRAINT "work_priority_metric_value_rank_check" CHECK ("work_priority_metric_value"."rank" is null or "work_priority_metric_value"."rank" in ('Very low', 'Low', 'Medium', 'High', 'Very high'));

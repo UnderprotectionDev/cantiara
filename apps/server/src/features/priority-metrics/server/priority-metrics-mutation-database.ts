@@ -1,6 +1,11 @@
-import type {
-  MutationPayload,
-  MutationTarget,
+import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import {
+  fingerprintMutationPayload,
+  type MutationApply,
+  type MutationCommand,
+  type MutationContract,
+  type MutationOptions,
+  type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
   clearPriorityMetricValueInputSchema,
@@ -24,7 +29,12 @@ import {
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { and, eq, ne } from "drizzle-orm";
-
+import { accountActorAlias } from "../../account-access/server/github-identity-confirmation";
+import {
+  MutationConflictError,
+  mutationIdempotencyKey,
+  mutationOrigin,
+} from "../../mutation-and-undo/server/mutation-contract";
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
@@ -34,6 +44,15 @@ import {
   toPriorityMetric,
   toPriorityMetricValue,
 } from "./priority-metrics-database";
+import {
+  createDatabasePriorityMetricTrashMaintenance,
+  erasePriorityMetricContent,
+  PRIORITY_METRIC_PERMANENT_DELETE_EVENT_TYPE,
+  type PriorityMetricPermanentDeleteEventStore,
+  priorityMetricPermanentDeleteEventId,
+  priorityMetricPermanentDeleteEventKeyPrefix,
+  priorityMetricPermanentDeleteEventRevision,
+} from "./priority-metrics-trash-database";
 
 type DefinitionUpdateInput = Parameters<
   MutationDatabaseTargetAdapter<PriorityMetricMutationValue>["update"]
@@ -44,7 +63,12 @@ type ValueUpdateInput = Parameters<
 type PriorityMetricValueDatabaseRecord =
   typeof workPriorityMetricValue.$inferSelect;
 
-type DefinitionOperation = "create" | "trash" | "update";
+type DefinitionOperation = "create" | "delete" | "restore" | "trash" | "update";
+type ExistingDefinitionOperation = Exclude<DefinitionOperation, "create">;
+type MutableDefinitionOperation = Extract<
+  DefinitionOperation,
+  "restore" | "trash" | "update"
+>;
 type ValueOperation = "clear" | "set";
 
 export class PriorityMetricProjectNotFoundError extends Error {
@@ -71,6 +95,15 @@ export class PriorityMetricTrashedError extends Error {
   constructor(metricId: string) {
     super(`Priority metric ${metricId} is in configuration trash.`);
     this.name = "PriorityMetricTrashedError";
+  }
+}
+
+export class PriorityMetricNotTrashedError extends Error {
+  readonly code = "PRIORITY_METRIC_NOT_TRASHED" as const;
+
+  constructor(metricId: string) {
+    super(`Priority metric ${metricId} is not in configuration trash.`);
+    this.name = "PriorityMetricNotTrashedError";
   }
 }
 
@@ -254,10 +287,25 @@ async function findCreateDefinitionTarget(
   return emptyMetricTarget(targetId);
 }
 
+function assertDefinitionOperationState(
+  record: typeof priorityMetricDefinition.$inferSelect,
+  operation: ExistingDefinitionOperation,
+) {
+  if (operation === "restore" || operation === "delete") {
+    if (!record.trashedAt) {
+      throw new PriorityMetricNotTrashedError(record.id);
+    }
+    return;
+  }
+  if (record.trashedAt) {
+    throw new PriorityMetricTrashedError(record.id);
+  }
+}
+
 async function findExistingDefinitionTarget(
   executor: MutationDatabaseExecutor,
   accountId: string,
-  operation: DefinitionOperation,
+  operation: ExistingDefinitionOperation,
   targetId: string,
   lock: boolean,
   payload: MutationPayload | undefined,
@@ -266,9 +314,7 @@ async function findExistingDefinitionTarget(
   if (!record) {
     return null;
   }
-  if (record.trashedAt) {
-    throw new PriorityMetricTrashedError(record.id);
-  }
+  assertDefinitionOperationState(record, operation);
   if (operation === "update") {
     await assertMetricNameAvailableForUpdate(executor, record, payload);
   }
@@ -303,11 +349,263 @@ async function assertMetricNameAvailableForUpdate(
   }
 }
 
+function definitionUpdatesFor(
+  operation: MutableDefinitionOperation,
+  nextMetric: NonNullable<PriorityMetricMutationValue["metric"]>,
+  input: DefinitionUpdateInput,
+): Partial<typeof priorityMetricDefinition.$inferInsert> {
+  if (operation === "trash") {
+    return {
+      revision: input.expectedRevision + 1,
+      trashedAt: input.committedAt,
+      updatedAt: input.committedAt,
+    };
+  }
+  if (operation === "restore") {
+    return {
+      revision: input.expectedRevision + 1,
+      trashedAt: null,
+      updatedAt: input.committedAt,
+    };
+  }
+  return {
+    enabled: nextMetric.enabled,
+    name: nextMetric.name,
+    nameKey: priorityMetricNameKey(nextMetric.name),
+    rankDescriptions: nextMetric.rankDescriptions,
+    revision: input.expectedRevision + 1,
+    shortDescription: nextMetric.shortDescription,
+    updatedAt: input.committedAt,
+  };
+}
+
+async function updateExistingDefinition(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  operation: ExistingDefinitionOperation,
+  input: DefinitionUpdateInput,
+  permanentDeleteEvents?: PriorityMetricPermanentDeleteEventStore,
+) {
+  const record = await findOwnedMetric(
+    executor,
+    accountId,
+    input.targetId,
+    true,
+  );
+  if (!record) {
+    return null;
+  }
+  assertDefinitionOperationState(record, operation);
+  const identity = and(
+    eq(priorityMetricDefinition.id, input.targetId),
+    eq(priorityMetricDefinition.revision, input.expectedRevision),
+  );
+  if (operation === "delete") {
+    if (
+      input.nextValue.metric !== null ||
+      input.expectedRevision !== record.revision
+    ) {
+      return null;
+    }
+    if (!permanentDeleteEvents) {
+      throw new Error("Priority metric permanent delete log is unavailable.");
+    }
+    if (!input.actor?.actorId) {
+      throw new Error("Priority metric permanent delete has no actor alias.");
+    }
+    const eventId = await priorityMetricPermanentDeleteEventId(
+      record.id,
+      record.revision,
+      input.idempotencyKey,
+      input.payloadFingerprint,
+    );
+    const event = {
+      actorAlias: await accountActorAlias(input.actor.actorId),
+      occurredAt: input.committedAt.toISOString(),
+      id: eventId,
+      targetAlias: record.id,
+      type: PRIORITY_METRIC_PERMANENT_DELETE_EVENT_TYPE,
+      version: 1,
+    } as const;
+    await permanentDeleteEvents.append(event);
+    const deleted = await erasePriorityMetricContent(executor, {
+      actorAlias: event.actorAlias,
+      auditRecordId: `audit:${event.id}`,
+      expectedRevision: input.expectedRevision,
+      historyId: input.historyId,
+      metricId: record.id,
+      occurredAt: input.committedAt,
+    });
+    return deleted
+      ? {
+          id: input.targetId,
+          revision: input.expectedRevision + 1,
+          value: { metric: null },
+        }
+      : null;
+  }
+
+  const nextMetric = input.nextValue.metric;
+  if (
+    !nextMetric ||
+    nextMetric.id !== record.id ||
+    nextMetric.projectId !== record.projectId
+  ) {
+    return null;
+  }
+  const [updated] = await executor
+    .update(priorityMetricDefinition)
+    .set(definitionUpdatesFor(operation, nextMetric, input))
+    .where(identity)
+    .returning();
+  return updated
+    ? {
+        id: updated.id,
+        revision: updated.revision,
+        value: { metric: toPriorityMetric(updated) },
+      }
+    : null;
+}
+
+function recoverableDeleteContract(
+  contract: MutationContract<PriorityMetricMutationValue>,
+  database: Database,
+  events: PriorityMetricPermanentDeleteEventStore,
+): MutationContract<PriorityMetricMutationValue> {
+  const maintenance = createDatabasePriorityMetricTrashMaintenance(
+    database,
+    events,
+  );
+  return {
+    ...contract,
+    async mutate<TPayload extends MutationPayload>(
+      command: MutationCommand<TPayload>,
+      apply: MutationApply<PriorityMetricMutationValue, TPayload>,
+      options?: MutationOptions,
+    ) {
+      try {
+        return await contract.mutate(command, apply, options);
+      } catch (error) {
+        if (error instanceof MutationConflictError) {
+          throw error;
+        }
+        const receipt = await recoverDeleteReceipt(
+          contract,
+          command,
+          maintenance,
+          events,
+          error,
+        );
+        if (!receipt) {
+          throw error;
+        }
+        return receipt;
+      }
+    },
+  };
+}
+
+async function recoverDeleteReceipt<TPayload extends MutationPayload>(
+  contract: MutationContract<PriorityMetricMutationValue>,
+  command: MutationCommand<TPayload>,
+  maintenance: ReturnType<typeof createDatabasePriorityMetricTrashMaintenance>,
+  events: PriorityMetricPermanentDeleteEventStore,
+  originalError: unknown,
+) {
+  let recovery: Awaited<ReturnType<typeof recoverProtectedDelete>>;
+  try {
+    recovery = await recoverProtectedDelete(command, maintenance, events);
+  } catch (recoveryError) {
+    if (recoveryError instanceof MutationConflictError) {
+      throw recoveryError;
+    }
+    throw new Error(
+      `Priority metric delete recovery failed after ${String(originalError)}.`,
+      { cause: recoveryError },
+    );
+  }
+  if (!recovery) {
+    return null;
+  }
+
+  const durableReceipt = await contract.replay(command);
+  if (durableReceipt) {
+    return durableReceipt;
+  }
+  return {
+    actor: command.actor,
+    committedAt: recovery.event.occurredAt,
+    id: recovery.event.id,
+    nextValue: { metric: null },
+    origin: mutationOrigin(command),
+    payloadFingerprint: await fingerprintMutationPayload(command.payload),
+    previousValue: { metric: null },
+    revision: recovery.expectedRevision + 1,
+    targetId: command.targetId,
+  };
+}
+
+async function recoverProtectedDelete<TPayload extends MutationPayload>(
+  command: MutationCommand<TPayload>,
+  maintenance: ReturnType<typeof createDatabasePriorityMetricTrashMaintenance>,
+  events: PriorityMetricPermanentDeleteEventStore,
+) {
+  const actorAlias = await accountActorAlias(command.actor.actorId);
+  const idempotencyKey = mutationIdempotencyKey(command);
+  const eventKeyPrefix = await priorityMetricPermanentDeleteEventKeyPrefix(
+    command.targetId,
+    idempotencyKey,
+  );
+  const payloadFingerprint = await fingerprintMutationPayload(command.payload);
+  const matchingKeyEvents = (await events.list()).filter(
+    (candidate) =>
+      candidate.id.startsWith(eventKeyPrefix) &&
+      candidate.actorAlias === actorAlias &&
+      candidate.targetAlias === command.targetId,
+  );
+  const event = matchingKeyEvents.find((candidate) =>
+    candidate.id.endsWith(`:p${payloadFingerprint}`),
+  );
+  if (!event) {
+    if (matchingKeyEvents.length > 0) {
+      throw new MutationConflictError(command.targetId);
+    }
+    return null;
+  }
+  const expectedRevision = priorityMetricPermanentDeleteEventRevision(
+    event.id,
+    eventKeyPrefix,
+  );
+  if (expectedRevision === null) {
+    throw new Error("Unsupported priority metric delete event identity.");
+  }
+  await maintenance.replayPermanentDeletes();
+  return { event, expectedRevision };
+}
+
 function createDefinitionMutationTarget(
   accountId: string,
   operation: DefinitionOperation,
+  permanentDeleteEvents?: PriorityMetricPermanentDeleteEventStore,
 ): MutationDatabaseTargetAdapter<PriorityMetricMutationValue> {
   return {
+    ...(operation === "delete"
+      ? {
+          historyPreviousValue: () => ({ metric: null }),
+          receiptIdForCommit: ({
+            expectedRevision,
+            idempotencyKey,
+            payloadFingerprint,
+            targetId,
+          }) =>
+            priorityMetricPermanentDeleteEventId(
+              targetId,
+              expectedRevision,
+              idempotencyKey,
+              payloadFingerprint,
+            ),
+        }
+      : {}),
     find(executor, targetId, lock, context) {
       if (operation === "create") {
         return findCreateDefinitionTarget(
@@ -327,61 +625,17 @@ function createDefinitionMutationTarget(
       );
     },
 
-    async update(executor, input) {
+    update(executor, input) {
       if (operation === "create") {
         return createMetric(executor, accountId, input);
       }
-      const record = await findOwnedMetric(
+      return updateExistingDefinition(
         executor,
         accountId,
-        input.targetId,
-        true,
+        operation,
+        input,
+        permanentDeleteEvents,
       );
-      if (!record || record.trashedAt) {
-        return null;
-      }
-      const identity = and(
-        eq(priorityMetricDefinition.id, input.targetId),
-        eq(priorityMetricDefinition.revision, input.expectedRevision),
-      );
-      const nextMetric = input.nextValue.metric;
-      if (
-        !nextMetric ||
-        nextMetric.id !== record.id ||
-        nextMetric.projectId !== record.projectId
-      ) {
-        return null;
-      }
-
-      const updates =
-        operation === "trash"
-          ? {
-              enabled: false,
-              revision: input.expectedRevision + 1,
-              trashedAt: input.committedAt,
-              updatedAt: input.committedAt,
-            }
-          : {
-              enabled: nextMetric.enabled,
-              name: nextMetric.name,
-              nameKey: priorityMetricNameKey(nextMetric.name),
-              rankDescriptions: nextMetric.rankDescriptions,
-              revision: input.expectedRevision + 1,
-              shortDescription: nextMetric.shortDescription,
-              updatedAt: input.committedAt,
-            };
-      const [updated] = await executor
-        .update(priorityMetricDefinition)
-        .set(updates)
-        .where(identity)
-        .returning();
-      return updated
-        ? {
-            id: updated.id,
-            revision: updated.revision,
-            value: { metric: toPriorityMetric(updated) },
-          }
-        : null;
     },
   };
 }
@@ -477,7 +731,9 @@ async function findValueMutationTarget(
   return {
     id: targetId,
     revision: valueRow?.revision ?? 0,
-    value: { value: valueRow ? toPriorityMetricValue(valueRow) : null },
+    value: {
+      value: valueRow?.rank ? toPriorityMetricValue(valueRow) : null,
+    },
   } satisfies MutationTarget<PriorityMetricValueMutationValue>;
 }
 
@@ -543,7 +799,13 @@ async function updatePriorityMetricValue(
   );
   const nextValue = input.nextValue.value;
   if (!nextValue) {
-    return clearPriorityMetricValue(executor, input, current);
+    return clearPriorityMetricValue(
+      executor,
+      input,
+      current,
+      target,
+      owned.projectId,
+    );
   }
   if (!isTargetPriorityMetricValue(nextValue, target, owned.projectId)) {
     return null;
@@ -589,27 +851,52 @@ async function clearPriorityMetricValue(
   executor: MutationDatabaseExecutor,
   input: ValueUpdateInput,
   current: PriorityMetricValueDatabaseRecord | null,
+  target: { metricId: string; workId: string },
+  projectId: string,
 ) {
   if (!current && input.expectedRevision !== 0) {
     return null;
   }
+  const nextRevision = input.expectedRevision + 1;
   if (current) {
-    const [deleted] = await executor
-      .delete(workPriorityMetricValue)
+    const [updated] = await executor
+      .update(workPriorityMetricValue)
+      .set({
+        rank: null,
+        revision: nextRevision,
+        updatedAt: input.committedAt,
+      })
       .where(
         and(
           eq(workPriorityMetricValue.id, current.id),
           eq(workPriorityMetricValue.revision, input.expectedRevision),
         ),
       )
-      .returning({ id: workPriorityMetricValue.id });
-    if (!deleted) {
+      .returning({ revision: workPriorityMetricValue.revision });
+    if (!updated) {
+      return null;
+    }
+  } else {
+    const [created] = await executor
+      .insert(workPriorityMetricValue)
+      .values({
+        createdAt: input.committedAt,
+        id: crypto.randomUUID(),
+        metricId: target.metricId,
+        projectId,
+        rank: null,
+        revision: nextRevision,
+        updatedAt: input.committedAt,
+        workId: target.workId,
+      })
+      .returning({ revision: workPriorityMetricValue.revision });
+    if (!created) {
       return null;
     }
   }
   return {
     id: input.targetId,
-    revision: input.expectedRevision + 1,
+    revision: nextRevision,
     value: { value: null },
   } satisfies MutationTarget<PriorityMetricValueMutationValue>;
 }
@@ -672,6 +959,7 @@ async function insertPriorityMetricValue(
 
 export function createDatabasePriorityMetricMutationContracts(
   database: Database,
+  permanentDeleteEvents?: PriorityMetricPermanentDeleteEventStore,
 ): PriorityMetricMutationContracts {
   return {
     clearValue: (accountId) =>
@@ -682,6 +970,23 @@ export function createDatabasePriorityMetricMutationContracts(
     create: (accountId) =>
       createDatabaseMutationContract<PriorityMetricMutationValue>(database, {
         target: createDefinitionMutationTarget(accountId, "create"),
+      }),
+    delete: (accountId) => {
+      const contract =
+        createDatabaseMutationContract<PriorityMetricMutationValue>(database, {
+          target: createDefinitionMutationTarget(
+            accountId,
+            "delete",
+            permanentDeleteEvents,
+          ),
+        });
+      return permanentDeleteEvents
+        ? recoverableDeleteContract(contract, database, permanentDeleteEvents)
+        : contract;
+    },
+    restore: (accountId) =>
+      createDatabaseMutationContract<PriorityMetricMutationValue>(database, {
+        target: createDefinitionMutationTarget(accountId, "restore"),
       }),
     setValue: (accountId) =>
       createDatabaseMutationContract<PriorityMetricValueMutationValue>(

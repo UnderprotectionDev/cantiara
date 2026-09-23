@@ -69,12 +69,15 @@ import {
   clearPriorityMetricValueMutationInputSchema,
   createPriorityMetricInputSchema,
   createPriorityMetricMutationInputSchema,
+  deletePriorityMetricMutationInputSchema,
   type PriorityMetricMutationContracts,
   type PriorityMetricMutationValue,
   type PriorityMetricsAccess,
   type PriorityMetricValueMutationValue,
   priorityMetricProjectValuesInputSchema,
+  priorityMetricTrashImpactPreviewInputSchema,
   priorityMetricValuesInputSchema,
+  restorePriorityMetricMutationInputSchema,
   setPriorityMetricValueInputSchema,
   setPriorityMetricValueMutationInputSchema,
   trashPriorityMetricMutationInputSchema,
@@ -1345,6 +1348,13 @@ function rethrowPriorityMetricMutationError(
         "A Priority metric with this name already exists in this Project.",
     });
   }
+  if (error.code === "PRIORITY_METRIC_NOT_TRASHED") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: "Only a Priority metric in Trash can be restored or deleted.",
+    });
+  }
   if (
     error.code === "23505" &&
     (error.constraint === "priority_metric_definition_project_name_uidx" ||
@@ -2018,6 +2028,21 @@ export const appRouter = {
       }
       return values;
     }),
+  priorityMetricTrashImpactPreview: protectedProcedure
+    .input(priorityMetricTrashImpactPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const preview = await requirePriorityMetrics(context).trashImpactPreview(
+        context.session.user.id,
+        input.metricId,
+      );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Priority metric is unavailable.",
+        });
+      }
+      return preview;
+    }),
   priorityMetricValues: protectedProcedure
     .input(priorityMetricValuesInputSchema)
     .handler(async ({ context, input }) => {
@@ -2151,7 +2176,6 @@ export const appRouter = {
             return {
               metric: {
                 ...current,
-                enabled: false,
                 revision: currentRevision + 1,
                 trashedAt: timestamp,
                 updatedAt: timestamp,
@@ -2164,6 +2188,118 @@ export const appRouter = {
           throw new ORPCError("NOT_FOUND");
         }
         return metric;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, metricId);
+      }
+    }),
+  restorePriorityMetric: protectedProcedure
+    .input(restorePriorityMetricMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, metricId } = input;
+      const mutation = requirePriorityMetricMutationContracts(context).restore(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: {},
+            targetId: metricId,
+          },
+          ({ currentRevision, currentValue }) => {
+            const current = currentValue.metric;
+            if (!current) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            const timestamp = new Date().toISOString();
+            return {
+              metric: {
+                ...current,
+                revision: currentRevision + 1,
+                trashedAt: null,
+                updatedAt: timestamp,
+              },
+            } satisfies PriorityMetricMutationValue;
+          },
+        );
+        const { metric } = receipt.nextValue;
+        if (!metric) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return metric;
+      } catch (error) {
+        rethrowPriorityMetricMutationError(error, metricId);
+      }
+    }),
+  deletePriorityMetric: protectedProcedure
+    .input(deletePriorityMetricMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision,
+        clientIdempotencyKey,
+        grant,
+        metricId,
+        projectId,
+        typedProjectName,
+      } = input;
+      const mutation = requirePriorityMetricMutationContracts(context).delete(
+        context.session.user.id,
+      );
+      const confirmation = context.githubIdentityConfirmation;
+      if (!confirmation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: { projectId },
+            targetId: metricId,
+          },
+          async ({ currentValue }) => {
+            const current = currentValue.metric;
+            if (!current || current.projectId !== projectId) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            const project = await requireProjectShell(context).find(
+              context.session.user.id,
+              projectId,
+            );
+            if (!project) {
+              throw new ORPCError("NOT_FOUND");
+            }
+            if (project.name !== typedProjectName) {
+              throw new ORPCError("BAD_REQUEST", {
+                defined: true,
+                message: "The Project name does not match.",
+              });
+            }
+            const consumed = await confirmation.consume(
+              sessionPrincipal(context.session),
+              "early-permanent-delete",
+              grant,
+              context.clientKey,
+            );
+            if (!consumed) {
+              throw new ORPCError("FORBIDDEN", {
+                defined: true,
+                message:
+                  "Confirm GitHub Identity is required to delete this criterion.",
+              });
+            }
+            return { metric: null } satisfies PriorityMetricMutationValue;
+          },
+        );
+        if (receipt.nextValue.metric !== null) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return { status: true };
       } catch (error) {
         rethrowPriorityMetricMutationError(error, metricId);
       }

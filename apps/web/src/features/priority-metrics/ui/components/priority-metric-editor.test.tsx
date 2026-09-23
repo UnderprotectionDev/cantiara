@@ -1,15 +1,18 @@
 import {
   PRIORITY_METRIC_RANKS,
   type PriorityMetric,
+  type PriorityMetricProjectValues,
   type PriorityMetricValueListItem,
 } from "@cantiara/api/priority-metrics";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-
+import { priorityMetricItemsForWork } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { orpc } from "@/utils/orpc";
-import PriorityMetricEditor from "./priority-metric-editor";
+import PriorityMetricEditor, {
+  PriorityMetricTrashImpact,
+} from "./priority-metric-editor";
 import PriorityMetricValuesForm from "./priority-metric-values-form";
 
 const metric: PriorityMetric = {
@@ -42,7 +45,10 @@ function renderEditor(metrics: PriorityMetric[]) {
     createElement(
       QueryClientProvider,
       { client: queryClient },
-      createElement(PriorityMetricEditor, { projectId: "project-1" }),
+      createElement(PriorityMetricEditor, {
+        projectId: "project-1",
+        projectName: "Cantiara",
+      }),
     ),
   );
 }
@@ -73,14 +79,42 @@ describe("Priority metric editor", () => {
     expect(html).toContain("Evidence strength");
     expect(html).toContain("Disabled");
     expect(html).toContain(">Enable<");
-    for (const forbidden of ["Score", "WSJF", "Formula", "Trash"]) {
+    expect(html).toContain("Move to Trash");
+    for (const forbidden of [
+      "Score",
+      "WSJF",
+      "Formula",
+      "Permanently Delete",
+    ]) {
       expect(html).not.toContain(forbidden);
     }
   });
 
+  test("offers restore and permanent delete for trashed metrics", () => {
+    const html = renderEditor([
+      {
+        ...metric,
+        enabled: true,
+        revision: 2,
+        trashedAt: "2026-09-21T09:00:00.000Z",
+      },
+    ]);
+
+    expect(html).toContain("Trash");
+    expect(html).toContain("Evidence strength");
+    expect(html).toContain("Restore");
+    expect(html).toContain("Permanently Delete");
+    expect(html).not.toContain("Move to Trash");
+    expect(html).not.toContain(">Edit<");
+  });
+
   test("starts Work values at Unevaluated with no selected rank", () => {
     const html = renderValues([
-      { definition: { ...metric, enabled: true }, value: null },
+      {
+        definition: { ...metric, enabled: true },
+        value: null,
+        valueRevision: 0,
+      },
     ]);
 
     expect(html).toContain("Priority metrics");
@@ -89,5 +123,59 @@ describe("Priority metric editor", () => {
       expect(html).toContain(rank);
     }
     expect(html).toContain('value=""');
+  });
+
+  test("shows the saved Work value count in the permanent delete effect", () => {
+    const html = renderToStaticMarkup(
+      createElement(PriorityMetricTrashImpact, {
+        effect: {
+          attachedExternalSurfaceCount: 0,
+          dependentRuleCount: 0,
+          dependentViewCount: 0,
+          storedWorkValueCount: 3,
+        },
+        mode: "permanent-delete",
+        projectName: "Cantiara",
+      }),
+    );
+
+    expect(html).toContain("3 saved Work values in Cantiara");
+  });
+
+  test("previews the recoverable Trash effect before moving a criterion", () => {
+    const html = renderToStaticMarkup(
+      createElement(PriorityMetricTrashImpact, {
+        effect: {
+          attachedExternalSurfaceCount: 0,
+          dependentRuleCount: 0,
+          dependentViewCount: 0,
+          storedWorkValueCount: 1,
+        },
+        mode: "move-to-trash",
+        projectName: "Cantiara",
+      }),
+    );
+
+    expect(html).toContain(
+      "1 saved Work value remains recoverable for 30 days",
+    );
+    expect(html).toContain("Dependent views: 0. Dependent rules: 0");
+    expect(html).toContain("Attached External Surfaces: 0");
+  });
+
+  test("keeps the value revision after the value is Unevaluated", () => {
+    const projectValues: PriorityMetricProjectValues = {
+      definitions: [{ ...metric, enabled: true }],
+      values: [],
+      valueRevisions: [{ metricId: metric.id, revision: 2, workId: "work-1" }],
+    };
+
+    expect(priorityMetricItemsForWork(projectValues, "work-1")).toEqual([
+      {
+        definition: { ...metric, enabled: true },
+        value: null,
+        valueRevision: 2,
+      },
+    ]);
   });
 });

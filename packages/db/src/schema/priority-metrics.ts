@@ -88,7 +88,7 @@ export const workPriorityMetricValue = pgTable(
     id: text("id").primaryKey(),
     metricId: text("metric_id").notNull(),
     projectId: text("project_id").notNull(),
-    rank: text("rank").notNull(),
+    rank: text("rank"),
     revision: integer("revision").default(0).notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -120,7 +120,7 @@ export const workPriorityMetricValue = pgTable(
     }).onDelete("cascade"),
     check(
       "work_priority_metric_value_rank_check",
-      sql`${table.rank} in ('Very low', 'Low', 'Medium', 'High', 'Very high')`,
+      sql`${table.rank} is null or ${table.rank} in ('Very low', 'Low', 'Medium', 'High', 'Very high')`,
     ),
     check(
       "work_priority_metric_value_revision_check",

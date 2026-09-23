@@ -69,6 +69,7 @@ describe("Priority metrics API contract", () => {
           updatedAt: "2026-01-01T00:00:00.000Z",
         },
         value: null,
+        valueRevision: 0,
       }).success,
     ).toBe(true);
     expect(getStarterPriorityMetricTemplate("Blank Project")).toBeNull();

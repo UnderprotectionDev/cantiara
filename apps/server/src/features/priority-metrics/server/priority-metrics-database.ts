@@ -17,7 +17,7 @@ import {
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 type PriorityMetricDatabaseRecord =
   typeof priorityMetricDefinition.$inferSelect;
@@ -123,12 +123,7 @@ export function createDatabasePriorityMetrics(
       const records = await database
         .select()
         .from(priorityMetricDefinition)
-        .where(
-          and(
-            eq(priorityMetricDefinition.projectId, projectId),
-            isNull(priorityMetricDefinition.trashedAt),
-          ),
-        )
+        .where(eq(priorityMetricDefinition.projectId, projectId))
         .orderBy(asc(priorityMetricDefinition.createdAt));
       return records.map(toPriorityMetric);
     },
@@ -153,9 +148,10 @@ export function createDatabasePriorityMetrics(
         return {
           definitions,
           values: [],
+          valueRevisions: [],
         } satisfies PriorityMetricProjectValues;
       }
-      const values = await database
+      const valueRecords = await database
         .select()
         .from(workPriorityMetricValue)
         .where(
@@ -169,8 +165,47 @@ export function createDatabasePriorityMetrics(
         );
       return {
         definitions,
-        values: values.map(toPriorityMetricValue),
+        values: valueRecords
+          .filter((value) => value.rank !== null)
+          .map(toPriorityMetricValue),
+        valueRevisions: valueRecords.map(({ metricId, revision, workId }) => ({
+          metricId,
+          revision,
+          workId,
+        })),
       } satisfies PriorityMetricProjectValues;
+    },
+
+    async trashImpactPreview(workspaceId, metricId) {
+      const [metric] = await database
+        .select({ id: priorityMetricDefinition.id })
+        .from(priorityMetricDefinition)
+        .innerJoin(project, eq(project.id, priorityMetricDefinition.projectId))
+        .where(
+          and(
+            eq(priorityMetricDefinition.id, metricId),
+            eq(project.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      if (!metric) {
+        return null;
+      }
+      const [valueCount] = await database
+        .select({ storedWorkValueCount: count() })
+        .from(workPriorityMetricValue)
+        .where(
+          and(
+            eq(workPriorityMetricValue.metricId, metricId),
+            isNotNull(workPriorityMetricValue.rank),
+          ),
+        );
+      return {
+        attachedExternalSurfaceCount: 0,
+        dependentRuleCount: 0,
+        dependentViewCount: 0,
+        storedWorkValueCount: valueCount?.storedWorkValueCount ?? 0,
+      };
     },
 
     async values(workspaceId, workId) {
@@ -207,12 +242,19 @@ export function createDatabasePriorityMetrics(
           ),
         );
       const valuesByMetricId = new Map(
-        values.map((value) => [value.metricId, toPriorityMetricValue(value)]),
+        values.map((value) => [value.metricId, value]),
       );
-      return definitions.map((definition) => ({
-        definition,
-        value: valuesByMetricId.get(definition.id) ?? null,
-      })) satisfies PriorityMetricValueListItem[];
+      return definitions.map((definition) => {
+        const valueRecord = valuesByMetricId.get(definition.id);
+        return {
+          definition,
+          value:
+            valueRecord?.rank === null || !valueRecord
+              ? null
+              : toPriorityMetricValue(valueRecord),
+          valueRevision: valueRecord?.revision ?? 0,
+        };
+      }) satisfies PriorityMetricValueListItem[];
     },
   };
 }

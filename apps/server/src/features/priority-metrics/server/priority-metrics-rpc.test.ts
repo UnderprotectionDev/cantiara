@@ -14,10 +14,14 @@ import type {
   PriorityMetricValueListItem,
   PriorityMetricValueMutationValue,
 } from "@cantiara/api/priority-metrics";
-import { setPriorityMetricValueInputSchema } from "@cantiara/api/priority-metrics";
+import {
+  deletePriorityMetricMutationInputSchema,
+  setPriorityMetricValueInputSchema,
+} from "@cantiara/api/priority-metrics";
+import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 const metric: PriorityMetric = {
   createdAt: "2026-09-20T09:00:00.000Z",
@@ -43,6 +47,7 @@ const { rankDescriptions } = metric;
 const unevaluated: PriorityMetricValueListItem = {
   definition: metric,
   value: null,
+  valueRevision: 0,
 };
 
 function createAccess(recorded: {
@@ -58,7 +63,17 @@ function createAccess(recorded: {
         ? ({
             definitions: [metric],
             values: [],
+            valueRevisions: [],
           } satisfies PriorityMetricProjectValues)
+        : null,
+    trashImpactPreview: async (_accountId, metricId) =>
+      metricId === metric.id
+        ? {
+            attachedExternalSurfaceCount: 0,
+            dependentRuleCount: 0,
+            dependentViewCount: 0,
+            storedWorkValueCount: 3,
+          }
         : null,
     values: async (_accountId, workId) =>
       workId === "work-1" ? [unevaluated] : null,
@@ -68,6 +83,7 @@ function createAccess(recorded: {
 function createContext(
   priorityMetrics: PriorityMetricsAccess,
   priorityMetricMutationContracts?: PriorityMetricMutationContracts,
+  extras: Partial<Context> = {},
 ): Context {
   return {
     accountAccess: {
@@ -87,7 +103,50 @@ function createContext(
       session: { id: "session-1" },
       user: { id: "account-1" },
     } as Context["session"],
+    ...extras,
   };
+}
+
+function createProjectShell(
+  name = "Cantiara",
+): NonNullable<Context["projectShell"]> {
+  const project = {
+    configuration: getProjectShellConfiguration("Blank Project"),
+    createdAt: "2026-09-20T09:00:00.000Z",
+    id: "project-1",
+    logo: null,
+    name,
+    problem: null,
+    purpose: null,
+    revision: 1,
+    scope: null,
+    shortCode: "CAN",
+    shortCodeLocked: false,
+    starterConfiguration: "Blank Project",
+    status: "Active",
+    targetDate: null,
+    updatedAt: "2026-09-20T09:00:00.000Z",
+  } as const;
+  return {
+    create: async () => project,
+    find: async (_accountId, projectId) =>
+      projectId === project.id ? project : null,
+    list: async () => [project],
+    recordFirstWork: async () => project,
+    updateShortCode: async () => project,
+  };
+}
+
+function confirmationAccess(
+  consume: NonNullable<Context["githubIdentityConfirmation"]>["consume"],
+) {
+  return {
+    consume,
+    exchange: async () => "G".repeat(43),
+    start: async () => ({
+      authorizationUrl: "https://github.example/confirm",
+    }),
+  } satisfies NonNullable<Context["githubIdentityConfirmation"]>;
 }
 
 function createMutationContract<TValue>(
@@ -137,6 +196,18 @@ function createMutationContracts(
       createMutationContract<PriorityMetricValueMutationValue>({ value: null }),
     create: () =>
       createMutationContract<PriorityMetricMutationValue>({ metric: null }),
+    delete: () =>
+      createMutationContract<PriorityMetricMutationValue>(
+        { metric: currentMetric },
+        () => undefined,
+        currentMetric.revision,
+      ),
+    restore: () =>
+      createMutationContract<PriorityMetricMutationValue>(
+        { metric: currentMetric },
+        () => undefined,
+        currentMetric.revision,
+      ),
     setValue: () =>
       createMutationContract<PriorityMetricValueMutationValue>(
         { value: null },
@@ -183,6 +254,24 @@ describe("Priority metrics RPC", () => {
     await expect(
       client.priorityMetricValues({ workId: "work-1" }),
     ).resolves.toEqual([unevaluated]);
+  });
+
+  test("returns the Trash effect preview for an owned criterion", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(createAccess({ accountIds: [] })),
+    });
+
+    await expect(
+      client.priorityMetricTrashImpactPreview({ metricId: "metric-1" }),
+    ).resolves.toEqual({
+      attachedExternalSurfaceCount: 0,
+      dependentRuleCount: 0,
+      dependentViewCount: 0,
+      storedWorkValueCount: 3,
+    });
+    await expect(
+      client.priorityMetricTrashImpactPreview({ metricId: "missing" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   test("does not expose priority values for an inaccessible Work", async () => {
@@ -270,7 +359,7 @@ describe("Priority metrics RPC", () => {
     });
   });
 
-  test("trashes a criterion without exposing it as enabled", async () => {
+  test("trashes a criterion while preserving its enabled state", async () => {
     const client = createRouterClient(appRouter, {
       context: createContext(
         createAccess({ accountIds: [] }),
@@ -285,8 +374,148 @@ describe("Priority metrics RPC", () => {
         metricId: metric.id,
       }),
     ).resolves.toMatchObject({
-      enabled: false,
+      enabled: true,
       trashedAt: expect.any(String),
     });
+  });
+
+  test("restores a criterion with the same identity and enabled state", async () => {
+    const trashedMetric: PriorityMetric = {
+      ...metric,
+      revision: 4,
+      trashedAt: "2026-09-20T10:00:00.000Z",
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess({ accountIds: [] }),
+        createMutationContracts([], trashedMetric),
+      ),
+    });
+
+    await expect(
+      client.restorePriorityMetric({
+        baseRevision: trashedMetric.revision,
+        clientIdempotencyKey: "restore-metric-1",
+        metricId: trashedMetric.id,
+      }),
+    ).resolves.toMatchObject({
+      enabled: true,
+      id: trashedMetric.id,
+      revision: trashedMetric.revision + 1,
+      trashedAt: null,
+    });
+  });
+
+  test("permanently deletes a criterion only after project name and GitHub confirmation", async () => {
+    const trashedMetric: PriorityMetric = {
+      ...metric,
+      revision: 4,
+      trashedAt: "2026-09-20T10:00:00.000Z",
+    };
+    const consume = vi
+      .fn<NonNullable<Context["githubIdentityConfirmation"]>["consume"]>()
+      .mockResolvedValue(true);
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess({ accountIds: [] }),
+        createMutationContracts([], trashedMetric),
+        {
+          githubIdentityConfirmation: confirmationAccess(consume),
+          projectShell: createProjectShell(),
+        },
+      ),
+    });
+
+    await expect(
+      client.deletePriorityMetric({
+        baseRevision: trashedMetric.revision,
+        clientIdempotencyKey: "delete-metric-1",
+        grant: "one-time-github-grant",
+        metricId: trashedMetric.id,
+        projectId: trashedMetric.projectId,
+        typedProjectName: "Cantiara",
+      } as never),
+    ).resolves.toEqual({ status: true });
+    expect(consume).toHaveBeenCalledWith(
+      { accountId: "account-1", sessionId: "session-1" },
+      "early-permanent-delete",
+      "one-time-github-grant",
+      undefined,
+    );
+  });
+
+  test("fails closed when the early-delete grant cannot be consumed", async () => {
+    const trashedMetric: PriorityMetric = {
+      ...metric,
+      revision: 4,
+      trashedAt: "2026-09-20T10:00:00.000Z",
+    };
+    const consume = vi
+      .fn<NonNullable<Context["githubIdentityConfirmation"]>["consume"]>()
+      .mockResolvedValue(false);
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess({ accountIds: [] }),
+        createMutationContracts([], trashedMetric),
+        {
+          githubIdentityConfirmation: confirmationAccess(consume),
+          projectShell: createProjectShell(),
+        },
+      ),
+    });
+
+    await expect(
+      client.deletePriorityMetric({
+        baseRevision: trashedMetric.revision,
+        clientIdempotencyKey: "delete-metric-no-grant",
+        grant: "expired-or-replayed-grant",
+        metricId: trashedMetric.id,
+        projectId: trashedMetric.projectId,
+        typedProjectName: "Cantiara",
+      } as never),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  test("does not consume a grant when the typed Project name does not match", async () => {
+    const trashedMetric: PriorityMetric = {
+      ...metric,
+      revision: 4,
+      trashedAt: "2026-09-20T10:00:00.000Z",
+    };
+    const consume = vi
+      .fn<NonNullable<Context["githubIdentityConfirmation"]>["consume"]>()
+      .mockResolvedValue(true);
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createAccess({ accountIds: [] }),
+        createMutationContracts([], trashedMetric),
+        {
+          githubIdentityConfirmation: confirmationAccess(consume),
+          projectShell: createProjectShell(),
+        },
+      ),
+    });
+
+    await expect(
+      client.deletePriorityMetric({
+        baseRevision: trashedMetric.revision,
+        clientIdempotencyKey: "delete-metric-wrong-name",
+        grant: "one-time-github-grant",
+        metricId: trashedMetric.id,
+        projectId: trashedMetric.projectId,
+        typedProjectName: "Wrong Project",
+      } as never),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(consume).not.toHaveBeenCalled();
+  });
+
+  test("requires project name and grant in the permanent-delete command", () => {
+    expect(
+      deletePriorityMetricMutationInputSchema.safeParse({
+        baseRevision: 4,
+        clientIdempotencyKey: "delete-metric-missing-confirmation",
+        metricId: "metric-1",
+      }).success,
+    ).toBe(false);
   });
 });
