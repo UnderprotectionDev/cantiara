@@ -6,7 +6,7 @@
 .
 ├── .github/
 │   └── workflows/
-│       ├── account-access-integration.yml
+│       ├── integration-tests.yml
 │       ├── code-quality.yml
 │       ├── macos-release.yml
 │       └── pre-merge-validation.yml

@@ -243,14 +243,15 @@ async function createE2EFixture(fixtureKey: string) {
         })
       : null;
 
-  const scopeTreeProject =
-    fixtureKey === "scope-tree"
-      ? await projectShell.create(founder.id, {
-          name: "Scope Tree Project",
-          shortCode: "SCOPE",
-          starterConfiguration: "Blank Project",
-        })
-      : null;
+  const isScopeTreeFixture =
+    fixtureKey === "scope-tree" || fixtureKey === "command-palette-scope-tree";
+  const scopeTreeProject = isScopeTreeFixture
+    ? await projectShell.create(founder.id, {
+        name: "Scope Tree Project",
+        shortCode: "SCOPE",
+        starterConfiguration: "Blank Project",
+      })
+    : null;
   if (scopeTreeProject) {
     const feature = await workLifecycle.create(founder.id, {
       baseRevision: 0,
