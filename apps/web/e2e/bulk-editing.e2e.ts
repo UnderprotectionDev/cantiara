@@ -276,7 +276,10 @@ test("shows virtualized results for a large Work selection", async ({
   const workRows = page.locator('ul[aria-label="Work list"] > li');
   await expect(workRows).toHaveCount(setup.workCount, { timeout: 30_000 });
   const workCheckboxes = await workRows.getByRole("checkbox").all();
-  await Promise.all(workCheckboxes.map((checkbox) => checkbox.check()));
+  await workCheckboxes.reduce(
+    (previousCheck, checkbox) => previousCheck.then(() => checkbox.check()),
+    Promise.resolve(),
+  );
   await expect(
     page.getByText(`${setup.workCount} selected`, { exact: true }),
   ).toBeVisible();

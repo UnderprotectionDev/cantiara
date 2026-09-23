@@ -361,13 +361,24 @@ describeDatabase("External Execution Handoff seam", () => {
       }),
     ).rejects.toMatchObject({ code: "EXTERNAL_HANDOFF_TERMINAL" });
     const history = await handoffs.listHistory(accountId, workId);
-    expect(history?.map((event) => event.eventType)).toEqual([
-      "external-execution-handoff-started",
+    expect(history).toHaveLength(6);
+    const handoffEventTypes = (handoffId: string) =>
+      history
+        ?.filter((event) => event.handoffId === handoffId)
+        .map((event) => event.eventType)
+        .sort();
+    const expectedHandoffEventTypes = [
       "external-execution-handoff-canceled",
+      "external-execution-handoff-package-produced",
       "external-execution-handoff-started",
-      "external-execution-handoff-canceled",
-    ]);
-    expect(history?.[1]).not.toHaveProperty("reason");
-    expect(history?.[3]).not.toHaveProperty("reason");
+    ];
+    expect(handoffEventTypes("handoff-1")).toEqual(expectedHandoffEventTypes);
+    expect(handoffEventTypes("handoff-2")).toEqual(expectedHandoffEventTypes);
+    const cancellationHistory = history?.filter(
+      (event) => event.eventType === "external-execution-handoff-canceled",
+    );
+    expect(cancellationHistory).toHaveLength(2);
+    expect(cancellationHistory?.[0]).not.toHaveProperty("reason");
+    expect(cancellationHistory?.[1]).not.toHaveProperty("reason");
   });
 });
