@@ -80,10 +80,16 @@ test("compares Work on the Priority Map without writing position or status", asy
   async function createWork(title: string) {
     await page.getByRole("link", { name: "Create", exact: true }).click();
     await page.locator("#work-create").getByLabel("Title").fill(title);
+    const finalizeResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/rpc/finalizeWorkDraft"),
+    );
     await page
       .locator("#work-create")
       .getByRole("button", { name: "Create", exact: true })
       .click();
+    expect((await finalizeResponse).ok()).toBe(true);
     await expect(workListItem(page, title)).toBeVisible();
   }
 
