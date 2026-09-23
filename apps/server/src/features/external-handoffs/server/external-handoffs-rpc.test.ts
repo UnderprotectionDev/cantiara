@@ -4,11 +4,16 @@ import type {
   ExternalExecutionHandoffHistoryEvent,
   ExternalExecutionHandoffsAccess,
 } from "@cantiara/api/external-handoffs";
+import {
+  externalExecutionHandoffStatusSchema,
+  isTerminalExternalExecutionHandoffStatus,
+} from "@cantiara/api/external-handoffs";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
 const handoff: ExternalExecutionHandoff = {
+  cancellationReason: null,
   constraints: "Keep the existing API contract.",
   createdAt: "2026-09-23T12:00:00.000Z",
   executor: "Local coding agent",
@@ -22,6 +27,12 @@ const handoff: ExternalExecutionHandoff = {
   selectedWorkRevision: 4,
   status: "Open",
   workId: "work-1",
+};
+
+const canceledHandoff: ExternalExecutionHandoff = {
+  ...handoff,
+  cancellationReason: "The work is no longer needed.",
+  status: "Canceled",
 };
 
 const historyEvent: ExternalExecutionHandoffHistoryEvent = {
@@ -56,6 +67,7 @@ function createContext(workHandoffs: ExternalExecutionHandoffsAccess): Context {
 describe("External Execution Handoff RPC", () => {
   test("lists and starts a handoff through its owning Work", async () => {
     const access: ExternalExecutionHandoffsAccess = {
+      cancel: vi.fn().mockResolvedValue(canceledHandoff),
       list: vi.fn().mockResolvedValue([handoff]),
       listHistory: vi.fn().mockResolvedValue([historyEvent]),
       recordPackageExport: vi.fn().mockResolvedValue({
@@ -121,8 +133,9 @@ describe("External Execution Handoff RPC", () => {
     });
   });
 
-  test("rejects unsupported source versions and GitHub URLs before writing", async () => {
+  test("rejects unsupported source versions and unrelated actions before writing", async () => {
     const access: ExternalExecutionHandoffsAccess = {
+      cancel: vi.fn().mockResolvedValue(canceledHandoff),
       list: vi.fn().mockResolvedValue([handoff]),
       listHistory: vi.fn().mockResolvedValue([historyEvent]),
       recordPackageExport: vi.fn().mockResolvedValue(historyEvent),
@@ -156,6 +169,56 @@ describe("External Execution Handoff RPC", () => {
     await expect(
       client.startExternalExecutionHandoff(unsupportedSelection),
     ).rejects.toBeDefined();
+    const unsupportedActions = {
+      ...input,
+      assignedReviewerId: "external-person-1",
+      githubContext: [],
+      productGapEscapeEvent: { reason: "Left for another tool." },
+      publicationArtifact: { id: "release-1" },
+      testHandoffPackage: { id: "test-handoff-1" },
+      testSession: { id: "test-session-1" },
+    };
+    await expect(
+      client.startExternalExecutionHandoff(unsupportedActions),
+    ).rejects.toBeDefined();
     expect(access.start).not.toHaveBeenCalled();
+  });
+
+  test("cancels through the Work-owned interface and requires a reason", async () => {
+    const access: ExternalExecutionHandoffsAccess = {
+      cancel: vi.fn().mockResolvedValue(canceledHandoff),
+      list: vi.fn().mockResolvedValue([handoff]),
+      listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      recordPackageExport: vi.fn().mockResolvedValue(historyEvent),
+      start: vi.fn().mockResolvedValue(handoff),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+    const input = {
+      clientEventId: "cancel-handoff-1",
+      handoffId: handoff.handoffId,
+      reason: "The work is no longer needed.",
+    };
+
+    await expect(client.cancelExternalExecutionHandoff(input)).resolves.toEqual(
+      canceledHandoff,
+    );
+    await expect(
+      client.cancelExternalExecutionHandoff({ ...input, reason: "   " }),
+    ).rejects.toBeDefined();
+    expect(access.cancel).toHaveBeenCalledTimes(1);
+    expect(access.cancel).toHaveBeenCalledWith("account-1", input);
+  });
+
+  test("keeps returned handoffs open and recognizes only terminal statuses", () => {
+    for (const status of ["Open", "Result returned"] as const) {
+      expect(externalExecutionHandoffStatusSchema.parse(status)).toBe(status);
+      expect(isTerminalExternalExecutionHandoffStatus(status)).toBe(false);
+    }
+    for (const status of ["Reconciled", "Canceled"] as const) {
+      expect(externalExecutionHandoffStatusSchema.parse(status)).toBe(status);
+      expect(isTerminalExternalExecutionHandoffStatus(status)).toBe(true);
+    }
   });
 });

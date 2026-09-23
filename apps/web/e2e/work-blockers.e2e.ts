@@ -96,7 +96,7 @@ test("creates and removes an Active blocker without changing Work status", async
   await expect(blockedWork.getByRole("alert")).toBeVisible();
   await preview.getByRole("button", { name: "Confirm relation" }).click();
 
-  expect(createKeys).toHaveLength(2);
+  await expect.poll(() => createKeys.length).toBe(2);
   expect(createKeys[0]).toBe(createKeys[1]);
   await expect(blockedWork).toContainText("Blocked by");
   await expect(blockedWork.getByText("Active", { exact: true })).toBeVisible();

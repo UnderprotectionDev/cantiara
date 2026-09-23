@@ -234,17 +234,15 @@ test("shows a stale Work conflict without hiding other selected results", async 
 
   const results = bulkEdit.getByRole("list", { name: "Bulk Edit results" });
   await expect(results.locator("li")).toHaveCount(2);
+  const resultRows = await results.locator("li > p").allTextContents();
+  expect(resultRows).toContain(`${staleWorkKey}: Failed`);
+  expect(resultRows).toContain(`${currentWorkKey}: Succeeded`);
   const staleResult = results.locator("li").filter({
     hasText: `${staleWorkKey}: Failed`,
   });
-  const currentResult = results.locator("li").filter({
-    hasText: `${currentWorkKey}: Succeeded`,
-  });
-  await expect(staleResult).toContainText("Failed");
   await expect(staleResult.locator("code")).toHaveText(
     SUPPORT_REFERENCE_PATTERN,
   );
-  await expect(currentResult).toContainText("Succeeded");
   await expect(workStatusControl(staleWork)).toHaveValue("Blocked");
   await expect(workStatusControl(currentWork)).toHaveValue("In Progress");
 
