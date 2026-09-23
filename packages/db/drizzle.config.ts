@@ -7,6 +7,7 @@ export default defineConfig({
     "./src/schema/auth.ts",
     "./src/schema/mutation.ts",
     "./src/schema/custom-fields.ts",
+    "./src/schema/completion-effects.ts",
     "./src/schema/daily-focus.ts",
     "./src/schema/file-attachments.ts",
     "./src/schema/project.ts",

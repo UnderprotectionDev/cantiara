@@ -7,6 +7,10 @@ import type {
   BacklogMutationContracts,
 } from "@cantiara/api/backlog";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
+import type {
+  CompletionEffectsPreferences,
+  CompletionEffectsPreferencesAccess,
+} from "@cantiara/api/completion-effects";
 import {
   type AccountPreferencesCompatibilityAccess,
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
@@ -127,6 +131,8 @@ export interface AppDependencies {
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
   captureInbox?: CaptureInboxAccess;
+  completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
+  completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
   corsOrigin: string;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
@@ -1108,6 +1114,9 @@ export function createApp(dependencies: AppDependencies) {
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
       captureInbox: dependencies.captureInbox,
+      completionEffectsPreferences: dependencies.completionEffectsPreferences,
+      completionEffectsPreferencesMutationContract:
+        dependencies.completionEffectsPreferencesMutationContract,
       customFields: dependencies.customFields,
       customFieldMutationContracts: dependencies.customFieldMutationContracts,
       context: c,

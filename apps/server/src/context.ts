@@ -8,6 +8,10 @@ import type {
 } from "@cantiara/api/backlog";
 import type { CaptureInboxAccess } from "@cantiara/api/capture-triage";
 import type {
+  CompletionEffectsPreferences,
+  CompletionEffectsPreferencesAccess,
+} from "@cantiara/api/completion-effects";
+import type {
   AccountAccessClient,
   AccountPreferencesCompatibilityAccess,
   Context as ApiContext,
@@ -69,6 +73,8 @@ export interface CreateContextOptions {
   backlog?: BacklogAccess;
   backlogMutationContracts?: BacklogMutationContracts;
   captureInbox?: CaptureInboxAccess;
+  completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
+  completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
   context: HonoContext;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
@@ -114,6 +120,8 @@ export async function createContext({
   backlog,
   backlogMutationContracts,
   captureInbox,
+  completionEffectsPreferences,
+  completionEffectsPreferencesMutationContract,
   customFields,
   customFieldMutationContracts,
   context,
@@ -166,6 +174,8 @@ export async function createContext({
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
     captureInbox,
+    completionEffectsPreferences,
+    completionEffectsPreferencesMutationContract,
     customFields,
     customFieldMutationContracts,
     desktopApiContract:

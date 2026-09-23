@@ -1,4 +1,5 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createAuth } from "@cantiara/auth";
 import { createDb, type Database } from "@cantiara/db";
@@ -29,6 +30,10 @@ import {
   createR2CaptureInboxStagingStore,
   createR2WebCaptureStagingStore,
 } from "./features/capture-triage/server/web-capture-staging-r2";
+import {
+  completionEffectsPreferencesMutationTarget,
+  createDatabaseCompletionEffectsPreferences,
+} from "./features/completion-effects/server/completion-effects-database";
 import { createDatabaseCustomFields } from "./features/custom-fields/server/custom-fields-database";
 import {
   createDatabaseCustomFieldFinalizationWriter,
@@ -87,6 +92,12 @@ export const accountPreferencesCompatibility = databaseAccountPreferences;
 export const accountPreferencesMutationContract =
   createDatabaseMutationContract<AccountPreferences>(db, {
     target: accountPreferencesMutationTarget,
+  });
+export const completionEffectsPreferences =
+  createDatabaseCompletionEffectsPreferences(db);
+export const completionEffectsPreferencesMutationContract =
+  createDatabaseMutationContract<CompletionEffectsPreferences>(db, {
+    target: completionEffectsPreferencesMutationTarget,
   });
 export const mutationContract =
   createDatabaseMutationContract<MutationPayload>(db);

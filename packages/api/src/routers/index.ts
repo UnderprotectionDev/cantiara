@@ -27,6 +27,11 @@ import {
   captureUndoMergePreviewInputSchema,
 } from "../capture-triage";
 import {
+  type CompletionEffectsPreferences,
+  type CompletionEffectsPreferencesSnapshot,
+  completionEffectsPreferencesSchema,
+} from "../completion-effects";
+import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type Context,
 } from "../context";
@@ -254,6 +259,11 @@ const saveAccountAppearanceProcedureInputSchema = z.union([
   legacySaveAccountAppearanceInputSchema,
 ]);
 
+const saveCompletionEffectsPreferencesInputSchema =
+  humanMutationEnvelopeSchema.extend({
+    preferences: completionEffectsPreferencesSchema,
+  });
+
 const revokeWebCaptureLinkInputSchema = z
   .object({ linkId: z.string().trim().min(1).max(255) })
   .strict();
@@ -263,6 +273,20 @@ function requireAccountPreferencesMutationContract(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.accountPreferencesMutationContract;
+}
+
+function requireCompletionEffectsPreferencesAccess(context: Context) {
+  if (!context.completionEffectsPreferences) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.completionEffectsPreferences;
+}
+
+function requireCompletionEffectsPreferencesMutationContract(context: Context) {
+  if (!context.completionEffectsPreferencesMutationContract) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.completionEffectsPreferencesMutationContract;
 }
 
 function requireAccountPreferencesCompatibility(context: Context) {
@@ -1011,9 +1035,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function rethrowAccountPreferencesMutationError(
+function rethrowPreferenceMutationError<T>(
   error: unknown,
   targetId: string,
+  schema: z.ZodType<T>,
 ): never {
   if (!isRecord(error)) {
     throw error;
@@ -1033,7 +1058,7 @@ function rethrowAccountPreferencesMutationError(
   }
 
   if (code === "STALE_BASE_REVISION") {
-    const currentValue = accountPreferencesSchema.safeParse(rawCurrentValue);
+    const currentValue = schema.safeParse(rawCurrentValue);
     if (
       typeof currentRevision === "number" &&
       Number.isSafeInteger(currentRevision) &&
@@ -1068,13 +1093,48 @@ async function mutateAccountPreferences<TPayload extends MutationPayload>(
       apply,
     );
   } catch (error) {
-    rethrowAccountPreferencesMutationError(error, command.targetId);
+    rethrowPreferenceMutationError(
+      error,
+      command.targetId,
+      accountPreferencesSchema,
+    );
   }
 }
 
 function preferencesSnapshotFromReceipt(
   receipt: MutationReceipt<AccountPreferences>,
 ): AccountPreferencesSnapshot {
+  return {
+    ...receipt.nextValue,
+    isSaved: true,
+    revision: receipt.revision,
+    savedAt: receipt.committedAt,
+  };
+}
+
+async function mutateCompletionEffectsPreferences<
+  TPayload extends MutationPayload,
+>(
+  context: Context,
+  command: MutationCommand<TPayload>,
+  apply: MutationApply<CompletionEffectsPreferences, TPayload>,
+): Promise<MutationReceipt<CompletionEffectsPreferences>> {
+  try {
+    return await requireCompletionEffectsPreferencesMutationContract(
+      context,
+    ).mutate(command, apply);
+  } catch (error) {
+    rethrowPreferenceMutationError(
+      error,
+      command.targetId,
+      completionEffectsPreferencesSchema,
+    );
+  }
+}
+
+function completionEffectsPreferencesSnapshotFromReceipt(
+  receipt: MutationReceipt<CompletionEffectsPreferences>,
+): CompletionEffectsPreferencesSnapshot {
   return {
     ...receipt.nextValue,
     isSaved: true,
@@ -4404,6 +4464,11 @@ export const appRouter = {
   accountPreferences: protectedProcedure.handler(({ context }) =>
     context.accountPreferences.get(context.session.user.id),
   ),
+  completionEffectsPreferences: protectedProcedure.handler(({ context }) =>
+    requireCompletionEffectsPreferencesAccess(context).get(
+      context.session.user.id,
+    ),
+  ),
   saveAccountAppearance: protectedProcedure
     .input(saveAccountAppearanceProcedureInputSchema)
     .handler(async ({ context, input }) => {
@@ -4457,6 +4522,23 @@ export const appRouter = {
         }),
       );
       return preferencesSnapshotFromReceipt(receipt);
+    }),
+  saveCompletionEffectsPreferences: protectedProcedure
+    .input(saveCompletionEffectsPreferencesInputSchema)
+    .handler(async ({ context, input }) => {
+      const receipt = await mutateCompletionEffectsPreferences(
+        context,
+        {
+          actor: { actorId: context.session.user.id, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: input.preferences,
+          targetId: context.session.user.id,
+        },
+        ({ payload }) => payload,
+      );
+      return completionEffectsPreferencesSnapshotFromReceipt(receipt);
     }),
   revokeSession: protectedProcedure
     .input(z.object({ sessionId: z.string().min(1) }))
