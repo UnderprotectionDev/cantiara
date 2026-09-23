@@ -240,6 +240,7 @@ export default function ProjectWorkList({
                 candidates={query.data.filter(
                   (candidate) => candidate.id !== work.id,
                 )}
+                formattingPreferences={accountFormattingPreferences}
                 work={work}
               />
               <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-border/70 border-t pt-3">

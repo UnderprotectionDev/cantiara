@@ -8,12 +8,14 @@ import {
   RELATION_KIND_OPTIONS,
   RELATION_RECORD_TYPE_OPTIONS,
   RELATION_USAGE_KIND_OPTIONS,
+  reactivateBlockerInputSchema,
   relationDefinition,
   relationEndpointSchema,
   relationKindSchema,
   relationRecordTypeSchema,
   relationUniqueness,
   relationUsageKindSchema,
+  resolveBlockerInputSchema,
 } from "./relations";
 
 describe("Relations seam", () => {
@@ -94,7 +96,7 @@ describe("Relations seam", () => {
 
   test("keeps blocking relations unique for their directed endpoint pair", () => {
     expect(relationDefinition("Blocks")).toMatchObject({
-      cardinality: "at-most-one-current",
+      cardinality: "many-to-many",
       inverseLabel: "Blocked by",
       sourceTypes: "blocks-source",
       targetTypes: "blocks-target",
@@ -120,6 +122,31 @@ describe("Relations seam", () => {
     expect(blockingRelationStatusSchema.safeParse("Blocked").success).toBe(
       false,
     );
+  });
+
+  test("accepts an optional resolution note and explicit reactivation command", () => {
+    expect(
+      resolveBlockerInputSchema.parse({
+        baseRevision: 1,
+        clientIdempotencyKey: "blocker-resolution-1",
+        note: "  Provider access is available  ",
+        relationId: "relation-1",
+      }),
+    ).toMatchObject({
+      note: "Provider access is available",
+      relationId: "relation-1",
+    });
+    expect(
+      reactivateBlockerInputSchema.parse({
+        baseRevision: 2,
+        clientIdempotencyKey: "blocker-reactivation-1",
+        relationId: "relation-1",
+      }),
+    ).toEqual({
+      baseRevision: 2,
+      clientIdempotencyKey: "blocker-reactivation-1",
+      relationId: "relation-1",
+    });
   });
 
   test("uses only the closed broken-reference reasons", () => {

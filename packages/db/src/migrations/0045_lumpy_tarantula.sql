@@ -1,0 +1,4 @@
+ALTER TABLE "work_relation" DROP CONSTRAINT "work_relation_blocking_status_check";--> statement-breakpoint
+ALTER TABLE "work_relation" ADD COLUMN "blocking_resolved_at" timestamp;--> statement-breakpoint
+ALTER TABLE "work_relation" ADD COLUMN "blocking_resolution_note" text;--> statement-breakpoint
+ALTER TABLE "work_relation" ADD CONSTRAINT "work_relation_blocking_status_check" CHECK (("work_relation"."kind" <> 'Blocks' and "work_relation"."blocking_status" is null and "work_relation"."blocking_resolved_at" is null and "work_relation"."blocking_resolution_note" is null) or ("work_relation"."kind" = 'Blocks' and "work_relation"."blocking_status" = 'Active' and "work_relation"."blocking_resolved_at" is null and "work_relation"."blocking_resolution_note" is null) or ("work_relation"."kind" = 'Blocks' and "work_relation"."blocking_status" = 'Resolved'));

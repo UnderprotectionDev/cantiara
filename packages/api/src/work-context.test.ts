@@ -110,6 +110,9 @@ function relation(
     blockingStatus = overrides.kind === "Blocks" ? "Active" : null;
   }
   return {
+    blockingHistory: [],
+    blockingResolvedAt: null,
+    blockingResolutionNote: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     direction: "outgoing",
     id: "relation-1",

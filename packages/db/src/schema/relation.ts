@@ -40,6 +40,8 @@ export const workRelation = pgTable(
     deletedAt: timestamp("deleted_at"),
     brokenReason: text("broken_reason"),
     blockingStatus: text("blocking_status"),
+    blockingResolvedAt: timestamp("blocking_resolved_at"),
+    blockingResolutionNote: text("blocking_resolution_note"),
     id: text("id").primaryKey(),
     kind: text("kind").notNull(),
     revision: integer("revision").default(0).notNull(),
@@ -77,7 +79,7 @@ export const workRelation = pgTable(
     ),
     check(
       "work_relation_blocking_status_check",
-      sql`(${table.kind} <> 'Blocks' and ${table.blockingStatus} is null) or (${table.kind} = 'Blocks' and ${table.blockingStatus} is not null and ${table.blockingStatus} in ('Active', 'Resolved'))`,
+      sql`(${table.kind} <> 'Blocks' and ${table.blockingStatus} is null and ${table.blockingResolvedAt} is null and ${table.blockingResolutionNote} is null) or (${table.kind} = 'Blocks' and ${table.blockingStatus} = 'Active' and ${table.blockingResolvedAt} is null and ${table.blockingResolutionNote} is null) or (${table.kind} = 'Blocks' and ${table.blockingStatus} = 'Resolved')`,
     ),
     check(
       "work_relation_source_record_type_check",

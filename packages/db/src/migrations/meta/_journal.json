@@ -316,6 +316,13 @@
       "when": 1790115190444,
       "tag": "0044_fine_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1790122100521,
+      "tag": "0045_lumpy_tarantula",
+      "breakpoints": true
     }
   ]
 }

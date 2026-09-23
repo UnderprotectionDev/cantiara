@@ -200,16 +200,33 @@ describeDatabase("Relations PostgreSQL integration", () => {
 
     expect(preview.blockingStatus).toBe("Active");
     expect(created.relation).toMatchObject({
+      blockingHistory: [
+        {
+          note: null,
+          occurredAt: created.relation?.createdAt,
+          status: "Active",
+        },
+      ],
       blockingStatus: "Active",
       direction: "outgoing",
       kind: "Blocks",
       label: "Blocks",
     });
-    expect(created.relation).not.toHaveProperty("resolvedAt");
-    expect(created.relation).not.toHaveProperty("resolutionNote");
+    expect(created.signals).toHaveLength(1);
+    expect(created.signals[0]).toMatchObject({
+      blockedWork: { recordId: target.id, recordType: "Work" },
+      kind: "work-blocked",
+      relationId: preview.previewId,
+      source: { recordId: source.id, recordType: "Work" },
+    });
+    expect(created.relation).toMatchObject({
+      blockingResolvedAt: null,
+      blockingResolutionNote: null,
+    });
 
     const replayed = await relations.create(accountId, command);
     expect(replayed.receiptId).toBe(created.receiptId);
+    expect(replayed.signals).toEqual(created.signals);
     await expect(
       relations.create(accountId, {
         ...command,
@@ -237,11 +254,12 @@ describeDatabase("Relations PostgreSQL integration", () => {
     if (!created.relation) {
       throw new Error("Expected the Active blocker to be returned");
     }
-    await relations.remove(accountId, {
+    const removed = await relations.remove(accountId, {
       baseRevision: created.relation.revision,
       clientIdempotencyKey: "active-blocker-remove",
       relationId: created.relation.id,
     });
+    expect(removed.signals).toEqual([]);
     await expect(
       relations.list(accountId, { recordId: target.id, recordType: "Work" }),
     ).resolves.toEqual([]);
@@ -251,6 +269,237 @@ describeDatabase("Relations PostgreSQL integration", () => {
     await expect(lifecycle.find(accountId, target.id)).resolves.toMatchObject({
       status: targetStatus,
     });
+
+    const restored = await relations.undo(accountId, {
+      baseRevision: created.relation.revision + 1,
+      clientIdempotencyKey: "active-blocker-undo-remove",
+      receiptId: removed.receiptId,
+      relationId: created.relation.id,
+    });
+    expect(restored.relation?.id).toBe(created.relation.id);
+    expect(restored.signals).toHaveLength(1);
+    expect(restored.signals[0]).toMatchObject({
+      blockedWork: { recordId: target.id, recordType: "Work" },
+      kind: "work-blocked",
+      relationId: created.relation.id,
+      source: { recordId: source.id, recordType: "Work" },
+    });
+  }, 30_000);
+
+  test("resolves and reactivates the same blocker with history and signal events", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { lifecycle, source, target } = await createWorks();
+    const relations = createDatabaseRelations(database);
+    const input = {
+      kind: "Blocks" as const,
+      source: { recordId: source.id, recordType: "Work" as const },
+      target: { recordId: target.id, recordType: "Work" as const },
+    };
+    const preview = await relations.previewCreate(accountId, input);
+    const created = await relations.create(accountId, {
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "blocker-life-create",
+      kind: preview.kind,
+      previewId: preview.previewId,
+      source: input.source,
+      target: input.target,
+    });
+    if (!created.relation) {
+      throw new Error("Expected an Active blocker");
+    }
+
+    const resolved = await relations.resolveBlocker(accountId, {
+      baseRevision: created.relation.revision,
+      clientIdempotencyKey: "blocker-life-resolve",
+      note: "Provider access is available",
+      relationId: created.relation.id,
+    });
+    expect(resolved.relation).toMatchObject({
+      blockingResolutionNote: "Provider access is available",
+      blockingStatus: "Resolved",
+      id: created.relation.id,
+    });
+    expect(resolved.relation?.blockingResolvedAt).toEqual(expect.any(String));
+    expect(resolved.signals).toEqual([]);
+    expect(resolved.relation?.blockingHistory).toMatchObject([
+      {
+        note: null,
+        occurredAt: created.relation.createdAt,
+        status: "Active",
+      },
+      {
+        note: "Provider access is available",
+        occurredAt: resolved.relation?.blockingResolvedAt,
+        status: "Resolved",
+      },
+    ]);
+
+    const resolvedReplay = await relations.resolveBlocker(accountId, {
+      baseRevision: created.relation.revision,
+      clientIdempotencyKey: "blocker-life-resolve",
+      note: "Provider access is available",
+      relationId: created.relation.id,
+    });
+    expect(resolvedReplay.receiptId).toBe(resolved.receiptId);
+    expect(resolvedReplay.relation?.blockingResolvedAt).toBe(
+      resolved.relation?.blockingResolvedAt,
+    );
+
+    const reactivated = await relations.reactivateBlocker(accountId, {
+      baseRevision: resolved.relation?.revision ?? 0,
+      clientIdempotencyKey: "blocker-life-reactivate",
+      relationId: created.relation.id,
+    });
+    expect(reactivated.relation).toMatchObject({
+      blockingResolutionNote: null,
+      blockingResolvedAt: null,
+      blockingStatus: "Active",
+      id: created.relation.id,
+    });
+    expect(reactivated.signals).toHaveLength(1);
+    expect(reactivated.signals[0]).toMatchObject({
+      blockedWork: { recordId: target.id, recordType: "Work" },
+      kind: "work-blocked",
+      relationId: created.relation.id,
+      source: { recordId: source.id, recordType: "Work" },
+    });
+    expect(reactivated.signals[0]?.eventId).not.toBe(
+      created.signals[0]?.eventId,
+    );
+    expect(
+      reactivated.relation?.blockingHistory.map(({ status }) => status),
+    ).toEqual(["Active", "Resolved", "Active"]);
+    expect(reactivated.relation?.blockingHistory[1]).toMatchObject({
+      note: "Provider access is available",
+      status: "Resolved",
+    });
+
+    const resolvedAgain = await relations.resolveBlocker(accountId, {
+      baseRevision: reactivated.relation?.revision ?? 0,
+      clientIdempotencyKey: "blocker-life-resolve-again",
+      note: "Provider access regressed",
+      relationId: created.relation.id,
+    });
+    expect(
+      resolvedAgain.relation?.blockingHistory.map(({ status }) => status),
+    ).toEqual(["Active", "Resolved", "Active", "Resolved"]);
+    expect(resolvedAgain.relation?.blockingHistory[1]?.note).toBe(
+      "Provider access is available",
+    );
+    expect(resolvedAgain.relation?.blockingHistory[3]).toMatchObject({
+      note: "Provider access regressed",
+      status: "Resolved",
+    });
+
+    const undoneResolution = await relations.undo(accountId, {
+      baseRevision: resolvedAgain.relation?.revision ?? 0,
+      clientIdempotencyKey: "blocker-life-undo-resolve-again",
+      receiptId: resolvedAgain.receiptId,
+      relationId: created.relation.id,
+    });
+    expect(
+      undoneResolution.relation?.blockingHistory.map(({ status }) => status),
+    ).toEqual(["Active", "Resolved", "Active", "Resolved", "Active"]);
+    expect(undoneResolution.relation?.blockingHistory[4]).toMatchObject({
+      isUndo: true,
+      resolutionAt: null,
+      status: "Active",
+    });
+    expect(undoneResolution.relation?.blockingHistory[1]?.note).toBe(
+      "Provider access is available",
+    );
+    expect(undoneResolution.relation?.blockingHistory[3]?.note).toBe(
+      "Provider access regressed",
+    );
+
+    const resolutionForUndo = await relations.resolveBlocker(accountId, {
+      baseRevision: undoneResolution.relation?.revision ?? 0,
+      clientIdempotencyKey: "blocker-life-resolve-before-undo-reactivate",
+      note: "Provider access is verified",
+      relationId: created.relation.id,
+    });
+    const reactivationForUndo = await relations.reactivateBlocker(accountId, {
+      baseRevision: resolutionForUndo.relation?.revision ?? 0,
+      clientIdempotencyKey: "blocker-life-reactivate-before-undo",
+      relationId: created.relation.id,
+    });
+    const undoneReactivation = await relations.undo(accountId, {
+      baseRevision: reactivationForUndo.relation?.revision ?? 0,
+      clientIdempotencyKey: "blocker-life-undo-reactivate",
+      receiptId: reactivationForUndo.receiptId,
+      relationId: created.relation.id,
+    });
+    expect(undoneReactivation.relation).toMatchObject({
+      blockingResolutionNote: "Provider access is verified",
+      blockingResolvedAt: resolutionForUndo.relation?.blockingResolvedAt,
+      blockingStatus: "Resolved",
+    });
+    expect(undoneReactivation.relation?.blockingHistory.at(-1)).toMatchObject({
+      isUndo: true,
+      note: "Provider access is verified",
+      resolutionAt: resolutionForUndo.relation?.blockingResolvedAt,
+      status: "Resolved",
+    });
+    expect(
+      undoneReactivation.relation?.blockingHistory.at(-1)?.occurredAt,
+    ).not.toBe(resolutionForUndo.relation?.blockingResolvedAt);
+    await expect(lifecycle.find(accountId, source.id)).resolves.toMatchObject({
+      status: source.status,
+    });
+    await expect(lifecycle.find(accountId, target.id)).resolves.toMatchObject({
+      status: target.status,
+    });
+  }, 30_000);
+
+  test("keeps an Active blocker when its source Work is closed", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const { lifecycle, source, target } = await createWorks();
+    const relations = createDatabaseRelations(database);
+    const input = {
+      kind: "Blocks" as const,
+      source: { recordId: source.id, recordType: "Work" as const },
+      target: { recordId: target.id, recordType: "Work" as const },
+    };
+    const preview = await relations.previewCreate(accountId, input);
+    await relations.create(accountId, {
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "blocker-close-source-create",
+      kind: preview.kind,
+      previewId: preview.previewId,
+      source: input.source,
+      target: input.target,
+    });
+
+    await expect(
+      lifecycle.close(
+        accountId,
+        {
+          baseRevision: source.revision,
+          clientIdempotencyKey: "blocker-close-source",
+          closureResult: "Completed",
+          workId: source.id,
+        },
+        { kind: "Visible user" },
+      ),
+    ).resolves.toMatchObject({ status: "Closed" });
+
+    await expect(
+      relations.list(accountId, { recordId: target.id, recordType: "Work" }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        blockingStatus: "Active",
+        kind: "Blocks",
+        source: expect.objectContaining({
+          recordId: source.id,
+          status: "Closed",
+        }),
+        target: expect.objectContaining({ recordId: target.id }),
+      }),
+    ]);
   }, 30_000);
 
   test("requires a preview and rejects catalog values outside the closed set", async () => {

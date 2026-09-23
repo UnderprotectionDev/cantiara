@@ -121,3 +121,89 @@ test("creates and removes an Active blocker without changing Work status", async
     blockedWork.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
   ).toHaveValue("Not Started");
 });
+
+test("resolves and reactivates the same blocker with its note and history", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Blocker Resolution Project");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page
+    .getByRole("link", { name: "Blocker Resolution Project", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+
+  const blocker = await createWork(page, "Wait for provider approval");
+  const blockedWork = await createWork(page, "Prepare the launch checklist");
+  await blockedWork
+    .locator("summary")
+    .filter({ hasText: "Create Persistent Relation" })
+    .click();
+  await blockedWork.getByLabel("Relation type").selectOption("Blocked by");
+  const blockerOption = blockedWork
+    .getByLabel("Related Work")
+    .locator("option")
+    .filter({ hasText: "Wait for provider approval" });
+  const blockerId = await blockerOption.getAttribute("value");
+  if (!blockerId) {
+    throw new Error("The blocker Work was not available for selection.");
+  }
+  await blockedWork.getByLabel("Related Work").selectOption(blockerId);
+  await blockedWork.getByRole("button", { name: "Preview relation" }).click();
+  const preview = blockedWork.getByRole("status", {
+    name: "Relation preview",
+  });
+  await preview.getByRole("button", { name: "Confirm relation" }).click();
+
+  const relationRow = blockedWork
+    .locator('section[aria-label="Relations"]')
+    .getByRole("listitem")
+    .filter({ hasText: "Blocked by" });
+  await expect(relationRow.getByText("Active", { exact: true })).toBeVisible();
+  await relationRow
+    .getByRole("button", { name: "Mark blocker resolved" })
+    .click();
+  await relationRow.getByLabel("Note").fill("Provider approval arrived");
+  await relationRow.getByRole("button", { name: "Confirm resolution" }).click();
+  await expect(
+    relationRow.getByText("Resolved", { exact: true }),
+  ).toBeVisible();
+  await expect(relationRow).toContainText("Provider approval arrived");
+  await expect(relationRow.locator("time")).toHaveAttribute("datetime");
+
+  await relationRow.getByRole("button", { name: "Reactivate blocker" }).click();
+  await expect(relationRow.getByText("Active", { exact: true })).toBeVisible();
+  await relationRow.getByText("Blocker history").click();
+  await expect(relationRow).toContainText("Provider approval arrived");
+  await expect(relationRow.locator("time")).toHaveCount(3);
+
+  await page.reload();
+  const reloadedBlockedWork = workListItem(
+    page,
+    "Prepare the launch checklist",
+  );
+  await expect(
+    reloadedBlockedWork.getByText("Active", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    blocker.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
+  ).toHaveValue("Not Started");
+  await expect(
+    reloadedBlockedWork.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
+  ).toHaveValue("Not Started");
+});
