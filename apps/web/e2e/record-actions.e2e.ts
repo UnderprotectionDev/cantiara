@@ -81,7 +81,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   page,
   request,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const setupResponse = await request.get(
     `${E2E_SERVER_URL}/__e2e/setup?fixture=record-actions`,
   );
@@ -107,11 +107,55 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     .locator("#work-create")
     .getByRole("button", { name: "Create", exact: true })
     .click();
+  await expect(
+    page.getByText("Work REC-1 created.", { exact: true }),
+  ).toBeVisible({
+    timeout: 60_000,
+  });
+  const workList = page.getByRole("list", { name: "Work list" });
+  await expect(workList).toContainText("Prepare the release", {
+    timeout: 30_000,
+  });
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title").fill("Prepare the release notes");
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await expect(
+    page.getByText("Work REC-2 created.", { exact: true }),
+  ).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(workList).toContainText("Prepare the release notes", {
+    timeout: 30_000,
+  });
 
   await page.getByRole("button", { name: "Configuration Mode" }).click();
   const configuration = page.locator(
     'section[aria-label="Configuration Mode"]',
   );
+  await configuration
+    .getByRole("button", { name: "Custom field", exact: true })
+    .click();
+  const customFieldHost = configuration.getByRole("region", {
+    exact: true,
+    name: "Custom field",
+  });
+  await customFieldHost.getByLabel("Field name").fill("Target date");
+  await customFieldHost.getByLabel("Type").selectOption("Date");
+  await customFieldHost.getByRole("checkbox", { name: "Work" }).check();
+  const customFieldResponse = page.waitForResponse(
+    (candidate) =>
+      candidate.request().method() === "POST" &&
+      candidate.url().endsWith("/rpc/createCustomField") &&
+      candidate.ok(),
+  );
+  await customFieldHost
+    .getByRole("button", { name: "Add custom field" })
+    .click();
+  await customFieldResponse;
+
   await configuration
     .getByRole("button", { name: "Record Action", exact: true })
     .click();
@@ -123,21 +167,43 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await form.getByLabel("Name").fill("Start Work");
   await form.getByLabel("Work status").selectOption("In Progress");
   await form.getByLabel("Daily Focus").selectOption("add");
+  await form.getByRole("checkbox", { name: "Target date" }).check();
+  await form.getByRole("checkbox", { name: "Ask when running" }).check();
+  await form.getByLabel("Related Work").selectOption("add");
   await form.getByRole("button", { name: "Save", exact: true }).click();
 
   await page
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  const record = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem")
-    .filter({ hasText: "Prepare the release" });
+  const record = workList.getByRole("listitem").first();
   await record.getByRole("button", { name: "Start Work", exact: true }).click();
 
   const preview = page.getByRole("dialog", { name: "Preview Start Work" });
+  const runtimeInputForm = preview.getByRole("form", {
+    name: "Record Action inputs",
+  });
+  await runtimeInputForm.getByLabel("Target date").fill("2026-10-01");
+  const relatedWorkOption = runtimeInputForm
+    .getByLabel("Relation")
+    .locator("option")
+    .filter({ hasText: "Prepare the release notes" });
+  await runtimeInputForm
+    .getByLabel("Relation")
+    .selectOption((await relatedWorkOption.getAttribute("value")) ?? "");
+  await runtimeInputForm
+    .getByRole("button", { name: "Preview changes" })
+    .click();
+  await expect(
+    preview.getByRole("region", { name: "Runtime inputs selected" }),
+  ).toContainText("2026-10-01");
+  await expect(
+    preview.getByRole("region", { name: "Runtime inputs selected" }),
+  ).toContainText("Prepare the release notes");
   await expect(preview).toContainText("Not Started → In Progress");
   await expect(preview).toContainText("Not in Daily Focus → In Daily Focus");
+  await expect(preview).toContainText("Target date");
+  await expect(preview).toContainText("Not related → Related");
   await expect(preview).toContainText(DAILY_FOCUS_DATE_LABEL);
   await preview.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(preview.getByRole("status")).toHaveText("Finalizing");
@@ -156,7 +222,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   const persistedRecord = page
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")
-    .filter({ hasText: "Prepare the release" });
+    .first();
   await expect(
     persistedRecord.getByRole("combobox", {
       name: WORK_STATUS_COMBOBOX_NAME,
@@ -169,6 +235,20 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   const stalePreview = page.getByRole("dialog", {
     name: "Preview Start Work",
   });
+  const staleRuntimeInputForm = stalePreview.getByRole("form", {
+    name: "Record Action inputs",
+  });
+  await staleRuntimeInputForm.getByLabel("Target date").fill("2026-10-01");
+  const staleRelatedWorkOption = staleRuntimeInputForm
+    .getByLabel("Relation")
+    .locator("option")
+    .filter({ hasText: "Prepare the release notes" });
+  await staleRuntimeInputForm
+    .getByLabel("Relation")
+    .selectOption((await staleRelatedWorkOption.getAttribute("value")) ?? "");
+  await staleRuntimeInputForm
+    .getByRole("button", { name: "Preview changes" })
+    .click();
   await expect(stalePreview).toContainText("Not Started → In Progress");
 
   const competingPage = await context.newPage();
@@ -180,7 +260,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   const competingRecord = competingPage
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")
-    .filter({ hasText: "Prepare the release" });
+    .first();
   await competingRecord
     .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
     .selectOption("Blocked");
@@ -211,7 +291,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     page
       .getByRole("list", { name: "Work list" })
       .getByRole("listitem")
-      .filter({ hasText: "Prepare the release" })
+      .first()
       .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
   ).toHaveValue("Blocked");
 });

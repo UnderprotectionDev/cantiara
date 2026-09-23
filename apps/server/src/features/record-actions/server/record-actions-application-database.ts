@@ -1,3 +1,4 @@
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   customFieldValuePayloadSchema,
   type ParsedCustomFieldValuePayload,
@@ -21,13 +22,13 @@ import {
   type RecordActionsAccess,
   recordActionMutationValueSchema,
   recordActionRunPayloadSchema,
-  recordActionSchema,
+  recordActionRuntimeInputsSchema,
   recordActionStepSchema,
   type UndoRecordActionInput,
 } from "@cantiara/api/record-actions";
 import { workStatusSchema } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
-import { workspace } from "@cantiara/db/schema/auth";
+import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
 import {
   customFieldDefinition,
   customFieldValue,
@@ -35,8 +36,9 @@ import {
 import { dailyFocusMembership } from "@cantiara/db/schema/daily-focus";
 import { project } from "@cantiara/db/schema/project";
 import { recordAction } from "@cantiara/db/schema/record-action";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 import { assertValueMatchesDefinition } from "../../custom-fields/server/custom-fields";
 import { toCustomFieldDefinition } from "../../custom-fields/server/custom-fields-database";
@@ -46,25 +48,31 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { toRecordAction } from "./record-action-database-mappers";
 
 type WorkDatabaseRecord = typeof work.$inferSelect;
-type RecordActionDatabaseRecord = typeof recordAction.$inferSelect;
 type CustomFieldDefinitionDatabaseRecord =
   typeof customFieldDefinition.$inferSelect;
 type RecordActionRunSelection = Pick<
   ApplyRecordActionInput,
-  "actionId" | "actionRevision" | "focusDate" | "workId"
+  "actionId" | "actionRevision" | "focusDate" | "runtimeInputs" | "workId"
 >;
 interface RecordActionProjection {
   customFieldIds: readonly string[];
   focusDate?: string;
   hasStatus: boolean;
+  relatedWorkId?: string;
 }
 
-export type RecordActionWrite = "customFieldValue" | "dailyFocus" | "work";
+export type RecordActionWrite =
+  | "customFieldValue"
+  | "dailyFocus"
+  | "relation"
+  | "work";
 
 export interface RecordActionApplicationOptions {
   afterWrite?: (write: RecordActionWrite) => void | Promise<void>;
+  now?: () => Date;
 }
 
 interface OwnedWork {
@@ -76,21 +84,9 @@ interface ActionRunTarget {
   action: RecordAction;
   customFieldDefinitions: Map<string, CustomFieldDefinitionDatabaseRecord>;
   customFieldNames: Map<string, string>;
+  relatedWork?: WorkDatabaseRecord;
   target: MutationTarget<RecordActionMutationValue>;
   work: WorkDatabaseRecord;
-}
-
-function toRecordAction(record: RecordActionDatabaseRecord): RecordAction {
-  return recordActionSchema.parse({
-    createdAt: record.createdAt.toISOString(),
-    id: record.id,
-    name: record.name,
-    projectId: record.projectId,
-    revision: record.revision,
-    steps: record.steps,
-    trashedAt: record.trashedAt?.toISOString() ?? null,
-    updatedAt: record.updatedAt.toISOString(),
-  });
 }
 
 async function findOwnedRecordAction(
@@ -185,10 +181,55 @@ async function findOwnedWork(
   return locked ? { record: locked, workspaceId: scope.workspaceId } : null;
 }
 
+async function profileFocusDate(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  instant: Date,
+) {
+  const [preferences] = await executor
+    .select({ timeZone: accountPreferences.timeZone })
+    .from(accountPreferences)
+    .where(eq(accountPreferences.accountId, accountId))
+    .limit(1);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: preferences?.timeZone ?? DEFAULT_ACCOUNT_PREFERENCES.timeZone,
+    year: "numeric",
+  }).formatToParts(instant);
+  const values = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function runtimeInputsMatchSteps(
+  steps: readonly RecordActionStep[],
+  runtimeInputs: ApplyRecordActionInput["runtimeInputs"],
+) {
+  const customFieldIds = steps.flatMap((step) =>
+    step.kind === "custom-field-value" && step.value.kind === "runtime-input"
+      ? [step.definitionId]
+      : [],
+  );
+  const relationInputIds = steps.flatMap((step) =>
+    step.kind === "related-work" ? [step.inputId] : [],
+  );
+  return (
+    customFieldIds.length ===
+      Object.keys(runtimeInputs.customFieldValues).length &&
+    customFieldIds.every((id) => id in runtimeInputs.customFieldValues) &&
+    relationInputIds.length === Object.keys(runtimeInputs.relations).length &&
+    relationInputIds.every((id) => id in runtimeInputs.relations)
+  );
+}
+
 function projectionFromSteps(
   steps: readonly RecordActionStep[],
   focusDate: string,
+  runtimeInputs: ApplyRecordActionInput["runtimeInputs"],
 ): RecordActionProjection {
+  const relationStep = steps.find((step) => step.kind === "related-work");
   return {
     customFieldIds: steps.flatMap((step) =>
       step.kind === "custom-field-value" ? [step.definitionId] : [],
@@ -197,6 +238,12 @@ function projectionFromSteps(
       ? { focusDate }
       : {}),
     hasStatus: steps.some((step) => step.kind === "work-status"),
+    ...(relationStep
+      ? {
+          relatedWorkId:
+            runtimeInputs.relations[relationStep.inputId]?.recordId,
+        }
+      : {}),
   };
 }
 
@@ -207,6 +254,9 @@ function projectionFromValue(
     customFieldIds: Object.keys(value.customFields ?? {}),
     ...(value.dailyFocus ? { focusDate: value.dailyFocus.date } : {}),
     hasStatus: value.status !== undefined,
+    ...(value.relatedWork
+      ? { relatedWorkId: value.relatedWork.targetWorkId }
+      : {}),
   };
 }
 
@@ -313,6 +363,55 @@ async function readDailyFocusProjection(
   };
 }
 
+async function findRelatedWorkRelation(
+  executor: MutationDatabaseExecutor,
+  sourceWorkId: string,
+  targetWorkId: string,
+  lock: boolean,
+) {
+  const relationQuery = executor
+    .select()
+    .from(workRelation)
+    .where(
+      and(
+        eq(workRelation.kind, "Related"),
+        eq(workRelation.sourceRecordType, "Work"),
+        eq(workRelation.targetRecordType, "Work"),
+        or(
+          and(
+            eq(workRelation.sourceWorkId, sourceWorkId),
+            eq(workRelation.targetRecordId, targetWorkId),
+          ),
+          and(
+            eq(workRelation.sourceWorkId, targetWorkId),
+            eq(workRelation.targetRecordId, sourceWorkId),
+          ),
+        ),
+      ),
+    )
+    .orderBy(asc(workRelation.createdAt), asc(workRelation.id))
+    .limit(1);
+  const [relation] = lock
+    ? await relationQuery.for("update")
+    : await relationQuery;
+  return relation ?? null;
+}
+
+async function readRelatedWorkProjection(
+  executor: MutationDatabaseExecutor,
+  sourceWorkId: string,
+  targetWorkId: string,
+  lock: boolean,
+) {
+  const relation = await findRelatedWorkRelation(
+    executor,
+    sourceWorkId,
+    targetWorkId,
+    lock,
+  );
+  return relation?.deletedAt === null;
+}
+
 async function readMutationValue(
   executor: MutationDatabaseExecutor,
   ownedWork: OwnedWork,
@@ -335,6 +434,17 @@ async function readMutationValue(
     projection.focusDate,
     lock,
   );
+  const relatedWork = projection.relatedWorkId
+    ? {
+        included: await readRelatedWorkProjection(
+          executor,
+          record.id,
+          projection.relatedWorkId,
+          lock,
+        ),
+        targetWorkId: projection.relatedWorkId,
+      }
+    : undefined;
 
   const value = recordActionMutationValueSchema.parse({
     ...(projection.customFieldIds.length > 0
@@ -348,12 +458,51 @@ async function readMutationValue(
         }
       : {}),
     ...(dailyFocus ? { dailyFocus } : {}),
+    ...(relatedWork ? { relatedWork } : {}),
   });
   return {
     customFieldDefinitions: customFieldProjection.customFieldDefinitions,
     customFieldNames: customFieldProjection.customFieldNames,
     value,
   };
+}
+
+function customFieldStepsMatchDefinitions(
+  steps: readonly RecordActionStep[],
+  definitions: ReadonlyMap<string, CustomFieldDefinitionDatabaseRecord>,
+  runtimeInputs: ApplyRecordActionInput["runtimeInputs"],
+) {
+  const customSteps = steps.filter(
+    (step): step is Extract<RecordActionStep, { kind: "custom-field-value" }> =>
+      step.kind === "custom-field-value",
+  );
+  try {
+    for (const step of customSteps) {
+      const definition = definitions.get(step.definitionId);
+      if (!definition) {
+        return false;
+      }
+      const value =
+        step.value.kind === "runtime-input"
+          ? runtimeInputs.customFieldValues[step.definitionId]
+          : step.value;
+      if (!value) {
+        return false;
+      }
+      if (
+        step.value.kind === "runtime-input" &&
+        !["Date", "Number", "Single select", "Multi select"].includes(
+          definition.type,
+        )
+      ) {
+        return false;
+      }
+      assertValueMatchesDefinition(toCustomFieldDefinition(definition), value);
+    }
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 async function findActionRunTarget(
@@ -373,6 +522,9 @@ async function findActionRunTarget(
   }
 
   const steps = recordActionStepSchema.array().parse(action.steps);
+  if (!runtimeInputsMatchSteps(steps, selection.runtimeInputs)) {
+    return null;
+  }
   const ownedWork = await findOwnedWork(
     executor,
     accountId,
@@ -382,7 +534,27 @@ async function findActionRunTarget(
   if (!ownedWork || ownedWork.record.projectId !== action.projectId) {
     return null;
   }
-  const projection = projectionFromSteps(steps, selection.focusDate);
+  const relationStep = steps.find((step) => step.kind === "related-work");
+  const relatedWorkInput = relationStep
+    ? selection.runtimeInputs.relations[relationStep.inputId]
+    : undefined;
+  const relatedWork = relatedWorkInput
+    ? await findOwnedWork(executor, accountId, relatedWorkInput.recordId, lock)
+    : undefined;
+  if (
+    relationStep &&
+    (!relatedWork ||
+      relatedWork.record.projectId !== action.projectId ||
+      relatedWork.record.id === ownedWork.record.id)
+  ) {
+    return null;
+  }
+
+  const projection = projectionFromSteps(
+    steps,
+    selection.focusDate,
+    selection.runtimeInputs,
+  );
   const current = await readMutationValue(
     executor,
     ownedWork,
@@ -392,23 +564,13 @@ async function findActionRunTarget(
   if (!current) {
     return null;
   }
-
-  const customSteps = steps.filter(
-    (step): step is Extract<RecordActionStep, { kind: "custom-field-value" }> =>
-      step.kind === "custom-field-value",
-  );
-  try {
-    for (const step of customSteps) {
-      const definition = current.customFieldDefinitions.get(step.definitionId);
-      if (!definition) {
-        return null;
-      }
-      assertValueMatchesDefinition(
-        toCustomFieldDefinition(definition),
-        step.value,
-      );
-    }
-  } catch {
+  if (
+    !customFieldStepsMatchDefinitions(
+      steps,
+      current.customFieldDefinitions,
+      selection.runtimeInputs,
+    )
+  ) {
     return null;
   }
 
@@ -416,6 +578,7 @@ async function findActionRunTarget(
     action,
     customFieldDefinitions: current.customFieldDefinitions,
     customFieldNames: current.customFieldNames,
+    ...(relatedWork ? { relatedWork: relatedWork.record } : {}),
     target: {
       id: ownedWork.record.id,
       revision: ownedWork.record.revision,
@@ -429,6 +592,7 @@ function applySteps(
   currentValue: RecordActionMutationValue,
   steps: readonly RecordActionStep[],
   focusDate: string,
+  runtimeInputs: ApplyRecordActionInput["runtimeInputs"],
 ) {
   const next: RecordActionMutationValue = {
     ...currentValue,
@@ -451,12 +615,31 @@ function applySteps(
           included: step.operation === "add",
         };
         break;
-      case "custom-field-value":
+      case "custom-field-value": {
+        const runtimeCustomFieldValue =
+          step.value.kind === "runtime-input"
+            ? runtimeInputs.customFieldValues[step.definitionId]
+            : step.value;
+        if (!runtimeCustomFieldValue) {
+          throw new Error("The Record Action runtime field value is missing.");
+        }
         next.customFields = {
           ...(next.customFields ?? {}),
-          [step.definitionId]: step.value,
+          [step.definitionId]: runtimeCustomFieldValue,
         };
         break;
+      }
+      case "related-work": {
+        const relatedWorkInput = runtimeInputs.relations[step.inputId];
+        if (!relatedWorkInput) {
+          throw new Error("The Record Action Relation input is missing.");
+        }
+        next.relatedWork = {
+          included: step.operation === "add",
+          targetWorkId: relatedWorkInput.recordId,
+        };
+        break;
+      }
       default:
         throw new Error("Unsupported Record Action step.");
     }
@@ -483,6 +666,7 @@ function previewFingerprint(
     actionRevision: input.actionRevision,
     currentValue,
     focusDate: input.focusDate,
+    runtimeInputs: input.runtimeInputs,
     steps: [...steps],
     workId: input.workId,
   });
@@ -539,6 +723,7 @@ function recordActionChanges(
   before: RecordActionMutationValue,
   after: RecordActionMutationValue,
   customFieldNames: ReadonlyMap<string, string>,
+  relatedWork: WorkDatabaseRecord | undefined,
 ): RecordActionPreview["changes"] {
   const changes: RecordActionPreview["changes"] = [];
 
@@ -565,6 +750,15 @@ function recordActionChanges(
           customFieldNames.get(step.definitionId) ?? "Custom field",
           before.customFields?.[step.definitionId] ?? null,
           after.customFields?.[step.definitionId] ?? null,
+        );
+        break;
+      case "related-work":
+        addRecordActionChange(
+          changes,
+          `relation:Related:${relatedWork?.id ?? step.inputId}`,
+          `Related · ${relatedWork?.key ?? "Work"}`,
+          before.relatedWork?.included ?? false,
+          after.relatedWork?.included ?? false,
         );
         break;
       default:
@@ -653,6 +847,102 @@ async function writeCustomFieldValues(
   }
 }
 
+async function writeRelatedWork(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  input: {
+    committedAt: Date;
+    source: OwnedWork;
+    value: NonNullable<RecordActionMutationValue["relatedWork"]>;
+  },
+  options: RecordActionApplicationOptions,
+) {
+  const target = await findOwnedWork(
+    executor,
+    accountId,
+    input.value.targetWorkId,
+    true,
+  );
+  if (
+    !target ||
+    target.workspaceId !== input.source.workspaceId ||
+    target.record.projectId !== input.source.record.projectId ||
+    target.record.id === input.source.record.id
+  ) {
+    return false;
+  }
+
+  const relation = await findRelatedWorkRelation(
+    executor,
+    input.source.record.id,
+    target.record.id,
+    true,
+  );
+  const currentlyIncluded = relation?.deletedAt === null;
+  if (currentlyIncluded === input.value.included) {
+    return true;
+  }
+
+  if (input.value.included && relation) {
+    const [restored] = await executor
+      .update(workRelation)
+      .set({
+        brokenReason: null,
+        deletedAt: null,
+        revision: relation.revision + 1,
+      })
+      .where(
+        and(
+          eq(workRelation.id, relation.id),
+          eq(workRelation.revision, relation.revision),
+        ),
+      )
+      .returning({ id: workRelation.id });
+    if (!restored) {
+      return false;
+    }
+  } else if (input.value.included) {
+    const [inserted] = await executor
+      .insert(workRelation)
+      .values({
+        createdAt: input.committedAt,
+        id: crypto.randomUUID(),
+        kind: "Related",
+        revision: 1,
+        sourceRecordType: "Work",
+        sourceWorkId: input.source.record.id,
+        targetLabel: target.record.key,
+        targetProjectId: target.record.projectId,
+        targetRecordId: target.record.id,
+        targetRecordType: "Work",
+      })
+      .onConflictDoNothing()
+      .returning({ id: workRelation.id });
+    if (!inserted) {
+      return false;
+    }
+  } else if (relation) {
+    const [removed] = await executor
+      .update(workRelation)
+      .set({
+        deletedAt: input.committedAt,
+        revision: relation.revision + 1,
+      })
+      .where(
+        and(
+          eq(workRelation.id, relation.id),
+          eq(workRelation.revision, relation.revision),
+        ),
+      )
+      .returning({ id: workRelation.id });
+    if (!removed) {
+      return false;
+    }
+  }
+  await options.afterWrite?.("relation");
+  return true;
+}
+
 async function writeMutationValue(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -700,6 +990,22 @@ async function writeMutationValue(
   await options.afterWrite?.("work");
 
   await writeCustomFieldValues(executor, input, options);
+
+  if (input.nextValue.relatedWork) {
+    const relationWritten = await writeRelatedWork(
+      executor,
+      accountId,
+      {
+        committedAt: input.committedAt,
+        source: ownedWork,
+        value: input.nextValue.relatedWork,
+      },
+      options,
+    );
+    if (!relationWritten) {
+      return null;
+    }
+  }
 
   const { dailyFocus } = input.nextValue;
   if (dailyFocus) {
@@ -751,6 +1057,8 @@ function createRunTargetAdapter(
         parsed.data.actionId !== input.actionId ||
         parsed.data.actionRevision !== input.actionRevision ||
         parsed.data.focusDate !== input.focusDate ||
+        canonicalizeMutationPayload(parsed.data.runtimeInputs) !==
+          canonicalizeMutationPayload(input.runtimeInputs) ||
         parsed.data.workId !== input.workId
       ) {
         return null;
@@ -829,10 +1137,14 @@ export function createDatabaseRecordActionApplication(
 ): Pick<RecordActionsAccess, "apply" | "preview" | "undo"> {
   return {
     async apply(accountId, input: ApplyRecordActionInput) {
+      const runtimeInputs = recordActionRuntimeInputsSchema.parse(
+        input.runtimeInputs,
+      );
       const selection: RecordActionRunSelection = {
         actionId: input.actionId,
         actionRevision: input.actionRevision,
         focusDate: input.focusDate,
+        runtimeInputs,
         workId: input.workId,
       };
       const action = await findOwnedRecordAction(
@@ -856,6 +1168,7 @@ export function createDatabaseRecordActionApplication(
         actionRevision: input.actionRevision,
         focusDate: input.focusDate,
         previewFingerprint: input.previewFingerprint,
+        runtimeInputs,
         workId: input.workId,
       };
       const command: MutationCommand<RecordActionRunPayload> = {
@@ -883,6 +1196,7 @@ export function createDatabaseRecordActionApplication(
             currentValue,
             steps,
             selection.focusDate,
+            selection.runtimeInputs,
           );
           if (mutationValuesEqual(currentValue, nextValue)) {
             throw new Error("The Record Action would make no changes.");
@@ -898,6 +1212,9 @@ export function createDatabaseRecordActionApplication(
       accountId: string,
       input: PreviewRecordActionInput,
     ): Promise<RecordActionPreview | null> {
+      const runtimeInputs = recordActionRuntimeInputsSchema.parse(
+        input.runtimeInputs,
+      );
       const action = await findOwnedRecordAction(
         database,
         accountId,
@@ -907,10 +1224,16 @@ export function createDatabaseRecordActionApplication(
       if (!action) {
         return null;
       }
+      const focusDate = await profileFocusDate(
+        database,
+        accountId,
+        options.now?.() ?? new Date(),
+      );
       const selection: RecordActionRunSelection = {
         actionId: action.id,
         actionRevision: action.revision,
-        focusDate: input.focusDate,
+        focusDate,
+        runtimeInputs,
         workId: input.workId,
       };
       const target = await findActionRunTarget(
@@ -923,7 +1246,12 @@ export function createDatabaseRecordActionApplication(
         return null;
       }
       const steps = recordActionStepSchema.array().parse(action.steps);
-      const nextValue = applySteps(target.target.value, steps, input.focusDate);
+      const nextValue = applySteps(
+        target.target.value,
+        steps,
+        focusDate,
+        runtimeInputs,
+      );
       return {
         actionId: action.id,
         actionName: action.name,
@@ -934,14 +1262,16 @@ export function createDatabaseRecordActionApplication(
           target.target.value,
           nextValue,
           target.customFieldNames,
+          target.relatedWork,
         ),
-        focusDate: input.focusDate,
+        focusDate,
         nextValue,
         previewFingerprint: await previewFingerprint(
           selection,
           steps,
           target.target.value,
         ),
+        runtimeInputs,
         workId: target.work.id,
         workKey: target.work.key,
         workTitle: target.work.title,

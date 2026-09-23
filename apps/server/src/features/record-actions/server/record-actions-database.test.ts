@@ -1,11 +1,12 @@
 import { createDb } from "@cantiara/db";
-import { user, workspace } from "@cantiara/db/schema/auth";
+import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
 import {
   customFieldDefinition,
   customFieldValue,
 } from "@cantiara/db/schema/custom-fields";
 import { dailyFocusMembership } from "@cantiara/db/schema/daily-focus";
 import { project } from "@cantiara/db/schema/project";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -30,6 +31,16 @@ const focusDate = "2026-09-23";
 const databaseUrl =
   process.env.ACCOUNT_ACCESS_DATABASE_URL ?? process.env.DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
+
+function createTestRecordActions(
+  database: NonNullable<ReturnType<typeof createDb>>,
+  options: Parameters<typeof createDatabaseRecordActions>[1] = {},
+) {
+  return createDatabaseRecordActions(database, {
+    now: () => new Date(`${focusDate}T12:00:00.000Z`),
+    ...options,
+  });
+}
 
 describeDatabase("Record Actions PostgreSQL integration", () => {
   const database = databaseUrl
@@ -73,7 +84,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     if (!database) {
       throw new Error("DATABASE_URL is required");
     }
-    const recordActions = createDatabaseRecordActions(database);
+    const recordActions = createTestRecordActions(database);
     const created = await recordActions.create(accountId, {
       name: "Start Work",
       projectId,
@@ -132,7 +143,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       recordTypes: ["Work"],
       type: "Single select",
     });
-    const recordActions = createDatabaseRecordActions(database);
+    const recordActions = createTestRecordActions(database);
     const fieldStep = {
       definitionId,
       kind: "custom-field-value" as const,
@@ -167,7 +178,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     if (!database) {
       throw new Error("DATABASE_URL is required");
     }
-    const recordActions = createDatabaseRecordActions(database);
+    const recordActions = createTestRecordActions(database);
     const first = await recordActions.create(accountId, {
       name: "Start Work",
       projectId,
@@ -210,7 +221,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       title: "Ship the first release",
       type: "Task",
     });
-    const access = createDatabaseRecordActions(database);
+    const access = createTestRecordActions(database);
     const action = await access.create(accountId, {
       name: "Start Work",
       projectId,
@@ -221,7 +232,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     });
     const preview = await access.preview(accountId, {
       actionId: action.id,
-      focusDate,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
       workId,
     });
     if (!preview) {
@@ -247,19 +258,19 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       focusDate,
       workId,
     });
-    await expect(
-      database
-        .select({ status: work.status, revision: work.revision })
-        .from(work)
-        .where(eq(work.id, workId)),
-    ).resolves.toEqual([{ revision: 0, status: "Not Started" }]);
+    const previewedWork = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(previewedWork).toEqual([{ revision: 0, status: "Not Started" }]);
 
     const command = {
       actionId: action.id,
       actionRevision: action.revision,
       baseRevision: preview.baseRevision,
       clientIdempotencyKey: "start-work-1",
-      focusDate,
+      focusDate: preview.focusDate,
+      runtimeInputs: preview.runtimeInputs,
       previewFingerprint: preview.previewFingerprint,
       workId,
     };
@@ -269,18 +280,16 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       throw new Error("The Record Action should have committed.");
     }
     expect(result.receipt.nextValue).toEqual(preview.nextValue);
-    await expect(
-      database
-        .select({ status: work.status, revision: work.revision })
-        .from(work)
-        .where(eq(work.id, workId)),
-    ).resolves.toEqual([{ revision: 1, status: "In Progress" }]);
-    await expect(
-      database
-        .select({ focusDate: dailyFocusMembership.focusDate })
-        .from(dailyFocusMembership)
-        .where(eq(dailyFocusMembership.workId, workId)),
-    ).resolves.toEqual([{ focusDate }]);
+    const appliedWork = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(appliedWork).toEqual([{ revision: 1, status: "In Progress" }]);
+    const memberships = await database
+      .select({ focusDate: dailyFocusMembership.focusDate })
+      .from(dailyFocusMembership)
+      .where(eq(dailyFocusMembership.workId, workId));
+    expect(memberships).toEqual([{ focusDate }]);
 
     const replayedResult = await access.apply(accountId, command);
     expect(replayedResult).toMatchObject({
@@ -295,6 +304,285 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
+  test("assigns Daily Focus to the saved profile calendar day", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const workId = `work-${crypto.randomUUID()}`;
+    await database.insert(work).values({
+      id: workId,
+      key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-1`,
+      number: 1,
+      projectId,
+      title: "Ship the first release",
+      type: "Task",
+    });
+    await database.insert(accountPreferences).values({
+      accountId,
+      timeZone: "America/Los_Angeles",
+    });
+    const access = createTestRecordActions(database, {
+      now: () => new Date("2026-09-23T01:00:00.000Z"),
+    });
+    const action = await access.create(accountId, {
+      name: "Add to Daily Focus",
+      projectId,
+      steps: [{ kind: "daily-focus-membership", operation: "add" }],
+    });
+
+    const preview = await access.preview(accountId, {
+      actionId: action.id,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
+      workId,
+    });
+
+    expect(preview?.focusDate).toBe("2026-09-22");
+  });
+
+  test("previews and atomically applies runtime field and Relation inputs", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const workId = `work-${crypto.randomUUID()}`;
+    const relatedWorkId = `work-${crypto.randomUUID()}`;
+    const otherProjectId = `project-${crypto.randomUUID()}`;
+    const otherProjectWorkId = `work-${crypto.randomUUID()}`;
+    const dateDefinitionId = `field-${crypto.randomUUID()}`;
+    const numberDefinitionId = `field-${crypto.randomUUID()}`;
+    const selectDefinitionId = `field-${crypto.randomUUID()}`;
+    await database.insert(project).values({
+      id: otherProjectId,
+      name: "Other Project",
+      shortCode: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+      workspaceId,
+    });
+    await database.insert(work).values([
+      {
+        id: workId,
+        key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-1`,
+        number: 1,
+        projectId,
+        title: "Ship the first release",
+        type: "Task",
+      },
+      {
+        id: relatedWorkId,
+        key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-2`,
+        number: 2,
+        projectId,
+        title: "Prepare the release notes",
+        type: "Task",
+      },
+      {
+        id: otherProjectWorkId,
+        key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-1`,
+        number: 1,
+        projectId: otherProjectId,
+        title: "Prepare another project",
+        type: "Task",
+      },
+    ]);
+    await database.insert(customFieldDefinition).values([
+      {
+        id: dateDefinitionId,
+        name: "Release date",
+        nameKey: "release date",
+        projectId,
+        recordTypes: ["Work"],
+        type: "Date",
+      },
+      {
+        id: numberDefinitionId,
+        name: "Estimate",
+        nameKey: "estimate",
+        projectId,
+        recordTypes: ["Work"],
+        type: "Number",
+      },
+      {
+        id: selectDefinitionId,
+        name: "Readiness",
+        nameKey: "readiness",
+        options: ["Ready", "Later"],
+        projectId,
+        recordTypes: ["Work"],
+        type: "Single select",
+      },
+    ]);
+    const access = createTestRecordActions(database);
+    const action = await access.create(accountId, {
+      name: "Set release details",
+      projectId,
+      steps: [
+        {
+          definitionId: dateDefinitionId,
+          kind: "custom-field-value",
+          operation: "set",
+          value: { kind: "runtime-input" },
+        },
+        {
+          definitionId: numberDefinitionId,
+          kind: "custom-field-value",
+          operation: "set",
+          value: { kind: "runtime-input" },
+        },
+        {
+          definitionId: selectDefinitionId,
+          kind: "custom-field-value",
+          operation: "set",
+          value: { kind: "runtime-input" },
+        },
+        {
+          inputId: "related-record",
+          kind: "related-work",
+          operation: "add",
+        },
+      ],
+    });
+    const runtimeInputs = {
+      customFieldValues: {
+        [dateDefinitionId]: { date: "2026-10-01", kind: "date" as const },
+        [numberDefinitionId]: { kind: "number" as const, number: 5 },
+        [selectDefinitionId]: { kind: "option" as const, option: "Ready" },
+      },
+      relations: {
+        "related-record": {
+          recordId: relatedWorkId,
+          recordType: "Work" as const,
+        },
+      },
+    };
+    await expect(
+      access.preview(accountId, {
+        actionId: action.id,
+        runtimeInputs: { customFieldValues: {}, relations: {} },
+        workId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      access.preview(accountId, {
+        actionId: action.id,
+        runtimeInputs: {
+          ...runtimeInputs,
+          customFieldValues: {
+            ...runtimeInputs.customFieldValues,
+            [selectDefinitionId]: { kind: "option", option: "Unknown" },
+          },
+        },
+        workId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      access.preview(accountId, {
+        actionId: action.id,
+        runtimeInputs: {
+          ...runtimeInputs,
+          relations: {
+            "related-record": {
+              recordId: otherProjectWorkId,
+              recordType: "Work",
+            },
+          },
+        },
+        workId,
+      }),
+    ).resolves.toBeNull();
+    const preview = await access.preview(accountId, {
+      actionId: action.id,
+      runtimeInputs,
+      workId,
+    });
+    if (!preview) {
+      throw new Error("The Record Action preview should be available.");
+    }
+
+    expect(preview.runtimeInputs).toEqual(runtimeInputs);
+    expect(preview.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          after: { date: "2026-10-01", kind: "date" },
+          label: "Release date",
+        }),
+        expect.objectContaining({
+          after: { kind: "number", number: 5 },
+          label: "Estimate",
+        }),
+        expect.objectContaining({
+          after: { kind: "option", option: "Ready" },
+          label: "Readiness",
+        }),
+        expect.objectContaining({
+          after: true,
+          label: expect.stringContaining("Related"),
+        }),
+      ]),
+    );
+
+    const applied = await access.apply(accountId, {
+      actionId: action.id,
+      actionRevision: action.revision,
+      baseRevision: preview.baseRevision,
+      clientIdempotencyKey: "runtime-input-action-1",
+      focusDate: preview.focusDate,
+      previewFingerprint: preview.previewFingerprint,
+      runtimeInputs,
+      workId,
+    });
+    expect(applied.status).toBe("committed");
+    const storedValues = await database
+      .select({
+        definitionId: customFieldValue.definitionId,
+        value: customFieldValue.value,
+      })
+      .from(customFieldValue)
+      .where(eq(customFieldValue.recordId, workId));
+    expect(storedValues).toEqual(
+      expect.arrayContaining([
+        {
+          definitionId: dateDefinitionId,
+          value: { date: "2026-10-01", kind: "date" },
+        },
+        {
+          definitionId: numberDefinitionId,
+          value: { kind: "number", number: 5 },
+        },
+        {
+          definitionId: selectDefinitionId,
+          value: { kind: "option", option: "Ready" },
+        },
+      ]),
+    );
+    const [relation] = await database
+      .select()
+      .from(workRelation)
+      .where(eq(workRelation.sourceWorkId, workId));
+    expect(relation).toMatchObject({
+      kind: "Related",
+      targetRecordId: relatedWorkId,
+      targetRecordType: "Work",
+    });
+    if (applied.status !== "committed") {
+      throw new Error("The Record Action should have committed.");
+    }
+    await access.undo(accountId, {
+      baseRevision: applied.receipt.revision,
+      clientIdempotencyKey: "undo-runtime-input-action-1",
+      receiptId: applied.receipt.id,
+      workId,
+    });
+    const [undoneRelation] = await database
+      .select({ deletedAt: workRelation.deletedAt })
+      .from(workRelation)
+      .where(eq(workRelation.sourceWorkId, workId));
+    expect(undoneRelation?.deletedAt).not.toBeNull();
+    const undoneValues = await database
+      .select()
+      .from(customFieldValue)
+      .where(eq(customFieldValue.recordId, workId));
+    expect(undoneValues).toEqual([]);
+  }, 20_000);
+
   test("rolls back every Record Action write when a later step fails", async () => {
     if (!database) {
       throw new Error("DATABASE_URL is required");
@@ -308,7 +596,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       title: "Ship the first release",
       type: "Task",
     });
-    const definitionAccess = createDatabaseRecordActions(database);
+    const definitionAccess = createTestRecordActions(database);
     const action = await definitionAccess.create(accountId, {
       name: "Start Work",
       projectId,
@@ -317,7 +605,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
         { kind: "daily-focus-membership", operation: "add" },
       ],
     });
-    const access = createDatabaseRecordActions(database, {
+    const access = createTestRecordActions(database, {
       afterWrite(write) {
         if (write === "dailyFocus") {
           throw new Error("Injected Record Action write failure.");
@@ -326,7 +614,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     });
     const preview = await access.preview(accountId, {
       actionId: action.id,
-      focusDate,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
       workId,
     });
     if (!preview) {
@@ -337,29 +625,28 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       actionRevision: action.revision,
       baseRevision: preview.baseRevision,
       clientIdempotencyKey: "start-work-failure-1",
-      focusDate,
+      focusDate: preview.focusDate,
+      runtimeInputs: preview.runtimeInputs,
       previewFingerprint: preview.previewFingerprint,
       workId,
     };
     const result = await access.apply(accountId, command);
 
     expect(result.status).toBe("rolled-back");
-    await expect(
-      database
-        .select({ status: work.status, revision: work.revision })
-        .from(work)
-        .where(eq(work.id, workId)),
-    ).resolves.toEqual([{ revision: 0, status: "Not Started" }]);
-    await expect(
-      database
-        .select()
-        .from(dailyFocusMembership)
-        .where(eq(dailyFocusMembership.workId, workId)),
-    ).resolves.toEqual([]);
+    const rolledBackWork = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(rolledBackWork).toEqual([{ revision: 0, status: "Not Started" }]);
+    const memberships = await database
+      .select()
+      .from(dailyFocusMembership)
+      .where(eq(dailyFocusMembership.workId, workId));
+    expect(memberships).toEqual([]);
     await expect(
       access.preview(accountId, {
         actionId: action.id,
-        focusDate,
+        runtimeInputs: { customFieldValues: {}, relations: {} },
         workId,
       }),
     ).resolves.toMatchObject({ changes: preview.changes });
@@ -399,7 +686,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       .select()
       .from(customFieldValue)
       .where(eq(customFieldValue.recordId, workId));
-    const access = createDatabaseRecordActions(database);
+    const access = createTestRecordActions(database);
     const action = await access.create(accountId, {
       name: "Mark ready and start",
       projectId,
@@ -415,7 +702,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     });
     const preview = await access.preview(accountId, {
       actionId: action.id,
-      focusDate,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
       workId,
     });
     if (!(preview && before)) {
@@ -434,17 +721,17 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       actionRevision: action.revision,
       baseRevision: preview.baseRevision,
       clientIdempotencyKey: "mark-ready-and-start-1",
-      focusDate,
+      focusDate: preview.focusDate,
+      runtimeInputs: preview.runtimeInputs,
       previewFingerprint: preview.previewFingerprint,
       workId,
     });
     expect(result.status).toBe("committed");
-    await expect(
-      database
-        .select()
-        .from(customFieldValue)
-        .where(eq(customFieldValue.recordId, workId)),
-    ).resolves.toEqual([before]);
+    const values = await database
+      .select()
+      .from(customFieldValue)
+      .where(eq(customFieldValue.recordId, workId));
+    expect(values).toEqual([before]);
   });
 
   test("rejects a stale preview before writing any Record Action step", async () => {
@@ -460,7 +747,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       title: "Ship the first release",
       type: "Task",
     });
-    const access = createDatabaseRecordActions(database);
+    const access = createTestRecordActions(database);
     const action = await access.create(accountId, {
       name: "Start Work",
       projectId,
@@ -471,7 +758,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     });
     const preview = await access.preview(accountId, {
       actionId: action.id,
-      focusDate,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
       workId,
     });
     if (!preview) {
@@ -487,7 +774,8 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       actionRevision: action.revision,
       baseRevision: preview.baseRevision,
       clientIdempotencyKey: "start-work-stale-1",
-      focusDate,
+      focusDate: preview.focusDate,
+      runtimeInputs: preview.runtimeInputs,
       previewFingerprint: preview.previewFingerprint,
       workId,
     });
@@ -501,18 +789,16 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       current: { value: { status: "Blocked" } },
       reason: "stale-base-revision",
     });
-    await expect(
-      database
-        .select({ status: work.status, revision: work.revision })
-        .from(work)
-        .where(eq(work.id, workId)),
-    ).resolves.toEqual([{ revision: 1, status: "Blocked" }]);
-    await expect(
-      database
-        .select()
-        .from(dailyFocusMembership)
-        .where(eq(dailyFocusMembership.workId, workId)),
-    ).resolves.toEqual([]);
+    const staleWork = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(staleWork).toEqual([{ revision: 1, status: "Blocked" }]);
+    const staleMemberships = await database
+      .select()
+      .from(dailyFocusMembership)
+      .where(eq(dailyFocusMembership.workId, workId));
+    expect(staleMemberships).toEqual([]);
   });
 
   test("undoes the whole Record Action atomically", async () => {
@@ -528,7 +814,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       title: "Ship the first release",
       type: "Task",
     });
-    const access = createDatabaseRecordActions(database);
+    const access = createTestRecordActions(database);
     const action = await access.create(accountId, {
       name: "Start Work",
       projectId,
@@ -539,7 +825,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     });
     const preview = await access.preview(accountId, {
       actionId: action.id,
-      focusDate,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
       workId,
     });
     if (!preview) {
@@ -550,7 +836,8 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       actionRevision: action.revision,
       baseRevision: preview.baseRevision,
       clientIdempotencyKey: "start-work-undo-1",
-      focusDate,
+      focusDate: preview.focusDate,
+      runtimeInputs: preview.runtimeInputs,
       previewFingerprint: preview.previewFingerprint,
       workId,
     };
@@ -567,18 +854,16 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
         workId,
       }),
     ).resolves.toMatchObject({ undoOf: applied.receipt.id });
-    await expect(
-      database
-        .select({ status: work.status, revision: work.revision })
-        .from(work)
-        .where(eq(work.id, workId)),
-    ).resolves.toEqual([{ revision: 2, status: "Not Started" }]);
-    await expect(
-      database
-        .select()
-        .from(dailyFocusMembership)
-        .where(eq(dailyFocusMembership.workId, workId)),
-    ).resolves.toEqual([]);
+    const undoneWork = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(undoneWork).toEqual([{ revision: 2, status: "Not Started" }]);
+    const undoneMemberships = await database
+      .select()
+      .from(dailyFocusMembership)
+      .where(eq(dailyFocusMembership.workId, workId));
+    expect(undoneMemberships).toEqual([]);
   });
 
   test("rejects the whole undo after a touched field changes", async () => {
@@ -594,7 +879,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       title: "Ship the release",
       type: "Task",
     });
-    const access = createDatabaseRecordActions(database);
+    const access = createTestRecordActions(database);
     const action = await access.create(accountId, {
       name: "Start Work",
       projectId,
@@ -605,7 +890,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     });
     const preview = await access.preview(accountId, {
       actionId: action.id,
-      focusDate,
+      runtimeInputs: { customFieldValues: {}, relations: {} },
       workId,
     });
     if (!preview) {
@@ -616,7 +901,8 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       actionRevision: action.revision,
       baseRevision: preview.baseRevision,
       clientIdempotencyKey: "start-work-undo-conflict-1",
-      focusDate,
+      focusDate: preview.focusDate,
+      runtimeInputs: preview.runtimeInputs,
       previewFingerprint: preview.previewFingerprint,
       workId,
     });
@@ -636,17 +922,15 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
         workId,
       }),
     ).rejects.toMatchObject({ name: "MutationUndoConflictError" });
-    await expect(
-      database
-        .select({ status: work.status, revision: work.revision })
-        .from(work)
-        .where(eq(work.id, workId)),
-    ).resolves.toEqual([{ revision: 2, status: "Blocked" }]);
-    await expect(
-      database
-        .select()
-        .from(dailyFocusMembership)
-        .where(eq(dailyFocusMembership.workId, workId)),
-    ).resolves.toHaveLength(1);
-  });
+    const workAfterRejectedUndo = await database
+      .select({ status: work.status, revision: work.revision })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(workAfterRejectedUndo).toEqual([{ revision: 2, status: "Blocked" }]);
+    const membershipsAfterRejectedUndo = await database
+      .select()
+      .from(dailyFocusMembership)
+      .where(eq(dailyFocusMembership.workId, workId));
+    expect(membershipsAfterRejectedUndo).toHaveLength(1);
+  }, 20_000);
 });

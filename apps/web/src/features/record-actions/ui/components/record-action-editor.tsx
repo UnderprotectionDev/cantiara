@@ -29,6 +29,7 @@ import { useRecordActions } from "@/features/record-actions/hooks/use-record-act
 
 type CustomFieldValueDraft =
   | ParsedCustomFieldValuePayload
+  | { kind: "runtime-input" }
   | {
       date: string;
       kind: "date";
@@ -42,6 +43,7 @@ interface RecordActionDraft {
   customFieldValues: Record<string, CustomFieldValueDraft>;
   dailyFocusOperation: "" | "add" | "remove";
   name: string;
+  relatedWorkOperation: "" | "add" | "remove";
   workStatus: "" | WorkOpenStatus;
 }
 
@@ -49,6 +51,7 @@ const EMPTY_DRAFT: RecordActionDraft = {
   customFieldValues: {},
   dailyFocusOperation: "",
   name: "",
+  relatedWorkOperation: "",
   workStatus: "",
 };
 
@@ -86,6 +89,8 @@ function draftFromAction(action: RecordAction): RecordActionDraft {
       draft.dailyFocusOperation = step.operation;
     } else if (step.kind === "custom-field-value") {
       draft.customFieldValues[step.definitionId] = step.value;
+    } else if (step.kind === "related-work") {
+      draft.relatedWorkOperation = step.operation;
     }
   }
   return draft;
@@ -102,7 +107,23 @@ function recordActionSteps(draft: RecordActionDraft) {
       operation: draft.dailyFocusOperation,
     });
   }
+  if (draft.relatedWorkOperation) {
+    steps.push({
+      inputId: "related-record",
+      kind: "related-work",
+      operation: draft.relatedWorkOperation,
+    });
+  }
   for (const [definitionId, value] of Object.entries(draft.customFieldValues)) {
+    if (value.kind === "runtime-input") {
+      steps.push({
+        definitionId,
+        kind: "custom-field-value",
+        operation: "set",
+        value,
+      });
+      continue;
+    }
     const parsed = customFieldValuePayloadSchema.safeParse(value);
     if (!parsed.success) {
       return {
@@ -121,20 +142,24 @@ function recordActionSteps(draft: RecordActionDraft) {
   return { error: null, steps };
 }
 
-function customFieldValueSummary(value: ParsedCustomFieldValuePayload) {
-  switch (value.kind) {
+function customFieldValueSummary(value: CustomFieldValueDraft) {
+  if (value.kind === "runtime-input") {
+    return "Ask when running";
+  }
+  const parsedValue = customFieldValuePayloadSchema.parse(value);
+  switch (parsedValue.kind) {
     case "boolean":
-      return value.boolean ? "True" : "False";
+      return parsedValue.boolean ? "True" : "False";
     case "date":
-      return value.date;
+      return parsedValue.date;
     case "number":
-      return String(value.number);
+      return String(parsedValue.number);
     case "option":
-      return value.option;
+      return parsedValue.option;
     case "options":
-      return value.options.join(", ");
+      return parsedValue.options.join(", ");
     case "text":
-      return value.text;
+      return parsedValue.text;
     default:
       return "";
   }
@@ -148,6 +173,8 @@ function stepKey(step: RecordActionStep) {
       return step.kind;
     case "custom-field-value":
       return `${step.kind}-${step.definitionId}`;
+    case "related-work":
+      return step.kind;
     default:
       return "unknown-step";
   }
@@ -168,6 +195,8 @@ function stepSummary(
       );
       return `${definition?.name ?? "Custom field"} → ${customFieldValueSummary(step.value)}`;
     }
+    case "related-work":
+      return `Related Work → ${step.operation === "add" ? "Add" : "Remove"} at run time`;
     default:
       return "Unknown step";
   }
@@ -257,8 +286,9 @@ export default function RecordActionEditor({
   return (
     <div className="mt-3 space-y-4">
       <p className="max-w-2xl text-muted-foreground text-xs/relaxed">
-        Define fixed Work status, Daily Focus, and existing Custom field steps.
-        Each Record Action targets one Work record.
+        Define Work status, Daily Focus, Related Work, and existing Custom field
+        steps. Date, Number, and Select fields can ask for a value when the
+        action runs. Each Record Action targets one Work record.
       </p>
       {recordActions.query.isPending ? (
         <p className="text-muted-foreground text-sm" role="status">
@@ -422,6 +452,33 @@ export default function RecordActionEditor({
               </Field>
             )}
           </form.Field>
+          <form.Field name="relatedWorkOperation">
+            {(field) => (
+              <Field>
+                <FieldLabel htmlFor="record-action-related-work">
+                  Related Work
+                </FieldLabel>
+                <NativeSelect
+                  disabled={pending}
+                  id="record-action-related-work"
+                  onChange={(event) =>
+                    field.handleChange(
+                      event.target.value as "" | "add" | "remove",
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  <NativeSelectOption value="">No change</NativeSelectOption>
+                  <NativeSelectOption value="add">
+                    Add at run time
+                  </NativeSelectOption>
+                  <NativeSelectOption value="remove">
+                    Remove at run time
+                  </NativeSelectOption>
+                </NativeSelect>
+              </Field>
+            )}
+          </form.Field>
         </fieldset>
         <fieldset className="space-y-3 rounded-md border border-border/70 p-4">
           <legend className="px-1 font-medium text-sm">Custom field</legend>
@@ -479,6 +536,12 @@ function CustomFieldStepControl({
 }) {
   const selected = value !== undefined;
   const checkboxId = `record-action-field-${definition.id}`;
+  const canAskWhenRunning = [
+    "Date",
+    "Number",
+    "Single select",
+    "Multi select",
+  ].includes(definition.type);
   return (
     <div className="grid gap-3 rounded-md border border-border/70 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,1fr)] sm:items-center">
       <label className="flex items-center gap-2 text-sm" htmlFor={checkboxId}>
@@ -497,12 +560,40 @@ function CustomFieldStepControl({
         {definition.name}
       </label>
       {selected && value ? (
-        <CustomFieldStepValue
-          definition={definition}
-          disabled={disabled}
-          onChange={onChange}
-          value={value}
-        />
+        <div className="space-y-2">
+          {canAskWhenRunning ? (
+            <label
+              className="flex items-center gap-2 text-xs"
+              htmlFor={`${checkboxId}-runtime`}
+            >
+              <Checkbox
+                checked={value.kind === "runtime-input"}
+                disabled={disabled}
+                id={`${checkboxId}-runtime`}
+                onCheckedChange={(checked) =>
+                  onChange(
+                    checked === true
+                      ? { kind: "runtime-input" }
+                      : initialCustomFieldValue(definition),
+                  )
+                }
+              />
+              Ask when running
+            </label>
+          ) : null}
+          {value.kind === "runtime-input" ? (
+            <p className="text-muted-foreground text-xs">
+              Choose this value before previewing the action.
+            </p>
+          ) : (
+            <CustomFieldStepValue
+              definition={definition}
+              disabled={disabled}
+              onChange={onChange}
+              value={value}
+            />
+          )}
+        </div>
       ) : null}
     </div>
   );
@@ -552,6 +643,9 @@ function CustomFieldStepValue({
   onChange: (value: CustomFieldValueDraft) => void;
   value: CustomFieldValueDraft;
 }) {
+  if (value.kind === "runtime-input") {
+    return null;
+  }
   if (value.kind === "boolean") {
     const valueId = `record-action-field-${definition.id}-value`;
     return (

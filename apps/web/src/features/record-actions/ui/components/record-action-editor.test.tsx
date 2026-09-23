@@ -17,6 +17,17 @@ const action: RecordAction = {
   steps: [
     { kind: "work-status", status: "In Progress" },
     { kind: "daily-focus-membership", operation: "add" },
+    {
+      definitionId: "field-1",
+      kind: "custom-field-value",
+      operation: "set",
+      value: { kind: "runtime-input" },
+    },
+    {
+      inputId: "related-record",
+      kind: "related-work",
+      operation: "add",
+    },
   ],
   trashedAt: null,
   updatedAt: "2026-09-22T09:00:00.000Z",
@@ -62,6 +73,8 @@ describe("Record Action editor", () => {
     expect(html).toContain("In Progress");
     expect(html).toContain("Daily Focus → Add");
     expect(html).toContain("Release readiness");
+    expect(html).toContain("Release readiness → Ask when running");
+    expect(html).toContain("Related Work → Add at run time");
     expect(html).toContain("Each Record Action targets one Work record.");
     expect(html).toContain("Move to Trash");
     for (const forbidden of [

@@ -3,8 +3,10 @@ import type {
   PreviewRecordActionInput,
   RecordAction,
   RecordActionPreview,
+  RecordActionRuntimeInputs,
   UndoRecordActionInput,
 } from "@cantiara/api/record-actions";
+import { recordActionStepsNeedRuntimeInputs } from "@cantiara/api/record-actions";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -16,13 +18,6 @@ import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 interface ActiveRecordAction {
   action: RecordAction;
   work: WorkProfile;
-}
-
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function mutationErrorMessage(error: unknown) {
@@ -38,6 +33,34 @@ export function useRecordActionRunner(projectId: string) {
     orpc.recordActions.queryOptions({ input: { projectId } }),
   );
   const [active, setActive] = useState<ActiveRecordAction | null>(null);
+  const [runVersion, setRunVersion] = useState(0);
+  const needsRuntimeInput = active
+    ? recordActionStepsNeedRuntimeInputs(active.action.steps)
+    : false;
+  const needsRuntimeFieldInput = Boolean(
+    active?.action.steps.some(
+      (step) =>
+        step.kind === "custom-field-value" &&
+        step.value.kind === "runtime-input",
+    ),
+  );
+  const needsRuntimeRelationInput = Boolean(
+    active?.action.steps.some((step) => step.kind === "related-work"),
+  );
+  const runtimeCustomFieldsQueryOptions = orpc.customFields.queryOptions({
+    input: { projectId },
+  });
+  const runtimeCustomFieldsQuery = useQuery({
+    ...runtimeCustomFieldsQueryOptions,
+    enabled: needsRuntimeFieldInput,
+  });
+  const runtimeWorksQueryOptions = orpc.projectWorks.queryOptions({
+    input: { archived: false, projectId },
+  });
+  const runtimeWorksQuery = useQuery({
+    ...runtimeWorksQueryOptions,
+    enabled: needsRuntimeRelationInput,
+  });
   const [preview, setPreview] = useState<RecordActionPreview | null>(null);
   const [applyCommand, setApplyCommand] =
     useState<ApplyRecordActionInput | null>(null);
@@ -111,6 +134,7 @@ export function useRecordActionRunner(projectId: string) {
       return;
     }
     setActive({ action, work });
+    setRunVersion((current) => current + 1);
     setPreview(null);
     setApplyCommand(null);
     setApplyResult(null);
@@ -120,11 +144,35 @@ export function useRecordActionRunner(projectId: string) {
     previewMutation.reset();
     applyMutation.reset();
     undoMutation.reset();
+    if (!recordActionStepsNeedRuntimeInputs(action.steps)) {
+      previewMutation.mutate({
+        actionId: action.id,
+        runtimeInputs: { customFieldValues: {}, relations: {} },
+        workId: work.id,
+      });
+    }
+  }
+
+  function previewWithInputs(runtimeInputs: RecordActionRuntimeInputs) {
+    if (!active || connection === "offline" || previewMutation.isPending) {
+      return;
+    }
+    setPreview(null);
+    setError(null);
     previewMutation.mutate({
-      actionId: action.id,
-      focusDate: localDateKey(new Date()),
-      workId: work.id,
+      actionId: active.action.id,
+      runtimeInputs,
+      workId: active.work.id,
     });
+  }
+
+  function changeInputs() {
+    if (previewMutation.isPending || applyMutation.isPending) {
+      return;
+    }
+    setPreview(null);
+    setApplyCommand(null);
+    setError(null);
   }
 
   function apply() {
@@ -143,6 +191,7 @@ export function useRecordActionRunner(projectId: string) {
       clientIdempotencyKey: crypto.randomUUID(),
       focusDate: preview.focusDate,
       previewFingerprint: preview.previewFingerprint,
+      runtimeInputs: preview.runtimeInputs,
       workId: preview.workId,
     };
     setApplyCommand(command);
@@ -206,12 +255,25 @@ export function useRecordActionRunner(projectId: string) {
     applyError: applyMutation.isError,
     applyResult,
     close,
+    changeInputs,
     error,
     isApplying: applyMutation.isPending,
     isPreviewing: previewMutation.isPending,
     isPreparingUndo,
     isUndoing: isPreparingUndo || undoMutation.isPending,
+    needsRuntimeInput,
     preview,
+    previewWithInputs,
+    runVersion,
+    runtimeCustomFields:
+      runtimeCustomFieldsQuery.data?.filter(
+        (definition) => definition.trashedAt === null,
+      ) ?? [],
+    runtimeCustomFieldsError: runtimeCustomFieldsQuery.isError,
+    runtimeCustomFieldsPending: runtimeCustomFieldsQuery.isPending,
+    runtimeWorks: runtimeWorksQuery.data ?? [],
+    runtimeWorksError: runtimeWorksQuery.isError,
+    runtimeWorksPending: runtimeWorksQuery.isPending,
     start,
     undo,
     undoError: undoMutation.isError,

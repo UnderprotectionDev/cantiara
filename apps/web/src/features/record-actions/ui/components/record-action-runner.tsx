@@ -1,12 +1,19 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Runner controls capture the selected Work and action to submit that exact command.
+
+import type {
+  CustomFieldDefinition,
+  ParsedCustomFieldValuePayload,
+} from "@cantiara/api/custom-fields";
 import {
   RECORD_ACTION_CUSTOM_FIELD_CHANGE_KEY_PREFIX,
   type RecordAction,
   type RecordActionMutationValue,
   type RecordActionPreview,
+  type RecordActionRuntimeInputs,
 } from "@cantiara/api/record-actions";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +22,168 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@cantiara/ui/components/dialog";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
+import { Input } from "@cantiara/ui/components/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@cantiara/ui/components/native-select";
+import { useEffect, useRef, useState } from "react";
 
 import type { RecordActionRunnerState } from "../../hooks/use-record-action-runner";
+
+interface RuntimeInputDraft {
+  customFieldValues: Record<string, ParsedCustomFieldValuePayload | undefined>;
+  relations: Record<string, string | undefined>;
+}
+
+const EMPTY_RUNTIME_INPUT_DRAFT: RuntimeInputDraft = {
+  customFieldValues: {},
+  relations: {},
+};
+
+function runtimeInputsFromDraft(
+  action: RecordAction,
+  draft: RuntimeInputDraft,
+): RecordActionRuntimeInputs | null {
+  const customFieldValues: Record<string, ParsedCustomFieldValuePayload> = {};
+  const relations: Record<string, { recordId: string; recordType: "Work" }> =
+    {};
+  for (const step of action.steps) {
+    if (
+      step.kind === "custom-field-value" &&
+      step.value.kind === "runtime-input"
+    ) {
+      const value = draft.customFieldValues[step.definitionId];
+      if (!value) {
+        return null;
+      }
+      customFieldValues[step.definitionId] = value;
+    } else if (step.kind === "related-work") {
+      const recordId = draft.relations[step.inputId];
+      if (!recordId) {
+        return null;
+      }
+      relations[step.inputId] = { recordId, recordType: "Work" };
+    }
+  }
+  return { customFieldValues, relations };
+}
+
+function RuntimeCustomFieldControl({
+  definition,
+  disabled,
+  id,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  disabled: boolean;
+  id: string;
+  onChange: (value: ParsedCustomFieldValuePayload | undefined) => void;
+  value?: ParsedCustomFieldValuePayload;
+}) {
+  if (definition.type === "Date") {
+    return (
+      <Input
+        aria-label={definition.name}
+        disabled={disabled}
+        id={id}
+        onChange={(event) =>
+          onChange(
+            event.target.value
+              ? { date: event.target.value, kind: "date" }
+              : undefined,
+          )
+        }
+        type="date"
+        value={value?.kind === "date" ? value.date : ""}
+      />
+    );
+  }
+  if (definition.type === "Number") {
+    return (
+      <Input
+        aria-label={definition.name}
+        disabled={disabled}
+        id={id}
+        onChange={(event) => {
+          const number = Number(event.target.value);
+          onChange(
+            event.target.value && Number.isFinite(number)
+              ? { kind: "number", number }
+              : undefined,
+          );
+        }}
+        step="any"
+        type="number"
+        value={value?.kind === "number" ? value.number : ""}
+      />
+    );
+  }
+  if (definition.type === "Single select") {
+    return (
+      <NativeSelect
+        aria-label={definition.name}
+        disabled={disabled}
+        id={id}
+        onChange={(event) =>
+          onChange(
+            event.target.value
+              ? { kind: "option", option: event.target.value }
+              : undefined,
+          )
+        }
+        value={value?.kind === "option" ? value.option : ""}
+      >
+        <NativeSelectOption value="">Choose a value</NativeSelectOption>
+        {definition.options.map((option) => (
+          <NativeSelectOption key={option} value={option}>
+            {option}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    );
+  }
+  if (definition.type === "Multi select") {
+    const selected = value?.kind === "options" ? value.options : [];
+    return (
+      <div className="flex flex-wrap gap-3">
+        {definition.options.map((option, index) => {
+          const optionId =
+            index === 0
+              ? id
+              : `record-action-runtime-${definition.id}-${index}`;
+          return (
+            <label
+              className="flex items-center gap-2 text-xs"
+              htmlFor={optionId}
+              key={option}
+            >
+              <Checkbox
+                checked={selected.includes(option)}
+                disabled={disabled}
+                id={optionId}
+                onCheckedChange={(checked) => {
+                  const options = checked
+                    ? [...selected, option]
+                    : selected.filter((item) => item !== option);
+                  onChange(
+                    options.length > 0
+                      ? { kind: "options", options }
+                      : undefined,
+                  );
+                }}
+              />
+              {option}
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+  return null;
+}
 
 export function RecordActionButtons({
   actions,
@@ -61,6 +228,9 @@ function formatChangeValue(
 ) {
   if (key === "daily-focus-membership" && typeof value === "boolean") {
     return value ? "In Daily Focus" : "Not in Daily Focus";
+  }
+  if (key.startsWith("relation:") && typeof value === "boolean") {
+    return value ? "Related" : "Not related";
   }
   if (value === null) {
     return "Empty";
@@ -130,6 +300,9 @@ function currentValueForChange(
     case "daily-focus-membership":
       return value.dailyFocus?.included ?? false;
     default:
+      if (change.key.startsWith("relation:")) {
+        return value.relatedWork?.included ?? false;
+      }
       return (
         value.customFields?.[
           change.key.slice(RECORD_ACTION_CUSTOM_FIELD_CHANGE_KEY_PREFIX.length)
@@ -162,6 +335,204 @@ function RecordActionCurrentValue({
             </span>
           </li>
         ))}
+      </ul>
+    </section>
+  );
+}
+
+function RecordActionRuntimeInputForm({
+  active,
+  draft,
+  onDraftChange,
+  runner,
+}: {
+  active: NonNullable<RecordActionRunnerState["active"]>;
+  draft: RuntimeInputDraft;
+  onDraftChange: (draft: RuntimeInputDraft) => void;
+  runner: RecordActionRunnerState;
+}) {
+  const customFieldSteps = active.action.steps.filter(
+    (step) =>
+      step.kind === "custom-field-value" && step.value.kind === "runtime-input",
+  );
+  const relatedWorkSteps = active.action.steps.filter(
+    (step) => step.kind === "related-work",
+  );
+  const runtimeInputs = runtimeInputsFromDraft(active.action, draft);
+  const availableWorks = runner.runtimeWorks.filter(
+    (work) => work.id !== active.work.id,
+  );
+  const isLoading =
+    (customFieldSteps.length > 0 && runner.runtimeCustomFieldsPending) ||
+    (relatedWorkSteps.length > 0 && runner.runtimeWorksPending);
+  const isUnavailable =
+    (customFieldSteps.length > 0 && runner.runtimeCustomFieldsError) ||
+    (relatedWorkSteps.length > 0 && runner.runtimeWorksError);
+
+  return (
+    <form
+      aria-label="Record Action inputs"
+      className="space-y-4 rounded-md border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (runtimeInputs) {
+          runner.previewWithInputs(runtimeInputs);
+        }
+      }}
+    >
+      <h3 className="font-medium text-sm">Runtime inputs</h3>
+      {isLoading ? (
+        <p className="text-muted-foreground text-sm" role="status">
+          Loading input choices…
+        </p>
+      ) : null}
+      {isUnavailable ? (
+        <p className="text-destructive text-sm" role="alert">
+          Runtime inputs could not be loaded. Try again.
+        </p>
+      ) : null}
+      {customFieldSteps.map((step) => {
+        if (step.kind !== "custom-field-value") {
+          return null;
+        }
+        const definition = runner.runtimeCustomFields.find(
+          (candidate) => candidate.id === step.definitionId,
+        );
+        if (!definition) {
+          return (
+            <p
+              className="text-destructive text-sm"
+              key={step.definitionId}
+              role="alert"
+            >
+              A Custom field required by this Record Action is unavailable.
+            </p>
+          );
+        }
+        return (
+          <Field key={step.definitionId}>
+            <FieldLabel htmlFor={`record-action-input-${step.definitionId}`}>
+              {definition.name}
+            </FieldLabel>
+            <RuntimeCustomFieldControl
+              definition={definition}
+              disabled={runner.isPreviewing || isLoading || isUnavailable}
+              id={`record-action-input-${step.definitionId}`}
+              onChange={(value) =>
+                onDraftChange({
+                  ...draft,
+                  customFieldValues: {
+                    ...draft.customFieldValues,
+                    [step.definitionId]: value,
+                  },
+                })
+              }
+              value={draft.customFieldValues[step.definitionId]}
+            />
+          </Field>
+        );
+      })}
+      {relatedWorkSteps.map((step) => {
+        if (step.kind !== "related-work") {
+          return null;
+        }
+        return (
+          <Field key={step.inputId}>
+            <FieldLabel htmlFor={`record-action-input-${step.inputId}`}>
+              Relation
+            </FieldLabel>
+            <NativeSelect
+              disabled={
+                runner.isPreviewing ||
+                isLoading ||
+                isUnavailable ||
+                availableWorks.length === 0
+              }
+              id={`record-action-input-${step.inputId}`}
+              onChange={(event) =>
+                onDraftChange({
+                  ...draft,
+                  relations: {
+                    ...draft.relations,
+                    [step.inputId]: event.target.value || undefined,
+                  },
+                })
+              }
+              value={draft.relations[step.inputId] ?? ""}
+            >
+              <NativeSelectOption value="">
+                Choose an existing Work
+              </NativeSelectOption>
+              {availableWorks.map((work) => (
+                <NativeSelectOption key={work.id} value={work.id}>
+                  {work.key} · {work.title}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            {availableWorks.length === 0 && !isLoading ? (
+              <p className="text-muted-foreground text-xs">
+                No other Work records are available in this Project.
+              </p>
+            ) : null}
+          </Field>
+        );
+      })}
+      <Button
+        disabled={
+          !runtimeInputs || runner.isPreviewing || isLoading || isUnavailable
+        }
+        type="submit"
+      >
+        {runner.isPreviewing ? "Preparing preview…" : "Preview changes"}
+      </Button>
+    </form>
+  );
+}
+
+function RecordActionRuntimeInputSummary({
+  preview,
+  runner,
+}: {
+  preview: RecordActionPreview;
+  runner: RecordActionRunnerState;
+}) {
+  const customInputs = Object.entries(preview.runtimeInputs.customFieldValues);
+  const relationInputs = Object.entries(preview.runtimeInputs.relations);
+  if (customInputs.length === 0 && relationInputs.length === 0) {
+    return null;
+  }
+  return (
+    <section
+      aria-label="Runtime inputs selected"
+      className="rounded-md border p-3"
+    >
+      <h3 className="mb-2 font-medium text-sm">Inputs selected</h3>
+      <ul className="space-y-2 text-sm">
+        {customInputs.map(([definitionId, value]) => (
+          <li className="flex justify-between gap-3" key={definitionId}>
+            <span className="font-medium text-muted-foreground">
+              {runner.runtimeCustomFields.find(
+                (definition) => definition.id === definitionId,
+              )?.name ?? "Custom field"}
+            </span>
+            <span>{formatChangeValue(value, "runtime-input")}</span>
+          </li>
+        ))}
+        {relationInputs.map(([inputId, endpoint]) => {
+          const work = runner.runtimeWorks.find(
+            (candidate) => candidate.id === endpoint.recordId,
+          );
+          return (
+            <li className="flex justify-between gap-3" key={inputId}>
+              <span className="font-medium text-muted-foreground">
+                Relation
+              </span>
+              <span className="text-right">
+                {work ? `${work.key} · ${work.title}` : endpoint.recordId}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -263,6 +634,17 @@ export function RecordActionRunDialog({
 }: {
   runner: RecordActionRunnerState;
 }) {
+  const [runtimeInputDraft, setRuntimeInputDraft] = useState<RuntimeInputDraft>(
+    EMPTY_RUNTIME_INPUT_DRAFT,
+  );
+  const runVersionRef = useRef(runner.runVersion);
+  useEffect(() => {
+    if (runVersionRef.current === runner.runVersion) {
+      return;
+    }
+    runVersionRef.current = runner.runVersion;
+    setRuntimeInputDraft(EMPTY_RUNTIME_INPUT_DRAFT);
+  }, [runner.runVersion]);
   const {
     active,
     error,
@@ -310,6 +692,27 @@ export function RecordActionRunDialog({
           <p className="text-muted-foreground text-sm" role="status">
             Preparing preview…
           </p>
+        ) : null}
+        {runner.needsRuntimeInput && !preview ? (
+          <RecordActionRuntimeInputForm
+            active={active}
+            draft={runtimeInputDraft}
+            onDraftChange={setRuntimeInputDraft}
+            runner={runner}
+          />
+        ) : null}
+        {preview ? (
+          <RecordActionRuntimeInputSummary preview={preview} runner={runner} />
+        ) : null}
+        {preview && runner.needsRuntimeInput ? (
+          <Button
+            disabled={isFinalizing || runner.isPreviewing}
+            onClick={runner.changeInputs}
+            type="button"
+            variant="outline"
+          >
+            Change inputs
+          </Button>
         ) : null}
         {preview ? <RecordActionChangeList preview={preview} /> : null}
         {preview && currentValue ? (

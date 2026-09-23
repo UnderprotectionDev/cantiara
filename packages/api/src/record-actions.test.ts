@@ -96,6 +96,46 @@ describe("Record Actions definition contract", () => {
     ).toBe(true);
   });
 
+  test("accepts declared runtime Custom field and Related Work inputs", () => {
+    expect(
+      createRecordActionInputSchema.safeParse({
+        name: "Set release details",
+        projectId: "project-1",
+        steps: [
+          {
+            definitionId: "date-field",
+            kind: "custom-field-value",
+            operation: "set",
+            value: { kind: "runtime-input" },
+          },
+          {
+            inputId: "related-record",
+            kind: "related-work",
+            operation: "add",
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      createRecordActionInputSchema.safeParse({
+        name: "Add two Related Work records",
+        projectId: "project-1",
+        steps: [
+          {
+            inputId: "first-related-record",
+            kind: "related-work",
+            operation: "add",
+          },
+          {
+            inputId: "second-related-record",
+            kind: "related-work",
+            operation: "add",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
   test("uses the same closed catalog when updating a definition", () => {
     expect(
       updateRecordActionInputSchema.safeParse({

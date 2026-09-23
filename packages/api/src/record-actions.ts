@@ -38,12 +38,27 @@ const dailyFocusMembershipStepSchema = z
   })
   .strict();
 
+const runtimeInputReferenceSchema = z
+  .object({ kind: z.literal("runtime-input") })
+  .strict();
+
 const setCustomFieldValueStepSchema = z
   .object({
     definitionId: identifierSchema,
     kind: z.literal("custom-field-value"),
     operation: z.literal("set"),
-    value: customFieldValuePayloadSchema,
+    value: z.union([
+      customFieldValuePayloadSchema,
+      runtimeInputReferenceSchema,
+    ]),
+  })
+  .strict();
+
+const relatedWorkStepSchema = z
+  .object({
+    inputId: identifierSchema,
+    kind: z.literal("related-work"),
+    operation: z.enum(["add", "remove"]),
   })
   .strict();
 
@@ -51,9 +66,21 @@ export const recordActionStepSchema = z.union([
   workStatusStepSchema,
   dailyFocusMembershipStepSchema,
   setCustomFieldValueStepSchema,
+  relatedWorkStepSchema,
 ]);
 
 export type RecordActionStep = z.infer<typeof recordActionStepSchema>;
+
+export function recordActionStepsNeedRuntimeInputs(
+  steps: readonly RecordActionStep[],
+) {
+  return steps.some(
+    (step) =>
+      step.kind === "related-work" ||
+      (step.kind === "custom-field-value" &&
+        step.value.kind === "runtime-input"),
+  );
+}
 
 const recordActionStepsSchema = z
   .array(recordActionStepSchema)
@@ -155,6 +182,29 @@ export const recordActionsInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
 
+const runtimeRelationInputSchema = z
+  .object({
+    recordId: identifierSchema,
+    recordType: z.literal("Work"),
+  })
+  .strict();
+
+export const recordActionRuntimeInputsSchema = z
+  .object({
+    customFieldValues: z
+      .record(identifierSchema, customFieldValuePayloadSchema)
+      .default({}),
+    relations: z
+      .record(identifierSchema, runtimeRelationInputSchema)
+      .default({}),
+  })
+  .strict()
+  .default({ customFieldValues: {}, relations: {} });
+
+export type RecordActionRuntimeInputs = z.infer<
+  typeof recordActionRuntimeInputsSchema
+>;
+
 export const recordActionMutationValueSchema = z
   .object({
     customFields: z
@@ -166,6 +216,13 @@ export const recordActionMutationValueSchema = z
       .object({
         date: customFieldDateValueSchema,
         included: z.boolean(),
+      })
+      .strict()
+      .optional(),
+    relatedWork: z
+      .object({
+        included: z.boolean(),
+        targetWorkId: identifierSchema,
       })
       .strict()
       .optional(),
@@ -206,6 +263,7 @@ const recordActionPreviewFields = z
     focusDate: customFieldDateValueSchema,
     nextValue: recordActionMutationValueSchema,
     previewFingerprint: z.string().regex(/^[0-9a-f]{64}$/i),
+    runtimeInputs: recordActionRuntimeInputsSchema,
     workId: identifierSchema,
     workKey: identifierSchema,
     workTitle: z.string().min(1),
@@ -215,7 +273,7 @@ const recordActionPreviewFields = z
 export const previewRecordActionInputSchema = z
   .object({
     actionId: identifierSchema,
-    focusDate: customFieldDateValueSchema,
+    runtimeInputs: recordActionRuntimeInputsSchema,
     workId: identifierSchema,
   })
   .strict();
@@ -232,6 +290,7 @@ export const recordActionRunPayloadSchema = z
     actionRevision: z.number().int().min(1).safe(),
     focusDate: customFieldDateValueSchema,
     previewFingerprint: z.string().regex(/^[0-9a-f]{64}$/i),
+    runtimeInputs: recordActionRuntimeInputsSchema,
     workId: identifierSchema,
   })
   .strict();

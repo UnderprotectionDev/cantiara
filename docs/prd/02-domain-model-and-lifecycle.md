@@ -256,6 +256,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Personal Review | `Personal Review` | İsteğe bağlı hazır Belge şablonu; toplantı türü veya zorunlu kullanım sıklığı değildir |
 | Kayıt Eylemi | `Record Action` | Kapalı alan ve üyelik adımlarından adlandırılan, tek hedef kayıt üzerinde çalışan birleşik yazma; otomasyon kuralı, Toplu Düzenleme veya betik değildir |
 | Start Work | `Start Work` | Durumu `In Progress` yapan ve İşi Günlük Odak’a ekleyen ilk Kayıt Eylemi örneği |
+| Çalışma anı girdileri | `Runtime inputs` | Kayıt Eyleminin tasarımda tanımlanıp çalıştırmada seçilen alan değerleri ve mevcut Work ilişkisi |
+| Çalıştırırken sor | `Ask when running` | Özel alan adımında sabit değer yerine çalıştırma sırasında değer isteme seçeneği |
+| Seçilen girdiler | `Inputs selected` | Önizlemede seçilen çalışma anı girdilerini gösteren özet |
+| Değişiklikleri önizle | `Preview changes` | Gerekli çalışma anı girdileri seçildikten sonra kesin farkı gösterme eylemi |
+| Girdileri değiştir | `Change inputs` | Yeni önizleme için seçilen çalışma anı girdilerine geri dönme eylemi |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
 | Favoriler | `Favorites` | Desteklenen kayda Hesap/Çalışma Alanı kişisel sık erişim işareti; kaydın Projesini, türünü veya durumunu değiştirmez |
 | Favorilere ekle | `Add to Favorites` | Proje, Belge, İş, Karar veya Akıllı Koleksiyonu Favorilere alma; kaynak yazmaz |
