@@ -334,25 +334,26 @@ async function undoBulkEditResult(
   if (resultIndex === null) {
     return;
   }
-  updateBulkEditOperation(operation.id, (current) => {
-    const currentResult = bulkEditResultAt(current.resultPages, resultIndex);
-    if (!currentResult) {
-      return current;
-    }
-    return {
-      ...current,
-      resultPages: updateBulkEditResultAt(
+  const updateResult = (
+    update: (candidate: BulkEditResult) => BulkEditResult,
+  ) => {
+    updateBulkEditOperation(operation.id, (current) => {
+      const resultPages = updateBulkEditResultAt(
         current.resultPages,
         resultIndex,
-        (candidate) => ({
-          ...candidate,
-          undoError: undefined,
-          undoAttempts: (candidate.undoAttempts ?? 0) + 1,
-          undoing: true,
-        }),
-      ),
-    };
-  });
+        update,
+      );
+      return resultPages === current.resultPages
+        ? current
+        : { ...current, resultPages };
+    });
+  };
+  updateResult((candidate) => ({
+    ...candidate,
+    undoError: undefined,
+    undoAttempts: (candidate.undoAttempts ?? 0) + 1,
+    undoing: true,
+  }));
   try {
     const currentWork = await client.work({ workId: result.workId });
     await runOnlineOnlyWrite(() =>
@@ -368,47 +369,20 @@ async function undoBulkEditResult(
       projectId: operation.projectId,
       records: operation.preview.records,
     });
-    updateBulkEditOperation(operation.id, (current) => {
-      const currentResult = bulkEditResultAt(current.resultPages, resultIndex);
-      if (!currentResult) {
-        return current;
-      }
-      return {
-        ...current,
-        resultPages: updateBulkEditResultAt(
-          current.resultPages,
-          resultIndex,
-          (candidate) => ({
-            key: candidate.key,
-            status: "Undone",
-            workId: candidate.workId,
-          }),
-        ),
-      };
-    });
+    updateResult((candidate) => ({
+      key: candidate.key,
+      status: "Undone",
+      workId: candidate.workId,
+    }));
   } catch (error) {
-    updateBulkEditOperation(operation.id, (current) => {
-      const currentResult = bulkEditResultAt(current.resultPages, resultIndex);
-      if (!currentResult) {
-        return current;
-      }
-      const failure = buildSupportReferenceFailure(error, {
+    updateResult((candidate) => ({
+      ...candidate,
+      undoError: buildSupportReferenceFailure(error, {
         kind: "mutation",
-        retryCount: Math.max(0, (currentResult.undoAttempts ?? 1) - 1),
-      });
-      return {
-        ...current,
-        resultPages: updateBulkEditResultAt(
-          current.resultPages,
-          resultIndex,
-          (candidate) => ({
-            ...candidate,
-            undoError: failure,
-            undoing: false,
-          }),
-        ),
-      };
-    });
+        retryCount: Math.max(0, (candidate.undoAttempts ?? 1) - 1),
+      }),
+      undoing: false,
+    }));
   }
 }
 

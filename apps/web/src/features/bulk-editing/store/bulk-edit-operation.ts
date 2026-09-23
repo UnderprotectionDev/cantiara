@@ -44,15 +44,25 @@ export interface BulkEditOperation {
 
 const BULK_EDIT_RESULT_PAGE_SIZE = 128;
 
-function appendBulkEditResult(
+function appendBulkEditResults(
   pages: BulkEditOperation["resultPages"],
-  result: BulkEditResult,
+  results: readonly BulkEditResult[],
 ): BulkEditOperation["resultPages"] {
-  const lastPage = pages.at(-1);
-  if (!lastPage || lastPage.length === BULK_EDIT_RESULT_PAGE_SIZE) {
-    return [...pages, [result]];
+  if (results.length === 0) {
+    return pages;
   }
-  return [...pages.slice(0, -1), [...lastPage, result]];
+
+  const nextPages = [...pages];
+  let nextPage = [...(nextPages.pop() ?? [])];
+  for (const result of results) {
+    if (nextPage.length === BULK_EDIT_RESULT_PAGE_SIZE) {
+      nextPages.push(nextPage);
+      nextPage = [];
+    }
+    nextPage.push(result);
+  }
+  nextPages.push(nextPage);
+  return nextPages;
 }
 
 export function bulkEditResultAt(
@@ -155,7 +165,7 @@ export function recordBulkEditResult(id: string, result: BulkEditResult) {
   updateBulkEditOperation(id, (operation) => ({
     ...operation,
     completed: operation.completed + 1,
-    resultPages: appendBulkEditResult(operation.resultPages, result),
+    resultPages: appendBulkEditResults(operation.resultPages, [result]),
   }));
 }
 
@@ -165,7 +175,7 @@ export function cancelBulkEditOperation(id: string) {
       return operation;
     }
     const { nextRecordIndex, preview } = operation;
-    let { completed, resultPages } = operation;
+    const canceledResults: BulkEditResult[] = [];
     for (
       let index = nextRecordIndex;
       index < preview.records.length;
@@ -187,14 +197,16 @@ export function cancelBulkEditOperation(id: string) {
               status: "Canceled",
               workId: record.work.id,
             };
-      resultPages = appendBulkEditResult(resultPages, result);
-      completed += 1;
+      canceledResults.push(result);
     }
     return {
       ...operation,
-      completed,
+      completed: operation.completed + canceledResults.length,
       phase: "finalizing",
-      resultPages,
+      resultPages: appendBulkEditResults(
+        operation.resultPages,
+        canceledResults,
+      ),
     };
   });
 }
