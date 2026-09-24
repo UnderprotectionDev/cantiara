@@ -29,27 +29,21 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
     },
 
     async list(workspaceId, projectId) {
-      const [ownedProject] = await database
-        .select({ id: project.id })
-        .from(project)
-        .where(
-          and(eq(project.id, projectId), eq(project.workspaceId, workspaceId)),
-        )
-        .limit(1);
-      if (!ownedProject) {
+      const storedOrder = await findProjectBacklogOrder(
+        database,
+        workspaceId,
+        projectId,
+      );
+      if (storedOrder === null) {
         return null;
       }
 
-      const [storedOrder] = await database
-        .select()
-        .from(projectBacklogOrder)
-        .where(eq(projectBacklogOrder.projectId, projectId))
-        .limit(1);
       const workRecords = await database
         .select({
           archivedAt: work.archivedAt,
           id: work.id,
           status: work.status,
+          trashedAt: work.trashedAt,
         })
         .from(work)
         .where(eq(work.projectId, projectId))
@@ -58,34 +52,27 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
         workRecords.filter(isBacklogMember).map((record) => record.id),
       );
       const orderedIds = normalizeBacklogOrder(
-        storedOrder?.workIds ?? [],
+        storedOrder.workIds,
         workRecords.map((record) => record.id),
       ).filter((workId) => activeIds.has(workId));
 
       return projectBacklogOrderSchema.parse({
         projectId,
-        revision: storedOrder?.revision ?? 0,
+        revision: storedOrder.revision,
         workIds: orderedIds,
       });
     },
 
     async listPrepared(workspaceId, projectId): Promise<BacklogWork[] | null> {
-      const [ownedProject] = await database
-        .select({ id: project.id })
-        .from(project)
-        .where(
-          and(eq(project.id, projectId), eq(project.workspaceId, workspaceId)),
-        )
-        .limit(1);
-      if (!ownedProject) {
+      const storedOrder = await findProjectBacklogOrder(
+        database,
+        workspaceId,
+        projectId,
+      );
+      if (storedOrder === null) {
         return null;
       }
 
-      const [storedOrder] = await database
-        .select()
-        .from(projectBacklogOrder)
-        .where(eq(projectBacklogOrder.projectId, projectId))
-        .limit(1);
       const records = await database
         .select({
           id: work.id,
@@ -99,6 +86,7 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
           and(
             eq(work.projectId, projectId),
             isNull(work.archivedAt),
+            isNull(work.trashedAt),
             inArray(work.status, WORK_OPEN_STATUS_OPTIONS),
           ),
         )
@@ -113,7 +101,7 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
         ]),
       );
       const orderedIds = normalizeBacklogOrder(
-        storedOrder?.workIds ?? [],
+        storedOrder.workIds,
         records.map((record) => record.id),
       );
       return orderedIds
@@ -121,4 +109,26 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
         .filter((record): record is BacklogWork => record !== undefined);
     },
   };
+}
+
+async function findProjectBacklogOrder(
+  database: Database,
+  workspaceId: string,
+  projectId: string,
+) {
+  const [ownedProject] = await database
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, workspaceId)))
+    .limit(1);
+  if (!ownedProject) {
+    return null;
+  }
+
+  const [storedOrder] = await database
+    .select()
+    .from(projectBacklogOrder)
+    .where(eq(projectBacklogOrder.projectId, projectId))
+    .limit(1);
+  return storedOrder ?? { projectId, revision: 0, workIds: [] };
 }

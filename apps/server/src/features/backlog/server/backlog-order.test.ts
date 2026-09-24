@@ -11,24 +11,35 @@ describe("Backlog prepared membership", () => {
         id: "work-1",
         plannedStartDate: null,
         status: "Not Started",
+        trashedAt: null,
       },
       {
         archivedAt: null,
         id: "work-2",
         plannedStartDate: "2026-10-01",
         status: "In Progress",
+        trashedAt: null,
       },
       {
         archivedAt: new Date("2026-01-01T00:00:00.000Z"),
         id: "work-3",
         plannedStartDate: null,
         status: "Blocked",
+        trashedAt: null,
       },
       {
         archivedAt: null,
         id: "work-4",
         plannedStartDate: null,
         status: "Closed",
+        trashedAt: null,
+      },
+      {
+        archivedAt: null,
+        id: "work-5",
+        plannedStartDate: null,
+        status: "Not Started",
+        trashedAt: new Date("2026-01-02T00:00:00.000Z"),
       },
     ] as const;
     const statusesBefore = works.map((work) => work.status);

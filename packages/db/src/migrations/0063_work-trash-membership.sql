@@ -1,0 +1,1 @@
+ALTER TABLE "work" ADD COLUMN "trashed_at" timestamp;

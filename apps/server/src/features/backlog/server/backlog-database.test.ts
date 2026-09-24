@@ -1,5 +1,6 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { asc, eq, inArray } from "drizzle-orm";
 import {
@@ -103,6 +104,16 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         title: "Closed Work",
         type: "Task",
       },
+      {
+        id: `${workIdPrefix}-trashed`,
+        key: "BKL-5",
+        number: 5,
+        projectId: projectProfile.id,
+        status: "Not Started",
+        title: "Trashed Work",
+        trashedAt: new Date("2026-01-02T00:00:00.000Z"),
+        type: "Task",
+      },
     ] as const;
     await database.insert(work).values([...initialWorks]);
 
@@ -122,6 +133,14 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         ),
       )
       .orderBy(asc(work.number));
+    const projectBefore = await database
+      .select({
+        configuration: project.configuration,
+        revision: project.revision,
+        status: project.status,
+      })
+      .from(project)
+      .where(eq(project.id, projectProfile.id));
 
     await expect(
       access.listPrepared(accountId, projectProfile.id),
@@ -158,11 +177,21 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         )
         .orderBy(asc(work.number)),
     ).resolves.toEqual(before);
+    await expect(
+      database
+        .select({
+          configuration: project.configuration,
+          revision: project.revision,
+          status: project.status,
+        })
+        .from(project)
+        .where(eq(project.id, projectProfile.id)),
+    ).resolves.toEqual(projectBefore);
 
     await database.insert(work).values({
       id: `${workIdPrefix}-added-later`,
-      key: "BKL-5",
-      number: 5,
+      key: "BKL-6",
+      number: 6,
       plannedStartDate: null,
       projectId: projectProfile.id,
       status: "Blocked",
@@ -189,8 +218,8 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
       },
       {
         id: `${workIdPrefix}-added-later`,
-        key: "BKL-5",
-        number: 5,
+        key: "BKL-6",
+        number: 6,
         status: "Blocked",
         title: "Added after the first read",
       },
