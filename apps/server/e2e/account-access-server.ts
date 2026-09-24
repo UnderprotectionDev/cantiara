@@ -3,7 +3,9 @@ import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
 import { account, session, user } from "@cantiara/db/schema/auth";
+import { project as projectTable } from "@cantiara/db/schema/project";
 import { workRelation } from "@cantiara/db/schema/relation";
+import { work as workTable } from "@cantiara/db/schema/work";
 import { createSecurityEventDb } from "@cantiara/db/security-events";
 import { betterAuth } from "better-auth";
 import { testUtils } from "better-auth/plugins";
@@ -63,6 +65,7 @@ const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
 const webOrigin = process.env.E2E_WEB_ORIGIN ?? "http://127.0.0.1:4173";
 const E2E_FIXTURE_KEY_PATTERN = /^[a-z-]+$/;
+const BULK_EDIT_PROGRESS_WORK_COUNT = 130;
 const databaseUrl = process.env.DATABASE_URL;
 const securityEventDatabaseUrl = process.env.SECURITY_EVENT_DATABASE_URL;
 const secret = process.env.BETTER_AUTH_SECRET;
@@ -385,6 +388,11 @@ async function createE2EFixture(fixtureKey: string) {
     });
   }
 
+  const bulkEditProgressFixture =
+    fixtureKey === "bulk-edit-large-progress"
+      ? await createBulkEditProgressFixture(founder.id)
+      : null;
+
   let usedInSourceProjectId: string | null = null;
   let usedInSourceWorkId: string | null = null;
   const usedInTargetProject =
@@ -454,7 +462,8 @@ async function createE2EFixture(fixtureKey: string) {
     usedInTargetProject?.id ??
     captureProject?.id ??
     scopeTreeProject?.id ??
-    tagsProject?.id;
+    tagsProject?.id ??
+    bulkEditProgressFixture?.projectId;
 
   return {
     currentCookie,
@@ -463,9 +472,45 @@ async function createE2EFixture(fixtureKey: string) {
       ? { tauriBearerToken: currentCookie.value }
       : {}),
     ...(projectId ? { projectId } : {}),
+    ...(bulkEditProgressFixture
+      ? { bulkEditProgressWorkCount: bulkEditProgressFixture.workCount }
+      : {}),
     ...(usedInSourceProjectId && usedInSourceWorkId
       ? { usedInSourceProjectId, usedInSourceWorkId }
       : {}),
+  };
+}
+
+async function createBulkEditProgressFixture(accountId: string) {
+  const projectRecord = await projectShell.create(accountId, {
+    name: "Bulk Progress Project",
+    starterConfiguration: "Blank Project",
+  });
+  await database
+    .update(projectTable)
+    .set({
+      revision: BULK_EDIT_PROGRESS_WORK_COUNT,
+      workCount: BULK_EDIT_PROGRESS_WORK_COUNT,
+    })
+    .where(eq(projectTable.id, projectRecord.id));
+  await database.insert(workTable).values(
+    Array.from({ length: BULK_EDIT_PROGRESS_WORK_COUNT }, (_, index) => {
+      const number = index + 1;
+      return {
+        id: crypto.randomUUID(),
+        key: `${projectRecord.shortCode}-${number}`,
+        number,
+        projectId: projectRecord.id,
+        status:
+          number === BULK_EDIT_PROGRESS_WORK_COUNT ? "Blocked" : "Not Started",
+        title: `Bulk Progress ${String(number).padStart(3, "0")}`,
+        type: "Task",
+      };
+    }),
+  );
+  return {
+    projectId: projectRecord.id,
+    workCount: BULK_EDIT_PROGRESS_WORK_COUNT,
   };
 }
 
@@ -484,6 +529,7 @@ serve({
       }
 
       const {
+        bulkEditProgressWorkCount,
         currentCookie,
         otherCookie,
         projectId,
@@ -496,6 +542,9 @@ serve({
         otherCookie,
         ...(tauriBearerToken ? { tauriBearerToken } : {}),
         ...(projectId ? { projectId } : {}),
+        ...(bulkEditProgressWorkCount
+          ? { workCount: bulkEditProgressWorkCount }
+          : {}),
         ...(usedInSourceProjectId && usedInSourceWorkId
           ? { usedInSourceProjectId, usedInSourceWorkId }
           : {}),

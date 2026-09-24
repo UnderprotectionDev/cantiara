@@ -73,7 +73,10 @@ test("previews and applies a status change only to selected Work", async ({
     .selectOption("In Progress");
   await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
 
-  const preview = bulkEdit.getByRole("region", { name: "Preview" });
+  const preview = bulkEdit.getByRole("region", {
+    exact: true,
+    name: "Preview",
+  });
   await expect(preview).toContainText("Selected Work");
   await expect(preview).toContainText("Not Started");
   await expect(preview).toContainText("In Progress");
@@ -246,6 +249,158 @@ test("shows a stale Work conflict without hiding other selected results", async 
   await concurrentPage.close();
 });
 
+test("shows virtualized results for a large Work selection", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=bulk-edit-large-progress`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+    workCount: number;
+  };
+  expect(setup.workCount).toBeGreaterThan(128);
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto(`/projects/${setup.projectId}`);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+
+  const workRows = page.locator('ul[aria-label="Work list"] > li');
+  await expect(workRows).toHaveCount(setup.workCount, { timeout: 30_000 });
+  const workCheckboxes = await workRows.getByRole("checkbox").all();
+  await workCheckboxes.reduce(
+    (previousCheck, checkbox) => previousCheck.then(() => checkbox.check()),
+    Promise.resolve(),
+  );
+  await expect(
+    page.getByText(`${setup.workCount} selected`, { exact: true }),
+  ).toBeVisible();
+
+  let releaseStatusWrite: () => void = () => undefined;
+  let statusWriteCalls = 0;
+  const statusWriteGate = new Promise<void>((resolve) => {
+    releaseStatusWrite = resolve;
+  });
+  await page.route("**/rpc/updateWorkStatus", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    statusWriteCalls += 1;
+    await statusWriteGate;
+    await route.continue();
+  });
+
+  await page.getByRole("button", { name: "Bulk Edit" }).click();
+
+  const bulkEdit = page.getByRole("dialog", { name: "Bulk Edit" });
+  await bulkEdit
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("In Progress");
+  await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
+
+  const preview = bulkEdit.getByRole("region", {
+    exact: true,
+    name: "Preview",
+  });
+  const previewRecords = preview.getByRole("region", {
+    name: "Bulk Edit preview records",
+  });
+  const previewList = previewRecords.getByRole("list", {
+    name: "Bulk Edit preview records",
+  });
+  expect(await previewList.locator("li").count()).toBeLessThan(setup.workCount);
+  await previewRecords.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const lastPreviewRecord = previewList.locator(
+    `li[aria-posinset="${setup.workCount}"]`,
+  );
+  await expect(lastPreviewRecord).toContainText("Bulk Progress 130");
+
+  await bulkEdit
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("Not Started");
+  await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
+  await page.evaluate(() => performance.mark("bulk-edit-apply-start"));
+  const applyButton = bulkEdit.getByRole("button", {
+    name: "Apply",
+    exact: true,
+  });
+  await applyButton.evaluate((button) => {
+    button.addEventListener(
+      "click",
+      () => {
+        const cancelAfterFirstProgressBatch = () => {
+          window.setTimeout(() => {
+            const progressElement = document.querySelector<HTMLProgressElement>(
+              'progress[aria-label="Progress"]',
+            );
+            if (!progressElement || progressElement.value < 16) {
+              cancelAfterFirstProgressBatch();
+              return;
+            }
+            if (progressElement.value > 64) {
+              return;
+            }
+            const cancelButton = [...document.querySelectorAll("button")].find(
+              (candidate) => candidate.textContent?.trim() === "Cancel",
+            );
+            cancelButton?.click();
+          }, 0);
+        };
+        cancelAfterFirstProgressBatch();
+      },
+      { once: true },
+    );
+  });
+  await applyButton.click();
+
+  const progress = bulkEdit.getByRole("progressbar", { name: "Progress" });
+  try {
+    await expect(progress).toBeVisible({ timeout: 1000 });
+    await page.evaluate(() => performance.mark("bulk-edit-progress-visible"));
+    const firstProgressDuration = await page.evaluate(
+      () =>
+        performance.measure(
+          "bulk-edit-first-progress",
+          "bulk-edit-apply-start",
+          "bulk-edit-progress-visible",
+        ).duration,
+    );
+    expect(firstProgressDuration).toBeLessThanOrEqual(1000);
+    await expect(progress).toHaveAttribute("value", String(setup.workCount), {
+      timeout: 5000,
+    });
+    expect(statusWriteCalls).toBe(0);
+  } finally {
+    releaseStatusWrite();
+  }
+
+  const resultsRegion = bulkEdit.getByRole("region", {
+    name: "Bulk Edit results",
+  });
+  const results = bulkEdit.getByRole("list", { name: "Bulk Edit results" });
+  expect(await results.locator("li").count()).toBeLessThan(setup.workCount);
+  await resultsRegion.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const lastResult = results.locator(`li[aria-posinset="${setup.workCount}"]`);
+  await expect(lastResult).toContainText("Canceled");
+  await expect(lastResult).toHaveAttribute(
+    "aria-setsize",
+    String(setup.workCount),
+  );
+});
+
 test("collects a closure result when Bulk Edit closes selected Work", async ({
   context,
   page,
@@ -288,9 +443,9 @@ test("collects a closure result when Bulk Edit closes selected Work", async ({
     .selectOption("Closed");
   await expect(bulkEdit.getByLabel("Closure result")).toBeVisible();
   await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
-  await expect(bulkEdit.getByRole("region", { name: "Preview" })).toContainText(
-    "Completed",
-  );
+  await expect(
+    bulkEdit.getByRole("region", { exact: true, name: "Preview" }),
+  ).toContainText("Completed");
   await expect(workStatusControl(work)).toHaveValue("Not Started");
 
   await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();

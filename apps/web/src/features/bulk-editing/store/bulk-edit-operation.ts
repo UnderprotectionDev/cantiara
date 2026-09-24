@@ -39,7 +39,73 @@ export interface BulkEditOperation {
   phase: "applying" | "complete" | "finalizing";
   preview: BulkEditPreview;
   projectId: string;
-  results: Array<BulkEditResult | null>;
+  resultPages: readonly (readonly BulkEditResult[])[];
+}
+
+const BULK_EDIT_RESULT_PAGE_SIZE = 128;
+
+function appendBulkEditResults(
+  pages: BulkEditOperation["resultPages"],
+  results: readonly BulkEditResult[],
+): BulkEditOperation["resultPages"] {
+  if (results.length === 0) {
+    return pages;
+  }
+
+  const nextPages = [...pages];
+  let nextPage = [...(nextPages.pop() ?? [])];
+  for (const result of results) {
+    if (nextPage.length === BULK_EDIT_RESULT_PAGE_SIZE) {
+      nextPages.push(nextPage);
+      nextPage = [];
+    }
+    nextPage.push(result);
+  }
+  nextPages.push(nextPage);
+  return nextPages;
+}
+
+export function bulkEditResultAt(
+  pages: BulkEditOperation["resultPages"],
+  index: number,
+) {
+  return pages[Math.floor(index / BULK_EDIT_RESULT_PAGE_SIZE)]?.[
+    index % BULK_EDIT_RESULT_PAGE_SIZE
+  ];
+}
+
+export function findBulkEditResultIndex(
+  pages: BulkEditOperation["resultPages"],
+  workId: string,
+) {
+  let resultIndex = 0;
+  for (const page of pages) {
+    const indexInPage = page.findIndex((result) => result.workId === workId);
+    if (indexInPage !== -1) {
+      return resultIndex + indexInPage;
+    }
+    resultIndex += page.length;
+  }
+  return null;
+}
+
+export function updateBulkEditResultAt(
+  pages: BulkEditOperation["resultPages"],
+  index: number,
+  update: (result: BulkEditResult) => BulkEditResult,
+): BulkEditOperation["resultPages"] {
+  const pageIndex = Math.floor(index / BULK_EDIT_RESULT_PAGE_SIZE);
+  const indexInPage = index % BULK_EDIT_RESULT_PAGE_SIZE;
+  const currentPage = pages[pageIndex];
+  const currentResult = currentPage?.[indexInPage];
+  if (!(currentPage && currentResult)) {
+    return pages;
+  }
+  const nextPages = [...pages];
+  const nextPage = [...currentPage];
+  nextPage[indexInPage] = update(currentResult);
+  nextPages[pageIndex] = nextPage;
+  return nextPages;
 }
 
 interface BulkEditStoreState {
@@ -53,7 +119,7 @@ export const bulkEditOperationStore = createStore<BulkEditStoreState>({
 export function startBulkEditOperation(
   operation: Omit<
     BulkEditOperation,
-    "completed" | "nextRecordIndex" | "results"
+    "completed" | "nextRecordIndex" | "resultPages"
   >,
 ) {
   bulkEditOperationStore.setState((state) => ({
@@ -63,7 +129,7 @@ export function startBulkEditOperation(
         ...operation,
         completed: 0,
         nextRecordIndex: 0,
-        results: operation.preview.records.map(() => null),
+        resultPages: [],
       },
     ],
   }));
@@ -95,20 +161,12 @@ export function claimBulkEditRecord(id: string) {
   return claimedIndex;
 }
 
-export function recordBulkEditResult(
-  id: string,
-  index: number,
-  result: BulkEditResult,
-) {
-  updateBulkEditOperation(id, (operation) => {
-    const results = [...operation.results];
-    results[index] = result;
-    return {
-      ...operation,
-      completed: results.filter((candidate) => candidate !== null).length,
-      results,
-    };
-  });
+export function recordBulkEditResult(id: string, result: BulkEditResult) {
+  updateBulkEditOperation(id, (operation) => ({
+    ...operation,
+    completed: operation.completed + 1,
+    resultPages: appendBulkEditResults(operation.resultPages, [result]),
+  }));
 }
 
 export function cancelBulkEditOperation(id: string) {
@@ -116,18 +174,19 @@ export function cancelBulkEditOperation(id: string) {
     if (operation.phase !== "applying") {
       return operation;
     }
-    const results = [...operation.results];
+    const { nextRecordIndex, preview } = operation;
+    const canceledResults: BulkEditResult[] = [];
     for (
-      let index = operation.nextRecordIndex;
-      index < operation.preview.records.length;
+      let index = nextRecordIndex;
+      index < preview.records.length;
       index += 1
     ) {
-      const record = operation.preview.records[index];
+      const record = preview.records[index];
       if (!record) {
         continue;
       }
-      results[index] =
-        record.work.status === operation.preview.targetStatus
+      const result: BulkEditResult =
+        record.work.status === preview.targetStatus
           ? {
               key: record.work.key,
               status: "Succeeded",
@@ -138,12 +197,16 @@ export function cancelBulkEditOperation(id: string) {
               status: "Canceled",
               workId: record.work.id,
             };
+      canceledResults.push(result);
     }
     return {
       ...operation,
-      completed: results.filter((candidate) => candidate !== null).length,
+      completed: operation.completed + canceledResults.length,
       phase: "finalizing",
-      results,
+      resultPages: appendBulkEditResults(
+        operation.resultPages,
+        canceledResults,
+      ),
     };
   });
 }

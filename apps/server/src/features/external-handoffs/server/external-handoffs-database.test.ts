@@ -361,39 +361,19 @@ describeDatabase("External Execution Handoff seam", () => {
       }),
     ).rejects.toMatchObject({ code: "EXTERNAL_HANDOFF_TERMINAL" });
     const history = await handoffs.listHistory(accountId, workId);
-    const historyEvents = history?.map(({ eventType, handoffId }) => ({
-      eventType,
-      handoffId,
-    }));
-    expect(historyEvents).toHaveLength(6);
-    expect(historyEvents).toEqual(
-      expect.arrayContaining([
-        {
-          eventType: "external-execution-handoff-started",
-          handoffId: "handoff-1",
-        },
-        {
-          eventType: "external-execution-handoff-package-produced",
-          handoffId: "handoff-1",
-        },
-        {
-          eventType: "external-execution-handoff-canceled",
-          handoffId: "handoff-1",
-        },
-        {
-          eventType: "external-execution-handoff-started",
-          handoffId: "handoff-2",
-        },
-        {
-          eventType: "external-execution-handoff-package-produced",
-          handoffId: "handoff-2",
-        },
-        {
-          eventType: "external-execution-handoff-canceled",
-          handoffId: "handoff-2",
-        },
-      ]),
-    );
+    expect(history).toHaveLength(6);
+    const handoffEventTypes = (handoffId: string) =>
+      history
+        ?.filter((event) => event.handoffId === handoffId)
+        .map((event) => event.eventType)
+        .sort();
+    const expectedHandoffEventTypes = [
+      "external-execution-handoff-canceled",
+      "external-execution-handoff-package-produced",
+      "external-execution-handoff-started",
+    ];
+    expect(handoffEventTypes("handoff-1")).toEqual(expectedHandoffEventTypes);
+    expect(handoffEventTypes("handoff-2")).toEqual(expectedHandoffEventTypes);
     const cancellationEvents =
       history?.filter(
         (event) => event.eventType === "external-execution-handoff-canceled",

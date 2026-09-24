@@ -27,8 +27,9 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
-import { useMemo, useState } from "react";
+import { useSelector, useStore } from "@tanstack/react-store";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useRef, useState } from "react";
 import type { UserInitiatedWorkCloseOutcome } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import {
@@ -39,42 +40,58 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import type { BulkWorkSelection } from "../../hooks/use-bulk-work-selection";
 import {
   type BulkEditOperation,
   type BulkEditPreview,
   type BulkEditRecordSnapshot,
   type BulkEditResult,
   bulkEditOperationStore,
+  bulkEditResultAt,
   cancelBulkEditOperation,
   claimBulkEditRecord,
   completeBulkEditOperation,
+  findBulkEditResultIndex,
   recordBulkEditResult,
   removeBulkEditOperation,
   startBulkEditOperation,
   updateBulkEditOperation,
+  updateBulkEditResultAt,
 } from "../../store/bulk-edit-operation";
 
 const BULK_EDIT_CONCURRENCY = 4;
+const BULK_EDIT_WORKER_YIELD_INTERVAL = 16;
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
 
 interface WorkSelectionCheckboxProps {
-  checked: boolean;
   disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  selection: BulkWorkSelection;
+  workId: string;
   workKey: string;
 }
 
 export function WorkSelectionCheckbox({
-  checked,
+  selection,
+  workId,
   disabled = false,
-  onCheckedChange,
   workKey,
 }: WorkSelectionCheckboxProps) {
+  const checked = useSelector(selection.store, (state) =>
+    state.selectedWorkIds.has(workId),
+  );
   return (
     <Checkbox
       aria-label={`Select ${workKey}`}
       checked={checked}
       disabled={disabled}
-      onCheckedChange={(nextChecked) => onCheckedChange(nextChecked === true)}
+      onCheckedChange={(nextChecked) =>
+        selection.setWorkSelected(workId, nextChecked === true)
+      }
     />
   );
 }
@@ -97,13 +114,6 @@ function changedPreviewRecords(preview: BulkEditPreview | null) {
     preview?.records.filter(
       ({ work }) => work.status !== preview.targetStatus,
     ) ?? []
-  );
-}
-
-function previewHasClosureWarnings(preview: BulkEditPreview | null) {
-  return changedPreviewRecords(preview).some(
-    ({ closePreview }) =>
-      closePreview !== null && hasClosureWarnings(closePreview),
   );
 }
 
@@ -298,7 +308,7 @@ async function runBulkEditOperation({
   projectId: string;
   queryClient: QueryClient;
 }) {
-  async function applyNextRecord(): Promise<void> {
+  async function applyNextRecord(recordsSinceYield = 0): Promise<void> {
     const recordIndex = claimBulkEditRecord(operationId);
     if (recordIndex === null) {
       return;
@@ -311,14 +321,14 @@ async function runBulkEditOperation({
           preview,
           onCloseOutcome,
         );
-        recordBulkEditResult(operationId, recordIndex, {
+        recordBulkEditResult(operationId, {
           key: record.work.key,
           ...(receiptId ? { receiptId } : {}),
           status: "Succeeded",
           workId: record.work.id,
         });
       } catch (error) {
-        recordBulkEditResult(operationId, recordIndex, {
+        recordBulkEditResult(operationId, {
           failure: buildSupportReferenceFailure(error, { kind: "mutation" }),
           key: record.work.key,
           status: "Failed",
@@ -326,10 +336,15 @@ async function runBulkEditOperation({
         });
       }
     }
-    await applyNextRecord();
+    if (recordsSinceYield + 1 === BULK_EDIT_WORKER_YIELD_INTERVAL) {
+      await yieldToBrowser();
+      return applyNextRecord();
+    }
+    return applyNextRecord(recordsSinceYield + 1);
   }
 
   try {
+    await yieldToBrowser();
     await Promise.all(
       Array.from(
         { length: Math.min(BULK_EDIT_CONCURRENCY, preview.records.length) },
@@ -354,26 +369,33 @@ async function undoBulkEditResult(
   if (!result.receiptId) {
     return;
   }
-  const recordIndex = operation.preview.records.findIndex(
-    ({ work }) => work.id === result.workId,
+  const resultIndex = findBulkEditResultIndex(
+    operation.resultPages,
+    result.workId,
   );
-  if (recordIndex < 0) {
+  if (resultIndex === null) {
     return;
   }
-  updateBulkEditOperation(operation.id, (current) => {
-    const nextResults = [...current.results];
-    const currentResult = nextResults[recordIndex];
-    if (!currentResult) {
-      return current;
-    }
-    nextResults[recordIndex] = {
-      ...currentResult,
-      undoError: undefined,
-      undoAttempts: (currentResult.undoAttempts ?? 0) + 1,
-      undoing: true,
-    };
-    return { ...current, results: nextResults };
-  });
+  const updateResult = (
+    update: (candidate: BulkEditResult) => BulkEditResult,
+  ) => {
+    updateBulkEditOperation(operation.id, (current) => {
+      const resultPages = updateBulkEditResultAt(
+        current.resultPages,
+        resultIndex,
+        update,
+      );
+      return resultPages === current.resultPages
+        ? current
+        : { ...current, resultPages };
+    });
+  };
+  updateResult((candidate) => ({
+    ...candidate,
+    undoError: undefined,
+    undoAttempts: (candidate.undoAttempts ?? 0) + 1,
+    undoing: true,
+  }));
   try {
     const currentWork = await client.work({ workId: result.workId });
     await runOnlineOnlyWrite(() =>
@@ -389,37 +411,20 @@ async function undoBulkEditResult(
       projectId: operation.projectId,
       records: operation.preview.records,
     });
-    updateBulkEditOperation(operation.id, (current) => {
-      const nextResults = [...current.results];
-      const currentResult = nextResults[recordIndex];
-      if (!currentResult) {
-        return current;
-      }
-      nextResults[recordIndex] = {
-        key: currentResult.key,
-        status: "Undone",
-        workId: currentResult.workId,
-      };
-      return { ...current, results: nextResults };
-    });
+    updateResult((candidate) => ({
+      key: candidate.key,
+      status: "Undone",
+      workId: candidate.workId,
+    }));
   } catch (error) {
-    updateBulkEditOperation(operation.id, (current) => {
-      const nextResults = [...current.results];
-      const currentResult = nextResults[recordIndex];
-      if (!currentResult) {
-        return current;
-      }
-      const failure = buildSupportReferenceFailure(error, {
+    updateResult((candidate) => ({
+      ...candidate,
+      undoError: buildSupportReferenceFailure(error, {
         kind: "mutation",
-        retryCount: Math.max(0, (currentResult.undoAttempts ?? 1) - 1),
-      });
-      nextResults[recordIndex] = {
-        ...currentResult,
-        undoError: failure,
-        undoing: false,
-      };
-      return { ...current, results: nextResults };
-    });
+        retryCount: Math.max(0, (candidate.undoAttempts ?? 1) - 1),
+      }),
+      undoing: false,
+    }));
   }
 }
 
@@ -504,20 +509,28 @@ function BulkEditStatusFields({
 }
 
 function BulkEditPreviewSection({
+  changedRecords,
   preview,
   needsRefresh,
   workStatusLabels,
 }: {
+  changedRecords: readonly BulkEditRecordSnapshot[];
   needsRefresh: boolean;
   preview: BulkEditPreview | null;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const previewListRef = useRef<HTMLElement>(null);
+  const virtualizer = useVirtualizer({
+    count: changedRecords.length,
+    estimateSize: () => 56,
+    gap: 8,
+    getScrollElement: () => previewListRef.current,
+    overscan: 4,
+    useFlushSync: false,
+  });
   if (!preview) {
     return null;
   }
-  const changedRecords = preview.records.filter(
-    ({ work }) => work.status !== preview.targetStatus,
-  );
   return (
     <section aria-label="Preview" className="space-y-3">
       <h3 className="font-medium text-sm">Preview</h3>
@@ -529,37 +542,67 @@ function BulkEditPreviewSection({
       {changedRecords.length === 0 ? (
         <p className="text-muted-foreground text-xs">No changes to apply.</p>
       ) : (
-        <ul className="max-h-64 space-y-2 overflow-y-auto rounded-md border p-3">
-          {changedRecords.map(({ closePreview, work }) => (
-            <li className="space-y-1 text-xs" key={work.id}>
-              <p className="font-medium">
-                {work.key} · {work.title}
-              </p>
-              <p className="text-muted-foreground">
-                {getWorkStatusLabel(work.status, workStatusLabels)} →{" "}
-                {getWorkStatusLabel(preview.targetStatus, workStatusLabels)}
-              </p>
-              {preview.targetStatus === "Closed" ? (
-                <p>Closure result: {preview.closureResult}</p>
-              ) : null}
-              {closePreview && hasClosureWarnings(closePreview) ? (
-                <div className="space-y-1 border-amber-500/50 border-l-2 pl-2">
-                  <p className="font-medium">Closure check</p>
-                  <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
-                    {closePreview.closureCheck.incompleteChecklistItems.map(
-                      (item) => (
-                        <li key={item.id}>{item.label}</li>
-                      ),
-                    )}
-                    {closePreview.closureCheck.activeBlockers.map((item) => (
-                      <li key={item.id}>{item.label}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        // biome-ignore-start lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this preview region.
+        <section
+          aria-label="Bulk Edit preview records"
+          className="max-h-64 overflow-y-auto rounded-md border p-3"
+          ref={previewListRef}
+          tabIndex={0}
+        >
+          <ul
+            aria-label="Bulk Edit preview records"
+            className="relative w-full"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const record = changedRecords[virtualItem.index];
+              if (!record) {
+                return null;
+              }
+              const { closePreview, work } = record;
+              return (
+                <li
+                  aria-posinset={virtualItem.index + 1}
+                  aria-setsize={changedRecords.length}
+                  className="absolute top-0 left-0 w-full space-y-1 text-xs"
+                  data-index={virtualItem.index}
+                  key={work.id}
+                  ref={virtualizer.measureElement}
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  <p className="font-medium">
+                    {work.key} · {work.title}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {getWorkStatusLabel(work.status, workStatusLabels)} →{" "}
+                    {getWorkStatusLabel(preview.targetStatus, workStatusLabels)}
+                  </p>
+                  {preview.targetStatus === "Closed" ? (
+                    <p>Closure result: {preview.closureResult}</p>
+                  ) : null}
+                  {closePreview && hasClosureWarnings(closePreview) ? (
+                    <div className="space-y-1 border-amber-500/50 border-l-2 pl-2">
+                      <p className="font-medium">Closure check</p>
+                      <ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+                        {closePreview.closureCheck.incompleteChecklistItems.map(
+                          (item) => (
+                            <li key={item.id}>{item.label}</li>
+                          ),
+                        )}
+                        {closePreview.closureCheck.activeBlockers.map(
+                          (item) => (
+                            <li key={item.id}>{item.label}</li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+        // biome-ignore-end lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this preview region.
       )}
     </section>
   );
@@ -569,31 +612,52 @@ function BulkEditProgressSection({
   operation,
   progress,
   queryClient,
-  results,
   connection,
 }: {
   connection: ReturnType<typeof useClientShellConnection>;
   operation: BulkEditOperation | undefined;
   progress: { completed: number; total: number } | null;
   queryClient: QueryClient;
-  results: BulkEditResult[] | null;
 }) {
-  if (!progress) {
-    return null;
-  }
-  return (
-    <>
-      <div aria-label="Progress" className="space-y-2" role="status">
-        <p className="font-medium">Progress</p>
-        <progress
-          aria-label="Progress"
-          className="w-full accent-primary"
-          max={progress.total}
-          value={progress.completed}
-        />
-        <ul aria-label="Bulk Edit results" className="space-y-1">
-          {results?.map((result) => (
-            <li className="space-y-1 text-xs" key={result.workId}>
+  const resultListRef = useRef<HTMLDivElement>(null);
+  const resultCount = operation?.completed ?? 0;
+  const resultPages = operation?.resultPages ?? [];
+  const virtualizer = useVirtualizer({
+    count: resultCount,
+    estimateSize: () => 56,
+    gap: 4,
+    getScrollElement: () => resultListRef.current,
+    overscan: 4,
+    useFlushSync: false,
+  });
+  // biome-ignore-start lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this results region.
+  const resultsList = (
+    <section
+      aria-label="Bulk Edit results"
+      className="max-h-64 overflow-y-auto rounded-md border p-3"
+      ref={resultListRef}
+      tabIndex={0}
+    >
+      <ul
+        aria-label="Bulk Edit results"
+        className="relative w-full"
+        style={{ height: virtualizer.getTotalSize() }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const result = bulkEditResultAt(resultPages, virtualItem.index);
+          if (!result) {
+            return null;
+          }
+          return (
+            <li
+              aria-posinset={virtualItem.index + 1}
+              aria-setsize={resultCount}
+              className="absolute top-0 left-0 w-full space-y-1 text-xs"
+              data-index={virtualItem.index}
+              key={result.workId}
+              ref={virtualizer.measureElement}
+              style={{ transform: `translateY(${virtualItem.start}px)` }}
+            >
               <p>
                 <span className="font-medium">{result.key}</span>:{" "}
                 {result.status}
@@ -629,8 +693,27 @@ function BulkEditProgressSection({
                 </Button>
               ) : null}
             </li>
-          ))}
-        </ul>
+          );
+        })}
+      </ul>
+    </section>
+  );
+  // biome-ignore-end lint/a11y/noNoninteractiveTabindex: Keyboard users need to focus and scroll this results region.
+
+  if (!progress) {
+    return null;
+  }
+  return (
+    <>
+      <div aria-label="Progress" className="space-y-2" role="status">
+        <p className="font-medium">Progress</p>
+        <progress
+          aria-label="Progress"
+          className="w-full accent-primary"
+          max={progress.total}
+          value={progress.completed}
+        />
+        {resultsList}
       </div>
       {operation?.phase === "finalizing" ? (
         <p className="font-medium text-sm" role="status">
@@ -700,18 +783,12 @@ export default function BulkEditDialog({
     completed: number;
     total: number;
   } | null>(null);
-  const [results, setResults] = useState<BulkEditResult[] | null>(null);
   const displayedTargetStatus = operation?.preview.targetStatus ?? targetStatus;
   const displayedClosureResult =
     operation?.preview.closureResult ?? closureResult;
   const displayedClosureReason =
     operation?.preview.closureReason ?? closureReason;
   const displayedPreview = operation?.preview ?? preview;
-  const displayedResults = operation
-    ? operation.results.filter(
-        (result): result is BulkEditResult => result !== null,
-      )
-    : results;
   const displayedProgress = operation
     ? {
         completed: operation.completed,
@@ -730,8 +807,18 @@ export default function BulkEditDialog({
     preview,
     targetStatus,
   });
-  const changedRecords = changedPreviewRecords(displayedPreview);
-  const hasWarnings = previewHasClosureWarnings(displayedPreview);
+  const changedRecords = useMemo(
+    () => changedPreviewRecords(displayedPreview),
+    [displayedPreview],
+  );
+  const hasWarnings = useMemo(
+    () =>
+      changedRecords.some(
+        ({ closePreview }) =>
+          closePreview !== null && hasClosureWarnings(closePreview),
+      ),
+    [changedRecords],
+  );
 
   function resetForm() {
     setTargetStatus("");
@@ -740,7 +827,6 @@ export default function BulkEditDialog({
     setPreview(null);
     setPreviewError(null);
     setProgress(null);
-    setResults(null);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -753,7 +839,6 @@ export default function BulkEditDialog({
     }
     setPreviewError(null);
     setIsPreviewing(true);
-    setResults(null);
     setProgress(null);
     try {
       setPreview(
@@ -783,7 +868,6 @@ export default function BulkEditDialog({
     const previewToApply = preview;
     const operationId = crypto.randomUUID();
     setPreviewError(null);
-    setResults([]);
     setProgress({ completed: 0, total: previewToApply.records.length });
     startBulkEditOperation({
       archived,
@@ -806,19 +890,16 @@ export default function BulkEditDialog({
     setTargetStatus(status);
     setPreviewError(null);
     setProgress(null);
-    setResults(null);
   }
 
   function changeClosureResult(result: WorkClosureResult) {
     setClosureResult(result);
     setProgress(null);
-    setResults(null);
   }
 
   function changeClosureReason(reason: string) {
     setClosureReason(reason);
     setProgress(null);
-    setResults(null);
   }
 
   return (
@@ -851,9 +932,8 @@ export default function BulkEditDialog({
         />
 
         <BulkEditPreviewSection
-          needsRefresh={
-            displayedResults === null && !previewMatchesCurrentInput
-          }
+          changedRecords={changedRecords}
+          needsRefresh={operation === undefined && !previewMatchesCurrentInput}
           preview={displayedPreview}
           workStatusLabels={workStatusLabels}
         />
@@ -872,7 +952,6 @@ export default function BulkEditDialog({
           operation={operation}
           progress={displayedProgress}
           queryClient={queryClient}
-          results={displayedResults}
         />
 
         <DialogFooter>
@@ -904,8 +983,7 @@ export default function BulkEditDialog({
                 operation !== undefined ||
                 isPreviewing ||
                 !previewMatchesCurrentInput ||
-                changedRecords.length === 0 ||
-                displayedResults !== null
+                changedRecords.length === 0
               }
               onClick={apply}
               type="button"
