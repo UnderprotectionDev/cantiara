@@ -486,17 +486,25 @@ describeDatabase("External Execution Handoff seam", () => {
     ).toEqual(beforeWork);
     expect(await database.select({ id: work.id }).from(work)).toHaveLength(1);
     await expect(listWorkRelations()).resolves.toEqual([]);
-    expect(await handoffs.listHistory(accountId, workId)).toEqual([
-      expect.objectContaining({
-        eventType: "external-execution-handoff-started",
-        handoffId: "handoff-return",
-      }),
-      expect.objectContaining({
-        eventType: "external-execution-handoff-return-recorded",
-        handoffId: "handoff-return",
-        occurredAt: "2026-09-23T12:30:00.000Z",
-      }),
-    ]);
+    const history = await handoffs.listHistory(accountId, workId);
+    expect(history).toHaveLength(3);
+    expect(history).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "external-execution-handoff-package-produced",
+          handoffId: "handoff-return",
+        }),
+        expect.objectContaining({
+          eventType: "external-execution-handoff-started",
+          handoffId: "handoff-return",
+        }),
+        expect.objectContaining({
+          eventType: "external-execution-handoff-return-recorded",
+          handoffId: "handoff-return",
+          occurredAt: "2026-09-23T12:30:00.000Z",
+        }),
+      ]),
+    );
   });
 
   test("rejects owner, archived, and cross-Project relation targets", async () => {
@@ -723,13 +731,24 @@ describeDatabase("External Execution Handoff seam", () => {
         .from(work)
         .where(eq(work.projectId, projectId)),
     ).toHaveLength(4);
-    await expect(listWorkRelations()).resolves.toMatchObject([
-      {
-        kind: "Related",
-        source: { recordId: workId },
-        target: { recordId: "related-work-a" },
-      },
-    ]);
+    const relations = await listWorkRelations();
+    expect(relations).toHaveLength(2);
+    expect(relations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          direction: "incoming",
+          kind: "Origin",
+          source: expect.objectContaining({ recordId: expect.any(String) }),
+          target: expect.objectContaining({ recordId: workId }),
+        }),
+        expect.objectContaining({
+          direction: "outgoing",
+          kind: "Related",
+          source: expect.objectContaining({ recordId: workId }),
+          target: expect.objectContaining({ recordId: "related-work-a" }),
+        }),
+      ]),
+    );
     await expect(handoffs.list(accountId, workId)).resolves.toEqual([
       reconciled,
     ]);
