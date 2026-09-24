@@ -19,6 +19,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
+import { useSelector } from "@tanstack/react-store";
 import { useEffect, useRef, useState } from "react";
 import { useBulkWorkSelection } from "@/features/bulk-editing/hooks/use-bulk-work-selection";
 import BulkEditDialog, {
@@ -62,8 +63,7 @@ export default function ProjectWorkList({
   const activeHash = useLocation({ select: ({ hash }) => hash });
   const handledWorkHash = useRef<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const { clearSelection, selectedWorkIds, setWorkSelected } =
-    useBulkWorkSelection();
+  const bulkWorkSelection = useBulkWorkSelection();
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [lastMergeResult, setLastMergeResult] =
     useState<WorkMergeResult | null>(null);
@@ -81,8 +81,6 @@ export default function ProjectWorkList({
       input: { archived: "all", projectId },
     }),
   );
-  const selectedWorks =
-    query.data?.filter((work) => selectedWorkIds.has(work.id)) ?? [];
   useEffect(() => {
     if (!allProjectWorksQuery.data) {
       return;
@@ -188,24 +186,19 @@ export default function ProjectWorkList({
       <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-b pb-3">
         <h3 className="font-medium text-sm">Work records</h3>
         <div className="flex flex-wrap items-center gap-3">
-          {selectedWorks.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-xs">
-                {selectedWorks.length} selected
-              </span>
-              <Button
-                onClick={() => setIsBulkEditOpen(true)}
-                size="sm"
-                type="button"
-              >
-                Bulk Edit
-              </Button>
-            </div>
-          ) : null}
+          <BulkEditSelectionControls
+            archived={showArchived}
+            onOpenChange={setIsBulkEditOpen}
+            open={isBulkEditOpen}
+            projectId={projectId}
+            selection={bulkWorkSelection}
+            workItems={query.data}
+            workStatusLabels={workStatusLabels}
+          />
           <Button
             aria-pressed={showArchived}
             onClick={() => {
-              clearSelection();
+              bulkWorkSelection.clearSelection();
               setIsBulkEditOpen(false);
               setShowArchived((current) => !current);
             }}
@@ -259,10 +252,8 @@ export default function ProjectWorkList({
               <div className="flex min-w-0 items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <WorkSelectionCheckbox
-                    checked={selectedWorkIds.has(work.id)}
-                    onCheckedChange={(checked) =>
-                      setWorkSelected(work.id, checked)
-                    }
+                    selection={bulkWorkSelection}
+                    workId={work.id}
                     workKey={work.key}
                   />
                   <p className="min-w-0 font-medium text-sm">
@@ -356,16 +347,57 @@ export default function ProjectWorkList({
           ))}
         </ul>
       )}
+      <RecordActionRunDialog runner={recordActionRunner} />
+    </div>
+  );
+}
+
+function BulkEditSelectionControls({
+  archived,
+  onOpenChange,
+  open,
+  projectId,
+  selection,
+  workItems,
+  workStatusLabels,
+}: {
+  archived: boolean;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  projectId: string;
+  selection: ReturnType<typeof useBulkWorkSelection>;
+  workItems: readonly WorkProfile[];
+  workStatusLabels: readonly WorkStatusLabel[];
+}) {
+  const selectedWorkIds = useSelector(
+    selection.store,
+    (state) => state.selectedWorkIds,
+  );
+  const selectedWorks = workItems.filter((work) =>
+    selectedWorkIds.has(work.id),
+  );
+
+  return (
+    <>
+      {selectedWorks.length > 0 ? (
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">
+            {selectedWorks.length} selected
+          </span>
+          <Button onClick={() => onOpenChange(true)} size="sm" type="button">
+            Bulk Edit
+          </Button>
+        </div>
+      ) : null}
       <BulkEditDialog
-        archived={showArchived}
-        onOpenChange={setIsBulkEditOpen}
-        open={isBulkEditOpen}
+        archived={archived}
+        onOpenChange={onOpenChange}
+        open={open}
         projectId={projectId}
         selectedWorks={selectedWorks}
         workStatusLabels={workStatusLabels}
       />
-      <RecordActionRunDialog runner={recordActionRunner} />
-    </div>
+    </>
   );
 }
 

@@ -27,7 +27,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useStore } from "@tanstack/react-store";
+import { useSelector, useStore } from "@tanstack/react-store";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
@@ -39,6 +39,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import type { BulkWorkSelection } from "../../hooks/use-bulk-work-selection";
 import {
   type BulkEditOperation,
   type BulkEditPreview,
@@ -67,24 +68,29 @@ function yieldToBrowser() {
 }
 
 interface WorkSelectionCheckboxProps {
-  checked: boolean;
   disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  selection: BulkWorkSelection;
+  workId: string;
   workKey: string;
 }
 
 export function WorkSelectionCheckbox({
-  checked,
+  selection,
+  workId,
   disabled = false,
-  onCheckedChange,
   workKey,
 }: WorkSelectionCheckboxProps) {
+  const checked = useSelector(selection.store, (state) =>
+    state.selectedWorkIds.has(workId),
+  );
   return (
     <Checkbox
       aria-label={`Select ${workKey}`}
       checked={checked}
       disabled={disabled}
-      onCheckedChange={(nextChecked) => onCheckedChange(nextChecked === true)}
+      onCheckedChange={(nextChecked) =>
+        selection.setWorkSelected(workId, nextChecked === true)
+      }
     />
   );
 }

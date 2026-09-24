@@ -1,25 +1,39 @@
+import { createStore } from "@tanstack/react-store";
 import { useState } from "react";
 
-export function useBulkWorkSelection() {
-  const [selectedWorkIds, setSelectedWorkIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+function createBulkWorkSelection() {
+  const store = createStore({ selectedWorkIds: new Set<string>() });
 
   function setWorkSelected(workId: string, selected: boolean) {
-    setSelectedWorkIds((current) => {
-      const next = new Set(current);
-      if (selected) {
-        next.add(workId);
-      } else {
-        next.delete(workId);
+    store.setState((current) => {
+      if (current.selectedWorkIds.has(workId) === selected) {
+        return current;
       }
-      return next;
+
+      const selectedWorkIds = new Set(current.selectedWorkIds);
+      if (selected) {
+        selectedWorkIds.add(workId);
+      } else {
+        selectedWorkIds.delete(workId);
+      }
+      return { ...current, selectedWorkIds };
     });
   }
 
   function clearSelection() {
-    setSelectedWorkIds(new Set());
+    store.setState((current) =>
+      current.selectedWorkIds.size === 0
+        ? current
+        : { ...current, selectedWorkIds: new Set<string>() },
+    );
   }
 
-  return { clearSelection, selectedWorkIds, setWorkSelected };
+  return { clearSelection, setWorkSelected, store };
+}
+
+export type BulkWorkSelection = ReturnType<typeof createBulkWorkSelection>;
+
+export function useBulkWorkSelection() {
+  const [selection] = useState(createBulkWorkSelection);
+  return selection;
 }
