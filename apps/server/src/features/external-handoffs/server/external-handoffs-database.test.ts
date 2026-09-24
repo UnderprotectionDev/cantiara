@@ -20,12 +20,11 @@ import {
   expect,
   test,
 } from "vitest";
-
+import { createDatabaseRelations } from "../../relations/server/relations";
 import {
   createDatabaseExternalExecutionHandoffs,
   ExternalExecutionHandoffReconcileUnavailableError,
 } from "./external-handoffs-database";
-import { createDatabaseRelations } from "../../relations/server/relations";
 
 const databaseUrl =
   process.env.ACCOUNT_ACCESS_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -75,7 +74,7 @@ describeDatabase("External Execution Handoff seam", () => {
   const projectId = `project-${crypto.randomUUID()}`;
   const workId = `work-${crypto.randomUUID()}`;
 
-  async function listWorkRelations() {
+  function listWorkRelations() {
     if (!database) {
       throw new Error("DATABASE_URL is required");
     }

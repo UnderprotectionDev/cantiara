@@ -232,6 +232,8 @@ describe("External Execution Handoff", () => {
           packageMarkdown: "# External Execution Handoff\nFrozen package",
           packageProducedAt: "2026-09-23T11:00:00.000Z",
           purpose: "Make a coding pass",
+          reconcileDecision: null,
+          result: null,
           selectedWorkRevision: 3,
           status: "Result returned",
           workId: work.id,
@@ -283,6 +285,8 @@ describe("External Execution Handoff", () => {
           packageMarkdown: "# External Execution Handoff\nFrozen package",
           packageProducedAt: "2026-09-23T11:00:00.000Z",
           purpose: "Make a coding pass",
+          reconcileDecision: null,
+          result: null,
           selectedWorkRevision: 3,
           status: "Canceled",
           workId: work.id,
@@ -329,6 +333,7 @@ describe("External Execution Handoff", () => {
   test("shows returned details and explicit Work relation and follow-up previews", () => {
     const queryClient = new QueryClient();
     const handoff = {
+      cancellationReason: null,
       constraints: "Do not change the release scope.",
       createdAt: "2026-09-22T10:00:00.000Z",
       executor: "Build agent",

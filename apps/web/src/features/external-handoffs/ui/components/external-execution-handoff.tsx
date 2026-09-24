@@ -91,7 +91,6 @@ function HandoffHistory({
   );
 }
 
-
 function CancelHandoffForm({
   handoffId,
   onCancel,
@@ -901,7 +900,7 @@ function errorMessage(error: unknown) {
     : "This handoff could not be written.";
 }
 
-export default function ExternalExecutionHandoff({
+export default function ExternalExecutionHandoffPanel({
   defaultExpanded = false,
   work,
 }: {
