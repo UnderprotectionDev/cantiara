@@ -76,7 +76,7 @@ test("compares Work on the Priority Map without writing position or status", asy
   await addMetric("Customer value");
   await addMetric("Confidence");
   await addMetric("Effort estimate");
-  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await page.getByRole("button", { name: "Exit Configuration Mode" }).click();
 
   async function createWork(title: string) {
     await page.getByRole("link", { name: "Create", exact: true }).click();

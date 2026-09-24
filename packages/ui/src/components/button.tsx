@@ -44,9 +44,17 @@ function Button({
   size = "default",
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const targetSizeClass = size?.startsWith("icon")
+    ? "min-h-10 min-w-10"
+    : "min-h-10";
+
   return (
     <ButtonPrimitive
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(
+        buttonVariants({ variant, size }),
+        targetSizeClass,
+        className,
+      )}
       data-slot="button"
       {...props}
     />

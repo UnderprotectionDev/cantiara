@@ -69,6 +69,7 @@ export default function ProjectShortCodeForm({
         ) : (
           <Button
             aria-label="Save Short code"
+            className="min-w-10"
             disabled={
               isPending ||
               !shortCode.trim() ||

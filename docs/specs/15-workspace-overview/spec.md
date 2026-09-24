@@ -44,6 +44,8 @@ Kurucu tek Çalışma Alanındaki Projeleri ve kişisel dikkati dağılmış lis
 30. As a founder exporting later, I want the named list identity stable enough for an exact-view snapshot, so that portability can target it without this feature owning export.
 31. As a founder, I do not want user-defined Project health formulas on this overview, so that Manual Project Update remains the only dated health mark.
 32. As a founder, I want reordering modules not to write Project lifecycle, so that layout is not a planning membership.
+33. As a founder entering the Workspace, I want `Projects` to appear before the source-backed overview, so that I can get to a Project without scanning a second surface first.
+34. As a founder opening Cantiara at `/`, I want to enter the protected Workspace route, so that the app opens Projects or continues to Account Access instead of showing a developer status screen.
 
 ## Implementation Decisions
 
@@ -53,13 +55,14 @@ Kurucu tek Çalışma Alanındaki Projeleri ve kişisel dikkati dağılmış lis
 - **Personal layout.** Founder may show, hide, and reorder the four modules. They may add a limited number of existing Documents or named Smart Collection views as personal live blocks. Blocks are references, not copies, queries, membership rules, record sets, widgets, or analytics truth. Source changes appear in the block. `Open source record` opens the source. No user-defined general widget or free dashboard builder.
 - **Not other overviews.** This is the Workspace horizon. It does not replace Project Overview (08), the personal shell (72), or Smart Collections (34). Personal Wiki is not shown as a Project summary. Favorites and session Active Work Set are not this Recent Work module.
 - **Cross-Project lists.** Named lists filter Projects by lifecycle status, stage, date, archive, supported Project areas, and other already-visible conditions. Membership is live from conditions. No manual drag-on membership, Program/Portfolio record, Project score, or report truth. View may store supported columns, sort, and grouping. If last Manual Project Update health is used, show `Last reported health` with its date; do not invent a current Project health field, automatic health verdict, or dateless status badge.
+- **Workspace entry hierarchy.** `/projects` is the Workspace home: the Projects list comes first, followed by the source-backed Workspace overview. `/` routes to `/projects`; the protected route sends a visitor without a session through Account Access. The root does not expose developer or API diagnostics.
 - **Export consumer.** Exact-view CSV/PDF snapshot of a supported cross-Project list is owned by portability (PRD 13); this feature only needs a stable named view identity those exports can target later. Do not implement export here.
 - **English UI labels.** `Active Projects`, `Attention Required`, `Upcoming`, `Recent Work`, `Last reported health`, `Open source record`, `Saved lists`, `Save list`, `New list`. Add missing labels to the term table in the same change. No Turkish UI.
 - **Stack.** TanStack Router for the Workspace route, TanStack Query for derived summaries, TanStack Table for saved lists. No new dashboard framework.
 
 ## Testing Decisions
 
-- **What a good test is.** Tests observe Workspace Overview through its public interface: four modules, drill-down to exact sets, layout show/hide/reorder, live blocks, and named cross-Project lists. They assert derivation from source records and the absence of Portfolio membership, health scores, and Wiki-as-Project — not widget tree snapshots.
+- **What a good test is.** Tests observe Workspace Overview through its public interface: the Projects list precedes the Workspace overview on the Workspace home and remains available before its error message when overview data cannot load; `/` reaches the protected Workspace route and an unauthenticated visitor reaches Account Access; four modules, drill-down to exact sets, layout show/hide/reorder, live blocks, and named cross-Project lists. They assert derivation from source records and the absence of Portfolio membership, health scores, and Wiki-as-Project — not widget tree snapshots.
 - **Seam (one).** Workspace Overview — the product-facing Workspace horizon and saved cross-Project list interface. Playwright for the İlk Proje module clause is this seam through the UI.
 - **Modules under test.** Workspace Overview only. Project Overview, personal shell, Smart Collection authoring, and notification center are counterparts (“not this surface / this block is a reference”).
 - **Prior art.** Contract tests at this seam with fixture Projects in Active/Pending/Completed/Abandoned. Evidence: [İlk Proje](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) (`Gerçek proje` for the four-module opening; synthetic is allowed for list-condition counterparts).

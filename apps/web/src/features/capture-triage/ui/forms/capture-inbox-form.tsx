@@ -176,7 +176,7 @@ export default function CaptureInboxForm({
       aria-labelledby={showHeader ? "new-capture-title" : undefined}
       className={
         showHeader
-          ? "w-full space-y-6 rounded-lg border border-border/70 bg-card/45 p-5 shadow-sm sm:p-6"
+          ? "w-full space-y-6 border-border/70 border-y py-5"
           : "w-full space-y-6"
       }
     >
@@ -389,6 +389,7 @@ export default function CaptureInboxForm({
             return (
               <div className="flex flex-wrap items-center gap-3 border-t pt-5">
                 <Button
+                  className="min-h-11"
                   disabled={connection === "offline" || writePending}
                   type="submit"
                 >
@@ -396,6 +397,7 @@ export default function CaptureInboxForm({
                 </Button>
                 <Button
                   aria-describedby="create-bug-unavailable"
+                  className="min-h-11"
                   disabled={!canCreateBug || writePending}
                   onClick={handleCreateBug}
                   type="button"

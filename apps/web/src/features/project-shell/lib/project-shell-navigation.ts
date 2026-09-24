@@ -16,7 +16,7 @@ export type NavigationSurface =
   | ProjectArea;
 
 export const NAVIGATION_LINK_BASE =
-  "relative inline-flex min-w-max items-center rounded-md px-3 py-2 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full";
+  "relative inline-flex min-h-11 min-w-max items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full";
 
 export const CONFIGURATION_HOSTS = [
   {

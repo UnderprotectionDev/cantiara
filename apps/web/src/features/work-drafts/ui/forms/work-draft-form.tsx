@@ -475,12 +475,12 @@ function WorkCustomFields({
       className="space-y-4 border-border/70 border-t pt-5"
     >
       <div>
-        <h3
+        <h4
           className="font-medium text-foreground"
           id="work-draft-custom-fields-heading"
         >
           Custom fields
-        </h3>
+        </h4>
         <p className="mt-1 text-muted-foreground text-xs/relaxed">
           These fields come from this Project’s Work definitions.
         </p>
@@ -937,14 +937,19 @@ export default function WorkDraftForm({
   }
 
   return (
-    <div className="mt-4 space-y-6 border-t pt-4">
+    <section
+      aria-labelledby="work-draft-heading"
+      className="mt-4 space-y-6 border-t pt-4"
+    >
       <ClientShellStatus
         accountFormattingPreferences={accountFormattingPreferences}
         presentation="inline"
       />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h5 className="font-medium text-foreground">Draft</h5>
+          <h3 className="font-medium text-foreground" id="work-draft-heading">
+            Draft
+          </h3>
           <p className="mt-1 text-muted-foreground text-xs/relaxed">
             Changes save automatically while you are online. Create turns this
             Draft into one Work.
@@ -1093,11 +1098,11 @@ export default function WorkDraftForm({
         aria-labelledby="work-drafts-heading"
         className="border-border/70 border-t pt-5"
       >
-        <h6 className="font-medium text-foreground" id="work-drafts-heading">
+        <h3 className="font-medium text-foreground" id="work-drafts-heading">
           Drafts
-        </h6>
+        </h3>
         {draftsContent()}
       </section>
-    </div>
+    </section>
   );
 }

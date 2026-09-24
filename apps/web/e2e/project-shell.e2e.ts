@@ -1,3 +1,4 @@
+import { buildWorkspaceOverview } from "@cantiara/api/workspace-overview";
 import { expect, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
@@ -109,6 +110,50 @@ const STARTER_CONFIGURATION_CASES = [
   },
 ] as const;
 
+test("places Projects before a loaded Workspace overview", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=project-shell`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([setup.cookie]);
+
+  await page.route("**/rpc/workspaceOverview**", (route) =>
+    route.fulfill({
+      json: { json: buildWorkspaceOverview({ projects: [] }) },
+    }),
+  );
+  await page.goto("/projects");
+
+  const projectList = page.getByRole("region", { name: "Your Projects" });
+  const workspaceOverview = page.getByRole("region", {
+    name: "Workspace overview",
+  });
+  await expect(projectList).toBeVisible();
+  await expect(workspaceOverview).toBeVisible();
+  const projectListPrecedesOverview = await projectList.evaluate((list) => {
+    const overview = document.querySelector("#workspace-overview");
+    return Boolean(
+      overview &&
+        list.compareDocumentPosition(overview) ===
+          Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+  expect(projectListPrecedesOverview).toBe(true);
+  await expect(
+    workspaceOverview.getByRole("link", {
+      exact: true,
+      name: "Active Projects",
+    }),
+  ).toBeVisible();
+});
+
 test("creates Projects with suggested and Workspace-unique Short codes", async ({
   context,
   page,
@@ -148,12 +193,35 @@ test("creates Projects with suggested and Workspace-unique Short codes", async (
     "Open Source Library",
     "Mobile Application",
   ]);
+  await expect(page.getByLabel("Short code")).toHaveCount(0);
 
   await page.getByLabel("Project Name").fill("Payment App");
-  await expect(page.getByLabel("Short code")).toHaveValue("PAY");
   await page.getByRole("button", { name: "Create Project" }).click();
 
   await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Projects", level: 1 }),
+  ).toBeVisible();
+  const projectList = page.getByRole("region", { name: "Your Projects" });
+  const workspaceOverviewError = page
+    .getByRole("alert")
+    .filter({ hasText: "Workspace overview is unavailable." });
+  await expect(projectList).toBeVisible();
+  await expect(workspaceOverviewError).toBeVisible();
+  await expect(workspaceOverviewError).toContainText(
+    "Your Projects are still available above.",
+  );
+  const projectListPrecedesOverviewError = await projectList.evaluate(
+    (list) => {
+      const siblings = Array.from(list.parentElement?.children ?? []);
+      const projectListIndex = siblings.indexOf(list);
+      const overviewErrorIndex = siblings.findIndex(
+        (element) => element.getAttribute("role") === "alert",
+      );
+      return projectListIndex >= 0 && overviewErrorIndex > projectListIndex;
+    },
+  );
+  expect(projectListPrecedesOverviewError).toBe(true);
   await expect(page.getByText("Project Shell", { exact: true })).toHaveCount(0);
   const firstProject = page
     .getByRole("listitem")
@@ -180,7 +248,6 @@ test("creates Projects with suggested and Workspace-unique Short codes", async (
     name: "logo.png",
   });
   await page.getByLabel("Project Name").fill("Payment Reports");
-  await expect(page.getByLabel("Short code")).toHaveValue("PAY");
   await page.getByRole("button", { name: "Create Project" }).click();
 
   await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
@@ -251,7 +318,11 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
 
   await configurationMode.click();
   expect(configurationWrites()).toEqual([]);
-  await expect(configurationMode).toHaveAttribute("aria-pressed", "true");
+  const exitConfigurationMode = page.getByRole("button", {
+    name: "Exit Configuration Mode",
+    exact: true,
+  });
+  await expect(exitConfigurationMode).toHaveAttribute("aria-pressed", "true");
   const configurationRegion = page.locator(
     'section[aria-label="Configuration Mode"]',
   );
@@ -347,7 +418,7 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
     layoutHost.getByRole("button", { name: "Confirm" }),
   ).toBeDisabled();
 
-  await configurationMode.click();
+  await exitConfigurationMode.click();
   expect(configurationWrites()).toEqual([]);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(

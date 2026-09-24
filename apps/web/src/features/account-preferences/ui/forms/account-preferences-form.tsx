@@ -583,7 +583,7 @@ export default function AccountPreferencesForm({
             return (
               <section
                 aria-labelledby="account-preferences-preview"
-                className="rounded-lg border border-border/70 bg-card/45 p-5 shadow-sm lg:sticky lg:top-20 lg:row-span-2"
+                className="rounded-lg border border-border/70 bg-card/45 p-5 shadow-sm lg:sticky lg:top-4 lg:row-span-2"
               >
                 <div className="flex items-baseline justify-between gap-4">
                   <h2
@@ -652,6 +652,7 @@ export default function AccountPreferencesForm({
             ) : null}
           </div>
           <Button
+            className="min-h-11"
             disabled={savePreferences.isPending || !isOnline}
             type="submit"
           >

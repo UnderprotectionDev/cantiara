@@ -12,7 +12,7 @@ import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
-import { ArrowLeft, CircleHelp, Settings2 } from "lucide-react";
+import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
@@ -196,7 +196,7 @@ export default function ProjectShellSurface({
     <>
       <header className="surface-header">
         <Link
-          className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3`}
+          className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3 min-h-11`}
           to="/projects"
         >
           <ArrowLeft aria-hidden="true" />
@@ -238,12 +238,19 @@ export default function ProjectShellSurface({
           </div>
           <Button
             aria-pressed={configurationMode}
+            className="min-h-11"
             onClick={toggleConfigurationMode}
             type="button"
             variant={configurationMode ? "default" : "outline"}
           >
-            <Settings2 aria-hidden="true" />
-            Configuration Mode
+            {configurationMode ? (
+              <X aria-hidden="true" />
+            ) : (
+              <Settings2 aria-hidden="true" />
+            )}
+            {configurationMode
+              ? "Exit Configuration Mode"
+              : "Configuration Mode"}
           </Button>
         </div>
       </header>
@@ -328,9 +335,8 @@ function ProjectWorkSurface({
       id="work"
     >
       <header className="surface-header max-w-3xl">
-        <p className="surface-kicker">Work</p>
         <h2
-          className="mt-2 text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
+          className="text-balance font-semibold text-2xl tracking-tight"
           id="work-surface-heading"
         >
           Work
@@ -344,10 +350,10 @@ function ProjectWorkSurface({
       <nav aria-label="Work views" className="flex flex-wrap gap-2">
         <Link
           aria-current={activeHash === PRIORITY_MAP_HASH ? undefined : "page"}
-          className={buttonVariants({
+          className={`${buttonVariants({
             size: "sm",
             variant: activeHash === PRIORITY_MAP_HASH ? "ghost" : "secondary",
-          })}
+          })} min-h-10`}
           hash="work"
           params={{ projectId }}
           to="/projects/$projectId"
@@ -356,10 +362,10 @@ function ProjectWorkSurface({
         </Link>
         <Link
           aria-current={activeHash === PRIORITY_MAP_HASH ? "page" : undefined}
-          className={buttonVariants({
+          className={`${buttonVariants({
             size: "sm",
             variant: activeHash === PRIORITY_MAP_HASH ? "secondary" : "ghost",
-          })}
+          })} min-h-10`}
           hash={PRIORITY_MAP_HASH}
           params={{ projectId }}
           to="/projects/$projectId"
@@ -505,10 +511,10 @@ function DailyActionLink({
     <a
       {...linkProps}
       aria-current={activeAction === action ? "location" : undefined}
-      className={buttonVariants({
-        size: "xs",
+      className={`${buttonVariants({
+        size: "sm",
         variant: dailyActionVariant(action, activeAction),
-      })}
+      })} min-h-10`}
     >
       {action}
     </a>
@@ -587,7 +593,7 @@ function ProjectNavigation({
   );
 
   return (
-    <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
+    <aside className="min-w-0 lg:sticky lg:top-4 lg:self-start">
       <div className="mb-3 hidden px-2 lg:block">
         <p className="surface-kicker">Project navigation</p>
       </div>
@@ -622,7 +628,6 @@ function ProjectNavigation({
             activeSurface={activeSurface}
             hash={navigationHash(area)}
             key={area}
-            pinned
             surface={area}
           />
         ))}
@@ -634,12 +639,10 @@ function ProjectNavigation({
 function ProjectNavigationLink({
   activeSurface,
   hash,
-  pinned = false,
   surface,
 }: {
   activeSurface: NavigationSurface;
   hash: string;
-  pinned?: boolean;
   surface: NavigationSurface;
 }) {
   const isActive = activeSurface === surface;
@@ -653,7 +656,7 @@ function ProjectNavigationLink({
     <a
       {...linkProps}
       aria-current={isActive ? "location" : undefined}
-      className={`${NAVIGATION_LINK_BASE} ${pinned ? "border-l border-dashed" : "border-l-2 font-medium"} ${navigationLinkStateClass(isActive)}`}
+      className={`${NAVIGATION_LINK_BASE} ${navigationLinkStateClass(isActive)}`}
     >
       {surface}
     </a>
@@ -662,8 +665,8 @@ function ProjectNavigationLink({
 
 function navigationLinkStateClass(isActive: boolean) {
   return isActive
-    ? "border-primary bg-accent text-accent-foreground"
-    : "border-transparent text-muted-foreground hover:border-border hover:bg-muted/70 hover:text-foreground";
+    ? "bg-accent text-accent-foreground"
+    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground";
 }
 
 function ConfigurationList({

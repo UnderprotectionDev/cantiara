@@ -43,13 +43,6 @@ import SavedProjectLists, {
 const MAX_LIVE_BLOCKS = 4;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-const moduleAccentClasses: Record<WorkspaceOverviewModuleId, string> = {
-  "active-projects": "border-l-sky-500",
-  "attention-required": "border-l-amber-500",
-  "recent-work": "border-l-violet-500",
-  upcoming: "border-l-emerald-500",
-};
-
 function sourceCountLabel(count: number) {
   return `${count} ${count === 1 ? "source record" : "source records"}`;
 }
@@ -94,7 +87,10 @@ function sourceRecordList(
   return (
     <ul className="divide-y divide-border/70">
       {records.map((record) => (
-        <li className="flex gap-4 px-5 py-4" key={record.id}>
+        <li
+          className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-border/60 border-t py-3 first:border-t-0"
+          key={record.id}
+        >
           <div className="min-w-0 flex-1">
             <a
               className="font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
@@ -119,7 +115,7 @@ function sourceRecordList(
   );
 }
 
-function OverviewModuleCard({
+function OverviewModuleSection({
   formattingPreferences,
   module,
 }: {
@@ -131,17 +127,14 @@ function OverviewModuleCard({
   return (
     <section
       aria-labelledby={`workspace-overview-module-${module.id}`}
-      className={cn(
-        "overflow-hidden rounded-lg border border-border/70 border-l-4 bg-card/55",
-        moduleAccentClasses[module.id],
-      )}
+      className="min-w-0 border-border/70 border-t pt-4"
       data-workspace-overview-module={module.id}
     >
-      <header className="flex items-start justify-between gap-4 px-5 py-5">
+      <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 id={`workspace-overview-module-${module.id}`}>
             <a
-              className="font-semibold text-lg tracking-tight underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
+              className="font-semibold text-base tracking-tight underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
               href={module.sourceHref}
             >
               {module.name}
@@ -153,7 +146,10 @@ function OverviewModuleCard({
         </div>
         <a
           aria-label={`Open source record: ${module.name} (${countLabel})`}
-          className={buttonVariants({ size: "xs", variant: "outline" })}
+          className={cn(
+            buttonVariants({ size: "sm", variant: "outline" }),
+            "min-h-10 min-w-10",
+          )}
           href={module.sourceHref}
         >
           {module.records.length}
@@ -187,12 +183,12 @@ function LayoutControls({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2
-            className="font-medium text-sm"
+          <h3
+            className="font-medium text-base"
             id="workspace-overview-layout-heading"
           >
             Arrange modules
-          </h2>
+          </h3>
           <p className="mt-1 text-muted-foreground text-xs/5">
             Presentation only. Hiding a module never removes its source records.
           </p>
@@ -232,7 +228,7 @@ function LayoutControls({
                       moveWorkspaceOverviewModule(layout, moduleId, "up"),
                     )
                   }
-                  size="icon-xs"
+                  size="icon-sm"
                   type="button"
                   variant="ghost"
                 >
@@ -246,7 +242,7 @@ function LayoutControls({
                       moveWorkspaceOverviewModule(layout, moduleId, "down"),
                     )
                   }
-                  size="icon-xs"
+                  size="icon-sm"
                   type="button"
                   variant="ghost"
                 >
@@ -263,7 +259,7 @@ function LayoutControls({
                       ),
                     )
                   }
-                  size="xs"
+                  size="sm"
                   type="button"
                   variant="outline"
                 >
@@ -374,12 +370,12 @@ function LiveBlocks({
     >
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2
-            className="font-semibold text-xl tracking-tight"
+          <h3
+            className="font-semibold text-lg tracking-tight"
             id="workspace-overview-live-blocks-heading"
           >
             Live blocks
-          </h2>
+          </h3>
           <p className="mt-2 max-w-2xl text-muted-foreground text-sm/6">
             Pin an existing Document or named Smart Collection view as a
             reference. The source stays authoritative and changes appear here.
@@ -604,11 +600,8 @@ export default function WorkspaceOverviewView({
       id="workspace-overview"
     >
       <header className="surface-header max-w-3xl">
-        <p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
-          Workspace horizon
-        </p>
         <h2
-          className="mt-2 text-balance font-semibold text-3xl tracking-tight sm:text-4xl"
+          className="text-balance font-semibold text-2xl tracking-tight"
           id="workspace-overview-heading"
         >
           Workspace overview
@@ -630,9 +623,9 @@ export default function WorkspaceOverviewView({
           />
 
           {visibleModules.length > 0 ? (
-            <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="grid items-start gap-x-8 gap-y-9 lg:grid-cols-2">
               {visibleModules.map((module) => (
-                <OverviewModuleCard
+                <OverviewModuleSection
                   formattingPreferences={formattingPreferences}
                   key={module.id}
                   module={module}

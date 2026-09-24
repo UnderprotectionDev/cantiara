@@ -8,7 +8,6 @@ import {
   type ProjectShellConfigurationChange,
   type StarterConfiguration,
 } from "@cantiara/api/project-shell";
-import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import {
@@ -96,13 +95,10 @@ export default function ProjectConfigurationForm({
   return (
     <section
       aria-label="Configuration Mode"
-      className="mt-6 space-y-6 rounded-lg border border-border/80 bg-card/55 p-5 shadow-sm sm:p-6"
+      className="mt-6 space-y-8 border-border/70 border-y py-6"
     >
       <header className="max-w-3xl border-border/70 border-b pb-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="secondary">Configuration Mode</Badge>
-        </div>
-        <h2 className="mt-3 font-semibold text-xl tracking-tight">
+        <h2 className="font-semibold text-2xl tracking-tight">
           Configuration Mode
         </h2>
         <p className="mt-2 text-muted-foreground text-sm/relaxed">
@@ -177,16 +173,10 @@ export default function ProjectConfigurationForm({
       </div>
 
       <div>
-        <h3
-          className="font-medium text-sm"
-          id="configuration-entry-points-heading"
-        >
-          Configuration Mode
-        </h3>
-        <div className="mt-3 grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
           <nav
             aria-label="Configuration Mode"
-            className="grid gap-1 rounded-md border border-border/70 bg-background/55 p-1"
+            className="grid gap-1 border-border/70 border-l pl-2"
           >
             {CONFIGURATION_HOSTS.map(({ description, label }) => (
               <div className="group" key={label}>
@@ -201,7 +191,7 @@ export default function ProjectConfigurationForm({
               </div>
             ))}
           </nav>
-          <div className="min-w-0 rounded-md border border-border/70 bg-background/55 p-4 sm:p-5">
+          <div className="min-w-0 border-border/70 border-t pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
             {configurationHost ? (
               <ConfigurationHostPanel
                 baseRevision={baseRevision}
@@ -610,6 +600,7 @@ function StagesConfiguration({
               </label>
               <Button
                 aria-label={`Move up ${stage.name}`}
+                className="min-w-10"
                 disabled={disabled || index === 0}
                 onClick={() => reorderStage(stage.id, -1)}
                 size="xs"
@@ -620,6 +611,7 @@ function StagesConfiguration({
               </Button>
               <Button
                 aria-label={`Move down ${stage.name}`}
+                className="min-w-10"
                 disabled={
                   disabled || index === configuration.preparedStages.length - 1
                 }

@@ -145,7 +145,7 @@ function SequentialTriageView({
       </header>
       <article
         aria-label="Sequential triage item"
-        className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-5 shadow-sm"
+        className="space-y-4 border-border/70 border-y py-5"
       >
         <CaptureSourceSummary
           formattingPreferences={formattingPreferences}
@@ -194,21 +194,15 @@ function CaptureInboxGroupView({
 }) {
   const headingId = `capture-group-${group.itemIds[0]}`;
   const inboxKind = group.projectId ? "Project inbox" : "Workspace inbox";
-  const surfaceClass = group.projectId
-    ? "border-primary/30"
-    : "border-border/70";
-  const headerClass = group.projectId ? "bg-primary/5" : "bg-muted/25";
   const captureCount = group.items.length;
 
   return (
     <section
       aria-label={group.label}
       aria-labelledby={headingId}
-      className={`overflow-hidden rounded-lg border ${surfaceClass}`}
+      className="border-border/70 border-t"
     >
-      <div
-        className={`flex items-start justify-between gap-4 border-b px-4 py-4 ${headerClass}`}
-      >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-border/70 border-b py-3">
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs">{inboxKind}</p>
           <h2
@@ -231,7 +225,7 @@ function CaptureInboxGroupView({
       </div>
       <ul className="divide-y">
         {group.items.map((item) => (
-          <li className="space-y-3 px-4 py-4 sm:px-5" key={item.id}>
+          <li className="space-y-3 py-4" key={item.id}>
             <CaptureInboxItemDetails
               formattingPreferences={formattingPreferences}
               item={item}
@@ -352,9 +346,9 @@ function CaptureInboxListView({
       return (
         <section
           aria-labelledby="empty-workspace-inbox"
-          className="overflow-hidden border border-border/70"
+          className="border-border/70 border-y"
         >
-          <div className="bg-muted/25 px-4 py-4">
+          <div className="border-border/70 border-b py-3">
             <p className="text-muted-foreground text-xs">Workspace inbox</p>
             <h3
               className="mt-1 font-semibold text-base tracking-tight"
@@ -363,7 +357,7 @@ function CaptureInboxListView({
               Workspace Capture Inbox
             </h3>
           </div>
-          <p className="px-4 py-6 text-muted-foreground text-sm">
+          <p className="py-5 text-muted-foreground text-sm">
             No captures in this Inbox.
           </p>
         </section>
@@ -399,9 +393,8 @@ function CaptureInboxListView({
     <section aria-labelledby="capture-list-title" className="min-w-0 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4 border-border/70 border-b pb-4">
         <div>
-          <p className="surface-kicker">Capture Library</p>
           <h2
-            className="mt-2 font-semibold text-xl tracking-tight"
+            className="font-semibold text-xl tracking-tight"
             id="capture-list-title"
           >
             Saved captures
@@ -419,11 +412,16 @@ function CaptureInboxListView({
               )}
             </span>
           ) : null}
-          <Button onClick={onOpenCaptureComposer} type="button">
+          <Button
+            className="min-h-11"
+            onClick={onOpenCaptureComposer}
+            type="button"
+          >
             New capture
           </Button>
           {groups.length > 0 && triageAvailable ? (
             <Button
+              className="min-h-11"
               onClick={onStartSequentialTriage}
               type="button"
               variant="outline"
@@ -434,6 +432,7 @@ function CaptureInboxListView({
           {groups.length > 0 ? (
             <Button
               aria-pressed={viewMode === "bulk"}
+              className="min-h-11"
               onClick={onToggleBulkView}
               type="button"
               variant={viewMode === "bulk" ? "default" : "outline"}

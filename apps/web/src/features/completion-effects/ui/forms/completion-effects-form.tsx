@@ -447,6 +447,7 @@ export default function CompletionEffectsForm({
         <form.Subscribe selector={selectFormSaveState}>
           {({ isDirty, isSubmitting }) => (
             <Button
+              className="min-h-11"
               disabled={!isDirty || isSubmitting || savePreferences.isPending}
               type="submit"
             >

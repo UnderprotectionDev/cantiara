@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const DARK_CLASS_PATTERN = /dark/;
 const PROJECTS_URL_PATTERN = /\/projects$/;
-const ROOT_URL_PATTERN = /\/$/;
+const LOGIN_URL_PATTERN = /\/login$/;
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const SUPPORT_REFERENCE_PATTERN =
   /^SUP-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/;
@@ -162,9 +162,12 @@ test("keeps browser suggestions unsaved and persists Account Preferences on Save
     page.getByRole("button", { name: "Save", exact: true }),
   ).toBeEnabled();
 
-  await page.getByRole("button", { name: "Founder", exact: true }).click();
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
   await page.getByRole("menuitem", { name: "Sign Out", exact: true }).click();
-  await expect(page).toHaveURL(ROOT_URL_PATTERN);
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("button", { name: "Continue with GitHub" }),
+  ).toBeVisible();
   await expect(page.locator("html")).toHaveClass(DARK_CLASS_PATTERN);
   await expect(
     page.getByRole("button", { name: "Appearance", exact: true }),

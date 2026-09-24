@@ -120,7 +120,9 @@ export function ModeToggle() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Appearance"
-        render={<Button size="icon" variant="outline" />}
+        render={
+          <Button className="min-h-11 min-w-11" size="icon" variant="outline" />
+        }
       >
         {currentAppearance === "Light" ? (
           <Sun aria-hidden="true" className="size-4" />
