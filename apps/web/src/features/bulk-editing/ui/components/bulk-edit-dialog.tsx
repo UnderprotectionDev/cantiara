@@ -29,6 +29,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
+import type { UserInitiatedWorkCloseOutcome } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import {
   buildSupportReferenceFailure,
@@ -141,6 +142,7 @@ function bulkEditPreviewMatchesInput({
 async function applyStatusToWork(
   record: BulkEditRecordSnapshot,
   currentPreview: BulkEditPreview,
+  onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void,
 ) {
   const { closePreview, work } = record;
   const nextStatus = currentPreview.targetStatus;
@@ -153,18 +155,41 @@ async function applyStatusToWork(
     workId: work.id,
   };
   if (nextStatus === "Closed") {
-    const result = await runOnlineOnlyWrite(() =>
-      client.closeWork({
-        ...mutationEnvelope,
-        ...(closePreview && hasClosureWarnings(closePreview)
-          ? { closureCheck: "Close anyway" as const }
-          : {}),
-        closureResult: currentPreview.closureResult,
-        ...(currentPreview.closureReason
-          ? { reason: currentPreview.closureReason }
-          : {}),
-      }),
-    );
+    const visibleAtCloseStart = document.visibilityState === "visible";
+    let result: Awaited<ReturnType<typeof client.closeWork>>;
+    try {
+      result = await runOnlineOnlyWrite(() =>
+        client.closeWork({
+          ...mutationEnvelope,
+          ...(closePreview && hasClosureWarnings(closePreview)
+            ? { closureCheck: "Close anyway" as const }
+            : {}),
+          closureResult: currentPreview.closureResult,
+          ...(currentPreview.closureReason
+            ? { reason: currentPreview.closureReason }
+            : {}),
+        }),
+      );
+    } catch (error) {
+      if (currentPreview.closureResult === "Completed") {
+        onCloseOutcome({
+          clientIdempotencyKey: mutationEnvelope.clientIdempotencyKey,
+          closureResult: currentPreview.closureResult,
+          kind: "failed",
+          workId: work.id,
+        });
+      }
+      throw error;
+    }
+    if (result.closureResult === "Completed" && work.status !== "Closed") {
+      onCloseOutcome({
+        clientIdempotencyKey: mutationEnvelope.clientIdempotencyKey,
+        kind: "completed",
+        reopenStatus: work.status as WorkOpenStatus,
+        visibleAtCloseStart,
+        workId: work.id,
+      });
+    }
     return result.receiptId;
   }
   if (work.status === "Closed") {
@@ -261,12 +286,14 @@ async function buildBulkEditPreview({
 async function runBulkEditOperation({
   archived,
   operationId,
+  onCloseOutcome,
   preview,
   projectId,
   queryClient,
 }: {
   archived: boolean;
   operationId: string;
+  onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
   preview: BulkEditPreview;
   projectId: string;
   queryClient: QueryClient;
@@ -279,7 +306,11 @@ async function runBulkEditOperation({
     const record = preview.records[recordIndex];
     if (record) {
       try {
-        const receiptId = await applyStatusToWork(record, preview);
+        const receiptId = await applyStatusToWork(
+          record,
+          preview,
+          onCloseOutcome,
+        );
         recordBulkEditResult(operationId, recordIndex, {
           key: record.work.key,
           ...(receiptId ? { receiptId } : {}),
@@ -636,6 +667,7 @@ function closeBulkEditDialog(
 
 export default function BulkEditDialog({
   archived,
+  onCloseOutcome,
   onOpenChange,
   open,
   projectId,
@@ -643,6 +675,7 @@ export default function BulkEditDialog({
   workStatusLabels,
 }: {
   archived: boolean;
+  onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   projectId: string;
@@ -762,6 +795,7 @@ export default function BulkEditDialog({
     runBulkEditOperation({
       archived,
       operationId,
+      onCloseOutcome,
       preview: previewToApply,
       projectId,
       queryClient,
