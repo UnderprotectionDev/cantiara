@@ -146,7 +146,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje oluştur | `Create Project` | Yeni Projeyi kaydeden eylem |
 | Projeler | `Projects` | Çalışma Alanındaki Proje listesi |
 | Projeleri aç | `Open Projects` | Komut Paletinden Çalışma Alanının Projeler yüzeyine gitme eylemi |
+| Kısa kodu düzenle | `Edit Short code` | Proje listesindeki mevcut kısa kodu düzenleme alanını açma eylemi |
 | Kısa kodu kaydet | `Save Short code` | İlk İşten önce kısa kodu güncelleme eylemi |
+| İptal | `Cancel` | Kısa kod düzenlemesini kaydetmeden kapatma eylemi |
 | Yükleniyor | `Loading…` | Proje kabuğu okuma durumu |
 | Proje kullanılamıyor | `Project is unavailable.` | Proje kabuğu okuma hatası |
 | Blank Project | `Blank Project` | Aşama ve uzman görünüm kurmayan en küçük Başlangıç yapılandırması |
@@ -158,6 +160,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dikkat gerekli | `Attention Required` | Çalışma Alanı genel bakışı hazır modülü; kayıtlı Action Required kaynağını toplar |
 | Yaklaşan | `Upcoming` | Çalışma Alanı genel bakışı hazır modülü; yaklaşan hedef tarihleri ve hatırlatmalar |
 | Son çalışma | `Recent Work` | Çalışma Alanı genel bakışı hazır modülü; son dokunulan İşler |
+| Genel bakışı özelleştir | `Customize overview` | Çalışma Alanı genel bakışının kişisel düzenleme araçlarını açan açıklama |
 | Canlı blok ekle | `Add live block` | Mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümünü kopyasız referans olarak ekleme |
 | Kaydedilmiş çapraz Proje listesi | `Saved lists` | Çalışma Alanı çapında Proje koşullarından canlı üyelik türeten adlandırılmış görünüm; Portfolio veya Akıllı Koleksiyon değildir |
 | Listeyi kaydet | `Save list` | Çapraz Proje listesi koşullarını ve görünümünü kaydetme |

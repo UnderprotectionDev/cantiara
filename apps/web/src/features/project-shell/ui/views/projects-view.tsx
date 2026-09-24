@@ -196,7 +196,13 @@ export default function ProjectsView({
         </div>
       ) : null}
       {workspaceOverview.data ? (
-        <div className="pt-9">
+        <div
+          className={
+            selectedModule || selectedSavedList
+              ? "pt-1"
+              : "mt-12 border-border/80 border-t pt-9"
+          }
+        >
           <WorkspaceOverviewView
             formattingPreferences={
               accountPreferences.data ?? DEFAULT_ACCOUNT_PREFERENCES

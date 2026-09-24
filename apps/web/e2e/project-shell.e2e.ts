@@ -4,8 +4,10 @@ import { expect, type Page, test } from "@playwright/test";
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_DETAIL_URL_PATTERN = /\/projects\/[^/]+$/;
+const CONFIGURATION_MODE_URL_PATTERN = /#configuration$/;
 const WORK_HASH_PATTERN = /#work$/;
 const WORK_CREATE_HASH_PATTERN = /#work-create$/;
+const PRIORITY_MAP_URL_PATTERN = /#priority-map$/;
 const DOCUMENTS_HASH_PATTERN = /#documents$/;
 const ALL_PROJECT_AREAS = [
   "Work",
@@ -137,6 +139,28 @@ test("places Projects before a loaded Workspace overview", async ({
   });
   await expect(projectList).toBeVisible();
   await expect(workspaceOverview).toBeVisible();
+  const customization = workspaceOverview.locator(
+    'details[data-workspace-overview-customization="true"]',
+  );
+  await expect(customization.locator("summary")).toHaveText(
+    "Customize overview",
+  );
+  await expect(customization).not.toHaveAttribute("open", "");
+  await expect(
+    workspaceOverview.locator('[data-workspace-overview-layout="true"]'),
+  ).toBeHidden();
+  await expect(
+    workspaceOverview.getByRole("link", {
+      exact: true,
+      name: "Active Projects",
+    }),
+  ).toBeVisible();
+  await customization.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(customization).toHaveAttribute("open", "");
+  await expect(
+    workspaceOverview.locator('[data-workspace-overview-layout="true"]'),
+  ).toBeVisible();
   const projectListPrecedesOverview = await projectList.evaluate((list) => {
     const overview = document.querySelector("#workspace-overview");
     return Boolean(
@@ -228,14 +252,31 @@ test("creates Projects with suggested and Workspace-unique Short codes", async (
     .filter({ hasText: "Payment App" });
   await expect(firstProject).toContainText("Active");
   await expect(firstProject).toContainText("Blank Project");
+  await expect(firstProject.getByText("PAY", { exact: true })).toBeVisible();
+  await expect(
+    firstProject.getByRole("textbox", { name: "Short code" }),
+  ).toHaveCount(0);
+  await firstProject
+    .getByRole("button", { name: "Edit Short code", exact: true })
+    .click();
   const firstShortCode = firstProject.getByRole("textbox", {
     name: "Short code",
   });
   await expect(firstShortCode).toHaveValue("PAY");
 
+  await firstShortCode.fill("DRAFT");
+  await firstProject.getByRole("button", { name: "Cancel" }).click();
+  await expect(firstShortCode).toHaveCount(0);
+  await expect(firstProject.getByText("PAY", { exact: true })).toBeVisible();
+  await firstProject
+    .getByRole("button", { name: "Edit Short code", exact: true })
+    .click();
+  await expect(firstShortCode).toHaveValue("PAY");
+
   await firstShortCode.fill("PAYS");
   await firstProject.getByRole("button", { name: "Save Short code" }).click();
-  await expect(firstShortCode).toHaveValue("PAYS");
+  await expect(firstShortCode).toHaveCount(0);
+  await expect(firstProject.getByText("PAYS", { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "Create Project" }).click();
   await page.getByText("Optional profile details", { exact: true }).click();
@@ -254,9 +295,7 @@ test("creates Projects with suggested and Workspace-unique Short codes", async (
   const secondProject = page
     .getByRole("listitem")
     .filter({ hasText: "Payment Reports" });
-  await expect(
-    secondProject.getByRole("textbox", { name: "Short code" }),
-  ).toHaveValue("PAY-2");
+  await expect(secondProject.getByText("PAY-2", { exact: true })).toBeVisible();
 });
 
 test("keeps Project Shell stable while toggling Configuration Mode", async ({
@@ -302,6 +341,25 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await overview.locator('[data-overview-area-entry="Work"]').click();
   await expect(page).toHaveURL(WORK_HASH_PATTERN);
   await expect(page.locator("#work")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Work views" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Saved views" })).toHaveCount(0);
+  const priorityMapLink = page.getByRole("link", {
+    name: "Priority Map",
+    exact: true,
+  });
+  await expect(priorityMapLink).toBeVisible();
+  await priorityMapLink.click();
+  await expect(page).toHaveURL(PRIORITY_MAP_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Priority Map", level: 3 }),
+  ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await expect(page).toHaveURL(WORK_HASH_PATTERN);
   await expectDailyActions(page);
   await expect(
     page.getByRole("link", { name: "Create", exact: true }),
@@ -326,7 +384,14 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   const configurationRegion = page.locator(
     'section[aria-label="Configuration Mode"]',
   );
+  await expect(page).toHaveURL(CONFIGURATION_MODE_URL_PATTERN);
+  await expect(configurationRegion).toHaveAttribute("id", "configuration");
   await expect(configurationRegion).toBeVisible();
+  await expect(configurationRegion).toBeInViewport();
+  await expect(page.locator("#work")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Project navigation" }),
+  ).toHaveCount(0);
   await Promise.all(
     [
       "Stages",
@@ -345,14 +410,45 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
       ).toBeVisible(),
     ),
   );
+  const projectConfigurationGroup = configurationRegion.getByRole("group", {
+    name: "Project",
+    exact: true,
+  });
+  const workConfigurationGroup = configurationRegion.getByRole("group", {
+    name: "Work",
+    exact: true,
+  });
+  await expect(projectConfigurationGroup).toBeVisible();
+  await expect(workConfigurationGroup).toBeVisible();
+  await expect(
+    projectConfigurationGroup.getByRole("button", {
+      name: "Project areas",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    projectConfigurationGroup.getByRole("button", {
+      name: "Stages",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    workConfigurationGroup.getByRole("button", {
+      name: "Work statuses",
+      exact: true,
+    }),
+  ).toBeVisible();
 
-  await configurationRegion
-    .getByRole("button", { name: "Project areas", exact: true })
-    .click();
   const projectAreasHost = configurationRegion.locator(
     "#configuration-host-project-areas",
   );
   await expect(projectAreasHost).toBeVisible();
+  await expect(
+    projectAreasHost.getByText(
+      "Enable, hide, and pin ready Project areas. These controls only change Project navigation; they do not create, move, or delete records.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   await expect(
     projectAreasHost.getByRole("list", { name: "Project areas" }),
   ).toBeVisible();
@@ -418,8 +514,12 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
     layoutHost.getByRole("button", { name: "Confirm" }),
   ).toBeDisabled();
 
-  await exitConfigurationMode.click();
   expect(configurationWrites()).toEqual([]);
+  await page.reload();
+  await expect(configurationRegion).toBeVisible();
+  await expect(page).toHaveURL(CONFIGURATION_MODE_URL_PATTERN);
+  await exitConfigurationMode.click();
+  await expect(page).toHaveURL(WORK_CREATE_HASH_PATTERN);
   await expect(configurationMode).toHaveAttribute("aria-pressed", "false");
   await expect(
     page.locator('section[aria-label="Configuration Mode"]'),
@@ -454,11 +554,26 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   await page.getByRole("button", { name: "Create Project" }).click();
   await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
   await page.getByRole("link", { name: projectName, exact: true }).click();
-  await page.getByRole("button", { name: "Configuration Mode" }).click();
 
   const configurationRegion = page.locator(
     'section[aria-label="Configuration Mode"]',
   );
+  const projectNavigation = page.getByRole("navigation", {
+    name: "Project navigation",
+  });
+  const projectAreas = configurationRegion
+    .locator("#configuration-host-project-areas")
+    .getByRole("list", { name: "Project areas" });
+  async function enterConfigurationMode() {
+    await page.getByRole("button", { name: "Configuration Mode" }).click();
+    await expect(configurationRegion).toBeVisible();
+  }
+  async function exitConfigurationMode() {
+    await page.getByRole("button", { name: "Exit Configuration Mode" }).click();
+    await expect(configurationRegion).toHaveCount(0);
+  }
+
+  await enterConfigurationMode();
   await configurationRegion
     .getByRole("button", { name: "Stages", exact: true })
     .click();
@@ -509,89 +624,91 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
     stageEditor.getByRole("textbox", { name: "Stage name Build" }),
   ).toHaveCount(0);
 
-  await page.getByRole("link", { name: "All Tools", exact: true }).click();
+  await configurationRegion
+    .getByRole("button", { name: "Project areas", exact: true })
+    .click();
+  await expect(projectAreas).toBeVisible();
   const allTools = page.getByRole("list", { name: "All Project areas" });
   await expect(
-    allTools
+    projectAreas
       .getByRole("listitem", { name: "Work Enabled", exact: true })
       .getByRole("button", { name: "Pin to navigation", exact: true }),
   ).toHaveCount(0);
   await expect(
-    allTools
+    projectAreas
       .getByRole("listitem", { name: "Documents Enabled", exact: true })
       .getByRole("button", { name: "Pin to navigation", exact: true }),
   ).toHaveCount(0);
-  await allTools
+  await projectAreas
     .getByRole("button", { name: "Enable Discovery", exact: true })
     .click();
   await expect(
-    allTools.getByRole("listitem", { name: "Discovery Enabled", exact: true }),
+    projectAreas.getByRole("listitem", {
+      name: "Discovery Enabled",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "Overview", exact: true })
-    .click();
+  await exitConfigurationMode();
+  await projectNavigation.getByRole("link", { name: "Overview" }).click();
   await expect(
     page.locator(
       '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
     ),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "All Tools", exact: true })
-    .click();
-  await allTools
+  await projectNavigation.getByRole("link", { name: "All Tools" }).click();
+  await expect(allTools.getByRole("listitem")).toHaveCount(
+    ALL_PROJECT_AREAS.length,
+  );
+
+  await enterConfigurationMode();
+  await projectAreas
     .getByRole("button", { name: "Hide Discovery", exact: true })
     .click();
   await expect(
-    allTools.getByRole("listitem", { name: "Discovery Hidden", exact: true }),
+    projectAreas.getByRole("listitem", {
+      name: "Discovery Hidden",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "Overview", exact: true })
-    .click();
+  await exitConfigurationMode();
+  await projectNavigation.getByRole("link", { name: "Overview" }).click();
   await expect(
     page.locator(
       '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
     ),
   ).toHaveCount(0);
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "All Tools", exact: true })
-    .click();
-  await allTools
+  await enterConfigurationMode();
+  await projectAreas
     .getByRole("button", { name: "Show Discovery", exact: true })
     .click();
   await expect(
-    allTools.getByRole("listitem", { name: "Discovery Enabled", exact: true }),
+    projectAreas.getByRole("listitem", {
+      name: "Discovery Enabled",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "Overview", exact: true })
-    .click();
+  await exitConfigurationMode();
+  await projectNavigation.getByRole("link", { name: "Overview" }).click();
   await expect(
     page.locator(
       '[data-project-overview="true"] [data-overview-area-entry="Discovery"]',
     ),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("link", { name: "All Tools", exact: true })
-    .click();
-  await allTools
+  await enterConfigurationMode();
+  await projectAreas
     .getByRole("listitem", { name: "Discovery Enabled", exact: true })
     .getByRole("button", { name: "Pin to navigation", exact: true })
     .click();
+  await exitConfigurationMode();
   await expect(
-    page
-      .getByRole("navigation", { name: "Project navigation" })
-      .getByRole("link", { name: "Discovery", exact: true }),
+    projectNavigation.getByRole("link", { name: "Discovery", exact: true }),
   ).toBeVisible();
 
+  await enterConfigurationMode();
   await configurationRegion
     .getByRole("button", { name: "Restore default navigation", exact: true })
     .click();
-  const navigationPreview = configurationRegion.getByRole("status", {
+  const navigationPreview = configurationRegion.getByRole("group", {
     name: "Navigation preview",
   });
   await expect(navigationPreview).toBeVisible();
@@ -611,7 +728,7 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   await configurationRegion
     .getByRole("button", { name: "Restore default navigation", exact: true })
     .click();
-  const confirmedNavigationPreview = configurationRegion.getByRole("status", {
+  const confirmedNavigationPreview = configurationRegion.getByRole("group", {
     name: "Navigation preview",
   });
   const restoreResponse = page.waitForResponse(
@@ -624,15 +741,21 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
     .getByRole("button", { name: "Confirm", exact: true })
     .click();
   await restoreResponse;
+  await exitConfigurationMode();
   await expect(
-    page
-      .getByRole("navigation", { name: "Project navigation" })
-      .getByRole("link", { name: "Discovery", exact: true }),
+    projectNavigation.getByRole("link", { name: "Discovery", exact: true }),
   ).toHaveCount(0);
 
+  await enterConfigurationMode();
   await configurationRegion
     .getByRole("button", { name: "Work statuses", exact: true })
     .click();
+  await expect(
+    configurationRegion.getByRole("button", {
+      name: "Restore default navigation",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   const statusEditor = configurationRegion.getByRole("list", {
     name: "Work status configuration",
   });
@@ -656,7 +779,7 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
   ).toHaveValue("Done");
 
   await page.reload();
-  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await expect(configurationRegion).toBeVisible();
   await configurationRegion
     .getByRole("button", { name: "Work statuses", exact: true })
     .click();
@@ -678,6 +801,37 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
       .getByRole("list", { name: "Stages configuration" })
       .getByRole("textbox", { name: "Stage name Build" }),
   ).toHaveCount(0);
+
+  await page.setViewportSize({ height: 844, width: 375 });
+  const projectConfigurationGroup = configurationRegion.getByRole("group", {
+    name: "Project",
+    exact: true,
+  });
+  const projectAreasHost = configurationRegion.locator(
+    "#configuration-host-project-areas",
+  );
+  const mobileConfigurationSelector = configurationRegion.getByRole(
+    "combobox",
+    { exact: true, name: "Configuration Mode" },
+  );
+  await expect(mobileConfigurationSelector).toBeVisible();
+  await expect(projectConfigurationGroup).toBeHidden();
+  await mobileConfigurationSelector.selectOption("Project areas");
+  await expect(projectAreasHost).toBeVisible();
+  await expect(
+    projectAreasHost.getByRole("list", { name: "Project areas" }),
+  ).toBeVisible();
+  await mobileConfigurationSelector.selectOption("Work statuses");
+  await expect(
+    configurationRegion.getByRole("list", {
+      name: "Work status configuration",
+    }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 });
 
 for (const starter of STARTER_CONFIGURATION_CASES) {
@@ -796,22 +950,20 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
     await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Configuration Mode" }).click();
-    await page.getByRole("link", { name: "All Tools", exact: true }).click();
-    await expect(
-      page.getByRole("link", { name: "All Tools", exact: true }),
-    ).toHaveAttribute("aria-current", "location");
-    await expect(
-      page.getByRole("heading", { name: "All Tools", level: 2 }),
-    ).toBeVisible();
-    const allTools = page.getByRole("list", { name: "All Project areas" });
-    await expect(allTools.getByRole("listitem")).toHaveCount(
+    const configurationRegion = page.locator(
+      'section[aria-label="Configuration Mode"]',
+    );
+    const projectAreas = configurationRegion
+      .locator("#configuration-host-project-areas")
+      .getByRole("list", { name: "Project areas" });
+    await expect(projectAreas.getByRole("listitem")).toHaveCount(
       ALL_PROJECT_AREAS.length,
     );
     const enabledAreas = new Set<string>(starter.areas);
     await Promise.all(
       ALL_PROJECT_AREAS.map((area) =>
         expect(
-          allTools.getByRole("listitem", {
+          projectAreas.getByRole("listitem", {
             name: `${area} ${enabledAreas.has(area) ? "Enabled" : "Available"}`,
             exact: true,
           }),
@@ -819,16 +971,38 @@ for (const starter of STARTER_CONFIGURATION_CASES) {
       ),
     );
     if (!starter.areas.some((area) => area === "Discovery")) {
-      await allTools
+      await projectAreas
         .getByRole("button", { name: "Enable Discovery", exact: true })
         .click();
       await expect(
-        allTools.getByRole("listitem", {
+        projectAreas.getByRole("listitem", {
           name: "Discovery Enabled",
           exact: true,
         }),
       ).toBeVisible();
     }
+    await page.getByRole("button", { name: "Exit Configuration Mode" }).click();
+    await page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("link", { name: "All Tools", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "All Tools", level: 2 }),
+    ).toBeVisible();
+    const allTools = page.getByRole("list", { name: "All Project areas" });
+    await expect(allTools.getByRole("listitem")).toHaveCount(
+      ALL_PROJECT_AREAS.length,
+    );
+    await Promise.all(
+      ALL_PROJECT_AREAS.map((area) =>
+        expect(
+          allTools.getByRole("listitem", {
+            name: `${area} ${enabledAreas.has(area) || area === "Discovery" ? "Enabled" : "Available"}`,
+            exact: true,
+          }),
+        ).toBeVisible(),
+      ),
+    );
 
     await page
       .getByRole("navigation", { name: "Project navigation" })

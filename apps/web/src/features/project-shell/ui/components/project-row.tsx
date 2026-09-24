@@ -6,12 +6,12 @@ import ProjectShortCodeForm from "../forms/project-short-code-form";
 
 export default function ProjectRow({ project }: { project: ProjectProfile }) {
   return (
-    <li className="grid gap-6 px-5 py-5 transition-colors hover:bg-muted/35 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
+    <li className="grid gap-4 px-4 py-4 transition-colors hover:bg-muted/35 sm:px-5 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="truncate font-medium">
             <Link
-              className="inline-flex min-h-10 max-w-full items-center underline-offset-4 hover:underline"
+              className="inline-flex min-h-11 max-w-full items-center underline-offset-4 hover:underline"
               params={{ projectId: project.id }}
               to="/projects/$projectId"
             >

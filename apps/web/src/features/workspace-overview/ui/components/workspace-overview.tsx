@@ -616,12 +616,6 @@ export default function WorkspaceOverviewView({
 
       {selectedSavedList || selectedSourceModule ? null : (
         <>
-          <LayoutControls
-            layout={layout}
-            modules={model.modules}
-            onChange={changeLayout}
-          />
-
           {visibleModules.length > 0 ? (
             <div className="grid items-start gap-x-8 gap-y-9 lg:grid-cols-2">
               {visibleModules.map((module) => (
@@ -638,13 +632,33 @@ export default function WorkspaceOverviewView({
             </div>
           )}
 
-          <LiveBlocks model={model} onChange={changeLiveBlockSources} />
+          <details
+            className="group border-border/70 border-t pt-5"
+            data-workspace-overview-customization="true"
+          >
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 font-medium text-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">
+              Customize overview
+              <ChevronDown
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+              />
+            </summary>
+            <div className="mt-5 space-y-8">
+              <LayoutControls
+                layout={layout}
+                modules={model.modules}
+                onChange={changeLayout}
+              />
 
-          <SavedProjectLists
-            formattingPreferences={formattingPreferences}
-            lists={model.savedLists}
-            onChange={changeSavedLists}
-          />
+              <LiveBlocks model={model} onChange={changeLiveBlockSources} />
+
+              <SavedProjectLists
+                formattingPreferences={formattingPreferences}
+                lists={model.savedLists}
+                onChange={changeSavedLists}
+              />
+            </div>
+          </details>
         </>
       )}
     </section>

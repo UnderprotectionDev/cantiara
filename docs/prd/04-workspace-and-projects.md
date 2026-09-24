@@ -8,7 +8,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Yeni Proje oluştururken yalnız `Project Name` ve kapalı katalogdan bir Başlangıç yapılandırması zorunludur.** Proje `Aktif` (`UI: Active`) yaşam durumunda açılır. Amaç, çözülmek istenen problem, kapsam sınırları ve hedef tarihi isteğe bağlı profil alanlarıdır; boş olmaları Projenin oluşturulmasını veya kullanılmasını engellemez.
 
-- **Her proje, `PAY-1` gibi iş anahtarlarında kullanılmak üzere çalışma alanı içinde benzersiz bir kısa kod taşır.** Sistem Proje adından kısa kod önerir; kullanıcı ilk İş oluşturulana kadar değiştirebilir. İlk İşten sonra kod değişmez. Bir Projeye atanmış kısa kod, kullanıcı ilk İşten önce kodu değiştirse veya Proje kalıcı silinse bile aynı Çalışma Alanında başka Projeye verilmez.
+- **Her proje, `PAY-1` gibi iş anahtarlarında kullanılmak üzere çalışma alanı içinde benzersiz bir kısa kod taşır.** Sistem Proje adından kısa kod önerir; kullanıcı ilk İş oluşturulana kadar değiştirebilir. İlk İşten sonra kod değişmez. Bir Projeye atanmış kısa kod, kullanıcı ilk İşten önce kodu değiştirse veya Proje kalıcı silinse bile aynı Çalışma Alanında başka Projeye verilmez. Project listesinde `Short code` okunur bilgi olarak görünür; `Edit Short code` mevcut düzenleme ve kilit kurallarını değiştirmeden alanı açar. Düzenleme `Save Short code` ile kaydedilir veya `Cancel` ile kapatılır.
 
 - **Kullanıcı isteğe bağlı bir proje logosu yükleyebilir.** Projeye özel renk, tema, font, CSS veya white-label desteği sunulmaz. Logo yoksa standart ve erişilebilir herkese açık başlık kullanılır.
 
@@ -75,7 +75,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Aşamalar, iş durumları, etkin alanlar, proje bazlı özel alanlar, öncelik ölçütleri, kayıtlı görünümler, İş Bağlam Kartı düzenleri ve aşağıda tanımlanan yapılandırma varlıkları açık bir `Yapılandırma modu` içinde yönetilir.** Mod bir izin veya ayrı yönetici rolü değildir; yalnız yapı değişikliklerini günlük içerik düzenlemesinden ayıran görünür bir sunum durumudur. Etkin olduğu açıkça gösterilir ve tek eylemle kapatılabilir.
 
-- **Günlük kayıt oluşturma, içerik düzenleme, durum değiştirme ve planlama eylemleri mod dışında erişilebilir kalır.** Yapılandırma moduna girmek ana kaydı, görünüm üyeliğini veya proje yaşam döngüsünü değiştirmez.
+- **Günlük kayıt oluşturma, içerik düzenleme, durum değiştirme ve planlama eylemleri mod dışında erişilebilir kalır.** Yapılandırma moduna girmek ana kaydı, görünüm üyeliğini veya proje yaşam döngüsünü değiştirmez. Moddan çıkış önceki Proje yüzeyine döner; mod açıkken sayfa yenilense de bu hedef korunur.
 
 ### Yapılandırılabilir ve paralel proje aşamaları
 
@@ -95,7 +95,7 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 - **Genel bakış ekranı aktif, bekleyen, tamamlanmış ve vazgeçilmiş projeleri; yaklaşan hedef tarihlerini, hatırlatmaları, açık riskleri, blokajları ve son çalışmaları çalışma alanı düzeyinde özetler.**
 
-- **Yüzey `Active Projects`, `Attention Required`, `Upcoming` ve `Recent Work` hazır modülleriyle açılır.** Kullanıcı bu dört modülü gösterebilir, gizleyebilir ve sıralayabilir; ayrıca sınırlı sayıda mevcut Belgeyi veya adlandırılmış Akıllı Koleksiyon görünümünü kişisel canlı blok olarak ekleyebilir.
+- **Yüzey `Active Projects`, `Attention Required`, `Upcoming` ve `Recent Work` hazır modülleriyle açılır.** Kullanıcı bu dört modülü gösterebilir, gizleyebilir ve sıralayabilir; ayrıca sınırlı sayıda mevcut Belgeyi veya adlandırılmış Akıllı Koleksiyon görünümünü kişisel canlı blok olarak ekleyebilir. Bu düzenleme araçları kaynak modüllerinin arkasında, başlangıçta kapalı `Customize overview` bölümünde açılır.
 
 - **Bu bloklar kaynak belgeyi veya görünümü kopyalamayan referanslardır; ayrı sorgu, üyelik kuralı, kayıt kümesi, widget mantığı veya analitik doğruluk kaynağı oluşturmaz.** Kaynaktaki değişiklik aynı blokta görünür ve blok kaynağı ortak `Kaynak kaydı aç` eylemiyle açar. Kullanıcı tanımlı genel widget ve serbest dashboard oluşturucu sunulmaz.
 

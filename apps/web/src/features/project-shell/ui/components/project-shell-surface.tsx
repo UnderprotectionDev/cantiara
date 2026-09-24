@@ -11,7 +11,12 @@ import type { ScopeTree } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { Link, useLinkProps, useLocation } from "@tanstack/react-router";
+import {
+  Link,
+  useLinkProps,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
@@ -23,6 +28,7 @@ import {
 } from "@/features/project-shell/lib/project-shell-explanation";
 import {
   ALWAYS_REACHABLE_SURFACES,
+  CONFIGURATION_MODE_HASH,
   type ConfigurationHost,
   DAILY_ACTION_HASHES,
   DAILY_ACTION_MESSAGES,
@@ -62,19 +68,27 @@ export default function ProjectShellSurface({
   scopeTreeQuery: UseQueryResult<ScopeTree>;
 }) {
   const activeHash = useLocation({ select: ({ hash }) => hash });
+  const configurationReturnHash = useLocation({
+    select: ({ search }) => search.configurationReturn,
+  });
+  const navigate = useNavigate();
+  const configurationMode = activeHash === CONFIGURATION_MODE_HASH;
   const [showExplanation, setShowExplanation] = useState(
     () => !isProjectShellExplanationDismissed(projectId),
   );
-  const [configurationMode, setConfigurationMode] = useState(false);
   const [configurationHost, setConfigurationHost] =
-    useState<ConfigurationHost | null>(null);
+    useState<ConfigurationHost | null>(() =>
+      configurationMode ? "Project areas" : null,
+    );
   const dailyAction = dailyActionFromHash(activeHash);
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
-    setConfigurationMode(false);
-    setConfigurationHost(null);
   }, [projectId]);
+
+  useEffect(() => {
+    setConfigurationHost(configurationMode ? "Project areas" : null);
+  }, [configurationMode]);
 
   useEffect(() => {
     if (!activeHash || typeof window === "undefined") {
@@ -106,11 +120,28 @@ export default function ProjectShellSurface({
   }
 
   function toggleConfigurationMode() {
-    setConfigurationMode((isActive) => {
-      if (isActive) {
-        setConfigurationHost(null);
-      }
-      return !isActive;
+    if (configurationMode) {
+      navigate({
+        to: ".",
+        search: (previous) => ({
+          ...previous,
+          configurationReturn: undefined,
+        }),
+        hash: configurationReturnHash ?? "overview",
+        replace: true,
+      });
+      return;
+    }
+
+    setConfigurationHost("Project areas");
+    navigate({
+      to: ".",
+      search: (previous) => ({
+        ...previous,
+        configurationReturn: activeHash || "overview",
+      }),
+      hash: CONFIGURATION_MODE_HASH,
+      replace: true,
     });
   }
 
@@ -231,8 +262,7 @@ export default function ProjectShellSurface({
         </div>
         <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
           <div>
-            <p className="font-medium text-sm">Configuration Mode</p>
-            <p className="mt-1 text-muted-foreground text-xs/relaxed">
+            <p className="text-muted-foreground text-xs/relaxed">
               Separate Project structure from daily Work editing.
             </p>
           </div>
@@ -255,7 +285,7 @@ export default function ProjectShellSurface({
         </div>
       </header>
 
-      {showExplanation ? (
+      {!configurationMode && showExplanation ? (
         <aside
           aria-label="Starter Configuration explanation"
           className="mt-5 flex items-start gap-3 rounded-lg border border-border/70 bg-card/55 p-4 shadow-sm"
@@ -286,29 +316,29 @@ export default function ProjectShellSurface({
         </div>
       )}
 
-      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
-        <ProjectNavigation
-          enabledAreas={configuration.enabledAreas}
-          extraPinnedAreas={configuration.extraPinnedAreas}
-          hiddenAreas={configuration.hiddenAreas}
-        />
-
-        <div className="min-w-0 space-y-10">
-          {configurationMode ? (
-            <ProjectConfigurationForm
-              baseRevision={revision}
-              configuration={configuration}
-              configurationHost={configurationHost}
-              onConfigurationHostChange={setConfigurationHost}
-              projectId={projectId}
-              projectName={name}
-              starterConfiguration={starterConfiguration}
-            />
-          ) : null}
-
-          {projectSurface}
+      {configurationMode ? (
+        <div className="mt-8">
+          <ProjectConfigurationForm
+            baseRevision={revision}
+            configuration={configuration}
+            configurationHost={configurationHost}
+            onConfigurationHostChange={setConfigurationHost}
+            projectId={projectId}
+            projectName={name}
+            starterConfiguration={starterConfiguration}
+          />
         </div>
-      </div>
+      ) : (
+        <div className="mt-8 grid items-start gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-10">
+          <ProjectNavigation
+            enabledAreas={configuration.enabledAreas}
+            extraPinnedAreas={configuration.extraPinnedAreas}
+            hiddenAreas={configuration.hiddenAreas}
+          />
+
+          <div className="min-w-0 space-y-10">{projectSurface}</div>
+        </div>
+      )}
     </>
   );
 }
@@ -334,45 +364,30 @@ function ProjectWorkSurface({
       className="space-y-8"
       id="work"
     >
-      <header className="surface-header max-w-3xl">
-        <h2
-          className="text-balance font-semibold text-2xl tracking-tight"
-          id="work-surface-heading"
-        >
-          Work
-        </h2>
-        <p className="mt-3 text-muted-foreground text-sm/relaxed">
-          Daily actions stay separate from Overview source records. Start, edit,
-          and review this Project’s Work here.
-        </p>
+      <header className="surface-header flex flex-wrap items-end justify-between gap-5">
+        <div className="max-w-3xl">
+          <h2
+            className="text-balance font-semibold text-2xl tracking-tight"
+            id="work-surface-heading"
+          >
+            Work
+          </h2>
+          <p className="mt-3 text-muted-foreground text-sm/relaxed">
+            Daily actions stay separate from Overview source records. Start,
+            edit, and review this Project’s Work here.
+          </p>
+        </div>
+        {activeHash === PRIORITY_MAP_HASH ? null : (
+          <Link
+            className={`${buttonVariants({ size: "sm", variant: "outline" })} min-h-10 shrink-0`}
+            hash={PRIORITY_MAP_HASH}
+            params={{ projectId }}
+            to="/projects/$projectId"
+          >
+            Priority Map
+          </Link>
+        )}
       </header>
-
-      <nav aria-label="Work views" className="flex flex-wrap gap-2">
-        <Link
-          aria-current={activeHash === PRIORITY_MAP_HASH ? undefined : "page"}
-          className={`${buttonVariants({
-            size: "sm",
-            variant: activeHash === PRIORITY_MAP_HASH ? "ghost" : "secondary",
-          })} min-h-10`}
-          hash="work"
-          params={{ projectId }}
-          to="/projects/$projectId"
-        >
-          Work
-        </Link>
-        <Link
-          aria-current={activeHash === PRIORITY_MAP_HASH ? "page" : undefined}
-          className={`${buttonVariants({
-            size: "sm",
-            variant: activeHash === PRIORITY_MAP_HASH ? "secondary" : "ghost",
-          })} min-h-10`}
-          hash={PRIORITY_MAP_HASH}
-          params={{ projectId }}
-          to="/projects/$projectId"
-        >
-          Priority Map
-        </Link>
-      </nav>
 
       {activeHash === PRIORITY_MAP_HASH ? (
         <Suspense
@@ -385,35 +400,20 @@ function ProjectWorkSurface({
           <PriorityMap projectId={projectId} />
         </Suspense>
       ) : (
-        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-10">
-          <div className="min-w-0">
-            <DailyWorkActions
-              accountFormattingPreferences={accountFormattingPreferences}
-              activeAction={activeAction}
-              projectId={projectId}
-            />
-            <ProjectWorkList
-              accountFormattingPreferences={accountFormattingPreferences}
-              accountId={accountId}
-              projectId={projectId}
-              workContextLayouts={configuration.workContextLayouts}
-              workStatusLabels={configuration.workStatusLabels}
-            />
-            <PrioritizationSurface projectId={projectId} />
-          </div>
-          <aside className="border-border/70 border-t pt-5 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-6">
-            <p className="surface-kicker">Saved views</p>
-            <ul aria-label="Saved views" className="mt-3 space-y-1">
-              {configuration.preparedWorkViews.map((view) => (
-                <li
-                  className="rounded-md px-2.5 py-2 text-muted-foreground text-sm"
-                  key={view}
-                >
-                  {view}
-                </li>
-              ))}
-            </ul>
-          </aside>
+        <div className="min-w-0">
+          <DailyWorkActions
+            accountFormattingPreferences={accountFormattingPreferences}
+            activeAction={activeAction}
+            projectId={projectId}
+          />
+          <ProjectWorkList
+            accountFormattingPreferences={accountFormattingPreferences}
+            accountId={accountId}
+            projectId={projectId}
+            workContextLayouts={configuration.workContextLayouts}
+            workStatusLabels={configuration.workStatusLabels}
+          />
+          <PrioritizationSurface projectId={projectId} />
         </div>
       )}
     </section>

@@ -21,7 +21,9 @@ import { useProjectAreaEnable } from "@/features/project-shell/hooks/use-project
 import { useProjectConfiguration } from "@/features/project-shell/hooks/use-project-configuration";
 import {
   ALL_PROJECT_AREAS,
+  CONFIGURATION_HOST_GROUPS,
   CONFIGURATION_HOSTS,
+  CONFIGURATION_MODE_HASH,
   type ConfigurationHost,
   configurationHostId,
 } from "@/features/project-shell/lib/project-shell-navigation";
@@ -89,6 +91,12 @@ export default function ProjectConfigurationForm({
     },
     [configuration.extraPinnedAreas, requestConfigurationChange],
   );
+  const requestRestoreDefaultNavigation = useCallback(() => {
+    mutation.mutate(
+      { kind: "restore-default-navigation" },
+      { onSuccess: () => setRestorePreviewOpen(false) },
+    );
+  }, [mutation]);
   const combinedError = enableError ?? error;
   const disabled = enableProjectArea.isPending || mutation.isPending;
 
@@ -96,6 +104,7 @@ export default function ProjectConfigurationForm({
     <section
       aria-label="Configuration Mode"
       className="mt-6 space-y-8 border-border/70 border-y py-6"
+      id={CONFIGURATION_MODE_HASH}
     >
       <header className="max-w-3xl border-border/70 border-b pb-5">
         <h2 className="font-semibold text-2xl tracking-tight">
@@ -108,112 +117,85 @@ export default function ProjectConfigurationForm({
         </p>
       </header>
 
-      <div>
-        <h3
-          className="font-medium text-base"
-          id="configuration-project-areas-heading"
-        >
-          Project areas
-        </h3>
-        <p className="mt-2 max-w-2xl text-muted-foreground text-sm/relaxed">
-          Enable and arrange ready Project areas from the selected host below.
-          These controls change presentation metadata only and do not create
-          records.
-        </p>
-        <Button
-          className="mt-4"
-          disabled={disabled}
-          onClick={() => setRestorePreviewOpen(true)}
-          type="button"
-          variant="outline"
-        >
-          Restore default navigation
-        </Button>
-        {restorePreviewOpen ? (
-          <div
-            aria-label="Navigation preview"
-            className="mt-4 space-y-3 border bg-background p-4 text-sm"
-            role="status"
-          >
-            <p className="font-medium">Navigation preview</p>
-            <p className="text-muted-foreground">
-              Current pinned areas:{" "}
-              {configuration.extraPinnedAreas.join(", ") || "None"}
-            </p>
-            <p className="text-muted-foreground">
-              Default pinned areas: {defaultPinnedAreas.join(", ") || "None"}
-            </p>
-            <ConfigurationMutationError error={combinedError} />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                disabled={disabled}
-                onClick={() =>
-                  mutation.mutate(
-                    { kind: "restore-default-navigation" },
-                    { onSuccess: () => setRestorePreviewOpen(false) },
-                  )
-                }
-                size="xs"
-                type="button"
-              >
-                Confirm
-              </Button>
-              <Button
-                disabled={disabled}
-                onClick={() => setRestorePreviewOpen(false)}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            </div>
+      <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <div className="lg:hidden">
+            <label className="sr-only" htmlFor="configuration-host-selector">
+              Configuration Mode
+            </label>
+            <NativeSelect
+              className="min-h-11 w-full"
+              id="configuration-host-selector"
+              onChange={(event) => {
+                const selected = CONFIGURATION_HOSTS.find(
+                  (host) => host.label === event.target.value,
+                );
+                onConfigurationHostChange(selected?.label ?? null);
+              }}
+              value={configurationHost ?? ""}
+            >
+              <NativeSelectOption value="">
+                Choose a surface to inspect its Project-level controls
+              </NativeSelectOption>
+              {CONFIGURATION_HOST_GROUPS.map((group) => (
+                <optgroup key={group} label={group}>
+                  {CONFIGURATION_HOSTS.filter(
+                    (host) => host.group === group,
+                  ).map(({ label }) => (
+                    <NativeSelectOption key={label} value={label}>
+                      {label}
+                    </NativeSelectOption>
+                  ))}
+                </optgroup>
+              ))}
+            </NativeSelect>
           </div>
-        ) : null}
-      </div>
-
-      <div>
-        <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
-          <nav
-            aria-label="Configuration Mode"
-            className="grid gap-1 border-border/70 border-l pl-2"
-          >
-            {CONFIGURATION_HOSTS.map(({ description, label }) => (
-              <div className="group" key={label}>
-                <ConfigurationHostButton
-                  isOpen={configurationHost === label}
-                  label={label}
-                  onChange={onConfigurationHostChange}
-                />
-                <p className="px-3 pb-2 text-[0.68rem]/relaxed text-muted-foreground lg:hidden">
-                  {description}
-                </p>
-              </div>
+          <div className="hidden space-y-5 lg:block">
+            {CONFIGURATION_HOST_GROUPS.map((group) => (
+              <fieldset className="min-w-0 space-y-2 border-0 p-0" key={group}>
+                <legend className="surface-kicker px-3">{group}</legend>
+                <div className="grid gap-1 border-border/70 border-l pl-2">
+                  {CONFIGURATION_HOSTS.filter(
+                    (host) => host.group === group,
+                  ).map(({ label }) => (
+                    <ConfigurationHostButton
+                      isOpen={configurationHost === label}
+                      key={label}
+                      label={label}
+                      onChange={onConfigurationHostChange}
+                    />
+                  ))}
+                </div>
+              </fieldset>
             ))}
-          </nav>
-          <div className="min-w-0 border-border/70 border-t pt-5 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
-            {configurationHost ? (
-              <ConfigurationHostPanel
-                baseRevision={baseRevision}
-                configuration={configuration}
-                disabled={disabled}
-                error={combinedError}
-                label={configurationHost}
-                onChange={mutation.mutate}
-                onEnableProjectArea={requestEnableProjectArea}
-                onReorderPinnedArea={requestReorderPinnedArea}
-                projectId={projectId}
-                projectName={projectName}
-              />
-            ) : (
-              <div className="flex min-h-32 items-center">
-                <p className="max-w-md text-muted-foreground text-sm/relaxed">
-                  Choose a surface to inspect its Project-level controls. Daily
-                  Work editing stays outside this mode.
-                </p>
-              </div>
-            )}
           </div>
+        </div>
+        <div className="min-w-0 lg:border-border/70 lg:border-l lg:pl-5">
+          {configurationHost ? (
+            <ConfigurationHostPanel
+              baseRevision={baseRevision}
+              configuration={configuration}
+              defaultPinnedAreas={defaultPinnedAreas}
+              disabled={disabled}
+              error={combinedError}
+              label={configurationHost}
+              onChange={mutation.mutate}
+              onEnableProjectArea={requestEnableProjectArea}
+              onReorderPinnedArea={requestReorderPinnedArea}
+              onRestoreDefaultNavigation={requestRestoreDefaultNavigation}
+              onRestorePreviewOpenChange={setRestorePreviewOpen}
+              projectId={projectId}
+              projectName={projectName}
+              restorePreviewOpen={restorePreviewOpen}
+            />
+          ) : (
+            <div className="flex min-h-20 items-center border-border/70 border-t pt-4 lg:min-h-32 lg:border-0 lg:pt-0">
+              <p className="max-w-md text-muted-foreground text-sm/relaxed">
+                Choose a surface to inspect its Project-level controls. Daily
+                Work editing stays outside this mode.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -251,25 +233,33 @@ function ConfigurationHostButton({
 function ConfigurationHostPanel({
   baseRevision,
   configuration,
+  defaultPinnedAreas,
   disabled,
   error,
   label,
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
+  onRestoreDefaultNavigation,
+  onRestorePreviewOpenChange,
   projectId,
   projectName,
+  restorePreviewOpen,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
+  defaultPinnedAreas: readonly ProjectArea[];
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
+  onRestoreDefaultNavigation: () => void;
+  onRestorePreviewOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
+  restorePreviewOpen: boolean;
 }) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
@@ -292,6 +282,7 @@ function ConfigurationHostPanel({
       <ConfigurationHostContent
         baseRevision={baseRevision}
         configuration={configuration}
+        defaultPinnedAreas={defaultPinnedAreas}
         disabled={disabled}
         error={error}
         label={label}
@@ -299,8 +290,11 @@ function ConfigurationHostPanel({
         onChange={onChange}
         onEnableProjectArea={onEnableProjectArea}
         onReorderPinnedArea={onReorderPinnedArea}
+        onRestoreDefaultNavigation={onRestoreDefaultNavigation}
+        onRestorePreviewOpenChange={onRestorePreviewOpenChange}
         projectId={projectId}
         projectName={projectName}
+        restorePreviewOpen={restorePreviewOpen}
       />
     </section>
   );
@@ -309,6 +303,7 @@ function ConfigurationHostPanel({
 function ConfigurationHostContent({
   baseRevision,
   configuration,
+  defaultPinnedAreas,
   disabled,
   error,
   label,
@@ -316,11 +311,15 @@ function ConfigurationHostContent({
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
+  onRestoreDefaultNavigation,
+  onRestorePreviewOpenChange,
   projectId,
   projectName,
+  restorePreviewOpen,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
+  defaultPinnedAreas: readonly ProjectArea[];
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
@@ -328,8 +327,11 @@ function ConfigurationHostContent({
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
+  onRestoreDefaultNavigation: () => void;
+  onRestorePreviewOpenChange: (open: boolean) => void;
   projectId: string;
   projectName: string;
+  restorePreviewOpen: boolean;
 }) {
   switch (label) {
     case "Stages":
@@ -354,12 +356,16 @@ function ConfigurationHostContent({
       return (
         <ProjectAreasConfiguration
           configuration={configuration}
+          defaultPinnedAreas={defaultPinnedAreas}
           disabled={disabled}
           error={error}
           message={message}
           onChange={onChange}
           onEnableProjectArea={onEnableProjectArea}
           onReorderPinnedArea={onReorderPinnedArea}
+          onRestoreDefaultNavigation={onRestoreDefaultNavigation}
+          onRestorePreviewOpenChange={onRestorePreviewOpenChange}
+          restorePreviewOpen={restorePreviewOpen}
         />
       );
     case "Custom field":
@@ -393,24 +399,76 @@ function ConfigurationHostContent({
 
 function ProjectAreasConfiguration({
   configuration,
+  defaultPinnedAreas,
   disabled,
   error,
   message,
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
+  onRestoreDefaultNavigation,
+  onRestorePreviewOpenChange,
+  restorePreviewOpen,
 }: {
   configuration: ProjectShellConfiguration;
+  defaultPinnedAreas: readonly ProjectArea[];
   disabled: boolean;
   error: string | null;
   message: string;
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
+  onRestoreDefaultNavigation: () => void;
+  onRestorePreviewOpenChange: (open: boolean) => void;
+  restorePreviewOpen: boolean;
 }) {
   return (
     <div className="mt-3 space-y-4">
-      <p className="text-muted-foreground text-xs/relaxed">{message}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-2xl text-muted-foreground text-xs/relaxed">
+          {message}
+        </p>
+        <Button
+          className="shrink-0"
+          disabled={disabled}
+          onClick={() => onRestorePreviewOpenChange(true)}
+          type="button"
+          variant="outline"
+        >
+          Restore default navigation
+        </Button>
+      </div>
+      {restorePreviewOpen ? (
+        <fieldset className="space-y-3 border bg-background p-4 text-sm">
+          <legend className="font-medium">Navigation preview</legend>
+          <p className="text-muted-foreground">
+            Current pinned areas:{" "}
+            {configuration.extraPinnedAreas.join(", ") || "None"}
+          </p>
+          <p className="text-muted-foreground">
+            Default pinned areas: {defaultPinnedAreas.join(", ") || "None"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={disabled}
+              onClick={onRestoreDefaultNavigation}
+              size="xs"
+              type="button"
+            >
+              Confirm
+            </Button>
+            <Button
+              disabled={disabled}
+              onClick={() => onRestorePreviewOpenChange(false)}
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+          </div>
+        </fieldset>
+      ) : null}
       <ConfigurationMutationError error={error} />
       <ul
         aria-label="Project areas"
