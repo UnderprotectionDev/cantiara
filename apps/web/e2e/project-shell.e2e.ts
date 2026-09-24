@@ -150,6 +150,22 @@ test("places Projects before a loaded Workspace overview", async ({
     workspaceOverview.locator('[data-workspace-overview-layout="true"]'),
   ).toBeHidden();
   await expect(
+    workspaceOverview.locator('[data-workspace-overview-live-blocks="true"]'),
+  ).toBeHidden();
+  await expect(
+    workspaceOverview.locator('[data-workspace-overview-saved-lists="true"]'),
+  ).toBeHidden();
+  await Promise.all(
+    ["active-projects", "attention-required", "upcoming", "recent-work"].map(
+      (module) =>
+        expect(
+          workspaceOverview.locator(
+            `[data-workspace-overview-module="${module}"]`,
+          ),
+        ).toBeVisible(),
+    ),
+  );
+  await expect(
     workspaceOverview.getByRole("link", {
       exact: true,
       name: "Active Projects",
@@ -160,6 +176,12 @@ test("places Projects before a loaded Workspace overview", async ({
   await expect(customization).toHaveAttribute("open", "");
   await expect(
     workspaceOverview.locator('[data-workspace-overview-layout="true"]'),
+  ).toBeVisible();
+  await expect(
+    workspaceOverview.locator('[data-workspace-overview-live-blocks="true"]'),
+  ).toBeVisible();
+  await expect(
+    workspaceOverview.locator('[data-workspace-overview-saved-lists="true"]'),
   ).toBeVisible();
   const projectListPrecedesOverview = await projectList.evaluate((list) => {
     const overview = document.querySelector("#workspace-overview");
@@ -278,6 +300,42 @@ test("creates Projects with suggested and Workspace-unique Short codes", async (
   await expect(firstShortCode).toHaveCount(0);
   await expect(firstProject.getByText("PAYS", { exact: true })).toBeVisible();
 
+  await page.getByRole("link", { name: "Payment App", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  const workCreate = page.locator("#work-create");
+  await workCreate.getByLabel("Title").fill("First Work locks short code");
+  const firstWorkResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/finalizeWorkDraft"),
+  );
+  await workCreate.getByRole("button", { name: "Create", exact: true }).click();
+  expect((await firstWorkResponse).ok()).toBe(true);
+  await expect(
+    page
+      .locator('ul[aria-label="Work list"] > li')
+      .filter({ hasText: "First Work locks short code" }),
+  ).toBeVisible();
+
+  await page.goto("/projects");
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await expect(
+    firstProject.getByText("Short code is locked after the first Work.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    firstProject.getByRole("button", {
+      name: "Edit Short code",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(firstProject.getByText("PAYS", { exact: true })).toBeVisible();
+
   await page.getByRole("link", { name: "Create Project" }).click();
   await page.getByText("Optional profile details", { exact: true }).click();
   await page.getByLabel("Logo").setInputFiles({
@@ -372,7 +430,10 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   const configurationWrites = () =>
     nonGetRequests
       .slice(nonGetRequestCountBeforeConfigurationMode)
-      .filter((url) => url !== customFieldsReadUrl);
+      .filter(
+        (url) =>
+          url !== customFieldsReadUrl && !url.includes("/rpc/workTemplates"),
+      );
 
   await configurationMode.click();
   expect(configurationWrites()).toEqual([]);
@@ -400,6 +461,7 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
       "Custom field",
       "Priority metrics",
       "Saved views",
+      "Work Template",
       "Work Context Card layout",
     ].map((entry) =>
       expect(
@@ -458,6 +520,31 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
       exact: true,
     }),
   ).toBeVisible();
+
+  const workTemplateMutationPaths = [
+    "/rpc/createWorkTemplate",
+    "/rpc/instantiateWorkTemplate",
+    "/rpc/updateWorkTemplate",
+    "/rpc/trashWorkTemplate",
+  ];
+  const workTemplateWrites = () =>
+    nonGetRequests
+      .slice(nonGetRequestCountBeforeConfigurationMode)
+      .filter((url) =>
+        workTemplateMutationPaths.some((path) => url.includes(path)),
+      );
+  await configurationRegion
+    .getByRole("button", { name: "Work Template", exact: true })
+    .click();
+  const workTemplateHost = configurationRegion.getByRole("region", {
+    exact: true,
+    name: "Work Template",
+  });
+  await expect(workTemplateHost).toBeVisible();
+  await expect(
+    workTemplateHost.getByRole("form", { name: "Add Work Template" }),
+  ).toBeVisible();
+  expect(workTemplateWrites()).toEqual([]);
 
   await configurationRegion
     .getByRole("button", { name: "Custom field", exact: true })
@@ -822,6 +909,7 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
     projectAreasHost.getByRole("list", { name: "Project areas" }),
   ).toBeVisible();
   await mobileConfigurationSelector.selectOption("Work statuses");
+  await expect(projectAreasHost).toHaveCount(0);
   await expect(
     configurationRegion.getByRole("list", {
       name: "Work status configuration",

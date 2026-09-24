@@ -25,6 +25,7 @@ import {
   CONFIGURATION_HOSTS,
   CONFIGURATION_MODE_HASH,
   type ConfigurationHost,
+  type ConfigurationHostGroup,
   configurationHostId,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -34,6 +35,17 @@ import {
 import RecordActionEditor from "@/features/record-actions/ui/components/record-action-editor";
 import WorkContextCardLayoutEditor from "@/features/work-context/ui/components/work-context-card-layout-editor";
 import WorkTemplateEditor from "@/features/work-templates/ui/components/work-template-editor";
+
+interface ProjectAreasNavigationPreview {
+  defaultPinnedAreas: readonly ProjectArea[];
+  onRestoreDefaultNavigation: () => void;
+  onRestorePreviewOpenChange: (open: boolean) => void;
+  restorePreviewOpen: boolean;
+}
+
+function configurationHostsForGroup(group: ConfigurationHostGroup) {
+  return CONFIGURATION_HOSTS.filter((host) => host.group === group);
+}
 
 export default function ProjectConfigurationForm({
   baseRevision,
@@ -97,6 +109,12 @@ export default function ProjectConfigurationForm({
       { onSuccess: () => setRestorePreviewOpen(false) },
     );
   }, [mutation]);
+  const projectAreasNavigationPreview: ProjectAreasNavigationPreview = {
+    defaultPinnedAreas,
+    onRestoreDefaultNavigation: requestRestoreDefaultNavigation,
+    onRestorePreviewOpenChange: setRestorePreviewOpen,
+    restorePreviewOpen,
+  };
   const combinedError = enableError ?? error;
   const disabled = enableProjectArea.isPending || mutation.isPending;
 
@@ -139,9 +157,7 @@ export default function ProjectConfigurationForm({
               </NativeSelectOption>
               {CONFIGURATION_HOST_GROUPS.map((group) => (
                 <optgroup key={group} label={group}>
-                  {CONFIGURATION_HOSTS.filter(
-                    (host) => host.group === group,
-                  ).map(({ label }) => (
+                  {configurationHostsForGroup(group).map(({ label }) => (
                     <NativeSelectOption key={label} value={label}>
                       {label}
                     </NativeSelectOption>
@@ -155,9 +171,7 @@ export default function ProjectConfigurationForm({
               <fieldset className="min-w-0 space-y-2 border-0 p-0" key={group}>
                 <legend className="surface-kicker px-3">{group}</legend>
                 <div className="grid gap-1 border-border/70 border-l pl-2">
-                  {CONFIGURATION_HOSTS.filter(
-                    (host) => host.group === group,
-                  ).map(({ label }) => (
+                  {configurationHostsForGroup(group).map(({ label }) => (
                     <ConfigurationHostButton
                       isOpen={configurationHost === label}
                       key={label}
@@ -175,18 +189,15 @@ export default function ProjectConfigurationForm({
             <ConfigurationHostPanel
               baseRevision={baseRevision}
               configuration={configuration}
-              defaultPinnedAreas={defaultPinnedAreas}
               disabled={disabled}
               error={combinedError}
               label={configurationHost}
               onChange={mutation.mutate}
               onEnableProjectArea={requestEnableProjectArea}
               onReorderPinnedArea={requestReorderPinnedArea}
-              onRestoreDefaultNavigation={requestRestoreDefaultNavigation}
-              onRestorePreviewOpenChange={setRestorePreviewOpen}
+              projectAreasNavigationPreview={projectAreasNavigationPreview}
               projectId={projectId}
               projectName={projectName}
-              restorePreviewOpen={restorePreviewOpen}
             />
           ) : (
             <div className="flex min-h-20 items-center border-border/70 border-t pt-4 lg:min-h-32 lg:border-0 lg:pt-0">
@@ -233,33 +244,27 @@ function ConfigurationHostButton({
 function ConfigurationHostPanel({
   baseRevision,
   configuration,
-  defaultPinnedAreas,
   disabled,
   error,
   label,
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
-  onRestoreDefaultNavigation,
-  onRestorePreviewOpenChange,
+  projectAreasNavigationPreview,
   projectId,
   projectName,
-  restorePreviewOpen,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
-  defaultPinnedAreas: readonly ProjectArea[];
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
-  onRestoreDefaultNavigation: () => void;
-  onRestorePreviewOpenChange: (open: boolean) => void;
+  projectAreasNavigationPreview: ProjectAreasNavigationPreview;
   projectId: string;
   projectName: string;
-  restorePreviewOpen: boolean;
 }) {
   const host = CONFIGURATION_HOSTS.find(
     (candidate) => candidate.label === label,
@@ -282,7 +287,6 @@ function ConfigurationHostPanel({
       <ConfigurationHostContent
         baseRevision={baseRevision}
         configuration={configuration}
-        defaultPinnedAreas={defaultPinnedAreas}
         disabled={disabled}
         error={error}
         label={label}
@@ -290,11 +294,9 @@ function ConfigurationHostPanel({
         onChange={onChange}
         onEnableProjectArea={onEnableProjectArea}
         onReorderPinnedArea={onReorderPinnedArea}
-        onRestoreDefaultNavigation={onRestoreDefaultNavigation}
-        onRestorePreviewOpenChange={onRestorePreviewOpenChange}
+        projectAreasNavigationPreview={projectAreasNavigationPreview}
         projectId={projectId}
         projectName={projectName}
-        restorePreviewOpen={restorePreviewOpen}
       />
     </section>
   );
@@ -303,7 +305,6 @@ function ConfigurationHostPanel({
 function ConfigurationHostContent({
   baseRevision,
   configuration,
-  defaultPinnedAreas,
   disabled,
   error,
   label,
@@ -311,15 +312,12 @@ function ConfigurationHostContent({
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
-  onRestoreDefaultNavigation,
-  onRestorePreviewOpenChange,
+  projectAreasNavigationPreview,
   projectId,
   projectName,
-  restorePreviewOpen,
 }: {
   baseRevision: number;
   configuration: ProjectShellConfiguration;
-  defaultPinnedAreas: readonly ProjectArea[];
   disabled: boolean;
   error: string | null;
   label: ConfigurationHost;
@@ -327,11 +325,9 @@ function ConfigurationHostContent({
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
-  onRestoreDefaultNavigation: () => void;
-  onRestorePreviewOpenChange: (open: boolean) => void;
+  projectAreasNavigationPreview: ProjectAreasNavigationPreview;
   projectId: string;
   projectName: string;
-  restorePreviewOpen: boolean;
 }) {
   switch (label) {
     case "Stages":
@@ -356,16 +352,13 @@ function ConfigurationHostContent({
       return (
         <ProjectAreasConfiguration
           configuration={configuration}
-          defaultPinnedAreas={defaultPinnedAreas}
           disabled={disabled}
           error={error}
           message={message}
+          navigationPreview={projectAreasNavigationPreview}
           onChange={onChange}
           onEnableProjectArea={onEnableProjectArea}
           onReorderPinnedArea={onReorderPinnedArea}
-          onRestoreDefaultNavigation={onRestoreDefaultNavigation}
-          onRestorePreviewOpenChange={onRestorePreviewOpenChange}
-          restorePreviewOpen={restorePreviewOpen}
         />
       );
     case "Custom field":
@@ -399,28 +392,22 @@ function ConfigurationHostContent({
 
 function ProjectAreasConfiguration({
   configuration,
-  defaultPinnedAreas,
   disabled,
   error,
   message,
   onChange,
   onEnableProjectArea,
   onReorderPinnedArea,
-  onRestoreDefaultNavigation,
-  onRestorePreviewOpenChange,
-  restorePreviewOpen,
+  navigationPreview,
 }: {
   configuration: ProjectShellConfiguration;
-  defaultPinnedAreas: readonly ProjectArea[];
   disabled: boolean;
   error: string | null;
   message: string;
   onChange: (change: ProjectShellConfigurationChange) => void;
   onEnableProjectArea: (area: ProjectArea) => void;
   onReorderPinnedArea: (area: ProjectArea, direction: -1 | 1) => void;
-  onRestoreDefaultNavigation: () => void;
-  onRestorePreviewOpenChange: (open: boolean) => void;
-  restorePreviewOpen: boolean;
+  navigationPreview: ProjectAreasNavigationPreview;
 }) {
   return (
     <div className="mt-3 space-y-4">
@@ -431,14 +418,14 @@ function ProjectAreasConfiguration({
         <Button
           className="shrink-0"
           disabled={disabled}
-          onClick={() => onRestorePreviewOpenChange(true)}
+          onClick={() => navigationPreview.onRestorePreviewOpenChange(true)}
           type="button"
           variant="outline"
         >
           Restore default navigation
         </Button>
       </div>
-      {restorePreviewOpen ? (
+      {navigationPreview.restorePreviewOpen ? (
         <fieldset className="space-y-3 border bg-background p-4 text-sm">
           <legend className="font-medium">Navigation preview</legend>
           <p className="text-muted-foreground">
@@ -446,12 +433,13 @@ function ProjectAreasConfiguration({
             {configuration.extraPinnedAreas.join(", ") || "None"}
           </p>
           <p className="text-muted-foreground">
-            Default pinned areas: {defaultPinnedAreas.join(", ") || "None"}
+            Default pinned areas:{" "}
+            {navigationPreview.defaultPinnedAreas.join(", ") || "None"}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={disabled}
-              onClick={onRestoreDefaultNavigation}
+              onClick={navigationPreview.onRestoreDefaultNavigation}
               size="xs"
               type="button"
             >
@@ -459,7 +447,9 @@ function ProjectAreasConfiguration({
             </Button>
             <Button
               disabled={disabled}
-              onClick={() => onRestorePreviewOpenChange(false)}
+              onClick={() =>
+                navigationPreview.onRestorePreviewOpenChange(false)
+              }
               size="xs"
               type="button"
               variant="outline"

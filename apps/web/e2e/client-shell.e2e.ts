@@ -94,7 +94,11 @@ test("routes the product entry into Account Access and skips app navigation by k
   };
   await context.addCookies([setup.cookie]);
 
-  await page.goto("/projects");
+  await page.goto("/");
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Projects", level: 1 }),
+  ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Primary navigation" }),
   ).toBeVisible();
