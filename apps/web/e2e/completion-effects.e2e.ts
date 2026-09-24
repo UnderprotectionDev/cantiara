@@ -834,33 +834,50 @@ test("shows Completion Effects feedback for a bulk Completed close", async ({
     window.cancelAnimationFrame = ((frameId: number) =>
       window.clearTimeout(frameId)) as typeof window.cancelAnimationFrame;
   });
-  await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
+  let activeRefreshGate: ReturnType<typeof createRequestGate> | null = null;
+  await page.route("**/rpc/projectWorks", async (route) => {
+    const refreshGate = activeRefreshGate;
+    if (refreshGate) {
+      refreshGate.notifyStarted();
+      await refreshGate.wait();
+    }
+    await route.continue();
+  });
 
-  await expect(
-    bulkEdit
-      .getByRole("list", { name: "Bulk Edit results" })
-      .getByText("Succeeded"),
-  ).toBeVisible({ timeout: 20_000 });
-  await expect(
-    workRow.locator('[role="status"]').filter({
-      hasText: "Work completed",
-    }),
-  ).toBeVisible();
-  const effect = workRow.locator(
-    '.work-completion-effect[data-playing="true"]',
-  );
-  await expect(effect).toBeVisible();
+  const bulkRefreshGate = createRequestGate();
+  const finalizing = bulkEdit.getByRole("button", {
+    name: "Finalizing",
+    exact: true,
+  });
+  activeRefreshGate = bulkRefreshGate;
+  try {
+    await bulkEdit.getByRole("button", { name: "Apply", exact: true }).click();
 
-  await bulkEdit.getByRole("button", { name: "Cancel", exact: true }).click();
-  if (await bulkEdit.isVisible()) {
-    const finalizing = bulkEdit.getByRole("button", {
-      name: "Finalizing",
-      exact: true,
-    });
-    await expect(finalizing).toBeVisible();
-    await expect(finalizing).toBeHidden({ timeout: 20_000 });
+    await expect(
+      bulkEdit
+        .getByRole("list", { name: "Bulk Edit results" })
+        .getByText("Succeeded"),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(
+      workRow.locator('[role="status"]').filter({
+        hasText: "Work completed",
+      }),
+    ).toBeVisible();
+    const effect = workRow.locator(
+      '.work-completion-effect[data-playing="true"]',
+    );
+    await expect(effect).toBeVisible();
+
+    await bulkRefreshGate.started;
     await bulkEdit.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(finalizing).toBeVisible();
+  } finally {
+    activeRefreshGate = null;
+    bulkRefreshGate.release();
   }
+
+  await expect(finalizing).toBeHidden({ timeout: 20_000 });
+  await bulkEdit.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(bulkEdit).toBeHidden();
   await expect(
     workRow.locator('[role="status"]').filter({
