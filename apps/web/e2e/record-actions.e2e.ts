@@ -71,7 +71,9 @@ test("defines, reloads, and trashes a single-record Start Work action", async ({
   await page
     .getByRole("link", { name: "Record Actions Acceptance", exact: true })
     .click();
-  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
 
   const configuration = page.locator(
     'section[aria-label="Configuration Mode"]',
@@ -104,7 +106,12 @@ test("defines, reloads, and trashes a single-record Start Work action", async ({
   await expect(host.getByText("Bulk Edit", { exact: true })).toHaveCount(0);
 
   await page.reload();
-  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Exit Configuration Mode",
+      exact: true,
+    }),
+  ).toBeVisible();
   await configuration
     .getByRole("button", { name: "Record Action", exact: true })
     .click();
@@ -178,7 +185,9 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     timeout: 30_000,
   });
 
-  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
   const configuration = page.locator(
     'section[aria-label="Configuration Mode"]',
   );
@@ -220,6 +229,12 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await form.getByLabel("Related Work").selectOption("add");
   await form.getByRole("button", { name: "Save", exact: true }).click();
 
+  await expect(
+    page.getByRole("navigation", { name: "Project navigation" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Exit Configuration Mode", exact: true })
+    .click();
   await page
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })

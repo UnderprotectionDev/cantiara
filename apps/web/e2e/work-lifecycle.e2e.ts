@@ -607,8 +607,16 @@ test("creates Work with a Project key, type, and protected start status", async 
   await page.goto("/projects");
   const project = page.getByRole("listitem").filter({ hasText: "Payment App" });
   await expect(
+    project.getByText("Short code is locked after the first Work.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
     project.getByRole("textbox", { name: "Short code" }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
+  await expect(
+    project.getByRole("button", { name: "Edit Short code", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("link", { name: "Create Project" }).click();
   await page.getByLabel("Project Name").fill("Orders");
   await page.getByRole("button", { name: "Create Project" }).click();

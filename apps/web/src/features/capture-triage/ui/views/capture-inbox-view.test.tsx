@@ -79,7 +79,7 @@ describe("Capture Inbox view", () => {
     });
 
     expect(html).toContain(">Capture Inbox</h1>");
-    expect(html).toContain(">Capture Library</p>");
+    expect(html).toContain(">Workspace Capture Inbox</h3>");
     expect(html).toContain(">Saved captures</h2>");
     expect(html).toContain("Review temporary captures here.");
     expect(html).toContain(">New capture</button>");
