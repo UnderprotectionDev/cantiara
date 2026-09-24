@@ -411,14 +411,27 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   ).toBeVisible();
   await page.unroute("**/rpc/closeWork", holdCloseRequest);
 
-  await page.clock.fastForward(1200);
-  await expect(
-    firstWork.locator('.work-completion-effect[data-playing="true"]'),
-  ).toHaveCount(0);
-
+  const firstEffect = firstWork.locator(
+    '.work-completion-effect[data-playing="true"]',
+  );
+  await expect(firstEffect).toHaveAttribute("aria-hidden", "true");
+  await expect(firstEffect).toHaveCSS("pointer-events", "none");
   const secondStatus = secondWork.getByRole("combobox", {
     name: WORK_STATUS_COMBOBOX_NAME,
   });
+  await secondStatus.selectOption("Closed");
+  const secondCloseDialog = secondWork.getByRole("dialog", {
+    name: CLOSE_DIALOG_NAME,
+  });
+  await expect(secondCloseDialog).toBeVisible();
+  await expect(firstEffect).toHaveCount(1);
+  await secondCloseDialog
+    .getByRole("button", { name: "Return to work", exact: true })
+    .click();
+
+  await page.clock.fastForward(1200);
+  await expect(firstEffect).toHaveCount(0);
+
   await secondStatus.selectOption("Closed");
   await secondWork
     .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
@@ -431,14 +444,29 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
     secondWork.locator('.work-completion-effect[data-playing="true"]'),
   ).toHaveCount(0);
 
-  await firstWork.getByRole("button", { name: "Reopen", exact: true }).click();
+  const firstNotice = firstWork.getByRole("status");
+  await expect(
+    firstWork.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+  ).toHaveValue("Closed");
+  await firstNotice
+    .getByRole("button", { name: "Reopen", exact: true })
+    .click();
   const reopenDialog = firstWork.getByRole("dialog", {
     name: REOPEN_DIALOG_NAME,
   });
   await expect(reopenDialog).toBeVisible();
+  await expect(
+    firstWork.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+  ).toHaveValue("Closed");
   await reopenDialog
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
+  await expect(
+    firstNotice.getByText("Work completed", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    firstWork.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+  ).toHaveValue("Closed");
 
   await page.clock.fastForward(28_800);
   const thirdStatus = thirdWork.getByRole("combobox", {
@@ -545,6 +573,50 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   await expect(
     secondTabFirstWork.locator('.work-completion-effect[data-playing="true"]'),
   ).toHaveCount(0);
+});
+
+test("keeps the base success notice for ten seconds when effects are off", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithAccountPreferencesFixture(context, request, "work-lifecycle");
+
+  await page.goto("/account/completion-effects");
+  await expect(page.getByRole("switch", { name: "Enable" })).not.toBeChecked();
+
+  await openProjectWorkSurface(page, "Completion Effects Base Notice Project");
+  const work = await createWork(page, "Keep the base success notice visible");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+
+  await work
+    .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
+    .selectOption("Closed");
+  await work
+    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+
+  const notice = work.getByRole("status");
+  await expect(
+    notice.getByText("Work completed", { exact: true }),
+  ).toBeVisible();
+  await expect(notice).toHaveAttribute("aria-live", "polite");
+  await expect(
+    work.locator('.work-completion-effect[data-playing="true"]'),
+  ).toHaveCount(0);
+  await expect(
+    work.getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME }),
+  ).toHaveValue("Closed");
+
+  await page.clock.fastForward(9999);
+  await expect(
+    notice.getByText("Work completed", { exact: true }),
+  ).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(notice).toHaveCount(0);
 });
 
 test("does not replay a timed-out idempotent close or celebrate Abandoned", async ({
