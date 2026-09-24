@@ -49,6 +49,7 @@ export default function ProjectShellView({
     <main className="surface-frame max-w-[1440px]">
       <ProjectShellSurface
         accountFormattingPreferences={formattingPreferences}
+        accountId={accountId}
         project={projectQuery.data}
         projectId={projectId}
         scopeTreeQuery={scopeTreeQuery}

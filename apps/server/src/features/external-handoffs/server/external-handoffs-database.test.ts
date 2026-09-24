@@ -374,11 +374,13 @@ describeDatabase("External Execution Handoff seam", () => {
     ];
     expect(handoffEventTypes("handoff-1")).toEqual(expectedHandoffEventTypes);
     expect(handoffEventTypes("handoff-2")).toEqual(expectedHandoffEventTypes);
-    const cancellationHistory = history?.filter(
-      (event) => event.eventType === "external-execution-handoff-canceled",
-    );
-    expect(cancellationHistory).toHaveLength(2);
-    expect(cancellationHistory?.[0]).not.toHaveProperty("reason");
-    expect(cancellationHistory?.[1]).not.toHaveProperty("reason");
+    const cancellationEvents =
+      history?.filter(
+        (event) => event.eventType === "external-execution-handoff-canceled",
+      ) ?? [];
+    expect(cancellationEvents).toHaveLength(2);
+    for (const event of cancellationEvents) {
+      expect(event).not.toHaveProperty("reason");
+    }
   });
 });
