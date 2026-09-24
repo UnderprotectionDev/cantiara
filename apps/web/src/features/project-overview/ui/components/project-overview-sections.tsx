@@ -37,14 +37,17 @@ export function OverviewSummary({
   value: string | null;
 }) {
   return (
-    <div className="bg-card px-5 py-5" data-overview-module={label}>
+    <div
+      className="border-border/70 border-t py-4"
+      data-overview-module={label}
+    >
       <h3
-        className="font-medium text-muted-foreground text-xs uppercase tracking-[0.16em]"
+        className="font-medium text-muted-foreground text-sm"
         id={`overview-summary-${slug(label)}-heading`}
       >
         {label}
       </h3>
-      <p className="mt-3 text-pretty font-medium text-base/relaxed">
+      <p className="mt-1 text-pretty font-medium text-base/relaxed">
         {value ?? emptyMessage ?? EMPTY_SOURCE_MESSAGE}
       </p>
     </div>
@@ -122,7 +125,7 @@ export function OverviewModule({
 
   return (
     <div
-      className="flex min-h-0 flex-col bg-card p-4"
+      className="flex min-h-0 flex-col border-border/70 border-t pt-4"
       data-overview-module={module.name}
       id={moduleId}
     >

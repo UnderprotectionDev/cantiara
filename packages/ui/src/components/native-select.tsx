@@ -21,7 +21,7 @@ function NativeSelect({
       data-slot="native-select-wrapper"
     >
       <select
-        className="h-9 w-full min-w-0 select-none appearance-none rounded-md border border-input bg-transparent py-1.5 pr-9 pl-3 text-sm outline-none transition-[border-color,box-shadow,background-color] selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 data-[size=sm]:h-8 data-[size=sm]:rounded-md data-[size=sm]:py-1 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 dark:hover:bg-input/50"
+        className="h-9 min-h-10 w-full min-w-0 select-none appearance-none rounded-md border border-input bg-transparent py-1.5 pr-9 pl-3 text-sm outline-none transition-[border-color,box-shadow,background-color] selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 data-[size=sm]:h-8 data-[size=sm]:rounded-md data-[size=sm]:py-1 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 dark:hover:bg-input/50"
         data-size={size}
         data-slot="native-select"
         {...props}

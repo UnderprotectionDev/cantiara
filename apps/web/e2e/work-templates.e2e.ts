@@ -150,6 +150,12 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
   ).toBeVisible();
   await expect(updatedItem.getByText("Target", { exact: true })).toBeVisible();
 
+  await expect(
+    page.getByRole("navigation", { name: "Project navigation" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Exit Configuration Mode", exact: true })
+    .click();
   await page
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })

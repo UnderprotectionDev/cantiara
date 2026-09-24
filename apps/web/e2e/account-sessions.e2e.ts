@@ -25,6 +25,16 @@ test("revokes a session through the keyboard-accessible Account journey", async 
   await context.addCookies([setup.cookie]);
   await page.goto("/account");
 
+  const accountMenu = page.getByRole("button", {
+    name: "Account menu",
+    exact: true,
+  });
+  await expect(accountMenu).toBeVisible();
+  await accountMenu.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+
   await expect(
     page.getByRole("heading", { name: "Sessions", level: 1 }),
   ).toBeVisible();

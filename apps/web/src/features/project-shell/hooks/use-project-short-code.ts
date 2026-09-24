@@ -1,6 +1,6 @@
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -11,6 +11,7 @@ import { projectErrorMessage } from "../lib/project-list";
 export function useProjectShortCode(project: ProjectProfile) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const clearError = useCallback(() => setError(null), []);
   const pendingShortCode = useRef<{
     baseRevision: number;
     clientIdempotencyKey: string;
@@ -56,12 +57,15 @@ export function useProjectShortCode(project: ProjectProfile) {
         clientIdempotencyKey,
         shortCode: nextShortCode,
       });
+      return true;
     } catch {
       // onError owns the inline error state; the form event must settle.
+      return false;
     }
   }
 
   return {
+    clearError,
     error,
     isPending: updateShortCode.isPending,
     saveShortCode,

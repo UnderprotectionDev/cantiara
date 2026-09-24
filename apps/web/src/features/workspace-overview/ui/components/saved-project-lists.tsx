@@ -890,7 +890,7 @@ export default function SavedProjectLists({
                 </Button>
               </div>
               <a
-                className={`${buttonVariants({ size: "sm", variant: "ghost" })} mt-3 -ml-3`}
+                className={`${buttonVariants({ size: "sm", variant: "ghost" })} mt-3 -ml-3 min-h-10`}
                 href={list.href}
               >
                 Open list

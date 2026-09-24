@@ -68,7 +68,9 @@ function AppShell() {
   const shellContent = (
     <>
       <Header />
-      <Outlet />
+      <div className="min-h-0 overflow-auto" id="main-content" tabIndex={-1}>
+        <Outlet />
+      </div>
     </>
   );
 

@@ -11,71 +11,64 @@ export const ALWAYS_REACHABLE_SURFACES = [
   "All Tools",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
+export const CONFIGURATION_HOST_GROUPS = ["Project", "Work"] as const;
+export type ConfigurationHostGroup = (typeof CONFIGURATION_HOST_GROUPS)[number];
 export type NavigationSurface =
   | (typeof ALWAYS_REACHABLE_SURFACES)[number]
   | ProjectArea;
 
 export const NAVIGATION_LINK_BASE =
-  "relative inline-flex min-w-max items-center rounded-md px-3 py-2 text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full";
+  "relative inline-flex min-h-11 min-w-max items-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 lg:w-full";
 
 export const CONFIGURATION_HOSTS = [
   {
-    description:
-      "Open the host for Project stages. Stage state is presentation metadata and does not write Work status.",
+    group: "Project",
+    label: "Project areas",
+    message:
+      "Enable, hide, and pin ready Project areas. These controls only change Project navigation; they do not create, move, or delete records.",
+  },
+  {
+    group: "Project",
     label: "Stages",
     message:
       "Stage names and presentation order open here; removing a stage does not delete main records.",
   },
   {
-    description:
-      "Open the host for user-facing Work status names while protected semantics remain unchanged.",
+    group: "Work",
     label: "Work statuses",
     message:
       "Work status names open here; Not Started, In Progress, Blocked, and Closed semantics remain protected.",
   },
   {
-    description:
-      "Open the host for enabled Project areas. Overview and All Tools stay reachable.",
-    label: "Project areas",
-    message:
-      "Enable, hide, and pin ready Project areas without creating records.",
-  },
-  {
-    description:
-      "Open the host for project-scoped fields. Field types and values belong to the Custom field feature.",
+    group: "Work",
     label: "Custom field",
     message: "No schema is defined here.",
   },
   {
-    description:
-      "Open the host for reusable Project-specific Work starting points.",
+    group: "Work",
     label: "Work Template",
     message: "Define optional start context without changing existing Work.",
   },
   {
-    description:
-      "Open the host for named actions built from existing Work fields and Daily Focus membership.",
+    group: "Work",
     label: "Record Action",
     message:
       "Define fixed steps for one Work record from the closed field and membership catalog.",
   },
   {
-    description:
-      "Open the host for project priority criteria without creating a scalar priority field.",
+    group: "Work",
     label: "Priority metrics",
     message:
       "Priority metric definitions open here; Work values remain with their source records.",
   },
   {
-    description:
-      "Open the host for named Work views. Planning remains a daily action outside this mode.",
+    group: "Work",
     label: "Saved views",
     message:
       "Saved view definitions open here; this entry does not change Planning membership.",
   },
   {
-    description:
-      "Open the host for Work Context Card presentation without changing its layout engine.",
+    group: "Work",
     label: "Work Context Card layout",
     message:
       "No layout is changed here. The Work Context Card feature owns its layout engine.",
@@ -93,6 +86,7 @@ export const DAILY_ACTION_HASHES: Record<DailyAction, string> = {
   Status: "work-status",
 };
 export const PRIORITY_MAP_HASH = "priority-map";
+export const CONFIGURATION_MODE_HASH = "configuration";
 
 export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
   Create:

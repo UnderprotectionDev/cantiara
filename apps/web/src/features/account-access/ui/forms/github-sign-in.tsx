@@ -50,9 +50,8 @@ export default function GitHubSignIn() {
 
   return (
     <main className="flex min-h-0 flex-1 items-center justify-center px-5 py-12 sm:px-8">
-      <section className="w-full max-w-md rounded-xl border border-border/70 bg-card/55 p-6 shadow-black/10 shadow-lg sm:p-8">
+      <section className="w-full max-w-md rounded-xl border border-border/80 bg-card p-6 sm:p-8">
         <div className="mb-8">
-          <p className="surface-kicker">Cantiara</p>
           <h1 className="mt-3 font-semibold text-3xl tracking-tight">
             Welcome to Cantiara
           </h1>
@@ -62,7 +61,7 @@ export default function GitHubSignIn() {
         </div>
         <Button
           aria-busy={isWaitingForGitHub}
-          className="w-full"
+          className="min-h-11 w-full"
           disabled={isWaitingForGitHub}
           onClick={signIn}
           type="button"

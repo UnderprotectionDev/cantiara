@@ -61,7 +61,7 @@ function ProjectsListSection({
       ) : null}
       {data?.length === 0 ? <ProjectsEmptyState /> : null}
       {data && data.length > 0 ? (
-        <ul className="divide-y rounded-lg border border-border/70 bg-card/50">
+        <ul className="divide-y border-border/70 border-y">
           {data.map((project) => (
             <ProjectRow key={project.id} project={project} />
           ))}
@@ -142,18 +142,29 @@ export default function ProjectsView({
         </div>
         {selectedModule || selectedSavedList ? (
           <Link
-            className={buttonVariants({ size: "sm", variant: "outline" })}
+            className={`${buttonVariants({ size: "sm", variant: "outline" })} min-h-11`}
             to="/projects"
           >
             Back to Projects
           </Link>
         ) : (
-          <Link className={buttonVariants({ size: "sm" })} to="/projects/new">
+          <Link
+            className={`${buttonVariants({ size: "sm" })} min-h-11`}
+            to="/projects/new"
+          >
             <Plus aria-hidden="true" />
             Create Project
           </Link>
         )}
       </header>
+
+      {selectedModule || selectedSavedList ? null : (
+        <ProjectsListSection
+          data={projects.data}
+          isError={projects.isError}
+          isPending={projects.isPending}
+        />
+      )}
 
       {workspaceOverview.isPending ? (
         <section
@@ -179,13 +190,19 @@ export default function ProjectsView({
         <div className="border-y py-6 text-sm" role="alert">
           <p className="font-medium">Workspace overview is unavailable.</p>
           <p className="mt-1 text-muted-foreground">
-            Your Projects are still available below. Try loading this page again
+            Your Projects are still available above. Try loading this page again
             to see the source-backed horizon.
           </p>
         </div>
       ) : null}
       {workspaceOverview.data ? (
-        <div className="pt-9">
+        <div
+          className={
+            selectedModule || selectedSavedList
+              ? "pt-1"
+              : "mt-12 border-border/80 border-t pt-9"
+          }
+        >
           <WorkspaceOverviewView
             formattingPreferences={
               accountPreferences.data ?? DEFAULT_ACCOUNT_PREFERENCES
@@ -202,14 +219,6 @@ export default function ProjectsView({
           Workspace overview settings could not be saved. Try again.
         </p>
       ) : null}
-
-      {selectedModule || selectedSavedList ? null : (
-        <ProjectsListSection
-          data={projects.data}
-          isError={projects.isError}
-          isPending={projects.isPending}
-        />
-      )}
     </main>
   );
 }

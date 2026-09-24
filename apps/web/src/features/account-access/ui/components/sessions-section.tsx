@@ -69,10 +69,10 @@ export default function SessionsSection({
           </div>
         ) : null}
         {sessions.data ? (
-          <ul className="divide-y rounded-lg border border-border/70 bg-card/45">
+          <ul className="divide-y border-border/70 border-y">
             {sessions.data.map((productSession) => (
               <li
-                className="flex flex-col gap-4 px-5 py-5 first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between"
                 key={productSession.id}
               >
                 <div className="flex min-w-0 items-start gap-3">

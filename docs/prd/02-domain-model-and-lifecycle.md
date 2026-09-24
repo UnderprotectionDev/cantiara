@@ -146,7 +146,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje oluştur | `Create Project` | Yeni Projeyi kaydeden eylem |
 | Projeler | `Projects` | Çalışma Alanındaki Proje listesi |
 | Projeleri aç | `Open Projects` | Komut Paletinden Çalışma Alanının Projeler yüzeyine gitme eylemi |
+| Kısa kodu düzenle | `Edit Short code` | Proje listesindeki mevcut kısa kodu düzenleme alanını açma eylemi |
 | Kısa kodu kaydet | `Save Short code` | İlk İşten önce kısa kodu güncelleme eylemi |
+| İptal | `Cancel` | Kısa kod düzenlemesini kaydetmeden kapatma eylemi |
 | Yükleniyor | `Loading…` | Proje kabuğu okuma durumu |
 | Proje kullanılamıyor | `Project is unavailable.` | Proje kabuğu okuma hatası |
 | Blank Project | `Blank Project` | Aşama ve uzman görünüm kurmayan en küçük Başlangıç yapılandırması |
@@ -158,6 +160,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Dikkat gerekli | `Attention Required` | Çalışma Alanı genel bakışı hazır modülü; kayıtlı Action Required kaynağını toplar |
 | Yaklaşan | `Upcoming` | Çalışma Alanı genel bakışı hazır modülü; yaklaşan hedef tarihleri ve hatırlatmalar |
 | Son çalışma | `Recent Work` | Çalışma Alanı genel bakışı hazır modülü; son dokunulan İşler |
+| Genel bakışı özelleştir | `Customize overview` | Çalışma Alanı genel bakışının kişisel düzenleme araçlarını açan açıklama |
 | Canlı blok ekle | `Add live block` | Mevcut Belge veya adlandırılmış Akıllı Koleksiyon görünümünü kopyasız referans olarak ekleme |
 | Kaydedilmiş çapraz Proje listesi | `Saved lists` | Çalışma Alanı çapında Proje koşullarından canlı üyelik türeten adlandırılmış görünüm; Portfolio veya Akıllı Koleksiyon değildir |
 | Listeyi kaydet | `Save list` | Çapraz Proje listesi koşullarını ve görünümünü kaydetme |
@@ -243,7 +246,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Klasör | `Folder` | Belge ve Dosya Eki dizininde gezinme konumu; sahiplik veya Search değildir |
 | Dizinde kayıt yok | `No records in this index.` | Hazır tür dizini boş durumu |
 | All Tools | `All Tools` | Hazır Proje alanlarının keşif yüzeyi; Proje alanı değildir ve kapanmaz |
-| Yapılandırma modu | `Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
+| Yapılandırma modu | `Configuration Mode`; açıkken `Exit Configuration Mode` | Yapı değişikliklerini günlük düzenlemeden ayıran görünür sunum durumu; izin veya yönetici rolü değildir |
 | Proje gezinmesi | `Project navigation` | Proje kabuğunda Overview, Work, All Tools ve etkin Proje alanları arasında geçiş sağlayan kalıcı gezinme bölgesi |
 | Proje bazlı özel alan | `Custom field` | Yalnız bir Projede yaşayan yapılandırılmış sınıflandırma alanı; Yapılandırma modunda açılır |
 | İş şablonu | `Work Template` | Proje kapsamlı tekrar kullanılan İş başlangıç bağlamı; Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu değildir |
@@ -678,6 +681,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Herkese açık durum etiketi | `Public Status Label` | İş akışı durumunu değiştirmeyen, yalnız herkese açık Roadmap sunumunda kullanılan ziyaretçi etiketi |
 | GitHub kimliğini yeniden teyit etme | `Confirm GitHub Identity` | Yüksek riskli işlem için yeni OAuth turunda aynı değişmez GitHub kimliğini doğrulayan fakat parola/MFA girişi iddia etmeyen güvenlik eylemi |
 | GitHub bekleniyor | `Waiting for GitHub` | GitHub kesintisinde yeni giriş ve `Confirm GitHub Identity` için görünür bekleme durumu |
+| Hesap menüsü | `Account menu` | Oturum açmış kurucunun Hesap ve oturum eylemlerini açan erişilebilir gezinme kontrolü |
 | GitHub ile devam | `Continue with GitHub` | GitHub login OAuth ile Hesaba giriş eylemi |
 | Oturumu kapat | `Sign Out` | Geçerli ürün oturumunu sonlandırma eylemi |
 | Oturumlar | `Sessions` | Hesap kapsamındaki aktif ürün oturumlarını cihaz ve son etkinlikle listeleme yüzeyi |

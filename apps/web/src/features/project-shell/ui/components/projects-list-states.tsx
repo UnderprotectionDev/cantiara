@@ -16,7 +16,7 @@ export function ProjectsEmptyState() {
             the Project needs more shape.
           </p>
           <Link
-            className={`${buttonVariants({ variant: "outline", size: "sm" })} mt-5`}
+            className={`${buttonVariants({ variant: "outline", size: "sm" })} mt-5 min-h-11`}
             to="/projects/new"
           >
             <Plus aria-hidden="true" />

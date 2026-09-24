@@ -94,10 +94,10 @@ export default function ExtensionLinksSection({
         </p>
       ) : null}
       {links.data && links.data.length > 0 ? (
-        <ul className="divide-y rounded-lg border border-border/70 bg-card/45">
+        <ul className="divide-y border-border/70 border-y">
           {links.data.map((link) => (
             <li
-              className="flex flex-col gap-4 px-5 py-4 first:rounded-t-lg last:rounded-b-lg hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
               key={link.id}
             >
               <div className="grid gap-1 text-sm">

@@ -42,7 +42,7 @@ export default function ProjectOverviewView({
     >
       <header className="surface-header max-w-3xl">
         <h2
-          className="text-balance font-semibold text-2xl tracking-tight sm:text-3xl"
+          className="text-balance font-semibold text-2xl tracking-tight"
           id="project-overview-heading"
         >
           Overview
@@ -53,7 +53,7 @@ export default function ProjectOverviewView({
         </p>
       </header>
 
-      <div className="grid gap-px overflow-hidden rounded-lg border border-border/70 bg-border/70 sm:grid-cols-2">
+      <div className="grid gap-x-8 sm:grid-cols-2">
         <OverviewSummary
           emptyMessage="No Purpose recorded yet."
           label="Purpose"
@@ -64,7 +64,7 @@ export default function ProjectOverviewView({
 
       <EnabledProjectAreas areas={overview.enabledAreas} />
 
-      <div className="grid items-start overflow-hidden rounded-lg border border-border/70 bg-border/70 md:grid-cols-2">
+      <div className="grid items-start gap-x-8 gap-y-8 md:grid-cols-2">
         {overview.modules.map((module) => (
           <OverviewModule
             formattingPreferences={formattingPreferences}

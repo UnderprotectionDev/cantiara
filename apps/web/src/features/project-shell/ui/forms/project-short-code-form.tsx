@@ -1,7 +1,7 @@
 import type { ProjectProfile } from "@cantiara/api/project-shell";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
-import { Check, LockKeyhole, Save } from "lucide-react";
+import { Check, LockKeyhole, Pencil, Save } from "lucide-react";
 import {
   type ChangeEvent,
   type FormEvent,
@@ -18,7 +18,9 @@ export default function ProjectShortCodeForm({
   project: ProjectProfile;
 }) {
   const [shortCode, setShortCode] = useState(project.shortCode);
-  const { error, isPending, saveShortCode } = useProjectShortCode(project);
+  const [isEditing, setIsEditing] = useState(false);
+  const { clearError, error, isPending, saveShortCode } =
+    useProjectShortCode(project);
 
   useEffect(() => {
     setShortCode(project.shortCode);
@@ -30,7 +32,15 @@ export default function ProjectShortCodeForm({
     if (!nextShortCode || nextShortCode === project.shortCode) {
       return;
     }
-    await saveShortCode(nextShortCode);
+    if (await saveShortCode(nextShortCode)) {
+      setIsEditing(false);
+    }
+  }
+
+  function cancelEditing() {
+    setShortCode(project.shortCode);
+    setIsEditing(false);
+    clearError();
   }
 
   const handleShortCodeChange = useCallback(
@@ -39,6 +49,50 @@ export default function ProjectShortCodeForm({
     },
     [],
   );
+  const handleStartEditing = useCallback(() => {
+    clearError();
+    setIsEditing(true);
+  }, [clearError]);
+
+  if (!isEditing) {
+    return (
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-muted-foreground text-xs">Short code</p>
+          <p className="mt-1 flex items-center gap-2 font-medium text-sm">
+            <span>{project.shortCode}</span>
+            {project.shortCodeLocked ? (
+              <LockKeyhole
+                aria-hidden="true"
+                className="size-3.5 text-muted-foreground"
+              />
+            ) : null}
+          </p>
+          {project.shortCodeLocked ? (
+            <p
+              className="mt-1 text-muted-foreground text-xs"
+              id={`short-code-help-${project.id}`}
+            >
+              Short code is locked after the first Work.
+            </p>
+          ) : null}
+        </div>
+        {project.shortCodeLocked ? null : (
+          <Button
+            aria-label="Edit Short code"
+            className="min-h-11"
+            onClick={handleStartEditing}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <Pencil aria-hidden="true" />
+            Edit
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <form className="space-y-2" onSubmit={handleSubmit}>
@@ -48,57 +102,47 @@ export default function ProjectShortCodeForm({
       >
         Short code
       </label>
-      <div className="flex gap-2">
-        <Input
-          aria-describedby={
-            project.shortCodeLocked
-              ? `short-code-help-${project.id}`
-              : undefined
-          }
-          aria-label="Short code"
-          disabled={project.shortCodeLocked || isPending}
-          id={`short-code-${project.id}`}
-          onChange={handleShortCodeChange}
-          value={shortCode}
-        />
-        {project.shortCodeLocked ? (
-          <LockKeyhole
-            aria-hidden="true"
-            className="mt-2 size-4 shrink-0 text-muted-foreground"
-          />
-        ) : (
-          <Button
-            aria-label="Save Short code"
-            disabled={
-              isPending ||
-              !shortCode.trim() ||
-              shortCode.trim() === project.shortCode
-            }
-            size="icon"
-            type="submit"
-            variant="outline"
-          >
-            {isPending ? (
-              <Save aria-hidden="true" />
-            ) : (
-              <Check aria-hidden="true" />
-            )}
-          </Button>
-        )}
-      </div>
-      <p
-        className="text-muted-foreground text-xs"
-        id={`short-code-help-${project.id}`}
-      >
-        {project.shortCodeLocked
-          ? "Short code is locked after the first Work."
-          : "Editable until the first Work."}
-      </p>
+      <Input
+        aria-label="Short code"
+        disabled={isPending}
+        id={`short-code-${project.id}`}
+        onChange={handleShortCodeChange}
+        value={shortCode}
+      />
       {error ? (
         <p className="text-destructive text-xs" role="alert">
           {error}
         </p>
       ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          className="min-h-11"
+          disabled={
+            isPending ||
+            !shortCode.trim() ||
+            shortCode.trim() === project.shortCode
+          }
+          size="sm"
+          type="submit"
+        >
+          {isPending ? (
+            <Save aria-hidden="true" />
+          ) : (
+            <Check aria-hidden="true" />
+          )}
+          Save Short code
+        </Button>
+        <Button
+          className="min-h-11"
+          disabled={isPending}
+          onClick={cancelEditing}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Cancel
+        </Button>
+      </div>
     </form>
   );
 }

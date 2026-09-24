@@ -480,7 +480,7 @@ export function CommandPaletteTrigger() {
       aria-haspopup="dialog"
       aria-keyshortcuts="Control+K Meta+K"
       aria-label={`Open Command Palette (${shortcut})`}
-      className="h-8 gap-2 border-border/80 bg-background/60 px-2.5 sm:px-3"
+      className="h-11 gap-2 border-border/80 bg-background/60 px-2.5 sm:px-3"
       onClick={handleClick}
       type="button"
       variant="outline"
@@ -511,7 +511,7 @@ export function CommandPaletteQuickActions() {
   return (
     <div className="flex flex-wrap items-center gap-1 border-border border-l pl-2">
       <Button
-        className="h-8 border border-transparent px-2 hover:border-border"
+        className="h-11 border border-transparent px-2 hover:border-border"
         onClick={handleSwitchProjectClick}
         type="button"
         variant="ghost"
@@ -519,7 +519,7 @@ export function CommandPaletteQuickActions() {
         Switch Project
       </Button>
       <Button
-        className="h-8 border border-transparent px-2 hover:border-border"
+        className="h-11 border border-transparent px-2 hover:border-border"
         onClick={handleCreateClick}
         type="button"
         variant="ghost"

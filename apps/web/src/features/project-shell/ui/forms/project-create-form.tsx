@@ -4,7 +4,6 @@ import {
   createProjectInputSchema,
   STARTER_CONFIGURATION_OPTIONS,
   type StarterConfiguration,
-  suggestProjectShortCode,
 } from "@cantiara/api/project-shell";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
@@ -43,7 +42,6 @@ const INITIAL_VALUES = {
   problem: "",
   purpose: "",
   scope: "",
-  shortCode: "",
   starterConfiguration: "Blank Project" as StarterConfiguration,
   targetDate: "",
 };
@@ -94,7 +92,6 @@ function readProjectLogo(file: File) {
 export default function ProjectCreateForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [shortCodeTouched, setShortCodeTouched] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isLogoReading, setIsLogoReading] = useState(false);
   const pendingCreate = useRef<{
@@ -125,9 +122,6 @@ export default function ProjectCreateForm() {
         problem: optionalValue(value.problem),
         purpose: optionalValue(value.purpose),
         scope: optionalValue(value.scope),
-        shortCode: shortCodeTouched
-          ? optionalValue(value.shortCode)
-          : undefined,
         starterConfiguration: value.starterConfiguration,
         targetDate: optionalValue(value.targetDate),
       });
@@ -156,16 +150,6 @@ export default function ProjectCreateForm() {
     event.preventDefault();
     event.stopPropagation();
     form.handleSubmit().catch(() => undefined);
-  }
-
-  function updateName(value: string) {
-    form.setFieldValue("name", value);
-    if (!shortCodeTouched) {
-      form.setFieldValue(
-        "shortCode",
-        value.trim() ? suggestProjectShortCode(value) : "",
-      );
-    }
   }
 
   function handleLogoChange(
@@ -218,29 +202,29 @@ export default function ProjectCreateForm() {
 
       <section aria-labelledby="project-profile-heading" className="space-y-5">
         <div className="border-border/70 border-b pb-4">
-          <p className="surface-kicker">Project profile</p>
           <h2
-            className="mt-2 font-semibold text-lg tracking-tight"
+            className="font-semibold text-lg tracking-tight"
             id="project-profile-heading"
           >
             Project profile
           </h2>
           <p className="mt-1 text-muted-foreground text-xs/relaxed">
-            Keep the starting profile light. You can add context after the
-            Project opens.
+            Start with a name and configuration. A Short code is suggested from
+            the Project Name and can be changed from Projects until the first
+            Work.
           </p>
         </div>
-        <FieldGroup className="grid gap-x-6 gap-y-6 sm:grid-cols-2">
+        <FieldGroup className="grid max-w-2xl gap-y-5">
           <form.Field name="name">
             {(field) => (
-              <Field className="sm:col-span-2">
+              <Field>
                 <FieldLabel htmlFor="project-name">Project Name</FieldLabel>
                 <Input
                   autoComplete="off"
                   autoFocus
                   id="project-name"
                   name={field.name}
-                  onChange={(event) => updateName(event.target.value)}
+                  onChange={(event) => field.handleChange(event.target.value)}
                   placeholder="Payment App"
                   value={field.state.value}
                 />
@@ -284,34 +268,11 @@ export default function ProjectCreateForm() {
               </Field>
             )}
           </form.Field>
-
-          <form.Field name="shortCode">
-            {(field) => (
-              <Field>
-                <FieldLabel htmlFor="project-short-code">Short code</FieldLabel>
-                <Input
-                  autoComplete="off"
-                  id="project-short-code"
-                  name={field.name}
-                  onChange={(event) => {
-                    setShortCodeTouched(true);
-                    field.handleChange(event.target.value);
-                  }}
-                  placeholder="PAY"
-                  value={field.state.value}
-                />
-                <FieldDescription>
-                  Suggested from the Project Name. It can be changed until the
-                  first Work.
-                </FieldDescription>
-              </Field>
-            )}
-          </form.Field>
         </FieldGroup>
       </section>
 
-      <details className="rounded-lg border border-border/70 bg-card/45 px-4 py-4">
-        <summary className="cursor-pointer font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      <details className="border-border/70 border-t pt-4">
+        <summary className="flex min-h-10 cursor-pointer items-center font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           Optional profile details
         </summary>
         <FieldGroup className="mt-6 grid gap-x-6 gap-y-6 sm:grid-cols-2">
@@ -395,13 +356,17 @@ export default function ProjectCreateForm() {
       </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-border/70 border-t pt-5">
-        <Link className={buttonVariants({ variant: "ghost" })} to="/projects">
+        <Link
+          className={`${buttonVariants({ variant: "ghost" })} min-h-11`}
+          to="/projects"
+        >
           <ArrowLeft aria-hidden="true" />
           Cancel
         </Link>
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
             <Button
+              className="min-h-11"
               disabled={
                 isLogoReading || isSubmitting || createProject.isPending
               }

@@ -62,7 +62,7 @@ test("keeps Work Drafts online-only and finalizes one Work", async ({
     customFieldHost.getByText("Release readiness", { exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .getByRole("button", { name: "Exit Configuration Mode", exact: true })
     .click();
 
   await page

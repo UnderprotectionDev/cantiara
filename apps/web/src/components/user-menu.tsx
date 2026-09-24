@@ -44,7 +44,7 @@ export default function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={session.user.name}
+        aria-label="Account menu"
         render={<Button className="rounded-full px-3" variant="outline" />}
       >
         <span className="hidden sm:inline">{session.user.name}</span>
@@ -56,17 +56,32 @@ export default function UserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>{session.user.email}</DropdownMenuItem>
-          <DropdownMenuItem render={<Link to="/account" />}>
+          <DropdownMenuItem className="min-h-10">
+            {session.user.email}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="min-h-10"
+            render={<Link to="/account" />}
+          >
             Sessions
           </DropdownMenuItem>
-          <DropdownMenuItem render={<Link to="/account/preferences" />}>
+          <DropdownMenuItem
+            className="min-h-10"
+            render={<Link to="/account/preferences" />}
+          >
             Preferences
           </DropdownMenuItem>
-          <DropdownMenuItem render={<Link to="/account/completion-effects" />}>
+          <DropdownMenuItem
+            className="min-h-10"
+            render={<Link to="/account/completion-effects" />}
+          >
             Completion effects
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={signOut} variant="destructive">
+          <DropdownMenuItem
+            className="min-h-10"
+            onClick={signOut}
+            variant="destructive"
+          >
             Sign Out
           </DropdownMenuItem>
         </DropdownMenuGroup>
