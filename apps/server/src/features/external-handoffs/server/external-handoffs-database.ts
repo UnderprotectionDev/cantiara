@@ -350,6 +350,7 @@ async function reconcilePreview(
     PreviewExternalExecutionHandoffReconcileInput,
     "followUpWorks" | "proposedRelations"
   >,
+  options: { lockRelationTargets?: boolean } = {},
 ): Promise<ExternalExecutionHandoffReconcilePreview> {
   const { followUpWorks, proposedRelations } =
     previewExternalExecutionHandoffReconcileInputSchema.parse({
@@ -362,7 +363,7 @@ async function reconcilePreview(
     ...new Set(plan.proposedRelations.map((proposal) => proposal.targetWorkId)),
   ];
   if (targetWorkIds.length > 0) {
-    const sameProjectTargets = await database
+    const sameProjectTargetsQuery = database
       .select({ id: work.id })
       .from(work)
       .where(
@@ -372,7 +373,11 @@ async function reconcilePreview(
           ne(work.id, ownerWork.id),
           isNull(work.archivedAt),
         ),
-      );
+      )
+      .orderBy(asc(work.id));
+    const sameProjectTargets = options.lockRelationTargets
+      ? await sameProjectTargetsQuery.for("update")
+      : await sameProjectTargetsQuery;
     if (sameProjectTargets.length !== targetWorkIds.length) {
       throw new ExternalExecutionHandoffReconcileUnavailableError();
     }
@@ -973,6 +978,7 @@ export function createDatabaseExternalExecutionHandoffs(
           handoff,
           ownerWork,
           input,
+          { lockRelationTargets: true },
         );
         if (preview.previewId !== input.previewId) {
           throw new ExternalExecutionHandoffReconcilePreviewRequiredError();
