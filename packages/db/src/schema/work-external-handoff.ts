@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { mutationHistory } from "./mutation";
 import { work } from "./work";
 
 export const workExternalExecutionHandoff = pgTable(
@@ -62,6 +63,43 @@ export const workExternalExecutionHandoff = pgTable(
     check(
       "work_external_handoff_payload_fingerprint_check",
       sql`${table.payloadFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+export const workExternalExecutionHandoffAttentionSignal = pgTable(
+  "work_external_execution_handoff_attention_signal",
+  {
+    closedAt: timestamp("closed_at"),
+    handoffId: text("handoff_id")
+      .notNull()
+      .references(() => workExternalExecutionHandoff.handoffId, {
+        onDelete: "cascade",
+      }),
+    occurredAt: timestamp("occurred_at").notNull(),
+    signalId: text("signal_id").primaryKey(),
+    signalType: text("signal_type").notNull(),
+    sourceEventId: text("source_event_id")
+      .notNull()
+      .references(() => mutationHistory.id, { onDelete: "cascade" }),
+    sourceWorkId: text("source_work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("work_external_handoff_attention_signal_handoff_uidx").on(
+      table.handoffId,
+    ),
+    index("work_external_handoff_attention_signal_work_idx").on(
+      table.sourceWorkId,
+    ),
+    check(
+      "work_external_handoff_attention_signal_type_check",
+      sql`${table.signalType} = 'external-run-returned'`,
+    ),
+    check(
+      "work_external_handoff_attention_signal_id_check",
+      sql`${table.signalId} = 'external-run-returned:' || ${table.handoffId}`,
     ),
   ],
 );
