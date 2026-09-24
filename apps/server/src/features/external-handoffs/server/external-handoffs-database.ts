@@ -34,7 +34,10 @@ import { user, workspace } from "@cantiara/db/schema/auth";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { workExternalExecutionHandoff } from "@cantiara/db/schema/work-external-handoff";
+import {
+  workExternalExecutionHandoff,
+  workExternalExecutionHandoffAttentionSignal,
+} from "@cantiara/db/schema/work-external-handoff";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { createDatabaseRelations } from "../../relations/server/relations";
@@ -42,6 +45,57 @@ import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-li
 
 type HandoffRecord = typeof workExternalExecutionHandoff.$inferSelect;
 type MutationHistoryRecord = typeof mutationHistory.$inferSelect;
+type HandoffSignalExecutor = Pick<Database, "insert" | "update">;
+
+export interface ExternalExecutionHandoffAttentionSignal {
+  occurredAt: string;
+  ownerAccountId: string;
+  presentation: "Action Required";
+  signalId: string;
+  signalType: "external-run-returned";
+  source: {
+    eventId: string;
+    handoffId: string;
+    workId: string;
+  };
+}
+
+export interface ExternalExecutionHandoffAttentionSignalSink {
+  close: (
+    executor: HandoffSignalExecutor,
+    signalId: string,
+    closedAt: Date,
+  ) => Promise<void> | void;
+  produce: (
+    executor: HandoffSignalExecutor,
+    signal: ExternalExecutionHandoffAttentionSignal,
+  ) => Promise<void> | void;
+}
+
+function returnedHandoffAttentionSignalId(handoffId: string) {
+  return `external-run-returned:${handoffId}`;
+}
+
+function returnedHandoffAttentionSignal(input: {
+  eventId: string;
+  handoffId: string;
+  ownerAccountId: string;
+  occurredAt: Date;
+  workId: string;
+}): ExternalExecutionHandoffAttentionSignal {
+  return {
+    occurredAt: input.occurredAt.toISOString(),
+    ownerAccountId: input.ownerAccountId,
+    presentation: "Action Required",
+    signalId: returnedHandoffAttentionSignalId(input.handoffId),
+    signalType: "external-run-returned",
+    source: {
+      eventId: input.eventId,
+      handoffId: input.handoffId,
+      workId: input.workId,
+    },
+  };
+}
 
 const historyEventKind = "external-execution-handoff-history-event";
 
@@ -629,6 +683,7 @@ async function applyReconcileWrites(
 }
 
 export interface DatabaseExternalExecutionHandoffOptions {
+  attentionSignalSink?: ExternalExecutionHandoffAttentionSignalSink;
   newId?: () => string;
   now?: () => Date;
 }
@@ -639,6 +694,46 @@ export function createDatabaseExternalExecutionHandoffs(
 ): ExternalExecutionHandoffsAccess {
   const now = options.now ?? (() => new Date());
   const newId = options.newId ?? (() => `handoff-${crypto.randomUUID()}`);
+  const attentionSignalSink = options.attentionSignalSink ?? {
+    async close(
+      executor: HandoffSignalExecutor,
+      signalId: string,
+      closedAt: Date,
+    ) {
+      await executor
+        .update(workExternalExecutionHandoffAttentionSignal)
+        .set({ closedAt })
+        .where(
+          eq(workExternalExecutionHandoffAttentionSignal.signalId, signalId),
+        );
+    },
+    async produce(
+      executor: HandoffSignalExecutor,
+      signal: ExternalExecutionHandoffAttentionSignal,
+    ) {
+      await executor
+        .insert(workExternalExecutionHandoffAttentionSignal)
+        .values({
+          closedAt: null,
+          handoffId: signal.source.handoffId,
+          ownerAccountId: signal.ownerAccountId,
+          occurredAt: new Date(signal.occurredAt),
+          signalId: signal.signalId,
+          signalType: signal.signalType,
+          sourceEventId: signal.source.eventId,
+          sourceWorkId: signal.source.workId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            closedAt: null,
+            occurredAt: new Date(signal.occurredAt),
+            sourceEventId: signal.source.eventId,
+            sourceWorkId: signal.source.workId,
+          },
+          target: workExternalExecutionHandoffAttentionSignal.handoffId,
+        });
+    },
+  };
 
   async function ownedWork(
     executor: Pick<Database, "select">,
@@ -697,12 +792,13 @@ export function createDatabaseExternalExecutionHandoffs(
         }
 
         const reason = input.reason.trim();
+        const canceledAt = now();
         const historyValues = await handoffHistoryValues({
           accountId,
           clientEventId: input.clientEventId,
           eventType: "external-execution-handoff-canceled",
           handoffId: handoff.handoffId,
-          occurredAt: now(),
+          occurredAt: canceledAt,
           reason,
           revision: ownerWork.revision,
           workId: ownerWork.id,
@@ -729,6 +825,13 @@ export function createDatabaseExternalExecutionHandoffs(
           return null;
         }
         await transaction.insert(mutationHistory).values(historyValues.history);
+        if (handoff.status === "Result returned" && handoff.result !== null) {
+          await attentionSignalSink.close(
+            transaction,
+            returnedHandoffAttentionSignalId(handoff.handoffId),
+            canceledAt,
+          );
+        }
         return toExternalExecutionHandoff(canceled);
       });
     },
@@ -1030,7 +1133,15 @@ export function createDatabaseExternalExecutionHandoffs(
           .set({ reconcileDecision, status: "Reconciled" })
           .where(eq(workExternalExecutionHandoff.handoffId, handoff.handoffId))
           .returning();
-        return updated ? toExternalExecutionHandoff(updated) : null;
+        if (!updated) {
+          return null;
+        }
+        await attentionSignalSink.close(
+          transaction,
+          returnedHandoffAttentionSignalId(handoff.handoffId),
+          confirmedAt,
+        );
+        return toExternalExecutionHandoff(updated);
       });
     },
 
@@ -1109,6 +1220,16 @@ export function createDatabaseExternalExecutionHandoffs(
           workId: ownerWork.id,
         });
         await transaction.insert(mutationHistory).values(historyValues.history);
+        await attentionSignalSink.produce(
+          transaction,
+          returnedHandoffAttentionSignal({
+            eventId: historyValues.event.eventId,
+            handoffId: input.handoffId,
+            ownerAccountId: accountId,
+            occurredAt: returnedAt,
+            workId: ownerWork.id,
+          }),
+        );
         return toExternalExecutionHandoff(updated);
       });
     },

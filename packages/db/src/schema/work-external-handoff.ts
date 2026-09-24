@@ -65,3 +65,35 @@ export const workExternalExecutionHandoff = pgTable(
     ),
   ],
 );
+
+export const workExternalExecutionHandoffAttentionSignal = pgTable(
+  "work_external_execution_handoff_attention_signal",
+  {
+    closedAt: timestamp("closed_at"),
+    handoffId: text("handoff_id").notNull(),
+    ownerAccountId: text("owner_account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    occurredAt: timestamp("occurred_at").notNull(),
+    signalId: text("signal_id").primaryKey(),
+    signalType: text("signal_type").notNull(),
+    sourceEventId: text("source_event_id").notNull(),
+    sourceWorkId: text("source_work_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("work_external_handoff_attention_signal_handoff_uidx").on(
+      table.handoffId,
+    ),
+    index("work_external_handoff_attention_signal_work_idx").on(
+      table.sourceWorkId,
+    ),
+    check(
+      "work_external_handoff_attention_signal_type_check",
+      sql`${table.signalType} = 'external-run-returned'`,
+    ),
+    check(
+      "work_external_handoff_attention_signal_id_check",
+      sql`${table.signalId} = 'external-run-returned:' || ${table.handoffId}`,
+    ),
+  ],
+);

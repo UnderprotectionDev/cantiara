@@ -10,7 +10,10 @@ import { user, workspace } from "@cantiara/db/schema/auth";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { workExternalExecutionHandoff } from "@cantiara/db/schema/work-external-handoff";
+import {
+  workExternalExecutionHandoff,
+  workExternalExecutionHandoffAttentionSignal,
+} from "@cantiara/db/schema/work-external-handoff";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -23,6 +26,8 @@ import {
 import { createDatabaseRelations } from "../../relations/server/relations";
 import {
   createDatabaseExternalExecutionHandoffs,
+  type ExternalExecutionHandoffAttentionSignal,
+  type ExternalExecutionHandoffAttentionSignalSink,
   ExternalExecutionHandoffReconcileUnavailableError,
 } from "./external-handoffs-database";
 
@@ -63,6 +68,30 @@ async function recordReturnedHandoff(
     throw new Error("Could not record the test handoff return.");
   }
   return returned;
+}
+
+function captureAttentionSignalEvents() {
+  const events: (
+    | { closedAt: string; kind: "closed"; signalId: string }
+    | {
+        kind: "produced";
+        signal: ExternalExecutionHandoffAttentionSignal;
+      }
+  )[] = [];
+  const sink: ExternalExecutionHandoffAttentionSignalSink = {
+    close: (_transaction, signalId, closedAt) => {
+      events.push({
+        closedAt: closedAt.toISOString(),
+        kind: "closed",
+        signalId,
+      });
+    },
+    produce: (_transaction, signal) => {
+      events.push({ kind: "produced", signal });
+    },
+  };
+
+  return { events, sink };
 }
 
 describeDatabase("External Execution Handoff seam", () => {
@@ -505,6 +534,230 @@ describeDatabase("External Execution Handoff seam", () => {
         }),
       ]),
     );
+  });
+
+  test("produces one source-linked Action Required signal for a returned handoff", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const { events: signalEvents, sink: attentionSignalSink } =
+      captureAttentionSignalEvents();
+    const handoffId = "handoff-returned-signal";
+    const returnedAt = new Date("2026-09-23T12:30:00.000Z");
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      attentionSignalSink,
+      newId: () => handoffId,
+      now: () => returnedAt,
+    });
+    const started = await handoffs.start(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "start-returned-signal",
+      constraints: "Keep the existing API contract.",
+      executor: "Local coding agent",
+      expectedOutput: "A reviewed result.",
+      githubContext: [],
+      includeWork: true,
+      purpose: "Implement the returned signal.",
+      workId,
+    });
+    if (!started) {
+      throw new Error("Could not start the test handoff.");
+    }
+    const returnInput: RecordExternalExecutionHandoffReturnInput = {
+      changedAssumptions: [],
+      clientEventId: "return-returned-signal",
+      executorSummary: "The external result is ready for review.",
+      externalLinks: [],
+      handoffId,
+      openQuestions: [],
+      producedEvidence: [],
+    };
+
+    await handoffs.recordReturn(accountId, returnInput);
+
+    const returnEvent = (await handoffs.listHistory(accountId, workId))?.find(
+      (event) =>
+        event.eventType === "external-execution-handoff-return-recorded",
+    );
+    expect(returnEvent).toBeDefined();
+    expect(signalEvents).toEqual([
+      {
+        kind: "produced",
+        signal: {
+          occurredAt: returnedAt.toISOString(),
+          ownerAccountId: accountId,
+          presentation: "Action Required",
+          signalId: `external-run-returned:${handoffId}`,
+          signalType: "external-run-returned",
+          source: {
+            eventId: returnEvent?.eventId,
+            handoffId,
+            workId,
+          },
+        },
+      },
+    ]);
+
+    await handoffs.recordReturn(accountId, returnInput);
+
+    expect(signalEvents).toHaveLength(1);
+  });
+
+  test("keeps a returned signal tombstone when its Work is deleted", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffId = "handoff-deleted-source-signal";
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      newId: () => handoffId,
+      now: () => new Date("2026-09-23T12:30:00.000Z"),
+    });
+    await recordReturnedHandoff(handoffs, accountId, workId, handoffId);
+
+    const returnEvent = (await handoffs.listHistory(accountId, workId))?.find(
+      (event) =>
+        event.eventType === "external-execution-handoff-return-recorded",
+    );
+    if (!returnEvent) {
+      throw new Error("The return event was not recorded.");
+    }
+
+    await database.delete(work).where(eq(work.id, workId));
+
+    expect(await handoffs.list(accountId, workId)).toBeNull();
+    const [signal] = await database
+      .select({
+        handoffId: workExternalExecutionHandoffAttentionSignal.handoffId,
+        ownerAccountId:
+          workExternalExecutionHandoffAttentionSignal.ownerAccountId,
+        signalId: workExternalExecutionHandoffAttentionSignal.signalId,
+        sourceEventId:
+          workExternalExecutionHandoffAttentionSignal.sourceEventId,
+        sourceWorkId: workExternalExecutionHandoffAttentionSignal.sourceWorkId,
+      })
+      .from(workExternalExecutionHandoffAttentionSignal)
+      .where(
+        eq(
+          workExternalExecutionHandoffAttentionSignal.signalId,
+          `external-run-returned:${handoffId}`,
+        ),
+      );
+
+    expect(signal).toEqual({
+      handoffId,
+      ownerAccountId: accountId,
+      signalId: `external-run-returned:${handoffId}`,
+      sourceEventId: returnEvent.eventId,
+      sourceWorkId: workId,
+    });
+  });
+
+  test("closes the returned signal when a handoff is canceled", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const { events: signalEvents, sink: attentionSignalSink } =
+      captureAttentionSignalEvents();
+    let now = new Date("2026-09-23T12:30:00.000Z");
+    const handoffId = "handoff-canceled-signal";
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      attentionSignalSink,
+      newId: () => handoffId,
+      now: () => now,
+    });
+    await recordReturnedHandoff(handoffs, accountId, workId, handoffId);
+    now = new Date("2026-09-23T12:45:00.000Z");
+
+    await handoffs.cancel(accountId, {
+      clientEventId: "cancel-returned-signal",
+      handoffId,
+      reason: "The returned result is no longer needed.",
+    });
+
+    expect(signalEvents.map((event) => event.kind)).toEqual([
+      "produced",
+      "closed",
+    ]);
+    expect(signalEvents[1]).toMatchObject({
+      closedAt: now.toISOString(),
+      kind: "closed",
+      signalId: `external-run-returned:${handoffId}`,
+    });
+  });
+
+  test("closes the returned signal when a handoff is reconciled", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const { events: signalEvents, sink: attentionSignalSink } =
+      captureAttentionSignalEvents();
+    let now = new Date("2026-09-23T12:30:00.000Z");
+    const handoffId = "handoff-reconciled-signal";
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      attentionSignalSink,
+      newId: () => handoffId,
+      now: () => now,
+    });
+    await recordReturnedHandoff(handoffs, accountId, workId, handoffId);
+    const plan = {
+      followUpWorks: [],
+      handoffId,
+      proposedRelations: [],
+    };
+    const preview = await handoffs.previewReconcile(accountId, plan);
+    if (!preview) {
+      throw new Error("The reconcile preview was unavailable.");
+    }
+    now = new Date("2026-09-23T12:45:00.000Z");
+
+    const reconciled = await handoffs.confirmReconcile(accountId, {
+      ...plan,
+      clientEventId: "reconcile-returned-signal",
+      previewId: preview.previewId,
+      selectedFollowUpWorkIds: [],
+      selectedRelationIds: [],
+    });
+
+    expect(reconciled).toMatchObject({ handoffId, status: "Reconciled" });
+    expect(signalEvents.map((event) => event.kind)).toEqual([
+      "produced",
+      "closed",
+    ]);
+    expect(signalEvents[1]).toMatchObject({
+      closedAt: now.toISOString(),
+      kind: "closed",
+      signalId: `external-run-returned:${handoffId}`,
+    });
+  });
+
+  test("does not produce a signal for an Open handoff when time passes", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const { events: signalEvents, sink: attentionSignalSink } =
+      captureAttentionSignalEvents();
+    let now = new Date("2026-09-23T12:30:00.000Z");
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      attentionSignalSink,
+      newId: () => "handoff-open-no-signal",
+      now: () => now,
+    });
+    await handoffs.start(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "start-open-no-signal",
+      constraints: "Wait for an external result.",
+      executor: "Local coding agent",
+      expectedOutput: "A returned result.",
+      githubContext: [],
+      includeWork: true,
+      purpose: "Keep this handoff open.",
+      workId,
+    });
+    now = new Date("2026-10-23T12:30:00.000Z");
+
+    await handoffs.list(accountId, workId);
+
+    expect(signalEvents).toEqual([]);
   });
 
   test("rejects owner, archived, and cross-Project relation targets", async () => {
