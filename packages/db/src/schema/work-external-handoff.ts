@@ -29,6 +29,8 @@ export const workExternalExecutionHandoff = pgTable(
     packageProducedAt: timestamp("package_produced_at").notNull(),
     payloadFingerprint: text("payload_fingerprint").notNull(),
     purpose: text("purpose").notNull(),
+    reconcileDecision: jsonb("reconcile_decision").$type<unknown>(),
+    result: jsonb("result").$type<unknown>(),
     selectedVersions: jsonb("selected_versions")
       .$type<{
         githubContext: string[];

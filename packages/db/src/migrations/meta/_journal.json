@@ -414,6 +414,20 @@
       "when": 1790193170928,
       "tag": "0058_external-handoff-cancellation-compatibility",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790210398984,
+      "tag": "0059_external-handoff-result-reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790210398985,
+      "tag": "0060_external-handoff-schema-compatibility",
+      "breakpoints": true
     }
   ]
 }

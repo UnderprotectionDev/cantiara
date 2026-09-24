@@ -2,11 +2,15 @@ import type { Context } from "@cantiara/api/context";
 import type {
   ExternalExecutionHandoff,
   ExternalExecutionHandoffHistoryEvent,
+  ExternalExecutionHandoffReconcilePreview,
   ExternalExecutionHandoffsAccess,
 } from "@cantiara/api/external-handoffs";
 import {
+  externalExecutionHandoffProposedRelationSchema,
+  externalExecutionHandoffSchema,
   externalExecutionHandoffStatusSchema,
   isTerminalExternalExecutionHandoffStatus,
+  previewExternalExecutionHandoffReconcileInputSchema,
 } from "@cantiara/api/external-handoffs";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
@@ -24,6 +28,8 @@ const handoff: ExternalExecutionHandoff = {
   packageMarkdown: "# External Execution Handoff\n",
   packageProducedAt: "2026-09-23T12:00:00.000Z",
   purpose: "Implement external handoffs.",
+  reconcileDecision: null,
+  result: null,
   selectedWorkRevision: 4,
   status: "Open",
   workId: "work-1",
@@ -65,11 +71,68 @@ function createContext(workHandoffs: ExternalExecutionHandoffsAccess): Context {
 }
 
 describe("External Execution Handoff RPC", () => {
+  test("keeps a returned result on the same handoff without closing its Work", () => {
+    const returned = externalExecutionHandoffSchema.parse({
+      ...handoff,
+      result: {
+        changedAssumptions: ["The public API already supplies the input."],
+        executorSummary: "Implemented the return and reconcile flow.",
+        externalLinks: ["https://github.com/acme/cantiara/pull/42"],
+        openQuestions: ["Should the next handoff add another source version?"],
+        producedEvidence: ["The contract test passes."],
+        returnedAt: "2026-09-23T12:30:00.000Z",
+      },
+      status: "Result returned",
+    });
+
+    expect(returned).toMatchObject({
+      handoffId: handoff.handoffId,
+      result: {
+        executorSummary: "Implemented the return and reconcile flow.",
+      },
+      status: "Result returned",
+      workId: handoff.workId,
+    });
+  });
+
+  test("accepts only Work targets in reconcile relation proposals", () => {
+    const nonWorkTargets = ["Decision", "Risk", "Document"];
+    const results = nonWorkTargets.map(
+      (recordType) =>
+        externalExecutionHandoffProposedRelationSchema.safeParse({
+          id: `relation-${recordType.toLowerCase()}`,
+          kind: "Related",
+          targetRecordType: recordType,
+          targetWorkId: `${recordType.toLowerCase()}-1`,
+        }).success,
+    );
+
+    expect(results).toEqual([false, false, false]);
+  });
+
+  test("rejects duplicate relation proposals for the same Work and kind", () => {
+    const result =
+      previewExternalExecutionHandoffReconcileInputSchema.safeParse({
+        followUpWorks: [],
+        handoffId: handoff.handoffId,
+        proposedRelations: [
+          { id: "relation-1", kind: "Related", targetWorkId: "work-2" },
+          { id: "relation-2", kind: "Related", targetWorkId: "work-2" },
+        ],
+      });
+
+    expect(result.success).toBe(false);
+  });
+
   test("lists and starts a handoff through its owning Work", async () => {
     const access: ExternalExecutionHandoffsAccess = {
       cancel: vi.fn().mockResolvedValue(canceledHandoff),
+      confirmReconcile: vi.fn().mockResolvedValue(handoff),
       list: vi.fn().mockResolvedValue([handoff]),
       listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      listRelatedWorks: vi.fn().mockResolvedValue([]),
+      previewReconcile: vi.fn().mockResolvedValue(null),
+      recordReturn: vi.fn().mockResolvedValue(handoff),
       recordPackageExport: vi.fn().mockResolvedValue({
         ...historyEvent,
         eventId: "external-handoff:handoff-1:export:copy-1",
@@ -136,8 +199,12 @@ describe("External Execution Handoff RPC", () => {
   test("rejects unsupported source versions and unrelated actions before writing", async () => {
     const access: ExternalExecutionHandoffsAccess = {
       cancel: vi.fn().mockResolvedValue(canceledHandoff),
+      confirmReconcile: vi.fn().mockResolvedValue(handoff),
       list: vi.fn().mockResolvedValue([handoff]),
       listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      listRelatedWorks: vi.fn().mockResolvedValue([]),
+      previewReconcile: vi.fn().mockResolvedValue(null),
+      recordReturn: vi.fn().mockResolvedValue(handoff),
       recordPackageExport: vi.fn().mockResolvedValue(historyEvent),
       start: vi.fn().mockResolvedValue(handoff),
     };
@@ -187,8 +254,12 @@ describe("External Execution Handoff RPC", () => {
   test("cancels through the Work-owned interface and requires a reason", async () => {
     const access: ExternalExecutionHandoffsAccess = {
       cancel: vi.fn().mockResolvedValue(canceledHandoff),
+      confirmReconcile: vi.fn().mockResolvedValue(handoff),
       list: vi.fn().mockResolvedValue([handoff]),
       listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      listRelatedWorks: vi.fn().mockResolvedValue([]),
+      previewReconcile: vi.fn().mockResolvedValue(null),
+      recordReturn: vi.fn().mockResolvedValue(handoff),
       recordPackageExport: vi.fn().mockResolvedValue(historyEvent),
       start: vi.fn().mockResolvedValue(handoff),
     };
@@ -220,5 +291,143 @@ describe("External Execution Handoff RPC", () => {
       expect(externalExecutionHandoffStatusSchema.parse(status)).toBe(status);
       expect(isTerminalExternalExecutionHandoffStatus(status)).toBe(true);
     }
+  });
+
+  test("previews selected Work bindings before returning and confirming", async () => {
+    const returnedHandoff: ExternalExecutionHandoff = {
+      ...handoff,
+      result: {
+        changedAssumptions: [],
+        executorSummary: "Completed the requested coding pass.",
+        externalLinks: [],
+        openQuestions: [],
+        producedEvidence: ["The API contract test passed."],
+        returnedAt: "2026-09-23T12:30:00.000Z",
+      },
+      status: "Result returned",
+    };
+    const relatedWork = {
+      id: "work-2",
+      key: "CAT-2",
+      status: "Not Started" as const,
+      title: "Review the result",
+      type: "Task" as const,
+    };
+    const preview: ExternalExecutionHandoffReconcilePreview = {
+      followUpWorks: [
+        {
+          description: null,
+          id: "follow-up-1",
+          projectId: "project-1",
+          projectName: "Cantiara",
+          relatedToWorkId: handoff.workId,
+          relationKind: "Origin",
+          title: "Verify the result",
+          type: "Task",
+        },
+      ],
+      handoffId: handoff.handoffId,
+      previewId: "preview-1",
+      proposedRelations: [
+        {
+          id: "relation-1",
+          kind: "Related",
+          sourceLabel: "CAT-1",
+          sourceWorkId: handoff.workId,
+          target: relatedWork,
+        },
+      ],
+    };
+    const reconciledHandoff: ExternalExecutionHandoff = {
+      ...returnedHandoff,
+      reconcileDecision: {
+        confirmedAt: "2026-09-23T12:40:00.000Z",
+        confirmedBy: "account-1",
+        createdFollowUpWorks: [],
+        createdRelations: [],
+        decisionId: "decision-1",
+        previewId: preview.previewId,
+        selectedFollowUpWorkIds: [],
+        selectedRelationIds: ["relation-1"],
+      },
+      status: "Reconciled",
+    };
+    const access: ExternalExecutionHandoffsAccess = {
+      cancel: vi.fn().mockResolvedValue(canceledHandoff),
+      confirmReconcile: vi.fn().mockResolvedValue(reconciledHandoff),
+      list: vi.fn().mockResolvedValue([returnedHandoff]),
+      listHistory: vi.fn().mockResolvedValue([historyEvent]),
+      listRelatedWorks: vi.fn().mockResolvedValue([relatedWork]),
+      previewReconcile: vi.fn().mockResolvedValue(preview),
+      recordReturn: vi.fn().mockResolvedValue(returnedHandoff),
+      recordPackageExport: vi.fn().mockResolvedValue(historyEvent),
+      start: vi.fn().mockResolvedValue(handoff),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+    const plan = {
+      followUpWorks: preview.followUpWorks.map(
+        ({ description, id, title, type }) => ({
+          description,
+          id,
+          title,
+          type,
+        }),
+      ),
+      proposedRelations: [
+        { id: "relation-1", kind: "Related" as const, targetWorkId: "work-2" },
+      ],
+    };
+    const result = {
+      changedAssumptions: [],
+      executorSummary: "Completed the requested coding pass.",
+      externalLinks: [],
+      openQuestions: [],
+      producedEvidence: ["The API contract test passed."],
+    };
+
+    await expect(
+      client.externalExecutionHandoffRelatedWorks({
+        workId: handoff.workId,
+      }),
+    ).resolves.toEqual([relatedWork]);
+    await expect(
+      client.recordExternalExecutionHandoffReturn({
+        ...result,
+        clientEventId: "return-1",
+        handoffId: handoff.handoffId,
+      }),
+    ).resolves.toEqual(returnedHandoff);
+    await expect(
+      client.previewExternalExecutionHandoffReconcile({
+        ...plan,
+        handoffId: handoff.handoffId,
+      }),
+    ).resolves.toEqual(preview);
+    await expect(
+      client.confirmExternalExecutionHandoffReconcile({
+        ...plan,
+        clientEventId: "reconcile-1",
+        handoffId: handoff.handoffId,
+        previewId: preview.previewId,
+        selectedFollowUpWorkIds: [],
+        selectedRelationIds: ["relation-1"],
+      }),
+    ).resolves.toEqual(reconciledHandoff);
+
+    expect(access.recordReturn).toHaveBeenCalledWith("account-1", {
+      ...result,
+      clientEventId: "return-1",
+      handoffId: handoff.handoffId,
+    });
+    expect(access.confirmReconcile).toHaveBeenCalledWith("account-1", {
+      ...plan,
+      clientEventId: "reconcile-1",
+      handoffId: handoff.handoffId,
+      previewId: preview.previewId,
+      selectedFollowUpWorkIds: [],
+      selectedRelationIds: ["relation-1"],
+    });
   });
 });

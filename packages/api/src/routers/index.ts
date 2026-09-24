@@ -57,9 +57,13 @@ import {
 } from "../custom-fields";
 import {
   cancelExternalExecutionHandoffInputSchema,
+  confirmExternalExecutionHandoffReconcileInputSchema,
   listExternalExecutionHandoffHistoryInputSchema,
+  listExternalExecutionHandoffRelatedWorksInputSchema,
   listExternalExecutionHandoffsInputSchema,
+  previewExternalExecutionHandoffReconcileInputSchema,
   recordExternalExecutionHandoffPackageExportInputSchema,
+  recordExternalExecutionHandoffReturnInputSchema,
   startExternalExecutionHandoffMutationInputSchema,
 } from "../external-handoffs";
 import {
@@ -416,7 +420,10 @@ function rethrowExternalExecutionHandoffError(error: unknown): never {
     "code" in error &&
     (error.code === "EXTERNAL_HANDOFF_STALE_WORK" ||
       error.code === "EXTERNAL_HANDOFF_IDEMPOTENCY_CONFLICT" ||
-      error.code === "EXTERNAL_HANDOFF_TERMINAL")
+      error.code === "EXTERNAL_HANDOFF_TERMINAL" ||
+      error.code === "EXTERNAL_HANDOFF_RETURN_UNAVAILABLE" ||
+      error.code === "EXTERNAL_HANDOFF_RECONCILE_PREVIEW_REQUIRED" ||
+      error.code === "EXTERNAL_HANDOFF_RECONCILE_UNAVAILABLE")
   ) {
     throw new ORPCError("CONFLICT", {
       defined: true,
@@ -1919,6 +1926,74 @@ export const appRouter = {
         });
       }
       return history;
+    }),
+  externalExecutionHandoffRelatedWorks: protectedProcedure
+    .input(listExternalExecutionHandoffRelatedWorksInputSchema)
+    .handler(async ({ context, input }) => {
+      const works = await requireExternalExecutionHandoffs(
+        context,
+      ).listRelatedWorks(context.session.user.id, input.workId);
+      if (!works) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Handoff is unavailable.",
+        });
+      }
+      return works;
+    }),
+  previewExternalExecutionHandoffReconcile: protectedProcedure
+    .input(previewExternalExecutionHandoffReconcileInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireExternalExecutionHandoffs(
+          context,
+        ).previewReconcile(context.session.user.id, input);
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Handoff is unavailable.",
+          });
+        }
+        return preview;
+      } catch (error) {
+        rethrowExternalExecutionHandoffError(error);
+      }
+    }),
+  recordExternalExecutionHandoffReturn: protectedProcedure
+    .input(recordExternalExecutionHandoffReturnInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const handoff = await requireExternalExecutionHandoffs(
+          context,
+        ).recordReturn(context.session.user.id, input);
+        if (!handoff) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Handoff is unavailable.",
+          });
+        }
+        return handoff;
+      } catch (error) {
+        rethrowExternalExecutionHandoffError(error);
+      }
+    }),
+  confirmExternalExecutionHandoffReconcile: protectedProcedure
+    .input(confirmExternalExecutionHandoffReconcileInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const handoff = await requireExternalExecutionHandoffs(
+          context,
+        ).confirmReconcile(context.session.user.id, input);
+        if (!handoff) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Handoff is unavailable.",
+          });
+        }
+        return handoff;
+      } catch (error) {
+        rethrowExternalExecutionHandoffError(error);
+      }
     }),
   startExternalExecutionHandoff: protectedProcedure
     .input(startExternalExecutionHandoffMutationInputSchema)

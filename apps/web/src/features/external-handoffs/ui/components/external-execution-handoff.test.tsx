@@ -56,6 +56,8 @@ describe("External Execution Handoff", () => {
             "# External Execution Handoff\nWork: CAT-1\nrevision 3\nhttps://github.com/acme/release/issues/12\nSource of truth is in the app\n",
           packageProducedAt: "2026-09-22T10:00:00.000Z",
           purpose: "Prepare release changes",
+          reconcileDecision: null,
+          result: null,
           selectedWorkRevision: 3,
           status: "Open",
           workId: work.id,
@@ -156,6 +158,8 @@ describe("External Execution Handoff", () => {
           packageMarkdown: "# External Execution Handoff\nFrozen package",
           packageProducedAt: "2026-09-22T10:00:00.000Z",
           purpose: "Prepare release changes",
+          reconcileDecision: null,
+          result: null,
           selectedWorkRevision: 3,
           status: "Open",
           workId: work.id,
@@ -228,6 +232,8 @@ describe("External Execution Handoff", () => {
           packageMarkdown: "# External Execution Handoff\nFrozen package",
           packageProducedAt: "2026-09-23T11:00:00.000Z",
           purpose: "Make a coding pass",
+          reconcileDecision: null,
+          result: null,
           selectedWorkRevision: 3,
           status: "Result returned",
           workId: work.id,
@@ -279,6 +285,8 @@ describe("External Execution Handoff", () => {
           packageMarkdown: "# External Execution Handoff\nFrozen package",
           packageProducedAt: "2026-09-23T11:00:00.000Z",
           purpose: "Make a coding pass",
+          reconcileDecision: null,
+          result: null,
           selectedWorkRevision: 3,
           status: "Canceled",
           workId: work.id,
@@ -320,5 +328,103 @@ describe("External Execution Handoff", () => {
     expect(html).toContain("The selected approach changed.");
     expect(html).toContain("Frozen package");
     expect(html).not.toContain('aria-label="Cancel Handoff"');
+  });
+
+  test("shows returned details and explicit Work relation and follow-up previews", () => {
+    const queryClient = new QueryClient();
+    const handoff = {
+      cancellationReason: null,
+      constraints: "Do not change the release scope.",
+      createdAt: "2026-09-22T10:00:00.000Z",
+      executor: "Build agent",
+      expectedOutput: "A reviewed implementation.",
+      githubContext: [],
+      handoffId: "handoff-returned",
+      includeWork: true,
+      packageMarkdown: "# External Execution Handoff\nFrozen package",
+      packageProducedAt: "2026-09-22T10:00:00.000Z",
+      purpose: "Prepare release changes",
+      reconcileDecision: null,
+      result: {
+        changedAssumptions: ["The reviewer can reach the app."],
+        executorSummary: "The build changes are ready for review.",
+        externalLinks: ["https://github.com/acme/release/pull/42"],
+        openQuestions: ["Should we add a second pass?"],
+        producedEvidence: ["The contract checks passed."],
+        returnedAt: "2026-09-23T12:30:00.000Z",
+      },
+      selectedWorkRevision: 3,
+      status: "Result returned" as const,
+      workId: work.id,
+    };
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffs.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [handoff],
+    );
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffRelatedWorks.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          id: "work-2",
+          key: "CAT-2",
+          status: "Not Started",
+          title: "Review the release changes",
+          type: "Task",
+        },
+      ],
+    );
+    queryClient.setQueryData(
+      orpc.externalExecutionHandoffHistory.queryOptions({
+        input: { workId: work.id },
+      }).queryKey,
+      [
+        {
+          actorId: "account-1",
+          eventId: "event-returned",
+          eventType: "external-execution-handoff-return-recorded",
+          handoffId: handoff.handoffId,
+          occurredAt: "2026-09-23T12:30:00.000Z",
+        },
+      ],
+    );
+
+    const html = renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        createElement(
+          ClientShellProvider,
+          { shell: createClientShell() },
+          createElement(ExternalExecutionHandoff, {
+            defaultExpanded: true,
+            work,
+          }),
+        ),
+      ),
+    );
+
+    for (const expected of [
+      "Result returned",
+      "Executor summary",
+      "The build changes are ready for review.",
+      "Changed assumptions",
+      "Produced evidence",
+      "Permitted external links",
+      "Open questions",
+      "Reconcile",
+      "Add proposed relation",
+      "Add follow-up Work",
+      "Preview changes",
+    ]) {
+      expect(html).toContain(expected);
+    }
+    expect(html).not.toContain('aria-label="Record return"');
+    expect(html).not.toContain(
+      '<a href="https://github.com/acme/release/pull/42"',
+    );
   });
 });
