@@ -26,9 +26,13 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 
 Normal şema değişiklikleri, kaynak şemadan `drizzle-kit generate` ile sürümlü SQL olarak üretilir. Dağıtılmış veritabanı migration geçmişiyle gerçek şema ayrışmış ve kaynak şema zaten hedef durumu ifade ediyorsa, geçmiş migration'ları değiştirmek veya paylaşılan veritabanında `drizzle-kit push` kullanmak yerine `drizzle-kit generate --custom` ile idempotent bir compatibility migration oluşturulur. Bu migration da `bun run db:migrate` ile uygulanır ve gerekli Drizzle metadata'sını taşır.
 
+Migration çalıştırıcısı Neon için `DATABASE_URL_UNPOOLED` (güvenlik olayı veritabanında `SECURITY_EVENT_DATABASE_URL_UNPOOLED`) değerini tercih eder. Yalnızca havuzlu `DATABASE_URL` verilmişse `.neon.tech` uç noktasındaki `-pooler` soneki kaldırılarak doğrudan bağlantı kullanılır; yerel PostgreSQL adresi değiştirilmez.
+
 Dar kapsamlı tarihsel Prioritization şeması onarımı yalnızca mevcut veritabanında `0046–0048` önkoşulları ile beklenen şema nesneleri zaten bulunduğunda kullanılır. Bu kip, kanonik migration komutunun `bun run db:migrate -- --repair-prioritization-schema` biçimindeki seçici çalıştırmasıdır; yalnızca `0054_repair_prioritization_schema` girdisini uygular ve bu girdiyi normal Drizzle migration geçmişine kaydeder. Migration beklenen önkoşulları doğrular, eksik bulursa durur. Bu kip ilk kurulum veya olağan migration akışı yerine kullanılmaz; yeni ve normal veritabanlarında bayraksız `bun run db:migrate` çalıştırılır.
 
 Önceden oluşturulmuş `work_external_execution_handoff` tablosu bulunup `0056_work-external-execution-handoff` migration geçmişinde kayıtlı değilse, iptal alanı değişikliği için `bun run db:migrate -- --repair-external-handoff-cancellation` seçici onarımı kullanılır. Yalnızca idempotent `0058_external-handoff-cancellation-compatibility` girdisini çalıştırır; temel Handoff alanlarını doğrular, iptal gerekçesi sütununu ve kısıtını ekler, çelişkili kayıt bulursa durur. Yeni ve normal veritabanlarında standart `bun run db:migrate` yolu `0056` ve `0057` sonrasında bu uyumluluk migration'ını da güvenle no-op olarak kaydeder.
+
+`0059_external-handoff-result-reconciliation` geçmişi eksik görünürken `reconcile_decision` veya `result` sütunlarından en az biri zaten varsa, normal `0059` adımının yinelenen sütunda durmasını önlemek için `bun run db:migrate -- --repair-external-handoff-result-reconciliation` seçici onarımı kullanılır. Yalnızca idempotent `0060_external-handoff-schema-compatibility` girdisini çalıştırıp normal Drizzle migration geçmişine kaydeder; ardından bayraksız `bun run db:migrate` bekleyen `0061` ve sonraki migration'ları uygular. Bu kip ilk kurulumun veya olağan migration akışının yerine geçmez.
 
 ## Arayüz ve durum yönetimi
 
