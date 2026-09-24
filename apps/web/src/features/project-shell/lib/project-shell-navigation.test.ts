@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   CONFIGURATION_HOSTS,
   configurationHostId,
+  isWorkRecordHash,
   isWorkSurfaceHash,
   navigationSurfaceFromHash,
   workRecordHash,
@@ -39,5 +40,14 @@ describe("Project Shell Work navigation", () => {
     expect(workRecordHref("project/1", "work/2")).toBe(
       "/projects/project%2F1#work-work%2F2",
     );
+  });
+
+  test("keeps source Work record links on the Work surface", () => {
+    const hash = workRecordHash("work-1");
+
+    expect(isWorkRecordHash(hash)).toBe(true);
+    expect(isWorkRecordHash(workRelationsHash("work-1"))).toBe(false);
+    expect(isWorkSurfaceHash(hash)).toBe(true);
+    expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
   });
 });

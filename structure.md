@@ -361,6 +361,15 @@
 │       │   │   │           ├── draft-custom-fields.test.ts
 │       │   │   │           ├── draft-custom-fields.ts
 │       │   │   │           └── work-draft-form.tsx
+│       │   │   ├── kanban/
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── kanban-status.test.ts
+│       │   │   │   │   └── kanban-status.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── kanban-board.test.tsx
+│       │   │   │           ├── kanban-board.tsx
+│       │   │   │           └── project-work-kanban.tsx
 │       │   │   ├── work-lifecycle/
 │       │   │       └── ui/
 │       │   │           ├── components/

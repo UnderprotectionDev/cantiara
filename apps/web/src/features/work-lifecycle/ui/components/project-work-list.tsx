@@ -10,6 +10,7 @@ import {
   WORK_TYPE_OPTIONS,
   type WorkMergeResult,
   type WorkProfile,
+  type WorkStatus,
   type WorkType,
   type WorkTypeChangePreview,
 } from "@cantiara/api/work-lifecycle";
@@ -62,12 +63,20 @@ export default function ProjectWorkList({
   accountId,
   accountFormattingPreferences,
   projectId,
+  statusActionRequest,
+  onStatusActionRequestHandled,
   workContextLayouts,
   workStatusLabels,
 }: {
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   projectId: string;
+  statusActionRequest: {
+    id: string;
+    status: WorkStatus;
+    workId: string;
+  } | null;
+  onStatusActionRequestHandled: (requestId: string) => void;
   workContextLayouts: ProjectShellConfiguration["workContextLayouts"];
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
@@ -337,6 +346,17 @@ export default function ProjectWorkList({
                   <WorkStatusForm
                     completionFeedback={completionFeedback.feedbackFor(work.id)}
                     onCloseOutcome={completionFeedback.handleCloseOutcome}
+                    onRequestedStatusActionHandled={
+                      onStatusActionRequestHandled
+                    }
+                    requestedStatusAction={
+                      statusActionRequest?.workId === work.id
+                        ? {
+                            id: statusActionRequest.id,
+                            status: statusActionRequest.status,
+                          }
+                        : null
+                    }
                     work={work}
                     workStatusLabels={workStatusLabels}
                   />

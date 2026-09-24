@@ -515,6 +515,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tarih sıralaması | `Date` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Alan sıralaması | `Field` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
+| Kanban kartını taşı | `Move` | Kartı korunan İş akışı durumu sütunları arasında sürükleme denetimi; `Status` kontrolü tıklama ve klavye alternatifi sunar ([Kanban test seam'i](../specs/25-kanban/spec.md#testing-decisions)) |
 | Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
 | Gallery | `Gallery` | Akıllı Koleksiyon adlandırılmış görünüm sunumu; Dosya Eki kütüphanesi, Moodboard veya ayrı kapak kaydı değildir |
 | Varsayılan görünüm | `Default` | İş koleksiyonunda ilk adlandırılmış görünüm adı |
