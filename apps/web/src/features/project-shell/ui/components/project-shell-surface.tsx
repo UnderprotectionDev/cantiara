@@ -19,6 +19,7 @@ import {
 } from "@tanstack/react-router";
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
+import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import ProjectOverviewView from "@/features/project-overview/ui/components/project-overview";
@@ -28,6 +29,7 @@ import {
 } from "@/features/project-shell/lib/project-shell-explanation";
 import {
   ALWAYS_REACHABLE_SURFACES,
+  BACKLOG_HASH,
   CONFIGURATION_MODE_HASH,
   type ConfigurationHost,
   DAILY_ACTION_HASHES,
@@ -358,6 +360,43 @@ function ProjectWorkSurface({
   configuration: ProjectShellConfiguration;
   projectId: string;
 }) {
+  const isBacklog = activeHash === BACKLOG_HASH;
+  const workContent = (() => {
+    if (isBacklog) {
+      return <ProjectBacklog projectId={projectId} />;
+    }
+    if (activeHash === PRIORITY_MAP_HASH) {
+      return (
+        <Suspense
+          fallback={
+            <p className="text-muted-foreground text-sm" role="status">
+              Loading…
+            </p>
+          }
+        >
+          <PriorityMap projectId={projectId} />
+        </Suspense>
+      );
+    }
+    return (
+      <div className="min-w-0">
+        <DailyWorkActions
+          accountFormattingPreferences={accountFormattingPreferences}
+          activeAction={activeAction}
+          projectId={projectId}
+        />
+        <ProjectWorkList
+          accountFormattingPreferences={accountFormattingPreferences}
+          accountId={accountId}
+          projectId={projectId}
+          workContextLayouts={configuration.workContextLayouts}
+          workStatusLabels={configuration.workStatusLabels}
+        />
+        <PrioritizationSurface projectId={projectId} />
+      </div>
+    );
+  })();
+
   return (
     <section
       aria-labelledby="work-surface-heading"
@@ -370,11 +409,12 @@ function ProjectWorkSurface({
             className="text-balance font-semibold text-2xl tracking-tight"
             id="work-surface-heading"
           >
-            Work
+            {isBacklog ? "Backlog" : "Work"}
           </h2>
           <p className="mt-3 text-muted-foreground text-sm/relaxed">
-            Daily actions stay separate from Overview source records. Start,
-            edit, and review this Project’s Work here.
+            {isBacklog
+              ? "Backlog shows every active Work, including items without a planned start. Viewing or opening Work here does not change its status."
+              : "Daily actions stay separate from Overview source records. Start, edit, and review this Project’s Work here."}
           </p>
         </div>
         {activeHash === PRIORITY_MAP_HASH ? null : (
@@ -389,33 +429,34 @@ function ProjectWorkSurface({
         )}
       </header>
 
-      {activeHash === PRIORITY_MAP_HASH ? (
-        <Suspense
-          fallback={
-            <p className="text-muted-foreground text-sm" role="status">
-              Loading…
-            </p>
-          }
+      <nav aria-label="Work views" className="flex flex-wrap gap-2">
+        <Link
+          aria-current={isBacklog ? undefined : "page"}
+          className={buttonVariants({
+            size: "sm",
+            variant: isBacklog ? "outline" : "secondary",
+          })}
+          hash="work"
+          params={{ projectId }}
+          to="/projects/$projectId"
         >
-          <PriorityMap projectId={projectId} />
-        </Suspense>
-      ) : (
-        <div className="min-w-0">
-          <DailyWorkActions
-            accountFormattingPreferences={accountFormattingPreferences}
-            activeAction={activeAction}
-            projectId={projectId}
-          />
-          <ProjectWorkList
-            accountFormattingPreferences={accountFormattingPreferences}
-            accountId={accountId}
-            projectId={projectId}
-            workContextLayouts={configuration.workContextLayouts}
-            workStatusLabels={configuration.workStatusLabels}
-          />
-          <PrioritizationSurface projectId={projectId} />
-        </div>
-      )}
+          Work
+        </Link>
+        <Link
+          aria-current={isBacklog ? "page" : undefined}
+          className={buttonVariants({
+            size: "sm",
+            variant: isBacklog ? "secondary" : "outline",
+          })}
+          hash={BACKLOG_HASH}
+          params={{ projectId }}
+          to="/projects/$projectId"
+        >
+          Backlog
+        </Link>
+      </nav>
+
+      {workContent}
     </section>
   );
 }
