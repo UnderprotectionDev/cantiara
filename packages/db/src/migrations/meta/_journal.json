@@ -435,6 +435,13 @@
       "when": 1790236505334,
       "tag": "0061_external-handoff-attention-signal",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1790239256315,
+      "tag": "0062_external-handoff-attention-tombstone",
+      "breakpoints": true
     }
   ]
 }

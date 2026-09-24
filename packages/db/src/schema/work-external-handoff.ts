@@ -10,7 +10,6 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
-import { mutationHistory } from "./mutation";
 import { work } from "./work";
 
 export const workExternalExecutionHandoff = pgTable(
@@ -71,20 +70,15 @@ export const workExternalExecutionHandoffAttentionSignal = pgTable(
   "work_external_execution_handoff_attention_signal",
   {
     closedAt: timestamp("closed_at"),
-    handoffId: text("handoff_id")
+    handoffId: text("handoff_id").notNull(),
+    ownerAccountId: text("owner_account_id")
       .notNull()
-      .references(() => workExternalExecutionHandoff.handoffId, {
-        onDelete: "cascade",
-      }),
+      .references(() => user.id, { onDelete: "cascade" }),
     occurredAt: timestamp("occurred_at").notNull(),
     signalId: text("signal_id").primaryKey(),
     signalType: text("signal_type").notNull(),
-    sourceEventId: text("source_event_id")
-      .notNull()
-      .references(() => mutationHistory.id, { onDelete: "cascade" }),
-    sourceWorkId: text("source_work_id")
-      .notNull()
-      .references(() => work.id, { onDelete: "cascade" }),
+    sourceEventId: text("source_event_id").notNull(),
+    sourceWorkId: text("source_work_id").notNull(),
   },
   (table) => [
     uniqueIndex("work_external_handoff_attention_signal_handoff_uidx").on(

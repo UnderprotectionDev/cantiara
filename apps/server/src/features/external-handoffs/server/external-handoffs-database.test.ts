@@ -10,7 +10,10 @@ import { user, workspace } from "@cantiara/db/schema/auth";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { workExternalExecutionHandoff } from "@cantiara/db/schema/work-external-handoff";
+import {
+  workExternalExecutionHandoff,
+  workExternalExecutionHandoffAttentionSignal,
+} from "@cantiara/db/schema/work-external-handoff";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -533,7 +536,7 @@ describeDatabase("External Execution Handoff seam", () => {
     );
   });
 
-  test("produces one source-linked Action needed signal for a returned handoff", async () => {
+  test("produces one source-linked Action Required signal for a returned handoff", async () => {
     if (!database) {
       throw new Error("DATABASE_URL is required");
     }
@@ -582,7 +585,8 @@ describeDatabase("External Execution Handoff seam", () => {
         kind: "produced",
         signal: {
           occurredAt: returnedAt.toISOString(),
-          presentation: "Action needed",
+          ownerAccountId: accountId,
+          presentation: "Action Required",
           signalId: `external-run-returned:${handoffId}`,
           signalType: "external-run-returned",
           source: {
@@ -597,6 +601,55 @@ describeDatabase("External Execution Handoff seam", () => {
     await handoffs.recordReturn(accountId, returnInput);
 
     expect(signalEvents).toHaveLength(1);
+  });
+
+  test("keeps a returned signal tombstone when its Work is deleted", async () => {
+    if (!database) {
+      throw new Error("DATABASE_URL is required");
+    }
+    const handoffId = "handoff-deleted-source-signal";
+    const handoffs = createDatabaseExternalExecutionHandoffs(database, {
+      newId: () => handoffId,
+      now: () => new Date("2026-09-23T12:30:00.000Z"),
+    });
+    await recordReturnedHandoff(handoffs, accountId, workId, handoffId);
+
+    const returnEvent = (await handoffs.listHistory(accountId, workId))?.find(
+      (event) =>
+        event.eventType === "external-execution-handoff-return-recorded",
+    );
+    if (!returnEvent) {
+      throw new Error("The return event was not recorded.");
+    }
+
+    await database.delete(work).where(eq(work.id, workId));
+
+    expect(await handoffs.list(accountId, workId)).toBeNull();
+    const [signal] = await database
+      .select({
+        handoffId: workExternalExecutionHandoffAttentionSignal.handoffId,
+        ownerAccountId:
+          workExternalExecutionHandoffAttentionSignal.ownerAccountId,
+        signalId: workExternalExecutionHandoffAttentionSignal.signalId,
+        sourceEventId:
+          workExternalExecutionHandoffAttentionSignal.sourceEventId,
+        sourceWorkId: workExternalExecutionHandoffAttentionSignal.sourceWorkId,
+      })
+      .from(workExternalExecutionHandoffAttentionSignal)
+      .where(
+        eq(
+          workExternalExecutionHandoffAttentionSignal.signalId,
+          `external-run-returned:${handoffId}`,
+        ),
+      );
+
+    expect(signal).toEqual({
+      handoffId,
+      ownerAccountId: accountId,
+      signalId: `external-run-returned:${handoffId}`,
+      sourceEventId: returnEvent.eventId,
+      sourceWorkId: workId,
+    });
   });
 
   test("closes the returned signal when a handoff is canceled", async () => {

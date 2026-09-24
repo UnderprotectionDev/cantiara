@@ -49,7 +49,8 @@ type HandoffSignalExecutor = Pick<Database, "insert" | "update">;
 
 export interface ExternalExecutionHandoffAttentionSignal {
   occurredAt: string;
-  presentation: "Action needed";
+  ownerAccountId: string;
+  presentation: "Action Required";
   signalId: string;
   signalType: "external-run-returned";
   source: {
@@ -78,12 +79,14 @@ function returnedHandoffAttentionSignalId(handoffId: string) {
 function returnedHandoffAttentionSignal(input: {
   eventId: string;
   handoffId: string;
+  ownerAccountId: string;
   occurredAt: Date;
   workId: string;
 }): ExternalExecutionHandoffAttentionSignal {
   return {
     occurredAt: input.occurredAt.toISOString(),
-    presentation: "Action needed",
+    ownerAccountId: input.ownerAccountId,
+    presentation: "Action Required",
     signalId: returnedHandoffAttentionSignalId(input.handoffId),
     signalType: "external-run-returned",
     source: {
@@ -713,6 +716,7 @@ export function createDatabaseExternalExecutionHandoffs(
         .values({
           closedAt: null,
           handoffId: signal.source.handoffId,
+          ownerAccountId: signal.ownerAccountId,
           occurredAt: new Date(signal.occurredAt),
           signalId: signal.signalId,
           signalType: signal.signalType,
@@ -1221,6 +1225,7 @@ export function createDatabaseExternalExecutionHandoffs(
           returnedHandoffAttentionSignal({
             eventId: historyValues.event.eventId,
             handoffId: input.handoffId,
+            ownerAccountId: accountId,
             occurredAt: returnedAt,
             workId: ownerWork.id,
           }),
