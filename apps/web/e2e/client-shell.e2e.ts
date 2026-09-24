@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const LOGIN_URL_PATTERN = /\/login$/;
+const PROJECTS_URL_PATTERN = /\/projects$/;
+const PROJECT_WORK_URL_PATTERN = /\/projects\/[^/?#]+#work$/;
 
 test("shows the online-only empty state after the connection is lost", async ({
   context,
@@ -75,9 +77,11 @@ test("routes the product entry into Account Access and skips app navigation by k
     page.getByRole("button", { name: "Continue with GitHub" }),
   ).toHaveCount(1);
 
-  const skipLink = page.getByRole("link", { name: "Skip to main content" });
-  await expect(skipLink).toHaveAttribute("href", "#main-content");
-  await skipLink.focus();
+  const skipLink = page.getByRole("button", {
+    name: "Skip to main content",
+  });
+  await page.keyboard.press("Tab");
+  await expect(skipLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
 
@@ -94,10 +98,48 @@ test("routes the product entry into Account Access and skips app navigation by k
   await expect(
     page.getByRole("navigation", { name: "Primary navigation" }),
   ).toBeVisible();
-  const authenticatedSkipLink = page.getByRole("link", {
+  const authenticatedSkipLink = page.getByRole("button", {
     name: "Skip to main content",
   });
-  await authenticatedSkipLink.focus();
+  await page.keyboard.press("Tab");
+  await expect(authenticatedSkipLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
+});
+
+test("keeps the active Project surface when skipping app navigation by keyboard", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([setup.cookie]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Skip Link Acceptance");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await page
+    .getByRole("link", { name: "Skip Link Acceptance", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { exact: true, name: "Work" })
+    .click();
+  await expect(page).toHaveURL(PROJECT_WORK_URL_PATTERN);
+
+  const skipLink = page.getByRole("button", {
+    name: "Skip to main content",
+  });
+  await skipLink.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator("#main-content")).toBeFocused();
+  await expect(page).toHaveURL(PROJECT_WORK_URL_PATTERN);
 });

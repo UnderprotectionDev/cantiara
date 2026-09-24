@@ -136,8 +136,12 @@ test("compares Work on the Priority Map without writing position or status", asy
     }
   });
 
-  const workViews = page.getByRole("navigation", { name: "Work views" });
-  await workViews.getByRole("link", { name: "Priority Map" }).click();
+  const priorityMapLink = page.getByRole("link", {
+    exact: true,
+    name: "Priority Map",
+  });
+  await expect(priorityMapLink).toBeVisible();
+  await priorityMapLink.click();
   await expect(page).toHaveURL(MAP_URL_PATTERN);
   await expect(
     page.getByRole("cell", {
@@ -183,7 +187,10 @@ test("compares Work on the Priority Map without writing position or status", asy
   ).toContainText(evaluatedTitle);
   expect(positionWrites).toEqual(["setPriorityMetricValue"]);
 
-  await workViews.getByRole("link", { name: "Work", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { exact: true, name: "Work" })
+    .click();
   const persistedWork = workListItem(page, evaluatedTitle);
   await expect(persistedWork.getByLabel("Effort estimate")).toHaveValue("High");
   await expect(

@@ -15,7 +15,7 @@ export default function Header() {
   if (!isFounderContext) {
     return (
       <>
-        <SkipLink />
+        <SkipToMainContentButton />
         <header className="border-border/80 border-b bg-background">
           <div className="mx-auto flex min-h-14 w-full max-w-[1440px] items-center px-5 sm:px-8 lg:px-10">
             <Link
@@ -32,7 +32,7 @@ export default function Header() {
 
   return (
     <>
-      <SkipLink />
+      <SkipToMainContentButton />
       <header className="border-border/80 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex min-h-14 w-full max-w-[1440px] items-center gap-1 px-3 sm:gap-6 sm:px-8 lg:px-10">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
@@ -68,12 +68,16 @@ export default function Header() {
   );
 }
 
-function SkipLink() {
+function SkipToMainContentButton() {
   return (
-    <a className="skip-link" href="#main-content">
+    <button className="skip-link" onClick={focusMainContent} type="button">
       Skip to main content
-    </a>
+    </button>
   );
+}
+
+function focusMainContent() {
+  document.getElementById("main-content")?.focus();
 }
 
 function ShellNavLink({
