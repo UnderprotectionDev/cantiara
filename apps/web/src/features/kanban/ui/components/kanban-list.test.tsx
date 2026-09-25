@@ -41,6 +41,25 @@ const workStatusLabels = [
 ] satisfies readonly WorkStatusLabel[];
 
 describe("Kanban List", () => {
+  test("keeps one source-record action per Work row", () => {
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={new QueryClient()}>
+        <KanbanList
+          focusThreshold={null}
+          projectId="project-1"
+          workStatusLabels={workStatusLabels}
+          works={[work]}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(html.match(/<a /g)).toHaveLength(1);
+    expect(html).toContain('href="/projects/project-1#work-work-1"');
+    expect(html).toContain("Open source record");
+    expect(html).toContain("CAN-1");
+    expect(html).toContain("Work in progress");
+  });
+
   test("shows the shared In Progress count and focus-threshold warning", () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(

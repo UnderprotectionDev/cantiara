@@ -28,13 +28,10 @@ export default function KanbanList({
           <li key={work.id}>
             <article className="grid gap-3 bg-card px-3 py-3 md:grid-cols-[minmax(15rem,2fr)_minmax(8rem,1fr)_minmax(12rem,1.5fr)_auto] md:items-center">
               <div className="min-w-0">
-                <a
-                  className="font-medium text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  href={workRecordHref(projectId, work.id)}
-                >
+                <p className="font-medium text-sm">
                   <span className="text-muted-foreground">{work.key}</span>{" "}
                   {work.title}
-                </a>
+                </p>
                 <p className="mt-1 text-muted-foreground text-xs">
                   {work.type}
                 </p>
