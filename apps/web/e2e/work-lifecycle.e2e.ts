@@ -631,6 +631,13 @@ test("creates Work with a Project key, type, and protected start status", async 
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("listitem")
+    .filter({ hasText: "PAY-1 Investigate payment failures" })
+    .getByRole("link", { name: "Open source record" })
+    .click();
 
   const sourceWork = workListItem(page, "PAY-1 Investigate payment failures");
   await sourceWork
@@ -665,6 +672,12 @@ test("creates Work with a Project key, type, and protected start status", async 
   await page
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("link", { name: "Open source record" })
+    .first()
     .click();
   const recreatedWork = workListItem(
     page,
@@ -752,6 +765,13 @@ test("shows Used in groups and opens cross-Project source records", async ({
   await page
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("listitem")
+    .filter({ hasText: "Target record" })
+    .getByRole("link", { name: "Open source record" })
     .click();
   const targetWork = workListItem(page, "Target record");
   await expect(targetWork).toBeVisible({ timeout: 20_000 });

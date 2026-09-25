@@ -694,6 +694,13 @@ test("does not replay a timed-out idempotent close or celebrate Abandoned", asyn
   });
   const conflictTab = await context.newPage();
   await conflictTab.goto(projectWorkUrl);
+  await conflictTab.getByRole("button", { name: "List", exact: true }).click();
+  await conflictTab
+    .getByRole("list", { name: "List Work" })
+    .getByRole("listitem")
+    .filter({ hasText: "Reject a stale close" })
+    .getByRole("link", { name: "Open source record" })
+    .click();
   const otherConflictWork = conflictTab
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")

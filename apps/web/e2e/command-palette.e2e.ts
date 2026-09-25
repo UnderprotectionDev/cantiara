@@ -308,6 +308,12 @@ test("copies the Work Context Card and exposes the same action in Command Palett
     });
   });
   await page.goto(`/projects/${setup.projectId}#work`);
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("link", { name: "Open source record" })
+    .first()
+    .click();
 
   const copyButton = page
     .getByRole("button", {
@@ -367,6 +373,12 @@ test("announces clipboard failures from the Work Context Card", async ({
     });
   });
   await page.goto(`/projects/${setup.projectId}#work`);
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("link", { name: "Open source record" })
+    .first()
+    .click();
 
   const copyButton = page
     .getByRole("button", {

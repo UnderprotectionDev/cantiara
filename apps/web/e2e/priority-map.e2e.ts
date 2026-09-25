@@ -191,6 +191,13 @@ test("compares Work on the Priority Map without writing position or status", asy
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { exact: true, name: "Work" })
     .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("listitem")
+    .filter({ hasText: evaluatedTitle })
+    .getByRole("link", { name: "Open source record" })
+    .click();
   const persistedWork = workListItem(page, evaluatedTitle);
   await expect(persistedWork.getByLabel("Effort estimate")).toHaveValue("High");
   await expect(

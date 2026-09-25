@@ -273,6 +273,12 @@ test("shows virtualized results for a large Work selection", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("link", { name: "Open source record" })
+    .first()
+    .click();
 
   const workRows = page.locator('ul[aria-label="Work list"] > li');
   await expect(workRows).toHaveCount(setup.workCount, { timeout: 30_000 });

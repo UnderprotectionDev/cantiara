@@ -239,6 +239,12 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("link", { name: "Open source record" })
+    .first()
+    .click();
   const record = workList.getByRole("listitem").first();
   await record.getByRole("button", { name: "Start Work", exact: true }).click();
 
@@ -325,6 +331,14 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
   await competingPage
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await competingPage
+    .getByRole("button", { name: "List", exact: true })
+    .click();
+  await competingPage
+    .getByRole("list", { name: "List Work" })
+    .getByRole("link", { name: "Open source record" })
+    .first()
     .click();
   const competingRecord = competingPage
     .getByRole("list", { name: "Work list" })

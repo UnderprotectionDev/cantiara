@@ -160,6 +160,13 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page
+    .getByRole("list", { name: "List Work" })
+    .getByRole("listitem")
+    .filter({ hasText: "Prepare the October release" })
+    .getByRole("link", { name: "Open source record" })
+    .click();
   const createdWork = page
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")
