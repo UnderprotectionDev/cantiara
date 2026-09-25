@@ -25,6 +25,7 @@ import {
   undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
+  updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   type WorkChecklistConversionPreview,
@@ -511,7 +512,6 @@ interface WorkCreationPayload {
   originPosition?: WorkOriginPosition;
   plannedStartDate: string | null;
   projectId: string;
-  reappearDate: string | null;
   recreatedFrom: WorkProfile["recreatedFrom"];
   targetDate: string | null;
   title: string;
@@ -536,7 +536,6 @@ function replayExistingWork(
       plannedStartDate: existing.work.plannedStartDate ?? null,
       effort: existing.work.effort,
       recreatedFrom: existing.work.recreatedFrom,
-      reappearDate: existing.work.reappearDate,
       targetDate: existing.work.targetDate,
     }) ===
       canonicalizeMutationPayload({
@@ -547,7 +546,6 @@ function replayExistingWork(
         plannedStartDate: payload.plannedStartDate,
         effort: payload.effort,
         recreatedFrom: payload.recreatedFrom,
-        reappearDate: payload.reappearDate,
         targetDate: payload.targetDate,
       });
   if (existing.payloadFingerprint !== payloadFingerprint || !sameWork) {
@@ -1063,7 +1061,6 @@ export async function createWork(
     effort: input.effort ?? null,
     plannedStartDate: input.plannedStartDate ?? null,
     projectId: input.projectId,
-    reappearDate: input.reappearDate ?? null,
     recreatedFrom,
     ...(recreate
       ? {
@@ -1138,7 +1135,7 @@ export async function createWork(
           primarySpecId: null,
           plannedStartDate: mutationPayload.plannedStartDate,
           projectId: reservation.projectId,
-          reappearDate: mutationPayload.reappearDate,
+          reappearDate: null,
           recreatedFrom: mutationPayload.recreatedFrom,
           revision: currentRevision + 1,
           status: "Not Started",
@@ -2483,6 +2480,20 @@ export function createWorkLifecycle({
             payload.checklist,
           );
         },
+      );
+    },
+
+    updateReappearDate(accountId, rawInput) {
+      const input = updateWorkReappearDateInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: { reappearDate: input.reappearDate, workId: input.workId },
+          targetId: input.workId,
+        },
+        (work, payload) => ({ ...work, reappearDate: payload.reappearDate }),
       );
     },
 

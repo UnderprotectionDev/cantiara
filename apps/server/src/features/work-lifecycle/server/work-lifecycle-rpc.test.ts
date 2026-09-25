@@ -72,6 +72,7 @@ function createWorkLifecycleStub(
     updateFeaturePrimarySpec: vi.fn(),
     updateChecklist: vi.fn(),
     updateStatus: vi.fn(),
+    updateReappearDate: vi.fn(),
     updateType: vi.fn(),
     unarchive: vi.fn(),
     recreate: vi.fn(),
@@ -113,6 +114,30 @@ function createContext(workLifecycle: WorkLifecycleAccess): Context {
 }
 
 describe("Work Lifecycle RPC", () => {
+  test("updates Reappear date through the authenticated Work interface", async () => {
+    const updateReappearDate = vi.fn().mockResolvedValue({
+      ...work,
+      reappearDate: "2026-10-01",
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(createWorkLifecycleStub({ updateReappearDate })),
+    });
+    const input = {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "reappear-date-1",
+      reappearDate: "2026-10-01",
+      workId: work.id,
+    };
+    await expect(client.updateWorkReappearDate(input)).resolves.toMatchObject({
+      reappearDate: "2026-10-01",
+      status: work.status,
+    });
+    expect(updateReappearDate).toHaveBeenCalledExactlyOnceWith(
+      "account-1",
+      input,
+    );
+  });
+
   test("creates, lists, and reads Work through the authenticated interface", async () => {
     const close = vi.fn().mockResolvedValue({
       ...work,

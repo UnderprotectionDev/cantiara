@@ -142,7 +142,6 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   const deferredTitle = "Wait until the reappear date";
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill(deferredTitle);
-  await page.getByLabel("Reappear date").fill("2999-01-01");
   const deferredCreateResponse = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -154,6 +153,36 @@ test("moves Work through Board with explicit close and reopen steps", async ({
     .getByRole("button", { name: "Create", exact: true })
     .click();
   await deferredCreateResponse;
+  await page
+    .getByRole("navigation", { name: "Planning surfaces" })
+    .getByRole("link", { name: "Backlog", exact: true })
+    .click();
+  const reappearDateButton = page.getByRole("button", {
+    name: `Reappear date for ${deferredTitle}`,
+  });
+  await reappearDateButton.click();
+  const deferredDateLabel = await page.evaluate(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 3);
+    return date.toLocaleDateString();
+  });
+  const deferredDateButton = page.locator(
+    `[data-slot="calendar"] button[data-day=${JSON.stringify(deferredDateLabel)}]`,
+  );
+  await expect(deferredDateButton).toBeVisible();
+  const updateDateResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateWorkReappearDate") &&
+      response.ok(),
+  );
+  await deferredDateButton.click();
+  await updateDateResponse;
+  await expect(
+    page
+      .getByRole("region", { name: "Deferred" })
+      .getByText(deferredTitle, { exact: true }),
+  ).toBeVisible();
   await openBoard(page);
   await expect(page.getByText(deferredTitle, { exact: true })).toHaveCount(0);
 

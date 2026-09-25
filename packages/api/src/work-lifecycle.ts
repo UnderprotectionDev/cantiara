@@ -109,11 +109,18 @@ export const workPlannedStartDateSchema = z
   .nullable()
   .optional();
 
-export const workReappearDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Reappear date must use YYYY-MM-DD.")
-  .nullable()
-  .optional();
+export const workReappearDateSchema = z.iso.date().nullable();
+
+export const updateWorkReappearDateInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    reappearDate: workReappearDateSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type UpdateWorkReappearDateInput = z.input<
+  typeof updateWorkReappearDateInputSchema
+>;
 
 export const workEffortSchema = z
   .string()
@@ -209,7 +216,6 @@ const createWorkInputObjectSchema = z
     effort: workEffortSchema,
     plannedStartDate: workPlannedStartDateSchema,
     projectId: identifierSchema,
-    reappearDate: workReappearDateSchema,
     targetDate: workTargetDateSchema,
     title: workTitleSchema,
     type: workTypeSchema.default(WORK_DEFAULT_TYPE),
@@ -686,7 +692,7 @@ export interface WorkProfile {
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
-  reappearDate: string | null;
+  reappearDate?: string | null;
   recreatedFrom: { id: string; key: string } | null;
   revision: number;
   status: WorkStatus;
@@ -914,6 +920,10 @@ export interface WorkLifecycleAccess {
   updateFeaturePrimarySpec: (
     accountId: string,
     input: UpdateFeaturePrimarySpecInput,
+  ) => Promise<WorkProfile>;
+  updateReappearDate: (
+    accountId: string,
+    input: UpdateWorkReappearDateInput,
   ) => Promise<WorkProfile>;
   updateStatus: (
     accountId: string,

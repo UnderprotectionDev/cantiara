@@ -206,6 +206,7 @@ import {
   undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
+  updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
   workArchiveMutationInputSchema,
@@ -3730,6 +3731,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateChecklist(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkReappearDate: protectedProcedure
+    .input(updateWorkReappearDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateReappearDate(
           context.session.user.id,
           input,
         ),

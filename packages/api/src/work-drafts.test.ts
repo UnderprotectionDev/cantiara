@@ -14,7 +14,6 @@ describe("Work Drafts", () => {
       ],
       description: null,
       projectId: "project-1",
-      reappearDate: "2026-10-01",
       title: "Verify payment flow",
       type: "Task",
     });
@@ -25,15 +24,14 @@ describe("Work Drafts", () => {
         payload: { boolean: false, kind: "boolean" },
       },
     ]);
-    expect(parsed.reappearDate).toBe("2026-10-01");
     expect(parsed).not.toHaveProperty("customFieldDefinitions");
   });
 
-  test("rejects malformed Reappear date values", () => {
+  test("does not accept Reappear date on Work Draft", () => {
     expect(
       workDraftFormSchema.safeParse({
         projectId: "project-1",
-        reappearDate: "next week",
+        reappearDate: "2026-10-01",
         title: "Review deferred payment flow",
         type: "Task",
       }).success,

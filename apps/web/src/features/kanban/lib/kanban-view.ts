@@ -40,8 +40,8 @@ export function sortKanbanWorks(
         break;
       case "reappearDate":
         comparison = compareNullableDates(
-          left.reappearDate,
-          right.reappearDate,
+          left.reappearDate ?? null,
+          right.reappearDate ?? null,
           sort.direction,
         );
         break;
@@ -64,9 +64,10 @@ export function filterReappearingWorks(
   works: readonly WorkProfile[],
   today: string,
 ) {
-  return works.filter(
-    (work) => work.reappearDate === null || work.reappearDate <= today,
-  );
+  return works.filter((work) => {
+    const reappearDate = work.reappearDate ?? null;
+    return reappearDate === null || reappearDate <= today;
+  });
 }
 
 export function currentDateInTimeZone(timeZone: string, now = new Date()) {

@@ -59,7 +59,7 @@ describe("Kanban saved Work view", () => {
     const works = [
       work({ id: "work-today", reappearDate: "2026-09-25" }),
       work({ id: "work-future", reappearDate: "2026-09-26" }),
-      work({ id: "work-unscheduled" }),
+      work({ id: "work-unscheduled", reappearDate: undefined }),
     ];
 
     expect(

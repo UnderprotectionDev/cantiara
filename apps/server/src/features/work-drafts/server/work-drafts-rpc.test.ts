@@ -12,7 +12,6 @@ const draft: WorkDraft = {
   description: null,
   id: "draft-1",
   projectId: "project-1",
-  reappearDate: null,
   revision: 1,
   title: "Investigate payment failures",
   type: "Research",
@@ -36,7 +35,6 @@ const work: WorkProfile = {
   primarySpecId: null,
   projectId: "project-1",
   recreatedFrom: null,
-  reappearDate: null,
   revision: 1,
   status: "Not Started",
   statusChangedAt: "2026-09-19T09:01:00.000Z",
@@ -124,7 +122,6 @@ describe("Work Drafts RPC", () => {
       description: null,
       draftId: draft.id,
       projectId: draft.projectId,
-      reappearDate: null,
       title: draft.title,
       type: draft.type,
     });

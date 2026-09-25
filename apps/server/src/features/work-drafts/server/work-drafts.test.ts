@@ -33,7 +33,6 @@ const draft: WorkDraft = {
   description: null,
   id: "draft-1",
   projectId: "project-1",
-  reappearDate: null,
   revision: 1,
   title: "Investigate payment failures",
   type: "Research",
@@ -57,7 +56,6 @@ const work: WorkProfile = {
   primarySpecId: null,
   projectId: "project-1",
   recreatedFrom: null,
-  reappearDate: null,
   revision: 1,
   status: "Not Started",
   statusChangedAt: "2026-09-19T09:01:00.000Z",
@@ -194,6 +192,7 @@ function createWorkLifecycleStub(): WorkLifecycleAccess {
     updateFeaturePrimarySpec: vi.fn(),
     updateChecklist: vi.fn(),
     updateStatus: vi.fn(),
+    updateReappearDate: vi.fn(),
     updateType: vi.fn(),
   };
 }
@@ -393,7 +392,6 @@ describe("Work Drafts", () => {
         clientIdempotencyKey: "work-draft:draft-1",
         description: null,
         projectId: "project-1",
-        reappearDate: null,
         title: draft.title,
         type: draft.type,
       },

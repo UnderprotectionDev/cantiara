@@ -127,6 +127,8 @@ describe("Backlog prepared membership API contract", () => {
       key: "PAY-1",
       number: 1,
       plannedStartDate: null,
+      reappearDate: null,
+      revision: 0,
       status: "Not Started",
       targetDate: null,
       title: "Unplanned work",
@@ -151,10 +153,16 @@ describe("Backlog prepared membership API contract", () => {
         key: "PAY-2",
         number: 2,
         plannedStartDate: "2026-10-01",
+        reappearDate: "2026-10-02",
+        revision: 1,
         status: "Not Started",
         targetDate: null,
         title: "Dated work",
       }),
-    ).toMatchObject({ plannedStartDate: "2026-10-01", targetDate: null });
+    ).toMatchObject({
+      plannedStartDate: "2026-10-01",
+      reappearDate: "2026-10-02",
+      targetDate: null,
+    });
   });
 });

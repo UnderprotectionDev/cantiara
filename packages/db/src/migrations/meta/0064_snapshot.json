@@ -1,5 +1,5 @@
 {
-  "id": "f778cace-0951-4896-870a-d8e0fed1f742",
+  "id": "fffbda7c-5248-4137-bfc5-8e5d203e59ff",
   "prevId": "6ddcea4a-dcc6-4a75-9b4c-ef4c9390ce78",
   "version": "7",
   "dialect": "postgresql",
@@ -3027,6 +3027,64 @@
       },
       "isRLSEnabled": false
     },
+    "public.project_backlog_presentation": {
+      "name": "project_backlog_presentation",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "saved": {
+          "name": "saved",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_backlog_presentation_project_id_project_id_fk": {
+          "name": "project_backlog_presentation_project_id_project_id_fk",
+          "tableFrom": "project_backlog_presentation",
+          "tableTo": "project",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_backlog_presentation_revision_check": {
+          "name": "project_backlog_presentation_revision_check",
+          "value": "\"project_backlog_presentation\".\"revision\" >= 0"
+        },
+        "project_backlog_presentation_saved_check": {
+          "name": "project_backlog_presentation_saved_check",
+          "value": "jsonb_typeof(\"project_backlog_presentation\".\"saved\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.prioritization_session": {
       "name": "prioritization_session",
       "schema": "",
@@ -3910,25 +3968,12 @@
           "notNull": true,
           "default": 0
         },
-        "reappear_date": {
-          "name": "reappear_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "'Not Started'"
-        },
-        "status_changed_at": {
-          "name": "status_changed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         },
         "target_date": {
           "name": "target_date",
@@ -3948,18 +3993,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "trashed_at": {
-          "name": "trashed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -4089,10 +4134,6 @@
         "work_target_date_check": {
           "name": "work_target_date_check",
           "value": "\"work\".\"target_date\" is null or \"work\".\"target_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
-        },
-        "work_reappear_date_check": {
-          "name": "work_reappear_date_check",
-          "value": "\"work\".\"reappear_date\" is null or \"work\".\"reappear_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
         },
         "work_primary_feature_not_self_check": {
           "name": "work_primary_feature_not_self_check",
@@ -4742,12 +4783,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "reappear_date": {
-          "name": "reappear_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
         },
         "revision": {
           "name": "revision",

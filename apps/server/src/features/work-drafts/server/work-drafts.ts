@@ -116,7 +116,6 @@ function publicDraft(record: WorkDraftRecord): WorkDraft {
     description: record.description,
     id: record.id,
     projectId: record.projectId,
-    reappearDate: record.reappearDate,
     revision: record.revision,
     title: record.title,
     type: record.type,
@@ -310,7 +309,6 @@ export function createWorkDrafts({
             description: payload.description,
             id: payload.draftId,
             projectId: payload.projectId,
-            reappearDate: payload.reappearDate,
             revision: currentRevision + 1,
             title: payload.title,
             type: payload.type,
@@ -377,7 +375,6 @@ export function createWorkDrafts({
         clientIdempotencyKey: finalizedWorkClientIdempotencyKey(record.id),
         description: record.description,
         projectId: record.projectId,
-        reappearDate: record.reappearDate,
         title: record.title,
         type: record.type,
       } satisfies Parameters<WorkLifecycleAccess["create"]>[1];

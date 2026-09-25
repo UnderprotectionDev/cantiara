@@ -28,6 +28,7 @@ vi.mock("@/features/web-macos-client/store/client-shell", () => ({
 }));
 vi.mock("@/utils/orpc", () => ({
   orpc: {
+    accountPreferences: { queryOptions: () => ({}) },
     projectBacklog: {
       queryOptions: () => ({}),
     },
@@ -49,6 +50,10 @@ function renderBacklog(queryResult: unknown) {
     } as never)
     .mockReturnValueOnce({
       data: { revision: 0, saved: null },
+      isPending: false,
+    } as never)
+    .mockReturnValueOnce({
+      data: { timeZone: "UTC" },
       isPending: false,
     } as never);
   return renderToStaticMarkup(<ProjectBacklog projectId="project-1" />);
@@ -91,6 +96,8 @@ describe("Project Backlog", () => {
           key: "CANT-1",
           number: 1,
           plannedStartDate: null,
+          reappearDate: null,
+          revision: 0,
           status: "Not Started",
           targetDate: null,
           title: "First Work",
@@ -102,5 +109,63 @@ describe("Project Backlog", () => {
 
     expect(html).toContain("Backlog order could not be saved. Try again.");
     expect(html).toContain('role="alert"');
+  });
+
+  test("reports a failed Reappear date edit", () => {
+    mocks.mutationError = true;
+    const html = renderBacklog({
+      data: [
+        {
+          id: "work-1",
+          key: "CANT-1",
+          number: 1,
+          plannedStartDate: null,
+          reappearDate: null,
+          revision: 0,
+          status: "Not Started",
+          targetDate: null,
+          title: "First Work",
+        },
+      ],
+      isError: false,
+      isPending: false,
+    });
+    expect(html).toContain("Reappear date could not be saved. Try again.");
+    expect(html).toContain('role="alert"');
+  });
+
+  test("shows future Work in Deferred while keeping its status and manual rank available", () => {
+    const html = renderBacklog({
+      data: [
+        {
+          id: "one",
+          key: "CANT-1",
+          number: 1,
+          plannedStartDate: null,
+          reappearDate: null,
+          revision: 0,
+          status: "Not Started",
+          targetDate: null,
+          title: "First Work",
+        },
+        {
+          id: "two",
+          key: "CANT-2",
+          number: 2,
+          plannedStartDate: null,
+          reappearDate: "2099-01-01",
+          revision: 0,
+          status: "Blocked",
+          targetDate: null,
+          title: "Later Work",
+        },
+      ],
+      isError: false,
+      isPending: false,
+    });
+    expect(html).toContain('aria-label="Deferred"');
+    expect(html.indexOf("First Work")).toBeLessThan(html.indexOf("Deferred"));
+    expect(html).toContain("Later Work");
+    expect(html).toContain("Reappear date");
   });
 });
