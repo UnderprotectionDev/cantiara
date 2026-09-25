@@ -83,16 +83,38 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Board", exact: true }).click();
   await expect(initialCard).toBeVisible();
+  const sourceHref = await initialCard
+    .getByRole("link", { name: "Open source record" })
+    .getAttribute("href");
+  if (!sourceHref) {
+    throw new Error("The Work card has no source-record link.");
+  }
 
   await page.getByRole("button", { name: "List", exact: true }).click();
   const listView = page.getByRole("region", { name: "List" });
   const listRow = listView.getByRole("listitem").filter({ hasText: title });
   await expect(listRow).toBeVisible();
+  await expect(listView.getByRole("listitem")).toHaveCount(1);
+  await expect(listRow).toContainText("Not Started");
+  await expect(listRow).toContainText("Time in status:");
   await expect(
     listRow.getByRole("link", { name: "Open source record" }),
-  ).toBeVisible();
+  ).toHaveAttribute("href", sourceHref);
+  await expect(listRow.getByRole("link")).toHaveCount(1);
   await expect(listRow.getByRole("combobox")).toHaveCount(0);
+  await listRow.getByRole("link", { name: "Open source record" }).click();
+  await expect(page).toHaveURL(
+    (url) => `${url.pathname}${url.hash}` === sourceHref,
+  );
+  await expect(
+    page.getByRole("heading", { name: title, exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
   await page.getByRole("button", { name: "Board", exact: true }).click();
+  await expect(boardCard(page, "Not Started", title)).toBeVisible();
 
   const moveLabel = await initialCard
     .getByRole("button", { name: MOVE_BUTTON_NAME })
