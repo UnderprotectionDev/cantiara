@@ -4,32 +4,13 @@ import {
   saveBacklogPresentationInputSchema,
 } from "@cantiara/api/backlog";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
-import { workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogPresentation } from "@cantiara/db/schema/backlog";
-import { project } from "@cantiara/db/schema/project";
 import { and, eq } from "drizzle-orm";
 import type {
   MutationDatabaseExecutor,
   MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
-
-async function findOwnedProject(
-  executor: MutationDatabaseExecutor,
-  accountId: string,
-  projectId: string,
-  lock: boolean,
-) {
-  const query = executor
-    .select({ id: project.id })
-    .from(project)
-    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
-    .where(
-      and(eq(project.id, projectId), eq(workspace.ownerAccountId, accountId)),
-    )
-    .limit(1);
-  const records = lock ? await query.for("update") : await query;
-  return records[0] ?? null;
-}
+import { findOwnedBacklogProject } from "./backlog-owned-project";
 
 async function findPresentation(
   executor: MutationDatabaseExecutor,
@@ -73,7 +54,9 @@ export function createBacklogPresentationTarget(
           return null;
         }
       }
-      if (!(await findOwnedProject(executor, accountId, targetId, lock))) {
+      if (
+        !(await findOwnedBacklogProject(executor, accountId, targetId, lock))
+      ) {
         return null;
       }
       return toTarget(await findPresentation(executor, targetId, lock));
@@ -87,7 +70,12 @@ export function createBacklogPresentationTarget(
         return null;
       }
       if (
-        !(await findOwnedProject(executor, accountId, input.targetId, true))
+        !(await findOwnedBacklogProject(
+          executor,
+          accountId,
+          input.targetId,
+          true,
+        ))
       ) {
         return null;
       }

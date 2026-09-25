@@ -44,8 +44,36 @@ test("Backlog drag persists its own order across alternate presentations and a s
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  const configuration = page.locator(
+    'section[aria-label="Configuration Mode"]',
+  );
+  await configuration.getByRole("button", { name: "Priority metrics" }).click();
+  const metricForm = configuration.getByRole("form", {
+    name: "Add priority metric",
+  });
+  await metricForm.getByLabel("Name").fill("Customer value");
+  await metricForm
+    .getByLabel("Short description")
+    .fill("Customer value comparison");
+  const metricCreated = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/rpc/createPriorityMetric") && response.ok(),
+  );
+  await metricForm.getByRole("button", { name: "Add metric" }).click();
+  await metricCreated;
+  await page.getByRole("button", { name: "Exit Configuration Mode" }).click();
   await createWork(page, "Alpha Work");
   await createWork(page, "Beta Work");
+  const alphaPriority = page.getByRole("region", {
+    name: "Priority metrics for MAN-1",
+  });
+  const prioritySaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/rpc/setPriorityMetricValue") && response.ok(),
+  );
+  await alphaPriority.getByLabel("Customer value").selectOption("High");
+  await prioritySaved;
 
   await page.getByRole("link", { name: "Backlog", exact: true }).click();
   const backlog = page.getByRole("list", { name: "Backlog" });
@@ -58,6 +86,12 @@ test("Backlog drag persists its own order across alternate presentations and a s
 
   for (const presentation of ["Priority", "Date", "Field"] as const) {
     await page.getByLabel("Backlog sort").selectOption({ label: presentation });
+    if (presentation === "Priority") {
+      await page
+        .getByLabel("Priority criterion")
+        .selectOption({ label: "Customer value" });
+      await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
+    }
     if (presentation === "Field") {
       await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
       await page.getByRole("button", { name: "Save presentation" }).click();
