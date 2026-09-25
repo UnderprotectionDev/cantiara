@@ -1,3 +1,4 @@
+import { isSupportReference } from "@cantiara/api/support-reference";
 import { Button } from "@cantiara/ui/components/button";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import {
@@ -17,10 +18,30 @@ const FETCH_FAILURE_PATTERN =
   /\b(?:failed to fetch|network request failed|networkerror|load failed)\b/i;
 
 class SessionCheckError extends Error {
-  constructor() {
+  readonly supportReference?: string;
+
+  constructor(supportReference?: string) {
     super("Session check failed");
     this.name = "SessionCheckError";
+    if (supportReference) {
+      this.supportReference = supportReference;
+    }
   }
+}
+
+function sessionSupportReference(error: unknown) {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("data" in error) ||
+    typeof error.data !== "object" ||
+    error.data === null ||
+    !("supportReference" in error.data) ||
+    !isSupportReference(error.data.supportReference)
+  ) {
+    return;
+  }
+  return error.data.supportReference;
 }
 
 export const Route = createFileRoute("/_auth")({
@@ -32,7 +53,7 @@ export const Route = createFileRoute("/_auth")({
       authClient.getSession(),
     );
     if (session.error) {
-      throw new SessionCheckError();
+      throw new SessionCheckError(sessionSupportReference(session.error));
     }
     if (!session.data) {
       throw redirect({
@@ -110,7 +131,14 @@ function AuthRouteError({ error }: ErrorComponentProps) {
               : "Cantiara couldn’t be reached."}
           </h1>
           <p className="mt-3 max-w-prose text-base/7 text-foreground/75">
-            Support reference unavailable.
+            {isSessionCheckFailure && error.supportReference ? (
+              <>
+                <span>Support reference</span>{" "}
+                <code>{error.supportReference}</code>
+              </>
+            ) : (
+              "Support reference unavailable."
+            )}
           </p>
           <div className="mt-6">
             <Button

@@ -5,7 +5,10 @@ import {
 } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
-import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
+import {
+  SUPPORT_REFERENCE_HEADER,
+  SUPPORT_REFERENCE_PATTERN,
+} from "@cantiara/api/support-reference";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
 import { createAuthOptions } from "@cantiara/auth";
@@ -547,6 +550,73 @@ describe("server app Account Access boundary", () => {
     expect(body).toBe("Internal Server Error");
     expect(response.headers.get("x-cantiara-support-reference")).toBeNull();
     expect(body).not.toContain("private Workspace body");
+  });
+
+  test("adds a server Support reference to failed session checks", async () => {
+    const { app } = createTestApp({
+      auth: {
+        api: { getSession: async () => null },
+        handler: async () =>
+          Response.json({ message: "Service unavailable" }, { status: 503 }),
+      } as unknown as AppDependencies["auth"],
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/auth/get-session"),
+    );
+    const supportReference = response.headers.get(SUPPORT_REFERENCE_HEADER);
+    const body = (await response.json()) as {
+      data: {
+        reasonCode: string;
+        retryPolicy: string;
+        supportReference: string;
+        writeOutcome: string;
+      };
+    };
+
+    expect(response.status).toBe(503);
+    expect(supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+    expect(body.data).toMatchObject({
+      reasonCode: "unexpected",
+      retryPolicy: "once",
+      supportReference,
+      writeOutcome: "not-written",
+    });
+  });
+
+  test("adds a server Support reference when session lookup throws", async () => {
+    const { app } = createTestApp({
+      auth: {
+        api: {
+          getSession: () => {
+            throw new Error("Session database unavailable");
+          },
+        },
+        handler: async () => Response.json({ session: null, user: null }),
+      } as unknown as AppDependencies["auth"],
+    });
+
+    const response = await app.fetch(
+      new Request("https://api.cantiara.example/api/auth/get-session"),
+    );
+    const supportReference = response.headers.get(SUPPORT_REFERENCE_HEADER);
+    const body = (await response.json()) as {
+      data: {
+        reasonCode: string;
+        retryPolicy: string;
+        supportReference: string;
+        writeOutcome: string;
+      };
+    };
+
+    expect(response.status).toBe(500);
+    expect(supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+    expect(body.data).toMatchObject({
+      retryPolicy: "once",
+      supportReference,
+      writeOutcome: "not-written",
+    });
+    expect(JSON.stringify(body)).not.toContain("Session database unavailable");
   });
 
   test("sanitizes a failed RPC before it reaches the response or log sink", async () => {
