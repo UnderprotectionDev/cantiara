@@ -783,6 +783,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |
 | Destek referansı kullanılamıyor | `Support reference unavailable.` | Sunucuya ulaşılamayan başarısız ana akışta destek referansının üretilemediğini bildirir |
 | Cantiara'ya ulaşılamıyor | `Cantiara couldn’t be reached.` | Korunan rota oturum kontrolünde sunucuya ulaşılamadığını bildirir ve yeniden deneme sunar |
+| Oturum kontrol edilemiyor | `Cantiara couldn’t check your session.` | Korunan rota oturum kontrolünde sunucunun hata yanıtı verdiğini bildirir ve yeniden deneme sunar |
 | Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |

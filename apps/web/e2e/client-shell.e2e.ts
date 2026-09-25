@@ -138,6 +138,71 @@ test("recovers from a failed session check with an explicit retry", async ({
   ).toBeVisible();
 });
 
+test("recovers from the Safari-style session network error", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    let didFailSessionCheck = false;
+
+    window.fetch = (input, init) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.href,
+      );
+      if (!didFailSessionCheck && url.pathname === "/api/auth/get-session") {
+        didFailSessionCheck = true;
+        return Promise.reject(new TypeError("Load failed"));
+      }
+      return originalFetch(input, init);
+    };
+  });
+
+  await page.goto("/projects");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Cantiara couldn’t be reached.",
+  );
+  await expect(page.getByText("Support reference unavailable.")).toBeVisible();
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Welcome to Cantiara" }),
+  ).toBeVisible();
+});
+
+test("does not treat a failed session response as signed out", async ({
+  page,
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) {
+      await route.fulfill({
+        body: JSON.stringify({ message: "Service unavailable" }),
+        contentType: "application/json",
+        status: 503,
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/projects");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Cantiara couldn’t check your session.",
+  );
+  await expect(page.getByText("Support reference unavailable.")).toBeVisible();
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Welcome to Cantiara" }),
+  ).toBeVisible();
+});
+
 test("keeps the active Project surface when skipping app navigation by keyboard", async ({
   context,
   page,

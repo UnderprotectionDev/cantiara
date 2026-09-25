@@ -14,7 +14,14 @@ import { ClientShellContent } from "@/features/web-macos-client/ui/components/cl
 import { authClient } from "@/lib/auth-client";
 
 const FETCH_FAILURE_PATTERN =
-  /\b(?:failed to fetch|network request failed|networkerror)\b/i;
+  /\b(?:failed to fetch|network request failed|networkerror|load failed)\b/i;
+
+class SessionCheckError extends Error {
+  constructor() {
+    super("Session check failed");
+    this.name = "SessionCheckError";
+  }
+}
 
 export const Route = createFileRoute("/_auth")({
   component: AuthLayout,
@@ -24,6 +31,9 @@ export const Route = createFileRoute("/_auth")({
     const session = await defaultClientShell.runOnlineOnly(() =>
       authClient.getSession(),
     );
+    if (session.error) {
+      throw new SessionCheckError();
+    }
     if (!session.data) {
       throw redirect({
         to: "/login",
@@ -77,7 +87,11 @@ function AuthRouteError({ error }: ErrorComponentProps) {
     );
   }
 
-  if (error instanceof TypeError && FETCH_FAILURE_PATTERN.test(error.message)) {
+  const isNetworkFailure =
+    error instanceof TypeError && FETCH_FAILURE_PATTERN.test(error.message);
+  const isSessionCheckFailure = error instanceof SessionCheckError;
+
+  if (isNetworkFailure || isSessionCheckFailure) {
     return (
       <main className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-background px-5 py-10 sm:px-8">
         <section
@@ -91,7 +105,9 @@ function AuthRouteError({ error }: ErrorComponentProps) {
             className="font-semibold text-3xl text-foreground tracking-tight"
             id="auth-connection-error-title"
           >
-            Cantiara couldn’t be reached.
+            {isSessionCheckFailure
+              ? "Cantiara couldn’t check your session."
+              : "Cantiara couldn’t be reached."}
           </h1>
           <p className="mt-3 max-w-prose text-base/7 text-foreground/75">
             Support reference unavailable.
