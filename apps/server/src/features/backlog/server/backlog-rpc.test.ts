@@ -14,14 +14,18 @@ describe("Backlog RPC", () => {
         id: "work-1",
         key: "CANT-1",
         number: 1,
+        plannedStartDate: null,
         status: "Not Started",
+        targetDate: null,
         title: "Unplanned Work",
       },
       {
         id: "work-2",
         key: "CANT-2",
         number: 2,
+        plannedStartDate: null,
         status: "Blocked",
+        targetDate: null,
         title: "Planned Work",
       },
     ];
@@ -32,6 +36,11 @@ describe("Backlog RPC", () => {
     const backlog: BacklogAccess = {
       list: vi.fn().mockResolvedValue({ projectId, revision: 0, workIds: [] }),
       listPrepared: vi.fn().mockResolvedValue(preparedWork),
+      listPresentation: vi.fn().mockResolvedValue({
+        projectId,
+        revision: 0,
+        saved: null,
+      }),
     };
     const context = {
       auth: null,
@@ -54,5 +63,12 @@ describe("Backlog RPC", () => {
     expect(preparedWork.map(({ id, status }) => ({ id, status }))).toEqual(
       statesBeforeRead,
     );
+    await expect(
+      client.projectBacklogPresentation({ projectId }),
+    ).resolves.toEqual({
+      projectId,
+      revision: 0,
+      saved: null,
+    });
   });
 });

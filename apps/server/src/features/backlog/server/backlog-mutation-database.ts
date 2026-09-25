@@ -2,6 +2,7 @@ import type {
   BacklogMutationContracts,
   BacklogOrderMutationValue,
   ProjectBacklogOrder,
+  ProjectBacklogPresentation,
 } from "@cantiara/api/backlog";
 import {
   projectBacklogOrderSchema,
@@ -9,9 +10,7 @@ import {
 } from "@cantiara/api/backlog";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
-import { workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
-import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq } from "drizzle-orm";
 import {
@@ -21,6 +20,8 @@ import {
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { isBacklogMember } from "./backlog-membership";
 import { applyBacklogOrder, normalizeBacklogOrder } from "./backlog-order";
+import { findOwnedBacklogProject } from "./backlog-owned-project";
+import { createBacklogPresentationTarget } from "./backlog-presentation-mutation-database";
 
 interface BacklogState {
   activeWorkIds: string[];
@@ -30,31 +31,13 @@ interface BacklogState {
   stored: typeof projectBacklogOrder.$inferSelect | null;
 }
 
-async function findOwnedProject(
-  executor: MutationDatabaseExecutor,
-  accountId: string,
-  projectId: string,
-  lock: boolean,
-) {
-  const query = executor
-    .select({ id: project.id })
-    .from(project)
-    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
-    .where(
-      and(eq(project.id, projectId), eq(workspace.ownerAccountId, accountId)),
-    )
-    .limit(1);
-  const records = lock ? await query.for("update") : await query;
-  return records[0] ?? null;
-}
-
 async function loadBacklogState(
   executor: MutationDatabaseExecutor,
   accountId: string,
   projectId: string,
   lock: boolean,
 ): Promise<BacklogState | null> {
-  if (!(await findOwnedProject(executor, accountId, projectId, lock))) {
+  if (!(await findOwnedBacklogProject(executor, accountId, projectId, lock))) {
     return null;
   }
 
@@ -195,6 +178,10 @@ export function createDatabaseBacklogMutationContracts(
   database: Database,
 ): BacklogMutationContracts {
   return {
+    savePresentation: (accountId) =>
+      createDatabaseMutationContract<ProjectBacklogPresentation>(database, {
+        target: createBacklogPresentationTarget(accountId),
+      }),
     updateOrder: (accountId) =>
       createDatabaseMutationContract<BacklogOrderMutationValue>(database, {
         target: createBacklogOrderTarget(accountId),
