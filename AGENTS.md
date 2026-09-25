@@ -14,12 +14,13 @@ Personal project operating system for a solo product builder. This file is the a
 
 - **Domain documents:** Before editing the glossary or an ADR, read [`docs/agents/domain.md`](docs/agents/domain.md). Write `CONTEXT.md` and ADRs in Turkish.
 - **Authentication:** Treat GitHub login, sessions, and cookies as security-sensitive. Verify the installed Better Auth version's current API and security guidance, then test required failure paths at the Account Access seam.
-- **Issues:** Before reading or writing tracker state, read [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md). GitHub Issues is canonical; role labels follow [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+- **Issues:** At task start, check Conductor's inherited issue context and canonical `.context/attachments/[GITHUB]-*.md` attachments. If an issue was selected, resolve and read it before implementation using [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md). Read that guide before other tracker access too. GitHub Issues is canonical; role labels follow [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
 - **Implement close-out:** After implementation, tests, and review, follow [`docs/agents/implement-close-out.md`](docs/agents/implement-close-out.md).
 
 ## Repository guardrails
 
 - Write Git branch names in English.
 - Apply schema changes with `bun run db:migrate`; reserve `bun run db:push` for disposable local databases. Drizzle Kit generates versioned SQL in `packages/db/src/migrations/` from `packages/db/src/schema/`.
+- **Schema migrations:** When a task changes the database schema, generate and verify its versioned migration in the same task or selected issue. Before applying it to a shared database, follow "Paralel geliştirmede paylaşılan veritabanı" in [`docs/tech-stack.md`](docs/tech-stack.md); stop if histories diverge.
 - Treat `apps/web/src/routeTree.gen.ts` as TanStack Router generated output.
 - When `NEON_LOCAL=true`, use the local PostgreSQL boundary in [`docs/tech-stack.md`](docs/tech-stack.md) and `scripts/neon-local-proxy.ts`.
