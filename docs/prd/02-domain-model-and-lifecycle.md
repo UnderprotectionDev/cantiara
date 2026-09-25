@@ -510,6 +510,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Production | `Production` | Üretim olayları girişini toplayan Proje alanı |
 | GitHub | `GitHub` | GitHub bağlantısı girişini toplayan Proje alanı; oluşturmada zorunlu bağlantı değildir |
 | Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
+| Backlog yükleniyor | `Loading Backlog…` | Hazır Backlog koleksiyonu yüklenirken erişilebilir ilerleme mesajı |
+| Backlog kullanılamıyor | `Backlog is unavailable. Try loading this page again.` | Hazır koleksiyon sorgusu başarısız olduğunda gösterilen, yazma yapıldığını ima etmeyen hata mesajı |
+| Boş Backlog | `No active Work to consider.` | Değerlendirilecek etkin İş olmadığında gösterilen boş durum |
 | Manuel sıra | `Manual order` | Backlog’un tek kalıcı ele alma sırası; alternatif sunum bunu silmez |
 | Öncelik sıralaması | `Priority` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Tarih sıralaması | `Date` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
