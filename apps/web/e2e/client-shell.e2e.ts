@@ -216,6 +216,47 @@ test("does not treat a failed session response as signed out", async ({
   ).toBeVisible();
 });
 
+test("limits a server-side session check failure to one Retry", async ({
+  page,
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionAttempts += 1;
+    await route.fulfill({
+      body: JSON.stringify({
+        code: "INTERNAL_SERVER_ERROR",
+        data: {
+          reasonCode: "unexpected",
+          retryPolicy: "once",
+          supportReference: "SUP-123E4567-E89B-12D3-A456-426614174000",
+          writeOutcome: "not-written",
+        },
+        defined: false,
+        message: "This action could not be completed.",
+        status: 503,
+      }),
+      contentType: "application/json",
+      status: 503,
+    });
+  });
+
+  await page.goto("/projects");
+
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Cantiara couldn’t check your session.");
+  await expect(alert).toContainText("Data was not written.");
+  await expect(alert).toContainText("You can retry once.");
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  const attemptsBeforeRetry = sessionAttempts;
+
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(alert).toContainText("Data was not written.");
+  await expect(alert).toContainText("Do not retry.");
+  await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  await expect.poll(() => sessionAttempts).toBeGreaterThan(attemptsBeforeRetry);
+});
+
 test("keeps the active Project surface when skipping app navigation by keyboard", async ({
   context,
   page,
