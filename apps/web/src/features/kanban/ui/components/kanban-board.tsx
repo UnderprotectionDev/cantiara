@@ -293,32 +293,39 @@ function KanbanCardSummary({ work }: { work: WorkProfile }) {
   const query = useQuery(
     orpc.workContext.queryOptions({ input: { workId: work.id } }),
   );
-  if (!query.data) {
+  if (!(query.data || query.isError)) {
     return null;
   }
 
-  const summary = buildKanbanCardSummary(work, query.data);
-  if (summary.priorities.length === 0 && summary.signals.length === 0) {
-    return null;
-  }
+  const summary = query.data ? buildKanbanCardSummary(work, query.data) : null;
 
   return (
-    <ul
-      aria-label={`${work.key} priority, blocker, and risk summary`}
-      className="space-y-1 text-muted-foreground text-xs"
-    >
-      {summary.priorities.map((priority) => (
-        <li key={priority.id}>
-          <span className="text-muted-foreground">Priority:</span>{" "}
-          {priority.label}: {priority.value}
-        </li>
-      ))}
-      {summary.signals.map((signal) => (
-        <li key={signal.id}>
-          {signal.label}: {workContextSourceText(signal)}
-        </li>
-      ))}
-    </ul>
+    <>
+      {query.isError ? (
+        <p className="text-destructive text-xs" role="alert">
+          Priority and related record details could not be loaded.
+        </p>
+      ) : null}
+      {summary &&
+      (summary.priorities.length > 0 || summary.signals.length > 0) ? (
+        <ul
+          aria-label={`${work.key} priority, blocker, and risk summary`}
+          className="space-y-1 text-muted-foreground text-xs"
+        >
+          {summary.priorities.map((priority) => (
+            <li key={priority.id}>
+              <span className="text-muted-foreground">Priority:</span>{" "}
+              {priority.label}: {priority.value}
+            </li>
+          ))}
+          {summary.signals.map((signal) => (
+            <li key={signal.id}>
+              {signal.label}: {workContextSourceText(signal)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
   );
 }
 

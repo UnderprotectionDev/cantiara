@@ -62,6 +62,35 @@ function renderBoard(works: readonly WorkProfile[]) {
   );
 }
 
+async function renderBoardWithFailedWorkContext(work: WorkProfile) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retryOnMount: false } },
+  });
+  const options = orpc.workContext.queryOptions({
+    input: { workId: work.id },
+  });
+  await queryClient
+    .fetchQuery({
+      ...options,
+      queryFn: () => Promise.reject(new Error("Network unavailable")),
+      retry: false,
+    })
+    .catch(() => undefined);
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>
+      <KanbanBoard
+        disabled={false}
+        error={null}
+        onStatusAction={onStatusAction}
+        projectId="project-1"
+        workStatusLabels={workStatusLabels}
+        works={[work]}
+      />
+    </QueryClientProvider>,
+  );
+}
+
 describe("Kanban Board", () => {
   test("shows the four protected status columns and opens source Work records", () => {
     const html = renderBoard([
@@ -168,5 +197,16 @@ describe("Kanban Board", () => {
     expect(html).toContain("Priority:");
     expect(html).toContain("Customer impact: High");
     expect(html).toContain("Blocked by: CAN-2 Resolve provider access");
+  });
+
+  test("shows an error when card summary details could not load", async () => {
+    const html = await renderBoardWithFailedWorkContext(
+      workForStatus("Blocked", 1),
+    );
+
+    expect(html).toContain(
+      "Priority and related record details could not be loaded.",
+    );
+    expect(html).toContain('role="alert"');
   });
 });
