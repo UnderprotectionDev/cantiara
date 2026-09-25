@@ -274,9 +274,11 @@ export function ClientShellStatus({
 
 export function ClientShellContent({
   children,
+  forceOffline = false,
   onRetry,
 }: {
   children: ReactNode;
+  forceOffline?: boolean;
   onRetry?: () => void;
 }) {
   const state = useClientShellState();
@@ -286,7 +288,7 @@ export function ClientShellContent({
     return <ClientShellUpdateRequiredState />;
   }
 
-  if (state.connection === "offline") {
+  if (forceOffline || state.connection === "offline") {
     return (
       <ClientShellOfflineState
         accountFormattingPreferences={preferences}

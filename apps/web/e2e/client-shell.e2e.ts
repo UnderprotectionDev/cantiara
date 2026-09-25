@@ -56,6 +56,72 @@ test("shows the online-only empty state after the connection is lost", async ({
   ).toBeVisible();
 });
 
+test("keeps Account Access while the session endpoint is unavailable and retries", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=account-sessions`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([setup.cookie]);
+
+  const sessionUnavailableRoute = async (
+    route: import("@playwright/test").Route,
+  ) =>
+    route.fulfill({
+      body: JSON.stringify({ message: "Session service unavailable" }),
+      contentType: "application/json",
+      status: 503,
+    });
+  await page.route("**/api/auth/get-session**", sessionUnavailableRoute);
+
+  await page.goto("/projects");
+  const unavailableState = page.getByRole("status");
+  await expect(unavailableState).toContainText("Session unavailable");
+  await expect(unavailableState).toContainText(
+    "Support reference unavailable.",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Projects", level: 1 }),
+  ).toHaveCount(0);
+  await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
+
+  await page.unroute("**/api/auth/get-session**", sessionUnavailableRoute);
+  const sessionUnavailableWithReferenceRoute = async (
+    route: import("@playwright/test").Route,
+  ) =>
+    route.fulfill({
+      body: JSON.stringify({
+        data: { supportReference: "SUP-123E4567-E89B-12D3-A456-426614174000" },
+        message: "Session service unavailable",
+      }),
+      contentType: "application/json",
+      status: 503,
+    });
+  await page.route(
+    "**/api/auth/get-session**",
+    sessionUnavailableWithReferenceRoute,
+  );
+  await unavailableState.getByRole("button", { name: "Retry" }).click();
+  await expect(unavailableState).toContainText(
+    "SUP-123E4567-E89B-12D3-A456-426614174000",
+  );
+
+  await page.unroute(
+    "**/api/auth/get-session**",
+    sessionUnavailableWithReferenceRoute,
+  );
+  await unavailableState.getByRole("button", { name: "Retry" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Projects", level: 1 }),
+  ).toBeVisible();
+});
+
 test("routes the product entry into Account Access and skips app navigation by keyboard", async ({
   context,
   page,
