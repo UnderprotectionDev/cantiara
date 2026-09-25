@@ -191,6 +191,7 @@ function createWorkLifecycleStub(): WorkLifecycleAccess {
     updateFeaturePrimarySpec: vi.fn(),
     updateChecklist: vi.fn(),
     updateStatus: vi.fn(),
+    updateReappearDate: vi.fn(),
     updateType: vi.fn(),
   };
 }

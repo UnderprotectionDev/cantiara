@@ -130,6 +130,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
             key: record.recreatedFromWorkKey,
           }
         : null,
+    reappearDate: record.reappearDate,
     revision: record.revision,
     status: workStatusSchema.parse(record.status),
     targetDate: record.targetDate,
@@ -379,6 +380,7 @@ function createWorkMutationTarget(
           projectId: nextWork.projectId,
           recreatedFromWorkId: nextWork.recreatedFrom?.id,
           recreatedFromWorkKey: nextWork.recreatedFrom?.key,
+          reappearDate: nextWork.reappearDate ?? null,
           revision: input.expectedRevision + 1,
           status: nextWork.status,
           targetDate: nextWork.targetDate,
@@ -512,6 +514,7 @@ function workRecordValues(
     projectId: nextWork.projectId,
     recreatedFromWorkId: nextWork.recreatedFrom?.id,
     recreatedFromWorkKey: nextWork.recreatedFrom?.key,
+    reappearDate: nextWork.reappearDate ?? null,
     revision,
     status: nextWork.status,
     targetDate: nextWork.targetDate,

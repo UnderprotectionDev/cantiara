@@ -48,6 +48,7 @@ export const work = pgTable(
       .references(() => project.id, { onDelete: "cascade" }),
     recreatedFromWorkId: text("recreated_from_work_id"),
     recreatedFromWorkKey: text("recreated_from_work_key"),
+    reappearDate: date("reappear_date", { mode: "string" }),
     revision: integer("revision").default(0).notNull(),
     status: text("status").default("Not Started").notNull(),
     targetDate: date("target_date", { mode: "string" }),
