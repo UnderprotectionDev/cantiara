@@ -60,6 +60,10 @@ test("Backlog drag persists its own order across alternate presentations and a s
     await page.getByLabel("Backlog sort").selectOption({ label: presentation });
     if (presentation === "Field") {
       await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
+      await page.getByRole("button", { name: "Save presentation" }).click();
+      await expect(
+        page.getByText("Saved presentation: Field · Title"),
+      ).toBeVisible();
       await page
         .getByLabel("Field to sort by")
         .selectOption({ label: "Status" });
@@ -70,6 +74,10 @@ test("Backlog drag persists its own order across alternate presentations and a s
     await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
   }
   await page.reload();
+  await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
+  await page.getByRole("button", { name: "Use saved presentation" }).click();
+  await expect(items).toHaveText([/Alpha Work/, /Beta Work/]);
+  await page.getByLabel("Backlog sort").selectOption({ label: "Manual order" });
   await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
 
   await page

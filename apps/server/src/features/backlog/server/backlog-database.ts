@@ -3,6 +3,7 @@ import {
   type BacklogWork,
   backlogWorkSchema,
   projectBacklogOrderSchema,
+  projectBacklogPresentationSchema,
 } from "@cantiara/api/backlog";
 import {
   WORK_OPEN_STATUS_OPTIONS,
@@ -10,7 +11,10 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
+import {
+  projectBacklogOrder,
+  projectBacklogPresentation,
+} from "@cantiara/db/schema/backlog";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
@@ -109,6 +113,25 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
       return orderedIds
         .map((workId) => workById.get(workId))
         .filter((record): record is BacklogWork => record !== undefined);
+    },
+
+    async listPresentation(workspaceId, projectId) {
+      if (
+        (await findProjectBacklogOrder(database, workspaceId, projectId)) ===
+        null
+      ) {
+        return null;
+      }
+      const [record] = await database
+        .select()
+        .from(projectBacklogPresentation)
+        .where(eq(projectBacklogPresentation.projectId, projectId))
+        .limit(1);
+      return projectBacklogPresentationSchema.parse({
+        projectId,
+        revision: record?.revision ?? 0,
+        saved: record?.saved ?? null,
+      });
     },
   };
 }

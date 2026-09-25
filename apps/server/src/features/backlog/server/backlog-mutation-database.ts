@@ -2,6 +2,7 @@ import type {
   BacklogMutationContracts,
   BacklogOrderMutationValue,
   ProjectBacklogOrder,
+  ProjectBacklogPresentation,
 } from "@cantiara/api/backlog";
 import {
   projectBacklogOrderSchema,
@@ -21,6 +22,7 @@ import {
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { isBacklogMember } from "./backlog-membership";
 import { applyBacklogOrder, normalizeBacklogOrder } from "./backlog-order";
+import { createBacklogPresentationTarget } from "./backlog-presentation-mutation-database";
 
 interface BacklogState {
   activeWorkIds: string[];
@@ -195,6 +197,10 @@ export function createDatabaseBacklogMutationContracts(
   database: Database,
 ): BacklogMutationContracts {
   return {
+    savePresentation: (accountId) =>
+      createDatabaseMutationContract<ProjectBacklogPresentation>(database, {
+        target: createBacklogPresentationTarget(accountId),
+      }),
     updateOrder: (accountId) =>
       createDatabaseMutationContract<BacklogOrderMutationValue>(database, {
         target: createBacklogOrderTarget(accountId),

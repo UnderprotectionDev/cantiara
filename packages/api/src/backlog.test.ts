@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  backlogSavedPresentationSchema,
   backlogWorkSchema,
   projectBacklogOrderSchema,
+  projectBacklogPresentationSchema,
   projectBacklogSchema,
+  saveBacklogPresentationMutationInputSchema,
   updateBacklogOrderInputSchema,
   updateBacklogOrderMutationInputSchema,
 } from "./backlog";
@@ -72,6 +75,48 @@ describe("Backlog order API contract", () => {
         workIds,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("Backlog saved presentation API contract", () => {
+  test("saves one alternative presentation without carrying manual Work IDs", () => {
+    const saved = { sort: "Field", field: "Title" };
+    expect(backlogSavedPresentationSchema.parse(saved)).toEqual(saved);
+    expect(
+      projectBacklogPresentationSchema.parse({
+        projectId: "project-1",
+        revision: 1,
+        saved,
+      }),
+    ).toEqual({ projectId: "project-1", revision: 1, saved });
+    expect(
+      saveBacklogPresentationMutationInputSchema.safeParse({
+        baseRevision: 0,
+        clientIdempotencyKey: "save-presentation-1",
+        projectId: "project-1",
+        saved,
+        workIds: ["work-1"],
+      }).success,
+    ).toBe(false);
+    expect(
+      backlogSavedPresentationSchema.safeParse({ sort: "Manual order" })
+        .success,
+    ).toBe(false);
+  });
+
+  test("requires a chosen criterion for saved Priority and a field for saved Field", () => {
+    expect(
+      backlogSavedPresentationSchema.safeParse({ sort: "Priority" }).success,
+    ).toBe(false);
+    expect(
+      backlogSavedPresentationSchema.safeParse({
+        sort: "Priority",
+        metricId: "metric-1",
+      }).success,
+    ).toBe(true);
+    expect(
+      backlogSavedPresentationSchema.safeParse({ sort: "Field" }).success,
+    ).toBe(false);
   });
 });
 

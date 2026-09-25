@@ -34,6 +34,9 @@ vi.mock("@/utils/orpc", () => ({
     projectBacklogOrder: {
       queryOptions: () => ({}),
     },
+    projectBacklogPresentation: {
+      queryOptions: () => ({}),
+    },
   },
 }));
 
@@ -42,6 +45,10 @@ function renderBacklog(queryResult: unknown) {
     .mockReturnValueOnce(queryResult as never)
     .mockReturnValueOnce({
       data: { revision: 0, workIds: [] },
+      isPending: false,
+    } as never)
+    .mockReturnValueOnce({
+      data: { revision: 0, saved: null },
       isPending: false,
     } as never);
   return renderToStaticMarkup(<ProjectBacklog projectId="project-1" />);

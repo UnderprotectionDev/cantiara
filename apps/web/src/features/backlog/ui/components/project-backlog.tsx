@@ -1,6 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls close over the current Backlog presentation.
-import type { BacklogWork } from "@cantiara/api/backlog";
+import type {
+  BacklogSavedPresentation,
+  BacklogWork,
+} from "@cantiara/api/backlog";
 import { PRIORITY_METRIC_RANKS } from "@cantiara/api/priority-metrics";
+import { Button } from "@cantiara/ui/components/button";
 import {
   closestCenter,
   DndContext,
@@ -86,6 +90,41 @@ function BacklogCard({
   );
 }
 
+function toSavedPresentation(
+  presentation: BacklogPresentation,
+  priorityMetricId: string,
+  field: BacklogSortField,
+): BacklogSavedPresentation | null {
+  switch (presentation) {
+    case "Priority":
+      return priorityMetricId
+        ? { sort: "Priority", metricId: priorityMetricId }
+        : null;
+    case "Date":
+      return { sort: "Date" };
+    case "Field":
+      return { sort: "Field", field };
+    default:
+      return null;
+  }
+}
+
+function savedPresentationDetail(
+  saved: BacklogSavedPresentation | null,
+  metrics: { id: string; name: string }[],
+): string | null {
+  if (saved?.sort === "Field") {
+    return saved.field;
+  }
+  if (saved?.sort === "Priority") {
+    return (
+      metrics.find((metric) => metric.id === saved.metricId)?.name ??
+      "Priority criterion"
+    );
+  }
+  return null;
+}
+
 export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const [presentation, setPresentation] =
     useState<BacklogPresentation>("Manual order");
@@ -97,6 +136,9 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   );
   const orderQuery = useQuery(
     orpc.projectBacklogOrder.queryOptions({ input: { projectId } }),
+  );
+  const presentationQuery = useQuery(
+    orpc.projectBacklogPresentation.queryOptions({ input: { projectId } }),
   );
   const priorityQuery = usePriorityMetricProjectValues(projectId).query;
   const sensors = useSensors(
@@ -133,15 +175,37 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
       ]);
     },
   });
+  const savePresentation = useMutation({
+    mutationFn: (presentationToSave: BacklogSavedPresentation) => {
+      if (!presentationQuery.data) {
+        throw new Error("Backlog presentation is unavailable.");
+      }
+      return runOnlineOnlyWrite(() =>
+        client.saveBacklogPresentation({
+          baseRevision: presentationQuery.data.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          projectId,
+          saved: presentationToSave,
+        }),
+      );
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.projectBacklogPresentation.queryOptions({
+          input: { projectId },
+        }).queryKey,
+      });
+    },
+  });
 
-  if (query.isPending || orderQuery.isPending) {
+  if (query.isPending || orderQuery.isPending || presentationQuery.isPending) {
     return (
       <p className="mt-5 text-muted-foreground text-sm" role="status">
         Loading Backlog…
       </p>
     );
   }
-  if (query.isError || orderQuery.isError) {
+  if (query.isError || orderQuery.isError || presentationQuery.isError) {
     return (
       <p className="mt-5 text-destructive text-sm" role="alert">
         Backlog is unavailable. Try loading this page again.
@@ -174,6 +238,13 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     priorityByWorkId,
     field,
   );
+  const currentSaved = toSavedPresentation(
+    presentation,
+    priorityMetricId,
+    field,
+  );
+  const { saved } = presentationQuery.data;
+  const savedDetail = savedPresentationDetail(saved, enabledMetrics);
   const canReorder = presentation === "Manual order" && !updateOrder.isPending;
   const workName = (id: string | number) =>
     works.find((work) => work.id === id)?.title ?? "Work";
@@ -194,6 +265,19 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
         to,
       ),
     );
+  }
+
+  function selectSavedPresentation() {
+    if (!saved) {
+      return;
+    }
+    setPresentation(saved.sort);
+    if (saved.sort === "Priority") {
+      setPriorityMetricId(saved.metricId);
+    }
+    if (saved.sort === "Field") {
+      setField(saved.field);
+    }
   }
 
   return (
@@ -247,6 +331,41 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
             <option>Status</option>
           </select>
         </label>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        {currentSaved ? (
+          <Button
+            disabled={savePresentation.isPending}
+            onClick={() => savePresentation.mutate(currentSaved)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Save presentation
+          </Button>
+        ) : null}
+        {saved ? (
+          <>
+            <span className="text-muted-foreground">
+              Saved presentation: {saved.sort}
+              {savedDetail ? ` · ${savedDetail}` : ""}
+            </span>
+            <Button
+              disabled={savePresentation.isPending}
+              onClick={selectSavedPresentation}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Use saved presentation
+            </Button>
+          </>
+        ) : null}
+      </div>
+      {savePresentation.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Backlog presentation could not be saved. Try again.
+        </p>
       ) : null}
       {updateOrder.isError ? (
         <p className="text-destructive text-sm" role="alert">

@@ -515,6 +515,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Boş Backlog | `No active Work to consider.` | Değerlendirilecek etkin İş olmadığında gösterilen boş durum |
 | Manuel sıra | `Manual order` | Backlog’un tek kalıcı ele alma sırası; alternatif sunum bunu silmez |
 | Backlog sıralama seçimi | `Backlog sort` | Geçici sıralama sunumunu seçer; manuel sırayı yazmaz |
+| Backlog kayıtlı sunumu | `Saved presentation`, `Save presentation`, `Use saved presentation` | Projedeki tek kayıtlı alternatif sıralamayı saklar ve yeniden seçer; manuel sırayı yazmaz |
+| Kayıtlı Backlog sunumu özeti | `Saved presentation: {sort}[ · {detail}]` | Kayıtlı sıralamanın türünü ve varsa seçilmiş ölçüt veya alanı gösterir |
+| Backlog sunumu kaydedilemedi | `Backlog presentation could not be saved. Try again.` | Kayıtlı alternatif sunum yazma hatası |
 | Öncelik sıralama ölçütü | `Priority criterion` | Öncelik sunumunun hangi açık ölçüte göre sıralanacağını seçer |
 | Alan sıralama seçimi | `Field to sort by` | Alan sunumunun `Title` veya `Status` temelini seçer |
 | Backlog sürükleme tutamacı | `Drag {Work title}` | İş adını taşıyan klavye ve işaretçi sıralama kontrolü |
