@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const MOVE_BUTTON_NAME = /^Move /;
+const TIME_IN_STATUS_TEXT = /^Time in status:/;
 
 function boardCard(page: Page, column: string, title: string) {
   return page
@@ -28,9 +29,9 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   page,
   request,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const setupResponse = await request.get(
-    `${E2E_SERVER_URL}/__e2e/setup?fixture=work-lifecycle`,
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=kanban-layout`,
   );
   expect(setupResponse.ok()).toBe(true);
   const setup = (await setupResponse.json()) as {
@@ -64,12 +65,23 @@ test("moves Work through Board with explicit close and reopen steps", async ({
 
   const initialCard = boardCard(page, "Not Started", title);
   await expect(initialCard).toBeVisible();
+  const expandedWidth = await page
+    .locator('[data-kanban-column="Not Started"]')
+    .evaluate((column) => column.getBoundingClientRect().width);
   await page.getByRole("button", { name: "Collapse Not Started" }).click();
   await expect(initialCard).toBeHidden();
   await expect(
     page.locator('[data-kanban-column="Not Started"]'),
   ).toContainText("1");
-  await page.getByRole("button", { name: "Expand Not Started" }).click();
+  const collapsedWidth = await page
+    .locator('[data-kanban-column="Not Started"]')
+    .evaluate((column) => column.getBoundingClientRect().width);
+  expect(collapsedWidth).toBeLessThan(expandedWidth);
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "List" }).getByText(title),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Board", exact: true }).click();
   await expect(initialCard).toBeVisible();
 
   await page.getByRole("button", { name: "List", exact: true }).click();
@@ -190,4 +202,128 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await expect(
     page.getByRole("region", { name: "List" }).getByText(deferredTitle),
   ).toHaveCount(0);
+});
+
+test("keeps Work movable beyond Soft WIP and Focus threshold", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=kanban-threshold`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+  };
+  await context.addCookies([{ ...setup.cookie, expires: -1 }]);
+
+  await page.goto("/projects/new");
+  await page.getByLabel("Project Name").fill("Kanban Threshold Project");
+  await page.getByRole("button", { name: "Create Project" }).click();
+  await page
+    .getByRole("link", { name: "Kanban Threshold Project", exact: true })
+    .click();
+
+  await page.getByRole("button", { name: "Configuration Mode" }).click();
+  const configuration = page.locator(
+    'section[aria-label="Configuration Mode"]',
+  );
+  await configuration
+    .getByRole("button", { name: "Work statuses", exact: true })
+    .click();
+  const inProgress = configuration
+    .getByRole("list", { name: "Work status configuration" })
+    .getByRole("listitem")
+    .filter({ hasText: "In Progress" });
+  await inProgress
+    .getByRole("spinbutton", { name: "Soft WIP In Progress" })
+    .fill("1");
+  await inProgress.getByRole("button", { name: "Save Soft WIP" }).click();
+  await configuration
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  await configuration
+    .getByRole("spinbutton", { name: "Focus threshold" })
+    .fill("1");
+  await configuration
+    .getByRole("button", { name: "Save Focus threshold" })
+    .click();
+  await page.getByRole("button", { name: "Exit Configuration Mode" }).click();
+
+  for (const title of ["First active Work", "Second active Work"]) {
+    // biome-ignore lint/performance/noAwaitInLoops: Each Work must be created before the next navigation.
+    await openBoard(page);
+    await page.getByRole("link", { name: "Create", exact: true }).click();
+    await page.getByLabel("Title").fill(title);
+    const created = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/rpc/finalizeWorkDraft") &&
+        response.ok(),
+    );
+    await page
+      .locator("#work-create")
+      .getByRole("button", { name: "Create", exact: true })
+      .click();
+    await created;
+  }
+  const blockedWork = page
+    .getByRole("list", { name: "Work list" })
+    .getByRole("listitem")
+    .filter({
+      has: page.locator("p").filter({ hasText: "Second active Work" }),
+    });
+  await blockedWork
+    .locator("summary")
+    .filter({ hasText: "Create Persistent Relation" })
+    .click();
+  await blockedWork.getByLabel("Relation type").selectOption("Blocked by");
+  const blockerId = await blockedWork
+    .getByLabel("Related Work")
+    .locator("option")
+    .filter({ hasText: "First active Work" })
+    .getAttribute("value");
+  if (!blockerId) {
+    throw new Error("The blocker Work was not available for selection.");
+  }
+  await blockedWork.getByLabel("Related Work").selectOption(blockerId);
+  await blockedWork.getByRole("button", { name: "Preview relation" }).click();
+  await blockedWork
+    .getByRole("status", { name: "Relation preview" })
+    .getByRole("button", { name: "Confirm relation" })
+    .click();
+  await expect(blockedWork).toContainText("Blocked by");
+  await openBoard(page);
+  await moveCard(page, "Not Started", "In Progress", "First active Work");
+  await expect(
+    boardCard(page, "In Progress", "First active Work"),
+  ).toBeVisible();
+  await moveCard(page, "Not Started", "In Progress", "Second active Work");
+  await expect(
+    boardCard(page, "In Progress", "Second active Work"),
+  ).toBeVisible();
+  await expect(
+    boardCard(page, "In Progress", "Second active Work").getByText(
+      TIME_IN_STATUS_TEXT,
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("In Progress count: 2")).toBeVisible();
+  await expect(
+    page.locator('[data-kanban-column="In Progress"]'),
+  ).toContainText("Over limit");
+  await expect(page.getByText("Focus threshold exceeded: 2 / 1")).toBeVisible();
+  await page.getByRole("button", { name: "Collapse In Progress" }).click();
+  const collapsedColumn = page.locator('[data-kanban-column="In Progress"]');
+  await expect(collapsedColumn.getByText("Open blocker")).toBeVisible();
+  await expect(collapsedColumn).toContainText("2 / 1");
+  await expect(collapsedColumn).toContainText("Over limit");
+  await page.reload();
+  await expect(
+    boardCard(page, "In Progress", "Second active Work"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await expect(page.getByText("In Progress count: 2")).toBeVisible();
+  await expect(page.getByText("Focus threshold exceeded: 2 / 1")).toBeVisible();
 });
