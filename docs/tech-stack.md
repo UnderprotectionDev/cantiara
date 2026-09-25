@@ -34,6 +34,15 @@ Dar kapsamlı tarihsel Prioritization şeması onarımı yalnızca mevcut verita
 
 `0059_external-handoff-result-reconciliation` geçmişi eksik görünürken `reconcile_decision` veya `result` sütunlarından en az biri zaten varsa, normal `0059` adımının yinelenen sütunda durmasını önlemek için `bun run db:migrate -- --repair-external-handoff-result-reconciliation` seçici onarımı kullanılır. Yalnızca idempotent `0060_external-handoff-schema-compatibility` girdisini çalıştırıp normal Drizzle migration geçmişine kaydeder; ardından bayraksız `bun run db:migrate` bekleyen `0061` ve sonraki migration'ları uygular. Bu kip ilk kurulumun veya olağan migration akışının yerine geçmez.
 
+### Paralel geliştirmede paylaşılan veritabanı
+
+Her issue kendi şema değişikliğinin migration'ını taşır; birkaç spec veya issue bitene kadar migration biriktirilmez. Paylaşılan geliştirme veritabanının migration geçmişi ise tek bir sıralı hattır: kod paralel ilerlerken bu veritabanına şema uygulama işi sırayla yürür.
+
+1. Bir issue tablo, sütun veya kısıt değiştiriyorsa aynı issue içinde kaynak şemayı değiştir, sürümlü SQL migration'ını üret ve gözden geçir. Migration'ı `bun run db:migrate` ile doğrula; issue'yu bitirmeden hedef veritabanında beklenen şema nesnesini ve migration kaydını kontrol et. Şema değişmiyorsa yeni migration üretme.
+2. Hedef paylaşılan geliştirme veritabanıysa önce çalışma dalına en güncel kanonik migration geçmişini al ve journal ile `drizzle.__drizzle_migrations` kayıtlarını zaman damgası, sıra ve SQL hash'i açısından karşılaştır. Veritabanında dalın bilmediği yeni migration veya dalda veritabanının atladığı eski migration varsa uygulamayı durdur; `bun run db:migrate` başarılı dönse bile eski migration'ları atlayabilir.
+3. Paylaşılan veritabanına aynı anda yalnız bir issue migration'ı uygula. Henüz ana dala birleşmemiş bir migration uygulandıysa onun SQL'i ve journal girdisi artık kalıcıdır: sonraki issue migration'ından önce bu geçmişi ana dala taşı ve diğer çalışma dallarına aldır. Erken doğrulama gerekiyor ama bu sıralamayı bekleyemiyorsa issue için atılabilir yerel PostgreSQL veritabanında migrate et.
+4. Paralel dallarda çakışan journal girdilerini ana dala birleştirirken tek sıraya uzlaştır; paylaşılan veya kalıcı veritabanına uygulanmış migration'ı yeniden adlandırma ya da değiştirme. Uzlaştırılmış geçmişi temiz bir atılabilir veritabanında baştan uygula. Geçmiş ile gerçek şema zaten ayrışmışsa bu bölümdeki migration onarım sınırına göre idempotent compatibility migration hazırla; paylaşılan veritabanında `db:push` ile ayrışmayı gizleme.
+
 ## Arayüz ve durum yönetimi
 
 | Teknoloji | Amaç |

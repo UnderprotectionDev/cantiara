@@ -8,6 +8,12 @@ Do not create tickets with Linear `save_issue`. Do not close, relabel, or commen
 
 Existing `docs/specs/<feature>/issues/*.md` files are the migration source. Once the same work exists as a GitHub issue, that GitHub issue is the ticket. Commit messages reference the GitHub number (`#123`), never a Linear identifier.
 
+## Selected issue in a Conductor workspace
+
+Before implementing a workspace created from a GitHub issue, identify the selected issue from Conductor's inherited issue context or its canonical `.context/attachments/[GITHUB]-<number>.md` attachment. Inspect every matching attachment with `find .context/attachments -type f -name '[[]GITHUB]-*.md' -print`; read the attachment and verify its GitHub URL against the current repository. If the URL is absent, verify the repository with `git remote get-url origin` and use the number in the canonical filename. A branch name, commit message, spec number, or issue mentioned elsewhere is not proof that the workspace was created from that issue.
+
+Read the selected GitHub issue, including comments and labels, with `gh issue view <number> --repo <owner/repository> --comments` before implementation. Use its requirements to identify the owning spec and decide whether the task changes the database schema. A schema change carries its versioned migration and verification in the same issue, following the shared-database workflow in [`docs/tech-stack.md`](../tech-stack.md). If multiple canonical attachments identify different issues, ask which one owns the work. If Conductor supplied no selected issue context and no canonical attachment exists, treat the request as a general task and apply the same schema-change rule without inventing an issue number.
+
 ## Conventions
 
 Infer the repo from `git remote` — `gh` does this automatically inside a clone.
