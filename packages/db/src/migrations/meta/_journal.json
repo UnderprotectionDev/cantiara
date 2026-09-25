@@ -463,6 +463,13 @@
       "when": 1790345618224,
       "tag": "0065_work-reappear-date-compatibility",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1790354848505,
+      "tag": "0066_backlog-reappear-attention-signal",
+      "breakpoints": true
     }
   ]
 }

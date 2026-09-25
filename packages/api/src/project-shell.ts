@@ -415,6 +415,7 @@ export function getStarterConfigurationDefinition(
 
 export interface ProjectShellConfiguration
   extends StarterConfigurationDefinition {
+  notifyOnReappearDate?: boolean;
   workContextLayouts: WorkContextLayouts;
   workStatuses: readonly ProtectedWorkStatus[];
   workStatusLabels: readonly WorkStatusLabel[];
@@ -422,6 +423,7 @@ export interface ProjectShellConfiguration
 
 export const projectShellConfigurationSchema = z
   .object({
+    notifyOnReappearDate: z.boolean().optional(),
     enabledAreas: z.array(projectAreaSchema),
     extraPinnedAreas: z.array(projectAreaSchema),
     hiddenAreas: z.array(projectAreaSchema),
@@ -438,6 +440,7 @@ export const projectShellConfigurationSchema = z
 
 const legacyProjectShellConfigurationSchema = z
   .object({
+    notifyOnReappearDate: z.boolean().optional(),
     enabledAreas: z.array(projectAreaSchema),
     extraPinnedAreas: z.array(projectAreaSchema),
     hiddenAreas: z.array(projectAreaSchema).optional(),
@@ -457,6 +460,7 @@ export function getProjectShellConfiguration(
 ): ProjectShellConfiguration {
   return {
     ...getStarterConfigurationDefinition(configuration),
+    notifyOnReappearDate: false,
     workContextLayouts: getDefaultWorkContextLayouts(),
     workStatuses: [...PROTECTED_WORK_STATUS_OPTIONS],
     workStatusLabels: defaultWorkStatusLabels(),
@@ -481,6 +485,7 @@ function cloneProjectShellConfiguration(
   configuration: ProjectShellConfiguration,
 ): ProjectShellConfiguration {
   return {
+    notifyOnReappearDate: configuration.notifyOnReappearDate ?? false,
     enabledAreas: [...configuration.enabledAreas],
     extraPinnedAreas: [...configuration.extraPinnedAreas],
     hiddenAreas: [...configuration.hiddenAreas],
@@ -503,6 +508,7 @@ export function resolveProjectShellConfiguration(
   const expected = getProjectShellConfiguration(starterConfiguration);
   if (parsed.success) {
     const resolved: ProjectShellConfiguration = {
+      notifyOnReappearDate: parsed.data.notifyOnReappearDate ?? false,
       enabledAreas: [...parsed.data.enabledAreas],
       extraPinnedAreas: [...parsed.data.extraPinnedAreas],
       hiddenAreas: [...parsed.data.hiddenAreas],
@@ -530,6 +536,7 @@ export function resolveProjectShellConfiguration(
   return legacy.success
     ? {
         ...legacy.data,
+        notifyOnReappearDate: legacy.data.notifyOnReappearDate ?? false,
         hiddenAreas: [...(legacy.data.hiddenAreas ?? [])],
         preparedStages: normalizeLegacyStages(legacy.data.preparedStages),
         starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
@@ -549,6 +556,7 @@ export function enableProjectArea(
 ): ProjectShellConfiguration {
   return {
     ...configuration,
+    notifyOnReappearDate: configuration.notifyOnReappearDate ?? false,
     enabledAreas: PROJECT_AREA_OPTIONS.filter(
       (candidate) =>
         candidate === area || configuration.enabledAreas.includes(candidate),
@@ -577,6 +585,12 @@ export const workContextLayoutChangeSchema = z
 export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
   "kind",
   [
+    z
+      .object({
+        kind: z.literal("set-reappear-date-notification"),
+        enabled: z.boolean(),
+      })
+      .strict(),
     z
       .object({
         kind: z.literal("add-stage"),
@@ -743,6 +757,9 @@ export function applyProjectShellConfigurationChange(
   const next = cloneProjectShellConfiguration(configuration);
 
   switch (parsedChange.kind) {
+    case "set-reappear-date-notification":
+      next.notifyOnReappearDate = parsedChange.enabled;
+      return next;
     case "add-stage":
       next.preparedStages = [
         ...next.preparedStages,
