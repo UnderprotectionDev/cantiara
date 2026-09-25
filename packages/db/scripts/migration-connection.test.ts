@@ -27,4 +27,16 @@ describe("migrationConnectionString", () => {
       ),
     ).toBe("postgres://app:secret@localhost:5432/cantiara");
   });
+
+  test("preserves the local URL when local PostgreSQL mode is enabled", () => {
+    const localUrl = "postgres://app:secret@127.0.0.1:5432/cantiara";
+    const remoteUnpooledUrl =
+      "postgres://app:secret@ep-example.us-east-2.aws.neon.tech/cantiara";
+
+    expect(
+      migrationConnectionString(localUrl, remoteUnpooledUrl, {
+        useLocalPostgres: true,
+      }),
+    ).toBe(localUrl);
+  });
 });

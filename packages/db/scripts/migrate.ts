@@ -29,6 +29,7 @@ const databaseUrl = migrationConnectionString(
   securityEvents
     ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
     : process.env.DATABASE_URL_UNPOOLED,
+  { useLocalPostgres: process.env.NEON_LOCAL === "true" },
 );
 
 if (!databaseUrl) {

@@ -1,8 +1,11 @@
 export function migrationConnectionString(
   databaseUrl: string | undefined,
   unpooledDatabaseUrl?: string,
+  { useLocalPostgres = false }: { useLocalPostgres?: boolean } = {},
 ) {
-  const configuredUrl = unpooledDatabaseUrl ?? databaseUrl;
+  const configuredUrl = useLocalPostgres
+    ? databaseUrl
+    : (unpooledDatabaseUrl ?? databaseUrl);
   if (!configuredUrl) {
     return null;
   }
