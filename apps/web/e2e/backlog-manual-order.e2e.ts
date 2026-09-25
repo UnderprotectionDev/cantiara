@@ -139,8 +139,40 @@ test("Backlog drag persists its own order across alternate presentations and a s
     .getByRole("button", { name: /Move .* up/ })
     .last()
     .click();
+  const sessionItems = session
+    .getByRole("list", { name: "Order comparison Session order" })
+    .locator(":scope > li");
+  await expect(sessionItems).toHaveText([/Beta Work/, /Alpha Work/]);
+
+  await page.getByRole("button", { name: "Board", exact: true }).click();
+  const notStarted = page.locator('[data-kanban-column="Not Started"]');
+  const inProgress = page.locator('[data-kanban-column="In Progress"]');
+  for (const title of ["Beta Work", "Alpha Work"]) {
+    await notStarted
+      .locator("article")
+      .filter({ hasText: title })
+      .getByRole("button", { name: /^Move / })
+      .dragTo(inProgress);
+    await expect(
+      inProgress.locator("article").filter({ hasText: title }),
+    ).toBeVisible();
+  }
+  await expect(inProgress.locator("article")).toHaveText([
+    /Alpha Work/,
+    /Beta Work/,
+  ]);
+  await expect(sessionItems).toHaveText([/Beta Work/, /Alpha Work/]);
+
   await page.getByRole("link", { name: "Backlog", exact: true }).click();
   await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
+  await page.reload();
+  await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await expect(sessionItems).toHaveText([/Beta Work/, /Alpha Work/]);
+  await page.getByRole("link", { name: "Backlog", exact: true }).click();
 
   const alphaHandle = backlog.getByRole("button", { name: "Drag Alpha Work" });
   await alphaHandle.focus();

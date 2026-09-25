@@ -5,7 +5,7 @@ import type {
 } from "@cantiara/api/project-shell";
 import type { WorkStatus } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
@@ -15,7 +15,7 @@ import {
 } from "../../lib/kanban-status";
 import {
   currentDateInTimeZone,
-  filterReappearingWorks,
+  filterDefaultKanbanWorks,
   sortKanbanWorks,
 } from "../../lib/kanban-view";
 import KanbanBoard from "./kanban-board";
@@ -45,6 +45,15 @@ export default function ProjectWorkKanban({
   view: "Board" | "List";
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const { timeZone } = accountFormattingPreferences;
+  const [today, setToday] = useState(() => currentDateInTimeZone(timeZone));
+  useEffect(() => {
+    setToday(currentDateInTimeZone(timeZone));
+    const timer = window.setInterval(() => {
+      setToday(currentDateInTimeZone(timeZone));
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [timeZone]);
   const connection = useClientShellConnection();
   const queryClient = useQueryClient();
   const query = useQuery(
@@ -103,9 +112,8 @@ export default function ProjectWorkKanban({
   }
 
   const isDisabled = connection === "offline" || updateStatus.isPending;
-  const today = currentDateInTimeZone(accountFormattingPreferences.timeZone);
   const works = sortKanbanWorks(
-    filterReappearingWorks(query.data, today),
+    filterDefaultKanbanWorks(query.data, today),
     sort,
   );
 

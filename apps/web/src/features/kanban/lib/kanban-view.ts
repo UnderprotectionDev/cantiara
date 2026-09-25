@@ -60,13 +60,16 @@ export function sortKanbanWorks(
   });
 }
 
-export function filterReappearingWorks(
+export function filterDefaultKanbanWorks(
   works: readonly WorkProfile[],
   today: string,
 ) {
   return works.filter((work) => {
     const reappearDate = work.reappearDate ?? null;
-    return reappearDate === null || reappearDate <= today;
+    return (
+      work.archivedAt === null &&
+      (reappearDate === null || reappearDate <= today)
+    );
   });
 }
 
