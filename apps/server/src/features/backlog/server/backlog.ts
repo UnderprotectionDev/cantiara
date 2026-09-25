@@ -10,5 +10,11 @@ export function createBacklogAccess(store: BacklogStore): BacklogAccess {
       const workspaceId = await store.findWorkspaceId(accountId);
       return workspaceId ? store.listPrepared(workspaceId, projectId) : null;
     },
+    async listPresentation(accountId, projectId) {
+      const workspaceId = await store.findWorkspaceId(accountId);
+      return workspaceId
+        ? store.listPresentation(workspaceId, projectId)
+        : null;
+    },
   };
 }

@@ -9,6 +9,8 @@ import {
 } from "../account-preferences";
 import {
   projectBacklogInputSchema,
+  saveBacklogPresentationInputSchema,
+  saveBacklogPresentationMutationInputSchema,
   updateBacklogOrderInputSchema,
   updateBacklogOrderMutationInputSchema,
 } from "../backlog";
@@ -3033,6 +3035,51 @@ export const appRouter = {
         });
       }
       return work;
+    }),
+  projectBacklogPresentation: protectedProcedure
+    .input(projectBacklogInputSchema)
+    .handler(async ({ context, input }) => {
+      const presentation = await requireBacklog(context).listPresentation(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!presentation) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Project Backlog is unavailable.",
+        });
+      }
+      return presentation;
+    }),
+  saveBacklogPresentation: protectedProcedure
+    .input(saveBacklogPresentationMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = saveBacklogPresentationInputSchema.parse(payloadInput);
+      const targetId = parsed.projectId;
+      const mutation = requireBacklogMutationContracts(
+        context,
+      ).savePresentation(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) => ({
+            ...currentValue,
+            revision: currentRevision + 1,
+            saved: payload.saved,
+          }),
+        );
+        return receipt.nextValue;
+      } catch (error) {
+        rethrowBacklogMutationError(error, targetId);
+      }
     }),
   updateBacklogOrder: protectedProcedure
     .input(updateBacklogOrderMutationInputSchema)

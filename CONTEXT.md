@@ -306,6 +306,10 @@ _Avoid_: Klasör, etiket, statik liste, Kanban sırası
 Projedeki tek kalıcı manuel İş sıralaması; İş alanı, Kanban konumu, Akıllı Koleksiyon rank’i veya Önceliklendirme oturumu rank’i değildir ve alternatif sunum seçilince arka planda korunur ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Manual order`, `Backlog order`.
 _Avoid_: Kanban sırası, öncelik puanı, kapanış, sprint
 
+**Backlog kayıtlı sunumu**:
+Projedeki tek kayıtlı alternatif sıralama seçimi; seçili öncelik ölçütünü, tarih sırasını veya İş alanını hatırlar ve Backlog manuel sırasını değiştirmez ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Saved presentation`, `Save presentation`, `Use saved presentation`.
+_Avoid_: ikinci manuel sıra, Kanban konumu, Önceliklendirme oturumu rank’i
+
 **Deferred**:
 Varsayılan Backlog görünümünde gelecek `Reappear date` taşıyan İşlerin bölümü; durum, öncelik veya proje aşaması değildir ([Backlog](docs/prd/06-work-management-and-planning.md#backlog)). UI: `Deferred`.
 _Avoid_: Parked, snooze durumu, Kanban sütunu

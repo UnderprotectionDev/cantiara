@@ -27,6 +27,44 @@ export const projectBacklogOrderSchema = z
 
 export type ProjectBacklogOrder = z.infer<typeof projectBacklogOrderSchema>;
 
+export const backlogSavedPresentationSchema = z.discriminatedUnion("sort", [
+  z
+    .object({ sort: z.literal("Priority"), metricId: identifierSchema })
+    .strict(),
+  z.object({ sort: z.literal("Date") }).strict(),
+  z
+    .object({ sort: z.literal("Field"), field: z.enum(["Title", "Status"]) })
+    .strict(),
+]);
+
+export type BacklogSavedPresentation = z.infer<
+  typeof backlogSavedPresentationSchema
+>;
+
+export const projectBacklogPresentationSchema = z
+  .object({
+    projectId: identifierSchema,
+    revision: z.number().int().nonnegative(),
+    saved: backlogSavedPresentationSchema.nullable(),
+  })
+  .strict();
+
+export type ProjectBacklogPresentation = z.infer<
+  typeof projectBacklogPresentationSchema
+>;
+
+export const saveBacklogPresentationInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    saved: backlogSavedPresentationSchema,
+  })
+  .strict();
+
+export const saveBacklogPresentationMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend(saveBacklogPresentationInputSchema.shape)
+    .strict();
+
 export const projectBacklogInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
@@ -36,7 +74,9 @@ export const backlogWorkSchema = z
     id: identifierSchema,
     key: identifierSchema,
     number: z.number().int().positive(),
+    plannedStartDate: z.iso.date().nullable(),
     status: workOpenStatusSchema,
+    targetDate: z.iso.date().nullable(),
     title: identifierSchema,
   })
   .strict();
@@ -78,6 +118,10 @@ export interface BacklogStore {
     workspaceId: string,
     projectId: string,
   ) => Promise<BacklogWork[] | null>;
+  listPresentation: (
+    workspaceId: string,
+    projectId: string,
+  ) => Promise<ProjectBacklogPresentation | null>;
 }
 
 export interface BacklogAccess {
@@ -89,9 +133,16 @@ export interface BacklogAccess {
     accountId: string,
     projectId: string,
   ) => Promise<BacklogWork[] | null>;
+  listPresentation: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<ProjectBacklogPresentation | null>;
 }
 
 export interface BacklogMutationContracts {
+  savePresentation: (
+    accountId: string,
+  ) => MutationContract<ProjectBacklogPresentation>;
   updateOrder: (
     accountId: string,
   ) => MutationContract<BacklogOrderMutationValue>;
