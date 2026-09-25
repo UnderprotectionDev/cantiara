@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { addDays, format } from "date-fns";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const CREATED_WORK_PATTERN = /Created Work [A-Z0-9-]+-1\./;
@@ -160,6 +161,7 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await openWorkRecordFromKanbanList(page, "Prepare the October release");
   const createdWork = page
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")

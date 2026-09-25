@@ -146,10 +146,35 @@ export function isProjectCoreArea(area: ProjectArea) {
 export const PROJECT_WORK_VIEW_OPTIONS = [
   "Backlog",
   "Board",
+  "List",
   "Roadmap",
 ] as const;
 
 export type ProjectWorkView = (typeof PROJECT_WORK_VIEW_OPTIONS)[number];
+
+export const PROJECT_WORK_SORT_FIELD_OPTIONS = [
+  "number",
+  "title",
+  "createdAt",
+  "updatedAt",
+  "reappearDate",
+] as const;
+
+export type ProjectWorkSortField =
+  (typeof PROJECT_WORK_SORT_FIELD_OPTIONS)[number];
+
+export const PROJECT_WORK_SORT_DIRECTION_OPTIONS = [
+  "ascending",
+  "descending",
+] as const;
+
+export type ProjectWorkSortDirection =
+  (typeof PROJECT_WORK_SORT_DIRECTION_OPTIONS)[number];
+
+export interface ProjectWorkSort {
+  direction: ProjectWorkSortDirection;
+  field: ProjectWorkSortField;
+}
 
 export const PROTECTED_WORK_STATUS_OPTIONS = [
   "Not Started",
@@ -192,6 +217,13 @@ export interface WorkStatusLabel {
 
 export const projectAreaSchema = z.enum(PROJECT_AREA_OPTIONS);
 const projectWorkViewSchema = z.enum(PROJECT_WORK_VIEW_OPTIONS);
+const projectWorkSortSchema = z
+  .object({
+    direction: z.enum(PROJECT_WORK_SORT_DIRECTION_OPTIONS),
+    field: z.enum(PROJECT_WORK_SORT_FIELD_OPTIONS),
+  })
+  .strict()
+  .default({ direction: "ascending", field: "number" });
 const protectedWorkStatusSchema = z.enum(PROTECTED_WORK_STATUS_OPTIONS);
 const protectedWorkStatusesSchema = z
   .array(protectedWorkStatusSchema)
@@ -243,6 +275,27 @@ const workStatusLabelsSchema = z
       ),
     "Work status labels must preserve the protected status semantics.",
   );
+const workStatusSoftWipLimitsSchema = z
+  .object({
+    Blocked: z.number().int().min(1).max(10_000).nullable().default(null),
+    Closed: z.number().int().min(1).max(10_000).nullable().default(null),
+    "In Progress": z.number().int().min(1).max(10_000).nullable().default(null),
+    "Not Started": z.number().int().min(1).max(10_000).nullable().default(null),
+  })
+  .strict()
+  .default({
+    Blocked: null,
+    Closed: null,
+    "In Progress": null,
+    "Not Started": null,
+  });
+const workFocusThresholdSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(10_000)
+  .nullable()
+  .default(null);
 
 function stageIdForName(name: string, index: number) {
   const slug = name
@@ -333,7 +386,7 @@ const STARTER_CONFIGURATION_DEFINITIONS = {
     extraPinnedAreas: [],
     hiddenAreas: [],
     preparedStages: [],
-    preparedWorkViews: ["Backlog", "Board"],
+    preparedWorkViews: ["Backlog", "Board", "List"],
     starterSkeletons: [],
   },
   "Solo SaaS": {
@@ -418,8 +471,11 @@ export interface ProjectShellConfiguration
   notifyOnReappearDate?: boolean;
   notifyOnReappearDateEnabledAt?: string | null;
   workContextLayouts: WorkContextLayouts;
+  workFocusThreshold: number | null;
+  workSort: ProjectWorkSort;
   workStatuses: readonly ProtectedWorkStatus[];
   workStatusLabels: readonly WorkStatusLabel[];
+  workStatusSoftWipLimits: Record<ProtectedWorkStatus, number | null>;
 }
 
 export const projectShellConfigurationSchema = z
@@ -435,8 +491,11 @@ export const projectShellConfigurationSchema = z
     // Work Context Card layouts are repaired on read; storage stays lenient so
     // an evolved prepared section set cannot invalidate the configuration.
     workContextLayouts: z.unknown().optional(),
+    workFocusThreshold: workFocusThresholdSchema,
+    workSort: projectWorkSortSchema,
     workStatuses: protectedWorkStatusesSchema,
     workStatusLabels: workStatusLabelsSchema,
+    workStatusSoftWipLimits: workStatusSoftWipLimitsSchema,
   })
   .strict();
 
@@ -453,8 +512,11 @@ const legacyProjectShellConfigurationSchema = z
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema.optional(),
     workContextLayouts: z.unknown().optional(),
+    workFocusThreshold: workFocusThresholdSchema,
+    workSort: projectWorkSortSchema,
     workStatuses: protectedWorkStatusesSchema,
     workStatusLabels: workStatusLabelsSchema.optional(),
+    workStatusSoftWipLimits: workStatusSoftWipLimitsSchema,
   })
   .strict();
 
@@ -466,9 +528,34 @@ export function getProjectShellConfiguration(
     notifyOnReappearDate: false,
     notifyOnReappearDateEnabledAt: null,
     workContextLayouts: getDefaultWorkContextLayouts(),
+    workFocusThreshold: null,
+    workSort: { direction: "ascending", field: "number" },
     workStatuses: [...PROTECTED_WORK_STATUS_OPTIONS],
     workStatusLabels: defaultWorkStatusLabels(),
+    workStatusSoftWipLimits: defaultWorkStatusSoftWipLimits(),
   };
+}
+
+function defaultWorkStatusSoftWipLimits(): Record<
+  ProtectedWorkStatus,
+  number | null
+> {
+  return {
+    Blocked: null,
+    Closed: null,
+    "In Progress": null,
+    "Not Started": null,
+  };
+}
+
+function preparedWorkViewsWithList(
+  views: readonly ProjectWorkView[],
+): ProjectWorkView[] {
+  const resolved = [...views];
+  if (resolved.includes("Board") && !resolved.includes("List")) {
+    resolved.splice(resolved.indexOf("Board") + 1, 0, "List");
+  }
+  return resolved;
 }
 
 function normalizeLegacyStages(
@@ -501,8 +588,11 @@ function cloneProjectShellConfiguration(
     workContextLayouts: cloneWorkContextLayouts(
       configuration.workContextLayouts,
     ),
+    workFocusThreshold: configuration.workFocusThreshold,
+    workSort: { ...configuration.workSort },
     workStatuses: [...configuration.workStatuses],
     workStatusLabels: cloneWorkStatusLabels(configuration.workStatusLabels),
+    workStatusSoftWipLimits: { ...configuration.workStatusSoftWipLimits },
   };
 }
 
@@ -521,13 +611,18 @@ export function resolveProjectShellConfiguration(
       extraPinnedAreas: [...parsed.data.extraPinnedAreas],
       hiddenAreas: [...parsed.data.hiddenAreas],
       preparedStages: clonePreparedStages(parsed.data.preparedStages),
-      preparedWorkViews: [...parsed.data.preparedWorkViews],
+      preparedWorkViews: preparedWorkViewsWithList(
+        parsed.data.preparedWorkViews,
+      ),
       starterSkeletons: cloneStarterSkeletons(parsed.data.starterSkeletons),
       workContextLayouts: repairWorkContextLayouts(
         parsed.data.workContextLayouts,
       ),
+      workFocusThreshold: parsed.data.workFocusThreshold,
+      workSort: parsed.data.workSort,
       workStatuses: [...parsed.data.workStatuses],
       workStatusLabels: cloneWorkStatusLabels(parsed.data.workStatusLabels),
+      workStatusSoftWipLimits: { ...parsed.data.workStatusSoftWipLimits },
     };
     return starterSkeletonsEqual(
       resolved.starterSkeletons,
@@ -549,13 +644,19 @@ export function resolveProjectShellConfiguration(
           legacy.data.notifyOnReappearDateEnabledAt ?? null,
         hiddenAreas: [...(legacy.data.hiddenAreas ?? [])],
         preparedStages: normalizeLegacyStages(legacy.data.preparedStages),
+        preparedWorkViews: preparedWorkViewsWithList(
+          legacy.data.preparedWorkViews,
+        ),
         starterSkeletons: cloneStarterSkeletons(expected.starterSkeletons),
         workContextLayouts: repairWorkContextLayouts(
           legacy.data.workContextLayouts,
         ),
+        workFocusThreshold: legacy.data.workFocusThreshold,
+        workSort: legacy.data.workSort,
         workStatusLabels: cloneWorkStatusLabels(
           legacy.data.workStatusLabels ?? defaultWorkStatusLabels(),
         ),
+        workStatusSoftWipLimits: { ...legacy.data.workStatusSoftWipLimits },
       }
     : expected;
 }
@@ -581,8 +682,11 @@ export function enableProjectArea(
     workContextLayouts: cloneWorkContextLayouts(
       configuration.workContextLayouts,
     ),
+    workFocusThreshold: configuration.workFocusThreshold,
+    workSort: { ...configuration.workSort },
     workStatuses: [...configuration.workStatuses],
     workStatusLabels: cloneWorkStatusLabels(configuration.workStatusLabels),
+    workStatusSoftWipLimits: { ...configuration.workStatusSoftWipLimits },
   };
 }
 
@@ -667,6 +771,26 @@ export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
         kind: z.literal("rename-work-status"),
         label: z.string().trim().min(1).max(200),
         semantic: protectedWorkStatusSchema,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("set-work-status-soft-wip-limit"),
+        limit: z.number().int().min(1).max(10_000).nullable(),
+        semantic: protectedWorkStatusSchema,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("set-work-focus-threshold"),
+        threshold: z.number().int().min(1).max(10_000).nullable(),
+      })
+      .strict(),
+    z
+      .object({
+        direction: z.enum(PROJECT_WORK_SORT_DIRECTION_OPTIONS),
+        field: z.enum(PROJECT_WORK_SORT_FIELD_OPTIONS),
+        kind: z.literal("set-work-sort"),
       })
       .strict(),
     workContextLayoutChangeSchema,
@@ -872,6 +996,21 @@ export function applyProjectShellConfigurationChange(
           ? { ...status, label: parsedChange.label }
           : status,
       );
+      return next;
+    case "set-work-status-soft-wip-limit":
+      next.workStatusSoftWipLimits = {
+        ...next.workStatusSoftWipLimits,
+        [parsedChange.semantic]: parsedChange.limit,
+      };
+      return next;
+    case "set-work-focus-threshold":
+      next.workFocusThreshold = parsedChange.threshold;
+      return next;
+    case "set-work-sort":
+      next.workSort = {
+        direction: parsedChange.direction,
+        field: parsedChange.field,
+      };
       return next;
     case "set-work-context-layout":
       try {

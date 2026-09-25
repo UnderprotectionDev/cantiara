@@ -20,7 +20,13 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
   UserInitiatedWorkCloseOutcome,
   WorkCompletionFeedbackState,
@@ -50,14 +56,24 @@ export function getWorkStatusLabel(
   return labels.find(({ semantic }) => semantic === status)?.label ?? status;
 }
 
+export interface WorkStatusActionRequest {
+  id: string;
+  status: WorkStatus;
+  workId: string;
+}
+
 export default function WorkStatusForm({
   completionFeedback,
   onCloseOutcome,
+  onRequestedStatusActionHandled,
+  requestedStatusAction,
   work,
   workStatusLabels,
 }: {
   completionFeedback: WorkCompletionFeedbackState;
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
+  onRequestedStatusActionHandled: (requestId: string) => void;
+  requestedStatusAction: Pick<WorkStatusActionRequest, "id" | "status"> | null;
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
@@ -75,6 +91,7 @@ export default function WorkStatusForm({
     clientIdempotencyKey: string;
     visibleAtCloseStart: boolean;
   } | null>(null);
+  const handledStatusActionRequestId = useRef<string | null>(null);
   const pendingCloseOpenStatus = useRef<WorkOpenStatus | null>(null);
   const worksQueryKey = orpc.projectWorks.queryOptions({
     input: { projectId: work.projectId },
@@ -234,7 +251,7 @@ export default function WorkStatusForm({
     },
   });
 
-  function cancelTransition() {
+  const cancelTransition = useCallback(() => {
     setClosePreview(null);
     setReopenTarget(null);
     setSelectedStatus(work.status);
@@ -242,29 +259,55 @@ export default function WorkStatusForm({
     pendingCloseRequest.current = null;
     pendingCloseOpenStatus.current = null;
     closeForm.reset();
-  }
+  }, [closeForm, work.status]);
 
-  function handleStatusChange(nextStatus: WorkStatus) {
-    setError(null);
-    if (nextStatus === work.status) {
-      cancelTransition();
+  const handleStatusChange = useCallback(
+    (nextStatus: WorkStatus) => {
+      setError(null);
+      if (nextStatus === work.status) {
+        cancelTransition();
+        return;
+      }
+      if (work.status === "Closed") {
+        setReopenTarget(nextStatus as WorkOpenStatus);
+        return;
+      }
+      if (nextStatus === "Closed") {
+        previewClose.mutate();
+        return;
+      }
+      updateStatus.mutate({
+        baseRevision: latestWorkRevision.current,
+        clientIdempotencyKey: crypto.randomUUID(),
+        status: nextStatus,
+        workId: work.id,
+      });
+    },
+    [
+      cancelTransition,
+      previewClose.mutate,
+      updateStatus.mutate,
+      work.id,
+      work.status,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      !requestedStatusAction ||
+      handledStatusActionRequestId.current === requestedStatusAction.id
+    ) {
       return;
     }
-    if (work.status === "Closed") {
-      setReopenTarget(nextStatus as WorkOpenStatus);
-      return;
-    }
-    if (nextStatus === "Closed") {
-      previewClose.mutate();
-      return;
-    }
-    updateStatus.mutate({
-      baseRevision: latestWorkRevision.current,
-      clientIdempotencyKey: crypto.randomUUID(),
-      status: nextStatus,
-      workId: work.id,
-    });
-  }
+
+    handledStatusActionRequestId.current = requestedStatusAction.id;
+    onRequestedStatusActionHandled(requestedStatusAction.id);
+    handleStatusChange(requestedStatusAction.status);
+  }, [
+    handleStatusChange,
+    onRequestedStatusActionHandled,
+    requestedStatusAction,
+  ]);
 
   function handleCloseSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

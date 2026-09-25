@@ -14,6 +14,7 @@ import {
   type Route,
   test,
 } from "@playwright/test";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const E2E_WEB_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_WEB_PORT ?? "4173"}`;
@@ -694,6 +695,7 @@ test("does not replay a timed-out idempotent close or celebrate Abandoned", asyn
   });
   const conflictTab = await context.newPage();
   await conflictTab.goto(projectWorkUrl);
+  await openWorkRecordFromKanbanList(conflictTab, "Reject a stale close");
   const otherConflictWork = conflictTab
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")

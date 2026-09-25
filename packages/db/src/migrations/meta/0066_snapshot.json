@@ -1,5 +1,5 @@
 {
-  "id": "e35f3b9a-bec7-4813-bec4-1bb5ac38d9d7",
+  "id": "6979741a-ce10-4efd-85c1-0612b3ed0971",
   "prevId": "1c0e4ab7-a246-4f9f-ac62-65d15997b2bc",
   "version": "7",
   "dialect": "postgresql",
@@ -3085,128 +3085,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.project_backlog_reappear_attention_signal": {
-      "name": "project_backlog_reappear_attention_signal",
-      "schema": "",
-      "columns": {
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "owner_account_id": {
-          "name": "owner_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "presentation": {
-          "name": "presentation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Action needed'"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reappear_date": {
-          "name": "reappear_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "signal_id": {
-          "name": "signal_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "signal_type": {
-          "name": "signal_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'reappear-date'"
-        },
-        "source_path": {
-          "name": "source_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_work_id": {
-          "name": "source_work_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "backlog_reappear_signal_work_idx": {
-          "name": "backlog_reappear_signal_work_idx",
-          "columns": [
-            {
-              "expression": "source_work_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_backlog_reappear_attention_signal_owner_account_id_user_id_fk": {
-          "name": "project_backlog_reappear_attention_signal_owner_account_id_user_id_fk",
-          "tableFrom": "project_backlog_reappear_attention_signal",
-          "tableTo": "user",
-          "columnsFrom": ["owner_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_backlog_reappear_attention_signal_project_id_project_id_fk": {
-          "name": "project_backlog_reappear_attention_signal_project_id_project_id_fk",
-          "tableFrom": "project_backlog_reappear_attention_signal",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_backlog_reappear_attention_signal_source_work_id_work_id_fk": {
-          "name": "project_backlog_reappear_attention_signal_source_work_id_work_id_fk",
-          "tableFrom": "project_backlog_reappear_attention_signal",
-          "tableTo": "work",
-          "columnsFrom": ["source_work_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "backlog_reappear_signal_type_check": {
-          "name": "backlog_reappear_signal_type_check",
-          "value": "\"project_backlog_reappear_attention_signal\".\"signal_type\" = 'reappear-date'"
-        },
-        "backlog_reappear_signal_presentation_check": {
-          "name": "backlog_reappear_signal_presentation_check",
-          "value": "\"project_backlog_reappear_attention_signal\".\"presentation\" = 'Action needed'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.prioritization_session": {
       "name": "prioritization_session",
       "schema": "",
@@ -4083,12 +3961,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "reappear_date": {
-          "name": "reappear_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
         "revision": {
           "name": "revision",
           "type": "integer",
@@ -4096,12 +3968,25 @@
           "notNull": true,
           "default": 0
         },
+        "reappear_date": {
+          "name": "reappear_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "'Not Started'"
+        },
+        "status_changed_at": {
+          "name": "status_changed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         },
         "target_date": {
           "name": "target_date",
@@ -4262,6 +4147,10 @@
         "work_target_date_check": {
           "name": "work_target_date_check",
           "value": "\"work\".\"target_date\" is null or \"work\".\"target_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
+        },
+        "work_reappear_date_check": {
+          "name": "work_reappear_date_check",
+          "value": "\"work\".\"reappear_date\" is null or \"work\".\"reappear_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
         },
         "work_primary_feature_not_self_check": {
           "name": "work_primary_feature_not_self_check",

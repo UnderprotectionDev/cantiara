@@ -191,13 +191,13 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Kapanmış işlerde `Tamamlandı` veya `Vazgeçildi` sonucu aynı terminal iş akışı durumunda bulunsalar bile kart üzerinde ayırt edilir.** Sonuç yalnız açık kapatma veya yeniden açma eylemiyle değişir.
 
-- **Devam eden İş sayısı ve aktif kartların mevcut durumda geçirdiği süre gösterilir.** Proje veya ilgili Akıllı Koleksiyon için belirlenen isteğe bağlı kişisel odak eşiği aşıldığında görsel uyarı verilir; kart hareketleri engellenmez.
+- **`Board` ve `List` görünümleri devam eden İş sayısını gösterir; aktif kartlar mevcut durumda geçirdiği süreyi gösterir.** Proje veya ilgili Akıllı Koleksiyon için belirlenen isteğe bağlı kişisel odak eşiği aşıldığında iki görünümde de görsel uyarı verilir; kart hareketleri engellenmez.
 
 - **Kullanıcı Yapılandırma modunda tek tek iş durumları için varsayılan olarak kapalı bir soft WIP sınırı tanımlayabilir.** Sınır aşıldığında sütun mevcut sayı ile sınırı renk dışı erişilebilir bir işaretle birlikte nötr biçimde gösterir; kart hareketini engellemez, bildirim, sağlık veya performans hükmü üretmez ve hiçbir işi otomatik değiştirmez. Bu durum bazlı sınır, proje veya koleksiyon düzeyindeki kişisel odak eşiğinden ayrı yapılandırmadır.
 
 - **Kanban kartı kayıtlı görünümün `görünür alanlar` ayarıyla taranabilir bir özet sunar.** Güçlü varsayılanlar iş anahtarı ve türünü, durumunu ve varsa kapanış sonucunu, önceliği, ilgili planlanan başlangıç/hedef/yeniden görünme tarihlerini, blokaj veya riski ve varsa kontrol listesi ilerlemesini gösterir.
 
-- **Kullanıcı durum sütunlarını yalnız görünümü sıkıştırmak için daraltabilir.** Daraltılmış sütun adını, kart sayısını ve açık blokaj gibi önemli sinyalleri göstermeye devam eder; daraltma işleri filtrelemez, silmez veya durumlarını değiştirmez. Kanban ve normal Akıllı Koleksiyon görünümleri bağımsız manuel kart sırası tutmaz; kayıtlı görünümün açık sıralama ayarını kullanır. Backlog’un tek kalıcı manuel sırası ile yalnız açıkça oluşturulan Önceliklendirme oturumunun görünüm-yerel rank'i bu kuralın iki ayrı ve birbirini değiştirmeyen istisnasıdır. Adlandırılmış roadmap görünümlerinin aşağıda tanımlanan grup ve sütun sunum sırası kart önceliği sayılmaz.
+- **Kullanıcı durum sütunlarını yalnız görünümü sıkıştırmak için daraltabilir.** Daraltılmış sütun adını, kart sayısını ve açık blokaj gibi önemli sinyalleri göstermeye devam eder; daraltma işleri filtrelemez, silmez veya durumlarını değiştirmez. Kanban ve normal Akıllı Koleksiyon görünümleri bağımsız manuel kart sırası tutmaz; kayıtlı görünümün açık sıralama ayarını kullanır. Proje `Saved views` ayarı varsayılan olarak `Work number` / `Ascending` sıralamasını kullanır; `Sort by` ve `Sort direction` seçimleri `Board` ile `List` için ortaktır. Backlog’un tek kalıcı manuel sırası ile yalnız açıkça oluşturulan Önceliklendirme oturumunun görünüm-yerel rank'i bu kuralın iki ayrı ve birbirini değiştirmeyen istisnasıdır. Adlandırılmış roadmap görünümlerinin aşağıda tanımlanan grup ve sütun sunum sırası kart önceliği sayılmaz.
 
 ### Liste görünümü
 

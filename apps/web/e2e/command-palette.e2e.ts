@@ -6,6 +6,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PREFERENCES_URL_PATTERN = /\/account\/preferences$/;
@@ -308,6 +309,7 @@ test("copies the Work Context Card and exposes the same action in Command Palett
     });
   });
   await page.goto(`/projects/${setup.projectId}#work`);
+  await openWorkRecordFromKanbanList(page);
 
   const copyButton = page
     .getByRole("button", {
@@ -367,6 +369,7 @@ test("announces clipboard failures from the Work Context Card", async ({
     });
   });
   await page.goto(`/projects/${setup.projectId}#work`);
+  await openWorkRecordFromKanbanList(page);
 
   const copyButton = page
     .getByRole("button", {

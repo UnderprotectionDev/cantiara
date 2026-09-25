@@ -115,11 +115,16 @@ test("Backlog drag persists its own order across alternate presentations and a s
   await expect(items).toHaveText([/Beta Work/, /Alpha Work/]);
 
   await page
-    .getByRole("navigation", { name: "Work views" })
+    .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await page
+    .getByRole("navigation", { name: "Work views" })
+    .getByRole("button", { name: "List", exact: true })
+    .click();
   const workList = page
-    .getByRole("list", { name: "Work list" })
+    .getByRole("region", { name: "List" })
+    .getByRole("list", { name: "List Work" })
     .locator(":scope > li");
   await expect(workList.first()).toContainText("Alpha Work");
   await expect(workList.last()).toContainText("Beta Work");

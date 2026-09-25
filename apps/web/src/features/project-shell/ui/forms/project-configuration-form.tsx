@@ -368,6 +368,15 @@ function ConfigurationHostContent({
           onChange={onChange}
         />
       );
+    case "Saved views":
+      return (
+        <SavedViewsConfiguration
+          configuration={configuration}
+          disabled={disabled}
+          error={error}
+          onChange={onChange}
+        />
+      );
     case "Project areas":
       return (
         <ProjectAreasConfiguration
@@ -756,6 +765,13 @@ function WorkStatusesConfiguration({
   onChange: (change: ProjectShellConfigurationChange) => void;
 }) {
   const [draftLabels, setDraftLabels] = useState<Record<string, string>>({});
+  const [draftLimits, setDraftLimits] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      Object.entries(configuration.workStatusSoftWipLimits).map(
+        ([status, limit]) => [status, limit?.toString() ?? ""],
+      ),
+    ),
+  );
 
   return (
     <div className="mt-3 space-y-4">
@@ -809,9 +825,174 @@ function WorkStatusesConfiguration({
             >
               Save
             </Button>
+            <label
+              className="grid gap-1 text-xs"
+              htmlFor={`work-status-soft-wip-${status.semantic}`}
+            >
+              Soft WIP
+              <Input
+                aria-label={`Soft WIP ${status.semantic}`}
+                disabled={disabled}
+                id={`work-status-soft-wip-${status.semantic}`}
+                max={10_000}
+                min={1}
+                onChange={(event) =>
+                  setDraftLimits((current) => ({
+                    ...current,
+                    [status.semantic]: event.target.value,
+                  }))
+                }
+                type="number"
+                value={draftLimits[status.semantic] ?? ""}
+              />
+            </label>
+            <Button
+              disabled={
+                disabled ||
+                (draftLimits[status.semantic] !== "" &&
+                  (!Number.isInteger(Number(draftLimits[status.semantic])) ||
+                    Number(draftLimits[status.semantic]) < 1 ||
+                    Number(draftLimits[status.semantic]) > 10_000)) ||
+                (draftLimits[status.semantic] ?? "") ===
+                  (configuration.workStatusSoftWipLimits[
+                    status.semantic
+                  ]?.toString() ?? "")
+              }
+              onClick={() =>
+                onChange({
+                  kind: "set-work-status-soft-wip-limit",
+                  limit:
+                    draftLimits[status.semantic] === ""
+                      ? null
+                      : Number(draftLimits[status.semantic]),
+                  semantic: status.semantic,
+                })
+              }
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Save Soft WIP
+            </Button>
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function SavedViewsConfiguration({
+  configuration,
+  disabled,
+  error,
+  onChange,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  error: string | null;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+}) {
+  const [draftFocusThreshold, setDraftFocusThreshold] = useState(
+    () => configuration.workFocusThreshold?.toString() ?? "",
+  );
+  const focusThresholdIsValid =
+    draftFocusThreshold === "" ||
+    (Number.isInteger(Number(draftFocusThreshold)) &&
+      Number(draftFocusThreshold) >= 1 &&
+      Number(draftFocusThreshold) <= 10_000);
+
+  return (
+    <div className="mt-3 space-y-4">
+      <p className="text-muted-foreground text-xs/relaxed">
+        Board and List use the same saved sort. Focus threshold is a visual
+        signal and never blocks a Work status move.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="grid gap-1 text-xs" htmlFor="saved-work-sort-field">
+          Sort by
+          <NativeSelect
+            disabled={disabled}
+            id="saved-work-sort-field"
+            onChange={(event) =>
+              onChange({
+                direction: configuration.workSort.direction,
+                field: event.target
+                  .value as ProjectShellConfiguration["workSort"]["field"],
+                kind: "set-work-sort",
+              })
+            }
+            value={configuration.workSort.field}
+          >
+            <NativeSelectOption value="number">Work number</NativeSelectOption>
+            <NativeSelectOption value="title">Title</NativeSelectOption>
+            <NativeSelectOption value="createdAt">Created</NativeSelectOption>
+            <NativeSelectOption value="updatedAt">Updated</NativeSelectOption>
+            <NativeSelectOption value="reappearDate">
+              Reappear date
+            </NativeSelectOption>
+          </NativeSelect>
+        </label>
+        <label
+          className="grid gap-1 text-xs"
+          htmlFor="saved-work-sort-direction"
+        >
+          Sort direction
+          <NativeSelect
+            disabled={disabled}
+            id="saved-work-sort-direction"
+            onChange={(event) =>
+              onChange({
+                direction: event.target
+                  .value as ProjectShellConfiguration["workSort"]["direction"],
+                field: configuration.workSort.field,
+                kind: "set-work-sort",
+              })
+            }
+            value={configuration.workSort.direction}
+          >
+            <NativeSelectOption value="ascending">Ascending</NativeSelectOption>
+            <NativeSelectOption value="descending">
+              Descending
+            </NativeSelectOption>
+          </NativeSelect>
+        </label>
+        <label className="grid gap-1 text-xs" htmlFor="work-focus-threshold">
+          Focus threshold
+          <Input
+            aria-label="Focus threshold"
+            disabled={disabled}
+            id="work-focus-threshold"
+            max={10_000}
+            min={1}
+            onChange={(event) => setDraftFocusThreshold(event.target.value)}
+            type="number"
+            value={draftFocusThreshold}
+          />
+        </label>
+        <Button
+          disabled={
+            disabled ||
+            !focusThresholdIsValid ||
+            (draftFocusThreshold === ""
+              ? configuration.workFocusThreshold === null
+              : Number(draftFocusThreshold) ===
+                configuration.workFocusThreshold)
+          }
+          onClick={() =>
+            onChange({
+              kind: "set-work-focus-threshold",
+              threshold:
+                draftFocusThreshold === "" ? null : Number(draftFocusThreshold),
+            })
+          }
+          size="xs"
+          type="button"
+          variant="outline"
+        >
+          Save Focus threshold
+        </Button>
+      </div>
+      <ConfigurationMutationError error={error} />
     </div>
   );
 }

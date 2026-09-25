@@ -265,6 +265,7 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
       key: `RA-${crypto.randomUUID().slice(0, 8).toUpperCase()}-1`,
       number: 1,
       projectId,
+      statusChangedAt: new Date("2026-09-20T12:00:00.000Z"),
       title: "Ship the first release",
       type: "Task",
     });
@@ -346,10 +347,19 @@ describeDatabase("Record Actions PostgreSQL integration", () => {
     }
     expect(result.receipt.nextValue).toEqual(preview.nextValue);
     const appliedWork = await database
-      .select({ status: work.status, revision: work.revision })
+      .select({
+        revision: work.revision,
+        status: work.status,
+        statusChangedAt: work.statusChangedAt,
+        updatedAt: work.updatedAt,
+      })
       .from(work)
       .where(eq(work.id, workId));
-    expect(appliedWork).toEqual([{ revision: 1, status: "In Progress" }]);
+    expect(appliedWork).toMatchObject([{ revision: 1, status: "In Progress" }]);
+    expect(appliedWork[0]?.statusChangedAt).not.toEqual(
+      new Date("2026-09-20T12:00:00.000Z"),
+    );
+    expect(appliedWork[0]?.statusChangedAt).toEqual(appliedWork[0]?.updatedAt);
     const memberships = await database
       .select({ focusDate: dailyFocusMembership.focusDate })
       .from(dailyFocusMembership)

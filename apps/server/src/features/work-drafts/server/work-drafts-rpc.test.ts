@@ -37,6 +37,7 @@ const work: WorkProfile = {
   recreatedFrom: null,
   revision: 1,
   status: "Not Started",
+  statusChangedAt: "2026-09-19T09:01:00.000Z",
   targetDate: null,
   title: draft.title,
   type: draft.type,
