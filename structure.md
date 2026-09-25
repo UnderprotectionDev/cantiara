@@ -148,6 +148,10 @@
 │       │   │   ├── theme-provider.tsx
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
+│       │   │   ├── backlog/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           └── project-backlog.tsx
 │       │   │   ├── bulk-editing/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -570,7 +574,7 @@ Priority metrics source ownership is split across the API contract (`packages/ap
 
 External Execution Handoff source ownership is split across the API contract (`packages/api/src/external-handoffs.ts`), the PostgreSQL schema and versioned migrations (`packages/db/src/schema/work-external-handoff.ts`, `packages/db/src/migrations/`), the Work-owned server boundary (`apps/server/src/features/external-handoffs/server/`), and the Work-list surface (`apps/web/src/features/external-handoffs/`).
 
-Backlog order and Prioritization Sessions are separate Project-scoped sources of truth. Their API contracts live in `packages/api/src/backlog.ts` and `packages/api/src/prioritization-sessions.ts`; Drizzle schemas live in `packages/db/src/schema/backlog.ts` and `packages/db/src/schema/prioritization-session.ts`; server access and mutations live under `apps/server/src/features/backlog/server/` and `apps/server/src/features/prioritization-sessions/server/`; the comparison surface and session controls live in `apps/web/src/features/prioritization-sessions/`.
+Backlog's prepared collection and manual order are separate Project-scoped sources of truth. Its API contract lives in `packages/api/src/backlog.ts`, its order schema lives in `packages/db/src/schema/backlog.ts`, its server access and mutations live under `apps/server/src/features/backlog/server/`, and its Project surface lives in `apps/web/src/features/backlog/`. Work archive and Trash timestamps are owned by `packages/db/src/schema/work.ts` and the versioned SQL in `packages/db/src/migrations/`. Prioritization Sessions remain a separate source of truth with their API contract in `packages/api/src/prioritization-sessions.ts`, schema in `packages/db/src/schema/prioritization-session.ts`, server access under `apps/server/src/features/prioritization-sessions/server/`, and comparison surface and session controls in `apps/web/src/features/prioritization-sessions/`.
 
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).

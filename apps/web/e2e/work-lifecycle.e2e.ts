@@ -718,14 +718,17 @@ test("walks the read-only Scope Tree and opens a source record", async ({
     scopeTree.getByText("Verify provider callback", { exact: true }),
   ).toBeHidden();
   await featureDetails.locator("summary").click();
-  await scopeTree
+  const sourceRecordLink = scopeTree
     .getByRole("link", { name: "Open source record" })
-    .last()
-    .click();
+    .last();
+  const sourceRecordHref = await sourceRecordLink.getAttribute("href");
+  if (!sourceRecordHref) {
+    throw new Error("The Scope Tree source record link has no destination.");
+  }
+  const sourceRecordHash = new URL(sourceRecordHref, page.url()).hash;
+  await sourceRecordLink.click();
   await expect(page).toHaveURL(WORK_HASH_PATTERN);
-  expect(
-    await scopeTree.locator('[draggable="false"]').count(),
-  ).toBeGreaterThan(0);
+  await expect(page.locator(sourceRecordHash)).toBeVisible();
 });
 
 test("shows Used in groups and opens cross-Project source records", async ({

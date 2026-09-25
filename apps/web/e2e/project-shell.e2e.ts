@@ -407,6 +407,11 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await expect(
     workViews.getByRole("button", { name: "List", exact: true }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Planning surfaces" })
+      .getByRole("link", { name: "Backlog", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("list", { name: "Saved views" })).toHaveCount(0);
   const priorityMapLink = page.getByRole("link", {
     name: "Priority Map",

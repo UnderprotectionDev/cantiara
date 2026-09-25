@@ -113,6 +113,7 @@ import {
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
 import { WebCaptureError } from "./features/capture-triage/server/web-capture";
+import type { CreateSupportReferenceFailureOptions } from "./features/web-macos-client/server/support-reference";
 import {
   createDesktopApiUpdateRequiredResponse,
   createSupportFailureResponse,
@@ -623,11 +624,14 @@ function requestSupportReferenceId(
 async function decorateAndRecordSupportFailure(
   context: HonoContext<EvlogVariables>,
   response: Response,
-  error?: unknown,
+  options: Pick<
+    CreateSupportReferenceFailureOptions,
+    "error" | "retryPolicy" | "writeOutcome"
+  > = {},
 ) {
   const requestId = requestSupportReferenceId(context);
   const decorated = await decorateSupportFailureResponse(response, {
-    error,
+    ...options,
     requestId,
   });
 
@@ -1051,13 +1055,23 @@ export function createApp(dependencies: AppDependencies) {
       c.req.raw,
       tauriResponse,
     );
-    return tauriResponse === response
-      ? sanitizeGitHubCallbackResponse(
-          c.req.raw,
-          sessionResponse,
-          dependencies.corsOrigin,
-        )
-      : sessionResponse;
+    const sanitizedResponse =
+      tauriResponse === response
+        ? sanitizeGitHubCallbackResponse(
+            c.req.raw,
+            sessionResponse,
+            dependencies.corsOrigin,
+          )
+        : sessionResponse;
+    if (c.req.path === "/api/auth/get-session") {
+      const supportedResponse = await decorateAndRecordSupportFailure(
+        c,
+        sanitizedResponse,
+        { retryPolicy: "once", writeOutcome: "not-written" },
+      );
+      return c.newResponse(supportedResponse.body, supportedResponse);
+    }
+    return sanitizedResponse;
   });
 
   const apiHandler = new OpenAPIHandler(appRouter, {
@@ -1197,7 +1211,8 @@ export function createApp(dependencies: AppDependencies) {
     return c.newResponse(rpcResponse.body, rpcResponse);
   });
   app.onError(async (error, c) => {
-    if (!isClientShellPath(c.req.path)) {
+    const isSessionCheck = c.req.path === "/api/auth/get-session";
+    if (!(isClientShellPath(c.req.path) || isSessionCheck)) {
       c.error = undefined;
       return new Response("Internal Server Error", {
         status: errorStatus(error),
@@ -1205,7 +1220,13 @@ export function createApp(dependencies: AppDependencies) {
     }
 
     const requestId = requestSupportReferenceId(c);
-    const failure = createSupportReferenceFailure({ error, requestId });
+    const failure = createSupportReferenceFailure({
+      error,
+      requestId,
+      ...(isSessionCheck
+        ? { retryPolicy: "once" as const, writeOutcome: "not-written" as const }
+        : {}),
+    });
     recordSupportFailure(c.get("log"), failure);
     c.error = undefined;
     const response = createSupportFailureResponse({
@@ -1217,6 +1238,9 @@ export function createApp(dependencies: AppDependencies) {
       writeOutcome: failure.writeOutcome,
       status: errorStatus(error),
     });
+    if (isSessionCheck) {
+      return c.newResponse(response.body, response);
+    }
     const rpcResponse = await wrapSupportFailureResponseForRpc(response);
     return c.newResponse(rpcResponse.body, rpcResponse);
   });

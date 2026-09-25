@@ -1,5 +1,5 @@
 {
-  "id": "f778cace-0951-4896-870a-d8e0fed1f742",
+  "id": "6ddcea4a-dcc6-4a75-9b4c-ef4c9390ce78",
   "prevId": "c9df8ae9-5e94-4051-b7ee-c4491143bf04",
   "version": "7",
   "dialect": "postgresql",
@@ -3910,25 +3910,12 @@
           "notNull": true,
           "default": 0
         },
-        "reappear_date": {
-          "name": "reappear_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "'Not Started'"
-        },
-        "status_changed_at": {
-          "name": "status_changed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         },
         "target_date": {
           "name": "target_date",
@@ -3947,6 +3934,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -4083,10 +4076,6 @@
         "work_target_date_check": {
           "name": "work_target_date_check",
           "value": "\"work\".\"target_date\" is null or \"work\".\"target_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
-        },
-        "work_reappear_date_check": {
-          "name": "work_reappear_date_check",
-          "value": "\"work\".\"reappear_date\" is null or \"work\".\"reappear_date\"::text ~ '^\\d{4}-\\d{2}-\\d{2}$'"
         },
         "work_primary_feature_not_self_check": {
           "name": "work_primary_feature_not_self_check",
@@ -4736,12 +4725,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "reappear_date": {
-          "name": "reappear_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
         },
         "revision": {
           "name": "revision",

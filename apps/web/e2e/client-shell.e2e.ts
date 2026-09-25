@@ -4,6 +4,26 @@ const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ??
 const LOGIN_URL_PATTERN = /\/login$/;
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PROJECT_WORK_URL_PATTERN = /\/projects\/[^/?#]+#work$/;
+const SESSION_SUPPORT_REFERENCE = "SUP-123E4567-E89B-12D3-A456-426614174000";
+
+function failedSessionCheckResponse() {
+  return {
+    body: JSON.stringify({
+      code: "INTERNAL_SERVER_ERROR",
+      data: {
+        reasonCode: "unexpected",
+        retryPolicy: "once",
+        supportReference: SESSION_SUPPORT_REFERENCE,
+        writeOutcome: "not-written",
+      },
+      defined: false,
+      message: "This action could not be completed.",
+      status: 503,
+    }),
+    contentType: "application/json",
+    status: 503,
+  };
+}
 
 test("shows the online-only empty state after the connection is lost", async ({
   context,
@@ -175,6 +195,121 @@ test("routes the product entry into Account Access and skips app navigation by k
   await expect(authenticatedSkipLink).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
+});
+
+test("recovers from a failed session check with an explicit retry", async ({
+  page,
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) {
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/projects");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Cantiara couldn’t be reached.",
+  );
+  await expect(page.getByText("Support reference unavailable.")).toBeVisible();
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Welcome to Cantiara" }),
+  ).toBeVisible();
+});
+
+test("recovers from the Safari-style session network error", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    let didFailSessionCheck = false;
+
+    window.fetch = (input, init) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.href,
+      );
+      if (!didFailSessionCheck && url.pathname === "/api/auth/get-session") {
+        didFailSessionCheck = true;
+        return Promise.reject(new TypeError("Load failed"));
+      }
+      return originalFetch(input, init);
+    };
+  });
+
+  await page.goto("/projects");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Cantiara couldn’t be reached.",
+  );
+  await expect(page.getByText("Support reference unavailable.")).toBeVisible();
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Welcome to Cantiara" }),
+  ).toBeVisible();
+});
+
+test("does not treat a failed session response as signed out", async ({
+  page,
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) {
+      await route.fulfill(failedSessionCheckResponse());
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/projects");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Cantiara couldn’t check your session.",
+  );
+  await expect(page.getByText(SESSION_SUPPORT_REFERENCE)).toBeVisible();
+  await expect(page.getByText("Support reference unavailable.")).toHaveCount(0);
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Welcome to Cantiara" }),
+  ).toBeVisible();
+});
+
+test("limits a server-side session check failure to one Retry", async ({
+  page,
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionAttempts += 1;
+    await route.fulfill(failedSessionCheckResponse());
+  });
+
+  await page.goto("/projects");
+
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Cantiara couldn’t check your session.");
+  await expect(alert).toContainText("Data was not written.");
+  await expect(alert).toContainText("You can retry once.");
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  const attemptsBeforeRetry = sessionAttempts;
+
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(alert).toContainText("Data was not written.");
+  await expect(alert).toContainText("Do not retry.");
+  await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  await expect.poll(() => sessionAttempts).toBeGreaterThan(attemptsBeforeRetry);
 });
 
 test("keeps the active Project surface when skipping app navigation by keyboard", async ({

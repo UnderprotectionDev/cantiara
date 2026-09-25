@@ -510,6 +510,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Production | `Production` | Üretim olayları girişini toplayan Proje alanı |
 | GitHub | `GitHub` | GitHub bağlantısı girişini toplayan Proje alanı; oluşturmada zorunlu bağlantı değildir |
 | Backlog | `Backlog` | Hazır İş görünümü; tek kalıcı manuel sıra |
+| Backlog yükleniyor | `Loading Backlog…` | Hazır Backlog koleksiyonu yüklenirken erişilebilir ilerleme mesajı |
+| Backlog kullanılamıyor | `Backlog is unavailable. Try loading this page again.` | Hazır koleksiyon sorgusu başarısız olduğunda gösterilen, yazma yapıldığını ima etmeyen hata mesajı |
+| Boş Backlog | `No active Work to consider.` | Değerlendirilecek etkin İş olmadığında gösterilen boş durum |
 | Manuel sıra | `Manual order` | Backlog’un tek kalıcı ele alma sırası; alternatif sunum bunu silmez |
 | Öncelik sıralaması | `Priority` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Tarih sıralaması | `Date` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
@@ -789,6 +792,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Çalışma Alanı çıkış paketi | `Workspace Exit Package` | Kullanıcı parolasıyla şifrelenmiş tam Çalışma Alanı arşividir; ürün içi restore değildir |
 | Destek referansı | `Support reference` | Başarısız ana akışta secret veya özel içerik taşımayan sunucu takip kimliği |
 | Destek referansı kullanılamıyor | `Support reference unavailable.` | Sunucuya ulaşılamayan başarısız ana akışta destek referansının üretilemediğini bildirir |
+| Cantiara'ya ulaşılamıyor | `Cantiara couldn’t be reached.` | Korunan rota oturum kontrolünde sunucuya ulaşılamadığını bildirir ve yeniden deneme sunar |
+| Oturum kontrol edilemiyor | `Cantiara couldn’t check your session.` | Korunan rota oturum kontrolünde sunucunun hata yanıtı verdiğini bildirir ve yeniden deneme sunar |
 | Güncelleme gerekli | `Update required` | Süre dışı imzalı masaüstü API sözleşmesinde güvenli olmayan yazmadan önce duran hata |
 | Yeniden dene | `Retry` | Başarısız ana akışta güvenli yeniden deneme eylemi |
 | Çatışma | `Conflict` | Aynı idempotency veya teslim kimliğinin farklı payload taşıması |

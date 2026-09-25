@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
-import { buildSupportReferenceFailure } from "../../lib/support-reference";
+import {
+  buildSupportReferenceFailure,
+  isOfflineTransportFailure,
+} from "../../lib/support-reference";
 import { SupportReferenceNotice } from "./support-reference";
 
 const supportError = {
@@ -162,6 +165,16 @@ describe("Client Shell Support reference notice", () => {
     expect(html).toContain("<p>Support reference unavailable.</p>");
     expect(html).not.toContain(
       "<span>Support reference</span> <code>Support reference unavailable.</code>",
+    );
+  });
+
+  test("shares Safari transport failure classification with session checks", () => {
+    expect(isOfflineTransportFailure(new TypeError("Load failed"))).toBe(true);
+    expect(isOfflineTransportFailure(new TypeError("Failed to fetch"))).toBe(
+      true,
+    );
+    expect(isOfflineTransportFailure(new Error("Invalid response"))).toBe(
+      false,
     );
   });
 });

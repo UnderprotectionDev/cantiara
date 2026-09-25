@@ -10,7 +10,7 @@ import {
 } from "@cantiara/api/support-reference";
 
 const OFFLINE_ERROR_PATTERN =
-  /\b(?:failed to fetch|network request failed|networkerror|offline)\b/i;
+  /\b(?:failed to fetch|network request failed|networkerror|offline|load failed)\b/i;
 const SCHEMA_DRIFT_ERROR_PATTERN =
   /\b(?:42p01|42703)\b|(?:relation|column)\b[\s\S]{0,160}\bdoes not exist\b|\bcurrent[_ ]schema\b/i;
 const UNMATCHED_RPC_ERROR_PATTERN = /\b(?:404\s+not\s+found|not found)\b/i;
@@ -76,6 +76,10 @@ function errorData(error: unknown) {
   return error.data;
 }
 
+export function isOfflineTransportFailure(error: unknown) {
+  return OFFLINE_ERROR_PATTERN.test(errorSignals(error));
+}
+
 function readReasonCode(
   error: unknown,
   data: Record<string, unknown> | undefined,
@@ -85,7 +89,7 @@ function readReasonCode(
   }
 
   const signals = errorSignals(error);
-  if (OFFLINE_ERROR_PATTERN.test(signals)) {
+  if (isOfflineTransportFailure(error)) {
     return "offline";
   }
   if (SCHEMA_DRIFT_ERROR_PATTERN.test(signals)) {
@@ -107,7 +111,7 @@ function readReasonCode(
   return "unexpected";
 }
 
-function writeOutcomeLabel(writeOutcome: SupportWriteOutcome) {
+export function supportWriteOutcomeLabel(writeOutcome: SupportWriteOutcome) {
   switch (writeOutcome) {
     case "not-written":
       return "Data was not written.";
@@ -118,6 +122,10 @@ function writeOutcomeLabel(writeOutcome: SupportWriteOutcome) {
     default:
       return "Data write outcome is unknown.";
   }
+}
+
+export function supportRetryBound(canRetry: boolean) {
+  return canRetry ? "You can retry once." : "Do not retry.";
 }
 
 function failureMessage(
@@ -183,10 +191,10 @@ export function buildSupportReferenceFailure(
     duration: staysUntilDismissed ? Number.POSITIVE_INFINITY : 6000,
     reason: failureMessage(error, reasonCode, kind),
     reasonCode,
-    retryBound: canRetry ? "You can retry once." : "Do not retry.",
+    retryBound: supportRetryBound(canRetry),
     retryPolicy,
     supportReference,
     writeOutcome,
-    writeOutcomeLabel: writeOutcomeLabel(writeOutcome),
+    writeOutcomeLabel: supportWriteOutcomeLabel(writeOutcome),
   };
 }

@@ -6,5 +6,9 @@ export function createBacklogAccess(store: BacklogStore): BacklogAccess {
       const workspaceId = await store.findWorkspaceId(accountId);
       return workspaceId ? store.list(workspaceId, projectId) : null;
     },
+    async listPrepared(accountId, projectId) {
+      const workspaceId = await store.findWorkspaceId(accountId);
+      return workspaceId ? store.listPrepared(workspaceId, projectId) : null;
+    },
   };
 }

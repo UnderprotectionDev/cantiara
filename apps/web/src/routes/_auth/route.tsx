@@ -1,4 +1,10 @@
-import { isSupportReference } from "@cantiara/api/support-reference";
+import {
+  isSupportReference,
+  isSupportRetryPolicy,
+  isSupportWriteOutcome,
+  type SupportRetryPolicy,
+  type SupportWriteOutcome,
+} from "@cantiara/api/support-reference";
 import { Button } from "@cantiara/ui/components/button";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import {
@@ -8,82 +14,125 @@ import {
   redirect,
   useRouter,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
+import {
+  isOfflineTransportFailure,
+  supportRetryBound,
+  supportWriteOutcomeLabel,
+} from "@/features/web-macos-client/lib/support-reference";
 import {
   ClientShellOfflineError,
   defaultClientShell,
 } from "@/features/web-macos-client/store/client-shell";
-import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 import { authClient } from "@/lib/auth-client";
 
-class SessionConnectionError extends Error {
-  constructor(cause: unknown) {
-    super("The session service is unavailable.", { cause });
-    this.name = "SessionConnectionError";
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function sessionStatus(error: unknown) {
+  if (!(isRecord(error) && "status" in error)) {
+    return Number.NaN;
   }
+  return Number(error.status);
 }
 
 function isTemporarySessionError(error: unknown) {
-  if (error instanceof TypeError) {
-    return true;
-  }
-  if (typeof error !== "object" || error === null || !("status" in error)) {
-    return false;
-  }
-  const status = Number(error.status);
-  return Number.isFinite(status) && (status === 0 || status >= 500);
+  const status = sessionStatus(error);
+  return (
+    error instanceof TypeError ||
+    isOfflineTransportFailure(error) ||
+    status === 0 ||
+    (Number.isFinite(status) && status >= 500)
+  );
 }
 
-function sessionSupportReference(error: unknown) {
-  const cause = error instanceof SessionConnectionError ? error.cause : error;
-  if (typeof cause !== "object" || cause === null) {
-    return null;
+function sessionFailureData(error: unknown): Record<string, unknown> {
+  if (!isRecord(error)) {
+    return {};
   }
-
-  const causeRecord = cause as Record<string, unknown>;
-  const data =
-    typeof causeRecord.data === "object" && causeRecord.data !== null
-      ? (causeRecord.data as Record<string, unknown>)
-      : null;
-  const nestedError =
-    typeof causeRecord.error === "object" && causeRecord.error !== null
-      ? (causeRecord.error as Record<string, unknown>)
-      : null;
-  const nestedData =
-    nestedError &&
-    typeof nestedError.data === "object" &&
-    nestedError.data !== null
-      ? (nestedError.data as Record<string, unknown>)
-      : null;
-  const reference =
-    causeRecord.supportReference ??
-    data?.supportReference ??
-    nestedError?.supportReference ??
-    nestedData?.supportReference;
-
-  return isSupportReference(reference) ? reference : null;
+  const {
+    data: rawData,
+    error: rawNestedError,
+    retryPolicy: rootRetryPolicy,
+    supportReference: rootSupportReference,
+    writeOutcome: rootWriteOutcome,
+  } = error;
+  const nestedError = isRecord(rawNestedError) ? rawNestedError : {};
+  const {
+    data: nestedData,
+    retryPolicy: nestedRetryPolicy,
+    supportReference: nestedSupportReference,
+    writeOutcome: nestedWriteOutcome,
+  } = nestedError;
+  const data = [rawData, nestedData].find(isRecord) ?? {};
+  return {
+    ...data,
+    supportReference:
+      data.supportReference ?? rootSupportReference ?? nestedSupportReference,
+    retryPolicy: data.retryPolicy ?? rootRetryPolicy ?? nestedRetryPolicy,
+    writeOutcome: data.writeOutcome ?? rootWriteOutcome ?? nestedWriteOutcome,
+  };
 }
+
+class SessionCheckError extends Error {
+  readonly networkFailure: boolean;
+  readonly supportReference?: string;
+  readonly retryPolicy: SupportRetryPolicy;
+  readonly writeOutcome: SupportWriteOutcome;
+
+  constructor(error: unknown, options: ErrorOptions = {}) {
+    super("Session check failed", {
+      ...options,
+      cause: options.cause ?? error,
+    });
+    this.name = "SessionCheckError";
+    const networkFailure =
+      error instanceof TypeError ||
+      isOfflineTransportFailure(error) ||
+      sessionStatus(error) === 0;
+    this.networkFailure = networkFailure;
+    const data = sessionFailureData(error);
+    if (!networkFailure && isSupportReference(data.supportReference)) {
+      this.supportReference = data.supportReference;
+    }
+    if (networkFailure) {
+      this.retryPolicy = "once";
+      this.writeOutcome = "not-written";
+    } else {
+      this.retryPolicy = isSupportRetryPolicy(data.retryPolicy)
+        ? data.retryPolicy
+        : "never";
+      this.writeOutcome = isSupportWriteOutcome(data.writeOutcome)
+        ? data.writeOutcome
+        : "unknown";
+    }
+  }
+}
+
+let sessionCheckRetryConsumed = false;
 
 export const Route = createFileRoute("/_auth")({
   component: AuthLayout,
   errorComponent: AuthRouteError,
   beforeLoad: async () => {
     defaultClientShell.assertOnline();
-    const session = await defaultClientShell
-      .runOnlineOnly(() => authClient.getSession())
-      .catch((error: unknown) => {
-        if (isTemporarySessionError(error)) {
-          throw new SessionConnectionError(error);
-        }
-        throw error;
-      });
-    if (session.error) {
-      if (isTemporarySessionError(session.error)) {
-        throw new SessionConnectionError(session.error);
+    let session: Awaited<ReturnType<typeof authClient.getSession>>;
+    try {
+      session = await defaultClientShell.runOnlineOnly(() =>
+        authClient.getSession(),
+      );
+    } catch (error) {
+      if (isTemporarySessionError(error)) {
+        throw new SessionCheckError(error, { cause: error });
       }
-      throw session.error;
+      throw error;
     }
+    if (session.error) {
+      throw new SessionCheckError(session.error);
+    }
+    sessionCheckRetryConsumed = false;
     if (!session.data) {
       throw redirect({
         to: "/login",
@@ -100,84 +149,89 @@ function AuthLayout() {
 function AuthRouteError({ error }: ErrorComponentProps) {
   const router = useRouter();
   const connection = useClientShellConnection();
-  const sessionConnectionFailed =
-    error instanceof SessionConnectionError ||
-    error instanceof ClientShellOfflineError;
-  const wasOffline = useRef(connection === "offline");
-  const retrySession = useCallback(() => {
-    router.invalidate().catch(() => undefined);
-  }, [router]);
-
-  useEffect(() => {
-    if (connection === "offline") {
-      wasOffline.current = true;
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = useCallback(async () => {
+    if (isRetrying || sessionCheckRetryConsumed || connection === "offline") {
       return;
     }
 
-    if (wasOffline.current) {
-      wasOffline.current = false;
-      router.invalidate().catch(() => undefined);
+    sessionCheckRetryConsumed = true;
+    setIsRetrying(true);
+    try {
+      await router.invalidate();
+    } catch {
+      // Keep the failure visible when invalidation rejects.
+    } finally {
+      setIsRetrying(false);
     }
-  }, [connection, router]);
+  }, [connection, isRetrying, router]);
 
-  if (connection === "offline" || sessionConnectionFailed) {
-    if (error instanceof SessionConnectionError && connection !== "offline") {
-      return <SessionUnavailable error={error} onRetry={retrySession} />;
-    }
+  const isNetworkFailure =
+    error instanceof ClientShellOfflineError ||
+    (error instanceof TypeError && isOfflineTransportFailure(error)) ||
+    (error instanceof SessionCheckError && error.networkFailure);
+  const isSessionCheckFailure =
+    error instanceof SessionCheckError && !error.networkFailure;
+  const writeOutcome = isSessionCheckFailure
+    ? error.writeOutcome
+    : "not-written";
+  const retryPolicy = isSessionCheckFailure ? error.retryPolicy : "once";
+  const canRetry =
+    !(sessionCheckRetryConsumed || isRetrying) &&
+    retryPolicy === "once" &&
+    writeOutcome === "not-written" &&
+    (isNetworkFailure || isSessionCheckFailure);
+
+  if (isNetworkFailure || isSessionCheckFailure) {
     return (
-      <ClientShellContent
-        forceOffline={sessionConnectionFailed}
-        onRetry={retrySession}
-      >
-        <ErrorComponent error={error} />
-      </ClientShellContent>
+      <main className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-background px-5 py-10 sm:px-8">
+        <section
+          aria-busy={isRetrying}
+          aria-labelledby="auth-connection-error-title"
+          aria-live="assertive"
+          className="w-full max-w-2xl rounded-lg border border-destructive/35 bg-destructive/5 p-5 shadow-sm"
+          role="alert"
+        >
+          <h1
+            className="font-semibold text-3xl text-foreground tracking-tight"
+            id="auth-connection-error-title"
+          >
+            {isSessionCheckFailure
+              ? "Cantiara couldn’t check your session."
+              : "Cantiara couldn’t be reached."}
+          </h1>
+          <p className="mt-3 max-w-prose text-base/7 text-foreground/75">
+            {isSessionCheckFailure && error.supportReference ? (
+              <>
+                <span>Support reference</span>{" "}
+                <code>{error.supportReference}</code>
+              </>
+            ) : (
+              "Support reference unavailable."
+            )}
+          </p>
+          <p className="mt-3 text-foreground/75 text-sm">
+            {supportWriteOutcomeLabel(writeOutcome)}
+          </p>
+          <p className="mt-1 text-foreground/75 text-sm">
+            {supportRetryBound(canRetry)}
+          </p>
+          <div className="mt-6">
+            {canRetry ? (
+              <Button
+                disabled={isRetrying || connection === "offline"}
+                onClick={handleRetry}
+                type="button"
+                variant="outline"
+              >
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        </section>
+      </main>
     );
   }
 
   return <ErrorComponent error={error} />;
-}
-
-function SessionUnavailable({
-  error,
-  onRetry,
-}: {
-  error: unknown;
-  onRetry: () => void;
-}) {
-  const supportReference = sessionSupportReference(error);
-
-  return (
-    <main className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto bg-background px-5 py-10 sm:px-8">
-      <section
-        aria-live="polite"
-        className="w-full max-w-2xl rounded-lg border border-border/70 bg-card p-5 shadow-sm"
-        role="status"
-      >
-        <h1 className="font-semibold text-2xl tracking-tight">
-          Session unavailable
-        </h1>
-        <p className="mt-3 text-muted-foreground text-sm/relaxed">
-          Cantiara could not verify your session. Retry when the service is
-          available.
-        </p>
-        <p className="mt-3 text-muted-foreground text-sm">
-          {supportReference ? (
-            <>
-              <span>Support reference</span> <code>{supportReference}</code>
-            </>
-          ) : (
-            "Support reference unavailable."
-          )}
-        </p>
-        <Button
-          className="mt-5"
-          onClick={onRetry}
-          type="button"
-          variant="outline"
-        >
-          Retry
-        </Button>
-      </section>
-    </main>
-  );
 }

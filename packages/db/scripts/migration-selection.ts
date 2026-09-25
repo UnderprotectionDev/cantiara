@@ -14,6 +14,8 @@ export interface MigrationSelectionOptions {
 const compatibilityRepairTags = {
   "--repair-external-handoff-cancellation":
     "0058_external-handoff-cancellation-compatibility",
+  "--repair-external-handoff-result-reconciliation":
+    "0060_external-handoff-schema-compatibility",
   "--repair-prioritization-schema": "0054_repair_prioritization_schema",
 } as const;
 

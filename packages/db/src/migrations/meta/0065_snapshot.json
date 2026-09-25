@@ -1,6 +1,6 @@
 {
-  "id": "c80c3f23-c2f1-4bd0-aded-8319b228dcd9",
-  "prevId": "c3bc9348-6a26-4e4e-ba90-dd4b848a9df6",
+  "id": "c3bc9348-6a26-4e4e-ba90-dd4b848a9df6",
+  "prevId": "f778cace-0951-4896-870a-d8e0fed1f742",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3954,6 +3954,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "trashed_at": {
+          "name": "trashed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
