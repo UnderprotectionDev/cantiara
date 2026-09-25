@@ -78,7 +78,9 @@ export function createDatabaseBacklog(database: Database): BacklogStore {
           id: work.id,
           key: work.key,
           number: work.number,
+          plannedStartDate: work.plannedStartDate,
           status: work.status,
+          targetDate: work.targetDate,
           title: work.title,
         })
         .from(work)

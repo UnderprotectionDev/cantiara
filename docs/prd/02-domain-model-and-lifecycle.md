@@ -514,6 +514,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Backlog kullanılamıyor | `Backlog is unavailable. Try loading this page again.` | Hazır koleksiyon sorgusu başarısız olduğunda gösterilen, yazma yapıldığını ima etmeyen hata mesajı |
 | Boş Backlog | `No active Work to consider.` | Değerlendirilecek etkin İş olmadığında gösterilen boş durum |
 | Manuel sıra | `Manual order` | Backlog’un tek kalıcı ele alma sırası; alternatif sunum bunu silmez |
+| Backlog sıralama seçimi | `Backlog sort` | Geçici sıralama sunumunu seçer; manuel sırayı yazmaz |
+| Öncelik sıralama ölçütü | `Priority criterion` | Öncelik sunumunun hangi açık ölçüte göre sıralanacağını seçer |
+| Alan sıralama seçimi | `Field to sort by` | Alan sunumunun `Title` veya `Status` temelini seçer |
+| Backlog sürükleme tutamacı | `Drag {Work title}` | İş adını taşıyan klavye ve işaretçi sıralama kontrolü |
+| Backlog sürükleme duyuruları | `Picked up {Work title}.`, `{Work title} is over {Work title}.`, `{Work title} is outside the Backlog.`, `{Work title} was dropped over {Work title}.`, `{Work title} was not moved.`, `Moving {Work title} was cancelled.` | Ekran okuyucuya sürükleme durumunu İş adıyla bildirir |
+| Backlog sırası kaydedilemedi | `Backlog order could not be saved. Try again.` | Manuel sıra yazma hatasını bildirir; görünür sıra son kaydedilen değerde kalır |
 | Öncelik sıralaması | `Priority` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Tarih sıralaması | `Date` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Alan sıralaması | `Field` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |

@@ -36,7 +36,9 @@ export const backlogWorkSchema = z
     id: identifierSchema,
     key: identifierSchema,
     number: z.number().int().positive(),
+    plannedStartDate: z.iso.date().nullable(),
     status: workOpenStatusSchema,
+    targetDate: z.iso.date().nullable(),
     title: identifierSchema,
   })
   .strict();

@@ -157,14 +157,18 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         id: `${workIdPrefix}-unplanned`,
         key: "BKL-1",
         number: 1,
+        plannedStartDate: null,
         status: "Not Started",
+        targetDate: null,
         title: "Unplanned Work",
       },
       {
         id: `${workIdPrefix}-planned`,
         key: "BKL-2",
         number: 2,
+        plannedStartDate: "2026-10-01",
         status: "In Progress",
+        targetDate: null,
         title: "Planned Work",
       },
     ]);
@@ -229,7 +233,9 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         id: `${workIdPrefix}-added-later`,
         key: "BKL-6",
         number: 6,
+        plannedStartDate: null,
         status: "Blocked",
+        targetDate: null,
         title: "Added after the first read",
       },
     ]);

@@ -14,14 +14,18 @@ describe("Backlog RPC", () => {
         id: "work-1",
         key: "CANT-1",
         number: 1,
+        plannedStartDate: null,
         status: "Not Started",
+        targetDate: null,
         title: "Unplanned Work",
       },
       {
         id: "work-2",
         key: "CANT-2",
         number: 2,
+        plannedStartDate: null,
         status: "Blocked",
+        targetDate: null,
         title: "Planned Work",
       },
     ];

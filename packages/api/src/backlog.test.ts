@@ -81,7 +81,9 @@ describe("Backlog prepared membership API contract", () => {
       id: "work-1",
       key: "PAY-1",
       number: 1,
+      plannedStartDate: null,
       status: "Not Started",
+      targetDate: null,
       title: "Unplanned work",
     };
 
@@ -95,5 +97,19 @@ describe("Backlog prepared membership API contract", () => {
     expect(projectBacklogSchema.parse([unplannedWork])).toEqual([
       unplannedWork,
     ]);
+  });
+
+  test("exposes planning dates for a temporary Date presentation", () => {
+    expect(
+      backlogWorkSchema.parse({
+        id: "work-2",
+        key: "PAY-2",
+        number: 2,
+        plannedStartDate: "2026-10-01",
+        status: "Not Started",
+        targetDate: null,
+        title: "Dated work",
+      }),
+    ).toMatchObject({ plannedStartDate: "2026-10-01", targetDate: null });
   });
 });
