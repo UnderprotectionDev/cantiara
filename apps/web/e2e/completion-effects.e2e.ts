@@ -10,6 +10,7 @@ import {
   type APIRequestContext,
   type BrowserContext,
   expect,
+  type Locator,
   type Page,
   type Route,
   test,
@@ -126,6 +127,12 @@ async function createWork(page: Page, title: string) {
     .filter({ has: page.locator("p").filter({ hasText: title }) });
   await expect(work).toBeVisible({ timeout: 20_000 });
   return work;
+}
+
+async function selectCompletedClosureResult(closeDialog: Locator) {
+  await closeDialog
+    .getByRole("combobox", { name: CLOSURE_RESULT_COMBOBOX_NAME })
+    .selectOption("Completed");
 }
 
 test("keeps Completion Effects samples still until Preview and saves one Account choice", async ({
@@ -394,6 +401,7 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   const firstClose = firstWork.getByRole("dialog", {
     name: CLOSE_DIALOG_NAME,
   });
+  await selectCompletedClosureResult(firstClose);
   await firstClose.getByRole("button", { name: "Close", exact: true }).click();
   await expect.poll(() => closeRequestIntercepted).toBe(true);
   await expect(
@@ -434,10 +442,11 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   await expect(firstEffect).toHaveCount(0);
 
   await secondStatus.selectOption("Closed");
-  await secondWork
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  const secondClose = secondWork.getByRole("dialog", {
+    name: CLOSE_DIALOG_NAME,
+  });
+  await selectCompletedClosureResult(secondClose);
+  await secondClose.getByRole("button", { name: "Close", exact: true }).click();
   await expect(
     secondWork.getByText("Work completed", { exact: true }),
   ).toBeVisible();
@@ -474,10 +483,11 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
     name: WORK_STATUS_COMBOBOX_NAME,
   });
   await thirdStatus.selectOption("Closed");
-  await thirdWork
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  const thirdClose = thirdWork.getByRole("dialog", {
+    name: CLOSE_DIALOG_NAME,
+  });
+  await selectCompletedClosureResult(thirdClose);
+  await thirdClose.getByRole("button", { name: "Close", exact: true }).click();
   await expect(
     thirdWork.getByText("Work completed", { exact: true }),
   ).toBeVisible();
@@ -501,6 +511,10 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
   await fourthWork
     .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
     .selectOption("Closed");
+  const fourthClose = fourthWork.getByRole("dialog", {
+    name: CLOSE_DIALOG_NAME,
+  });
+  await selectCompletedClosureResult(fourthClose);
   await page.evaluate(() => {
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -508,10 +522,7 @@ test("plays only after an accepted Completed close and waits 30 seconds per clie
     });
     document.documentElement.dataset.testVisibility = "hidden";
   });
-  await fourthWork
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  await fourthClose.getByRole("button", { name: "Close", exact: true }).click();
   await expect.poll(() => hiddenCloseRequestIntercepted).toBe(true);
   await page.evaluate(() => {
     document.documentElement.dataset.testVisibility = "visible";
@@ -595,10 +606,9 @@ test("keeps the base success notice for ten seconds when effects are off", async
   await work
     .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
     .selectOption("Closed");
-  await work
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  const closeDialog = work.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
+  await selectCompletedClosureResult(closeDialog);
+  await closeDialog.getByRole("button", { name: "Close", exact: true }).click();
 
   const notice = work.getByRole("status");
   await expect(
@@ -661,6 +671,7 @@ test("does not replay a timed-out idempotent close or celebrate Abandoned", asyn
   const closeDialog = retryWork.getByRole("dialog", {
     name: CLOSE_DIALOG_NAME,
   });
+  await selectCompletedClosureResult(closeDialog);
   await closeDialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(retryWork.getByRole("alert")).toBeVisible();
   await expect(
@@ -693,6 +704,7 @@ test("does not replay a timed-out idempotent close or celebrate Abandoned", asyn
   const conflictDialog = conflictWork.getByRole("dialog", {
     name: CLOSE_DIALOG_NAME,
   });
+  await selectCompletedClosureResult(conflictDialog);
   const conflictTab = await context.newPage();
   await conflictTab.goto(projectWorkUrl);
   await openWorkRecordFromKanbanList(conflictTab, "Reject a stale close");
@@ -797,8 +809,11 @@ test("does not replay a timed-out idempotent close or celebrate Abandoned", asyn
   await reducedMotionWork
     .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
     .selectOption("Closed");
-  await reducedMotionWork
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
+  const reducedMotionClose = reducedMotionWork.getByRole("dialog", {
+    name: CLOSE_DIALOG_NAME,
+  });
+  await selectCompletedClosureResult(reducedMotionClose);
+  await reducedMotionClose
     .getByRole("button", { name: "Close", exact: true })
     .click();
   await expect(
@@ -824,10 +839,9 @@ test("plays a new event after the same Work is reopened and completed again", as
     name: WORK_STATUS_COMBOBOX_NAME,
   });
   await firstStatus.selectOption("Closed");
-  await firstWork
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  const firstClose = firstWork.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
+  await selectCompletedClosureResult(firstClose);
+  await firstClose.getByRole("button", { name: "Close", exact: true }).click();
   await expect(
     firstWork.getByText("Work completed", { exact: true }),
   ).toBeVisible();
@@ -862,8 +876,11 @@ test("plays a new event after the same Work is reopened and completed again", as
   await reopenedWork
     .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
     .selectOption("Closed");
-  await reopenedWork
-    .getByRole("dialog", { name: CLOSE_DIALOG_NAME })
+  const reopenedClose = reopenedWork.getByRole("dialog", {
+    name: CLOSE_DIALOG_NAME,
+  });
+  await selectCompletedClosureResult(reopenedClose);
+  await reopenedClose
     .getByRole("button", { name: "Close", exact: true })
     .click();
   await expect(
@@ -978,6 +995,7 @@ test("keeps the Work completed notice when the drawing budget is missed", async 
     .selectOption("Closed");
   const closeDialog = work.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
   await expect(closeDialog).toBeVisible();
+  await selectCompletedClosureResult(closeDialog);
 
   await page.evaluate(() => {
     let frameAt = 0;
@@ -1019,6 +1037,7 @@ test("keeps Work status controls pending until the accepted close refresh comple
   });
   await status.selectOption("Closed");
   const closeDialog = work.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
+  await selectCompletedClosureResult(closeDialog);
 
   let activeRefreshGate: ReturnType<typeof createRequestGate> | null = null;
   await page.route("**/rpc/projectWorks", async (route) => {

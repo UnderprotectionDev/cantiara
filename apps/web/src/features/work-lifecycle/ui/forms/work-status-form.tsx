@@ -209,11 +209,11 @@ export default function WorkStatusForm({
 
   const closeForm = useForm({
     defaultValues: {
-      closureResult: "Completed" as WorkClosureResult,
+      closureResult: "" as WorkClosureResult | "",
       reason: "",
     },
     onSubmit: async ({ value }) => {
-      if (!closePreview) {
+      if (!(closePreview && value.closureResult)) {
         return;
       }
       const request = {
@@ -418,10 +418,16 @@ export default function WorkStatusForm({
                   aria-label={`Closure result for ${work.key}`}
                   id={`closure-result-${work.id}`}
                   onChange={(event) =>
-                    field.handleChange(event.target.value as WorkClosureResult)
+                    field.handleChange(
+                      event.target.value as WorkClosureResult | "",
+                    )
                   }
+                  required
                   value={field.state.value}
                 >
+                  <NativeSelectOption disabled value="">
+                    Closure result
+                  </NativeSelectOption>
                   {WORK_CLOSURE_RESULT_OPTIONS.map((result) => (
                     <NativeSelectOption key={result} value={result}>
                       {result}

@@ -2,6 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const STATUS_FOR_PATTERN = /Status for/;
+const CLOSE_DIALOG_NAME = /Close/;
+const CLOSURE_RESULT_COMBOBOX_NAME = /Closure result for/;
 
 function workListItem(page: Page, title: string) {
   return page
@@ -211,7 +213,11 @@ test("resolves, reactivates, and keeps an Active blocker when its source closes"
   await blocker
     .getByRole("combobox", { name: STATUS_FOR_PATTERN })
     .selectOption("Closed");
-  await blocker.getByRole("button", { name: "Close", exact: true }).click();
+  const closeDialog = blocker.getByRole("dialog", { name: CLOSE_DIALOG_NAME });
+  await closeDialog
+    .getByRole("combobox", { name: CLOSURE_RESULT_COMBOBOX_NAME })
+    .selectOption("Completed");
+  await closeDialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(
     blocker.getByRole("combobox", { name: STATUS_FOR_PATTERN }),
   ).toHaveValue("Closed");

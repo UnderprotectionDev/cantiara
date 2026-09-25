@@ -132,6 +132,16 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await moveCard(page, "In Progress", "Closed", title);
   let closeDialog = page.getByRole("dialog", { name: `Close ${workKey}` });
   await expect(closeDialog).toBeVisible();
+  await expect(
+    closeDialog.getByRole("combobox", {
+      name: `Closure result for ${workKey}`,
+    }),
+  ).toHaveValue("");
+  await closeDialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(closeDialog).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: `Status for ${workKey}` }),
+  ).toHaveValue("In Progress");
   await closeDialog.getByRole("button", { name: "Return to work" }).click();
   await expect(
     page.getByRole("combobox", { name: `Status for ${workKey}` }),
@@ -152,6 +162,8 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await openBoard(page);
   const closedCard = boardCard(page, "Closed", title);
   await expect(closedCard).toContainText("Abandoned");
+  await page.reload();
+  await expect(boardCard(page, "Closed", title)).toContainText("Abandoned");
   await moveCard(page, "Closed", "In Progress", title);
   const reopenDialog = page.getByRole("dialog", {
     name: `Reopen ${workKey}`,
