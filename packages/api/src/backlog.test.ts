@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  backlogWorkSchema,
   projectBacklogOrderSchema,
+  projectBacklogSchema,
   updateBacklogOrderInputSchema,
   updateBacklogOrderMutationInputSchema,
 } from "./backlog";
@@ -70,5 +72,28 @@ describe("Backlog order API contract", () => {
         workIds,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("Backlog prepared membership API contract", () => {
+  test("accepts unplanned active Work and excludes terminal Work", () => {
+    const unplannedWork = {
+      id: "work-1",
+      key: "PAY-1",
+      number: 1,
+      status: "Not Started",
+      title: "Unplanned work",
+    };
+
+    expect(backlogWorkSchema.safeParse(unplannedWork).success).toBe(true);
+    expect(
+      backlogWorkSchema.safeParse({
+        ...unplannedWork,
+        status: "Closed",
+      }).success,
+    ).toBe(false);
+    expect(projectBacklogSchema.parse([unplannedWork])).toEqual([
+      unplannedWork,
+    ]);
   });
 });

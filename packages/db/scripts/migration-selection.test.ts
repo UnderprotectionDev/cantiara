@@ -22,6 +22,13 @@ const migrations = [
     version: "7",
     when: 4,
   },
+  {
+    breakpoints: true,
+    idx: 4,
+    tag: "0060_external-handoff-schema-compatibility",
+    version: "7",
+    when: 5,
+  },
 ];
 
 describe("selectMigrations", () => {
@@ -65,10 +72,22 @@ describe("selectMigrations", () => {
         "--repair-external-handoff-cancellation",
       ]),
     ).toBe("0058_external-handoff-cancellation-compatibility");
+    expect(
+      migrationRepairTagFromArgs([
+        "migrate.ts",
+        "--repair-external-handoff-result-reconciliation",
+      ]),
+    ).toBe("0060_external-handoff-schema-compatibility");
     expect(migrationRepairTagFromArgs(["migrate.ts"])).toBeNull();
     expect(() =>
       migrationRepairTagFromArgs([
         "--repair-prioritization-schema",
+        "--repair-external-handoff-cancellation",
+      ]),
+    ).toThrow("Select exactly one compatibility repair");
+    expect(() =>
+      migrationRepairTagFromArgs([
+        "--repair-external-handoff-result-reconciliation",
         "--repair-external-handoff-cancellation",
       ]),
     ).toThrow("Select exactly one compatibility repair");

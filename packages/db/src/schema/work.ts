@@ -53,6 +53,7 @@ export const work = pgTable(
     targetDate: date("target_date", { mode: "string" }),
     title: text("title").notNull(),
     type: text("type").notNull(),
+    trashedAt: timestamp("trashed_at"),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())

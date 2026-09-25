@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { MutationContract } from "./mutation-and-undo";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import { workOpenStatusSchema } from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -29,6 +30,20 @@ export type ProjectBacklogOrder = z.infer<typeof projectBacklogOrderSchema>;
 export const projectBacklogInputSchema = z
   .object({ projectId: identifierSchema })
   .strict();
+
+export const backlogWorkSchema = z
+  .object({
+    id: identifierSchema,
+    key: identifierSchema,
+    number: z.number().int().positive(),
+    status: workOpenStatusSchema,
+    title: identifierSchema,
+  })
+  .strict();
+
+export const projectBacklogSchema = z.array(backlogWorkSchema);
+
+export type BacklogWork = z.infer<typeof backlogWorkSchema>;
 
 export const updateBacklogOrderInputSchema = z
   .object({
@@ -59,6 +74,10 @@ export interface BacklogStore {
     workspaceId: string,
     projectId: string,
   ) => Promise<ProjectBacklogOrder | null>;
+  listPrepared: (
+    workspaceId: string,
+    projectId: string,
+  ) => Promise<BacklogWork[] | null>;
 }
 
 export interface BacklogAccess {
@@ -66,6 +85,10 @@ export interface BacklogAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProjectBacklogOrder | null>;
+  listPrepared: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<BacklogWork[] | null>;
 }
 
 export interface BacklogMutationContracts {

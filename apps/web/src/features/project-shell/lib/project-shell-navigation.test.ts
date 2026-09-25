@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  BACKLOG_HASH,
   CONFIGURATION_HOSTS,
   configurationHostId,
   isWorkSurfaceHash,
@@ -30,6 +31,14 @@ describe("Project Shell Work navigation", () => {
   test("keeps the Priority Map on the Work surface", () => {
     expect(isWorkSurfaceHash("priority-map")).toBe(true);
     expect(navigationSurfaceFromHash("priority-map", ["Work"], [], [])).toBe(
+      "Work",
+    );
+  });
+
+  test("keeps Backlog and Work record links on the Work surface", () => {
+    expect(isWorkSurfaceHash(BACKLOG_HASH)).toBe(true);
+    expect(isWorkSurfaceHash(workRecordHash("work-1"))).toBe(true);
+    expect(navigationSurfaceFromHash(BACKLOG_HASH, ["Work"], [], [])).toBe(
       "Work",
     );
   });

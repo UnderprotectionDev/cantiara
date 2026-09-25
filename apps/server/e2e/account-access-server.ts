@@ -1,4 +1,5 @@
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
+import { DESKTOP_API_PUBLISHED_AT } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
@@ -235,6 +236,8 @@ const app = createApp({
   customFieldMutationContracts,
   corsOrigin: webOrigin,
   database,
+  // Keep integration coverage inside the API window regardless of CI date.
+  desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
   desktopOrigins: [],
   fileAttachments,
   githubAvailability,

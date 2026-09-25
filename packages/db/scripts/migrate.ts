@@ -14,6 +14,7 @@ import { migrate } from "drizzle-orm/neon-serverless/migrator";
 
 import { createDb } from "../src/index";
 import { createSecurityEventDb } from "../src/security-events";
+import { migrationConnectionString } from "./migration-connection";
 import {
   migrationRepairTagFromArgs,
   selectMigrations,
@@ -21,9 +22,15 @@ import {
 
 const securityEvents = process.argv.includes("--security-events");
 const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
-const databaseUrl = securityEvents
-  ? process.env.SECURITY_EVENT_DATABASE_URL
-  : process.env.DATABASE_URL;
+const databaseUrl = migrationConnectionString(
+  securityEvents
+    ? process.env.SECURITY_EVENT_DATABASE_URL
+    : process.env.DATABASE_URL,
+  securityEvents
+    ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
+    : process.env.DATABASE_URL_UNPOOLED,
+  { useLocalPostgres: process.env.NEON_LOCAL === "true" },
+);
 
 if (!databaseUrl) {
   throw new Error(

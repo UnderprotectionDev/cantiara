@@ -3019,6 +3019,21 @@ export const appRouter = {
       }
       return order;
     }),
+  projectBacklog: protectedProcedure
+    .input(projectBacklogInputSchema)
+    .handler(async ({ context, input }) => {
+      const work = await requireBacklog(context).listPrepared(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!work) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Project Backlog is unavailable.",
+        });
+      }
+      return work;
+    }),
   updateBacklogOrder: protectedProcedure
     .input(updateBacklogOrderMutationInputSchema)
     .handler(async ({ context, input }) => {

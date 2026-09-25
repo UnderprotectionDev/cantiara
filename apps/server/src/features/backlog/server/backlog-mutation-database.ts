@@ -19,6 +19,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { isBacklogMember } from "./backlog-membership";
 import { applyBacklogOrder, normalizeBacklogOrder } from "./backlog-order";
 
 interface BacklogState {
@@ -67,13 +68,18 @@ async function loadBacklogState(
     : await storedQuery;
   const stored = storedRecords[0] ?? null;
   const records = await executor
-    .select({ archivedAt: work.archivedAt, id: work.id })
+    .select({
+      archivedAt: work.archivedAt,
+      id: work.id,
+      status: work.status,
+      trashedAt: work.trashedAt,
+    })
     .from(work)
     .where(eq(work.projectId, projectId))
     .orderBy(asc(work.number));
   const allWorkIds = records.map((record) => record.id);
   const activeWorkIds = records
-    .filter((record) => record.archivedAt === null)
+    .filter(isBacklogMember)
     .map((record) => record.id);
   const fullWorkIds = normalizeBacklogOrder(stored?.workIds ?? [], allWorkIds);
   const activeWorkIdSet = new Set(activeWorkIds);

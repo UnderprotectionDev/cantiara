@@ -399,9 +399,11 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await overview.locator('[data-overview-area-entry="Work"]').click();
   await expect(page).toHaveURL(WORK_HASH_PATTERN);
   await expect(page.locator("#work")).toBeVisible();
+  const workViews = page.getByRole("navigation", { name: "Work views" });
+  await expect(workViews).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Work views" }),
-  ).toHaveCount(0);
+    page.getByRole("link", { name: "Backlog", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("list", { name: "Saved views" })).toHaveCount(0);
   const priorityMapLink = page.getByRole("link", {
     name: "Priority Map",

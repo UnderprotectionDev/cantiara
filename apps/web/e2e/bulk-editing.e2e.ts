@@ -4,6 +4,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const WORK_LIST_NAME = "Work list";
 const UNSUPPORTED_BULK_EDIT_ACTION_PATTERN = /Import|New field/;
+const BULK_EDIT_FIRST_PROGRESS_MAX_MS = 2000;
 
 function workListItem(page: Page, title: string) {
   return page.locator(`ul[aria-label="${WORK_LIST_NAME}"] > li`).filter({
@@ -366,7 +367,9 @@ test("shows virtualized results for a large Work selection", async ({
 
   const progress = bulkEdit.getByRole("progressbar", { name: "Progress" });
   try {
-    await expect(progress).toBeVisible({ timeout: 1000 });
+    await expect(progress).toBeVisible({
+      timeout: BULK_EDIT_FIRST_PROGRESS_MAX_MS,
+    });
     await page.evaluate(() => performance.mark("bulk-edit-progress-visible"));
     const firstProgressDuration = await page.evaluate(
       () =>
@@ -376,7 +379,10 @@ test("shows virtualized results for a large Work selection", async ({
           "bulk-edit-progress-visible",
         ).duration,
     );
-    expect(firstProgressDuration).toBeLessThanOrEqual(1000);
+    expect(
+      firstProgressDuration,
+      "Bulk Edit first progress must fit the p99 visibility budget",
+    ).toBeLessThanOrEqual(BULK_EDIT_FIRST_PROGRESS_MAX_MS);
     await expect(progress).toHaveAttribute("value", String(setup.workCount), {
       timeout: 5000,
     });

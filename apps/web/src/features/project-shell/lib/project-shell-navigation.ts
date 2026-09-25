@@ -98,6 +98,7 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
     "Planning remains outside Configuration Mode. Saved views are a separate Project configuration entry.",
 };
 
+export const BACKLOG_HASH = "backlog";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
 const WORK_RECORD_HASH_PREFIX = "work-";
 
@@ -166,9 +167,10 @@ export function dailyActionFromHash(hash: string) {
 export function isWorkSurfaceHash(hash: string) {
   return (
     hash === "work" ||
+    hash === BACKLOG_HASH ||
     hash === PRIORITY_MAP_HASH ||
     dailyActionFromHash(hash) !== null ||
-    hash.startsWith(WORK_RELATIONS_HASH_PREFIX)
+    hash.startsWith(WORK_RECORD_HASH_PREFIX)
   );
 }
 
