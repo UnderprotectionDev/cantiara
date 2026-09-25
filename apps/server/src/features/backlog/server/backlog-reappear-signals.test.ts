@@ -16,9 +16,9 @@ describe("Backlog reappear-date signal", () => {
     expect(dueReappearSignal(work, true, "2026-09-25")).toBeNull();
   });
 
-  test("produces one source-linked Action needed identity when opted in", () => {
+  test("produces one source-linked Action Required identity when opted in", () => {
     expect(dueReappearSignal(work, true, "2026-09-26")).toEqual({
-      presentation: "Action needed",
+      presentation: "Action Required",
       projectId: "project-1",
       reappearDate: "2026-09-26",
       signalId: "reappear-date:work-1:2026-09-26",

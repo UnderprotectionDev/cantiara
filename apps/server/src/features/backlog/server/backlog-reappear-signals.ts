@@ -34,7 +34,7 @@ export function dueReappearSignal(
     return null;
   }
   return {
-    presentation: "Action needed" as const,
+    presentation: "Action Required" as const,
     projectId: source.projectId,
     reappearDate: source.reappearDate,
     signalId: `reappear-date:${source.id}:${source.reappearDate}`,

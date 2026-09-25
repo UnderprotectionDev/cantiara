@@ -470,6 +470,13 @@
       "when": 1790354848505,
       "tag": "0066_backlog-reappear-attention-signal",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1790357696769,
+      "tag": "0067_backlog-reappear-action-required-class",
+      "breakpoints": true
     }
   ]
 }

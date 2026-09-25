@@ -68,7 +68,7 @@ export const projectBacklogReappearAttentionSignal = pgTable(
     ownerAccountId: text("owner_account_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    presentation: text("presentation").default("Action needed").notNull(),
+    presentation: text("presentation").default("Action Required").notNull(),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
@@ -88,7 +88,7 @@ export const projectBacklogReappearAttentionSignal = pgTable(
     ),
     check(
       "backlog_reappear_signal_presentation_check",
-      sql`${table.presentation} = 'Action needed'`,
+      sql`${table.presentation} = 'Action Required'`,
     ),
   ],
 );

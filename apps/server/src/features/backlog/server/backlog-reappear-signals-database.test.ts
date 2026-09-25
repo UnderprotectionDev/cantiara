@@ -181,7 +181,7 @@ describeDatabase("Backlog reappear-date signal PostgreSQL integration", () => {
       );
     expect(signals).toMatchObject([
       {
-        presentation: "Action needed",
+        presentation: "Action Required",
         projectId: on.id,
         reappearDate: "2026-09-26",
         signalId: `reappear-date:${onWorkId}:2026-09-26`,
