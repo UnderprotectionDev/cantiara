@@ -1,6 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls close over the current Backlog presentation.
 
-import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import type {
   BacklogSavedPresentation,
   BacklogWork,
@@ -36,6 +39,7 @@ import { Link } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -48,10 +52,12 @@ import {
 
 function BacklogCard({
   canReorder,
+  formattingPreferences,
   projectId,
   work,
 }: {
   canReorder: boolean;
+  formattingPreferences: AccountPreferences;
   projectId: string;
   work: BacklogWork;
 }) {
@@ -140,7 +146,10 @@ function BacklogCard({
               />
             }
           >
-            Reappear date{reappearDate ? `: ${reappearDate}` : ""}
+            Reappear date
+            {reappearDate
+              ? `: ${formatAccountDate(reappearDate, formattingPreferences)}`
+              : ""}
             <CalendarDays aria-hidden="true" />
           </PopoverTrigger>
           <PopoverContent align="end" className="w-auto min-w-72">
@@ -332,6 +341,10 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   }
 
   const works = query.data;
+  const formattingPreferences = {
+    ...DEFAULT_ACCOUNT_PREFERENCES,
+    ...preferencesQuery.data,
+  };
   const enabledMetrics = (priorityQuery.data?.definitions ?? []).filter(
     (definition) => definition.enabled && !definition.trashedAt,
   );
@@ -530,6 +543,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
             {current.map((work) => (
               <BacklogCard
                 canReorder={canReorder}
+                formattingPreferences={formattingPreferences}
                 key={work.id}
                 projectId={projectId}
                 work={work}
@@ -545,6 +559,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
             {deferred.map((work) => (
               <BacklogCard
                 canReorder={false}
+                formattingPreferences={formattingPreferences}
                 key={work.id}
                 projectId={projectId}
                 work={work}
