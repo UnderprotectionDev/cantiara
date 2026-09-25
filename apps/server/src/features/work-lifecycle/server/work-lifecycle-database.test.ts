@@ -953,6 +953,25 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
       revision: 3,
       status: "In Progress",
     });
+    const history = await database
+      .select()
+      .from(mutationHistory)
+      .where(eq(mutationHistory.targetId, created.id));
+    expect(
+      history.find((entry) => entry.revision === closed.revision)?.nextValue,
+    ).toMatchObject({
+      work: {
+        closureReason: "The provider removed this path.",
+        closureResult: "Abandoned",
+        status: "Closed",
+      },
+    });
+    expect(
+      history.find((entry) => entry.revision === reopened.revision)
+        ?.previousValue,
+    ).toMatchObject({
+      work: { closureResult: "Abandoned", status: "Closed" },
+    });
   });
 
   test("merges Work atomically, resolves the retired identity, and undoes only merge-attributed changes", async () => {

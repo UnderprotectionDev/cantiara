@@ -149,6 +149,20 @@ describe("Kanban Board", () => {
     expect(html).toContain('aria-label="In Progress Work"');
   });
 
+  test("keeps Completed and Abandoned distinct on Closed cards", () => {
+    const completed = workForStatus("Closed", 1);
+    const abandoned = {
+      ...workForStatus("Closed", 2),
+      closureResult: "Abandoned" as const,
+    };
+
+    const html = renderBoard([completed, abandoned]);
+    const cards = html.match(/<article\b[\s\S]*?<\/article>/g) ?? [];
+
+    expect(cards.find((card) => card.includes("CAN-1"))).toContain("Completed");
+    expect(cards.find((card) => card.includes("CAN-2"))).toContain("Abandoned");
+  });
+
   test("shows active Work count, elapsed time, and non-blocking threshold signals", () => {
     const works = [
       workForStatus("In Progress", 1),
