@@ -1,5 +1,6 @@
 import { SUPPORT_REFERENCE_PATTERN } from "@cantiara/api/support-reference";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const WORK_LIST_NAME = "Work list";
@@ -273,6 +274,7 @@ test("shows virtualized results for a large Work selection", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
+  await openWorkRecordFromKanbanList(page);
 
   const workRows = page.locator('ul[aria-label="Work list"] > li');
   await expect(workRows).toHaveCount(setup.workCount, { timeout: 30_000 });

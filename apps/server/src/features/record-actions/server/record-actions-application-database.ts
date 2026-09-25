@@ -974,6 +974,9 @@ async function writeMutationValue(
   };
   if (input.nextValue.status !== undefined) {
     update.status = input.nextValue.status;
+    if (ownedWork.record.status !== input.nextValue.status) {
+      update.statusChangedAt = input.committedAt;
+    }
     update.closureReason = input.nextValue.closureReason ?? null;
     update.closureResult = input.nextValue.closureResult ?? null;
   }

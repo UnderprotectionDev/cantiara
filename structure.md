@@ -131,6 +131,7 @@
 │       │   ├── client-shell.e2e.ts
 │       │   ├── command-palette.e2e.ts
 │       │   ├── custom-fields.e2e.ts
+│       │   ├── kanban.e2e.ts
 │       │   ├── project-shell.e2e.ts
 │       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
@@ -365,6 +366,22 @@
 │       │   │   │           ├── draft-custom-fields.test.ts
 │       │   │   │           ├── draft-custom-fields.ts
 │       │   │   │           └── work-draft-form.tsx
+│       │   │   ├── kanban/
+│       │   │   │   ├── lib/
+│       │   │   │   │   ├── kanban-card-summary.test.ts
+│       │   │   │   │   ├── kanban-card-summary.ts
+│       │   │   │   │   ├── kanban-status.test.ts
+│       │   │   │   │   ├── kanban-status.ts
+│       │   │   │   │   ├── kanban-view.test.ts
+│       │   │   │   │   └── kanban-view.ts
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── kanban-board.test.tsx
+│       │   │   │           ├── kanban-board.tsx
+│       │   │   │           ├── kanban-list.test.tsx
+│       │   │   │           ├── kanban-list.tsx
+│       │   │   │           ├── kanban-work-summary.tsx
+│       │   │   │           └── project-work-kanban.tsx
 │       │   │   ├── work-lifecycle/
 │       │   │       └── ui/
 │       │   │           ├── components/

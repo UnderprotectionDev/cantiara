@@ -529,7 +529,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tarih sıralaması | `Date` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Alan sıralaması | `Field` | Backlog alternatif sunumu; saklı manuel sırayı yazmaz |
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
+| Kanban kartını taşı | `Move` | Kartı korunan İş akışı durumu sütunları arasında sürükleme denetimi; `Status` kontrolü tıklama ve klavye alternatifi sunar ([Kanban test seam'i](../specs/25-kanban/spec.md#testing-decisions)) |
 | Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
+| Sıralama alanı | `Sort by` | `Board` ve `List` için ortak kayıtlı İş sıralama alanını seçme |
+| Sıralama yönü | `Sort direction` | `Board` ve `List` için ortak kayıtlı sıralama yönünü seçme |
+| İş numarası | `Work number` | İşleri Projedeki değişmeyen numarasına göre sıralama seçeneği |
+| Oluşturulma | `Created` | İşleri oluşturulma zamanına göre sıralama seçeneği |
+| Güncellenme | `Updated` | İşleri son güncellenme zamanına göre sıralama seçeneği |
 | Gallery | `Gallery` | Akıllı Koleksiyon adlandırılmış görünüm sunumu; Dosya Eki kütüphanesi, Moodboard veya ayrı kapak kaydı değildir |
 | Varsayılan görünüm | `Default` | İş koleksiyonunda ilk adlandırılmış görünüm adı |
 | Adlandırılmış görünüm | `Named view` | Aynı Akıllı Koleksiyon üyeliği üzerindeki saklı sunum; ikinci üyelik kümesi değildir |
@@ -699,6 +705,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | GitHub ile devam | `Continue with GitHub` | GitHub login OAuth ile Hesaba giriş eylemi |
 | Oturumu kapat | `Sign Out` | Geçerli ürün oturumunu sonlandırma eylemi |
 | Oturumlar | `Sessions` | Hesap kapsamındaki aktif ürün oturumlarını cihaz ve son etkinlikle listeleme yüzeyi |
+| Oturum kullanılamıyor | `Session unavailable` | Geçici oturum servis hatasının hesabı oturumdan çıkarmadığını ve yeniden deneme gerektiğini bildiren durum |
 | Hesap tercihleri | `Preferences` | Locale, saat dilimi, tarih biçimi, haftanın ilk günü ve Appearance yüzeyi |
 | Locale | `Locale` | Tarih, saat ve sayı biçimini seçen Hesap tercihi; arayüz dili değildir |
 | Saat dilimi | `Time zone` | Takvim gün sınırı, tarih girişi ve tarihsel gösterim dilimi |

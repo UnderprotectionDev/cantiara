@@ -287,7 +287,7 @@ Düzenleme ve yapılandırma araçlarını gizleyen yüzey-yerel kip; isteğe ba
 _Avoid_: slayt, sunum kaydı, içerik kopyası, herkese açık snapshot
 
 **Kanban**:
-İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`.
+İşleri İş akışı durumuna göre sütunlarda gösteren planlama yüzeyi; sütunlar arası kart hareketi duruma yansır, kapanış sonucu veya ikinci kayıt listesi değildir ([Kanban](docs/prd/06-work-management-and-planning.md)). UI: `Board`, `Kanban`, `List`, `Move`, `Over limit`, `Time in status`, `In Progress count`, `Collapse`, `Expand`, `Open blocker`, `Reappear date`, `Sort by`, `Sort direction`, `Work number`, `Title`, `Created`, `Updated`, `Ascending`, `Descending`.
 _Avoid_: Sprint tahtası, kapanış kolonu, bağımsız manuel sıra
 
 **Soft WIP**:

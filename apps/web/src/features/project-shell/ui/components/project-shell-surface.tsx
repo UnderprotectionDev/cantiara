@@ -7,7 +7,7 @@ import {
   type ProjectArea,
   type ProjectShellConfiguration,
 } from "@cantiara/api/project-shell";
-import type { ScopeTree } from "@cantiara/api/work-lifecycle";
+import type { ScopeTree, WorkStatus } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -37,12 +37,15 @@ import {
   DAILY_ACTIONS,
   type DailyAction,
   dailyActionFromHash,
+  isWorkRecordHash,
+  isWorkRelationsHash,
   isWorkSurfaceHash,
   NAVIGATION_LINK_BASE,
   type NavigationSurface,
   navigationHash,
   navigationSurfaceFromHash,
   PRIORITY_MAP_HASH,
+  workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
@@ -51,9 +54,13 @@ import { ClientShellStatus } from "@/features/web-macos-client/ui/components/cli
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
+import type { WorkStatusActionRequest } from "@/features/work-lifecycle/ui/forms/work-status-form";
 
 const PriorityMap = lazy(
   () => import("@/features/priority-metrics/ui/components/priority-map"),
+);
+const ProjectWorkKanban = lazy(
+  () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
 
 export default function ProjectShellSurface({
@@ -171,6 +178,7 @@ export default function ProjectShellSurface({
           activeAction={dailyAction}
           activeHash={activeHash}
           configuration={configuration}
+          key={projectId}
           projectId={projectId}
         />
       );
@@ -360,6 +368,32 @@ function ProjectWorkSurface({
   configuration: ProjectShellConfiguration;
   projectId: string;
 }) {
+  const navigate = useNavigate();
+  const [selectedWorkView, setSelectedWorkView] = useState<"Board" | "List">(
+    "Board",
+  );
+  const [statusActionRequest, setStatusActionRequest] =
+    useState<WorkStatusActionRequest | null>(null);
+  const showSourceWork =
+    isWorkRecordHash(activeHash) || isWorkRelationsHash(activeHash);
+
+  function requestExplicitStatusAction(input: {
+    status: WorkStatus;
+    workId: string;
+  }) {
+    setStatusActionRequest({ ...input, id: crypto.randomUUID() });
+    navigate({
+      hash: workRecordHash(input.workId),
+      params: { projectId },
+      to: "/projects/$projectId",
+    });
+  }
+
+  function handleStatusActionRequest(requestId: string) {
+    setStatusActionRequest((current) =>
+      current?.id === requestId ? null : current,
+    );
+  }
   const isBacklog = activeHash === BACKLOG_HASH;
   const workContent = (() => {
     if (isBacklog) {
@@ -385,13 +419,52 @@ function ProjectWorkSurface({
           activeAction={activeAction}
           projectId={projectId}
         />
-        <ProjectWorkList
-          accountFormattingPreferences={accountFormattingPreferences}
-          accountId={accountId}
-          projectId={projectId}
-          workContextLayouts={configuration.workContextLayouts}
-          workStatusLabels={configuration.workStatusLabels}
-        />
+        {showSourceWork ||
+        !configuration.preparedWorkViews.includes("Board") ? (
+          <ProjectWorkList
+            accountFormattingPreferences={accountFormattingPreferences}
+            accountId={accountId}
+            onStatusActionRequestHandled={handleStatusActionRequest}
+            projectId={projectId}
+            statusActionRequest={statusActionRequest}
+            workContextLayouts={configuration.workContextLayouts}
+            workStatusLabels={configuration.workStatusLabels}
+          />
+        ) : (
+          <div className="space-y-3">
+            <nav aria-label="Work views" className="flex gap-2">
+              {(["Board", "List"] as const).map((view) => (
+                <Button
+                  aria-pressed={selectedWorkView === view}
+                  key={view}
+                  onClick={() => setSelectedWorkView(view)}
+                  type="button"
+                  variant={selectedWorkView === view ? "default" : "outline"}
+                >
+                  {view}
+                </Button>
+              ))}
+            </nav>
+            <Suspense
+              fallback={
+                <p className="text-muted-foreground text-sm" role="status">
+                  Loading Work…
+                </p>
+              }
+            >
+              <ProjectWorkKanban
+                accountFormattingPreferences={accountFormattingPreferences}
+                focusThreshold={configuration.workFocusThreshold}
+                onExplicitStatusAction={requestExplicitStatusAction}
+                projectId={projectId}
+                softWipLimits={configuration.workStatusSoftWipLimits}
+                sort={configuration.workSort}
+                view={selectedWorkView}
+                workStatusLabels={configuration.workStatusLabels}
+              />
+            </Suspense>
+          </div>
+        )}
         <PrioritizationSurface projectId={projectId} />
       </div>
     );
@@ -429,7 +502,7 @@ function ProjectWorkSurface({
         )}
       </header>
 
-      <nav aria-label="Work views" className="flex flex-wrap gap-2">
+      <nav aria-label="Planning surfaces" className="flex flex-wrap gap-2">
         <Link
           aria-current={isBacklog ? undefined : "page"}
           className={buttonVariants({

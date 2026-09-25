@@ -46,10 +46,10 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 
 | Başlangıç yapılandırması | Hazır Proje aşamaları | Etkin Proje alanları | Temel erişime ek sabitlenmiş alanlar | Hazır İş görünümleri |
 | --- | --- | --- | --- | --- |
-| `Blank Project` | Yok | `Work`, `Documents` | Yok | `Backlog`, `Board` |
-| `Solo SaaS` | `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate` | Bütün Proje alanları | `Discovery`, `Decisions`, `Design`, `Tests`, `Releases` | `Backlog`, `Board`, `Roadmap` |
-| `Open Source Library` | `Scope`, `Build`, `Validate`, `Release`, `Maintain` | `Work`, `Documents`, `Decisions`, `Technical Diagrams`, `Tests`, `Releases`, `GitHub` | `GitHub`, `Tests`, `Releases` | `Backlog`, `Board`, `Roadmap` |
-| `Mobile Application` | `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate` | Bütün Proje alanları | `Discovery`, `Design`, `Tests`, `Releases`, `Production` | `Backlog`, `Board`, `Roadmap` |
+| `Blank Project` | Yok | `Work`, `Documents` | Yok | `Backlog`, `Board`, `List` |
+| `Solo SaaS` | `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate` | Bütün Proje alanları | `Discovery`, `Decisions`, `Design`, `Tests`, `Releases` | `Backlog`, `Board`, `List`, `Roadmap` |
+| `Open Source Library` | `Scope`, `Build`, `Validate`, `Release`, `Maintain` | `Work`, `Documents`, `Decisions`, `Technical Diagrams`, `Tests`, `Releases`, `GitHub` | `GitHub`, `Tests`, `Releases` | `Backlog`, `Board`, `List`, `Roadmap` |
+| `Mobile Application` | `Discovery`, `Design`, `Build`, `Validate`, `Release`, `Operate` | Bütün Proje alanları | `Discovery`, `Design`, `Tests`, `Releases`, `Production` | `Backlog`, `Board`, `List`, `Roadmap` |
 
 - **`Blank Project` yapılandırmasındaki `Blank`, ürün yeteneklerinin veya veri modelinin bulunmadığı anlamına gelmez.** Aşama, uzman görünüm ya da Başlangıç iskeleti kurmaz; diğer hazır alanlar `All Tools` içinde görünür ve kullanıcı tarafından etkinleştirilebilir.
 

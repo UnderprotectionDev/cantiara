@@ -114,6 +114,17 @@ export function workRelationsHash(workId: string) {
   return `${WORK_RELATIONS_HASH_PREFIX}${encodeURIComponent(workId)}`;
 }
 
+export function isWorkRecordHash(hash: string) {
+  return (
+    hash.startsWith(WORK_RECORD_HASH_PREFIX) &&
+    !hash.startsWith(WORK_RELATIONS_HASH_PREFIX)
+  );
+}
+
+export function isWorkRelationsHash(hash: string) {
+  return hash.startsWith(WORK_RELATIONS_HASH_PREFIX);
+}
+
 export function navigationSurfaceFromHash(
   hash: string,
   enabledAreas: readonly ProjectArea[],
@@ -170,7 +181,8 @@ export function isWorkSurfaceHash(hash: string) {
     hash === BACKLOG_HASH ||
     hash === PRIORITY_MAP_HASH ||
     dailyActionFromHash(hash) !== null ||
-    hash.startsWith(WORK_RECORD_HASH_PREFIX)
+    isWorkRecordHash(hash) ||
+    isWorkRelationsHash(hash)
   );
 }
 

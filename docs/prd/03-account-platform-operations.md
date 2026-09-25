@@ -42,6 +42,8 @@ Bu belge Hesap oluşturma ve kapatma, Hesap profil tercihleri, oturum güvenliğ
 
 - **Web ve Tauri oturumları 12 saat hareketsizlikten veya oluşturulduktan 30 gün sonra sona erer.** Kullanıcı tek oturumu ya da diğer bütün oturumları cihaz ve son etkinlik bilgisiyle iptal edebilir.
 
+- **Korunan bir web yolunda oturum denetimi geçici servis hatası döndürürse kullanıcı oturumu kapatılmış sayılmaz.** `Session unavailable` durumu `Retry` eylemini sunar ve varsa doğrulanmış sunucu `Support reference` değerini gösterir; referans yoksa `Support reference unavailable.` gösterilir. Yeniden deneme başarılı olana veya kullanıcı açıkça giriş yapana kadar korunan içerik açılmaz.
+
 - **GitHub kesintisinde mevcut ve geçerli ürün oturumu olağan süresi dolana kadar özel ürün verisinde normal okuma ve yazmaya devam eder; oturum süresi uzatılmaz.** Yeni giriş, GitHub kimliğini yeniden teyit etme ve GitHub eşitlemesi görünür biçimde bekler; teyit gerektiren yüksek riskli eylemler uygulanmaz. Oturum ve Dış yüzey iptali gibi yalnız erişimi azaltan güvenlik eylemleri bu nedenle engellenmez.
 
 ### GitHub kimliğini yeniden teyit etme

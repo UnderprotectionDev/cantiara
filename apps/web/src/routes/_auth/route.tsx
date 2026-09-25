@@ -14,39 +14,100 @@ import {
   redirect,
   useRouter,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import {
   isOfflineTransportFailure,
   supportRetryBound,
   supportWriteOutcomeLabel,
 } from "@/features/web-macos-client/lib/support-reference";
-import { defaultClientShell } from "@/features/web-macos-client/store/client-shell";
-import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import {
+  ClientShellOfflineError,
+  defaultClientShell,
+} from "@/features/web-macos-client/store/client-shell";
 import { authClient } from "@/lib/auth-client";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function sessionStatus(error: unknown) {
+  if (!(isRecord(error) && "status" in error)) {
+    return Number.NaN;
+  }
+  return Number(error.status);
+}
+
+function isTemporarySessionError(error: unknown) {
+  const status = sessionStatus(error);
+  return (
+    error instanceof TypeError ||
+    isOfflineTransportFailure(error) ||
+    status === 0 ||
+    (Number.isFinite(status) && status >= 500)
+  );
+}
+
+function sessionFailureData(error: unknown): Record<string, unknown> {
+  if (!isRecord(error)) {
+    return {};
+  }
+  const {
+    data: rawData,
+    error: rawNestedError,
+    retryPolicy: rootRetryPolicy,
+    supportReference: rootSupportReference,
+    writeOutcome: rootWriteOutcome,
+  } = error;
+  const nestedError = isRecord(rawNestedError) ? rawNestedError : {};
+  const {
+    data: nestedData,
+    retryPolicy: nestedRetryPolicy,
+    supportReference: nestedSupportReference,
+    writeOutcome: nestedWriteOutcome,
+  } = nestedError;
+  const data = [rawData, nestedData].find(isRecord) ?? {};
+  return {
+    ...data,
+    supportReference:
+      data.supportReference ?? rootSupportReference ?? nestedSupportReference,
+    retryPolicy: data.retryPolicy ?? rootRetryPolicy ?? nestedRetryPolicy,
+    writeOutcome: data.writeOutcome ?? rootWriteOutcome ?? nestedWriteOutcome,
+  };
+}
+
 class SessionCheckError extends Error {
+  readonly networkFailure: boolean;
   readonly supportReference?: string;
   readonly retryPolicy: SupportRetryPolicy;
   readonly writeOutcome: SupportWriteOutcome;
 
-  constructor(error: unknown) {
-    super("Session check failed");
+  constructor(error: unknown, options: ErrorOptions = {}) {
+    super("Session check failed", {
+      ...options,
+      cause: options.cause ?? error,
+    });
     this.name = "SessionCheckError";
-    const data = isRecord(error) && isRecord(error.data) ? error.data : {};
-    if (isSupportReference(data.supportReference)) {
+    const networkFailure =
+      error instanceof TypeError ||
+      isOfflineTransportFailure(error) ||
+      sessionStatus(error) === 0;
+    this.networkFailure = networkFailure;
+    const data = sessionFailureData(error);
+    if (!networkFailure && isSupportReference(data.supportReference)) {
       this.supportReference = data.supportReference;
     }
-    this.retryPolicy = isSupportRetryPolicy(data.retryPolicy)
-      ? data.retryPolicy
-      : "never";
-    this.writeOutcome = isSupportWriteOutcome(data.writeOutcome)
-      ? data.writeOutcome
-      : "unknown";
+    if (networkFailure) {
+      this.retryPolicy = "once";
+      this.writeOutcome = "not-written";
+    } else {
+      this.retryPolicy = isSupportRetryPolicy(data.retryPolicy)
+        ? data.retryPolicy
+        : "never";
+      this.writeOutcome = isSupportWriteOutcome(data.writeOutcome)
+        ? data.writeOutcome
+        : "unknown";
+    }
   }
 }
 
@@ -57,9 +118,17 @@ export const Route = createFileRoute("/_auth")({
   errorComponent: AuthRouteError,
   beforeLoad: async () => {
     defaultClientShell.assertOnline();
-    const session = await defaultClientShell.runOnlineOnly(() =>
-      authClient.getSession(),
-    );
+    let session: Awaited<ReturnType<typeof authClient.getSession>>;
+    try {
+      session = await defaultClientShell.runOnlineOnly(() =>
+        authClient.getSession(),
+      );
+    } catch (error) {
+      if (isTemporarySessionError(error)) {
+        throw new SessionCheckError(error, { cause: error });
+      }
+      throw error;
+    }
     if (session.error) {
       throw new SessionCheckError(session.error);
     }
@@ -81,9 +150,8 @@ function AuthRouteError({ error }: ErrorComponentProps) {
   const router = useRouter();
   const connection = useClientShellConnection();
   const [isRetrying, setIsRetrying] = useState(false);
-  const wasOffline = useRef(connection === "offline");
   const handleRetry = useCallback(async () => {
-    if (isRetrying || sessionCheckRetryConsumed) {
+    if (isRetrying || sessionCheckRetryConsumed || connection === "offline") {
       return;
     }
 
@@ -96,37 +164,20 @@ function AuthRouteError({ error }: ErrorComponentProps) {
     } finally {
       setIsRetrying(false);
     }
-  }, [isRetrying, router]);
-
-  useEffect(() => {
-    if (connection === "offline") {
-      wasOffline.current = true;
-      return;
-    }
-
-    if (wasOffline.current) {
-      wasOffline.current = false;
-      router.invalidate().catch(() => undefined);
-    }
-  }, [connection, router]);
-
-  if (connection === "offline") {
-    return (
-      <ClientShellContent>
-        <ErrorComponent error={error} />
-      </ClientShellContent>
-    );
-  }
+  }, [connection, isRetrying, router]);
 
   const isNetworkFailure =
-    error instanceof TypeError && isOfflineTransportFailure(error);
-  const isSessionCheckFailure = error instanceof SessionCheckError;
+    error instanceof ClientShellOfflineError ||
+    (error instanceof TypeError && isOfflineTransportFailure(error)) ||
+    (error instanceof SessionCheckError && error.networkFailure);
+  const isSessionCheckFailure =
+    error instanceof SessionCheckError && !error.networkFailure;
   const writeOutcome = isSessionCheckFailure
     ? error.writeOutcome
     : "not-written";
   const retryPolicy = isSessionCheckFailure ? error.retryPolicy : "once";
   const canRetry =
-    !sessionCheckRetryConsumed &&
+    !(sessionCheckRetryConsumed || isRetrying) &&
     retryPolicy === "once" &&
     writeOutcome === "not-written" &&
     (isNetworkFailure || isSessionCheckFailure);
@@ -168,7 +219,7 @@ function AuthRouteError({ error }: ErrorComponentProps) {
           <div className="mt-6">
             {canRetry ? (
               <Button
-                disabled={isRetrying}
+                disabled={isRetrying || connection === "offline"}
                 onClick={handleRetry}
                 type="button"
                 variant="outline"

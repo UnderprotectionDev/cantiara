@@ -804,6 +804,7 @@ const WORK_MERGE_FIELD_LABELS: Record<
   featureHealthHistory: "Feature health",
   primaryFeatureId: "Included in",
   primarySpecId: "Primary spec",
+  reappearDate: "Reappear date",
   status: "Status",
   targetDate: "Target date",
   title: "Title",
@@ -1134,9 +1135,11 @@ export async function createWork(
           primarySpecId: null,
           plannedStartDate: mutationPayload.plannedStartDate,
           projectId: reservation.projectId,
+          reappearDate: null,
           recreatedFrom: mutationPayload.recreatedFrom,
           revision: currentRevision + 1,
           status: "Not Started",
+          statusChangedAt: timestamp,
           targetDate: mutationPayload.targetDate,
           title: mutationPayload.title,
           type: mutationPayload.type,
@@ -1460,6 +1463,7 @@ export function createWorkLifecycle({
               closureResult: payload.closureResult,
               revision: currentRevision + 1,
               status: "Closed",
+              statusChangedAt: timestamp,
               updatedAt: timestamp,
             },
           } satisfies WorkLifecycleMutationValue;
@@ -1540,7 +1544,9 @@ export function createWorkLifecycle({
           projectId: reservation.projectId,
           recreatedFrom: null,
           revision: 1,
+          reappearDate: null,
           status: "Not Started",
+          statusChangedAt: timestamp,
           targetDate: null,
           title: preview.newWork.title,
           type: "Task",
@@ -1859,6 +1865,10 @@ export function createWorkLifecycle({
             work: {
               ...mergedWork,
               revision: currentRevision + 1,
+              statusChangedAt:
+                currentValue.work.status === mergedWork.status
+                  ? currentValue.work.statusChangedAt
+                  : timestamp,
               updatedAt: timestamp,
             },
           } satisfies WorkLifecycleMutationValue;
@@ -2237,6 +2247,7 @@ export function createWorkLifecycle({
               closureResult: null,
               revision: currentRevision + 1,
               status: payload.status,
+              statusChangedAt: timestamp,
               updatedAt: timestamp,
             },
           } satisfies WorkLifecycleMutationValue;
@@ -2298,12 +2309,17 @@ export function createWorkLifecycle({
               previousValue.work as unknown as Record<string, unknown>
             )[field];
           }
+          const timestamp = new Date().toISOString();
           return {
             merge: { ...mergeMutation, operation: "undo" },
             work: {
               ...restoredWork,
               revision: currentRevision + 1,
-              updatedAt: new Date().toISOString(),
+              statusChangedAt:
+                restoredWork.status === currentValue.work.status
+                  ? currentValue.work.statusChangedAt
+                  : timestamp,
+              updatedAt: timestamp,
             },
           } satisfies WorkLifecycleMutationValue;
         },
@@ -2350,6 +2366,7 @@ export function createWorkLifecycle({
           if (!(currentValue.work && previousValue.work)) {
             throw new WorkStatusUndoUnavailableError();
           }
+          const timestamp = new Date().toISOString();
           return {
             ...currentValue,
             work: {
@@ -2358,7 +2375,8 @@ export function createWorkLifecycle({
               closureResult: previousValue.work.closureResult,
               revision: currentRevision + 1,
               status: previousValue.work.status,
-              updatedAt: new Date().toISOString(),
+              statusChangedAt: timestamp,
+              updatedAt: timestamp,
             },
           } satisfies WorkLifecycleMutationValue;
         },
@@ -2426,6 +2444,7 @@ export function createWorkLifecycle({
               closureResult: null,
               revision: currentRevision + 1,
               status: payload.status,
+              statusChangedAt: timestamp,
               updatedAt: timestamp,
             },
           } satisfies WorkLifecycleMutationValue;

@@ -424,6 +424,7 @@ export const WORK_MERGE_FIELD_OPTIONS = [
   "checklist",
   "effort",
   "featureHealthHistory",
+  "reappearDate",
   "status",
   "targetDate",
   "closureResult",
@@ -527,6 +528,7 @@ export interface WorkMergeFieldPreview {
     | "Description"
     | "Checklist"
     | "Effort"
+    | "Reappear date"
     | "Status"
     | "Target date"
     | "Closure result"
@@ -694,6 +696,7 @@ export interface WorkProfile {
   recreatedFrom: { id: string; key: string } | null;
   revision: number;
   status: WorkStatus;
+  statusChangedAt: string;
   targetDate: string | null;
   title: string;
   type: WorkType;

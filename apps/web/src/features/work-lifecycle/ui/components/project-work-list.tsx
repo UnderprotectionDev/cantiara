@@ -56,18 +56,24 @@ import {
 } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
-import WorkStatusForm from "../forms/work-status-form";
+import WorkStatusForm, {
+  type WorkStatusActionRequest,
+} from "../forms/work-status-form";
 
 export default function ProjectWorkList({
   accountId,
   accountFormattingPreferences,
   projectId,
+  statusActionRequest,
+  onStatusActionRequestHandled,
   workContextLayouts,
   workStatusLabels,
 }: {
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   projectId: string;
+  statusActionRequest: WorkStatusActionRequest | null;
+  onStatusActionRequestHandled: (requestId: string) => void;
   workContextLayouts: ProjectShellConfiguration["workContextLayouts"];
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
@@ -337,6 +343,17 @@ export default function ProjectWorkList({
                   <WorkStatusForm
                     completionFeedback={completionFeedback.feedbackFor(work.id)}
                     onCloseOutcome={completionFeedback.handleCloseOutcome}
+                    onRequestedStatusActionHandled={
+                      onStatusActionRequestHandled
+                    }
+                    requestedStatusAction={
+                      statusActionRequest?.workId === work.id
+                        ? {
+                            id: statusActionRequest.id,
+                            status: statusActionRequest.status,
+                          }
+                        : null
+                    }
                     work={work}
                     workStatusLabels={workStatusLabels}
                   />

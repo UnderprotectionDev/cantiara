@@ -26,4 +26,15 @@ describe("Work Drafts", () => {
     ]);
     expect(parsed).not.toHaveProperty("customFieldDefinitions");
   });
+
+  test("does not accept Reappear date on Work Draft", () => {
+    expect(
+      workDraftFormSchema.safeParse({
+        projectId: "project-1",
+        reappearDate: "2026-10-01",
+        title: "Review deferred payment flow",
+        type: "Task",
+      }).success,
+    ).toBe(false);
+  });
 });
