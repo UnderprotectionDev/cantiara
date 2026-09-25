@@ -363,6 +363,8 @@
 │       │   │   │           └── work-draft-form.tsx
 │       │   │   ├── kanban/
 │       │   │   │   ├── lib/
+│       │   │   │   │   ├── kanban-card-summary.test.ts
+│       │   │   │   │   ├── kanban-card-summary.ts
 │       │   │   │   │   ├── kanban-status.test.ts
 │       │   │   │   │   └── kanban-status.ts
 │       │   │   │   └── ui/

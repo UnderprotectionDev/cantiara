@@ -2,6 +2,7 @@ import {
   PROTECTED_WORK_STATUS_OPTIONS,
   type WorkStatusLabel,
 } from "@cantiara/api/project-shell";
+import { workContextSourceText } from "@cantiara/api/work-context";
 import type { WorkProfile, WorkStatus } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
@@ -10,6 +11,7 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
+import { useQuery } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
 import {
   type ChangeEvent,
@@ -19,6 +21,8 @@ import {
 } from "react";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
+import { orpc } from "@/utils/orpc";
+import { buildKanbanCardSummary } from "../../lib/kanban-card-summary";
 
 const WORK_DRAG_TYPE = "kanban-work";
 const statusByDropId = new Map<string, WorkStatus>(
@@ -261,6 +265,7 @@ function KanbanCard({
       {work.closureResult ? (
         <Badge variant="secondary">{work.closureResult}</Badge>
       ) : null}
+      <KanbanCardSummary work={work} />
       {work.plannedStartDate || work.targetDate ? (
         <div className="space-y-1 text-muted-foreground text-xs">
           {work.plannedStartDate ? (
@@ -281,6 +286,39 @@ function KanbanCard({
         Open source record
       </a>
     </article>
+  );
+}
+
+function KanbanCardSummary({ work }: { work: WorkProfile }) {
+  const query = useQuery(
+    orpc.workContext.queryOptions({ input: { workId: work.id } }),
+  );
+  if (!query.data) {
+    return null;
+  }
+
+  const summary = buildKanbanCardSummary(work, query.data);
+  if (summary.priorities.length === 0 && summary.signals.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul
+      aria-label={`${work.key} priority, blocker, and risk summary`}
+      className="space-y-1 text-muted-foreground text-xs"
+    >
+      {summary.priorities.map((priority) => (
+        <li key={priority.id}>
+          <span className="text-muted-foreground">Priority:</span>{" "}
+          {priority.label}: {priority.value}
+        </li>
+      ))}
+      {summary.signals.map((signal) => (
+        <li key={signal.id}>
+          {signal.label}: {workContextSourceText(signal)}
+        </li>
+      ))}
+    </ul>
   );
 }
 
