@@ -330,6 +330,26 @@ function ConfigurationHostContent({
   projectName: string;
 }) {
   switch (label) {
+    case "Backlog":
+      return (
+        <div className="mt-3 space-y-3">
+          <label className="flex items-center gap-3">
+            <input
+              checked={configuration.notifyOnReappearDate ?? false}
+              disabled={disabled}
+              onChange={(event) =>
+                onChange({
+                  kind: "set-reappear-date-notification",
+                  enabled: event.target.checked,
+                })
+              }
+              type="checkbox"
+            />
+            Notify on Reappear date
+          </label>
+          <ConfigurationMutationError error={error} />
+        </div>
+      );
     case "Stages":
       return (
         <StagesConfiguration

@@ -540,6 +540,47 @@ describe("Project Shell RPC", () => {
     });
   });
 
+  test("keeps Reappear date notification off until this Project opts in", async () => {
+    let currentProject: ProjectProfile = {
+      ...project,
+      configuration: getProjectShellConfiguration("Blank Project"),
+    };
+    const projectShell: ProjectShellAccess = {
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
+    };
+    const updateMutation = createProjectUpdateMutation(
+      () => currentProject,
+      (nextProject) => {
+        currentProject = nextProject;
+      },
+    );
+    const client = createRouterClient(appRouter, {
+      context: createContext(projectShell, {
+        create: () => updateMutation,
+        update: () => updateMutation,
+      }),
+    });
+    expect(
+      (await client.project({ projectId: project.id }))?.configuration
+        .notifyOnReappearDate,
+    ).toBe(false);
+    const enabled = await client.updateProjectConfiguration({
+      baseRevision: currentProject.revision,
+      change: { kind: "set-reappear-date-notification", enabled: true },
+      clientIdempotencyKey: "enable-reappear-date",
+      projectId: project.id,
+    });
+    expect(enabled.configuration.notifyOnReappearDate).toBe(true);
+    expect(
+      (await client.project({ projectId: project.id }))?.configuration
+        .notifyOnReappearDate,
+    ).toBe(true);
+  });
+
   test("previews, applies, and safely undoes only the Work Context Card layout", async () => {
     let currentProject: ProjectProfile = {
       ...project,

@@ -468,6 +468,8 @@ export function getStarterConfigurationDefinition(
 
 export interface ProjectShellConfiguration
   extends StarterConfigurationDefinition {
+  notifyOnReappearDate?: boolean;
+  notifyOnReappearDateEnabledAt?: string | null;
   workContextLayouts: WorkContextLayouts;
   workFocusThreshold: number | null;
   workSort: ProjectWorkSort;
@@ -478,6 +480,8 @@ export interface ProjectShellConfiguration
 
 export const projectShellConfigurationSchema = z
   .object({
+    notifyOnReappearDate: z.boolean().optional(),
+    notifyOnReappearDateEnabledAt: z.iso.datetime().nullable().optional(),
     enabledAreas: z.array(projectAreaSchema),
     extraPinnedAreas: z.array(projectAreaSchema),
     hiddenAreas: z.array(projectAreaSchema),
@@ -497,6 +501,8 @@ export const projectShellConfigurationSchema = z
 
 const legacyProjectShellConfigurationSchema = z
   .object({
+    notifyOnReappearDate: z.boolean().optional(),
+    notifyOnReappearDateEnabledAt: z.iso.datetime().nullable().optional(),
     enabledAreas: z.array(projectAreaSchema),
     extraPinnedAreas: z.array(projectAreaSchema),
     hiddenAreas: z.array(projectAreaSchema).optional(),
@@ -519,6 +525,8 @@ export function getProjectShellConfiguration(
 ): ProjectShellConfiguration {
   return {
     ...getStarterConfigurationDefinition(configuration),
+    notifyOnReappearDate: false,
+    notifyOnReappearDateEnabledAt: null,
     workContextLayouts: getDefaultWorkContextLayouts(),
     workFocusThreshold: null,
     workSort: { direction: "ascending", field: "number" },
@@ -568,6 +576,9 @@ function cloneProjectShellConfiguration(
   configuration: ProjectShellConfiguration,
 ): ProjectShellConfiguration {
   return {
+    notifyOnReappearDate: configuration.notifyOnReappearDate ?? false,
+    notifyOnReappearDateEnabledAt:
+      configuration.notifyOnReappearDateEnabledAt ?? null,
     enabledAreas: [...configuration.enabledAreas],
     extraPinnedAreas: [...configuration.extraPinnedAreas],
     hiddenAreas: [...configuration.hiddenAreas],
@@ -593,6 +604,9 @@ export function resolveProjectShellConfiguration(
   const expected = getProjectShellConfiguration(starterConfiguration);
   if (parsed.success) {
     const resolved: ProjectShellConfiguration = {
+      notifyOnReappearDate: parsed.data.notifyOnReappearDate ?? false,
+      notifyOnReappearDateEnabledAt:
+        parsed.data.notifyOnReappearDateEnabledAt ?? null,
       enabledAreas: [...parsed.data.enabledAreas],
       extraPinnedAreas: [...parsed.data.extraPinnedAreas],
       hiddenAreas: [...parsed.data.hiddenAreas],
@@ -625,6 +639,9 @@ export function resolveProjectShellConfiguration(
   return legacy.success
     ? {
         ...legacy.data,
+        notifyOnReappearDate: legacy.data.notifyOnReappearDate ?? false,
+        notifyOnReappearDateEnabledAt:
+          legacy.data.notifyOnReappearDateEnabledAt ?? null,
         hiddenAreas: [...(legacy.data.hiddenAreas ?? [])],
         preparedStages: normalizeLegacyStages(legacy.data.preparedStages),
         preparedWorkViews: preparedWorkViewsWithList(
@@ -650,6 +667,9 @@ export function enableProjectArea(
 ): ProjectShellConfiguration {
   return {
     ...configuration,
+    notifyOnReappearDate: configuration.notifyOnReappearDate ?? false,
+    notifyOnReappearDateEnabledAt:
+      configuration.notifyOnReappearDateEnabledAt ?? null,
     enabledAreas: PROJECT_AREA_OPTIONS.filter(
       (candidate) =>
         candidate === area || configuration.enabledAreas.includes(candidate),
@@ -681,6 +701,12 @@ export const workContextLayoutChangeSchema = z
 export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
   "kind",
   [
+    z
+      .object({
+        kind: z.literal("set-reappear-date-notification"),
+        enabled: z.boolean(),
+      })
+      .strict(),
     z
       .object({
         kind: z.literal("add-stage"),
@@ -862,11 +888,18 @@ export function applyProjectShellConfigurationChange(
   configuration: ProjectShellConfiguration,
   change: ProjectShellConfigurationChange,
   starterConfiguration: StarterConfiguration,
+  now = new Date(),
 ): ProjectShellConfiguration {
   const parsedChange = projectShellConfigurationChangeSchema.parse(change);
   const next = cloneProjectShellConfiguration(configuration);
 
   switch (parsedChange.kind) {
+    case "set-reappear-date-notification":
+      next.notifyOnReappearDate = parsedChange.enabled;
+      next.notifyOnReappearDateEnabledAt = parsedChange.enabled
+        ? (configuration.notifyOnReappearDateEnabledAt ?? now.toISOString())
+        : null;
+      return next;
     case "add-stage":
       next.preparedStages = [
         ...next.preparedStages,

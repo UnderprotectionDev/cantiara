@@ -22,6 +22,12 @@ export const NAVIGATION_LINK_BASE =
 
 export const CONFIGURATION_HOSTS = [
   {
+    group: "Work",
+    label: "Backlog",
+    message:
+      "Choose whether this Project sends a signal when Work reaches its Reappear date.",
+  },
+  {
     group: "Project",
     label: "Project areas",
     message:

@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  date,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -8,7 +10,9 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { project } from "./project";
+import { work } from "./work";
 
 export const projectBacklogOrder = pgTable(
   "project_backlog_order",
@@ -53,6 +57,38 @@ export const projectBacklogPresentation = pgTable(
     check(
       "project_backlog_presentation_saved_check",
       sql`jsonb_typeof(${table.saved}) = 'object'`,
+    ),
+  ],
+);
+
+export const projectBacklogReappearAttentionSignal = pgTable(
+  "project_backlog_reappear_attention_signal",
+  {
+    occurredAt: timestamp("occurred_at").notNull(),
+    ownerAccountId: text("owner_account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    presentation: text("presentation").default("Action Required").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reappearDate: date("reappear_date", { mode: "string" }).notNull(),
+    signalId: text("signal_id").primaryKey(),
+    signalType: text("signal_type").default("reappear-date").notNull(),
+    sourcePath: text("source_path").notNull(),
+    sourceWorkId: text("source_work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("backlog_reappear_signal_work_idx").on(table.sourceWorkId),
+    check(
+      "backlog_reappear_signal_type_check",
+      sql`${table.signalType} = 'reappear-date'`,
+    ),
+    check(
+      "backlog_reappear_signal_presentation_check",
+      sql`${table.presentation} = 'Action Required'`,
     ),
   ],
 );

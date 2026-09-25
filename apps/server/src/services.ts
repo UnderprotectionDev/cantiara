@@ -19,6 +19,8 @@ import {
 import { createBacklogAccess } from "./features/backlog/server/backlog";
 import { createDatabaseBacklog } from "./features/backlog/server/backlog-database";
 import { createDatabaseBacklogMutationContracts } from "./features/backlog/server/backlog-mutation-database";
+import { createBacklogReappearSignalWorker } from "./features/backlog/server/backlog-reappear-signal-worker";
+import { sweepDueReappearSignals as sweepBacklogSignals } from "./features/backlog/server/backlog-reappear-signals";
 import {
   captureInboxMutationTarget,
   createDatabaseCaptureInbox,
@@ -109,6 +111,15 @@ const backlogStore = createDatabaseBacklog(db);
 export const backlog = createBacklogAccess(backlogStore);
 export const backlogMutationContracts =
   createDatabaseBacklogMutationContracts(db);
+export const sweepDueReappearSignals = (now = new Date()) =>
+  sweepBacklogSignals(db, now);
+const backlogReappearSignalWorker = createBacklogReappearSignalWorker({
+  connectionString: env.DATABASE_URL,
+  process: () => sweepDueReappearSignals(),
+});
+export const startBacklogReappearSignalWorker =
+  backlogReappearSignalWorker.start;
+export const stopBacklogReappearSignalWorker = backlogReappearSignalWorker.stop;
 const priorityMetricStore = createDatabasePriorityMetrics(db);
 export const priorityMetrics = createPriorityMetricsAccess(priorityMetricStore);
 export const priorityMetricMutationContracts =

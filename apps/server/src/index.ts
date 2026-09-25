@@ -31,6 +31,7 @@ import {
   recordActions,
   relations,
   replaySecurityRevocations,
+  startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
   sweepExpiredFileAttachmentUploads,
   sweepExpiredPriorityMetrics,
@@ -54,6 +55,7 @@ initLogger({
 
 await replaySecurityRevocations();
 await startFileAttachmentPreviewWorker();
+await startBacklogReappearSignalWorker();
 await sweepExpiredFileAttachmentUploads();
 await sweepExpiredPriorityMetrics();
 setInterval(
