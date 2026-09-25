@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
@@ -631,13 +632,10 @@ test("creates Work with a Project key, type, and protected start status", async 
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  await page.getByRole("button", { name: "List", exact: true }).click();
-  await page
-    .getByRole("list", { name: "List Work" })
-    .getByRole("listitem")
-    .filter({ hasText: "PAY-1 Investigate payment failures" })
-    .getByRole("link", { name: "Open source record" })
-    .click();
+  await openWorkRecordFromKanbanList(
+    page,
+    "PAY-1 Investigate payment failures",
+  );
 
   const sourceWork = workListItem(page, "PAY-1 Investigate payment failures");
   await sourceWork
@@ -673,12 +671,7 @@ test("creates Work with a Project key, type, and protected start status", async 
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  await page.getByRole("button", { name: "List", exact: true }).click();
-  await page
-    .getByRole("list", { name: "List Work" })
-    .getByRole("link", { name: "Open source record" })
-    .first()
-    .click();
+  await openWorkRecordFromKanbanList(page);
   const recreatedWork = workListItem(
     page,
     "ORD-1 Investigate payment failures",
@@ -766,13 +759,7 @@ test("shows Used in groups and opens cross-Project source records", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  await page.getByRole("button", { name: "List", exact: true }).click();
-  await page
-    .getByRole("list", { name: "List Work" })
-    .getByRole("listitem")
-    .filter({ hasText: "Target record" })
-    .getByRole("link", { name: "Open source record" })
-    .click();
+  await openWorkRecordFromKanbanList(page, "Target record");
   const targetWork = workListItem(page, "Target record");
   await expect(targetWork).toBeVisible({ timeout: 20_000 });
   const relations = targetWork.getByRole("region", { name: "Relations" });

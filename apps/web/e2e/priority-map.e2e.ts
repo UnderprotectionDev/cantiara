@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
@@ -191,13 +192,7 @@ test("compares Work on the Priority Map without writing position or status", asy
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { exact: true, name: "Work" })
     .click();
-  await page.getByRole("button", { name: "List", exact: true }).click();
-  await page
-    .getByRole("list", { name: "List Work" })
-    .getByRole("listitem")
-    .filter({ hasText: evaluatedTitle })
-    .getByRole("link", { name: "Open source record" })
-    .click();
+  await openWorkRecordFromKanbanList(page, evaluatedTitle);
   const persistedWork = workListItem(page, evaluatedTitle);
   await expect(persistedWork.getByLabel("Effort estimate")).toHaveValue("High");
   await expect(

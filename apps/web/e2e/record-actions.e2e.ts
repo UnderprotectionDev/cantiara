@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const DAILY_FOCUS_DATE_LABEL = /Daily Focus · \d{4}-\d{2}-\d{2}/;
@@ -239,12 +240,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  await page.getByRole("button", { name: "List", exact: true }).click();
-  await page
-    .getByRole("list", { name: "List Work" })
-    .getByRole("link", { name: "Open source record" })
-    .first()
-    .click();
+  await openWorkRecordFromKanbanList(page);
   const record = workList.getByRole("listitem").first();
   await record.getByRole("button", { name: "Start Work", exact: true }).click();
 
@@ -332,14 +328,7 @@ test("previews, applies, and undoes a Record Action from its Work", async ({
     .getByRole("navigation", { name: "Project navigation" })
     .getByRole("link", { name: "Work", exact: true })
     .click();
-  await competingPage
-    .getByRole("button", { name: "List", exact: true })
-    .click();
-  await competingPage
-    .getByRole("list", { name: "List Work" })
-    .getByRole("link", { name: "Open source record" })
-    .first()
-    .click();
+  await openWorkRecordFromKanbanList(competingPage);
   const competingRecord = competingPage
     .getByRole("list", { name: "Work list" })
     .getByRole("listitem")
