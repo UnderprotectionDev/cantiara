@@ -14,6 +14,7 @@ import {
   type WorkType,
   workChecklistInputSchema,
   workDescriptionSchema,
+  workReappearDateSchema,
   workTypeSchema,
 } from "./work-lifecycle";
 
@@ -57,6 +58,7 @@ const workDraftFormObjectSchema = z
     customFieldValues: workDraftCustomFieldValuesSchema.default([]),
     description: workDescriptionSchema.default(null),
     projectId: identifierSchema,
+    reappearDate: workReappearDateSchema.default(null),
     title: workDraftTitleSchema,
     type: workTypeSchema.default("Task"),
   })
@@ -102,6 +104,7 @@ export interface WorkDraft {
   description: string | null;
   id: string;
   projectId: string;
+  reappearDate: string | null;
   revision: number;
   title: string;
   type: WorkType;
@@ -145,6 +148,7 @@ export function workDraftMutationPayload(
     description: parsed.description,
     draftId: parsed.draftId,
     projectId: parsed.projectId,
+    reappearDate: parsed.reappearDate,
     title: parsed.title,
     type: parsed.type,
   };

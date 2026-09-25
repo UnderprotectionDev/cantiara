@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -32,6 +33,7 @@ export const workDraft = pgTable(
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
+    reappearDate: date("reappear_date", { mode: "string" }),
     revision: integer("revision").default(0).notNull(),
     title: text("title").default("").notNull(),
     type: text("type").default("Task").notNull(),

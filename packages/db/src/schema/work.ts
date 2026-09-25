@@ -49,7 +49,9 @@ export const work = pgTable(
     recreatedFromWorkId: text("recreated_from_work_id"),
     recreatedFromWorkKey: text("recreated_from_work_key"),
     revision: integer("revision").default(0).notNull(),
+    reappearDate: date("reappear_date", { mode: "string" }),
     status: text("status").default("Not Started").notNull(),
+    statusChangedAt: timestamp("status_changed_at").defaultNow().notNull(),
     targetDate: date("target_date", { mode: "string" }),
     title: text("title").notNull(),
     type: text("type").notNull(),
@@ -78,6 +80,10 @@ export const work = pgTable(
     check(
       "work_target_date_check",
       sql`${table.targetDate} is null or ${table.targetDate}::text ~ '^\\d{4}-\\d{2}-\\d{2}$'`,
+    ),
+    check(
+      "work_reappear_date_check",
+      sql`${table.reappearDate} is null or ${table.reappearDate}::text ~ '^\\d{4}-\\d{2}-\\d{2}$'`,
     ),
     check(
       "work_primary_feature_not_self_check",

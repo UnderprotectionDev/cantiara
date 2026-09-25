@@ -80,6 +80,7 @@ function draftNumberTextMatchesValue(
 interface WorkDraftFormValues {
   customFieldValues: WorkDraftCustomFieldValue[];
   description: string;
+  reappearDate: string;
   title: string;
   type: WorkType;
 }
@@ -87,6 +88,7 @@ interface WorkDraftFormValues {
 const EMPTY_VALUES: WorkDraftFormValues = {
   customFieldValues: [],
   description: "",
+  reappearDate: "",
   title: "",
   type: "Task",
 };
@@ -103,6 +105,7 @@ function draftValues(draft: WorkDraft): WorkDraftFormValues {
   return {
     customFieldValues: draft.customFieldValues,
     description: draft.description ?? "",
+    reappearDate: draft.reappearDate ?? "",
     title: draft.title,
     type: draft.type,
   };
@@ -633,6 +636,7 @@ export default function WorkDraftForm({
             : values.customFieldValues,
           description: values.description.trim() ? values.description : null,
           projectId: targetProjectId,
+          reappearDate: values.reappearDate || null,
           title: values.title,
           type: values.type,
         });
@@ -757,6 +761,7 @@ export default function WorkDraftForm({
         ? form.state.values.description
         : null,
       projectId: targetProjectId,
+      reappearDate: form.state.values.reappearDate || null,
       title: form.state.values.title,
       type: form.state.values.type,
     });
@@ -1059,6 +1064,28 @@ export default function WorkDraftForm({
                 }}
                 placeholder="Add context for the Work."
                 rows={4}
+                value={field.state.value}
+              />
+            </Field>
+          )}
+        </form.Field>
+
+        <form.Field name="reappearDate">
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="work-draft-reappear-date">
+                Reappear date
+              </FieldLabel>
+              <Input
+                disabled={isBusy}
+                id="work-draft-reappear-date"
+                name={field.name}
+                onChange={(event) => {
+                  const reappearDate = event.target.value;
+                  field.handleChange(reappearDate);
+                  queueAutosave({ ...form.state.values, reappearDate });
+                }}
+                type="date"
                 value={field.state.value}
               />
             </Field>

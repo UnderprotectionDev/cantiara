@@ -20,7 +20,7 @@ import {
   type WorkRetiredIdentity,
   workChecklistItemSchema,
 } from "@cantiara/api/work-lifecycle";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import type {
@@ -2515,8 +2515,10 @@ describe("Work Lifecycle seam", () => {
       primarySpecId: null,
       projectId: PROJECT_ID,
       recreatedFrom: null,
+      reappearDate: null,
       revision: 3,
       status: "Closed",
+      statusChangedAt: "2026-09-18T10:00:00.000Z",
       targetDate: null,
       title: "Already completed Work",
       type: "Task",
@@ -3067,6 +3069,36 @@ describe("Work Lifecycle seam", () => {
       closureResult: null,
       status: "Blocked",
     });
+  });
+
+  test("resets Time in status only when workflow status changes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-25T09:00:00.000Z"));
+    try {
+      const workLifecycle = createMemoryWorkLifecycle();
+      const work = await workLifecycle.create(
+        "account-1",
+        createInput("status-time-create"),
+      );
+
+      vi.setSystemTime(new Date("2026-09-25T10:00:00.000Z"));
+      const moved = await workLifecycle.updateStatus(
+        "account-1",
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "status-time-move",
+          status: "In Progress",
+          workId: work.id,
+        },
+        VISIBLE_USER,
+      );
+
+      expect(work.statusChangedAt).toBe("2026-09-25T09:00:00.000Z");
+      expect(moved.statusChangedAt).toBe("2026-09-25T10:00:00.000Z");
+      expect(moved.updatedAt).toBe(moved.statusChangedAt);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test.each(["Not Started", "In Progress", "Blocked"] as const)(

@@ -29,6 +29,7 @@ function toWorkDraftValue(record: WorkDraftDatabaseRecord): WorkDraft {
     customFieldValues: record.customFieldValues,
     description: record.description,
     projectId: record.projectId,
+    reappearDate: record.reappearDate,
     title: record.title,
     type: record.type,
   });
@@ -146,6 +147,7 @@ const workDraftMutationTargetAdapter: MutationDatabaseTargetAdapter<WorkDraftMut
             customFieldValues: nextDraft.customFieldValues,
             description: nextDraft.description,
             projectId: nextDraft.projectId,
+            reappearDate: nextDraft.reappearDate,
             revision: nextRevision,
             title: nextDraft.title,
             type: nextDraft.type,
@@ -177,6 +179,7 @@ const workDraftMutationTargetAdapter: MutationDatabaseTargetAdapter<WorkDraftMut
           description: nextDraft.description,
           id: target.draftId,
           projectId: nextDraft.projectId,
+          reappearDate: nextDraft.reappearDate,
           revision: nextRevision,
           title: nextDraft.title,
           type: nextDraft.type,

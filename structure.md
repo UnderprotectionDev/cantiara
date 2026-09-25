@@ -367,11 +367,16 @@
 │       │   │   │   │   ├── kanban-card-summary.test.ts
 │       │   │   │   │   ├── kanban-card-summary.ts
 │       │   │   │   │   ├── kanban-status.test.ts
-│       │   │   │   │   └── kanban-status.ts
+│       │   │   │   │   ├── kanban-status.ts
+│       │   │   │   │   ├── kanban-view.test.ts
+│       │   │   │   │   └── kanban-view.ts
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           ├── kanban-board.test.tsx
 │       │   │   │           ├── kanban-board.tsx
+│       │   │   │           ├── kanban-list.test.tsx
+│       │   │   │           ├── kanban-list.tsx
+│       │   │   │           ├── kanban-work-summary.tsx
 │       │   │   │           └── project-work-kanban.tsx
 │       │   │   ├── work-lifecycle/
 │       │   │       └── ui/

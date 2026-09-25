@@ -109,6 +109,12 @@ export const workPlannedStartDateSchema = z
   .nullable()
   .optional();
 
+export const workReappearDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Reappear date must use YYYY-MM-DD.")
+  .nullable()
+  .optional();
+
 export const workEffortSchema = z
   .string()
   .trim()
@@ -203,6 +209,7 @@ const createWorkInputObjectSchema = z
     effort: workEffortSchema,
     plannedStartDate: workPlannedStartDateSchema,
     projectId: identifierSchema,
+    reappearDate: workReappearDateSchema,
     targetDate: workTargetDateSchema,
     title: workTitleSchema,
     type: workTypeSchema.default(WORK_DEFAULT_TYPE),
@@ -411,6 +418,7 @@ export const WORK_MERGE_FIELD_OPTIONS = [
   "checklist",
   "effort",
   "featureHealthHistory",
+  "reappearDate",
   "status",
   "targetDate",
   "closureResult",
@@ -514,6 +522,7 @@ export interface WorkMergeFieldPreview {
     | "Description"
     | "Checklist"
     | "Effort"
+    | "Reappear date"
     | "Status"
     | "Target date"
     | "Closure result"
@@ -677,9 +686,11 @@ export interface WorkProfile {
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
+  reappearDate: string | null;
   recreatedFrom: { id: string; key: string } | null;
   revision: number;
   status: WorkStatus;
+  statusChangedAt: string;
   targetDate: string | null;
   title: string;
   type: WorkType;

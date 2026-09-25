@@ -517,6 +517,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Board | `Board` | Hazır İş görünümü; Kanban sunumu |
 | Kanban kartını taşı | `Move` | Kartı korunan İş akışı durumu sütunları arasında sürükleme denetimi; `Status` kontrolü tıklama ve klavye alternatifi sunar ([Kanban test seam'i](../specs/25-kanban/spec.md#testing-decisions)) |
 | Liste görünümü | `List` | Kanban ile aynı İş taramasının yoğun satır düzeni; Tablo Görünümü değildir |
+| Sıralama alanı | `Sort by` | `Board` ve `List` için ortak kayıtlı İş sıralama alanını seçme |
+| Sıralama yönü | `Sort direction` | `Board` ve `List` için ortak kayıtlı sıralama yönünü seçme |
+| İş numarası | `Work number` | İşleri Projedeki değişmeyen numarasına göre sıralama seçeneği |
+| Oluşturulma | `Created` | İşleri oluşturulma zamanına göre sıralama seçeneği |
+| Güncellenme | `Updated` | İşleri son güncellenme zamanına göre sıralama seçeneği |
 | Gallery | `Gallery` | Akıllı Koleksiyon adlandırılmış görünüm sunumu; Dosya Eki kütüphanesi, Moodboard veya ayrı kapak kaydı değildir |
 | Varsayılan görünüm | `Default` | İş koleksiyonunda ilk adlandırılmış görünüm adı |
 | Adlandırılmış görünüm | `Named view` | Aynı Akıllı Koleksiyon üyeliği üzerindeki saklı sunum; ikinci üyelik kümesi değildir |

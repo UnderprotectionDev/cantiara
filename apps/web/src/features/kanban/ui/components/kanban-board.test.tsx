@@ -22,9 +22,11 @@ const workForStatus = (status: WorkStatus, number: number): WorkProfile => ({
   primaryFeatureId: null,
   primarySpecId: null,
   projectId: "project-1",
+  reappearDate: null,
   recreatedFrom: null,
   revision: 1,
   status,
+  statusChangedAt: "2026-09-25T08:00:00.000Z",
   targetDate: null,
   title: `Work ${number}`,
   type: "Task",
@@ -39,7 +41,21 @@ const workStatusLabels = [
 ] satisfies readonly WorkStatusLabel[];
 const onStatusAction = (_work: WorkProfile, _status: WorkStatus) => undefined;
 
-function renderBoard(works: readonly WorkProfile[]) {
+function renderBoard(
+  works: readonly WorkProfile[],
+  configuration: {
+    focusThreshold: number | null;
+    softWipLimits: Record<WorkStatus, number | null>;
+  } = {
+    focusThreshold: null,
+    softWipLimits: {
+      Blocked: null,
+      Closed: null,
+      "In Progress": null,
+      "Not Started": null,
+    },
+  },
+) {
   const queryClient = new QueryClient();
   for (const work of works) {
     queryClient.setQueryData(
@@ -53,8 +69,10 @@ function renderBoard(works: readonly WorkProfile[]) {
       <KanbanBoard
         disabled={false}
         error={null}
+        focusThreshold={configuration.focusThreshold}
         onStatusAction={onStatusAction}
         projectId="project-1"
+        softWipLimits={configuration.softWipLimits}
         workStatusLabels={workStatusLabels}
         works={works}
       />
@@ -82,8 +100,15 @@ async function renderBoardWithFailedWorkContext(work: WorkProfile) {
       <KanbanBoard
         disabled={false}
         error={null}
+        focusThreshold={null}
         onStatusAction={onStatusAction}
         projectId="project-1"
+        softWipLimits={{
+          Blocked: null,
+          Closed: null,
+          "In Progress": null,
+          "Not Started": null,
+        }}
         workStatusLabels={workStatusLabels}
         works={[work]}
       />
@@ -122,6 +147,29 @@ describe("Kanban Board", () => {
     expect(html).toContain('aria-label="Status for CAN-1"');
     expect(html).toContain('aria-label="Move CAN-1"');
     expect(html).toContain('aria-label="In Progress Work"');
+  });
+
+  test("shows active Work count, elapsed time, and non-blocking threshold signals", () => {
+    const works = [
+      workForStatus("In Progress", 1),
+      workForStatus("In Progress", 2),
+    ];
+    const html = renderBoard(works, {
+      focusThreshold: 1,
+      softWipLimits: {
+        Blocked: null,
+        Closed: null,
+        "In Progress": 1,
+        "Not Started": null,
+      },
+    });
+
+    expect(html).toContain("In Progress count: 2");
+    expect(html).toContain("Time in status:");
+    expect(html).toContain("2 / 1");
+    expect(html).toContain("Over limit");
+    expect(html).toContain("Focus threshold exceeded");
+    expect(html).toContain('aria-label="Move CAN-1"');
   });
 
   test("renders priority and active Work blocker summaries", () => {
@@ -186,8 +234,15 @@ describe("Kanban Board", () => {
         <KanbanBoard
           disabled={false}
           error={null}
+          focusThreshold={null}
           onStatusAction={onStatusAction}
           projectId="project-1"
+          softWipLimits={{
+            Blocked: null,
+            Closed: null,
+            "In Progress": null,
+            "Not Started": null,
+          }}
           workStatusLabels={workStatusLabels}
           works={[work]}
         />

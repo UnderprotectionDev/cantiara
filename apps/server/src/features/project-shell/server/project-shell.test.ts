@@ -172,7 +172,7 @@ describe("Project Shell seam", () => {
       enabledAreas: ["Work", "Documents"],
       extraPinnedAreas: [],
       preparedStages: [],
-      preparedWorkViews: ["Backlog", "Board"],
+      preparedWorkViews: ["Backlog", "Board", "List"],
       starterSkeletons: [],
     },
     {
@@ -204,7 +204,7 @@ describe("Project Shell seam", () => {
         "Release",
         "Operate",
       ],
-      preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+      preparedWorkViews: ["Backlog", "Board", "List", "Roadmap"],
       starterSkeletons: EXPECTED_STARTER_SKELETONS,
     },
     {
@@ -220,7 +220,7 @@ describe("Project Shell seam", () => {
       ],
       extraPinnedAreas: ["GitHub", "Tests", "Releases"],
       preparedStages: ["Scope", "Build", "Validate", "Release", "Maintain"],
-      preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+      preparedWorkViews: ["Backlog", "Board", "List", "Roadmap"],
       starterSkeletons: EXPECTED_STARTER_SKELETONS,
     },
     {
@@ -252,7 +252,7 @@ describe("Project Shell seam", () => {
         "Release",
         "Operate",
       ],
-      preparedWorkViews: ["Backlog", "Board", "Roadmap"],
+      preparedWorkViews: ["Backlog", "Board", "List", "Roadmap"],
       starterSkeletons: EXPECTED_STARTER_SKELETONS,
     },
   ])(

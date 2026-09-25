@@ -1,4 +1,8 @@
-import type { WorkStatusLabel } from "@cantiara/api/project-shell";
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import type {
+  ProjectShellConfiguration,
+  WorkStatusLabel,
+} from "@cantiara/api/project-shell";
 import type { WorkStatus } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
@@ -9,20 +13,36 @@ import {
   type KanbanStatusMoveHandlers,
   requestKanbanStatusMove,
 } from "../../lib/kanban-status";
+import {
+  currentDateInTimeZone,
+  filterReappearingWorks,
+  sortKanbanWorks,
+} from "../../lib/kanban-view";
 import KanbanBoard from "./kanban-board";
+import KanbanList from "./kanban-list";
 
 type KanbanDirectMove = Parameters<KanbanStatusMoveHandlers["onDirectMove"]>[0];
 
 export default function ProjectWorkKanban({
   onExplicitStatusAction,
+  accountFormattingPreferences,
+  focusThreshold,
   projectId,
+  softWipLimits,
+  sort,
+  view,
   workStatusLabels,
 }: {
+  accountFormattingPreferences: AccountPreferences;
+  focusThreshold: ProjectShellConfiguration["workFocusThreshold"];
   onExplicitStatusAction: (input: {
     status: WorkStatus;
     workId: string;
   }) => void;
   projectId: string;
+  softWipLimits: ProjectShellConfiguration["workStatusSoftWipLimits"];
+  sort: ProjectShellConfiguration["workSort"];
+  view: "Board" | "List";
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
   const connection = useClientShellConnection();
@@ -83,6 +103,22 @@ export default function ProjectWorkKanban({
   }
 
   const isDisabled = connection === "offline" || updateStatus.isPending;
+  const today = currentDateInTimeZone(accountFormattingPreferences.timeZone);
+  const works = sortKanbanWorks(
+    filterReappearingWorks(query.data, today),
+    sort,
+  );
+
+  if (view === "List") {
+    return (
+      <KanbanList
+        focusThreshold={focusThreshold}
+        projectId={projectId}
+        workStatusLabels={workStatusLabels}
+        works={works}
+      />
+    );
+  }
 
   return (
     <KanbanBoard
@@ -90,10 +126,12 @@ export default function ProjectWorkKanban({
       error={
         updateStatus.error ? mutationErrorMessage(updateStatus.error) : null
       }
+      focusThreshold={focusThreshold}
       onStatusAction={handleStatusAction}
       projectId={projectId}
+      softWipLimits={softWipLimits}
       workStatusLabels={workStatusLabels}
-      works={query.data}
+      works={works}
     />
   );
 }

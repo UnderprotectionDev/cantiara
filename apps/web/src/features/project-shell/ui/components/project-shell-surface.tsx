@@ -176,6 +176,7 @@ export default function ProjectShellSurface({
           activeAction={dailyAction}
           activeHash={activeHash}
           configuration={configuration}
+          key={projectId}
           projectId={projectId}
         />
       );
@@ -366,6 +367,9 @@ function ProjectWorkSurface({
   projectId: string;
 }) {
   const navigate = useNavigate();
+  const [selectedWorkView, setSelectedWorkView] = useState<"Board" | "List">(
+    "Board",
+  );
   const [statusActionRequest, setStatusActionRequest] =
     useState<WorkStatusActionRequest | null>(null);
   const showSourceWork =
@@ -449,19 +453,39 @@ function ProjectWorkSurface({
               workStatusLabels={configuration.workStatusLabels}
             />
           ) : (
-            <Suspense
-              fallback={
-                <p className="text-muted-foreground text-sm" role="status">
-                  Loading Work…
-                </p>
-              }
-            >
-              <ProjectWorkKanban
-                onExplicitStatusAction={requestExplicitStatusAction}
-                projectId={projectId}
-                workStatusLabels={configuration.workStatusLabels}
-              />
-            </Suspense>
+            <div className="space-y-3">
+              <nav aria-label="Work views" className="flex gap-2">
+                {(["Board", "List"] as const).map((view) => (
+                  <Button
+                    aria-pressed={selectedWorkView === view}
+                    key={view}
+                    onClick={() => setSelectedWorkView(view)}
+                    type="button"
+                    variant={selectedWorkView === view ? "default" : "outline"}
+                  >
+                    {view}
+                  </Button>
+                ))}
+              </nav>
+              <Suspense
+                fallback={
+                  <p className="text-muted-foreground text-sm" role="status">
+                    Loading Work…
+                  </p>
+                }
+              >
+                <ProjectWorkKanban
+                  accountFormattingPreferences={accountFormattingPreferences}
+                  focusThreshold={configuration.workFocusThreshold}
+                  onExplicitStatusAction={requestExplicitStatusAction}
+                  projectId={projectId}
+                  softWipLimits={configuration.workStatusSoftWipLimits}
+                  sort={configuration.workSort}
+                  view={selectedWorkView}
+                  workStatusLabels={configuration.workStatusLabels}
+                />
+              </Suspense>
+            </div>
           )}
           <PrioritizationSurface projectId={projectId} />
         </div>

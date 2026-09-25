@@ -51,7 +51,7 @@ const STARTER_CONFIGURATION_CASES = [
     areas: ["Work", "Documents"],
     extraPinnedAreas: [],
     stages: [],
-    views: ["Backlog", "Board"],
+    views: ["Backlog", "Board", "List"],
   },
   {
     configuration: "Solo SaaS",
@@ -69,7 +69,7 @@ const STARTER_CONFIGURATION_CASES = [
     ],
     extraPinnedAreas: ["Discovery", "Decisions", "Design", "Tests", "Releases"],
     stages: ["Discovery", "Design", "Build", "Validate", "Release", "Operate"],
-    views: ["Backlog", "Board", "Roadmap"],
+    views: ["Backlog", "Board", "List", "Roadmap"],
   },
   {
     configuration: "Open Source Library",
@@ -84,7 +84,7 @@ const STARTER_CONFIGURATION_CASES = [
     ],
     extraPinnedAreas: ["GitHub", "Tests", "Releases"],
     stages: ["Scope", "Build", "Validate", "Release", "Maintain"],
-    views: ["Backlog", "Board", "Roadmap"],
+    views: ["Backlog", "Board", "List", "Roadmap"],
   },
   {
     configuration: "Mobile Application",
@@ -108,7 +108,7 @@ const STARTER_CONFIGURATION_CASES = [
       "Production",
     ],
     stages: ["Discovery", "Design", "Build", "Validate", "Release", "Operate"],
-    views: ["Backlog", "Board", "Roadmap"],
+    views: ["Backlog", "Board", "List", "Roadmap"],
   },
 ] as const;
 
@@ -399,9 +399,14 @@ test("keeps Project Shell stable while toggling Configuration Mode", async ({
   await overview.locator('[data-overview-area-entry="Work"]').click();
   await expect(page).toHaveURL(WORK_HASH_PATTERN);
   await expect(page.locator("#work")).toBeVisible();
+  const workViews = page.getByRole("navigation", { name: "Work views" });
+  await expect(workViews).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Work views" }),
-  ).toHaveCount(0);
+    workViews.getByRole("button", { name: "Board", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    workViews.getByRole("button", { name: "List", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("list", { name: "Saved views" })).toHaveCount(0);
   const priorityMapLink = page.getByRole("link", {
     name: "Priority Map",
@@ -865,8 +870,68 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
     statusEditor.getByRole("textbox", { name: "Work status label Closed" }),
   ).toHaveValue("Done");
 
+  const inProgressStatus = statusEditor
+    .getByRole("listitem")
+    .filter({ hasText: "In Progress" });
+  await inProgressStatus
+    .getByRole("spinbutton", { name: "Soft WIP In Progress" })
+    .fill("3");
+  const softWipResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await inProgressStatus.getByRole("button", { name: "Save Soft WIP" }).click();
+  await softWipResponse;
+
+  await configurationRegion
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  const sortUpdate = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await configurationRegion.getByLabel("Sort by").selectOption("title");
+  await sortUpdate;
+  const directionUpdate = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await configurationRegion
+    .getByLabel("Sort direction")
+    .selectOption("descending");
+  await directionUpdate;
+  await configurationRegion
+    .getByRole("spinbutton", { name: "Focus threshold" })
+    .fill("2");
+  const focusThresholdResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/updateProjectConfiguration") &&
+      response.ok(),
+  );
+  await configurationRegion
+    .getByRole("button", { name: "Save Focus threshold" })
+    .click();
+  await focusThresholdResponse;
+
   await page.reload();
   await expect(configurationRegion).toBeVisible();
+  await configurationRegion
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  await expect(configurationRegion.getByLabel("Sort by")).toHaveValue("title");
+  await expect(configurationRegion.getByLabel("Sort direction")).toHaveValue(
+    "descending",
+  );
+  await expect(
+    configurationRegion.getByRole("spinbutton", { name: "Focus threshold" }),
+  ).toHaveValue("2");
   await configurationRegion
     .getByRole("button", { name: "Work statuses", exact: true })
     .click();
@@ -875,6 +940,11 @@ test("configures parallel stages, hidden areas, navigation pins, and protected s
       .getByRole("list", { name: "Work status configuration" })
       .getByRole("textbox", { name: "Work status label Closed" }),
   ).toHaveValue("Done");
+  await expect(
+    configurationRegion
+      .getByRole("list", { name: "Work status configuration" })
+      .getByRole("spinbutton", { name: "Soft WIP In Progress" }),
+  ).toHaveValue("3");
   await configurationRegion
     .getByRole("button", { name: "Stages", exact: true })
     .click();

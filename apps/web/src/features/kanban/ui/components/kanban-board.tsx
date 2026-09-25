@@ -11,18 +11,20 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
 import {
   type ChangeEvent,
   type ComponentProps,
   useCallback,
   useMemo,
+  useState,
 } from "react";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import { buildKanbanCardSummary } from "../../lib/kanban-card-summary";
+import { KanbanWorkDetails, KanbanWorkSummary } from "./kanban-work-summary";
 
 const WORK_DRAG_TYPE = "kanban-work";
 const statusByDropId = new Map<string, WorkStatus>(
@@ -36,18 +38,36 @@ type DragEndEvent = Parameters<
 export default function KanbanBoard({
   disabled,
   error,
+  focusThreshold,
   onStatusAction,
   projectId,
+  softWipLimits,
   workStatusLabels,
   works,
 }: {
   disabled: boolean;
   error: string | null;
+  focusThreshold: number | null;
   onStatusAction: (work: WorkProfile, targetStatus: WorkStatus) => void;
   projectId: string;
+  softWipLimits: Record<WorkStatus, number | null>;
   workStatusLabels: readonly WorkStatusLabel[];
   works: readonly WorkProfile[];
 }) {
+  const [collapsedStatuses, setCollapsedStatuses] = useState<Set<WorkStatus>>(
+    () => new Set(),
+  );
+  const toggleCollapsedStatus = useCallback((status: WorkStatus) => {
+    setCollapsedStatuses((current) => {
+      const next = new Set(current);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  }, []);
   const worksByStatus = useMemo(() => {
     const grouped = new Map<WorkStatus, WorkProfile[]>(
       PROTECTED_WORK_STATUS_OPTIONS.map((status) => [status, []]),
@@ -89,7 +109,7 @@ export default function KanbanBoard({
           </h3>
           <p className="mt-1 text-muted-foreground text-sm">Kanban</p>
         </div>
-        <p className="text-muted-foreground text-sm">{works.length} Work</p>
+        <KanbanWorkSummary focusThreshold={focusThreshold} works={works} />
       </header>
       {error ? (
         <p className="text-destructive text-sm" role="alert">
@@ -104,10 +124,13 @@ export default function KanbanBoard({
 
             return (
               <KanbanColumn
+                collapsed={collapsedStatuses.has(status)}
                 disabled={disabled}
                 key={status}
                 label={label}
+                limit={softWipLimits[status]}
                 onStatusAction={onStatusAction}
+                onToggleCollapsed={toggleCollapsedStatus}
                 projectId={projectId}
                 status={status}
                 statusWorks={statusWorks}
@@ -122,27 +145,50 @@ export default function KanbanBoard({
 }
 
 function KanbanColumn({
+  collapsed,
   disabled,
   label,
+  limit,
   onStatusAction,
+  onToggleCollapsed,
   projectId,
   status,
   statusWorks,
   workStatusLabels,
 }: {
+  collapsed: boolean;
   disabled: boolean;
   label: string;
+  limit: number | null;
   onStatusAction: (work: WorkProfile, targetStatus: WorkStatus) => void;
+  onToggleCollapsed: (status: WorkStatus) => void;
   projectId: string;
   status: (typeof PROTECTED_WORK_STATUS_OPTIONS)[number];
   statusWorks: readonly WorkProfile[];
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const contextQueries = useQueries({
+    queries: statusWorks.map((work) =>
+      orpc.workContext.queryOptions({ input: { workId: work.id } }),
+    ),
+  });
+  const hasOpenBlocker = contextQueries.some((query) =>
+    query.data?.relations.some(
+      (relation) =>
+        relation.kind === "Blocks" &&
+        relation.direction === "incoming" &&
+        relation.blockingStatus === "Active",
+    ),
+  );
   const droppable = useDroppable({
     accept: WORK_DRAG_TYPE,
     disabled,
     id: statusDropId(status),
   });
+  const handleToggleCollapsed = useCallback(
+    () => onToggleCollapsed(status),
+    [onToggleCollapsed, status],
+  );
 
   return (
     <section
@@ -158,11 +204,38 @@ function KanbanColumn({
         >
           {label}
         </h4>
-        <span className="rounded-full bg-background px-2 py-0.5 text-muted-foreground text-xs tabular-nums">
-          {statusWorks.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-background px-2 py-0.5 text-muted-foreground text-xs tabular-nums">
+            {statusWorks.length}
+            {limit === null ? "" : ` / ${limit}`}
+          </span>
+          {limit !== null && statusWorks.length > limit ? (
+            <span aria-label={`Over limit ${label}`} role="status">
+              Over limit
+            </span>
+          ) : null}
+          <Button
+            aria-controls={`kanban-column-list-${statusSlug(status)}`}
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? "Expand" : "Collapse"} ${label}`}
+            onClick={handleToggleCollapsed}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            {collapsed ? "Expand" : "Collapse"}
+          </Button>
+        </div>
       </header>
-      <ul aria-label={`${label} Work`} className="space-y-2">
+      {hasOpenBlocker ? (
+        <p className="text-muted-foreground text-xs">Open blocker</p>
+      ) : null}
+      <ul
+        aria-label={`${label} Work`}
+        className="space-y-2"
+        hidden={collapsed}
+        id={`kanban-column-list-${statusSlug(status)}`}
+      >
         {statusWorks.map((work) => (
           <li key={work.id}>
             <KanbanCard
@@ -199,9 +272,6 @@ function KanbanCard({
     type: WORK_DRAG_TYPE,
   });
   const statusControlId = `kanban-status-${encodeURIComponent(work.id)}`;
-  const completedChecklistItems = work.checklist.filter(
-    (item) => item.completed,
-  ).length;
   const handleStatusChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
       const targetStatus = PROTECTED_WORK_STATUS_OPTIONS.find(
@@ -266,19 +336,7 @@ function KanbanCard({
         <Badge variant="secondary">{work.closureResult}</Badge>
       ) : null}
       <KanbanCardSummary work={work} />
-      {work.plannedStartDate || work.targetDate ? (
-        <div className="space-y-1 text-muted-foreground text-xs">
-          {work.plannedStartDate ? (
-            <p>Planned start: {work.plannedStartDate}</p>
-          ) : null}
-          {work.targetDate ? <p>Target date: {work.targetDate}</p> : null}
-        </div>
-      ) : null}
-      {work.checklist.length > 0 ? (
-        <p className="text-muted-foreground text-xs">
-          Checklist: {completedChecklistItems} / {work.checklist.length}
-        </p>
-      ) : null}
+      <KanbanWorkDetails work={work} />
       <a
         className="inline-block min-h-11 py-3 text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         href={workRecordHref(projectId, work.id)}
@@ -289,7 +347,7 @@ function KanbanCard({
   );
 }
 
-function KanbanCardSummary({ work }: { work: WorkProfile }) {
+export function KanbanCardSummary({ work }: { work: WorkProfile }) {
   const query = useQuery(
     orpc.workContext.queryOptions({ input: { workId: work.id } }),
   );

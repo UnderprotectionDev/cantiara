@@ -73,9 +73,11 @@ const work: WorkProfile = {
   primaryFeatureId: "feature-1",
   primarySpecId: "spec-1",
   projectId: "project-1",
+  reappearDate: null,
   recreatedFrom: null,
   revision: 1,
   status: "In Progress",
+  statusChangedAt: "2026-01-01T00:00:00.000Z",
   targetDate: null,
   title: "Improve checkout clarity",
   type: "Improvement",
@@ -194,6 +196,69 @@ describe("Work Context Card prepared layouts", () => {
 });
 
 describe("Work Context Card configurable layouts", () => {
+  test("prepares List and resolves Kanban settings for saved Work views", () => {
+    const configuration = getProjectShellConfiguration("Blank Project");
+    const { workContextLayouts: _layouts, ...beforeKanbanSettings } = {
+      ...configuration,
+      preparedWorkViews: configuration.preparedWorkViews.filter(
+        (view) => view !== "List",
+      ),
+    };
+
+    const resolved = resolveProjectShellConfiguration(
+      beforeKanbanSettings,
+      "Blank Project",
+    );
+
+    expect(configuration.preparedWorkViews).toContain("List");
+    expect(resolved.workStatusSoftWipLimits).toEqual({
+      Blocked: null,
+      Closed: null,
+      "In Progress": null,
+      "Not Started": null,
+    });
+    expect(resolved.workFocusThreshold).toBeNull();
+    expect(resolved.workSort).toEqual({
+      direction: "ascending",
+      field: "number",
+    });
+  });
+
+  test("persists a soft WIP limit, focus threshold, and saved view sort", () => {
+    const configuration = getProjectShellConfiguration("Blank Project");
+
+    const withSoftWip = applyProjectShellConfigurationChange(
+      configuration,
+      {
+        kind: "set-work-status-soft-wip-limit",
+        limit: 3,
+        semantic: "In Progress",
+      },
+      "Blank Project",
+    );
+    const withFocus = applyProjectShellConfigurationChange(
+      withSoftWip,
+      { kind: "set-work-focus-threshold", threshold: 5 },
+      "Blank Project",
+    );
+    const next = applyProjectShellConfigurationChange(
+      withFocus,
+      {
+        direction: "descending",
+        field: "updatedAt",
+        kind: "set-work-sort",
+      },
+      "Blank Project",
+    );
+
+    expect(next.workStatusSoftWipLimits["In Progress"]).toBe(3);
+    expect(next.workFocusThreshold).toBe(5);
+    expect(next.workSort).toEqual({
+      direction: "descending",
+      field: "updatedAt",
+    });
+  });
+
   test("starts every Work type with the prepared sections and no custom query", () => {
     const layouts = getDefaultWorkContextLayouts();
 

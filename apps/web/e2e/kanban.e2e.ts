@@ -49,14 +49,39 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   const title = "Move through workflow status";
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill(title);
+  const createResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/finalizeWorkDraft") &&
+      response.ok(),
+  );
   await page
     .locator("#work-create")
     .getByRole("button", { name: "Create", exact: true })
     .click();
+  await createResponse;
   await openBoard(page);
 
   const initialCard = boardCard(page, "Not Started", title);
   await expect(initialCard).toBeVisible();
+  await page.getByRole("button", { name: "Collapse Not Started" }).click();
+  await expect(initialCard).toBeHidden();
+  await expect(
+    page.locator('[data-kanban-column="Not Started"]'),
+  ).toContainText("1");
+  await page.getByRole("button", { name: "Expand Not Started" }).click();
+  await expect(initialCard).toBeVisible();
+
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  const listView = page.getByRole("region", { name: "List" });
+  const listRow = listView.getByRole("listitem").filter({ hasText: title });
+  await expect(listRow).toBeVisible();
+  await expect(
+    listRow.getByRole("link", { name: "Open source record" }),
+  ).toBeVisible();
+  await expect(listRow.getByRole("combobox")).toHaveCount(0);
+  await page.getByRole("button", { name: "Board", exact: true }).click();
+
   const moveLabel = await initialCard
     .getByRole("button", { name: MOVE_BUTTON_NAME })
     .getAttribute("aria-label");
@@ -98,7 +123,14 @@ test("moves Work through Board with explicit close and reopen steps", async ({
     name: `Reopen ${workKey}`,
   });
   await expect(reopenDialog).toContainText("Reopen as In Progress?");
+  const reopenResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/reopenWork"),
+  );
   await reopenDialog.getByRole("button", { name: "Confirm reopen" }).click();
+  const reopenResult = await reopenResponse;
+  expect(reopenResult.ok()).toBe(true);
   await expect(
     page.getByRole("combobox", { name: `Status for ${workKey}` }),
   ).toHaveValue("In Progress");
@@ -106,4 +138,27 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await openBoard(page);
   await expect(boardCard(page, "In Progress", title)).toBeVisible();
   await expect(boardCard(page, "Closed", title)).toHaveCount(0);
+
+  const deferredTitle = "Wait until the reappear date";
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title").fill(deferredTitle);
+  await page.getByLabel("Reappear date").fill("2999-01-01");
+  const deferredCreateResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/rpc/finalizeWorkDraft") &&
+      response.ok(),
+  );
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await deferredCreateResponse;
+  await openBoard(page);
+  await expect(page.getByText(deferredTitle, { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "List" }).getByText(deferredTitle),
+  ).toHaveCount(0);
 });
