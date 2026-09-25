@@ -111,6 +111,33 @@ test("routes the product entry into Account Access and skips app navigation by k
   await expect(page.locator("#main-content")).toBeFocused();
 });
 
+test("recovers from a failed session check with an explicit retry", async ({
+  page,
+}) => {
+  let sessionAttempts = 0;
+  await page.route("**/api/auth/get-session", async (route) => {
+    sessionAttempts += 1;
+    if (sessionAttempts === 1) {
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/projects");
+
+  await expect(page.getByRole("alert")).toContainText(
+    "Cantiara couldn’t be reached.",
+  );
+  await expect(page.getByText("Support reference unavailable.")).toBeVisible();
+  await page.getByRole("button", { name: "Retry" }).click();
+
+  await expect(page).toHaveURL(LOGIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Welcome to Cantiara" }),
+  ).toBeVisible();
+});
+
 test("keeps the active Project surface when skipping app navigation by keyboard", async ({
   context,
   page,
