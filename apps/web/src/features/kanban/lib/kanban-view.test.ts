@@ -1,7 +1,7 @@
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test } from "vitest";
 import {
-  filterReappearingWorks,
+  filterDefaultKanbanWorks,
   formatTimeInStatus,
   sortKanbanWorks,
 } from "./kanban-view";
@@ -63,8 +63,36 @@ describe("Kanban saved Work view", () => {
     ];
 
     expect(
-      filterReappearingWorks(works, "2026-09-25").map((item) => item.id),
+      filterDefaultKanbanWorks(works, "2026-09-25").map((item) => item.id),
     ).toEqual(["work-today", "work-unscheduled"]);
+  });
+
+  test("keeps archived Work off the default scan while preserving due Work status", () => {
+    const works = [
+      work({
+        id: "work-due",
+        number: 3,
+        reappearDate: "2026-09-25",
+        status: "Blocked",
+      }),
+      work({
+        id: "work-future",
+        number: 1,
+        reappearDate: "2026-09-26",
+        status: "In Progress",
+      }),
+      work({
+        id: "work-archived",
+        number: 2,
+        archivedAt: "2026-09-24T09:00:00.000Z",
+      }),
+    ];
+
+    const visible = filterDefaultKanbanWorks(works, "2026-09-25");
+
+    expect(visible.map((item) => [item.id, item.status])).toEqual([
+      ["work-due", "Blocked"],
+    ]);
   });
 
   test("formats elapsed time from the current status start", () => {
