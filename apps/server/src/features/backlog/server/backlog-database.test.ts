@@ -118,6 +118,14 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
     await database.insert(work).values([...initialWorks]);
 
     const access = createBacklogAccess(createDatabaseBacklog(database));
+    const expectMembershipParity = async () => {
+      const [order, prepared] = await Promise.all([
+        access.list(accountId, projectProfile.id),
+        access.listPrepared(accountId, projectProfile.id),
+      ]);
+
+      expect(order?.workIds).toEqual(prepared?.map(({ id }) => id));
+    };
     const before = await database
       .select({
         closureResult: work.closureResult,
@@ -160,6 +168,7 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         title: "Planned Work",
       },
     ]);
+    await expectMembershipParity();
     await expect(
       database
         .select({
@@ -224,5 +233,6 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         title: "Added after the first read",
       },
     ]);
+    await expectMembershipParity();
   });
 });
