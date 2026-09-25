@@ -52,6 +52,7 @@ import { ClientShellStatus } from "@/features/web-macos-client/ui/components/cli
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
 import ScopeTreeView from "@/features/work-lifecycle/ui/components/scope-tree";
+import type { WorkStatusActionRequest } from "@/features/work-lifecycle/ui/forms/work-status-form";
 
 const PriorityMap = lazy(
   () => import("@/features/priority-metrics/ui/components/priority-map"),
@@ -59,12 +60,6 @@ const PriorityMap = lazy(
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
-
-interface WorkStatusActionRequest {
-  id: string;
-  status: WorkStatus;
-  workId: string;
-}
 
 export default function ProjectShellSurface({
   accountId,

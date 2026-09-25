@@ -10,7 +10,6 @@ import {
   WORK_TYPE_OPTIONS,
   type WorkMergeResult,
   type WorkProfile,
-  type WorkStatus,
   type WorkType,
   type WorkTypeChangePreview,
 } from "@cantiara/api/work-lifecycle";
@@ -57,7 +56,9 @@ import {
 } from "@/utils/orpc";
 import WorkMergeForm from "../forms/work-merge-form";
 import WorkRecreateForm from "../forms/work-recreate-form";
-import WorkStatusForm from "../forms/work-status-form";
+import WorkStatusForm, {
+  type WorkStatusActionRequest,
+} from "../forms/work-status-form";
 
 export default function ProjectWorkList({
   accountId,
@@ -71,11 +72,7 @@ export default function ProjectWorkList({
   accountId?: string;
   accountFormattingPreferences: AccountPreferences;
   projectId: string;
-  statusActionRequest: {
-    id: string;
-    status: WorkStatus;
-    workId: string;
-  } | null;
+  statusActionRequest: WorkStatusActionRequest | null;
   onStatusActionRequestHandled: (requestId: string) => void;
   workContextLayouts: ProjectShellConfiguration["workContextLayouts"];
   workStatusLabels: readonly WorkStatusLabel[];

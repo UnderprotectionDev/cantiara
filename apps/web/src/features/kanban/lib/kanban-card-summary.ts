@@ -11,6 +11,10 @@ export interface KanbanCardSummary {
   signals: readonly WorkContextSource[];
 }
 
+function isIncomingBlocker(source: WorkContextSource) {
+  return source.relationKind === "Blocks" && source.direction === "incoming";
+}
+
 export function buildKanbanCardSummary(
   work: WorkProfile,
   context: WorkContextProjection,
@@ -30,15 +34,10 @@ export function buildKanbanCardSummary(
     ),
     signals: model.sources
       .filter(
-        (source) =>
-          (source.relationKind === "Blocks" &&
-            source.direction === "incoming") ||
-          source.recordType === "Risk",
+        (source) => isIncomingBlocker(source) || source.recordType === "Risk",
       )
       .map((source) =>
-        source.relationKind === "Blocks" && source.direction === "incoming"
-          ? { ...source, label: "Blocked by" }
-          : source,
+        isIncomingBlocker(source) ? { ...source, label: "Blocked by" } : source,
       ),
   };
 }

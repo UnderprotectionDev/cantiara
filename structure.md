@@ -131,6 +131,7 @@
 │       │   ├── client-shell.e2e.ts
 │       │   ├── command-palette.e2e.ts
 │       │   ├── custom-fields.e2e.ts
+│       │   ├── kanban.e2e.ts
 │       │   ├── project-shell.e2e.ts
 │       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts

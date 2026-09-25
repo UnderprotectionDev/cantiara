@@ -56,6 +56,12 @@ export function getWorkStatusLabel(
   return labels.find(({ semantic }) => semantic === status)?.label ?? status;
 }
 
+export interface WorkStatusActionRequest {
+  id: string;
+  status: WorkStatus;
+  workId: string;
+}
+
 export default function WorkStatusForm({
   completionFeedback,
   onCloseOutcome,
@@ -67,7 +73,7 @@ export default function WorkStatusForm({
   completionFeedback: WorkCompletionFeedbackState;
   onCloseOutcome: (outcome: UserInitiatedWorkCloseOutcome) => void;
   onRequestedStatusActionHandled: (requestId: string) => void;
-  requestedStatusAction: { id: string; status: WorkStatus } | null;
+  requestedStatusAction: Pick<WorkStatusActionRequest, "id" | "status"> | null;
   work: WorkProfile;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
