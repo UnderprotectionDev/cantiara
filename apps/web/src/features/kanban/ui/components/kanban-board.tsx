@@ -117,7 +117,7 @@ export default function KanbanBoard({
         </p>
       ) : null}
       <DragDropProvider onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-wrap items-start gap-4">
           {PROTECTED_WORK_STATUS_OPTIONS.map((status) => {
             const label = getWorkStatusLabel(status, workStatusLabels);
             const statusWorks = worksByStatus.get(status) ?? [];
@@ -193,18 +193,22 @@ function KanbanColumn({
   return (
     <section
       aria-labelledby={`kanban-column-heading-${statusSlug(status)}`}
-      className={`min-h-44 space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3 transition-colors motion-reduce:transition-none ${droppable.isDropTarget ? "border-primary/70 bg-primary/5 ring-2 ring-primary/30" : ""}`}
+      className={`min-h-44 space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3 transition-colors motion-reduce:transition-none ${collapsed ? "w-40 min-w-0 flex-none" : "min-w-48 flex-1"} ${droppable.isDropTarget ? "border-primary/70 bg-primary/5 ring-2 ring-primary/30" : ""}`}
       data-kanban-column={status}
       ref={droppable.ref}
     >
-      <header className="flex items-center justify-between gap-2">
+      <header
+        className={
+          collapsed ? "space-y-2" : "flex items-center justify-between gap-2"
+        }
+      >
         <h4
           className="font-semibold text-sm"
           id={`kanban-column-heading-${statusSlug(status)}`}
         >
           {label}
         </h4>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-background px-2 py-0.5 text-muted-foreground text-xs tabular-nums">
             {statusWorks.length}
             {limit === null ? "" : ` / ${limit}`}
