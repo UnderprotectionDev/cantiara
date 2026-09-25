@@ -1,10 +1,19 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls close over the current Backlog presentation.
+
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type {
   BacklogSavedPresentation,
   BacklogWork,
 } from "@cantiara/api/backlog";
+import { partitionDeferredBacklog } from "@cantiara/api/backlog";
 import { PRIORITY_METRIC_RANKS } from "@cantiara/api/priority-metrics";
 import { Button } from "@cantiara/ui/components/button";
+import { Calendar } from "@cantiara/ui/components/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@cantiara/ui/components/popover";
 import {
   closestCenter,
   DndContext,
@@ -24,11 +33,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { format, parseISO } from "date-fns";
+import { CalendarDays } from "lucide-react";
+import { useEffect, useState } from "react";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import {
   type BacklogPresentation,
   type BacklogSortField,
@@ -44,6 +55,35 @@ function BacklogCard({
   projectId: string;
   work: BacklogWork;
 }) {
+  const queryClient = useQueryClient();
+  const [reappearDate, setReappearDate] = useState(work.reappearDate ?? "");
+  const [dateOpen, setDateOpen] = useState(false);
+  useEffect(
+    () => setReappearDate(work.reappearDate ?? ""),
+    [work.reappearDate],
+  );
+  const saveReappearDate = useMutation({
+    mutationFn: (value: string | null) =>
+      runOnlineOnlyWrite(() =>
+        client.updateWorkReappearDate({
+          baseRevision: work.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          reappearDate: value,
+          workId: work.id,
+        }),
+      ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: orpc.projectBacklog.queryOptions({ input: { projectId } })
+            .queryKey,
+        }),
+        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+      ]);
+    },
+    onError: () => setReappearDate(work.reappearDate ?? ""),
+  });
+  const selectedDate = reappearDate ? parseISO(reappearDate) : undefined;
   const {
     attributes,
     listeners,
@@ -86,6 +126,61 @@ function BacklogCard({
           {work.title}
         </span>
       </Link>
+      <div className="mr-3 flex items-center gap-2 text-xs">
+        <Popover onOpenChange={setDateOpen} open={dateOpen}>
+          <PopoverTrigger
+            disabled={saveReappearDate.isPending}
+            render={
+              <Button
+                aria-label={`Reappear date for ${work.title}`}
+                disabled={saveReappearDate.isPending}
+                size="sm"
+                type="button"
+                variant="outline"
+              />
+            }
+          >
+            Reappear date{reappearDate ? `: ${reappearDate}` : ""}
+            <CalendarDays aria-hidden="true" />
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-auto min-w-72">
+            <Calendar
+              defaultMonth={selectedDate}
+              mode="single"
+              onSelect={(date) => {
+                if (!date) {
+                  return;
+                }
+                const value = format(date, "yyyy-MM-dd");
+                setReappearDate(value);
+                setDateOpen(false);
+                saveReappearDate.mutate(value);
+              }}
+              selected={selectedDate}
+            />
+          </PopoverContent>
+        </Popover>
+        {reappearDate ? (
+          <Button
+            aria-label={`Clear Reappear date for ${work.title}`}
+            disabled={saveReappearDate.isPending}
+            onClick={() => {
+              setReappearDate("");
+              saveReappearDate.mutate(null);
+            }}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Clear
+          </Button>
+        ) : null}
+      </div>
+      {saveReappearDate.isError ? (
+        <p className="text-destructive text-xs" role="alert">
+          Reappear date could not be saved. Try again.
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -140,6 +235,12 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const presentationQuery = useQuery(
     orpc.projectBacklogPresentation.queryOptions({ input: { projectId } }),
   );
+  const preferencesQuery = useQuery(orpc.accountPreferences.queryOptions());
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const priorityQuery = usePriorityMetricProjectValues(projectId).query;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -198,14 +299,24 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     },
   });
 
-  if (query.isPending || orderQuery.isPending || presentationQuery.isPending) {
+  if (
+    query.isPending ||
+    orderQuery.isPending ||
+    presentationQuery.isPending ||
+    preferencesQuery.isPending
+  ) {
     return (
       <p className="mt-5 text-muted-foreground text-sm" role="status">
         Loading Backlog…
       </p>
     );
   }
-  if (query.isError || orderQuery.isError || presentationQuery.isError) {
+  if (
+    query.isError ||
+    orderQuery.isError ||
+    presentationQuery.isError ||
+    preferencesQuery.isError
+  ) {
     return (
       <p className="mt-5 text-destructive text-sm" role="alert">
         Backlog is unavailable. Try loading this page again.
@@ -238,6 +349,15 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     priorityByWorkId,
     field,
   );
+  const { current, deferred } =
+    presentation === "Manual order"
+      ? partitionDeferredBacklog(
+          displayedWorks,
+          preferencesQuery.data?.timeZone ??
+            DEFAULT_ACCOUNT_PREFERENCES.timeZone,
+          now,
+        )
+      : { current: displayedWorks, deferred: [] };
   const currentSaved = toSavedPresentation(
     presentation,
     priorityMetricId,
@@ -253,17 +373,27 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     if (!(canReorder && event.over) || event.active.id === event.over.id) {
       return;
     }
-    const from = works.findIndex((work) => work.id === event.active.id);
-    const to = works.findIndex((work) => work.id === event.over?.id);
+    const from = current.findIndex((work) => work.id === event.active.id);
+    const to = current.findIndex((work) => work.id === event.over?.id);
     if (from < 0 || to < 0) {
       return;
     }
+    const moved = arrayMove(
+      current.map((work) => work.id),
+      from,
+      to,
+    );
+    const currentIds = new Set(moved);
+    let position = 0;
     updateOrder.mutate(
-      arrayMove(
-        works.map((work) => work.id),
-        from,
-        to,
-      ),
+      works.map((work) => {
+        if (!currentIds.has(work.id)) {
+          return work.id;
+        }
+        const id = moved[position] ?? work.id;
+        position += 1;
+        return id;
+      }),
     );
   }
 
@@ -393,11 +523,11 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
         sensors={sensors}
       >
         <SortableContext
-          items={displayedWorks.map((work) => work.id)}
+          items={current.map((work) => work.id)}
           strategy={verticalListSortingStrategy}
         >
           <ol aria-label="Backlog" className="space-y-2">
-            {displayedWorks.map((work) => (
+            {current.map((work) => (
               <BacklogCard
                 canReorder={canReorder}
                 key={work.id}
@@ -408,6 +538,21 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
           </ol>
         </SortableContext>
       </DndContext>
+      {deferred.length > 0 ? (
+        <section aria-label="Deferred" className="space-y-2">
+          <h3 className="font-semibold text-sm">Deferred</h3>
+          <ol aria-label="Deferred" className="space-y-2">
+            {deferred.map((work) => (
+              <BacklogCard
+                canReorder={false}
+                key={work.id}
+                projectId={projectId}
+                work={work}
+              />
+            ))}
+          </ol>
+        </section>
+      ) : null}
     </section>
   );
 }

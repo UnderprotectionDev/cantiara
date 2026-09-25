@@ -1,5 +1,7 @@
+import { partitionDeferredBacklog } from "@cantiara/api/backlog";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -48,6 +50,72 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
     await database?.$client.end();
   });
 
+  test("returns Deferred Work to its persisted manual position when the Account date arrives", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Deferred Backlog Project",
+        shortCode: "DFR",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const ids = Array.from(
+      { length: 3 },
+      () => `deferred-${crypto.randomUUID()}`,
+    );
+    await database.insert(work).values(
+      ids.map((id, index) => ({
+        id,
+        key: `DFR-${index + 1}`,
+        number: index + 1,
+        projectId: profile.id,
+        reappearDate: index === 1 ? "2026-09-26" : null,
+        status: index === 1 ? "Blocked" : "Not Started",
+        title: `Work ${index + 1}`,
+        type: "Task",
+      })),
+    );
+    await database.insert(projectBacklogOrder).values({
+      projectId: profile.id,
+      revision: 1,
+      workIds: [ids[2] ?? "", ids[1] ?? "", ids[0] ?? ""],
+    });
+    const access = createBacklogAccess(createDatabaseBacklog(database));
+    const prepared = await access.listPrepared(accountId, profile.id);
+    expect(prepared?.map(({ id }) => id)).toEqual([ids[2], ids[1], ids[0]]);
+    if (!prepared) {
+      throw new Error("Expected the prepared Backlog.");
+    }
+    const before = partitionDeferredBacklog(
+      prepared,
+      "UTC",
+      new Date("2026-09-25T12:00:00Z"),
+    );
+    expect(before.current.map(({ id }) => id)).toEqual([ids[2], ids[0]]);
+    expect(before.deferred.map(({ id }) => id)).toEqual([ids[1]]);
+
+    const after = partitionDeferredBacklog(
+      (await access.listPrepared(accountId, profile.id)) ?? [],
+      "UTC",
+      new Date("2026-09-26T00:00:00Z"),
+    );
+    expect(after.current.map(({ id }) => id)).toEqual([ids[2], ids[1], ids[0]]);
+    expect(after.deferred).toEqual([]);
+    expect(after.current.map(({ status }) => status)).toEqual([
+      "Not Started",
+      "Blocked",
+      "Not Started",
+    ]);
+    expect((await access.list(accountId, profile.id))?.workIds).toEqual([
+      ids[2],
+      ids[1],
+      ids[0],
+    ]);
+  });
+
   test("dynamically lists active Work without writing status or closure", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -79,6 +147,7 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         key: "BKL-2",
         number: 2,
         plannedStartDate: "2026-10-01",
+        reappearDate: "2099-01-01",
         projectId: projectProfile.id,
         status: "In Progress",
         title: "Planned Work",
@@ -158,6 +227,8 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         key: "BKL-1",
         number: 1,
         plannedStartDate: null,
+        reappearDate: null,
+        revision: 0,
         status: "Not Started",
         targetDate: null,
         title: "Unplanned Work",
@@ -167,6 +238,8 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         key: "BKL-2",
         number: 2,
         plannedStartDate: "2026-10-01",
+        reappearDate: "2099-01-01",
+        revision: 0,
         status: "In Progress",
         targetDate: null,
         title: "Planned Work",
@@ -220,6 +293,8 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         key: "BKL-1",
         number: 1,
         plannedStartDate: null,
+        reappearDate: null,
+        revision: 0,
         status: "Not Started",
         targetDate: null,
         title: "Unplanned Work",
@@ -229,6 +304,8 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         key: "BKL-2",
         number: 2,
         plannedStartDate: "2026-10-01",
+        reappearDate: "2099-01-01",
+        revision: 0,
         status: "In Progress",
         targetDate: null,
         title: "Planned Work",
@@ -238,6 +315,8 @@ describeDatabase("Backlog prepared membership PostgreSQL integration", () => {
         key: "BKL-6",
         number: 6,
         plannedStartDate: null,
+        reappearDate: null,
+        revision: 0,
         status: "Blocked",
         targetDate: null,
         title: "Added after the first read",

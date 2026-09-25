@@ -109,6 +109,19 @@ export const workPlannedStartDateSchema = z
   .nullable()
   .optional();
 
+export const workReappearDateSchema = z.iso.date().nullable();
+
+export const updateWorkReappearDateInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    reappearDate: workReappearDateSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type UpdateWorkReappearDateInput = z.input<
+  typeof updateWorkReappearDateInputSchema
+>;
+
 export const workEffortSchema = z
   .string()
   .trim()
@@ -677,6 +690,7 @@ export interface WorkProfile {
   primaryFeatureId: string | null;
   primarySpecId: string | null;
   projectId: string;
+  reappearDate?: string | null;
   recreatedFrom: { id: string; key: string } | null;
   revision: number;
   status: WorkStatus;
@@ -903,6 +917,10 @@ export interface WorkLifecycleAccess {
   updateFeaturePrimarySpec: (
     accountId: string,
     input: UpdateFeaturePrimarySpecInput,
+  ) => Promise<WorkProfile>;
+  updateReappearDate: (
+    accountId: string,
+    input: UpdateWorkReappearDateInput,
   ) => Promise<WorkProfile>;
   updateStatus: (
     accountId: string,

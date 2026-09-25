@@ -52,6 +52,30 @@ const VISIBLE_USER = { kind: "Visible user" } as const;
 const WORK_MERGE_PREVIEW_PATTERN = /^work-merge:/;
 const WORK_CHECKLIST_CONVERT_PREVIEW_PATTERN = /^work-checklist-convert:/;
 
+test("setting Reappear date preserves Work status and project membership", async () => {
+  const lifecycle = createMemoryWorkLifecycle();
+  const created = await lifecycle.create(
+    "account-1",
+    createInput("reappear-create"),
+  );
+  const updated = await lifecycle.updateReappearDate("account-1", {
+    baseRevision: created.revision,
+    clientIdempotencyKey: "reappear-update",
+    reappearDate: "2026-10-01",
+    workId: created.id,
+  });
+  expect(updated).toMatchObject({
+    id: created.id,
+    projectId: created.projectId,
+    reappearDate: "2026-10-01",
+    status: created.status,
+  });
+  expect(await lifecycle.find("account-1", created.id)).toMatchObject({
+    reappearDate: "2026-10-01",
+    status: created.status,
+  });
+});
+
 function createMemoryWorkLifecycle(
   options: {
     beforeUpdateApply?: (

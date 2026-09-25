@@ -75,6 +75,8 @@ export const backlogWorkSchema = z
     key: identifierSchema,
     number: z.number().int().positive(),
     plannedStartDate: z.iso.date().nullable(),
+    reappearDate: z.iso.date().nullable(),
+    revision: z.number().int().nonnegative(),
     status: workOpenStatusSchema,
     targetDate: z.iso.date().nullable(),
     title: identifierSchema,
@@ -84,6 +86,32 @@ export const backlogWorkSchema = z
 export const projectBacklogSchema = z.array(backlogWorkSchema);
 
 export type BacklogWork = z.infer<typeof backlogWorkSchema>;
+
+export function partitionDeferredBacklog<
+  T extends { reappearDate: string | null },
+>(
+  works: readonly T[],
+  timeZone: string,
+  now = new Date(),
+): { current: T[]; deferred: T[] } {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).formatToParts(now);
+  const part = (name: string) =>
+    today.find((item) => item.type === name)?.value ?? "";
+  const date = `${part("year")}-${part("month")}-${part("day")}`;
+  const current: T[] = [];
+  const deferred: T[] = [];
+  for (const work of works) {
+    (work.reappearDate && work.reappearDate > date ? deferred : current).push(
+      work,
+    );
+  }
+  return { current, deferred };
+}
 
 export const updateBacklogOrderInputSchema = z
   .object({
