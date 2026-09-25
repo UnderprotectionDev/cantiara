@@ -1,4 +1,5 @@
-import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
+import type { Context } from "@cantiara/api/context";
+import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -9,8 +10,8 @@ import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
-import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
+import { createRouterClient } from "@orpc/server";
 import { eq, inArray } from "drizzle-orm";
 import {
   afterAll,
@@ -19,8 +20,10 @@ import {
   describe,
   expect,
   test,
+  vi,
 } from "vitest";
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
+import { createDatabaseProjectShellMutationContracts } from "../../project-shell/server/project-shell-mutation-database";
 import { sweepDueReappearSignals } from "./backlog-reappear-signals";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -73,15 +76,27 @@ describeDatabase("Backlog reappear-date signal PostgreSQL integration", () => {
       shortCode: "ONN",
       starterConfiguration: "Blank Project",
     });
-    await database
-      .update(project)
-      .set({
-        configuration: {
-          ...getProjectShellConfiguration("Blank Project"),
-          notifyOnReappearDate: true,
-        },
-      })
-      .where(eq(project.id, on.id));
+    const client = createRouterClient(appRouter, {
+      context: {
+        db: database,
+        projectShell: shell,
+        projectShellMutationContracts:
+          createDatabaseProjectShellMutationContracts(database),
+        session: { session: { id: "session-1" }, user: { id: accountId } },
+      } as Context,
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-25T12:00:00Z"));
+    try {
+      await client.updateProjectConfiguration({
+        baseRevision: on.revision,
+        change: { kind: "set-reappear-date-notification", enabled: true },
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: on.id,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
     const offWorkId = `work-${crypto.randomUUID()}`;
     const onWorkId = `work-${crypto.randomUUID()}`;
     await database.insert(work).values([
@@ -175,6 +190,21 @@ describeDatabase("Backlog reappear-date signal PostgreSQL integration", () => {
         sourceWorkId: onWorkId,
       },
     ]);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-26T12:00:00Z"));
+    try {
+      await client.updateProjectConfiguration({
+        baseRevision: off.revision,
+        change: { kind: "set-reappear-date-notification", enabled: true },
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: off.id,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(
+      await sweepDueReappearSignals(database, new Date("2026-09-26T12:01:00Z")),
+    ).toBe(0);
     expect(
       await database
         .select({

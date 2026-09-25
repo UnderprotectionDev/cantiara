@@ -87,6 +87,18 @@ export const projectBacklogSchema = z.array(backlogWorkSchema);
 
 export type BacklogWork = z.infer<typeof backlogWorkSchema>;
 
+export function accountLocalDate(now: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).formatToParts(now);
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 export function partitionDeferredBacklog<
   T extends { reappearDate: string | null },
 >(
@@ -94,15 +106,7 @@ export function partitionDeferredBacklog<
   timeZone: string,
   now = new Date(),
 ): { current: T[]; deferred: T[] } {
-  const today = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).formatToParts(now);
-  const part = (name: string) =>
-    today.find((item) => item.type === name)?.value ?? "";
-  const date = `${part("year")}-${part("month")}-${part("day")}`;
+  const date = accountLocalDate(now, timeZone);
   const current: T[] = [];
   const deferred: T[] = [];
   for (const work of works) {

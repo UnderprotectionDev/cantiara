@@ -31,8 +31,8 @@ import {
   recordActions,
   relations,
   replaySecurityRevocations,
+  startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
-  sweepDueReappearSignals,
   sweepExpiredFileAttachmentUploads,
   sweepExpiredPriorityMetrics,
   tagMutationContracts,
@@ -55,9 +55,9 @@ initLogger({
 
 await replaySecurityRevocations();
 await startFileAttachmentPreviewWorker();
+await startBacklogReappearSignalWorker();
 await sweepExpiredFileAttachmentUploads();
 await sweepExpiredPriorityMetrics();
-await sweepDueReappearSignals();
 setInterval(
   () => {
     sweepExpiredFileAttachmentUploads().catch(() => undefined);
@@ -70,9 +70,6 @@ setInterval(
   },
   60 * 60 * 1000,
 );
-setInterval(() => {
-  sweepDueReappearSignals().catch(() => undefined);
-}, 60 * 1000);
 
 const app = createApp({
   accountSessionAccess,

@@ -1,4 +1,5 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import { accountLocalDate } from "@cantiara/api/backlog";
 import { WORK_OPEN_STATUS_OPTIONS } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
@@ -43,18 +44,6 @@ export function dueReappearSignal(
   };
 }
 
-function dateInTimeZone(now: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).formatToParts(now);
-  const part = (type: string) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 export async function sweepDueReappearSignals(
   database: Database,
   now = new Date(),
@@ -64,6 +53,9 @@ export async function sweepDueReappearSignals(
       archivedAt: work.archivedAt,
       id: work.id,
       ownerAccountId: workspace.ownerAccountId,
+      notificationEnabledAt: sql<
+        string | null
+      >`${project.configuration}->>'notifyOnReappearDateEnabledAt'`,
       projectId: work.projectId,
       reappearDate: work.reappearDate,
       status: work.status,
@@ -91,11 +83,21 @@ export async function sweepDueReappearSignals(
     const signal = dueReappearSignal(
       candidate,
       true,
-      dateInTimeZone(
+      accountLocalDate(
         now,
         candidate.timeZone ?? DEFAULT_ACCOUNT_PREFERENCES.timeZone,
       ),
     );
+    if (
+      !candidate.notificationEnabledAt ||
+      (signal &&
+        accountLocalDate(
+          new Date(candidate.notificationEnabledAt),
+          candidate.timeZone ?? DEFAULT_ACCOUNT_PREFERENCES.timeZone,
+        ) > signal.reappearDate)
+    ) {
+      return [];
+    }
     return signal
       ? [
           {
