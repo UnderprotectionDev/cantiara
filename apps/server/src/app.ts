@@ -58,6 +58,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
@@ -161,6 +162,7 @@ export interface AppDependencies {
   recordActions?: RecordActionsAccess;
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
+  roadmapHorizon?: RoadmapHorizonAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   tauriSessionAccess?: TauriSessionAccess;
@@ -1132,6 +1134,7 @@ export function createApp(dependencies: AppDependencies) {
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
       dailyFocus: dependencies.dailyFocus,
+      roadmapHorizon: dependencies.roadmapHorizon,
       captureInbox: dependencies.captureInbox,
       completionEffectsPreferences: dependencies.completionEffectsPreferences,
       completionEffectsPreferencesMutationContract:

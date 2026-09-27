@@ -39,6 +39,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "./relations";
+import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
@@ -159,6 +160,7 @@ export interface Context {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   recordActions?: RecordActionsAccess;
   relations?: RelationsAccess;
+  roadmapHorizon?: RoadmapHorizonAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

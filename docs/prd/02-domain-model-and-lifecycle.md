@@ -565,6 +565,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ufka yerleştir | `Place on horizon` | İsteğe bağlı ufku yazma eylemi |
 | Ufuk yok | `No horizon` | Ufku boşaltma |
 | Adlandırılmış görünümü kaydet | `Save named view` | Roadmap filtre ve grup üstverisini kaydetme |
+| Roadmap grup alanı | `Group by` | Adlandırılmış görünümde mevcut alanı grup ekseni seçme |
+| Roadmap işareti | `Mark by` | Adlandırılmış görünümde ikinci alanı renk ve metin işareti seçme |
+| Roadmap filtresiz değer | `No filter` | Seçili alanla kapsamı daraltmama |
+| Roadmap boş görünüm | `No Work matches this view.` | Adlandırılmış görünüm filtresine uyan İş yok |
+| Roadmap tarihsiz İş | `No target date` | İşe hedef tarihi verilmediğini anlatır; ufuk yazması tarih üretmez |
+| Roadmap yükleme hatası | `Roadmap is unavailable. Reload and try again.` | İç Roadmap sorgusu kullanılamıyor |
+| Ufuk kaydetme hatası | `Horizon could not be saved. Reload and try again.` | Ufuk yazması başarısız oldu |
+| Görünüm kaydetme hatası | `Named view could not be saved.` | Adlandırılmış görünüm yazması başarısız oldu |
+| Araştırma yönü kaydetme hatası | `Research direction could not be saved.` | Araştırma bağlamı yazması başarısız oldu |
+| Kayıtlı olmayan araştırma bağlamı | `Not recorded` | Araştırma problem/fırsat veya beklenen sonuç değeri boş |
 | Şimdi değil | `Not now` | İş üzerindeki sahipli erteleme izi; durum, Parked veya Karar kaydı değildir |
 | Şimdi değil uygula | `Apply Not now` | Açık İşte `Not now` izini kaydetme eylemi |
 | Yeniden değerlendiriliyor | `Reconsidering` | Etkin `Not now` izini kapatan eylem |

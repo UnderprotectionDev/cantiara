@@ -172,6 +172,12 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  projectRoadmapInputSchema,
+  saveRoadmapViewInputSchema,
+  updateResearchDirectionInputSchema,
+  updateWorkHorizonInputSchema,
+} from "../roadmap-horizon";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -368,6 +374,13 @@ function requireDailyFocus(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.dailyFocus;
+}
+
+function requireRoadmapHorizon(context: Context) {
+  if (!context.roadmapHorizon) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.roadmapHorizon;
 }
 
 function requireBacklogMutationContracts(context: Context) {
@@ -897,6 +910,11 @@ function mapWorkLifecycleError(
       return new ORPCError("NOT_FOUND", {
         defined: true,
         message: "Work is unavailable.",
+      });
+    case "RESEARCH_DIRECTION_UNAVAILABLE":
+      return new ORPCError("BAD_REQUEST", {
+        defined: true,
+        message: "Research direction belongs to Research Work.",
       });
     case "WORK_PROJECT_NOT_FOUND":
       return new ORPCError("NOT_FOUND", {
@@ -3088,6 +3106,42 @@ export const appRouter = {
       }
       return work;
     }),
+  projectRoadmapViews: protectedProcedure
+    .input(projectRoadmapInputSchema)
+    .handler(async ({ context, input }) => {
+      const views = await requireRoadmapHorizon(context).listViews(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!views) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return views;
+    }),
+  projectRoadmapOrigins: protectedProcedure
+    .input(projectRoadmapInputSchema)
+    .handler(async ({ context, input }) => {
+      const origins = await requireRoadmapHorizon(context).listOrigins(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!origins) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return origins;
+    }),
+  saveRoadmapView: protectedProcedure
+    .input(saveRoadmapViewInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireRoadmapHorizon(context).saveView(
+        context.session.user.id,
+        input,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return view;
+    }),
   projectBacklogPresentation: protectedProcedure
     .input(projectBacklogInputSchema)
     .handler(async ({ context, input }) => {
@@ -3792,6 +3846,26 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateReappearDate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkHorizon: protectedProcedure
+    .input(updateWorkHorizonInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateRoadmapHorizon(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateResearchDirection: protectedProcedure
+    .input(updateResearchDirectionInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateResearchDirection(
           context.session.user.id,
           input,
         ),

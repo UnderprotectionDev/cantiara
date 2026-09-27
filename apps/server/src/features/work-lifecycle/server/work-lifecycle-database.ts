@@ -111,6 +111,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
       : null,
     createdAt: record.createdAt.toISOString(),
     description: record.description,
+    expectedOutcome: record.expectedOutcome,
     effort: record.effort,
     featureHealthHistory: featureHealthUpdateSchema
       .array()
@@ -122,6 +123,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
     primaryFeatureId: record.primaryFeatureId,
     primarySpecId: record.primarySpecId,
     plannedStartDate: record.plannedStartDate,
+    problemOpportunity: record.problemOpportunity,
     projectId: record.projectId,
     recreatedFrom:
       record.recreatedFromWorkId && record.recreatedFromWorkKey
@@ -131,6 +133,7 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
           }
         : null,
     reappearDate: record.reappearDate,
+    roadmapHorizon: record.roadmapHorizon as WorkProfile["roadmapHorizon"],
     revision: record.revision,
     status: workStatusSchema.parse(record.status),
     statusChangedAt: record.statusChangedAt.toISOString(),
@@ -225,6 +228,24 @@ async function findOwnedWork(
   const records = lock ? await query.for("update") : await query;
   const [result] = records;
   return result?.record ?? null;
+}
+
+async function findOwnedWorkInUnarchivedProject(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  workId: string,
+) {
+  const record = await findOwnedWork(executor, accountId, workId, false);
+  if (!record) {
+    return null;
+  }
+  const ownedProject = await findOwnedProject(
+    executor,
+    accountId,
+    record.projectId,
+    true,
+  );
+  return ownedProject?.record.archivedAt === null ? record : null;
 }
 
 function emptyWorkTarget(
@@ -369,6 +390,7 @@ function createWorkMutationTarget(
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
           description: nextWork.description,
+          expectedOutcome: nextWork.expectedOutcome ?? null,
           effort: nextWork.effort,
           featureHealthHistory: nextWork.featureHealthHistory,
           id: nextWork.id,
@@ -378,10 +400,12 @@ function createWorkMutationTarget(
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
           plannedStartDate: nextWork.plannedStartDate,
+          problemOpportunity: nextWork.problemOpportunity ?? null,
           projectId: nextWork.projectId,
           recreatedFromWorkId: nextWork.recreatedFrom?.id,
           recreatedFromWorkKey: nextWork.recreatedFrom?.key,
           reappearDate: nextWork.reappearDate ?? null,
+          roadmapHorizon: nextWork.roadmapHorizon ?? null,
           revision: input.expectedRevision + 1,
           status: nextWork.status,
           statusChangedAt: new Date(nextWork.statusChangedAt),
@@ -504,6 +528,7 @@ function workRecordValues(
     closureResult: nextWork.closureResult,
     createdAt: new Date(nextWork.createdAt),
     description: nextWork.description,
+    expectedOutcome: nextWork.expectedOutcome ?? null,
     effort: nextWork.effort,
     featureHealthHistory: nextWork.featureHealthHistory,
     id: nextWork.id,
@@ -513,10 +538,12 @@ function workRecordValues(
     primaryFeatureId: nextWork.primaryFeatureId,
     primarySpecId: nextWork.primarySpecId,
     plannedStartDate: nextWork.plannedStartDate,
+    problemOpportunity: nextWork.problemOpportunity ?? null,
     projectId: nextWork.projectId,
     recreatedFromWorkId: nextWork.recreatedFrom?.id,
     recreatedFromWorkKey: nextWork.recreatedFrom?.key,
     reappearDate: nextWork.reappearDate ?? null,
+    roadmapHorizon: nextWork.roadmapHorizon ?? null,
     revision,
     status: nextWork.status,
     statusChangedAt: new Date(nextWork.statusChangedAt),
@@ -965,6 +992,13 @@ function createWorkUpdateMutationTarget(
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     async find(executor, targetId, lock, context) {
+      const initialRecord = lock
+        ? await findOwnedWorkInUnarchivedProject(executor, accountId, targetId)
+        : await findOwnedWork(executor, accountId, targetId, false);
+      if (!initialRecord) {
+        return null;
+      }
+
       if (lock) {
         const mergeParticipantId =
           mergeWorkIdFromMutationPayload(context?.payload, "duplicateWorkId") ??
@@ -981,6 +1015,9 @@ function createWorkUpdateMutationTarget(
         }
       }
       const record = await findOwnedWork(executor, accountId, targetId, lock);
+      if (!record || record.projectId !== initialRecord.projectId) {
+        return null;
+      }
       return record
         ? {
             id: record.id,
@@ -1041,9 +1078,9 @@ function createWorkUpdateMutationTarget(
         executor,
         accountId,
         nextWork.projectId,
-        false,
+        true,
       );
-      if (!ownedProject) {
+      if (!ownedProject || ownedProject.record.archivedAt !== null) {
         return null;
       }
 
@@ -1060,6 +1097,9 @@ function createWorkUpdateMutationTarget(
           primaryFeatureId: nextWork.primaryFeatureId,
           primarySpecId: nextWork.primarySpecId,
           reappearDate: nextWork.reappearDate,
+          expectedOutcome: nextWork.expectedOutcome,
+          problemOpportunity: nextWork.problemOpportunity,
+          roadmapHorizon: nextWork.roadmapHorizon,
           revision: input.expectedRevision + 1,
           status: nextWork.status,
           statusChangedAt: new Date(nextWork.statusChangedAt),

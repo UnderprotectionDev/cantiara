@@ -4,6 +4,10 @@ import {
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  updateResearchDirectionInputSchema,
+  updateWorkHorizonInputSchema,
+} from "@cantiara/api/roadmap-horizon";
+import {
   bindWorkOriginPositionInputSchema,
   closeWorkInputSchema,
   convertWorkChecklistItemInputSchema,
@@ -171,6 +175,15 @@ export class WorkNotFoundError extends Error {
   constructor(workId: string) {
     super(`Work ${workId} was not found.`);
     this.name = "WorkNotFoundError";
+  }
+}
+
+export class ResearchDirectionUnavailableError extends Error {
+  readonly code = "RESEARCH_DIRECTION_UNAVAILABLE" as const;
+
+  constructor() {
+    super("Research direction belongs to Research Work.");
+    this.name = "ResearchDirectionUnavailableError";
   }
 }
 
@@ -2494,6 +2507,47 @@ export function createWorkLifecycle({
           targetId: input.workId,
         },
         (work, payload) => ({ ...work, reappearDate: payload.reappearDate }),
+      );
+    },
+
+    updateRoadmapHorizon(accountId, rawInput) {
+      const input = updateWorkHorizonInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: { horizon: input.horizon, workId: input.workId },
+          targetId: input.workId,
+        },
+        (work, payload) => ({ ...work, roadmapHorizon: payload.horizon }),
+      );
+    },
+
+    updateResearchDirection(accountId, rawInput) {
+      const input = updateResearchDirectionInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            expectedOutcome: input.expectedOutcome,
+            problemOpportunity: input.problemOpportunity,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        (work, payload) => ({
+          ...work,
+          expectedOutcome: payload.expectedOutcome,
+          problemOpportunity: payload.problemOpportunity,
+        }),
+        (work) => {
+          if (work.type !== "Research") {
+            throw new ResearchDirectionUnavailableError();
+          }
+        },
       );
     },
 

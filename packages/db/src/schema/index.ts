@@ -11,6 +11,7 @@ export * from "./priority-metrics";
 export * from "./project";
 export * from "./record-action";
 export * from "./relation";
+export * from "./roadmap-horizon";
 export * from "./tags";
 export * from "./work";
 export * from "./work-draft";

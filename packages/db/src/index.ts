@@ -68,6 +68,7 @@ import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "./schema/priority-metrics";
+import { roadmapView } from "./schema/roadmap-horizon";
 import {
   workspaceTag,
   workspaceTagAssignment,
@@ -87,6 +88,7 @@ const schema = {
   auditRecord,
   completionEffectPreferences,
   projectBacklogOrder,
+  roadmapView,
   fileAttachment,
   fileAttachmentMarking,
   fileAttachmentMarkingRelations,

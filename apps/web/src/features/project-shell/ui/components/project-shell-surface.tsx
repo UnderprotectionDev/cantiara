@@ -45,10 +45,12 @@ import {
   navigationHash,
   navigationSurfaceFromHash,
   PRIORITY_MAP_HASH,
+  ROADMAP_HASH,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
+import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
@@ -395,9 +397,25 @@ function ProjectWorkSurface({
     );
   }
   const isBacklog = activeHash === BACKLOG_HASH;
+  const isRoadmap = activeHash === ROADMAP_HASH;
+  let workSurfaceTitle = "Work";
+  let workSurfaceDescription =
+    "Daily actions stay separate from Overview source records. Start, edit, and review this Project’s Work here.";
+  if (isBacklog) {
+    workSurfaceTitle = "Backlog";
+    workSurfaceDescription =
+      "Backlog shows every active Work, including items without a planned start. Viewing or opening Work here does not change its status.";
+  } else if (isRoadmap) {
+    workSurfaceTitle = "Roadmap";
+    workSurfaceDescription =
+      "Roadmap shows the same Work through optional horizons and saved views.";
+  }
   const workContent = (() => {
     if (isBacklog) {
       return <ProjectBacklog projectId={projectId} />;
+    }
+    if (isRoadmap) {
+      return <ProjectRoadmap projectId={projectId} />;
     }
     if (activeHash === PRIORITY_MAP_HASH) {
       return (
@@ -482,12 +500,10 @@ function ProjectWorkSurface({
             className="text-balance font-semibold text-2xl tracking-tight"
             id="work-surface-heading"
           >
-            {isBacklog ? "Backlog" : "Work"}
+            {workSurfaceTitle}
           </h2>
           <p className="mt-3 text-muted-foreground text-sm/relaxed">
-            {isBacklog
-              ? "Backlog shows every active Work, including items without a planned start. Viewing or opening Work here does not change its status."
-              : "Daily actions stay separate from Overview source records. Start, edit, and review this Project’s Work here."}
+            {workSurfaceDescription}
           </p>
         </div>
         {activeHash === PRIORITY_MAP_HASH ? null : (
@@ -504,16 +520,28 @@ function ProjectWorkSurface({
 
       <nav aria-label="Planning surfaces" className="flex flex-wrap gap-2">
         <Link
-          aria-current={isBacklog ? undefined : "page"}
+          aria-current={isBacklog || isRoadmap ? undefined : "page"}
           className={buttonVariants({
             size: "sm",
-            variant: isBacklog ? "outline" : "secondary",
+            variant: isBacklog || isRoadmap ? "outline" : "secondary",
           })}
           hash="work"
           params={{ projectId }}
           to="/projects/$projectId"
         >
           Work
+        </Link>
+        <Link
+          aria-current={isRoadmap ? "page" : undefined}
+          className={buttonVariants({
+            size: "sm",
+            variant: isRoadmap ? "secondary" : "outline",
+          })}
+          hash={ROADMAP_HASH}
+          params={{ projectId }}
+          to="/projects/$projectId"
+        >
+          Roadmap
         </Link>
         <Link
           aria-current={isBacklog ? "page" : undefined}

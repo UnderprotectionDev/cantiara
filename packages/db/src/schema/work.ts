@@ -25,11 +25,13 @@ export const work = pgTable(
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
+    expectedOutcome: text("expected_outcome"),
     effort: text("effort"),
     featureHealthHistory: jsonb("feature_health_history")
       .$type<unknown[]>()
       .default(sql`'[]'::jsonb`)
       .notNull(),
+    roadmapHorizon: text("roadmap_horizon"),
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     number: integer("number").notNull(),
@@ -38,6 +40,7 @@ export const work = pgTable(
     originOwnerRecordId: text("origin_owner_record_id"),
     originSourceVersion: text("origin_source_version"),
     plannedStartDate: date("planned_start_date", { mode: "string" }),
+    problemOpportunity: text("problem_opportunity"),
     primaryFeatureId: text("primary_feature_id").references(
       (): AnyPgColumn => work.id,
       { onDelete: "set null" },
@@ -68,6 +71,10 @@ export const work = pgTable(
     uniqueIndex("work_project_number_uidx").on(table.projectId, table.number),
     uniqueIndex("work_project_key_uidx").on(table.projectId, table.key),
     check("work_number_check", sql`${table.number} >= 1`),
+    check(
+      "work_roadmap_horizon_check",
+      sql`${table.roadmapHorizon} is null or ${table.roadmapHorizon} in ('Now', 'Next', 'Later')`,
+    ),
     check("work_revision_check", sql`${table.revision} >= 0`),
     check("work_title_check", sql`length(btrim(${table.title})) > 0`),
     check(

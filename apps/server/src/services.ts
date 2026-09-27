@@ -68,6 +68,7 @@ import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
+import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -151,6 +152,7 @@ export const workLifecycle = createDatabaseWorkLifecycle(db, {
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
 export const workHandoffs = createDatabaseExternalExecutionHandoffs(db);
 export const recordActions = createDatabaseRecordActions(db);
+export const roadmapHorizon = createDatabaseRoadmapHorizon(db);
 export const workContext = createWorkContextAccess(workLifecycle, relations, {
   priorityValues: async (accountId, work) => {
     const values = await priorityMetrics.values(accountId, work.id);
