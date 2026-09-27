@@ -88,7 +88,7 @@ describe("Project Milestones", () => {
     vi.mocked(useQuery).mockReset();
   });
 
-  test("shows the Milestone fields, linked Work, and explicit contribution preview", () => {
+  test("shows Milestone fields and requires a preview before relation confirmation", () => {
     const html = renderMilestones("Planned");
 
     expect(html).toContain("Milestones");
@@ -100,6 +100,7 @@ describe("Project Milestones", () => {
     expect(html).toContain("In Milestone");
     expect(html).toContain("Core flow · In Milestone");
     expect(html).toContain("Preview relation");
+    expect(html).not.toContain("Confirm relation");
     expect(html).toContain("Reach");
     expect(html).toContain("Abandon");
   });
