@@ -322,7 +322,7 @@ async function verifyIndex(
   canonicalizeExpression: CanonicalizeExpression,
 ) {
   const index = requireIndex(kind, tableName, name, actualIndexes);
-  const expectedColumns = expected.columns ?? [];
+  const expectedColumns = expected.columns;
   const expectedOptions = Object.entries(expected.with ?? {})
     .map(([key, value]) => `${key}=${String(value)}`)
     .sort();
