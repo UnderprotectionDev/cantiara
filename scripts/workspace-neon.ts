@@ -56,6 +56,8 @@ const protectedBranchNamePattern =
   /^(main|master|production|shared|development|dev)$/i;
 const developmentBaseNamePattern = /^development-base(?:-[a-z0-9][a-z0-9-]*)?$/;
 
+type WorkspaceIdentityEnv = Record<string, string | undefined>;
+
 export function assertDevelopmentBaseName(name: string) {
   if (!developmentBaseNamePattern.test(name)) {
     throw new Error("Neon development base name is invalid");
@@ -175,7 +177,7 @@ export function assertConnection(
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 
 function localWorkspaceIdentity(
-  env: NodeJS.ProcessEnv,
+  env: WorkspaceIdentityEnv,
   root: string,
 ): string | null {
   const path = env.CONDUCTOR_WORKSPACE_PATH;
@@ -207,7 +209,7 @@ function localWorkspaceIdentity(
 }
 
 export function workspaceIdentity(
-  env: NodeJS.ProcessEnv = process.env,
+  env: WorkspaceIdentityEnv = process.env,
   root = repositoryRoot,
 ) {
   const id = env.CONDUCTOR_WORKSPACE_ID ?? localWorkspaceIdentity(env, root);
@@ -219,7 +221,7 @@ export function workspaceIdentity(
 
 export function assertWorkspaceIdentity(
   id: string,
-  env: NodeJS.ProcessEnv = process.env,
+  env: WorkspaceIdentityEnv = process.env,
   root = repositoryRoot,
   boundLocalId?: string,
 ) {
@@ -235,7 +237,7 @@ export function assertWorkspaceIdentity(
 
 export function bindLocalWorkspaceIdentity<
   T extends { workspaceId: string; localWorkspaceId?: string },
->(state: T, env: NodeJS.ProcessEnv = process.env, root = repositoryRoot): T {
+>(state: T, env: WorkspaceIdentityEnv = process.env, root = repositoryRoot): T {
   assertWorkspaceIdentity(state.workspaceId, env, root, state.localWorkspaceId);
   const localId = localWorkspaceIdentity(env, root);
   if (localId) {
