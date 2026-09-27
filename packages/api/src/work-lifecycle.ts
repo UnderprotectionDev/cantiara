@@ -14,6 +14,7 @@ import {
 import type { BlockingRelationStatus } from "./relations";
 import type {
   RoadmapHorizon,
+  updateResearchDirectionInputSchema,
   updateWorkHorizonInputSchema,
 } from "./roadmap-horizon";
 
@@ -686,15 +687,16 @@ export interface WorkProfile {
   createdAt: string;
   description: string | null;
   effort: string | null;
+  expectedOutcome?: string | null;
   featureHealthHistory: FeatureHealthUpdate[];
   id: string;
   key: string;
   number: number;
-  originOwnerRecordId?: string | null;
   originPosition?: WorkOriginPosition;
   plannedStartDate?: string | null;
   primaryFeatureId: string | null;
   primarySpecId: string | null;
+  problemOpportunity?: string | null;
   projectId: string;
   reappearDate?: string | null;
   recreatedFrom: { id: string; key: string } | null;
@@ -929,6 +931,10 @@ export interface WorkLifecycleAccess {
   updateReappearDate: (
     accountId: string,
     input: UpdateWorkReappearDateInput,
+  ) => Promise<WorkProfile>;
+  updateResearchDirection: (
+    accountId: string,
+    input: z.input<typeof updateResearchDirectionInputSchema>,
   ) => Promise<WorkProfile>;
   updateRoadmapHorizon: (
     accountId: string,

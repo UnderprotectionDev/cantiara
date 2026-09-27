@@ -49,6 +49,7 @@ function createWorkLifecycleStub(
 ): WorkLifecycleAccess {
   return {
     updateRoadmapHorizon: vi.fn(),
+    updateResearchDirection: vi.fn(),
     archive: vi.fn(),
     bindOriginPosition: vi.fn(),
     close: vi.fn(),

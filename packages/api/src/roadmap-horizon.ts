@@ -12,6 +12,15 @@ export const updateWorkHorizonInputSchema = humanMutationEnvelopeSchema
   .extend({ horizon: roadmapHorizonSchema.nullable(), workId: identifier })
   .strict();
 
+const researchDirectionText = z.string().trim().max(2000).nullable();
+export const updateResearchDirectionInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    expectedOutcome: researchDirectionText,
+    problemOpportunity: researchDirectionText,
+    workId: identifier,
+  })
+  .strict();
+
 const roadmapViewFieldsSchema = z
   .object({
     groupBy: z.enum(["Horizon", "Type", "Status"]),
@@ -45,6 +54,13 @@ export const projectRoadmapInputSchema = z
   .strict();
 
 export interface RoadmapHorizonAccess {
+  listOrigins: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<Array<{
+    sourceResearchId: string;
+    targetFeatureId: string;
+  }> | null>;
   listViews: (
     accountId: string,
     projectId: string,
@@ -55,10 +71,15 @@ export interface RoadmapHorizonAccess {
   ) => Promise<RoadmapView | null>;
 }
 
+export interface RoadmapOriginLink {
+  sourceResearchId: string;
+  targetFeatureId: string;
+}
+
 export interface RoadmapWork {
   horizon: RoadmapHorizon | null;
   id: string;
-  originOwnerRecordId: string | null;
+  originResearchIds: readonly string[];
   title: string;
   type: string;
 }
@@ -92,8 +113,7 @@ export function presentRoadmap<T extends RoadmapWork>(
       }
       if (
         work.type === "Feature" &&
-        work.originOwnerRecordId &&
-        researchIds.has(work.originOwnerRecordId)
+        work.originResearchIds.some((id) => researchIds.has(id))
       ) {
         return [{ work, secondary: true }];
       }

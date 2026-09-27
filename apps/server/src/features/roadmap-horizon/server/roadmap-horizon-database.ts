@@ -6,8 +6,10 @@ import {
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { roadmapView } from "@cantiara/db/schema/roadmap-horizon";
-import { and, asc, eq } from "drizzle-orm";
+import { work } from "@cantiara/db/schema/work";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 export function createDatabaseRoadmapHorizon(
   database: Database,
@@ -25,6 +27,30 @@ export function createDatabaseRoadmapHorizon(
   }
 
   return {
+    async listOrigins(accountId, projectId) {
+      if (!(await ownsProject(accountId, projectId))) {
+        return null;
+      }
+      const relations = await database
+        .select({
+          sourceResearchId: workRelation.sourceWorkId,
+          targetFeatureId: workRelation.targetRecordId,
+        })
+        .from(workRelation)
+        .innerJoin(work, eq(workRelation.sourceWorkId, work.id))
+        .where(
+          and(
+            eq(workRelation.kind, "Origin"),
+            eq(workRelation.sourceRecordType, "Work"),
+            eq(workRelation.targetRecordType, "Work"),
+            eq(workRelation.targetProjectId, projectId),
+            eq(work.projectId, projectId),
+            eq(work.type, "Research"),
+            isNull(workRelation.deletedAt),
+          ),
+        );
+      return relations;
+    },
     async listViews(accountId, projectId) {
       if (!(await ownsProject(accountId, projectId))) {
         return null;

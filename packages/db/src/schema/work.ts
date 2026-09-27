@@ -25,6 +25,7 @@ export const work = pgTable(
     closureResult: text("closure_result"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
+    expectedOutcome: text("expected_outcome"),
     effort: text("effort"),
     featureHealthHistory: jsonb("feature_health_history")
       .$type<unknown[]>()
@@ -39,6 +40,7 @@ export const work = pgTable(
     originOwnerRecordId: text("origin_owner_record_id"),
     originSourceVersion: text("origin_source_version"),
     plannedStartDate: date("planned_start_date", { mode: "string" }),
+    problemOpportunity: text("problem_opportunity"),
     primaryFeatureId: text("primary_feature_id").references(
       (): AnyPgColumn => work.id,
       { onDelete: "set null" },

@@ -2,6 +2,7 @@
 import {
   presentRoadmap,
   type RoadmapHorizon,
+  type RoadmapOriginLink,
   type RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
 import {
@@ -16,9 +17,10 @@ import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import ResearchDirection from "./research-direction";
+import RoadmapViewEditor from "./roadmap-view-editor";
 
 const HORIZONS = ["Now", "Next", "Later"] as const;
-const VIEW_FIELDS = ["Horizon", "Type", "Status"] as const;
 const MARK_COLORS = [
   "bg-chart-1/20",
   "bg-chart-2/20",
@@ -28,27 +30,17 @@ const MARK_COLORS = [
 ] as const;
 type ViewSelection = "direction" | "all" | string;
 
-function roadmapGroup(
+function roadmapFieldValue(
   work: WorkProfile,
-  groupBy: RoadmapView["groupBy"],
+  field: RoadmapView["groupBy"],
 ): string {
-  if (groupBy === "Type") {
+  if (field === "Type") {
     return work.type;
   }
-  if (groupBy === "Status") {
+  if (field === "Status") {
     return work.status;
   }
   return work.roadmapHorizon ?? "No horizon";
-}
-
-function roadmapMark(work: WorkProfile, markBy: RoadmapView["markBy"]): string {
-  if (markBy === "Status") {
-    return work.status;
-  }
-  if (markBy === "Horizon") {
-    return work.roadmapHorizon ?? "No horizon";
-  }
-  return work.type;
 }
 
 function roadmapMarkColor(value: string): string {
@@ -69,10 +61,12 @@ function roadmapMarkColor(value: string): string {
 
 function RoadmapResults({
   works,
+  origins,
   view,
   projectId,
 }: {
   works: WorkProfile[];
+  origins: RoadmapOriginLink[];
   view: RoadmapView | null;
   projectId: string;
 }) {
@@ -80,13 +74,15 @@ function RoadmapResults({
     works.map((work) => ({
       ...work,
       horizon: work.roadmapHorizon ?? null,
-      originOwnerRecordId: work.originOwnerRecordId ?? null,
+      originResearchIds: origins
+        .filter((origin) => origin.targetFeatureId === work.id)
+        .map((origin) => origin.sourceResearchId),
     })),
     view,
   );
   const groups = new Map<string, typeof shown>();
   for (const item of shown) {
-    const group = roadmapGroup(item.work, view?.groupBy ?? "Horizon");
+    const group = roadmapFieldValue(item.work, view?.groupBy ?? "Horizon");
     const current = groups.get(group) ?? [];
     current.push(item);
     groups.set(group, current);
@@ -116,11 +112,11 @@ function RoadmapResults({
                     {work.key} ·{" "}
                     <Badge
                       className={roadmapMarkColor(
-                        roadmapMark(work, view?.markBy ?? "Type"),
+                        roadmapFieldValue(work, view?.markBy ?? "Type"),
                       )}
                       variant="secondary"
                     >
-                      {roadmapMark(work, view?.markBy ?? "Type")}
+                      {roadmapFieldValue(work, view?.markBy ?? "Type")}
                     </Badge>
                     {secondary ? " · Feature" : ""}
                   </p>
@@ -136,11 +132,17 @@ function RoadmapResults({
                     <p className="text-muted-foreground text-xs">
                       Research ·{" "}
                       {
-                        works.find(
-                          (item) => item.id === work.originOwnerRecordId,
+                        works.find((item) =>
+                          work.originResearchIds.includes(item.id),
                         )?.title
                       }
                     </p>
+                  ) : null}
+                  {work.type === "Research" ? (
+                    <ResearchDirection
+                      key={`${work.id}-${work.revision}`}
+                      work={work}
+                    />
                   ) : null}
                   <p className="text-muted-foreground text-xs">
                     {work.status} ·{" "}
@@ -219,85 +221,29 @@ function HorizonControl({ work }: { work: WorkProfile }) {
 }
 
 export default function ProjectRoadmap({ projectId }: { projectId: string }) {
-  const queryClient = useQueryClient();
   const [selection, setSelection] = useState<ViewSelection>("direction");
-  const [draftViewId, setDraftViewId] = useState(() => crypto.randomUUID());
-  const [name, setName] = useState("");
-  const [type, setType] = useState("");
-  const [horizon, setHorizon] = useState("");
-  const [groupBy, setGroupBy] = useState<RoadmapView["groupBy"]>("Horizon");
-  const [markBy, setMarkBy] = useState<RoadmapView["markBy"]>("Type");
   const worksQuery = useQuery(
     orpc.projectWorks.queryOptions({ input: { archived: false, projectId } }),
   );
   const viewsQuery = useQuery(
     orpc.projectRoadmapViews.queryOptions({ input: { projectId } }),
   );
+  const originsQuery = useQuery(
+    orpc.projectRoadmapOrigins.queryOptions({ input: { projectId } }),
+  );
   const views = viewsQuery.data ?? [];
   const selectedView = views.find((view) => view.id === selection) ?? null;
-  const saveView = useMutation({
-    mutationFn: () =>
-      runOnlineOnlyWrite(() =>
-        client.saveRoadmapView({
-          groupBy,
-          horizons: horizon ? [horizon as RoadmapHorizon] : [],
-          id: selectedView === null ? draftViewId : selectedView.id,
-          markBy,
-          name,
-          projectId,
-          types: type ? [type as (typeof WORK_TYPE_OPTIONS)[number]] : [],
-        }),
-      ),
-    onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({
-        queryKey: orpc.projectRoadmapViews.queryOptions({
-          input: { projectId },
-        }).queryKey,
-      });
-      setSelection(saved.id);
-      setDraftViewId(crypto.randomUUID());
-    },
-  });
 
-  function chooseView(id: string) {
-    setSelection(id);
-    const selected = views.find((view) => view.id === id);
-    setName(selected?.name ?? "");
-    setType(selected?.types[0] ?? "");
-    setHorizon(selected?.horizons[0] ?? "");
-    setGroupBy(selected?.groupBy ?? "Horizon");
-    setMarkBy(selected?.markBy ?? "Type");
+  if (worksQuery.isPending || viewsQuery.isPending || originsQuery.isPending) {
+    return <p role="status">Loading…</p>;
   }
-
-  function chooseGroupBy(value: RoadmapView["groupBy"]) {
-    setGroupBy(value);
-    if (markBy === value) {
-      setMarkBy(VIEW_FIELDS.find((field) => field !== value) ?? "Type");
-    }
-  }
-
-  if (worksQuery.isPending || viewsQuery.isPending) {
-    return <p role="status">Loading Roadmap…</p>;
-  }
-  if (worksQuery.isError || viewsQuery.isError) {
+  if (worksQuery.isError || viewsQuery.isError || originsQuery.isError) {
     return <p role="alert">Roadmap is unavailable. Reload and try again.</p>;
   }
 
   const works = (worksQuery.data ?? []).filter(
     (work) => work.archivedAt === null,
   );
-  const activeView =
-    selection === "direction"
-      ? null
-      : {
-          groupBy,
-          horizons: horizon ? [horizon as RoadmapHorizon] : [],
-          id: selectedView?.id ?? "all",
-          markBy,
-          name: name || "All Work types",
-          projectId,
-          types: type ? [type as (typeof WORK_TYPE_OPTIONS)[number]] : [],
-        };
 
   return (
     <section aria-label="Roadmap" className="space-y-6" id="roadmap">
@@ -313,7 +259,7 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
         <select
           className="min-h-11 rounded-md border bg-background px-3"
           id="roadmap-view"
-          onChange={(event) => chooseView(event.target.value)}
+          onChange={(event) => setSelection(event.target.value)}
           value={selection}
         >
           <option value="direction">Product direction</option>
@@ -325,90 +271,29 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
           ))}
         </select>
       </label>
-      {selection === "direction" ? null : (
-        <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="grid gap-1 text-sm">
-            Type
-            <select
-              className="min-h-10 rounded-md border bg-background px-2"
-              onChange={(event) => setType(event.target.value)}
-              value={type}
-            >
-              <option value="">All Work types</option>
-              {WORK_TYPE_OPTIONS.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            Horizon
-            <select
-              className="min-h-10 rounded-md border bg-background px-2"
-              onChange={(event) => setHorizon(event.target.value)}
-              value={horizon}
-            >
-              <option value="">No filter</option>
-              {HORIZONS.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            Group by
-            <select
-              className="min-h-10 rounded-md border bg-background px-2"
-              onChange={(event) =>
-                chooseGroupBy(event.target.value as RoadmapView["groupBy"])
-              }
-              value={groupBy}
-            >
-              {VIEW_FIELDS.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm">
-            Mark by
-            <select
-              className="min-h-10 rounded-md border bg-background px-2"
-              onChange={(event) =>
-                setMarkBy(event.target.value as RoadmapView["markBy"])
-              }
-              value={markBy}
-            >
-              {VIEW_FIELDS.filter((option) => option !== groupBy).map(
-                (option) => (
-                  <option key={option}>{option}</option>
-                ),
-              )}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm sm:col-span-2">
-            Named view
-            <input
-              className="min-h-10 rounded-md border bg-background px-2"
-              maxLength={100}
-              onChange={(event) => setName(event.target.value)}
-              value={name}
+      {selection === "direction" ? (
+        <RoadmapResults
+          origins={originsQuery.data ?? []}
+          projectId={projectId}
+          view={null}
+          works={works}
+        />
+      ) : (
+        <RoadmapViewEditor
+          key={selection}
+          onSaved={setSelection}
+          projectId={projectId}
+          renderResults={(view) => (
+            <RoadmapResults
+              origins={originsQuery.data ?? []}
+              projectId={projectId}
+              view={view}
+              works={works}
             />
-          </label>
-          <div className="flex items-end">
-            <Button
-              disabled={!name.trim() || saveView.isPending}
-              onClick={() => saveView.mutate()}
-              type="button"
-            >
-              Save named view
-            </Button>
-          </div>
-          {saveView.isError ? (
-            <p className="text-destructive text-sm" role="alert">
-              Named view could not be saved.
-            </p>
-          ) : null}
-        </div>
+          )}
+          saved={selectedView}
+        />
       )}
-      <RoadmapResults projectId={projectId} view={activeView} works={works} />
     </section>
   );
 }

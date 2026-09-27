@@ -1,6 +1,7 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -97,6 +98,20 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
       ids[1],
       ids[0],
     ]);
+    const described = await lifecycle.updateResearchDirection(accountId, {
+      baseRevision: saved.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      expectedOutcome: "Founders can explain the plan.",
+      problemOpportunity: "Planning loses its context.",
+      workId: saved.id,
+    });
+    expect(described.problemOpportunity).toBe("Planning loses its context.");
+    expect(described.expectedOutcome).toBe("Founders can explain the plan.");
+    expect(described.status).toBe("Blocked");
+    expect((await backlog.list(workspaceId, profile.id))?.workIds).toEqual([
+      ids[1],
+      ids[0],
+    ]);
   });
 
   test("saved view filters remain metadata and cannot create Work membership", async () => {
@@ -123,5 +138,52 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
     expect(saved?.name).toBe("Research direction");
     expect(await roadmap.listViews(accountId, profile.id)).toEqual([saved]);
     expect(await roadmap.listViews("another-account", profile.id)).toBeNull();
+  });
+
+  test("default direction reads the canonical Origin relation", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Origin Project",
+        shortCode: "ORG",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const researchId = `research-${crypto.randomUUID()}`;
+    const featureId = `feature-${crypto.randomUUID()}`;
+    await database.insert(work).values([
+      {
+        id: researchId,
+        key: "ORG-1",
+        number: 1,
+        projectId: profile.id,
+        title: "Opportunity",
+        type: "Research",
+      },
+      {
+        id: featureId,
+        key: "ORG-2",
+        number: 2,
+        projectId: profile.id,
+        title: "Solution",
+        type: "Feature",
+      },
+    ]);
+    await database.insert(workRelation).values({
+      id: `origin-${crypto.randomUUID()}`,
+      kind: "Origin",
+      sourceWorkId: researchId,
+      targetLabel: "Solution",
+      targetProjectId: profile.id,
+      targetRecordId: featureId,
+    });
+    const roadmap = createDatabaseRoadmapHorizon(database);
+    expect(await roadmap.listOrigins(accountId, profile.id)).toEqual([
+      { sourceResearchId: researchId, targetFeatureId: featureId },
+    ]);
+    expect(await roadmap.listOrigins("another-account", profile.id)).toBeNull();
   });
 });
