@@ -132,10 +132,21 @@ async function assertRoadmapHistoryRepairPreconditions<
     createHash("sha256")
       .update(readFileSync(join(folder, `${tag}.sql`)))
       .digest("hex");
-  const latest = await database.$client.query(
-    "SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 1",
+  const ledger = await database.$client.query(
+    "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id",
   );
-  const [latestRow] = latest.rows;
+  const ledgerText = `${ledger.rows
+    .map((entry) => `${entry.id}\t${entry.hash}\t${entry.created_at}`)
+    .join("\n")}\n`;
+  // Exact 72-row shared history before the 0069–0072 repair; unknown variants fail closed.
+  const expectedLedgerHash =
+    "b8ebe8df532098ab56599b8248f83841eb594aedcb65e3de69f3d23d2015dd60";
+  if (
+    createHash("sha256").update(ledgerText).digest("hex") !== expectedLedgerHash
+  ) {
+    throw new Error("Roadmap repair requires the verified shared history");
+  }
+  const latestRow = ledger.rows.at(-1);
   if (
     Number(latestRow?.created_at) !== lastExpected.when ||
     latestRow?.hash !== migrationHash(lastExpected.tag)
@@ -147,12 +158,11 @@ async function assertRoadmapHistoryRepairPreconditions<
     migrationHash("0067_backfill-work-status-change-time"),
     migrationHash("0068_backfill-work-status-change-time-history-shapes"),
   ];
-  const backfills = await database.$client.query(
-    "SELECT count(DISTINCT hash)::int AS count FROM drizzle.__drizzle_migrations WHERE hash IN ($1, $2)",
-    backfillHashes,
-  );
-  const [backfillRow] = backfills.rows;
-  if (backfillRow?.count !== backfillHashes.length) {
+  if (
+    backfillHashes.some(
+      (hash) => !ledger.rows.some((record) => record.hash === hash),
+    )
+  ) {
     throw new Error("Roadmap repair requires both applied status backfills");
   }
 
@@ -165,12 +175,11 @@ async function assertRoadmapHistoryRepairPreconditions<
           AND data_type = 'timestamp without time zone'
           AND is_nullable = 'NO' AND column_default = 'now()'
       ) AS status_column_ready,
-      EXISTS (
-        SELECT 1 FROM pg_constraint
+      (
+        SELECT pg_get_constraintdef(oid) FROM pg_constraint
         WHERE conrelid = 'public.work'::regclass
           AND conname = 'work_reappear_date_check'
-          AND pg_get_constraintdef(oid) LIKE '%reappear_date%'
-      ) AS date_constraint_ready,
+      ) AS date_constraint,
       to_regclass('public.project_backlog_reappear_attention_signal') IS NULL AS signal_absent,
       to_regclass('public.roadmap_view') IS NULL AS view_absent,
       NOT EXISTS (
@@ -180,9 +189,13 @@ async function assertRoadmapHistoryRepairPreconditions<
       ) AS roadmap_columns_absent
   `);
   const [row] = state.rows;
+  const dateConstraintHash = row?.date_constraint
+    ? createHash("sha256").update(row.date_constraint).digest("hex")
+    : null;
   const ready = Boolean(
     row?.status_column_ready &&
-      row.date_constraint_ready &&
+      dateConstraintHash ===
+        "a705382604c215259740ea3b4b8e9a45d6515d0e7bbff853c48c233720dab870" &&
       row.signal_absent &&
       row.view_absent &&
       row.roadmap_columns_absent,
