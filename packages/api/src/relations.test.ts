@@ -94,6 +94,33 @@ describe("Relations seam", () => {
     ).toBe(false);
   });
 
+  test("keeps Milestone contribution a Work-to-Milestone relation", () => {
+    expect(relationDefinition("Contributes to Milestone")).toMatchObject({
+      cardinality: "many-to-many",
+      inverseLabel: "In Milestone",
+      sourceTypes: "milestone-source",
+      targetTypes: "milestone-target",
+      uniqueness: "many",
+    });
+    expect(
+      isAllowedRelationEndpoints(
+        "Contributes to Milestone",
+        "Work",
+        "Milestone",
+      ),
+    ).toBe(true);
+    expect(
+      isAllowedRelationEndpoints(
+        "Contributes to Milestone",
+        "Milestone",
+        "Work",
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedRelationEndpoints("Contributes to Goal", "Work", "Milestone"),
+    ).toBe(false);
+  });
+
   test("keeps blocking relations unique for their directed endpoint pair", () => {
     expect(relationDefinition("Blocks")).toMatchObject({
       cardinality: "many-to-many",

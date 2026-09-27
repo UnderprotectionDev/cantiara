@@ -9,6 +9,7 @@ export * from "./file-attachments";
 export * from "./prioritization-session";
 export * from "./priority-metrics";
 export * from "./project";
+export * from "./project-milestone";
 export * from "./record-action";
 export * from "./relation";
 export * from "./roadmap-horizon";

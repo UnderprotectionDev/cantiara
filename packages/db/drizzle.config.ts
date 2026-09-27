@@ -11,6 +11,7 @@ export default defineConfig({
     "./src/schema/daily-focus.ts",
     "./src/schema/file-attachments.ts",
     "./src/schema/project.ts",
+    "./src/schema/project-milestone.ts",
     "./src/schema/priority-metrics.ts",
     "./src/schema/backlog.ts",
     "./src/schema/prioritization-session.ts",

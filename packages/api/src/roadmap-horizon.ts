@@ -5,6 +5,58 @@ import { workTypeSchema } from "./work-lifecycle";
 
 const identifier = z.string().trim().min(1).max(255);
 
+export const MILESTONE_STATUS_OPTIONS = [
+  "Planned",
+  "Reached",
+  "Abandoned",
+] as const;
+export const milestoneStatusSchema = z.enum(MILESTONE_STATUS_OPTIONS);
+
+const milestoneFieldsSchema = z
+  .object({
+    description: z.string().max(20_000).nullable(),
+    id: identifier,
+    projectId: identifier,
+    status: milestoneStatusSchema,
+    targetDate: z.iso.date().nullable(),
+    title: z.string().trim().min(1).max(255),
+  })
+  .strict();
+
+export const milestoneSchema = milestoneFieldsSchema
+  .extend({ revision: z.number().int().nonnegative().safe() })
+  .strict();
+export type Milestone = z.infer<typeof milestoneSchema>;
+
+const milestoneMetadataFieldsSchema = milestoneFieldsSchema.pick({
+  description: true,
+  projectId: true,
+  targetDate: true,
+  title: true,
+});
+
+export const createMilestoneInputSchema = humanMutationEnvelopeSchema
+  .extend(milestoneMetadataFieldsSchema.extend({ id: identifier }).shape)
+  .strict();
+export const updateMilestoneInputSchema = humanMutationEnvelopeSchema
+  .extend(
+    milestoneMetadataFieldsSchema.extend({ milestoneId: identifier }).shape,
+  )
+  .strict();
+export const updateMilestoneStatusInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    milestoneId: identifier,
+    projectId: identifier,
+    status: z.enum(["Reached", "Abandoned"]),
+  })
+  .strict();
+
+export type CreateMilestoneInput = z.infer<typeof createMilestoneInputSchema>;
+export type UpdateMilestoneInput = z.infer<typeof updateMilestoneInputSchema>;
+export type UpdateMilestoneStatusInput = z.infer<
+  typeof updateMilestoneStatusInputSchema
+>;
+
 export const roadmapHorizonSchema = z.enum(["Now", "Next", "Later"]);
 export type RoadmapHorizon = z.infer<typeof roadmapHorizonSchema>;
 
@@ -52,6 +104,14 @@ export const projectRoadmapInputSchema = z
   .strict();
 
 export interface RoadmapHorizonAccess {
+  createMilestone: (
+    accountId: string,
+    input: z.input<typeof createMilestoneInputSchema>,
+  ) => Promise<Milestone | null>;
+  listMilestones: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<Milestone[] | null>;
   listOrigins: (
     accountId: string,
     projectId: string,
@@ -67,6 +127,14 @@ export interface RoadmapHorizonAccess {
     accountId: string,
     input: z.input<typeof saveRoadmapViewInputSchema>,
   ) => Promise<RoadmapView | null>;
+  updateMilestone: (
+    accountId: string,
+    input: z.input<typeof updateMilestoneInputSchema>,
+  ) => Promise<Milestone | null>;
+  updateMilestoneStatus: (
+    accountId: string,
+    input: z.input<typeof updateMilestoneStatusInputSchema>,
+  ) => Promise<Milestone | null>;
 }
 
 export interface RoadmapOriginLink {

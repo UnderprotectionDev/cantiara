@@ -17,6 +17,7 @@ import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import ProjectMilestones from "./project-milestones";
 import ResearchDirection from "./research-direction";
 import RoadmapViewEditor from "./roadmap-view-editor";
 
@@ -294,6 +295,7 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
           saved={selectedView}
         />
       )}
+      <ProjectMilestones projectId={projectId} works={works} />
     </section>
   );
 }
