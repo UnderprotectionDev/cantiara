@@ -25,7 +25,69 @@ interface Journal {
 }
 
 interface Snapshot {
-  tables: Record<string, { columns: Record<string, unknown> }>;
+  tables: Record<
+    string,
+    {
+      columns: Record<
+        string,
+        { type: string; notNull?: boolean; primaryKey?: boolean }
+      >;
+      indexes: Record<string, unknown>;
+      foreignKeys: Record<string, unknown>;
+      uniqueConstraints: Record<string, unknown>;
+      checkConstraints: Record<string, unknown>;
+    }
+  >;
+}
+type SnapshotTable = Snapshot["tables"][string];
+
+function verifyTable(
+  kind: "primary" | "security",
+  tableName: string,
+  table: SnapshotTable,
+  actual: Map<string, { data_type: string; is_nullable: string }>,
+  actualIndexes: Set<string>,
+  actualConstraints: Set<string>,
+) {
+  for (const [columnName, expected] of Object.entries(table.columns)) {
+    const column = actual.get(`${tableName}.${columnName}`);
+    if (!column) {
+      throw new Error(
+        `${kind} expected schema column missing: ${tableName}.${columnName}`,
+      );
+    }
+    const expectedType =
+      expected.type === "timestamp"
+        ? "timestamp without time zone"
+        : expected.type;
+    if (
+      column.data_type !== expectedType ||
+      (column.is_nullable === "NO") !==
+        Boolean(expected.notNull || expected.primaryKey)
+    ) {
+      throw new Error(
+        `${kind} schema column differs: ${tableName}.${columnName}`,
+      );
+    }
+  }
+  for (const name of Object.keys(table.indexes ?? {})) {
+    if (!actualIndexes.has(`${tableName}.${name}`)) {
+      throw new Error(`${kind} expected index missing: ${tableName}.${name}`);
+    }
+  }
+  const expectedConstraints = [
+    ...Object.keys(table.foreignKeys ?? {}),
+    ...Object.keys(table.uniqueConstraints ?? {}),
+    ...Object.keys(table.checkConstraints ?? {}),
+  ];
+  for (const name of expectedConstraints) {
+    // PostgreSQL stores identifiers at most 63 bytes; these generated names are ASCII.
+    if (!actualConstraints.has(`${tableName}.${name.slice(0, 63)}`)) {
+      throw new Error(
+        `${kind} expected constraint missing: ${tableName}.${name}`,
+      );
+    }
+  }
 }
 
 const config = JSON.parse(
@@ -89,6 +151,43 @@ function assertMainPrefix(folder: string, repoPath: string) {
     }
   }
   return candidate;
+}
+
+async function verifySnapshot(
+  client: Pool,
+  snapshot: Snapshot,
+  kind: "primary" | "security",
+) {
+  const columns = await client.query(
+    "SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='public'",
+  );
+  const actual = new Map(
+    columns.rows.map((row) => [`${row.table_name}.${row.column_name}`, row]),
+  );
+  const indexes = await client.query(
+    "SELECT tablename, indexname FROM pg_indexes WHERE schemaname='public'",
+  );
+  const actualIndexes = new Set(
+    indexes.rows.map((row) => `${row.tablename}.${row.indexname}`),
+  );
+  const constraints = await client.query(
+    "SELECT c.relname AS table_name, con.conname AS constraint_name FROM pg_constraint con JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public'",
+  );
+  const actualConstraints = new Set(
+    constraints.rows.map((row) => `${row.table_name}.${row.constraint_name}`),
+  );
+  for (const [tableKey, table] of Object.entries(snapshot.tables)) {
+    const tableName = tableKey.split(".").at(-1) ?? tableKey;
+    verifyTable(
+      kind,
+      tableName,
+      table,
+      actual,
+      actualIndexes,
+      actualConstraints,
+    );
+  }
+  return actual.size;
 }
 
 async function verifyProject(
@@ -184,27 +283,9 @@ async function verifyProject(
           "utf8",
         ),
       ) as Snapshot;
-      const columns = await db.$client.query(
-        "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema='public'",
-      );
-      const actual = new Set(
-        columns.rows.map((row) => `${row.table_name}.${row.column_name}`),
-      );
-      for (const table of Object.values(snapshot.tables)) {
-        for (const column of Object.keys(table.columns)) {
-          const tableName = Object.keys(snapshot.tables)
-            .find((key) => snapshot.tables[key] === table)
-            ?.split(".")
-            .at(-1);
-          if (!actual.has(`${tableName}.${column}`)) {
-            throw new Error(
-              `${kind} expected schema column missing: ${tableName}.${column}`,
-            );
-          }
-        }
-      }
+      const count = await verifySnapshot(db.$client, snapshot, kind);
       console.log(
-        `${kind}: ${records.rows.length} migration hashes and ${actual.size} columns verified`,
+        `${kind}: ${records.rows.length} migration hashes and ${count} columns verified`,
       );
     } finally {
       await db.$client.end();

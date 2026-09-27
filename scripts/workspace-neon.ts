@@ -298,10 +298,7 @@ export async function workspaceEnvironment(state: WorkspaceState) {
       state.connections.security.direct,
     ),
   ]);
-  const port = Number(process.env.CONDUCTOR_PORT);
-  if (!Number.isInteger(port) || port < 1024 || port > 65_525) {
-    throw new Error("CONDUCTOR_PORT must reserve ten local ports");
-  }
+  const port = workspacePort();
   return {
     ...process.env,
     DATABASE_URL: state.connections.primary.pooled,
@@ -314,4 +311,12 @@ export async function workspaceEnvironment(state: WorkspaceState) {
     VITE_SERVER_URL: `http://localhost:${port}`,
     NEON_LOCAL: "false",
   };
+}
+
+export function workspacePort() {
+  const port = Number(process.env.CONDUCTOR_PORT);
+  if (!Number.isInteger(port) || port < 1024 || port > 65_525) {
+    throw new Error("CONDUCTOR_PORT must reserve ten local ports");
+  }
+  return port;
 }

@@ -6,6 +6,7 @@ import {
   assertWorkspaceRecord,
   branchName,
   neon,
+  workspacePort,
 } from "./workspace-neon";
 
 const expected = {
@@ -17,6 +18,27 @@ const expected = {
 };
 
 describe("workspace Neon boundary", () => {
+  it("rejects setup without a valid local Conductor port", () => {
+    const previous = process.env.CONDUCTOR_PORT;
+    try {
+      for (const value of [undefined, "0", "65530", "abc"]) {
+        if (value === undefined) {
+          delete process.env.CONDUCTOR_PORT;
+        } else {
+          process.env.CONDUCTOR_PORT = value;
+        }
+        expect(() => workspacePort()).toThrow();
+      }
+      process.env.CONDUCTOR_PORT = "55070";
+      expect(workspacePort()).toBe(55_070);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CONDUCTOR_PORT;
+      } else {
+        process.env.CONDUCTOR_PORT = previous;
+      }
+    }
+  });
   it("uses the workspace identity rather than an issue number", () => {
     expect(branchName("abc", "0123456789abcdef", "primary")).toBe(
       "ws-abc-0123456789abcdef-primary",

@@ -1,7 +1,9 @@
-import { chmodSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 
+import { mergeWorkspaceEnv } from "./workspace-env";
 import {
   assertBranch,
+  assertWorkspaceRecord,
   branchName,
   connectionStrings,
   getBranch,
@@ -12,6 +14,7 @@ import {
   saveState,
   type WorkspaceState,
   workspaceEnvironment,
+  workspacePort,
 } from "./workspace-neon";
 
 interface ProjectConfig {
@@ -65,17 +68,7 @@ async function provision(kind: "primary" | "security", state: WorkspaceState) {
   let record = state[kind];
   if (record) {
     const recorded = record;
-    if (
-      record.projectId !== target.projectId ||
-      record.parentId !== target.baseBranchId ||
-      record.name !== name ||
-      record.branchId === target.productionBranchId ||
-      record.branchId === target.baseBranchId
-    ) {
-      throw new Error(
-        "Recorded workspace branch does not belong to this configuration",
-      );
-    }
+    assertWorkspaceRecord(record, state, kind, target);
     const actual = branches.find((branch) => branch.id === recorded.branchId);
     if (!actual) {
       throw new Error(
@@ -143,21 +136,34 @@ function writeWorkspaceEnv(env: NodeJS.ProcessEnv) {
     "CORS_ORIGIN",
     "NEON_LOCAL",
   ] as const;
-  const lines = serverKeys.map((key) => `${key}=${JSON.stringify(env[key])}`);
-  writeFileSync("apps/server/.env.local", `${lines.join("\n")}\n`, {
-    mode: 0o600,
-  });
+  const serverPath = "apps/server/.env.local";
+  const webPath = "apps/web/.env.local";
+  const priorServer = existsSync(serverPath)
+    ? readFileSync(serverPath, "utf8")
+    : "";
+  const priorWeb = existsSync(webPath) ? readFileSync(webPath, "utf8") : "";
   writeFileSync(
-    "apps/web/.env.local",
-    `VITE_SERVER_URL=${JSON.stringify(env.VITE_SERVER_URL)}\n`,
+    serverPath,
+    mergeWorkspaceEnv(
+      priorServer,
+      Object.fromEntries(serverKeys.map((key) => [key, env[key]])),
+    ),
+    {
+      mode: 0o600,
+    },
+  );
+  writeFileSync(
+    webPath,
+    mergeWorkspaceEnv(priorWeb, { VITE_SERVER_URL: env.VITE_SERVER_URL }),
     { mode: 0o600 },
   );
-  chmodSync("apps/server/.env.local", 0o600);
-  chmodSync("apps/web/.env.local", 0o600);
+  chmodSync(serverPath, 0o600);
+  chmodSync(webPath, 0o600);
 }
 
 async function setup() {
   assertProjectConfiguration();
+  workspacePort();
   const id = workspaceId();
   const state: WorkspaceState = readInitialState(id);
   const primary = await provision("primary", state);
@@ -194,15 +200,7 @@ async function archive() {
       continue;
     }
     const target = config[kind];
-    if (
-      record.projectId !== target.projectId ||
-      record.parentId !== target.baseBranchId ||
-      record.branchId === target.baseBranchId ||
-      record.branchId === target.productionBranchId ||
-      record.name !== branchName(state.workspaceId, state.ownerNonce, kind)
-    ) {
-      throw new Error("Archive refused an unowned Neon branch");
-    }
+    assertWorkspaceRecord(record, state, kind, target);
     // biome-ignore lint/performance/noAwaitInLoops: Archive must verify and persist each branch before deleting the next.
     const branch = await getBranch(record);
     if (branch) {
