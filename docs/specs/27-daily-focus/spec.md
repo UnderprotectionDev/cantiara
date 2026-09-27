@@ -46,6 +46,7 @@ Günlük Odak kişisel, gün-kapsamlı bir çalışma görünümüdür. Gösterm
 - **What happened today?** Read-only derivation from source records/events on the selected profile-time-zone calendar day: Work completed/abandoned/reopened, Decisions recorded, Milestones reached, published Project Release/changelog entries, resolved Production Incidents, and other explicitly supported lifecycle events already on the realized-events timeline. Each row: event time, Project scope, `Open source record`. No Daily Note, no copied body, no second history. Time-zone change recomputes bounds only.
 - **Close focus.** Optional calm view for the selected day. Groups completed, abandoned, reappear-deferred, and still-open Daily Focus Work from sources. Does not complete, unfocus, reschedule, or demand zero Work. User can return to the same day’s focus. No streak, score, verdict, or mandatory ritual. Does not trigger Bitiriş efekti.
 - **English UI labels.** First user-visible copy uses: `Daily Focus`, `Candidates`, `What happened today?`, `Close focus`, `Open source record`. Missing labels are added to the PRD term table in the same change that first shows them. No Turkish UI.
+- **Membership UI labels.** Issue #202 shows `Selected day`, `No Work in Daily Focus for this day.`, `Work`, `Select Work`, `Add to Daily Focus`, and `Remove from Daily Focus`. The membership controls do not expose candidate, day-read, or close behavior.
 - **Shell.** Personal-access shell may open this view; it does not own membership. Favorites and Active Work Set stay their features.
 
 ## Testing Decisions
@@ -55,6 +56,7 @@ Günlük Odak kişisel, gün-kapsamlı bir çalışma görünümüdür. Gösterm
 - **Modules under test.** Daily Focus only. Focus Period windows, Calendar events, Work status, and Daily Note storage are out except as counterparts.
 - **Prior art.** Contract tests at this seam with a clock/time-zone test double. Evidence environment for [Günlük planlama](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) is the founder’s real project. Cloud tests must not use production content.
 - **Required counterparts.** Add/remove does not write status/priority/stage/Backlog order; next day has empty membership unless chosen; candidate without accept is not a member; `What happened today?` cannot be edited and creates no Document; `Close focus` leaves open Work open and still in that day’s focus; no streak/score.
+- **Issue #202 evidence.** At the Daily Focus seam, select Work from two Projects for one profile date; read the next date as empty, deny a second Account access, remove one member, and compare Work, Project, and Backlog records before and after. This covers the membership part of [Günlük planlama](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).
 
 ## Out of Scope
 

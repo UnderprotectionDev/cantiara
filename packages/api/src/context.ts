@@ -17,6 +17,7 @@ import type {
   CustomFieldMutationContracts,
   CustomFieldsAccess,
 } from "./custom-fields";
+import type { DailyFocusAccess } from "./daily-focus";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
@@ -143,6 +144,7 @@ export interface Context {
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
+  dailyFocus?: DailyFocusAccess;
   db: Database;
   desktopApiContract?: string;
   fileAttachments?: FileAttachmentAccess;
