@@ -5,18 +5,29 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
+import { useState } from "react";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
+  type CalendarDateChange,
   type CalendarView,
 } from "@/features/unified-calendar/ui/components/unified-calendar";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import {
   accountPreferencesQueryOptions,
+  client,
   orpc,
   projectsQueryOptions,
+  projectWorksQueryPrefix,
 } from "@/utils/orpc";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -39,11 +50,57 @@ export const Route = createFileRoute("/_auth/calendar")({
   component: CalendarRoute,
 });
 
+function CalendarMutationFeedback({
+  dateChangeError,
+  disabled,
+  onUndo,
+  showUndo,
+}: {
+  dateChangeError: string | null;
+  disabled: boolean;
+  onUndo: () => void;
+  showUndo: boolean;
+}) {
+  return (
+    <>
+      {dateChangeError ? (
+        <p className="mt-3 text-destructive text-sm" role="alert">
+          {dateChangeError}
+        </p>
+      ) : null}
+      {showUndo ? (
+        <div
+          className="mt-3 flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-sm"
+          role="status"
+        >
+          <span>Calendar date updated.</span>
+          <Button
+            disabled={disabled}
+            onClick={onUndo}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Undo
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function CalendarRoute() {
   const { session } = Route.useRouteContext();
   const search = Route.useSearch();
   const navigate = useNavigate();
   const projects = useQuery(projectsQueryOptions());
+  const queryClient = useQueryClient();
+  const [dateChangeUndo, setDateChangeUndo] = useState<{
+    baseRevision: number;
+    receiptId: string;
+    workId: string;
+  } | null>(null);
+  const [dateChangeError, setDateChangeError] = useState<string | null>(null);
   const preferences = useQuery(
     accountPreferencesQueryOptions(session.data?.user.id),
   );
@@ -77,6 +134,71 @@ function CalendarRoute() {
       workQueries.some((query) => query.isPending));
   const preferencesUnavailable = preferences.isPending || preferences.isError;
   const works = workQueries.flatMap((query) => query.data ?? []);
+  async function handleCalendarDateError(error: unknown, fallback: string) {
+    setDateChangeUndo(null);
+    setDateChangeError(mutationErrorMessage(error, fallback));
+    await queryClient.invalidateQueries({
+      queryKey: projectWorksQueryPrefix,
+    });
+  }
+
+  const updateCalendarDate = useMutation({
+    mutationFn: (change: CalendarDateChange) =>
+      runOnlineOnlyWrite(() =>
+        client.updateWorkDate({
+          baseRevision: change.baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          date: change.date,
+          dateField: change.dateField,
+          workId: change.workId,
+        }),
+      ),
+    onError: (error) =>
+      handleCalendarDateError(
+        error,
+        "Calendar date could not be saved. Try again.",
+      ),
+    onSuccess: async (work) => {
+      setDateChangeError(null);
+      setDateChangeUndo({
+        baseRevision: work.revision,
+        receiptId: work.receiptId,
+        workId: work.id,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: projectWorksQueryPrefix,
+      });
+    },
+  });
+  const undoCalendarDate = useMutation({
+    mutationFn: () => {
+      if (!dateChangeUndo) {
+        throw new Error(
+          "This Work date change is no longer available for Undo.",
+        );
+      }
+      return runOnlineOnlyWrite(() =>
+        client.undoWorkDate({
+          baseRevision: dateChangeUndo.baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          receiptId: dateChangeUndo.receiptId,
+          workId: dateChangeUndo.workId,
+        }),
+      );
+    },
+    onError: (error) =>
+      handleCalendarDateError(
+        error,
+        "This Work date change is no longer available for Undo.",
+      ),
+    onSuccess: async () => {
+      setDateChangeError(null);
+      setDateChangeUndo(null);
+      await queryClient.invalidateQueries({
+        queryKey: projectWorksQueryPrefix,
+      });
+    },
+  });
 
   function updateSearch(next: Partial<typeof search>) {
     navigate({
@@ -179,14 +301,31 @@ function CalendarRoute() {
           </p>
         ) : null}
         {loading || failed ? null : (
-          <UnifiedCalendar
-            preferences={formatting}
-            projects={projects.data ?? []}
-            selectedDate={selectedDate}
-            selectedProjectId={selectedProjectId}
-            view={view}
-            works={works}
-          />
+          <>
+            <UnifiedCalendar
+              disabled={
+                updateCalendarDate.isPending || undoCalendarDate.isPending
+              }
+              onDateChange={(change) => {
+                setDateChangeError(null);
+                updateCalendarDate.mutate(change);
+              }}
+              preferences={formatting}
+              projects={projects.data ?? []}
+              selectedDate={selectedDate}
+              selectedProjectId={selectedProjectId}
+              view={view}
+              works={works}
+            />
+            <CalendarMutationFeedback
+              dateChangeError={dateChangeError}
+              disabled={
+                updateCalendarDate.isPending || undoCalendarDate.isPending
+              }
+              onUndo={() => undoCalendarDate.mutate()}
+              showUndo={dateChangeUndo !== null}
+            />
+          </>
         )}
       </main>
     </ClientShellContent>

@@ -262,6 +262,31 @@ const app = createApp({
 });
 
 const authContext = await auth.$context;
+async function createUnifiedCalendarFixture(accountId: string) {
+  const project = await projectShell.create(accountId, {
+    name: "Calendar Project",
+    shortCode: "CAL",
+    starterConfiguration: "Blank Project",
+  });
+  const work = await workLifecycle.create(accountId, {
+    baseRevision: 0,
+    clientIdempotencyKey: "unified-calendar-work",
+    plannedStartDate: "2026-10-01",
+    projectId: project.id,
+    targetDate: "2026-10-03",
+    title: "Calendar date check",
+    type: "Task",
+  });
+  await workLifecycle.updateDate(accountId, {
+    baseRevision: work.revision,
+    clientIdempotencyKey: "unified-calendar-reappear-date",
+    date: "2026-10-02",
+    dateField: "reappearDate",
+    workId: work.id,
+  });
+  return project;
+}
+
 async function createE2EFixture(fixtureKey: string) {
   const fixtureEmail = `account-access-e2e-${fixtureKey}@example.invalid`;
   await database.delete(user).where(eq(user.email, fixtureEmail));
@@ -306,6 +331,11 @@ async function createE2EFixture(fixtureKey: string) {
           name: "Capture Project",
           starterConfiguration: "Blank Project",
         })
+      : null;
+
+  const calendarProject =
+    fixtureKey === "unified-calendar"
+      ? await createUnifiedCalendarFixture(founder.id)
       : null;
 
   const isScopeTreeFixture =
@@ -464,6 +494,7 @@ async function createE2EFixture(fixtureKey: string) {
   const projectId =
     usedInTargetProject?.id ??
     captureProject?.id ??
+    calendarProject?.id ??
     scopeTreeProject?.id ??
     tagsProject?.id ??
     bulkEditProgressFixture?.projectId;

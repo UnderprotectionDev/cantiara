@@ -12,6 +12,7 @@ const work = {
   plannedStartDate: "2026-09-22",
   projectId: "project-1",
   reappearDate: "2026-09-23",
+  revision: 0,
   status: "Not Started" as const,
   targetDate: "2026-09-24",
   title: "Payment flow",
@@ -40,6 +41,17 @@ function calendarDayContent(html: string, date: string) {
 }
 
 describe("Unified Calendar", () => {
+  test.each(["Planned start", "Target date", "Reappear date"] as const)(
+    "exposes the %s source date as a movable mark",
+    (dateKind) => {
+      const html = renderToStaticMarkup(
+        <UnifiedCalendar {...base} view="Week" />,
+      );
+
+      expect(html).toContain(`aria-label="${dateKind} for Payment flow"`);
+    },
+  );
+
   test("Day shows only date positions on the selected day", () => {
     const html = renderToStaticMarkup(<UnifiedCalendar {...base} view="Day" />);
     const selectedDay = calendarDayContent(html, base.selectedDate);

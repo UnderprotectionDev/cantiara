@@ -1,6 +1,7 @@
 import {
   canonicalizeMutationPayload,
   fingerprintMutationPayload,
+  type MutationOptions,
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import {
@@ -25,13 +26,16 @@ import {
   type ScopeTreeNode,
   type ScopeTreeReference,
   type ScopeTreeWork,
+  undoWorkDateInputSchema,
   undoWorkMergeInputSchema,
   undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
+  updateWorkDateInputSchema,
   updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
+  WORK_DATE_FIELDS,
   type WorkChecklistConversionPreview,
   type WorkChecklistConversionResult,
   type WorkClosePreview,
@@ -444,6 +448,15 @@ export class WorkStatusUndoUnavailableError extends Error {
   constructor() {
     super("This Work status change is no longer available for Undo.");
     this.name = "WorkStatusUndoUnavailableError";
+  }
+}
+
+export class WorkDateUndoUnavailableError extends Error {
+  readonly code = "WORK_DATE_UNDO_UNAVAILABLE" as const;
+
+  constructor() {
+    super("This Work date change is no longer available for Undo.");
+    this.name = "WorkDateUndoUnavailableError";
   }
 }
 
@@ -1328,7 +1341,7 @@ export function createWorkLifecycle({
     return receipt.nextValue.work;
   }
 
-  async function mutateWork<TPayload extends MutationPayload>(
+  async function mutateWorkWithReceipt<TPayload extends MutationPayload>(
     accountId: string,
     command: {
       baseRevision: number;
@@ -1345,6 +1358,7 @@ export function createWorkLifecycle({
       currentWork: WorkProfile,
       payload: TPayload,
     ) => void | Promise<void>,
+    options?: MutationOptions,
   ) {
     const receipt = await mutationContracts.update(accountId).mutate(
       {
@@ -1369,11 +1383,42 @@ export function createWorkLifecycle({
           },
         } satisfies WorkLifecycleMutationValue;
       },
+      options,
     );
     if (!receipt.nextValue.work) {
       throw new WorkNotFoundError(command.targetId);
     }
-    return receipt.nextValue.work;
+    return { receiptId: receipt.id, work: receipt.nextValue.work };
+  }
+
+  async function mutateWork<TPayload extends MutationPayload>(
+    accountId: string,
+    command: {
+      baseRevision: number;
+      clientIdempotencyKey: string;
+      payload: TPayload;
+      targetId: string;
+    },
+    transform: (
+      currentWork: WorkProfile,
+      payload: TPayload,
+      timestamp: string,
+    ) => WorkProfile,
+    validate?: (
+      currentWork: WorkProfile,
+      payload: TPayload,
+    ) => void | Promise<void>,
+    options?: MutationOptions,
+  ) {
+    return (
+      await mutateWorkWithReceipt(
+        accountId,
+        command,
+        transform,
+        validate,
+        options,
+      )
+    ).work;
   }
 
   return {
@@ -2400,6 +2445,64 @@ export function createWorkLifecycle({
       return receipt.nextValue.work;
     },
 
+    async undoDate(accountId, rawInput) {
+      const input = undoWorkDateInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      if (!(mutation.findReceiptById && mutation.undo)) {
+        throw new WorkDateUndoUnavailableError();
+      }
+      const sourceReceipt = await mutation.findReceiptById(input.receiptId);
+      const dateField = WORK_DATE_FIELDS.find(
+        (field) => sourceReceipt?.undo?.scope === `work.${field}`,
+      );
+      if (
+        !sourceReceipt ||
+        sourceReceipt.targetId !== input.workId ||
+        sourceReceipt.actor.type !== "User" ||
+        sourceReceipt.actor.actorId !== accountId ||
+        sourceReceipt.undo?.kind !== "field" ||
+        !dateField
+      ) {
+        throw new WorkDateUndoUnavailableError();
+      }
+
+      const receipt = await mutation.undo(
+        sourceReceipt,
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          kind: "human",
+          payload: {
+            dateField,
+            operation: "undo-work-date",
+            receiptId: input.receiptId,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        ({ currentRevision, currentValue, previousValue }) => {
+          if (!(currentValue.work && previousValue.work)) {
+            throw new WorkDateUndoUnavailableError();
+          }
+          const timestamp = new Date().toISOString();
+          return {
+            ...currentValue,
+            work: {
+              ...currentValue.work,
+              [dateField]: previousValue.work[dateField],
+              revision: currentRevision + 1,
+              updatedAt: timestamp,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkDateUndoUnavailableError();
+      }
+      return receipt.nextValue.work;
+    },
+
     async updateStatus(
       accountId,
       rawInput,
@@ -2508,6 +2611,35 @@ export function createWorkLifecycle({
         },
         (work, payload) => ({ ...work, reappearDate: payload.reappearDate }),
       );
+    },
+
+    async updateDate(accountId, rawInput) {
+      const input = updateWorkDateInputSchema.parse(rawInput);
+      const result = await mutateWorkWithReceipt(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            date: input.date,
+            dateField: input.dateField,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        (work, payload) => ({
+          ...work,
+          [payload.dateField]: payload.date,
+        }),
+        undefined,
+        {
+          undo: {
+            kind: "field",
+            scope: `work.${input.dateField}`,
+          },
+        },
+      );
+      return { ...result.work, receiptId: result.receiptId };
     },
 
     updateRoadmapHorizon(accountId, rawInput) {
