@@ -265,6 +265,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Değişiklikleri önizle | `Preview changes` | Çalışma anı girdileri veya dış yürütme önerileri seçildikten sonra kesin farkı gösterme eylemi |
 | Girdileri değiştir | `Change inputs` | Yeni önizleme için seçilen çalışma anı girdilerine geri dönme eylemi |
 | Günlük Odak | `Daily Focus` | Farklı Projelerden seçili profil gününde ele alınacak İşleri toplayan kişisel görünüm; Odak Dönemi, sprint, Aktif Çalışma Seti veya Takvim olayı değildir |
+| Günlük Odağa ekle | `Add to Daily Focus` | Seçili profil gününe İş üyeliği ekler; kaynak İş alanlarını değiştirmez |
+| Günlük Odaktan çıkar | `Remove from Daily Focus` | Seçili profil günündeki İş üyeliğini kaldırır; İşin durumunu değiştirmez |
+| İş seç | `Select Work` | Günlük Odağa eklenecek erişilebilir İşi seçme alanının boş seçeneği |
 | Favoriler | `Favorites` | Desteklenen kayda Hesap/Çalışma Alanı kişisel sık erişim işareti; kaydın Projesini, türünü veya durumunu değiştirmez |
 | Favorilere ekle | `Add to Favorites` | Proje, Belge, İş, Karar veya Akıllı Koleksiyonu Favorilere alma; kaynak yazmaz |
 | Favorilerden çıkar | `Remove from Favorites` | Favori üyeliğini kaldırma; kaynağı silmez veya arşivlemez |

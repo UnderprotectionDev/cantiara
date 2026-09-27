@@ -58,6 +58,11 @@ import {
   updateCustomFieldMutationInputSchema,
 } from "../custom-fields";
 import {
+  DailyFocusWorkUnavailableError,
+  dailyFocusDayInputSchema,
+  dailyFocusMembershipInputSchema,
+} from "../daily-focus";
+import {
   cancelExternalExecutionHandoffInputSchema,
   confirmExternalExecutionHandoffReconcileInputSchema,
   listExternalExecutionHandoffHistoryInputSchema,
@@ -356,6 +361,13 @@ function requireBacklog(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.backlog;
+}
+
+function requireDailyFocus(context: Context) {
+  if (!context.dailyFocus) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.dailyFocus;
 }
 
 function requireBacklogMutationContracts(context: Context) {
@@ -3006,6 +3018,45 @@ export const appRouter = {
       } catch (error) {
         rethrowPriorityMetricMutationError(error, targetId);
       }
+    }),
+  dailyFocusDay: protectedProcedure
+    .input(dailyFocusDayInputSchema)
+    .handler(({ context, input }) =>
+      requireDailyFocus(context).list(context.session.user.id, input.focusDate),
+    ),
+  addToDailyFocus: protectedProcedure
+    .input(dailyFocusMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireDailyFocus(context).add(
+          context.session.user.id,
+          input.focusDate,
+          input.workId,
+        );
+      } catch (error) {
+        if (error instanceof DailyFocusWorkUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+      return { status: true };
+    }),
+  removeFromDailyFocus: protectedProcedure
+    .input(dailyFocusMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireDailyFocus(context).remove(
+          context.session.user.id,
+          input.focusDate,
+          input.workId,
+        );
+      } catch (error) {
+        if (error instanceof DailyFocusWorkUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+      return { status: true };
     }),
   projectBacklogOrder: protectedProcedure
     .input(projectBacklogInputSchema)
