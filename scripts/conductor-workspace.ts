@@ -18,6 +18,7 @@ import {
   saveState,
   type WorkspaceState,
   workspaceEnvironment,
+  workspaceIdentity,
   workspacePort,
 } from "./workspace-neon";
 
@@ -35,14 +36,6 @@ const config = JSON.parse(
   readFileSync(".conductor/neon.json", "utf8"),
 ) as Config;
 const kinds = ["primary", "security"] as const;
-
-function workspaceId() {
-  const id = process.env.CONDUCTOR_WORKSPACE_ID;
-  if (!id) {
-    throw new Error("CONDUCTOR_WORKSPACE_ID is required");
-  }
-  return id;
-}
 
 function assertProjectConfiguration() {
   if (
@@ -187,7 +180,7 @@ async function setup() {
     // biome-ignore lint/style/useErrorCause: Git errors can contain local credential details.
     throw new Error("Could not refresh origin/main before workspace setup");
   }
-  const id = workspaceId();
+  const id = workspaceIdentity();
   const state: WorkspaceState = readInitialState(id);
   const primary = await provision("primary", state);
   const security = await provision("security", state);

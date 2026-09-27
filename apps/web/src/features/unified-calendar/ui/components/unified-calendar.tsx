@@ -40,7 +40,7 @@ import { useCallback, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 
-export type CalendarView = "Day" | "Week" | "Month";
+export type CalendarView = "Day" | "Week" | "Month" | "Agenda";
 export type CalendarWork = Pick<
   WorkProfile,
   | "archivedAt"
@@ -62,17 +62,24 @@ export interface CalendarDateChange {
   workId: string;
 }
 
-const DATE_KINDS = [
+export const CALENDAR_DATE_KINDS = [
   { field: "plannedStartDate", label: "Planned start" },
   { field: "targetDate", label: "Target date" },
   { field: "reappearDate", label: "Reappear date" },
 ] as const satisfies readonly { field: WorkDateField; label: string }[];
+export type CalendarDateKind = (typeof CALENDAR_DATE_KINDS)[number]["field"];
+
+export function calendarDateKindsForSelection(selected: Iterable<string>) {
+  const selectedFields = new Set(selected);
+  return CALENDAR_DATE_KINDS.filter(({ field }) => selectedFields.has(field));
+}
+
 const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface CalendarDateDrag {
   baseRevision: number;
   dateField: WorkDateField;
-  label: (typeof DATE_KINDS)[number]["label"];
+  label: (typeof CALENDAR_DATE_KINDS)[number]["label"];
   oldDate: string;
   workId: string;
   workTitle: string;
@@ -91,7 +98,7 @@ function dateSpan(work: CalendarWork) {
 
 function visibleDays(
   selectedDate: string,
-  view: CalendarView,
+  view: Exclude<CalendarView, "Agenda">,
   firstDayOfWeek: AccountPreferences["firstDayOfWeek"],
 ) {
   const selected = parseISO(selectedDate);
@@ -137,14 +144,28 @@ function calendarDateFromOver(over: Over | null) {
     : null;
 }
 
-function CalendarDateMark({
+function calendarDateChangeFromDragEnd(
+  event: DragEndEvent,
+): CalendarDateChange | null {
+  const date = calendarDateFromOver(event.over);
+  const dateChange = calendarDateFromActive(event.active);
+  if (!(date && dateChange && date !== dateChange.oldDate)) {
+    return null;
+  }
+  return {
+    baseRevision: dateChange.baseRevision,
+    date,
+    dateField: dateChange.dateField,
+    workId: dateChange.workId,
+  };
+}
+
+function CalendarDateControl({
   dateField,
   disabled,
   label,
   onDatePreview,
   onDateChange,
-  projectNames,
-  selectedProjectId,
   view,
   work,
 }: {
@@ -153,8 +174,6 @@ function CalendarDateMark({
   label: CalendarDateDrag["label"];
   onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
   onDateChange?: (change: CalendarDateChange) => void;
-  projectNames: ReadonlyMap<string, string>;
-  selectedProjectId: string;
   view: CalendarView;
   work: CalendarWork;
 }) {
@@ -204,54 +223,91 @@ function CalendarDateMark({
   const { attributes, isDragging, listeners, setNodeRef, transform } =
     useDraggable({
       data: { calendarDate: dragData },
-      disabled: disabled || !onDateChange || view === "Day",
+      disabled:
+        disabled || !onDateChange || view === "Day" || view === "Agenda",
       id: `calendar-date:${work.id}:${dateField}`,
     });
 
+  if (view === "Day" || view === "Agenda") {
+    return (
+      <Popover onOpenChange={setDatePickerOpen} open={datePickerOpen}>
+        <PopoverTrigger
+          disabled={disabled || !onDateChange}
+          render={
+            <Button
+              aria-label={`${label} for ${work.title}`}
+              disabled={disabled || !onDateChange}
+              size="icon"
+              type="button"
+              variant="outline"
+            />
+          }
+        >
+          <CalendarDays aria-hidden="true" className="size-4" />
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            defaultMonth={parseISO(oldDate)}
+            mode="single"
+            onSelect={handleDateSelect}
+            selected={parseISO(oldDate)}
+          />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <button
+      aria-label={`${label} for ${work.title}`}
+      className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+      disabled={disabled || !onDateChange}
+      ref={setNodeRef}
+      style={{
+        opacity: isDragging ? 0.45 : undefined,
+        transform: CSS.Translate.toString(transform),
+      }}
+      type="button"
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical aria-hidden="true" className="size-4" />
+    </button>
+  );
+}
+
+function CalendarDateMark({
+  dateField,
+  disabled,
+  label,
+  onDatePreview,
+  onDateChange,
+  projectNames,
+  selectedProjectId,
+  view,
+  work,
+}: {
+  dateField: WorkDateField;
+  disabled: boolean;
+  label: CalendarDateDrag["label"];
+  onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
+  onDateChange?: (change: CalendarDateChange) => void;
+  projectNames: ReadonlyMap<string, string>;
+  selectedProjectId: string;
+  view: CalendarView;
+  work: CalendarWork;
+}) {
   return (
     <li className="flex items-start gap-1" key={`${work.id}:${dateField}`}>
-      {view === "Day" ? (
-        <Popover onOpenChange={setDatePickerOpen} open={datePickerOpen}>
-          <PopoverTrigger
-            disabled={disabled || !onDateChange}
-            render={
-              <Button
-                aria-label={`${label} for ${work.title}`}
-                disabled={disabled || !onDateChange}
-                size="icon"
-                type="button"
-                variant="outline"
-              />
-            }
-          >
-            <CalendarDays aria-hidden="true" className="size-4" />
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-0">
-            <Calendar
-              defaultMonth={parseISO(oldDate)}
-              mode="single"
-              onSelect={handleDateSelect}
-              selected={parseISO(oldDate)}
-            />
-          </PopoverContent>
-        </Popover>
-      ) : (
-        <button
-          aria-label={`${label} for ${work.title}`}
-          className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
-          disabled={disabled || !onDateChange}
-          ref={setNodeRef}
-          style={{
-            opacity: isDragging ? 0.45 : undefined,
-            transform: CSS.Translate.toString(transform),
-          }}
-          type="button"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical aria-hidden="true" className="size-4" />
-        </button>
-      )}
+      <CalendarDateControl
+        dateField={dateField}
+        disabled={disabled}
+        label={label}
+        onDateChange={onDateChange}
+        onDatePreview={onDatePreview}
+        view={view}
+        work={work}
+      />
       <a
         className="min-w-0 flex-1 rounded border border-border/70 px-2 py-1 text-xs hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
         href={workRecordHref(work.projectId, work.id)}
@@ -353,12 +409,223 @@ function CalendarDaySection({
   );
 }
 
+interface CalendarAgendaRow {
+  date: string;
+  field: CalendarDateKind;
+  label: (typeof CALENDAR_DATE_KINDS)[number]["label"];
+  work: CalendarWork;
+}
+
+function calendarAgendaRows(
+  works: readonly CalendarWork[],
+  visibleKinds: ReturnType<typeof calendarDateKindsForSelection>,
+  selectedDate: string,
+  firstDayOfWeek: AccountPreferences["firstDayOfWeek"],
+): CalendarAgendaRow[] {
+  const monthDays = visibleDays(selectedDate, "Month", firstDayOfWeek);
+  const firstAgendaDay = monthDays[0] ?? selectedDate;
+  const lastAgendaDay = monthDays.at(-1) ?? selectedDate;
+  return works
+    .flatMap((work) =>
+      visibleKinds.flatMap(({ field, label }) => {
+        const date = work[field];
+        return date && firstAgendaDay <= date && date <= lastAgendaDay
+          ? [{ date, field, label, work }]
+          : [];
+      }),
+    )
+    .sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) ||
+        CALENDAR_DATE_KINDS.findIndex(({ field }) => field === left.field) -
+          CALENDAR_DATE_KINDS.findIndex(({ field }) => field === right.field) ||
+        left.work.key.localeCompare(right.work.key),
+    );
+}
+
+function calendarMarksForDay(
+  works: readonly CalendarWork[],
+  visibleKinds: ReturnType<typeof calendarDateKindsForSelection>,
+  day: string,
+) {
+  return works.flatMap((work) =>
+    visibleKinds.flatMap(({ field, label }) =>
+      work[field] === day ? [{ dateField: field, label, work }] : [],
+    ),
+  );
+}
+
+interface CalendarWorkSpan {
+  end: string;
+  start: string;
+  work: CalendarWork;
+}
+
+function calendarMonthLeadingDayCount(
+  view: CalendarView,
+  firstVisibleDay: string,
+  firstDayOfWeek: AccountPreferences["firstDayOfWeek"],
+) {
+  if (view !== "Month") {
+    return 0;
+  }
+  return (
+    (parseISO(firstVisibleDay).getDay() -
+      (firstDayOfWeek === "Sunday" ? 0 : 1) +
+      7) %
+    7
+  );
+}
+
+function calendarHasVisibleWork(
+  works: readonly CalendarWork[],
+  visibleKinds: ReturnType<typeof calendarDateKindsForSelection>,
+  days: readonly string[],
+  spans: readonly CalendarWorkSpan[],
+  view: CalendarView,
+  hasStartAndTargetKinds: boolean,
+  firstVisibleDay: string,
+  lastVisibleDay: string,
+) {
+  const hasVisibleDate = works.some((work) =>
+    visibleKinds.some(({ field }) => work[field] && days.includes(work[field])),
+  );
+  const hasVisibleRange =
+    view !== "Day" &&
+    hasStartAndTargetKinds &&
+    spans.some(
+      ({ start, end }) => start <= lastVisibleDay && firstVisibleDay <= end,
+    );
+  return hasVisibleDate || hasVisibleRange;
+}
+
+function calendarRangesForDay(
+  spans: readonly CalendarWorkSpan[],
+  day: string,
+  view: CalendarView,
+  hasStartAndTargetKinds: boolean,
+) {
+  if (view === "Day" || !hasStartAndTargetKinds) {
+    return [];
+  }
+  return spans
+    .filter(({ start, end }) => start <= day && day <= end)
+    .map(({ work }) => work);
+}
+
+function CalendarAgenda({
+  disabled,
+  onDateChange,
+  onDatePreview,
+  preferences,
+  projectNames,
+  rows,
+  selectedProjectId,
+}: {
+  disabled: boolean;
+  onDateChange?: (change: CalendarDateChange) => void;
+  onDatePreview: (date: CalendarDateDrag, nextDate: string) => void;
+  preferences: AccountPreferences;
+  projectNames: ReadonlyMap<string, string>;
+  rows: readonly CalendarAgendaRow[];
+  selectedProjectId: string;
+}) {
+  return (
+    <section aria-label="Agenda Calendar">
+      {rows.length === 0 ? (
+        <p className="mb-4 text-muted-foreground text-sm">
+          No dated Work in this Calendar view.
+        </p>
+      ) : null}
+      <ol className="divide-y divide-border/70">
+        {rows.map(({ date, field, label, work }) => (
+          <li
+            className="grid gap-x-4 gap-y-1 py-2 sm:grid-cols-[minmax(8rem,auto)_minmax(9rem,auto)_minmax(0,1fr)_auto] sm:items-center"
+            key={`${work.id}:${field}`}
+          >
+            <div className="flex items-center gap-1">
+              <time className="text-muted-foreground text-sm" dateTime={date}>
+                {formatAccountDate(date, preferences)}
+              </time>
+              <CalendarDateControl
+                dateField={field}
+                disabled={disabled}
+                label={label}
+                onDateChange={onDateChange}
+                onDatePreview={onDatePreview}
+                view="Agenda"
+                work={work}
+              />
+            </div>
+            <span className="font-medium text-sm">{label}</span>
+            <div className="min-w-0 text-sm">
+              <span className="font-medium">{work.key}</span> · {work.title}
+              {selectedProjectId === "all" ? (
+                <span className="block text-muted-foreground">
+                  {projectNames.get(work.projectId)}
+                </span>
+              ) : null}
+            </div>
+            <a
+              aria-label={`Open source record: ${work.key} · ${work.title}`}
+              className="w-fit rounded text-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+              href={workRecordHref(work.projectId, work.id)}
+            >
+              Open source record
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function CalendarDatePreview({
+  date,
+  nextDate,
+  onCancel,
+  onConfirm,
+  preferences,
+  requiresConfirmation,
+}: {
+  date: CalendarDateDrag | null;
+  nextDate: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+  preferences: AccountPreferences;
+  requiresConfirmation: boolean;
+}) {
+  if (!(date && nextDate && nextDate !== date.oldDate)) {
+    return null;
+  }
+  return (
+    <div className="mb-3 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+      <p role="status">
+        {date.label} for {date.workTitle}:{" "}
+        {formatAccountDate(date.oldDate, preferences)} →{" "}
+        {formatAccountDate(nextDate, preferences)}
+      </p>
+      {requiresConfirmation ? (
+        <div className="mt-2 flex gap-2">
+          <Button onClick={onConfirm} size="sm" type="button">
+            Save
+          </Button>
+          <Button onClick={onCancel} size="sm" type="button" variant="outline">
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function UnifiedCalendar({
   disabled = false,
   onDateChange,
   preferences,
   projects,
   selectedDate,
+  selectedDateKinds = CALENDAR_DATE_KINDS.map(({ field }) => field),
   selectedProjectId,
   view,
   works,
@@ -368,6 +635,7 @@ export default function UnifiedCalendar({
   preferences: AccountPreferences;
   projects: readonly { id: string; name: string }[];
   selectedDate: string;
+  selectedDateKinds?: readonly CalendarDateKind[];
   selectedProjectId: string;
   view: CalendarView;
   works: readonly CalendarWork[];
@@ -383,16 +651,10 @@ export default function UnifiedCalendar({
   }, []);
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const date = calendarDateFromOver(event.over);
-      const dateChange = calendarDateFromActive(event.active);
+      const change = calendarDateChangeFromDragEnd(event);
       cancelDrag();
-      if (date && dateChange && date !== dateChange.oldDate) {
-        onDateChange?.({
-          baseRevision: dateChange.baseRevision,
-          date,
-          dateField: dateChange.dateField,
-          workId: dateChange.workId,
-        });
+      if (change) {
+        onDateChange?.(change);
       }
     },
     [cancelDrag, onDateChange],
@@ -419,34 +681,75 @@ export default function UnifiedCalendar({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-  const days = visibleDays(selectedDate, view, preferences.firstDayOfWeek);
-  const firstVisibleDay = days[0] ?? selectedDate;
-  const lastVisibleDay = days.at(-1) ?? selectedDate;
-  const monthLeadingDays =
-    view === "Month"
-      ? (parseISO(firstVisibleDay).getDay() -
-          (preferences.firstDayOfWeek === "Sunday" ? 0 : 1) +
-          7) %
-        7
-      : 0;
   const projectNames = new Map(projects.map(({ id, name }) => [id, name]));
   const scopedWorks = works.filter(
     (work) =>
       work.archivedAt === null &&
       (selectedProjectId === "all" || work.projectId === selectedProjectId),
   );
-  const scopedSpans = scopedWorks.flatMap((work) => {
+  const visibleKinds = calendarDateKindsForSelection(selectedDateKinds);
+  const hasStartAndTargetKinds =
+    selectedDateKinds.includes("plannedStartDate") &&
+    selectedDateKinds.includes("targetDate");
+  const agendaRows = calendarAgendaRows(
+    scopedWorks,
+    visibleKinds,
+    selectedDate,
+    preferences.firstDayOfWeek,
+  );
+
+  if (view === "Agenda") {
+    return (
+      <DndContext
+        collisionDetection={calendarCollisionDetection}
+        onDragCancel={cancelDrag}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDragStart={handleDragStart}
+        sensors={sensors}
+      >
+        <CalendarDatePreview
+          date={draggedDate}
+          nextDate={previewDate}
+          onCancel={cancelDrag}
+          onConfirm={confirmDatePreview}
+          preferences={preferences}
+          requiresConfirmation={previewRequiresConfirmation}
+        />
+        <CalendarAgenda
+          disabled={disabled}
+          onDateChange={onDateChange}
+          onDatePreview={handleDatePreview}
+          preferences={preferences}
+          projectNames={projectNames}
+          rows={agendaRows}
+          selectedProjectId={selectedProjectId}
+        />
+      </DndContext>
+    );
+  }
+  const days = visibleDays(selectedDate, view, preferences.firstDayOfWeek);
+  const firstVisibleDay = days[0] ?? selectedDate;
+  const lastVisibleDay = days.at(-1) ?? selectedDate;
+  const monthLeadingDays = calendarMonthLeadingDayCount(
+    view,
+    firstVisibleDay,
+    preferences.firstDayOfWeek,
+  );
+  const scopedSpans: CalendarWorkSpan[] = scopedWorks.flatMap((work) => {
     const span = dateSpan(work);
     return span ? [{ work, ...span }] : [];
   });
-  const hasVisibleDatedWork =
-    scopedWorks.some((work) =>
-      DATE_KINDS.some(({ field }) => work[field] && days.includes(work[field])),
-    ) ||
-    (view !== "Day" &&
-      scopedSpans.some(
-        ({ start, end }) => start <= lastVisibleDay && firstVisibleDay <= end,
-      ));
+  const hasVisibleDatedWork = calendarHasVisibleWork(
+    scopedWorks,
+    visibleKinds,
+    days,
+    scopedSpans,
+    view,
+    hasStartAndTargetKinds,
+    firstVisibleDay,
+    lastVisibleDay,
+  );
 
   function announceDate(
     date: CalendarDateDrag | null,
@@ -512,30 +815,14 @@ export default function UnifiedCalendar({
           No dated Work in this Calendar view.
         </p>
       )}
-      {draggedDate && previewDate && previewDate !== draggedDate.oldDate ? (
-        <div className="mb-3 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
-          <p role="status">
-            {draggedDate.label} for {draggedDate.workTitle}:{" "}
-            {formatAccountDate(draggedDate.oldDate, preferences)} →{" "}
-            {formatAccountDate(previewDate, preferences)}
-          </p>
-          {previewRequiresConfirmation ? (
-            <div className="mt-2 flex gap-2">
-              <Button onClick={confirmDatePreview} size="sm" type="button">
-                Save
-              </Button>
-              <Button
-                onClick={cancelDrag}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <CalendarDatePreview
+        date={draggedDate}
+        nextDate={previewDate}
+        onCancel={cancelDrag}
+        onConfirm={confirmDatePreview}
+        preferences={preferences}
+        requiresConfirmation={previewRequiresConfirmation}
+      />
       <section
         aria-label={`${view} Calendar`}
         className={
@@ -552,17 +839,13 @@ export default function UnifiedCalendar({
           />
         ) : null}
         {days.map((day) => {
-          const marks = scopedWorks.flatMap((work) =>
-            DATE_KINDS.flatMap(({ field, label }) =>
-              work[field] === day ? [{ dateField: field, label, work }] : [],
-            ),
+          const marks = calendarMarksForDay(scopedWorks, visibleKinds, day);
+          const ranges = calendarRangesForDay(
+            scopedSpans,
+            day,
+            view,
+            hasStartAndTargetKinds,
           );
-          const ranges =
-            view === "Day"
-              ? []
-              : scopedSpans
-                  .filter(({ start, end }) => start <= day && day <= end)
-                  .map(({ work }) => work);
           return (
             <CalendarDaySection
               day={day}

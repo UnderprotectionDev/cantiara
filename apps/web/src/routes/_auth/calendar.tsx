@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Calendar controls close over the current URL search state.
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -16,8 +17,11 @@ import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
 import { useState } from "react";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
+  CALENDAR_DATE_KINDS,
   type CalendarDateChange,
+  type CalendarDateKind,
   type CalendarView,
+  calendarDateKindsForSelection,
 } from "@/features/unified-calendar/ui/components/unified-calendar";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
@@ -31,7 +35,23 @@ import {
 } from "@/utils/orpc";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const VIEWS = ["Day", "Week", "Month"] as const;
+const VIEWS = ["Day", "Week", "Month", "Agenda"] as const;
+const ALL_DATE_KINDS: readonly CalendarDateKind[] = CALENDAR_DATE_KINDS.map(
+  ({ field }) => field,
+);
+
+function dateKindsFromSearch(value?: string): CalendarDateKind[] {
+  if (value === undefined) {
+    return [...ALL_DATE_KINDS];
+  }
+  if (value === "none") {
+    return [];
+  }
+
+  return calendarDateKindsForSelection(value.split(",")).map(
+    ({ field }) => field,
+  );
+}
 
 export const Route = createFileRoute("/_auth/calendar")({
   validateSearch: (search) => ({
@@ -41,6 +61,8 @@ export const Route = createFileRoute("/_auth/calendar")({
       !Number.isNaN(parseISO(search.calendarDay).getTime())
         ? search.calendarDay
         : undefined,
+    dateKinds:
+      typeof search.dateKinds === "string" ? search.dateKinds : undefined,
     projectId:
       typeof search.projectId === "string" ? search.projectId : undefined,
     view: VIEWS.includes(search.view as CalendarView)
@@ -111,6 +133,7 @@ function CalendarRoute() {
     search.projectId && projects.data?.some(({ id }) => id === search.projectId)
       ? search.projectId
       : "all";
+  const selectedDateKinds = dateKindsFromSearch(search.dateKinds);
   const workQueries = useQueries({
     queries: (projects.data ?? [])
       .filter(
@@ -212,10 +235,32 @@ function CalendarRoute() {
     let moved = addDays(date, amount);
     if (view === "Week") {
       moved = addWeeks(date, amount);
-    } else if (view === "Month") {
+    } else if (view === "Month" || view === "Agenda") {
       moved = addMonths(date, amount);
     }
     updateSearch({ calendarDay: format(moved, "yyyy-MM-dd") });
+  }
+
+  function updateDateKind(field: CalendarDateKind, checked: boolean) {
+    const selected = new Set(selectedDateKinds);
+    if (checked) {
+      selected.add(field);
+    } else {
+      selected.delete(field);
+    }
+
+    const next = calendarDateKindsForSelection(selected).map(
+      ({ field: kind }) => kind,
+    );
+    let dateKinds: string | undefined;
+    if (next.length === ALL_DATE_KINDS.length) {
+      dateKinds = undefined;
+    } else if (next.length === 0) {
+      dateKinds = "none";
+    } else {
+      dateKinds = next.join(",");
+    }
+    updateSearch({ dateKinds });
   }
 
   return (
@@ -243,6 +288,27 @@ function CalendarRoute() {
                   {option}
                 </Button>
               ))}
+            </fieldset>
+            <fieldset className="grid gap-1.5">
+              <legend className="font-medium text-sm">Date kinds</legend>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {CALENDAR_DATE_KINDS.map(({ field, label }) => (
+                  <label
+                    className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
+                    htmlFor={`calendar-date-kind-${field}`}
+                    key={field}
+                  >
+                    <Checkbox
+                      checked={selectedDateKinds.includes(field)}
+                      id={`calendar-date-kind-${field}`}
+                      onCheckedChange={(checked) =>
+                        updateDateKind(field, checked === true)
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
             </fieldset>
             <label className="grid gap-1 text-sm">
               Selected day
@@ -313,6 +379,7 @@ function CalendarRoute() {
               preferences={formatting}
               projects={projects.data ?? []}
               selectedDate={selectedDate}
+              selectedDateKinds={selectedDateKinds}
               selectedProjectId={selectedProjectId}
               view={view}
               works={works}
