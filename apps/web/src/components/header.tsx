@@ -52,6 +52,7 @@ export default function Header() {
             >
               <ShellNavLink to="/projects">Projects</ShellNavLink>
               <ShellNavLink to="/daily-focus">Daily Focus</ShellNavLink>
+              <ShellNavLink to="/calendar">Calendar</ShellNavLink>
               <ShellNavLink to="/capture">Capture Inbox</ShellNavLink>
             </nav>
           </div>
@@ -86,7 +87,7 @@ function ShellNavLink({
   to,
 }: {
   children: string;
-  to: "/capture" | "/daily-focus" | "/projects";
+  to: "/calendar" | "/capture" | "/daily-focus" | "/projects";
 }) {
   const linkClassName =
     "inline-flex h-11 min-w-max items-center whitespace-nowrap rounded-md px-2 font-medium text-xs text-muted-foreground hover:bg-muted hover:text-foreground sm:px-2.5 sm:text-sm";

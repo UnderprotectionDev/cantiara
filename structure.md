@@ -409,6 +409,11 @@
 │       │   │   │           ├── work-duplicate-form.tsx
 │       │   │   │           ├── work-template-editor.test.tsx
 │       │   │   │           └── work-template-editor.tsx
+│       │   │   ├── unified-calendar/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── unified-calendar.test.tsx
+│       │   │   │           └── unified-calendar.tsx
 │       │   │   └── workspace-overview/
 │       │   │       └── ui/
 │       │   │           └── components/
@@ -432,6 +437,7 @@
 │       │   │   │   │   │   └── index.tsx
 │       │   │   │   │   ├── index.tsx
 │       │   │   │   │   └── new.tsx
+│       │   │   │   ├── calendar.tsx
 │       │   │   │   ├── daily-focus.tsx
 │       │   │   │   ├── dashboard.tsx
 │       │   │   │   └── route.tsx
