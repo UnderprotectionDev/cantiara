@@ -285,6 +285,8 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           ├── project-roadmap.tsx
+│       │   │   │           ├── project-milestones.test.tsx
+│       │   │   │           ├── project-milestones.tsx
 │       │   │   │           ├── research-direction.tsx
 │       │   │   │           └── roadmap-view-editor.tsx
 │       │   │   ├── relations/
@@ -299,6 +301,7 @@
 │       │   │   │       └── components/
 │       │   │   │           ├── project-overview-sections.tsx
 │       │   │   │           ├── project-overview.test.tsx
+│       │   │   │           ├── project-overview-surface.tsx
 │       │   │   │           └── project-overview.tsx
 │       │   │   ├── project-shell/
 │       │   │   │   ├── hooks/
@@ -555,6 +558,7 @@
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
+│   │   │   │   ├── project-milestone.ts
 │   │   │   │   ├── backlog.ts
 │   │   │   │   ├── priority-metrics.ts
 │   │   │   │   ├── prioritization-session.ts

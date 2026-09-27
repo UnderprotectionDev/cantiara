@@ -135,7 +135,7 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
     ]);
   });
 
-  test("Milestone reach and abandonment leave linked Work closed, and closed Work does not reach it", async () => {
+  test("Milestone status changes leave linked Work unchanged, and closed Work does not reach a Milestone", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
@@ -183,77 +183,90 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
         type: "Task",
       })),
     );
-    const previews = await Promise.all(
-      workIds.map((workId) =>
-        relations.previewCreate(accountId, {
-          kind: "Contributes to Milestone",
-          source: { recordId: workId, recordType: "Work" },
-          target: { recordId: milestoneId, recordType: "Milestone" },
-        }),
-      ),
-    );
-    const linkedRelations = await Promise.all(
-      previews.map((preview) =>
-        relations.create(accountId, {
-          baseRevision: preview.baseRevision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          kind: preview.kind,
-          previewId: preview.previewId,
-          source: {
-            recordId: preview.source.recordId,
-            recordType: preview.source.recordType,
-          },
-          target: {
-            recordId: preview.target.recordId,
-            recordType: preview.target.recordType,
-          },
-        }),
-      ),
-    );
-    expect(linkedRelations.map(({ relation }) => relation?.kind)).toEqual([
-      "Contributes to Milestone",
-      "Contributes to Milestone",
-    ]);
+    async function linkWorksToMilestone(targetMilestoneId: string) {
+      const previews = await Promise.all(
+        workIds.map((workId) =>
+          relations.previewCreate(accountId, {
+            kind: "Contributes to Milestone",
+            source: { recordId: workId, recordType: "Work" },
+            target: {
+              recordId: targetMilestoneId,
+              recordType: "Milestone",
+            },
+          }),
+        ),
+      );
+      const linkedRelations = await Promise.all(
+        previews.map((preview) =>
+          relations.create(accountId, {
+            baseRevision: preview.baseRevision,
+            clientIdempotencyKey: crypto.randomUUID(),
+            kind: preview.kind,
+            previewId: preview.previewId,
+            source: {
+              recordId: preview.source.recordId,
+              recordType: preview.source.recordType,
+            },
+            target: {
+              recordId: preview.target.recordId,
+              recordType: preview.target.recordType,
+            },
+          }),
+        ),
+      );
+      expect(linkedRelations.map(({ relation }) => relation?.kind)).toEqual([
+        "Contributes to Milestone",
+        "Contributes to Milestone",
+      ]);
+      expect(
+        (
+          await relations.list(accountId, {
+            recordId: targetMilestoneId,
+            recordType: "Milestone",
+          })
+        ).map(({ source }) => source.title),
+      ).toEqual(["Milestone Work 1", "Milestone Work 2"]);
+    }
+
+    await linkWorksToMilestone(milestoneId);
+
+    const abandonedId = `milestone-${crypto.randomUUID()}`;
+    const abandoned = await roadmap.createMilestone(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      description: null,
+      id: abandonedId,
+      projectId: profile.id,
+      targetDate: null,
+      title: "Cancelled experiment",
+    });
+    if (!abandoned) {
+      throw new Error("Expected created Milestone");
+    }
+    await linkWorksToMilestone(abandonedId);
+
+    const stillPlannedId = `milestone-${crypto.randomUUID()}`;
+    const stillPlanned = await roadmap.createMilestone(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      description: null,
+      id: stillPlannedId,
+      projectId: profile.id,
+      targetDate: null,
+      title: "Open work remains planned",
+    });
+    if (!stillPlanned) {
+      throw new Error("Expected created Milestone");
+    }
+    await linkWorksToMilestone(stillPlannedId);
+
     expect(
       (
-        await relations.list(accountId, {
-          recordId: milestoneId,
-          recordType: "Milestone",
-        })
-      ).map(({ source }) => source.title),
-    ).toEqual(["Milestone Work 1", "Milestone Work 2"]);
-
-    const currentWorks = await Promise.all(
-      workIds.map((workId) => lifecycle.find(accountId, workId)),
-    );
-    if (currentWorks.some((current) => current === null)) {
-      throw new Error("Expected linked Work");
-    }
-    const openWorks = currentWorks.map((current) => {
-      if (!current) {
-        throw new Error("Expected linked Work");
-      }
-      return current;
-    });
-    await Promise.all(
-      openWorks.map((current) =>
-        lifecycle.close(
-          accountId,
-          {
-            baseRevision: current.revision,
-            clientIdempotencyKey: crypto.randomUUID(),
-            closureResult: "Completed",
-            workId: current.id,
-          },
-          { kind: "Visible user" },
-        ),
-      ),
-    );
-    expect(
-      (await roadmap.listMilestones(accountId, profile.id))?.find(
-        ({ id }) => id === milestoneId,
-      )?.status,
-    ).toBe("Planned");
+        await Promise.all(
+          workIds.map((workId) => lifecycle.find(accountId, workId)),
+        )
+      ).map((current) => current?.status),
+    ).toEqual(["Not Started", "Not Started"]);
 
     const reached = await roadmap.updateMilestoneStatus(accountId, {
       baseRevision: milestone.revision,
@@ -269,21 +282,8 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
           workIds.map((workId) => lifecycle.find(accountId, workId)),
         )
       ).map((current) => current?.status),
-    ).toEqual(["Closed", "Closed"]);
+    ).toEqual(["Not Started", "Not Started"]);
 
-    const abandonedId = `milestone-${crypto.randomUUID()}`;
-    const abandoned = await roadmap.createMilestone(accountId, {
-      baseRevision: 0,
-      clientIdempotencyKey: crypto.randomUUID(),
-      description: null,
-      id: abandonedId,
-      projectId: profile.id,
-      targetDate: null,
-      title: "Cancelled experiment",
-    });
-    if (!abandoned) {
-      throw new Error("Expected created Milestone");
-    }
     const abandonedStatus = await roadmap.updateMilestoneStatus(accountId, {
       baseRevision: abandoned.revision,
       clientIdempotencyKey: crypto.randomUUID(),
@@ -298,7 +298,43 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
           workIds.map((workId) => lifecycle.find(accountId, workId)),
         )
       ).map((current) => current?.status),
+    ).toEqual(["Not Started", "Not Started"]);
+
+    const currentWorks = await Promise.all(
+      workIds.map((workId) => lifecycle.find(accountId, workId)),
+    );
+    if (currentWorks.some((current) => current === null)) {
+      throw new Error("Expected linked Work");
+    }
+    await Promise.all(
+      currentWorks.map((current) => {
+        if (!current) {
+          throw new Error("Expected linked Work");
+        }
+        return lifecycle.close(
+          accountId,
+          {
+            baseRevision: current.revision,
+            clientIdempotencyKey: crypto.randomUUID(),
+            closureResult: "Completed",
+            workId: current.id,
+          },
+          { kind: "Visible user" },
+        );
+      }),
+    );
+    expect(
+      (
+        await Promise.all(
+          workIds.map((workId) => lifecycle.find(accountId, workId)),
+        )
+      ).map((current) => current?.status),
     ).toEqual(["Closed", "Closed"]);
+    expect(
+      (await roadmap.listMilestones(accountId, profile.id))?.find(
+        ({ id }) => id === stillPlannedId,
+      )?.status,
+    ).toBe("Planned");
   });
 
   test("saved view filters remain metadata and cannot create Work membership", async () => {
