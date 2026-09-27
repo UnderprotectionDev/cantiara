@@ -15,6 +15,8 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  KeyboardCode,
+  type KeyboardCoordinateGetter,
   KeyboardSensor,
   type Over,
   PointerSensor,
@@ -24,9 +26,9 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  addDays,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
@@ -143,6 +145,72 @@ function calendarDateFromOver(over: Over | null) {
     ? date
     : null;
 }
+
+const calendarKeyboardCoordinates: KeyboardCoordinateGetter = (
+  event,
+  { context },
+) => {
+  let dayOffset: number;
+  switch (event.code) {
+    case KeyboardCode.Left:
+      dayOffset = -1;
+      break;
+    case KeyboardCode.Right:
+      dayOffset = 1;
+      break;
+    case KeyboardCode.Up:
+      dayOffset = -7;
+      break;
+    case KeyboardCode.Down:
+      dayOffset = 7;
+      break;
+    default:
+      return;
+  }
+  event.preventDefault();
+
+  const { active, collisionRect, droppableContainers, droppableRects, over } =
+    context;
+  if (!(active && collisionRect)) {
+    return;
+  }
+
+  const [closestDayCollision] = calendarCollisionDetection({
+    active,
+    collisionRect,
+    droppableContainers: droppableContainers.getEnabled(),
+    droppableRects,
+    pointerCoordinates: null,
+  });
+  const closestDay = closestDayCollision
+    ? droppableContainers.get(closestDayCollision.id)
+    : undefined;
+  const closestDate = closestDay?.data.current?.date;
+  const currentDate =
+    calendarDateFromOver(over) ??
+    (typeof closestDate === "string" && CALENDAR_DATE_PATTERN.test(closestDate)
+      ? closestDate
+      : null);
+  if (!currentDate) {
+    return;
+  }
+
+  const nextDate = format(
+    addDays(parseISO(currentDate), dayOffset),
+    "yyyy-MM-dd",
+  );
+  const nextDayId = `calendar-day:${nextDate}`;
+  const nextDay = droppableContainers.get(nextDayId);
+  const nextDayRect = nextDay ? droppableRects.get(nextDay.id) : undefined;
+  if (!nextDayRect) {
+    return;
+  }
+
+  return {
+    x: nextDayRect.left + (nextDayRect.width - collisionRect.width) / 2,
+    y: nextDayRect.top + (nextDayRect.height - collisionRect.height) / 2,
+  };
+};
 
 function calendarDateChangeFromDragEnd(
   event: DragEndEvent,
@@ -678,7 +746,7 @@ export default function UnifiedCalendar({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: calendarKeyboardCoordinates,
     }),
   );
   const projectNames = new Map(projects.map(({ id, name }) => [id, name]));

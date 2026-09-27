@@ -72,8 +72,13 @@ test("previews, cancels, saves, and undoes one Calendar date drag", async ({
 
   await dateMark.focus();
   await page.keyboard.press("Space");
+  await expect(dateMark).toHaveCSS("opacity", "0.45");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  );
   await page.keyboard.press("ArrowRight");
-  const preview = page.getByRole("status").filter({
+  const preview = page.locator('p[role="status"]').filter({
     hasText: "Target date for Calendar date check",
   });
   await expect(preview).toContainText(
