@@ -36,6 +36,7 @@ describeDatabase("Daily Focus personal day membership", () => {
   const firstWorkId = `work-${crypto.randomUUID()}`;
   const secondWorkId = `work-${crypto.randomUUID()}`;
   const thirdWorkId = `work-${crypto.randomUUID()}`;
+  const fourthWorkId = `work-${crypto.randomUUID()}`;
   const metricId = `metric-${crypto.randomUUID()}`;
   const secondMetricId = `metric-${crypto.randomUUID()}`;
   const priorityDescriptions = {
@@ -114,12 +115,21 @@ describeDatabase("Daily Focus personal day membership", () => {
         type: "Task",
         status: "In Progress",
       },
+      {
+        id: fourthWorkId,
+        projectId: secondProjectId,
+        key: "BETA-3",
+        number: 3,
+        title: "Fourth Work",
+        type: "Task",
+        status: "Not Started",
+      },
     ]);
     await database.insert(projectBacklogOrder).values([
       { projectId: firstProjectId, workIds: [firstWorkId], revision: 1 },
       {
         projectId: secondProjectId,
-        workIds: [secondWorkId, thirdWorkId],
+        workIds: [secondWorkId, thirdWorkId, fourthWorkId],
         revision: 2,
       },
     ]);
@@ -266,13 +276,31 @@ describeDatabase("Daily Focus personal day membership", () => {
     ).resolves.toBeUndefined();
   });
 
+  test("keeps archived Work in the selected day's close view", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+
+    await focus.add(firstAccountId, focusDate, firstWorkId);
+    await database
+      .update(work)
+      .set({ archivedAt: new Date("2026-09-28T12:00:00.000Z") })
+      .where(eq(work.id, firstWorkId));
+
+    const close = await focus.readClose(firstAccountId, focusDate);
+
+    expect(close.stillOpen.map(({ id }) => id)).toEqual([firstWorkId]);
+  });
+
   test("reads the selected profile day from Work history without writing state or membership", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
     const focus = createDatabaseDailyFocus(database);
     const focusDate = "2026-09-27";
-    const workIds = [firstWorkId, secondWorkId, thirdWorkId];
+    const workIds = [firstWorkId, secondWorkId, thirdWorkId, fourthWorkId];
     await Promise.all(
       workIds.map((workId) => focus.add(firstAccountId, focusDate, workId)),
     );
@@ -298,6 +326,10 @@ describeDatabase("Daily Focus personal day membership", () => {
         statusChangedAt: new Date("2026-09-28T07:30:00.000Z"),
       })
       .where(eq(work.id, thirdWorkId));
+    await database
+      .update(work)
+      .set({ reappearDate: "2026-09-29" })
+      .where(eq(work.id, fourthWorkId));
 
     await database.insert(mutationHistory).values([
       {
@@ -394,6 +426,56 @@ describeDatabase("Daily Focus personal day membership", () => {
         },
         occurredAt: new Date("2026-09-28T07:30:00.000Z"),
       },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: fourthWorkId,
+        revision: 2,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "e".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        occurredAt: new Date("2026-09-27T21:30:00.000Z"),
+      },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: fourthWorkId,
+        revision: 3,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "f".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: null,
+            reappearDate: "2026-09-29",
+            status: "Not Started",
+          },
+        },
+        occurredAt: new Date("2026-09-28T07:30:00.000Z"),
+      },
     ]);
 
     const readWorks = () =>
@@ -425,7 +507,10 @@ describeDatabase("Daily Focus personal day membership", () => {
     expect(close.completed.map(({ id }) => id)).toEqual([firstWorkId]);
     expect(close.abandoned).toEqual([]);
     expect(close.deferred.map(({ id }) => id)).toEqual([secondWorkId]);
-    expect(close.stillOpen.map(({ id }) => id)).toEqual([thirdWorkId]);
+    expect(close.stillOpen.map(({ id }) => id)).toEqual([
+      thirdWorkId,
+      fourthWorkId,
+    ]);
     expect(await readWorks()).toEqual(beforeWorks);
     expect(await readMemberships()).toEqual(beforeMemberships);
     expect(await readHistory()).toEqual(beforeHistory);

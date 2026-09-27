@@ -32,7 +32,10 @@ function workSnapshot(
   const snapshot = workValue as Record<string, unknown>;
   const parsed = dailyFocusCloseStateSchema.safeParse({
     closureResult: snapshot.closureResult ?? null,
-    reappearDate: snapshot.reappearDate ?? fallbackReappearDate,
+    reappearDate:
+      snapshot.reappearDate === undefined
+        ? fallbackReappearDate
+        : snapshot.reappearDate,
     status: snapshot.status,
     workId,
   });
@@ -82,52 +85,58 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
     return record ?? null;
   }
 
-  const access: DailyFocusAccess = {
-    async list(accountId, focusDate) {
-      const workspaceId = await ownedWorkspaceId(accountId);
-      if (!workspaceId) {
-        return { available: [], focusDate, members: [] };
-      }
-      const [works, memberships] = await Promise.all([
-        database
-          .select({
-            id: work.id,
-            key: work.key,
-            projectId: project.id,
-            projectName: project.name,
-            reappearDate: work.reappearDate,
-            status: work.status,
-            title: work.title,
-          })
-          .from(work)
-          .innerJoin(project, eq(work.projectId, project.id))
-          .where(
-            and(
-              eq(project.workspaceId, workspaceId),
-              isNull(work.archivedAt),
-              isNull(work.trashedAt),
-            ),
-          )
-          .orderBy(asc(project.name), asc(work.number)),
-        database
-          .select({ workId: dailyFocusMembership.workId })
-          .from(dailyFocusMembership)
-          .where(
-            and(
-              eq(dailyFocusMembership.workspaceId, workspaceId),
-              eq(dailyFocusMembership.focusDate, focusDate),
-            ),
+  async function list(
+    accountId: string,
+    focusDate: string,
+    includeArchived = false,
+  ) {
+    const workspaceId = await ownedWorkspaceId(accountId);
+    if (!workspaceId) {
+      return { available: [], focusDate, members: [] };
+    }
+    const [works, memberships] = await Promise.all([
+      database
+        .select({
+          id: work.id,
+          key: work.key,
+          projectId: project.id,
+          projectName: project.name,
+          reappearDate: work.reappearDate,
+          status: work.status,
+          title: work.title,
+        })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(
+            eq(project.workspaceId, workspaceId),
+            ...(includeArchived ? [] : [isNull(work.archivedAt)]),
+            isNull(work.trashedAt),
           ),
-      ]);
-      const selectedIds = new Set(memberships.map(({ workId }) => workId));
-      return dailyFocusDaySchema.parse({
-        available: works.filter(({ id }) => !selectedIds.has(id)),
-        focusDate,
-        members: works.filter(({ id }) => selectedIds.has(id)),
-      });
-    },
+        )
+        .orderBy(asc(project.name), asc(work.number)),
+      database
+        .select({ workId: dailyFocusMembership.workId })
+        .from(dailyFocusMembership)
+        .where(
+          and(
+            eq(dailyFocusMembership.workspaceId, workspaceId),
+            eq(dailyFocusMembership.focusDate, focusDate),
+          ),
+        ),
+    ]);
+    const selectedIds = new Set(memberships.map(({ workId }) => workId));
+    return dailyFocusDaySchema.parse({
+      available: works.filter(({ id }) => !selectedIds.has(id)),
+      focusDate,
+      members: works.filter(({ id }) => selectedIds.has(id)),
+    });
+  }
+
+  const access: DailyFocusAccess = {
+    list: (accountId, focusDate) => list(accountId, focusDate),
     async readClose(accountId, focusDate) {
-      const day = await access.list(accountId, focusDate);
+      const day = await list(accountId, focusDate, true);
       if (day.members.length === 0) {
         return deriveDailyFocusClose({
           endOfDayStates: [],
