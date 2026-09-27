@@ -26,7 +26,7 @@ Birleşme öncesinde `bun run db:verify-pr-migrations` çalıştırın. Komut ad
 
 2026-09-27 salt okunur denetiminde önceki “paylaşılan geliştirme” URL'lerinin iki projenin varsayılan dalları (`production` ve `main`) olduğu Neon CLI ile doğrulandı. Ana dalda 76 migration kaydı vardı; bu repo journal'ındaki 70 girdiden 48'i birebir eşleşti, 20'si (0066–0068 dahil) eksikti, 2 ortak zaman damgasının SQL hash'i farklıydı ve 26 kayıt repo dışında kaldı. `work.status_changed_at` sütunu, 0066 kaydı yokken şemada vardı. 47 public tablo ve 38 dolu tablo bulundu; `work` için 186, `account` için 28 satır sayıldı. Güvenlik olay dalındaki 4 kayıt repo ile eşleşti. Bu bulgular veri taşıma/silme izni vermez; varsayılan dallar ve verileri korunur.
 
-Tarihsel `--repair-*` kipleri kalıcı veritabanındaki bilinen ayrışmalar için tutulur. Yeni çalışma alanları bunları olağan migration yerine kullanmaz. `db:push` yalnız açıkça seçilmiş atılabilir yerel PostgreSQL içindir. Drizzle sürümü bu geçişte değiştirilmedi; sürümlü SQL, journal ve snapshot biçimi korunur.
+Paylaşılan geliştirme veritabanına issue migration'larını sırayla uygulama kuralı kaldırıldı; issue migration'ları kendi çalışma alanı dallarında uygulanır. Tarihsel `--repair-*` kipleri yalnız kalıcı veritabanındaki bilinen ayrışmalar için, açık `db:migrate:deploy` sınırında tutulur. Yeni çalışma alanları bunları olağan migration yerine kullanmaz. `db:push` yalnız açıkça seçilmiş atılabilir yerel PostgreSQL içindir. Drizzle sürümü bu geçişte değiştirilmedi; sürümlü SQL, journal ve snapshot biçimi korunur.
 
 ## Makineye özgü ayar geçişi
 
