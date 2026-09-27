@@ -29,6 +29,7 @@ import {
   undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
+  updateWorkPlannedDateInputSchema,
   updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
@@ -2507,6 +2508,24 @@ export function createWorkLifecycle({
           targetId: input.workId,
         },
         (work, payload) => ({ ...work, reappearDate: payload.reappearDate }),
+      );
+    },
+
+    updatePlannedDate(accountId, rawInput) {
+      const input = updateWorkPlannedDateInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            field: input.field,
+            value: input.value,
+            workId: input.workId,
+          },
+          targetId: input.workId,
+        },
+        (work, payload) => ({ ...work, [payload.field]: payload.value }),
       );
     },
 

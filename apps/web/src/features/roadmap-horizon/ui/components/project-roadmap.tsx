@@ -1,227 +1,196 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Roadmap controls bind to the selected Work and view.
-import {
-  presentRoadmap,
-  type RoadmapHorizon,
-  type RoadmapOriginLink,
-  type RoadmapView,
+import type {
+  RoadmapBlocker,
+  RoadmapOriginLink,
+  RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
-import {
-  WORK_TYPE_OPTIONS,
-  type WorkProfile,
-} from "@cantiara/api/work-lifecycle";
-import { Badge } from "@cantiara/ui/components/badge";
+import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
-import ResearchDirection from "./research-direction";
+import { useQuery } from "@tanstack/react-query";
+import { type RefObject, useEffect, useRef, useState } from "react";
+import { orpc } from "@/utils/orpc";
+import { RoadmapResults } from "./roadmap-results";
 import RoadmapViewEditor from "./roadmap-view-editor";
 
-const HORIZONS = ["Now", "Next", "Later"] as const;
-const MARK_COLORS = [
-  "bg-chart-1/20",
-  "bg-chart-2/20",
-  "bg-chart-3/20",
-  "bg-chart-4/20",
-  "bg-chart-5/20",
-] as const;
 type ViewSelection = "direction" | "all" | string;
 
-function roadmapFieldValue(
-  work: WorkProfile,
-  field: RoadmapView["groupBy"],
+function allWorkRoadmapView(projectId: string): RoadmapView {
+  return {
+    groupBy: "Horizon",
+    horizons: [],
+    id: "all-work-types",
+    markBy: "Type",
+    name: "All Work types",
+    projectId,
+    revision: 0,
+    types: [],
+  };
+}
+
+function roadmapViewForPresentation(
+  selection: ViewSelection,
+  selectedView: RoadmapView | null,
+  projectId: string,
+): RoadmapView | null {
+  if (selection === "direction") {
+    return null;
+  }
+  if (selection === "all") {
+    return allWorkRoadmapView(projectId);
+  }
+  return selectedView ?? allWorkRoadmapView(projectId);
+}
+
+function presentationViewName(
+  selection: ViewSelection,
+  view: RoadmapView | null,
 ): string {
-  if (field === "Type") {
-    return work.type;
+  if (selection === "direction") {
+    return "Product direction";
   }
-  if (field === "Status") {
-    return work.status;
-  }
-  return work.roadmapHorizon ?? "No horizon";
+  return view?.name ?? "All Work types";
 }
 
-function roadmapMarkColor(value: string): string {
-  const values = [
-    ...HORIZONS,
-    ...WORK_TYPE_OPTIONS,
-    "Not Started",
-    "In Progress",
-    "Blocked",
-    "Closed",
-    "No horizon",
-  ];
-  return (
-    MARK_COLORS[Math.max(0, values.indexOf(value)) % MARK_COLORS.length] ??
-    "bg-chart-1/20"
-  );
+function presentationFocusableElements(roadmap: HTMLElement): HTMLElement[] {
+  return Array.from(
+    roadmap.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => element.getClientRects().length > 0);
 }
 
-function RoadmapResults({
-  works,
+function trapPresentationTab(
+  event: KeyboardEvent,
+  roadmap: HTMLElement | null,
+) {
+  if (event.key !== "Tab" || !roadmap) {
+    return;
+  }
+  const focusable = presentationFocusableElements(roadmap);
+  const first = focusable.at(0);
+  const last = focusable.at(-1);
+  if (!(first && last)) {
+    event.preventDefault();
+    roadmap.focus();
+    return;
+  }
+  const active = document.activeElement;
+  const isOutside = !roadmap.contains(active);
+  if (event.shiftKey && (active === first || isOutside)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (active === last || isOutside)) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function usePresentationEscape(
+  presentationMode: boolean,
+  setPresentationMode: (active: boolean) => void,
+  roadmapRef: RefObject<HTMLElement | null>,
+  exitButtonRef: RefObject<HTMLButtonElement | null>,
+  presentationButtonRef: RefObject<HTMLButtonElement | null>,
+  restoreScrollY: RefObject<number>,
+) {
+  useEffect(() => {
+    if (!presentationMode) {
+      return;
+    }
+    exitButtonRef.current?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPresentationMode(false);
+        window.requestAnimationFrame(() => {
+          window.scrollTo(0, restoreScrollY.current);
+          presentationButtonRef.current?.focus();
+        });
+        return;
+      }
+      trapPresentationTab(event, roadmapRef.current);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    exitButtonRef,
+    presentationButtonRef,
+    presentationMode,
+    roadmapRef,
+    restoreScrollY,
+    setPresentationMode,
+  ]);
+}
+
+function RoadmapContent({
+  blockers,
+  onSaved,
   origins,
-  view,
+  presentationMode,
   projectId,
+  selectedView,
+  selection,
+  viewForPresentation,
+  works,
 }: {
-  works: WorkProfile[];
+  blockers: RoadmapBlocker[];
+  onSaved: (id: string) => void;
   origins: RoadmapOriginLink[];
-  view: RoadmapView | null;
+  presentationMode: boolean;
   projectId: string;
+  selectedView: RoadmapView | null;
+  selection: ViewSelection;
+  viewForPresentation: RoadmapView | null;
+  works: WorkProfile[];
 }) {
-  const shown = presentRoadmap(
-    works.map((work) => ({
-      ...work,
-      horizon: work.roadmapHorizon ?? null,
-      originResearchIds: origins
-        .filter((origin) => origin.targetFeatureId === work.id)
-        .map((origin) => origin.sourceResearchId),
-    })),
-    view,
-  );
-  const groups = new Map<string, typeof shown>();
-  for (const item of shown) {
-    const group = roadmapFieldValue(item.work, view?.groupBy ?? "Horizon");
-    const current = groups.get(group) ?? [];
-    current.push(item);
-    groups.set(group, current);
-  }
-  if (!shown.length) {
+  if (presentationMode) {
     return (
-      <p className="text-muted-foreground text-sm">
-        No Work matches this view.
-      </p>
+      <RoadmapResults
+        blockers={blockers}
+        origins={origins}
+        presentationMode
+        view={viewForPresentation}
+        works={works}
+      />
+    );
+  }
+  if (selection === "direction") {
+    return (
+      <RoadmapResults
+        blockers={blockers}
+        origins={origins}
+        presentationMode={false}
+        view={null}
+        works={works}
+      />
     );
   }
   return (
-    <div className="grid gap-6">
-      {Array.from(groups, ([group, items]) => (
-        <section className="grid gap-3" key={group}>
-          {view ? (
-            <h3 className="border-b pb-2 font-medium text-sm">{group}</h3>
-          ) : null}
-          {items.map(({ work, secondary }) => (
-            <article
-              className={`rounded-lg border bg-card p-4 ${secondary ? "ml-4 border-l-4" : ""}`}
-              key={work.id}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-muted-foreground text-xs">
-                    {work.key} ·{" "}
-                    <Badge
-                      className={roadmapMarkColor(
-                        roadmapFieldValue(work, view?.markBy ?? "Type"),
-                      )}
-                      variant="secondary"
-                    >
-                      {roadmapFieldValue(work, view?.markBy ?? "Type")}
-                    </Badge>
-                    {secondary ? " · Feature" : ""}
-                  </p>
-                  <Link
-                    className="font-medium underline-offset-4 hover:underline"
-                    hash={workRecordHash(work.id)}
-                    params={{ projectId }}
-                    to="/projects/$projectId"
-                  >
-                    {work.title}
-                  </Link>
-                  {secondary ? (
-                    <p className="text-muted-foreground text-xs">
-                      Research ·{" "}
-                      {
-                        works.find((item) =>
-                          work.originResearchIds.includes(item.id),
-                        )?.title
-                      }
-                    </p>
-                  ) : null}
-                  {work.type === "Research" ? (
-                    <ResearchDirection
-                      key={`${work.id}-${work.revision}`}
-                      work={work}
-                    />
-                  ) : null}
-                  <p className="text-muted-foreground text-xs">
-                    {work.status} ·{" "}
-                    {work.plannedStartDate && work.targetDate
-                      ? `${work.plannedStartDate} – ${work.targetDate}`
-                      : (work.targetDate ?? "No target date")}
-                  </p>
-                </div>
-                <HorizonControl
-                  key={`${work.id}-${work.roadmapHorizon}`}
-                  work={work}
-                />
-              </div>
-            </article>
-          ))}
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function HorizonControl({ work }: { work: WorkProfile }) {
-  const queryClient = useQueryClient();
-  const [horizon, setHorizon] = useState<RoadmapHorizon | "">(
-    work.roadmapHorizon ?? "",
-  );
-  const mutation = useMutation({
-    mutationFn: () =>
-      runOnlineOnlyWrite(() =>
-        client.updateWorkHorizon({
-          baseRevision: work.revision,
-          clientIdempotencyKey: crypto.randomUUID(),
-          horizon: horizon || null,
-          workId: work.id,
-        }),
-      ),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
-  });
-  return (
-    <div className="flex flex-wrap items-end gap-2">
-      <label className="grid gap-1 text-xs" htmlFor={`horizon-${work.id}`}>
-        Horizon
-        <select
-          className="min-h-10 rounded-md border bg-background px-2 text-sm"
-          id={`horizon-${work.id}`}
-          onChange={(event) =>
-            setHorizon(event.target.value as RoadmapHorizon | "")
-          }
-          value={horizon}
-        >
-          <option value="">No horizon</option>
-          {HORIZONS.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      </label>
-      <Button
-        disabled={mutation.isPending || (work.roadmapHorizon ?? "") === horizon}
-        onClick={() => mutation.mutate()}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        Place on horizon
-      </Button>
-      {mutation.isError ? (
-        <p className="text-destructive text-xs" role="alert">
-          Horizon could not be saved. Reload and try again.
-        </p>
-      ) : null}
-    </div>
+    <RoadmapViewEditor
+      key={selection}
+      onSaved={onSaved}
+      projectId={projectId}
+      renderResults={(view) => (
+        <RoadmapResults
+          blockers={blockers}
+          origins={origins}
+          presentationMode={false}
+          view={view}
+          works={works}
+        />
+      )}
+      saved={selectedView}
+    />
   );
 }
 
 export default function ProjectRoadmap({ projectId }: { projectId: string }) {
   const [selection, setSelection] = useState<ViewSelection>("direction");
+  const [presentationMode, setPresentationMode] = useState(false);
+  const roadmapRef = useRef<HTMLElement>(null);
+  const presentationButtonRef = useRef<HTMLButtonElement>(null);
+  const exitPresentationButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreScrollY = useRef(0);
   const worksQuery = useQuery(
     orpc.projectWorks.queryOptions({ input: { archived: false, projectId } }),
   );
@@ -231,69 +200,162 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
   const originsQuery = useQuery(
     orpc.projectRoadmapOrigins.queryOptions({ input: { projectId } }),
   );
+  const blockersQuery = useQuery(
+    orpc.projectRoadmapBlockers.queryOptions({ input: { projectId } }),
+  );
   const views = viewsQuery.data ?? [];
   const selectedView = views.find((view) => view.id === selection) ?? null;
+  const presentationView = roadmapViewForPresentation(
+    selection,
+    selectedView,
+    projectId,
+  );
+  usePresentationEscape(
+    presentationMode,
+    setPresentationMode,
+    roadmapRef,
+    exitPresentationButtonRef,
+    presentationButtonRef,
+    restoreScrollY,
+  );
 
-  if (worksQuery.isPending || viewsQuery.isPending || originsQuery.isPending) {
+  function enterPresentationMode() {
+    const roadmap = roadmapRef.current;
+    if (!roadmap) {
+      return;
+    }
+    restoreScrollY.current = window.scrollY;
+    const innerScroll = Math.max(0, -roadmap.getBoundingClientRect().top);
+    setPresentationMode(true);
+    window.requestAnimationFrame(() => {
+      if (roadmapRef.current) {
+        roadmapRef.current.scrollTop = innerScroll;
+      }
+    });
+  }
+
+  function exitPresentationMode() {
+    setPresentationMode(false);
+    window.requestAnimationFrame(() => {
+      window.scrollTo(0, restoreScrollY.current);
+      presentationButtonRef.current?.focus();
+    });
+  }
+
+  if (
+    worksQuery.isPending ||
+    viewsQuery.isPending ||
+    originsQuery.isPending ||
+    blockersQuery.isPending
+  ) {
     return <p role="status">Loading…</p>;
   }
-  if (worksQuery.isError || viewsQuery.isError || originsQuery.isError) {
+  if (
+    worksQuery.isError ||
+    viewsQuery.isError ||
+    originsQuery.isError ||
+    blockersQuery.isError
+  ) {
     return <p role="alert">Roadmap is unavailable. Reload and try again.</p>;
   }
 
   const works = (worksQuery.data ?? []).filter(
     (work) => work.archivedAt === null,
   );
+  const origins = originsQuery.data ?? [];
+  const blockers = blockersQuery.data ?? [];
+  const roadmapContent = (
+    <RoadmapContent
+      blockers={blockers}
+      onSaved={setSelection}
+      origins={origins}
+      presentationMode={presentationMode}
+      projectId={projectId}
+      selectedView={selectedView}
+      selection={selection}
+      viewForPresentation={presentationView}
+      works={works}
+    />
+  );
 
   return (
-    <section aria-label="Roadmap" className="space-y-6" id="roadmap">
-      <header className="space-y-2">
-        <h2 className="font-semibold text-2xl">Roadmap</h2>
-        <p className="text-muted-foreground text-sm">
-          Horizons describe direction. They do not start Work, set dates, or
-          promise a release.
-        </p>
-      </header>
-      <label className="grid max-w-sm gap-1 text-sm" htmlFor="roadmap-view">
-        Named view
-        <select
-          className="min-h-11 rounded-md border bg-background px-3"
-          id="roadmap-view"
-          onChange={(event) => setSelection(event.target.value)}
-          value={selection}
+    <section
+      aria-label="Roadmap"
+      className={
+        presentationMode
+          ? "fixed inset-0 z-50 overflow-y-auto bg-background p-4 sm:p-8"
+          : "space-y-6"
+      }
+      id="roadmap"
+      ref={roadmapRef}
+      tabIndex={presentationMode ? -1 : undefined}
+    >
+      {presentationMode ? (
+        <div
+          aria-label="Roadmap"
+          aria-modal="true"
+          className="grid min-h-full content-start gap-6"
+          role="dialog"
         >
-          <option value="direction">Product direction</option>
-          <option value="all">All Work types</option>
-          {views.map((saved) => (
-            <option key={saved.id} value={saved.id}>
-              {saved.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {selection === "direction" ? (
-        <RoadmapResults
-          origins={originsQuery.data ?? []}
-          projectId={projectId}
-          view={null}
-          works={works}
-        />
+          <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+            <div>
+              <h2 className="font-semibold text-2xl">Roadmap</h2>
+              <p className="text-muted-foreground text-sm">
+                {presentationViewName(selection, presentationView)}
+              </p>
+            </div>
+            <Button
+              onClick={exitPresentationMode}
+              ref={exitPresentationButtonRef}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Exit Presentation Mode
+            </Button>
+          </header>
+          {roadmapContent}
+        </div>
       ) : (
-        <RoadmapViewEditor
-          key={selection}
-          onSaved={setSelection}
-          projectId={projectId}
-          renderResults={(view) => (
-            <RoadmapResults
-              origins={originsQuery.data ?? []}
-              projectId={projectId}
-              view={view}
-              works={works}
-            />
-          )}
-          saved={selectedView}
-        />
+        <>
+          <header className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-2">
+              <h2 className="font-semibold text-2xl">Roadmap</h2>
+              <p className="text-muted-foreground text-sm">
+                Horizons describe direction. They do not start Work, set dates,
+                or promise a release.
+              </p>
+            </div>
+            <Button
+              onClick={enterPresentationMode}
+              ref={presentationButtonRef}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Presentation Mode
+            </Button>
+          </header>
+          <label className="grid max-w-sm gap-1 text-sm" htmlFor="roadmap-view">
+            Named view
+            <select
+              className="min-h-11 rounded-md border bg-background px-3"
+              id="roadmap-view"
+              onChange={(event) => setSelection(event.target.value)}
+              value={selection}
+            >
+              <option value="direction">Product direction</option>
+              <option value="all">All Work types</option>
+              {views.map((saved) => (
+                <option key={saved.id} value={saved.id}>
+                  {saved.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
       )}
+      {!presentationMode && roadmapContent}
     </section>
   );
 }
