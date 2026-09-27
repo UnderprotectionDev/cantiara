@@ -7,11 +7,13 @@ import { describe, expect, test, vi } from "vitest";
 const focusDate = "2026-09-27";
 const accountId = "founder-account";
 const day = { focusDate, available: [], members: [] };
+const closeView = { abandoned: [], completed: [], deferred: [], stillOpen: [] };
 
 function testClient(session: Context["session"]) {
   const dailyFocus: DailyFocusAccess = {
     add: vi.fn().mockResolvedValue(undefined),
     list: vi.fn().mockResolvedValue(day),
+    readClose: vi.fn().mockResolvedValue(closeView),
     remove: vi.fn().mockResolvedValue(undefined),
   };
   const context = {
@@ -31,6 +33,9 @@ describe("Daily Focus RPC", () => {
     } as Context["session"]);
 
     await expect(client.dailyFocusDay({ focusDate })).resolves.toEqual(day);
+    await expect(client.dailyFocusClose({ focusDate })).resolves.toEqual(
+      closeView,
+    );
     await expect(
       client.addToDailyFocus({ focusDate, workId: "work-1" }),
     ).resolves.toEqual({ status: true });
@@ -38,6 +43,10 @@ describe("Daily Focus RPC", () => {
       client.removeFromDailyFocus({ focusDate, workId: "work-1" }),
     ).resolves.toEqual({ status: true });
     expect(dailyFocus.list).toHaveBeenCalledExactlyOnceWith(
+      accountId,
+      focusDate,
+    );
+    expect(dailyFocus.readClose).toHaveBeenCalledExactlyOnceWith(
       accountId,
       focusDate,
     );
@@ -58,7 +67,11 @@ describe("Daily Focus RPC", () => {
     await expect(
       anonymous.client.dailyFocusDay({ focusDate }),
     ).rejects.toThrow();
+    await expect(
+      anonymous.client.dailyFocusClose({ focusDate }),
+    ).rejects.toThrow();
     expect(anonymous.dailyFocus.list).not.toHaveBeenCalled();
+    expect(anonymous.dailyFocus.readClose).not.toHaveBeenCalled();
     const authenticated = testClient({
       session: { id: "session-1" },
       user: { id: accountId },
@@ -66,6 +79,10 @@ describe("Daily Focus RPC", () => {
     await expect(
       authenticated.client.dailyFocusDay({ focusDate: "2026-02-30" }),
     ).rejects.toThrow();
+    await expect(
+      authenticated.client.dailyFocusClose({ focusDate: "2026-02-30" }),
+    ).rejects.toThrow();
     expect(authenticated.dailyFocus.list).not.toHaveBeenCalled();
+    expect(authenticated.dailyFocus.readClose).not.toHaveBeenCalled();
   });
 });
