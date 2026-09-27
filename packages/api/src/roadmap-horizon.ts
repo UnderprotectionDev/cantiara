@@ -92,6 +92,22 @@ export type RoadmapPlacementChoice =
   | { field: "horizon"; value: RoadmapHorizon }
   | { field: "plannedStartDate" | "targetDate"; value: string };
 
+export interface RoadmapWork {
+  horizon: RoadmapHorizon | null;
+  id: string;
+  originResearchIds: readonly string[];
+  plannedStartDate?: string | null;
+  targetDate?: string | null;
+  title: string;
+  type: string;
+}
+
+export const ROADMAP_PLACEMENT_FIELD_LABELS = {
+  horizon: "Horizon",
+  plannedStartDate: "Planned start date",
+  targetDate: "Target date",
+} as const satisfies Record<RoadmapPlacementChoice["field"], string>;
+
 export interface RoadmapPlacementPreview {
   fieldLabel: "Horizon" | "Planned start date" | "Target date";
   nextValue: string;
@@ -102,38 +118,16 @@ export function createRoadmapPlacementPreview(
   work: Pick<RoadmapWork, "horizon" | "plannedStartDate" | "targetDate">,
   placement: RoadmapPlacementChoice,
 ): RoadmapPlacementPreview {
-  switch (placement.field) {
-    case "horizon":
-      return {
-        fieldLabel: "Horizon",
-        nextValue: placement.value,
-        previousValue: work.horizon ?? "No horizon",
-      };
-    case "plannedStartDate":
-      return {
-        fieldLabel: "Planned start date",
-        nextValue: placement.value,
-        previousValue: work.plannedStartDate ?? "No date",
-      };
-    case "targetDate":
-      return {
-        fieldLabel: "Target date",
-        nextValue: placement.value,
-        previousValue: work.targetDate ?? "No date",
-      };
-    default:
-      throw new Error("Unsupported Roadmap placement field.");
-  }
-}
-
-export interface RoadmapWork {
-  horizon: RoadmapHorizon | null;
-  id: string;
-  originResearchIds: readonly string[];
-  plannedStartDate?: string | null;
-  targetDate?: string | null;
-  title: string;
-  type: string;
+  const previousValueByField = {
+    horizon: work.horizon ?? "No horizon",
+    plannedStartDate: work.plannedStartDate ?? "No date",
+    targetDate: work.targetDate ?? "No date",
+  };
+  return {
+    fieldLabel: ROADMAP_PLACEMENT_FIELD_LABELS[placement.field],
+    nextValue: placement.value,
+    previousValue: previousValueByField[placement.field],
+  };
 }
 
 export function presentRoadmap<T extends RoadmapWork>(

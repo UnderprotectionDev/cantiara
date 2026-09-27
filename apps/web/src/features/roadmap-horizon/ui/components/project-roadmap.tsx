@@ -130,7 +130,6 @@ function RoadmapContent({
   projectId,
   selectedView,
   selection,
-  viewForPresentation,
   works,
 }: {
   blockers: RoadmapBlocker[];
@@ -140,26 +139,14 @@ function RoadmapContent({
   projectId: string;
   selectedView: RoadmapView | null;
   selection: ViewSelection;
-  viewForPresentation: RoadmapView | null;
   works: WorkProfile[];
 }) {
-  if (presentationMode) {
-    return (
-      <RoadmapResults
-        blockers={blockers}
-        origins={origins}
-        presentationMode
-        view={viewForPresentation}
-        works={works}
-      />
-    );
-  }
   if (selection === "direction") {
     return (
       <RoadmapResults
         blockers={blockers}
         origins={origins}
-        presentationMode={false}
+        presentationMode={presentationMode}
         view={null}
         works={works}
       />
@@ -169,12 +156,13 @@ function RoadmapContent({
     <RoadmapViewEditor
       key={selection}
       onSaved={onSaved}
+      presentationMode={presentationMode}
       projectId={projectId}
-      renderResults={(view) => (
+      renderResults={(view, isPresentationMode) => (
         <RoadmapResults
           blockers={blockers}
           origins={origins}
-          presentationMode={false}
+          presentationMode={isPresentationMode}
           view={view}
           works={works}
         />
@@ -273,7 +261,6 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
       projectId={projectId}
       selectedView={selectedView}
       selection={selection}
-      viewForPresentation={presentationView}
       works={works}
     />
   );

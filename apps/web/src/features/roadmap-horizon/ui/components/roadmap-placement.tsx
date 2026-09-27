@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Placement controls bind to the selected Work and preview.
 import {
   createRoadmapPlacementPreview,
+  ROADMAP_PLACEMENT_FIELD_LABELS,
   type RoadmapHorizon,
   type RoadmapPlacementChoice,
 } from "@cantiara/api/roadmap-horizon";
@@ -22,16 +23,6 @@ function placementForSelection(
     return horizon ? { field, value: horizon } : null;
   }
   return date ? { field, value: date } : null;
-}
-
-function placementFieldLabel(field: RoadmapPlacementChoice["field"]): string {
-  if (field === "horizon") {
-    return "Horizon";
-  }
-  if (field === "plannedStartDate") {
-    return "Planned start date";
-  }
-  return "Target date";
 }
 
 export default function RoadmapPlacementEditor({
@@ -104,7 +95,7 @@ export default function RoadmapPlacementEditor({
         previewChoice,
       )
     : null;
-  const fieldLabel = placementFieldLabel(field);
+  const fieldLabel = ROADMAP_PLACEMENT_FIELD_LABELS[field];
 
   return (
     <section

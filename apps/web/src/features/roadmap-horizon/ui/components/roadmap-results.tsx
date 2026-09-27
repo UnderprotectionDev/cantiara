@@ -14,12 +14,12 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, projectWorksQueryPrefix } from "@/utils/orpc";
+import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import ResearchDirection from "./research-direction";
 import RoadmapPlacementEditor from "./roadmap-placement";
 
@@ -199,44 +199,60 @@ function RoadmapWorkDetails({
   onClose: () => void;
   work: RoadmapDetailSource;
 }) {
+  const detailsQuery = useQuery({
+    ...orpc.work.queryOptions({ input: { workId: work.id } }),
+    enabled: work.description === undefined,
+  });
+  const details = detailsQuery.data ?? work;
+
   return (
     <section
-      aria-label={`Work details: ${work.key}`}
+      aria-label={`Work details: ${details.key}`}
       className="mt-4 space-y-3 rounded-md border bg-muted/20 p-4"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-muted-foreground text-xs">
-            {work.key} · {work.type} · {work.status}
-            {work.archivedAt ? " · Archived" : ""}
+            {details.key} · {details.type} · {details.status}
+            {details.archivedAt ? " · Archived" : ""}
           </p>
-          <h4 className="font-medium text-base">{work.title}</h4>
+          <h4 className="font-medium text-base">{details.title}</h4>
         </div>
         <Button onClick={onClose} size="sm" type="button" variant="outline">
           Close details
         </Button>
       </div>
-      <RoadmapWorkDescription description={work.description} />
-      {work.roadmapHorizon !== undefined ||
-      work.plannedStartDate !== undefined ||
-      work.targetDate !== undefined ? (
+      {work.description === undefined && detailsQuery.isPending ? (
+        <p className="text-muted-foreground text-sm" role="status">
+          Loading Work details…
+        </p>
+      ) : null}
+      {work.description === undefined && detailsQuery.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Work details could not be loaded.
+        </p>
+      ) : null}
+      <RoadmapWorkDescription description={details.description} />
+      {details.roadmapHorizon !== undefined ||
+      details.plannedStartDate !== undefined ||
+      details.targetDate !== undefined ? (
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-          {work.roadmapHorizon === undefined ? null : (
+          {details.roadmapHorizon === undefined ? null : (
             <div>
               <dt className="text-muted-foreground">Horizon</dt>
-              <dd>{work.roadmapHorizon ?? "No horizon"}</dd>
+              <dd>{details.roadmapHorizon ?? "No horizon"}</dd>
             </div>
           )}
-          {work.plannedStartDate === undefined ? null : (
+          {details.plannedStartDate === undefined ? null : (
             <div>
               <dt className="text-muted-foreground">Planned start date</dt>
-              <dd>{work.plannedStartDate ?? "No date"}</dd>
+              <dd>{details.plannedStartDate ?? "No date"}</dd>
             </div>
           )}
-          {work.targetDate === undefined ? null : (
+          {details.targetDate === undefined ? null : (
             <div>
               <dt className="text-muted-foreground">Target date</dt>
-              <dd>{work.targetDate ?? "No date"}</dd>
+              <dd>{details.targetDate ?? "No date"}</dd>
             </div>
           )}
         </dl>
