@@ -5,9 +5,12 @@ import {
   assertBranch,
   assertConnection,
   assertDevelopmentBaseName,
+  assertWorkspaceIdentity,
   assertWorkspaceRecord,
+  bindLocalWorkspaceIdentity,
   branchName,
   neon,
+  workspaceIdentity,
   workspacePort,
 } from "./workspace-neon";
 
@@ -18,8 +21,77 @@ const expected = {
   name: "ws-abc-primary",
   endpointId: "ep-child-one",
 };
+const localWorkspaceIdPattern = /^local-[a-f0-9]{24}$/;
 
 describe("workspace Neon boundary", () => {
+  it("derives a stable local identity when Conductor setup omits its workspace ID", () => {
+    const root = process.cwd();
+    const setupEnv = {
+      CONDUCTOR_WORKSPACE_PATH: root,
+      CONDUCTOR_ROOT_PATH: `${root}/..`,
+      CONDUCTOR_PORT: "55070",
+    };
+    const id = workspaceIdentity(setupEnv, root);
+    expect(id).toMatch(localWorkspaceIdPattern);
+    expect(
+      branchName(id, "0123456789abcdef", "security").length,
+    ).toBeLessThanOrEqual(63);
+    expect(workspaceIdentity(setupEnv, root)).toBe(id);
+    expect(
+      workspaceIdentity({ ...setupEnv, CONDUCTOR_PORT: undefined }, root),
+    ).toBe(id);
+    expect(
+      workspaceIdentity({ ...setupEnv, CONDUCTOR_WORKSPACE_ID: "abc" }, root),
+    ).toBe("abc");
+    expect(() =>
+      assertWorkspaceIdentity(
+        id,
+        { ...setupEnv, CONDUCTOR_WORKSPACE_ID: "abc" },
+        root,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertWorkspaceIdentity(
+        "local-00000000000000000000000000000000",
+        setupEnv,
+        root,
+      ),
+    ).toThrow();
+    expect(() => assertWorkspaceIdentity("abc", setupEnv, root)).toThrow();
+    const bound = bindLocalWorkspaceIdentity(
+      { workspaceId: "abc", localWorkspaceId: undefined },
+      { ...setupEnv, CONDUCTOR_WORKSPACE_ID: "abc" },
+      root,
+    );
+    expect(bound.localWorkspaceId).toBe(id);
+    expect(() =>
+      assertWorkspaceIdentity("abc", setupEnv, root, bound.localWorkspaceId),
+    ).not.toThrow();
+    expect(() =>
+      assertWorkspaceIdentity(
+        "abc",
+        { ...setupEnv, CONDUCTOR_WORKSPACE_PATH: `${root}/..` },
+        root,
+        bound.localWorkspaceId,
+      ),
+    ).toThrow();
+  });
+
+  it("does not derive a shared cloud identity from a generic checkout path", () => {
+    const root = process.cwd();
+    const cloudEnv = {
+      CONDUCTOR_WORKSPACE_PATH: root,
+      CONDUCTOR_ROOT_PATH: root,
+    };
+    expect(() => workspaceIdentity(cloudEnv, root)).toThrow();
+    expect(() =>
+      workspaceIdentity(
+        { ...cloudEnv, CONDUCTOR_WORKSPACE_PATH: `${root}/..` },
+        root,
+      ),
+    ).toThrow();
+  });
+
   it("accepts versioned development bases", () => {
     expect(() => assertDevelopmentBaseName("development-base")).not.toThrow();
     expect(() =>
