@@ -465,7 +465,12 @@ function RoadmapWorkItem({
           role={role}
           work={work}
         />
-        {presentationMode || candidate ? null : <HorizonControl work={work} />}
+        {presentationMode || candidate ? null : (
+          <HorizonControl
+            key={`${work.id}-${work.roadmapHorizon ?? ""}`}
+            work={work}
+          />
+        )}
       </div>
       <BlockerBadge
         blockers={activeBlockers}
