@@ -33,7 +33,7 @@ export default function Header() {
   return (
     <>
       <SkipToMainContentButton />
-      <header className="border-border/80 border-b bg-background/90 backdrop-blur">
+      <header className="min-w-0 border-border/80 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex min-h-14 w-full max-w-[1440px] items-center gap-1 px-3 sm:gap-6 sm:px-8 lg:px-10">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <Link
