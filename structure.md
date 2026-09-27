@@ -524,6 +524,8 @@
 │   │   ├── scripts/
 │   │   │   ├── base-history.test.ts
 │   │   │   ├── base-history.ts
+│   │   │   ├── migration-connection.test.ts
+│   │   │   ├── migration-connection.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
 │   │   │   ├── migrate.ts

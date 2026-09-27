@@ -175,7 +175,10 @@ function writeWorkspaceEnv(env: NodeJS.ProcessEnv) {
 
 async function setup() {
   assertProjectConfiguration();
-  workspacePort();
+  const hasLocalWorkspacePort = process.env.CONDUCTOR_PORT !== undefined;
+  if (hasLocalWorkspacePort) {
+    workspacePort();
+  }
   try {
     execFileSync("git", ["fetch", "--quiet", "origin", "main"], {
       stdio: ["ignore", "ignore", "ignore"],
@@ -190,8 +193,10 @@ async function setup() {
   const security = await provision("security", state);
   state.connections = { primary, security };
   saveState(state);
-  const env = await workspaceEnvironment(state);
-  writeWorkspaceEnv(env);
+  if (hasLocalWorkspacePort) {
+    const env = await workspaceEnvironment(state);
+    writeWorkspaceEnv(env);
+  }
   console.log("Workspace Neon branches are ready in both projects");
 }
 
