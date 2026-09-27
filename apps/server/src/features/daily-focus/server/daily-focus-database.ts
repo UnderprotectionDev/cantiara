@@ -1,4 +1,5 @@
 import {
+  buildDailyFocusCandidates,
   type DailyFocusAccess,
   type DailyFocusCloseState,
   type DailyFocusStatusChange,
@@ -85,14 +86,17 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
     return record ?? null;
   }
 
-  async function list(
+  async function loadDay(
     accountId: string,
     focusDate: string,
     includeArchived = false,
   ) {
     const workspaceId = await ownedWorkspaceId(accountId);
     if (!workspaceId) {
-      return { available: [], focusDate, members: [] };
+      return {
+        closeMembers: [],
+        day: { available: [], candidates: [], focusDate, members: [] },
+      };
     }
     const [works, memberships] = await Promise.all([
       database
@@ -103,6 +107,7 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
           projectName: project.name,
           reappearDate: work.reappearDate,
           status: work.status,
+          targetDate: work.targetDate,
           title: work.title,
         })
         .from(work)
@@ -126,18 +131,36 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
         ),
     ]);
     const selectedIds = new Set(memberships.map(({ workId }) => workId));
-    return dailyFocusDaySchema.parse({
-      available: works.filter(({ id }) => !selectedIds.has(id)),
-      focusDate,
-      members: works.filter(({ id }) => selectedIds.has(id)),
-    });
+    const availableCandidates = works.filter(({ id }) => !selectedIds.has(id));
+    const closeMembers = works
+      .filter(({ id }) => selectedIds.has(id))
+      .map(({ targetDate: _targetDate, ...member }) => member);
+    const visibleWorks = works.map(
+      ({
+        reappearDate: _reappearDate,
+        targetDate: _targetDate,
+        ...visibleWork
+      }) => visibleWork,
+    );
+    return {
+      closeMembers,
+      day: dailyFocusDaySchema.parse({
+        available: visibleWorks.filter(({ id }) => !selectedIds.has(id)),
+        candidates: includeArchived
+          ? []
+          : buildDailyFocusCandidates(availableCandidates, focusDate),
+        focusDate,
+        members: visibleWorks.filter(({ id }) => selectedIds.has(id)),
+      }),
+    };
   }
 
   const access: DailyFocusAccess = {
-    list: (accountId, focusDate) => list(accountId, focusDate),
+    list: async (accountId, focusDate) =>
+      (await loadDay(accountId, focusDate)).day,
     async readClose(accountId, focusDate) {
-      const day = await list(accountId, focusDate, true);
-      if (day.members.length === 0) {
+      const { closeMembers } = await loadDay(accountId, focusDate, true);
+      if (closeMembers.length === 0) {
         return deriveDailyFocusClose({
           endOfDayStates: [],
           focusDate,
@@ -152,7 +175,7 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
         .where(eq(accountPreferences.accountId, accountId))
         .limit(1);
       const timeZone = preferences?.timeZone ?? "Europe/Istanbul";
-      const workIds = day.members.map(({ id }) => id);
+      const workIds = closeMembers.map(({ id }) => id);
       const occurredAt = sql`${mutationHistory.occurredAt} AT TIME ZONE 'UTC'`;
       const dayStart = sql`${focusDate}::date::timestamp AT TIME ZONE ${timeZone}`;
       const nextDayStart = sql`(${focusDate}::date + 1)::timestamp AT TIME ZONE ${timeZone}`;
@@ -196,7 +219,7 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
       const endOfDayStates: DailyFocusCloseState[] = [];
       const seenWorkIds = new Set<string>();
       const membersById = new Map(
-        day.members.map((member) => [member.id, member]),
+        closeMembers.map((member) => [member.id, member]),
       );
       for (const record of endOfDayHistory) {
         if (seenWorkIds.has(record.targetId)) {
@@ -228,7 +251,7 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
       return deriveDailyFocusClose({
         endOfDayStates,
         focusDate,
-        members: day.members,
+        members: closeMembers,
         statusChanges,
       });
     },

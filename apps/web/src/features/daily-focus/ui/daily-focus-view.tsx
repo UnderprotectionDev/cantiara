@@ -202,6 +202,15 @@ function DailyFocusDayView({
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
   );
   const [workId, setWorkId] = useState("");
+  const [rejectedCandidateIdsByDay, setRejectedCandidateIdsByDay] = useState<
+    Record<string, string[]>
+  >({});
+  const rejectedCandidateIds = new Set(
+    rejectedCandidateIdsByDay[focusDate] ?? [],
+  );
+  const visibleCandidates = (dailyFocus.data?.candidates ?? []).filter(
+    ({ id }) => !rejectedCandidateIds.has(id),
+  );
   const add = useMutation({
     mutationFn: (selectedWorkId: string) =>
       runOnlineOnlyWrite(() =>
@@ -306,6 +315,87 @@ function DailyFocusDayView({
                 >
                   Remove from Daily Focus
                 </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      <section
+        aria-labelledby="daily-focus-candidates-heading"
+        className="mt-10"
+      >
+        <h2
+          className="font-semibold text-lg"
+          id="daily-focus-candidates-heading"
+        >
+          Candidates
+        </h2>
+        <p className="mt-2 text-muted-foreground text-sm">
+          Work appears here when Target date is this day through the next 7
+          days, or Reappear date is on or before this day.
+        </p>
+        {dailyFocus.data && visibleCandidates.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-border border-dashed px-5 py-6 text-muted-foreground">
+            No Candidates for this day.
+          </p>
+        ) : null}
+        {visibleCandidates.length > 0 ? (
+          <ul className="mt-4 divide-y border-border/70 border-y">
+            {visibleCandidates.map((candidate) => (
+              <li
+                className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center"
+                key={candidate.id}
+              >
+                <Link
+                  className="min-w-0 flex-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  hash={workRecordHash(candidate.id)}
+                  params={{ projectId: candidate.projectId }}
+                  to="/projects/$projectId"
+                >
+                  <span className="block truncate font-medium">
+                    {candidate.title}
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    {candidate.projectName} · {candidate.key} ·{" "}
+                    {candidate.status}
+                  </span>
+                  <span className="mt-1 block text-muted-foreground text-sm">
+                    {candidate.reasons.map(({ date, label }) => (
+                      <span className="mr-3" key={`${label}:${date}`}>
+                        {label}: <time dateTime={date}>{date}</time>
+                      </span>
+                    ))}
+                  </span>
+                </Link>
+                <div className="flex gap-2 sm:shrink-0">
+                  <Button
+                    disabled={add.isPending}
+                    onClick={() => add.mutate(candidate.id)}
+                    size="sm"
+                    type="button"
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      setRejectedCandidateIdsByDay((current) => ({
+                        ...current,
+                        [focusDate]: [
+                          ...new Set([
+                            ...(current[focusDate] ?? []),
+                            candidate.id,
+                          ]),
+                        ],
+                      }))
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Reject
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

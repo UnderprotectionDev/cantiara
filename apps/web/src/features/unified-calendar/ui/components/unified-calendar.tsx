@@ -12,7 +12,7 @@ import {
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 
-export type CalendarView = "Day" | "Week" | "Month";
+export type CalendarView = "Day" | "Week" | "Month" | "Agenda";
 export type CalendarWork = Pick<
   WorkProfile,
   | "archivedAt"
@@ -26,11 +26,17 @@ export type CalendarWork = Pick<
   | "title"
 >;
 
-const DATE_KINDS = [
+export const CALENDAR_DATE_KINDS = [
   { field: "plannedStartDate", label: "Planned start" },
   { field: "targetDate", label: "Target date" },
   { field: "reappearDate", label: "Reappear date" },
 ] as const;
+export type CalendarDateKind = (typeof CALENDAR_DATE_KINDS)[number]["field"];
+
+export function calendarDateKindsForSelection(selected: Iterable<string>) {
+  const selectedFields = new Set(selected);
+  return CALENDAR_DATE_KINDS.filter(({ field }) => selectedFields.has(field));
+}
 
 function dateSpan(work: CalendarWork) {
   const { plannedStartDate, targetDate } = work;
@@ -45,7 +51,7 @@ function dateSpan(work: CalendarWork) {
 
 function visibleDays(
   selectedDate: string,
-  view: CalendarView,
+  view: Exclude<CalendarView, "Agenda">,
   firstDayOfWeek: AccountPreferences["firstDayOfWeek"],
 ) {
   const selected = parseISO(selectedDate);
@@ -71,6 +77,7 @@ export default function UnifiedCalendar({
   preferences,
   projects,
   selectedDate,
+  selectedDateKinds = CALENDAR_DATE_KINDS.map(({ field }) => field),
   selectedProjectId,
   view,
   works,
@@ -78,10 +85,88 @@ export default function UnifiedCalendar({
   preferences: AccountPreferences;
   projects: readonly { id: string; name: string }[];
   selectedDate: string;
+  selectedDateKinds?: readonly CalendarDateKind[];
   selectedProjectId: string;
   view: CalendarView;
   works: readonly CalendarWork[];
 }) {
+  const projectNames = new Map(projects.map(({ id, name }) => [id, name]));
+  const scopedWorks = works.filter(
+    (work) =>
+      work.archivedAt === null &&
+      (selectedProjectId === "all" || work.projectId === selectedProjectId),
+  );
+  const visibleKinds = calendarDateKindsForSelection(selectedDateKinds);
+  const hasStartAndTargetKinds =
+    selectedDateKinds.includes("plannedStartDate") &&
+    selectedDateKinds.includes("targetDate");
+
+  if (view === "Agenda") {
+    const monthDays = visibleDays(
+      selectedDate,
+      "Month",
+      preferences.firstDayOfWeek,
+    );
+    const firstAgendaDay = monthDays[0] ?? selectedDate;
+    const lastAgendaDay = monthDays.at(-1) ?? selectedDate;
+    const rows = scopedWorks
+      .flatMap((work) =>
+        visibleKinds.flatMap(({ field, label }) => {
+          const date = work[field];
+          return date && firstAgendaDay <= date && date <= lastAgendaDay
+            ? [{ date, field, label, work }]
+            : [];
+        }),
+      )
+      .sort(
+        (left, right) =>
+          left.date.localeCompare(right.date) ||
+          CALENDAR_DATE_KINDS.findIndex(({ field }) => field === left.field) -
+            CALENDAR_DATE_KINDS.findIndex(
+              ({ field }) => field === right.field,
+            ) ||
+          left.work.key.localeCompare(right.work.key),
+      );
+
+    return (
+      <section aria-label="Agenda Calendar">
+        {rows.length === 0 ? (
+          <p className="mb-4 text-muted-foreground text-sm">
+            No dated Work in this Calendar view.
+          </p>
+        ) : null}
+        <ol className="divide-y divide-border/70">
+          {rows.map(({ date, field, label, work }) => (
+            <li
+              className="grid gap-x-4 gap-y-1 py-2 sm:grid-cols-[minmax(8rem,auto)_minmax(9rem,auto)_minmax(0,1fr)_auto] sm:items-center"
+              key={`${work.id}:${field}`}
+            >
+              <time className="text-muted-foreground text-sm" dateTime={date}>
+                {formatAccountDate(date, preferences)}
+              </time>
+              <span className="font-medium text-sm">{label}</span>
+              <div className="min-w-0 text-sm">
+                <span className="font-medium">{work.key}</span> · {work.title}
+                {selectedProjectId === "all" ? (
+                  <span className="block text-muted-foreground">
+                    {projectNames.get(work.projectId)}
+                  </span>
+                ) : null}
+              </div>
+              <a
+                aria-label={`Open source record: ${work.key} · ${work.title}`}
+                className="w-fit rounded text-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                href={workRecordHref(work.projectId, work.id)}
+              >
+                Open source record
+              </a>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  }
+
   const days = visibleDays(selectedDate, view, preferences.firstDayOfWeek);
   const firstVisibleDay = days[0] ?? selectedDate;
   const lastVisibleDay = days.at(-1) ?? selectedDate;
@@ -92,21 +177,18 @@ export default function UnifiedCalendar({
           7) %
         7
       : 0;
-  const projectNames = new Map(projects.map(({ id, name }) => [id, name]));
-  const scopedWorks = works.filter(
-    (work) =>
-      work.archivedAt === null &&
-      (selectedProjectId === "all" || work.projectId === selectedProjectId),
-  );
   const scopedSpans = scopedWorks.flatMap((work) => {
     const span = dateSpan(work);
     return span ? [{ work, ...span }] : [];
   });
   const hasVisibleDatedWork =
     scopedWorks.some((work) =>
-      DATE_KINDS.some(({ field }) => work[field] && days.includes(work[field])),
+      visibleKinds.some(
+        ({ field }) => work[field] && days.includes(work[field]),
+      ),
     ) ||
     (view !== "Day" &&
+      hasStartAndTargetKinds &&
       scopedSpans.some(
         ({ start, end }) => start <= lastVisibleDay && firstVisibleDay <= end,
       ));
@@ -135,12 +217,12 @@ export default function UnifiedCalendar({
         ) : null}
         {days.map((day) => {
           const marks = scopedWorks.flatMap((work) =>
-            DATE_KINDS.flatMap(({ field, label }) =>
+            visibleKinds.flatMap(({ field, label }) =>
               work[field] === day ? [{ work, field, label }] : [],
             ),
           );
           const ranges =
-            view === "Day"
+            view === "Day" || !hasStartAndTargetKinds
               ? []
               : scopedSpans.filter(
                   ({ start, end }) => start <= day && day <= end,

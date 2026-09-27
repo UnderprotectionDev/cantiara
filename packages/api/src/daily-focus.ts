@@ -1,3 +1,4 @@
+import { addDays, format, parseISO } from "date-fns";
 import { z } from "zod";
 
 const identifierSchema = z.string().trim().min(1).max(255);
@@ -15,7 +16,6 @@ export const dailyFocusWorkSchema = z
     key: identifierSchema,
     projectId: identifierSchema,
     projectName: identifierSchema,
-    reappearDate: z.iso.date().nullable(),
     status: identifierSchema,
     title: identifierSchema,
   })
@@ -23,9 +23,66 @@ export const dailyFocusWorkSchema = z
 
 export type DailyFocusWork = z.infer<typeof dailyFocusWorkSchema>;
 
+const dailyFocusCandidateReasonSchema = z
+  .object({
+    date: z.iso.date(),
+    label: z.enum(["Target date is near", "Reappear date has arrived"]),
+  })
+  .strict();
+
+export const dailyFocusCandidateSchema = dailyFocusWorkSchema
+  .extend({ reasons: z.array(dailyFocusCandidateReasonSchema).min(1).max(2) })
+  .strict();
+
+export type DailyFocusCandidate = z.infer<typeof dailyFocusCandidateSchema>;
+
+export type DailyFocusCandidateSource = DailyFocusWork & {
+  reappearDate: string | null;
+  targetDate: string | null;
+};
+
+const dailyFocusCandidateLimit = 5;
+
+function addCalendarDays(date: string, days: number) {
+  return format(addDays(parseISO(date), days), "yyyy-MM-dd");
+}
+
+export function buildDailyFocusCandidates(
+  works: DailyFocusCandidateSource[],
+  focusDate: string,
+): DailyFocusCandidate[] {
+  const lastNearTargetDate = addCalendarDays(focusDate, 7);
+  const candidates: DailyFocusCandidate[] = [];
+
+  for (const { reappearDate, targetDate, ...work } of works) {
+    if (work.status === "Closed") {
+      continue;
+    }
+
+    const reasons: DailyFocusCandidate["reasons"] = [];
+    if (
+      targetDate &&
+      targetDate >= focusDate &&
+      targetDate <= lastNearTargetDate
+    ) {
+      reasons.push({ date: targetDate, label: "Target date is near" });
+    }
+    if (reappearDate && reappearDate <= focusDate) {
+      reasons.push({ date: reappearDate, label: "Reappear date has arrived" });
+    }
+
+    if (reasons.length > 0) {
+      candidates.push({ ...work, reasons });
+    }
+  }
+
+  return candidates.slice(0, dailyFocusCandidateLimit);
+}
+
 export const dailyFocusDaySchema = z
   .object({
     available: z.array(dailyFocusWorkSchema),
+    candidates: z.array(dailyFocusCandidateSchema),
     focusDate: z.iso.date(),
     members: z.array(dailyFocusWorkSchema),
   })
@@ -72,7 +129,7 @@ export type DailyFocusStatusChange = z.infer<
 export function deriveDailyFocusClose(input: {
   endOfDayStates: readonly DailyFocusCloseState[];
   focusDate: string;
-  members: readonly DailyFocusWork[];
+  members: readonly (DailyFocusWork & { reappearDate: string | null })[];
   statusChanges: readonly DailyFocusStatusChange[];
 }): DailyFocusClose {
   const states = new Map(
@@ -89,11 +146,12 @@ export function deriveDailyFocusClose(input: {
   };
 
   for (const member of input.members) {
+    const { reappearDate, ...visibleMember } = member;
     const state =
       states.get(member.id) ??
       dailyFocusCloseStateSchema.parse({
         closureResult: null,
-        reappearDate: member.reappearDate,
+        reappearDate,
         status: member.status,
         workId: member.id,
       });
@@ -104,9 +162,9 @@ export function deriveDailyFocusClose(input: {
       statusChange.closureResult
     ) {
       if (statusChange.closureResult === "Completed") {
-        close.completed.push(member);
+        close.completed.push(visibleMember);
       } else {
-        close.abandoned.push(member);
+        close.abandoned.push(visibleMember);
       }
       continue;
     }
@@ -115,9 +173,9 @@ export function deriveDailyFocusClose(input: {
       continue;
     }
     if (state.reappearDate && state.reappearDate > input.focusDate) {
-      close.deferred.push(member);
+      close.deferred.push(visibleMember);
     } else {
-      close.stillOpen.push(member);
+      close.stillOpen.push(visibleMember);
     }
   }
 

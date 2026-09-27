@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   writeFileSync,
 } from "node:fs";
@@ -31,6 +32,7 @@ export interface WorkspaceState {
     primary: { direct: string; pooled: string };
     security: { direct: string; pooled: string };
   };
+  localWorkspaceId?: string;
   ownerNonce: string;
   primary?: BranchRecord;
   security?: BranchRecord;
@@ -49,9 +51,12 @@ interface NeonBranch {
 
 const workspaceIdPattern = /^[a-zA-Z0-9-]{1,80}$/;
 const ownerNoncePattern = /^[a-f0-9]{16}$/;
+const localWorkspaceIdPattern = /^local-[a-f0-9]{24}(?:[a-f0-9]{8})?$/;
 const protectedBranchNamePattern =
   /^(main|master|production|shared|development|dev)$/i;
 const developmentBaseNamePattern = /^development-base(?:-[a-z0-9][a-z0-9-]*)?$/;
+
+type WorkspaceIdentityEnv = Record<string, string | undefined>;
 
 export function assertDevelopmentBaseName(name: string) {
   if (!developmentBaseNamePattern.test(name)) {
@@ -170,6 +175,77 @@ export function assertConnection(
 }
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
+
+function localWorkspaceIdentity(
+  env: WorkspaceIdentityEnv,
+  root: string,
+): string | null {
+  const path = env.CONDUCTOR_WORKSPACE_PATH;
+  if (!path) {
+    return null;
+  }
+  try {
+    const workspacePath = realpathSync(path);
+    const rootPath = env.CONDUCTOR_ROOT_PATH
+      ? realpathSync(env.CONDUCTOR_ROOT_PATH)
+      : null;
+    if (
+      workspacePath !== realpathSync(root) ||
+      !(
+        env.CONDUCTOR_PORT !== undefined ||
+        env.CONDUCTOR_IS_LOCAL === "1" ||
+        (rootPath && rootPath !== workspacePath)
+      )
+    ) {
+      return null;
+    }
+    return `local-${createHash("sha256")
+      .update(workspacePath)
+      .digest("hex")
+      .slice(0, 24)}`;
+  } catch {
+    return null;
+  }
+}
+
+export function workspaceIdentity(
+  env: WorkspaceIdentityEnv = process.env,
+  root = repositoryRoot,
+) {
+  const id = env.CONDUCTOR_WORKSPACE_ID ?? localWorkspaceIdentity(env, root);
+  if (!id) {
+    throw new Error("Conductor workspace identity is required");
+  }
+  return id;
+}
+
+export function assertWorkspaceIdentity(
+  id: string,
+  env: WorkspaceIdentityEnv = process.env,
+  root = repositoryRoot,
+  boundLocalId?: string,
+) {
+  const localId = localWorkspaceIdentity(env, root);
+  if (
+    id !== env.CONDUCTOR_WORKSPACE_ID &&
+    id !== localId &&
+    !(localId && boundLocalId === localId)
+  ) {
+    throw new Error("Workspace Neon state identity mismatch");
+  }
+}
+
+export function bindLocalWorkspaceIdentity<
+  T extends { workspaceId: string; localWorkspaceId?: string },
+>(state: T, env: WorkspaceIdentityEnv = process.env, root = repositoryRoot): T {
+  assertWorkspaceIdentity(state.workspaceId, env, root, state.localWorkspaceId);
+  const localId = localWorkspaceIdentity(env, root);
+  if (localId) {
+    state.localWorkspaceId = localId;
+  }
+  return state;
+}
+
 export const statePath = join(
   repositoryRoot,
   ".context",
@@ -185,14 +261,22 @@ export function readState(): WorkspaceState {
     state.version !== 2 ||
     !state.workspaceId ||
     !ownerNoncePattern.test(state.ownerNonce) ||
-    state.workspaceId !== process.env.CONDUCTOR_WORKSPACE_ID
+    (state.localWorkspaceId !== undefined &&
+      !localWorkspaceIdPattern.test(state.localWorkspaceId))
   ) {
     throw new Error("Workspace Neon state identity mismatch");
   }
+  assertWorkspaceIdentity(
+    state.workspaceId,
+    process.env,
+    repositoryRoot,
+    state.localWorkspaceId,
+  );
   return state;
 }
 
 export function saveState(state: WorkspaceState) {
+  bindLocalWorkspaceIdentity(state);
   mkdirSync(join(repositoryRoot, ".context"), {
     recursive: true,
     mode: 0o700,

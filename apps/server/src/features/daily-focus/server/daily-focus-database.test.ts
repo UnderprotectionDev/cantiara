@@ -250,6 +250,145 @@ describeDatabase("Daily Focus personal day membership", () => {
     expect(await readPriorities()).toEqual(beforePriority);
   });
 
+  test("explains only near Target dates and arrived Reappear dates without adding candidates", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+    const outsideTargetId = `work-${crypto.randomUUID()}`;
+    const futureReappearId = `work-${crypto.randomUUID()}`;
+    const closedWorkId = `work-${crypto.randomUUID()}`;
+
+    await database
+      .update(work)
+      .set({
+        reappearDate: "2026-09-28",
+        targetDate: "2026-10-04",
+      })
+      .where(eq(work.id, firstWorkId));
+    await database
+      .update(work)
+      .set({
+        reappearDate: "2026-09-27",
+      })
+      .where(eq(work.id, secondWorkId));
+    await database.insert(work).values([
+      {
+        id: outsideTargetId,
+        projectId: firstProjectId,
+        key: "ALPHA-2",
+        number: 2,
+        title: "Target date outside the window",
+        type: "Task",
+        status: "Not Started",
+        targetDate: "2026-10-05",
+      },
+      {
+        id: futureReappearId,
+        projectId: firstProjectId,
+        key: "ALPHA-3",
+        number: 3,
+        title: "Reappear date has not arrived",
+        type: "Task",
+        status: "Not Started",
+        reappearDate: "2026-09-28",
+      },
+      {
+        id: closedWorkId,
+        projectId: secondProjectId,
+        key: "BETA-2",
+        number: 2,
+        title: "Closed Work with a near Target date",
+        type: "Task",
+        status: "Closed",
+        closureResult: "Completed",
+        targetDate: "2026-10-01",
+      },
+    ]);
+
+    const day = await focus.list(firstAccountId, focusDate);
+
+    expect(day.candidates.map(({ id, reasons }) => ({ id, reasons }))).toEqual([
+      {
+        id: firstWorkId,
+        reasons: [{ date: "2026-10-04", label: "Target date is near" }],
+      },
+      {
+        id: secondWorkId,
+        reasons: [{ date: "2026-09-27", label: "Reappear date has arrived" }],
+      },
+    ]);
+    expect(day.members).toEqual([]);
+    expect(day.available.map(({ id }) => id)).toContain(firstWorkId);
+    expect(day.available.map(({ id }) => id)).toContain(secondWorkId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(outsideTargetId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(futureReappearId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(closedWorkId);
+  });
+
+  test("accepting a candidate adds only day membership", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+    const workIds = [firstWorkId, secondWorkId];
+    const projectIds = [firstProjectId, secondProjectId];
+    await database
+      .update(work)
+      .set({
+        targetDate: "2026-10-01",
+      })
+      .where(eq(work.id, firstWorkId));
+    const readWorks = () =>
+      database
+        .select()
+        .from(work)
+        .where(inArray(work.id, workIds))
+        .orderBy(asc(work.id));
+    const readProjects = () =>
+      database
+        .select()
+        .from(project)
+        .where(inArray(project.id, projectIds))
+        .orderBy(asc(project.id));
+    const readOrders = () =>
+      database
+        .select()
+        .from(projectBacklogOrder)
+        .where(inArray(projectBacklogOrder.projectId, projectIds))
+        .orderBy(asc(projectBacklogOrder.projectId));
+    const readPriorities = () =>
+      database
+        .select()
+        .from(workPriorityMetricValue)
+        .where(inArray(workPriorityMetricValue.workId, workIds))
+        .orderBy(asc(workPriorityMetricValue.workId));
+    const [beforeWork, beforeProject, beforeOrder, beforePriority] =
+      await Promise.all([
+        readWorks(),
+        readProjects(),
+        readOrders(),
+        readPriorities(),
+      ]);
+
+    expect(
+      (await focus.list(firstAccountId, focusDate)).candidates.map(
+        ({ id }) => id,
+      ),
+    ).toContain(firstWorkId);
+    await focus.add(firstAccountId, focusDate, firstWorkId);
+    const day = await focus.list(firstAccountId, focusDate);
+
+    expect(day.members.map(({ id }) => id)).toContain(firstWorkId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(firstWorkId);
+    expect(await readWorks()).toEqual(beforeWork);
+    expect(await readProjects()).toEqual(beforeProject);
+    expect(await readOrders()).toEqual(beforeOrder);
+    expect(await readPriorities()).toEqual(beforePriority);
+  });
+
   test("hides archived Work and rejects new membership while allowing removal", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
