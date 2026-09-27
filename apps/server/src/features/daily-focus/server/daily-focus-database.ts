@@ -22,7 +22,7 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
 
   async function ownedWork(workspaceId: string, workId: string) {
     const [record] = await database
-      .select({ id: work.id })
+      .select({ archivedAt: work.archivedAt, id: work.id })
       .from(work)
       .innerJoin(project, eq(work.projectId, project.id))
       .where(
@@ -55,7 +55,11 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
           .from(work)
           .innerJoin(project, eq(work.projectId, project.id))
           .where(
-            and(eq(project.workspaceId, workspaceId), isNull(work.trashedAt)),
+            and(
+              eq(project.workspaceId, workspaceId),
+              isNull(work.archivedAt),
+              isNull(work.trashedAt),
+            ),
           )
           .orderBy(asc(project.name), asc(work.number)),
         database
@@ -77,7 +81,11 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
     },
     async add(accountId, focusDate, workId) {
       const workspaceId = await ownedWorkspaceId(accountId);
-      if (!(workspaceId && (await ownedWork(workspaceId, workId)))) {
+      if (!workspaceId) {
+        throw new DailyFocusWorkUnavailableError();
+      }
+      const record = await ownedWork(workspaceId, workId);
+      if (!record || record.archivedAt !== null) {
         throw new DailyFocusWorkUnavailableError();
       }
       await database

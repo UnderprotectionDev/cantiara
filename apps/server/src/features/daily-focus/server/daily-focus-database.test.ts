@@ -219,4 +219,30 @@ describeDatabase("Daily Focus personal day membership", () => {
     expect(await readOrders()).toEqual(beforeOrder);
     expect(await readPriorities()).toEqual(beforePriority);
   });
+
+  test("hides archived Work and rejects new membership while allowing removal", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+
+    await focus.add(firstAccountId, focusDate, firstWorkId);
+    await database
+      .update(work)
+      .set({ archivedAt: new Date("2026-09-27T12:00:00.000Z") })
+      .where(eq(work.id, firstWorkId));
+
+    const archivedDay = await focus.list(firstAccountId, focusDate);
+    expect(archivedDay.members.map(({ id }) => id)).not.toContain(firstWorkId);
+    expect(archivedDay.available.map(({ id }) => id)).not.toContain(
+      firstWorkId,
+    );
+    await expect(
+      focus.add(firstAccountId, focusDate, firstWorkId),
+    ).rejects.toThrow();
+    await expect(
+      focus.remove(firstAccountId, focusDate, firstWorkId),
+    ).resolves.toBeUndefined();
+  });
 });
