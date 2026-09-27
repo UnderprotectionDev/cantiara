@@ -132,6 +132,25 @@ export type UpdateWorkPlannedDateInput = z.input<
   typeof updateWorkPlannedDateInputSchema
 >;
 
+export const WORK_DATE_FIELDS = [
+  "plannedStartDate",
+  "targetDate",
+  "reappearDate",
+] as const;
+
+export const workDateFieldSchema = z.enum(WORK_DATE_FIELDS);
+
+export const updateWorkDateInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    date: z.iso.date(),
+    dateField: workDateFieldSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type WorkDateField = z.infer<typeof workDateFieldSchema>;
+export type UpdateWorkDateInput = z.input<typeof updateWorkDateInputSchema>;
+
 export const updateWorkReappearDateInputSchema = humanMutationEnvelopeSchema
   .extend({
     reappearDate: workReappearDateSchema,
@@ -508,6 +527,15 @@ export const undoWorkStatusInputSchema = z
   })
   .strict();
 
+export const undoWorkDateInputSchema = z
+  .object({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifierSchema,
+    receiptId: identifierSchema,
+    workId: identifierSchema,
+  })
+  .strict();
+
 export const workIdentityInputSchema = z.union([
   z.object({ workId: identifierSchema }).strict(),
   z
@@ -522,6 +550,7 @@ export type WorkMergePreviewInput = z.input<typeof workMergePreviewInputSchema>;
 export type MergeWorkInput = z.input<typeof mergeWorkInputSchema>;
 export type UndoWorkMergeInput = z.input<typeof undoWorkMergeInputSchema>;
 export type UndoWorkStatusInput = z.input<typeof undoWorkStatusInputSchema>;
+export type UndoWorkDateInput = z.input<typeof undoWorkDateInputSchema>;
 export type WorkIdentityInput = z.input<typeof workIdentityInputSchema>;
 
 export interface WorkRecreateFieldPreview {
@@ -731,6 +760,10 @@ export interface WorkStatusMutationResult extends WorkProfile {
   receiptId: string | null;
 }
 
+export interface WorkDateMutationResult extends WorkProfile {
+  receiptId: string;
+}
+
 export interface WorkChecklistConversionPreview {
   item: Pick<WorkChecklistItem, "id" | "text">;
   newWork: {
@@ -929,6 +962,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: WorkArchiveMutationInput,
   ) => Promise<WorkProfile>;
+  undoDate: (
+    accountId: string,
+    input: UndoWorkDateInput,
+  ) => Promise<WorkProfile>;
   undoMerge: (
     accountId: string,
     input: UndoWorkMergeInput,
@@ -941,6 +978,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: UpdateWorkChecklistInput,
   ) => Promise<WorkProfile>;
+  updateDate: (
+    accountId: string,
+    input: UpdateWorkDateInput,
+  ) => Promise<WorkDateMutationResult>;
   updateFeaturePrimarySpec: (
     accountId: string,
     input: UpdateFeaturePrimarySpecInput,

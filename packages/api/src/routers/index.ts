@@ -213,10 +213,12 @@ import {
   recordFeatureHealthInputSchema,
   recreateWorkInputSchema,
   reopenWorkInputSchema,
+  undoWorkDateInputSchema,
   undoWorkMergeInputSchema,
   undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
+  updateWorkDateInputSchema,
   updateWorkPlannedDateInputSchema,
   updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
@@ -1026,6 +1028,12 @@ function mapWorkLifecycleError(
         data: { code: error.code },
         defined: true,
         message: "This Work status change is no longer available for Undo.",
+      });
+    case "WORK_DATE_UNDO_UNAVAILABLE":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This Work date change is no longer available for Undo.",
       });
     case "WORK_RELATION_NOT_PORTABLE":
     case "WORK_RECREATE_FIELD_REQUIRED":
@@ -3802,6 +3810,13 @@ export const appRouter = {
         ),
       ),
     ),
+  undoWorkDate: protectedProcedure
+    .input(undoWorkDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).undoDate(context.session.user.id, input),
+      ),
+    ),
   recreateWork: protectedProcedure
     .input(recreateWorkInputSchema)
     .handler(({ context, input }) =>
@@ -3877,6 +3892,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updatePlannedDate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkDate: protectedProcedure
+    .input(updateWorkDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateDate(
           context.session.user.id,
           input,
         ),

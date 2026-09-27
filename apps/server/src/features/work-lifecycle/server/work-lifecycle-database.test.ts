@@ -148,6 +148,71 @@ describeDatabase("Work Lifecycle PostgreSQL integration", () => {
     ).resolves.toEqual([]);
   });
 
+  test("persists Planned start and Target date field updates", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+
+    const projectShell = createDatabaseProjectShell(database);
+    const project = await projectShell.create(accountId, {
+      name: "Calendar Project",
+      shortCode: "CAL",
+      starterConfiguration: "Blank Project",
+    });
+    const workLifecycle = createDatabaseWorkLifecycle(database);
+    const created = await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "calendar-date-work-create",
+      plannedStartDate: "2026-10-01",
+      projectId: project.id,
+      targetDate: "2026-10-03",
+      title: "Calendar date update",
+      type: "Task",
+    });
+    const reappearUpdated = await workLifecycle.updateReappearDate(accountId, {
+      baseRevision: created.revision,
+      clientIdempotencyKey: "calendar-reappear-date-update",
+      reappearDate: "2026-10-02",
+      workId: created.id,
+    });
+
+    const targetUpdated = await workLifecycle.updateDate(accountId, {
+      baseRevision: reappearUpdated.revision,
+      clientIdempotencyKey: "calendar-target-date-update",
+      date: "2026-10-04",
+      dateField: "targetDate",
+      workId: created.id,
+    });
+
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      plannedStartDate: "2026-10-01",
+      reappearDate: "2026-10-02",
+      revision: targetUpdated.revision,
+      status: "Not Started",
+      targetDate: "2026-10-04",
+    });
+
+    const plannedStartUpdated = await workLifecycle.updateDate(accountId, {
+      baseRevision: targetUpdated.revision,
+      clientIdempotencyKey: "calendar-planned-start-update",
+      date: "2026-09-30",
+      dateField: "plannedStartDate",
+      workId: created.id,
+    });
+
+    await expect(
+      workLifecycle.find(accountId, created.id),
+    ).resolves.toMatchObject({
+      plannedStartDate: "2026-09-30",
+      reappearDate: "2026-10-02",
+      revision: plannedStartUpdated.revision,
+      status: "Not Started",
+      targetDate: "2026-10-04",
+    });
+  });
+
   test("persists ordered checklist items without changing the parent lifecycle", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { client, orpc } from "@/utils/orpc";
 
 const RELATION_SELECTION_OPTIONS = [
@@ -938,8 +939,4 @@ function OpenSourceRecordLink({
       Open source record
     </a>
   );
-}
-
-function mutationErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
