@@ -1,5 +1,12 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import type { WorkDateField, WorkProfile } from "@cantiara/api/work-lifecycle";
+import { Button } from "@cantiara/ui/components/button";
+import { Calendar } from "@cantiara/ui/components/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@cantiara/ui/components/popover";
 import {
   type Active,
   type CollisionDetection,
@@ -28,7 +35,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { GripVertical } from "lucide-react";
+import { CalendarDays, GripVertical } from "lucide-react";
 import { useCallback, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
@@ -134,19 +141,24 @@ function CalendarDateMark({
   dateField,
   disabled,
   label,
+  onDatePreview,
   onDateChange,
   projectNames,
   selectedProjectId,
+  view,
   work,
 }: {
   dateField: WorkDateField;
   disabled: boolean;
   label: CalendarDateDrag["label"];
+  onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
   onDateChange?: (change: CalendarDateChange) => void;
   projectNames: ReadonlyMap<string, string>;
   selectedProjectId: string;
+  view: CalendarView;
   work: CalendarWork;
 }) {
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dragData: CalendarDateDrag = {
     baseRevision: work.revision,
     dateField,
@@ -155,30 +167,91 @@ function CalendarDateMark({
     workId: work.id,
     workTitle: work.title,
   };
+  const { oldDate } = dragData;
+  const handleDateSelect = useCallback(
+    (date: Date | undefined) => {
+      if (!date) {
+        return;
+      }
+      const nextDate = format(date, "yyyy-MM-dd");
+      if (nextDate === oldDate) {
+        setDatePickerOpen(false);
+        return;
+      }
+      setDatePickerOpen(false);
+      onDatePreview?.(
+        {
+          baseRevision: work.revision,
+          dateField,
+          label,
+          oldDate,
+          workId: work.id,
+          workTitle: work.title,
+        },
+        nextDate,
+      );
+    },
+    [
+      dateField,
+      label,
+      oldDate,
+      onDatePreview,
+      work.id,
+      work.revision,
+      work.title,
+    ],
+  );
   const { attributes, isDragging, listeners, setNodeRef, transform } =
     useDraggable({
       data: { calendarDate: dragData },
-      disabled: disabled || !onDateChange,
+      disabled: disabled || !onDateChange || view === "Day",
       id: `calendar-date:${work.id}:${dateField}`,
     });
 
   return (
     <li className="flex items-start gap-1" key={`${work.id}:${dateField}`}>
-      <button
-        aria-label={`${label} for ${work.title}`}
-        className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
-        disabled={disabled || !onDateChange}
-        ref={setNodeRef}
-        style={{
-          opacity: isDragging ? 0.45 : undefined,
-          transform: CSS.Translate.toString(transform),
-        }}
-        type="button"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical aria-hidden="true" className="size-4" />
-      </button>
+      {view === "Day" ? (
+        <Popover onOpenChange={setDatePickerOpen} open={datePickerOpen}>
+          <PopoverTrigger
+            disabled={disabled || !onDateChange}
+            render={
+              <Button
+                aria-label={`${label} for ${work.title}`}
+                disabled={disabled || !onDateChange}
+                size="icon"
+                type="button"
+                variant="outline"
+              />
+            }
+          >
+            <CalendarDays aria-hidden="true" className="size-4" />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto p-0">
+            <Calendar
+              defaultMonth={parseISO(oldDate)}
+              mode="single"
+              onSelect={handleDateSelect}
+              selected={parseISO(oldDate)}
+            />
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <button
+          aria-label={`${label} for ${work.title}`}
+          className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+          disabled={disabled || !onDateChange}
+          ref={setNodeRef}
+          style={{
+            opacity: isDragging ? 0.45 : undefined,
+            transform: CSS.Translate.toString(transform),
+          }}
+          type="button"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical aria-hidden="true" className="size-4" />
+        </button>
+      )}
       <a
         className="min-w-0 flex-1 rounded border border-border/70 px-2 py-1 text-xs hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
         href={workRecordHref(work.projectId, work.id)}
@@ -201,15 +274,18 @@ function CalendarDaySection({
   day,
   disabled,
   formattingPreferences,
+  onDatePreview,
   onDateChange,
   projectNames,
   ranges,
   selectedProjectId,
   marks,
+  view,
 }: {
   day: string;
   disabled: boolean;
   formattingPreferences: AccountPreferences;
+  onDatePreview?: (date: CalendarDateDrag, nextDate: string) => void;
   onDateChange?: (change: CalendarDateChange) => void;
   projectNames: ReadonlyMap<string, string>;
   ranges: readonly CalendarWork[];
@@ -219,6 +295,7 @@ function CalendarDaySection({
     label: CalendarDateDrag["label"];
     work: CalendarWork;
   }[];
+  view: CalendarView;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     data: { date: day },
@@ -263,8 +340,10 @@ function CalendarDaySection({
               key={`${work.id}:${dateField}`}
               label={label}
               onDateChange={onDateChange}
+              onDatePreview={onDatePreview}
               projectNames={projectNames}
               selectedProjectId={selectedProjectId}
+              view={view}
               work={work}
             />
           ))}
@@ -295,9 +374,12 @@ export default function UnifiedCalendar({
 }) {
   const [draggedDate, setDraggedDate] = useState<CalendarDateDrag | null>(null);
   const [previewDate, setPreviewDate] = useState<string | null>(null);
+  const [previewRequiresConfirmation, setPreviewRequiresConfirmation] =
+    useState(false);
   const cancelDrag = useCallback(() => {
     setDraggedDate(null);
     setPreviewDate(null);
+    setPreviewRequiresConfirmation(false);
   }, []);
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -315,12 +397,21 @@ export default function UnifiedCalendar({
     },
     [cancelDrag, onDateChange],
   );
+  const handleDatePreview = useCallback(
+    (dateChange: CalendarDateDrag, nextDate: string) => {
+      setDraggedDate(dateChange);
+      setPreviewDate(nextDate);
+      setPreviewRequiresConfirmation(true);
+    },
+    [],
+  );
   const handleDragOver = useCallback(({ over }: DragOverEvent) => {
     setPreviewDate(calendarDateFromOver(over));
   }, []);
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
     setDraggedDate(calendarDateFromActive(active));
     setPreviewDate(null);
+    setPreviewRequiresConfirmation(false);
   }, []);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -371,6 +462,20 @@ export default function UnifiedCalendar({
     return `${date.label} for ${date.workTitle}, ${oldValue}. Use the arrow keys to preview a date, Space to drop, or Escape to cancel.`;
   }
 
+  function confirmDatePreview() {
+    if (!(draggedDate && previewDate && previewDate !== draggedDate.oldDate)) {
+      cancelDrag();
+      return;
+    }
+    onDateChange?.({
+      baseRevision: draggedDate.baseRevision,
+      date: previewDate,
+      dateField: draggedDate.dateField,
+      workId: draggedDate.workId,
+    });
+    cancelDrag();
+  }
+
   return (
     <DndContext
       accessibility={{
@@ -408,14 +513,28 @@ export default function UnifiedCalendar({
         </p>
       )}
       {draggedDate && previewDate && previewDate !== draggedDate.oldDate ? (
-        <p
-          className="mb-3 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm"
-          role="status"
-        >
-          {draggedDate.label} for {draggedDate.workTitle}:{" "}
-          {formatAccountDate(draggedDate.oldDate, preferences)} →{" "}
-          {formatAccountDate(previewDate, preferences)}
-        </p>
+        <div className="mb-3 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+          <p role="status">
+            {draggedDate.label} for {draggedDate.workTitle}:{" "}
+            {formatAccountDate(draggedDate.oldDate, preferences)} →{" "}
+            {formatAccountDate(previewDate, preferences)}
+          </p>
+          {previewRequiresConfirmation ? (
+            <div className="mt-2 flex gap-2">
+              <Button onClick={confirmDatePreview} size="sm" type="button">
+                Save
+              </Button>
+              <Button
+                onClick={cancelDrag}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <section
         aria-label={`${view} Calendar`}
@@ -452,9 +571,11 @@ export default function UnifiedCalendar({
               key={day}
               marks={marks}
               onDateChange={onDateChange}
+              onDatePreview={handleDatePreview}
               projectNames={projectNames}
               ranges={ranges}
               selectedProjectId={selectedProjectId}
+              view={view}
             />
           );
         })}

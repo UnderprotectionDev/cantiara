@@ -48,6 +48,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
 import WorkContextCard from "@/features/work-context/ui/components/work-context-card";
 import WorkDuplicateAction from "@/features/work-templates/ui/components/work-duplicate-action";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
@@ -453,10 +454,6 @@ function workIdFromHash(hash: string) {
   } catch {
     return null;
   }
-}
-
-function mutationErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 function CustomFieldValues({

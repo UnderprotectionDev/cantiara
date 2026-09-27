@@ -96,7 +96,6 @@ function CalendarRoute() {
   const projects = useQuery(projectsQueryOptions());
   const queryClient = useQueryClient();
   const [dateChangeUndo, setDateChangeUndo] = useState<{
-    baseRevision: number;
     receiptId: string;
     workId: string;
   } | null>(null);
@@ -161,7 +160,6 @@ function CalendarRoute() {
     onSuccess: async (work) => {
       setDateChangeError(null);
       setDateChangeUndo({
-        baseRevision: work.revision,
         receiptId: work.receiptId,
         workId: work.id,
       });
@@ -172,19 +170,21 @@ function CalendarRoute() {
   });
   const undoCalendarDate = useMutation({
     mutationFn: () => {
-      if (!dateChangeUndo) {
+      const undo = dateChangeUndo;
+      if (!undo) {
         throw new Error(
           "This Work date change is no longer available for Undo.",
         );
       }
-      return runOnlineOnlyWrite(() =>
-        client.undoWorkDate({
-          baseRevision: dateChangeUndo.baseRevision,
+      return runOnlineOnlyWrite(async () => {
+        const work = await client.work({ workId: undo.workId });
+        return client.undoWorkDate({
+          baseRevision: work.revision,
           clientIdempotencyKey: crypto.randomUUID(),
-          receiptId: dateChangeUndo.receiptId,
-          workId: dateChangeUndo.workId,
-        }),
-      );
+          receiptId: undo.receiptId,
+          workId: undo.workId,
+        });
+      });
     },
     onError: (error) =>
       handleCalendarDateError(
