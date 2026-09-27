@@ -4,9 +4,21 @@ import type { RelationPreview, RelationView } from "@cantiara/api/relations";
 import type { Milestone } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
+import { Calendar } from "@cantiara/ui/components/calendar";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
+import { Input } from "@cantiara/ui/components/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@cantiara/ui/components/popover";
+import { Textarea } from "@cantiara/ui/components/textarea";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { format, parseISO } from "date-fns";
+import { CalendarDays } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
@@ -45,63 +57,194 @@ function invalidateMilestones(
   ]);
 }
 
-function MilestoneFormFields({
-  draft,
+function MilestoneTargetDatePicker({
   disabled,
+  id,
   onChange,
-  prefix,
+  value,
 }: {
-  draft: MilestoneDraft;
   disabled: boolean;
-  onChange: (next: MilestoneDraft) => void;
-  prefix: string;
+  id: string;
+  onChange: (value: string) => void;
+  value: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = value ? parseISO(value) : undefined;
+  const validSelectedDate =
+    selectedDate && !Number.isNaN(selectedDate.getTime())
+      ? selectedDate
+      : undefined;
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <label className="grid gap-1 text-sm" htmlFor={`${prefix}-title`}>
-        Title
-        <input
-          className="min-h-10 rounded-md border bg-background px-3"
-          disabled={disabled}
-          id={`${prefix}-title`}
-          maxLength={255}
-          onChange={(event) =>
-            onChange({ ...draft, title: event.target.value })
-          }
-          required
-          value={draft.title}
-        />
-      </label>
-      <label className="grid gap-1 text-sm" htmlFor={`${prefix}-target-date`}>
-        Target date
-        <input
-          className="min-h-10 rounded-md border bg-background px-3"
-          disabled={disabled}
-          id={`${prefix}-target-date`}
-          onChange={(event) =>
-            onChange({ ...draft, targetDate: event.target.value })
-          }
-          type="date"
-          value={draft.targetDate}
-        />
-      </label>
-      <label
-        className="grid gap-1 text-sm sm:col-span-2"
-        htmlFor={`${prefix}-description`}
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger
+        render={
+          <Button
+            aria-label="Target date"
+            className="w-full justify-between font-normal"
+            disabled={disabled}
+            id={id}
+            type="button"
+            variant="outline"
+          />
+        }
       >
-        Description
-        <textarea
-          className="min-h-20 rounded-md border bg-background px-3 py-2"
-          disabled={disabled}
-          id={`${prefix}-description`}
-          maxLength={20_000}
-          onChange={(event) =>
-            onChange({ ...draft, description: event.target.value })
-          }
-          value={draft.description}
+        {value || "Choose a calendar date."}
+        <CalendarDays aria-hidden="true" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto min-w-72">
+        <Calendar
+          defaultMonth={validSelectedDate}
+          mode="single"
+          onSelect={(date) => {
+            onChange(date ? format(date, "yyyy-MM-dd") : "");
+            setOpen(false);
+          }}
+          selected={validSelectedDate}
         />
-      </label>
-    </div>
+        {value ? (
+          <Button
+            className="w-full"
+            disabled={disabled}
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+            }}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            Clear date
+          </Button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function MilestoneEditor({
+  className,
+  error,
+  initialValues,
+  onCancel,
+  onSave,
+  prefix,
+  submitLabel,
+}: {
+  className: string;
+  error: boolean;
+  initialValues: MilestoneDraft;
+  onCancel?: () => void;
+  onSave: (draft: MilestoneDraft) => Promise<unknown>;
+  prefix: string;
+  submitLabel: string;
+}) {
+  const form = useForm({
+    defaultValues: initialValues,
+    onSubmit: async ({ value }) => {
+      await onSave({
+        ...value,
+        description: value.description.trim(),
+      });
+      form.reset(initialValues);
+    },
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    form.handleSubmit().catch(() => undefined);
+  }
+
+  return (
+    <form className={className} onSubmit={handleSubmit}>
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <form.Field name="title">
+              {(field) => (
+                <label
+                  className="grid gap-1 text-sm"
+                  htmlFor={`${prefix}-title`}
+                >
+                  Title
+                  <Input
+                    disabled={isSubmitting}
+                    id={`${prefix}-title`}
+                    maxLength={255}
+                    name={field.name}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    required
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </form.Field>
+            <form.Field name="targetDate">
+              {(field) => (
+                <Field>
+                  <FieldLabel htmlFor={`${prefix}-target-date`}>
+                    Target date
+                  </FieldLabel>
+                  <MilestoneTargetDatePicker
+                    disabled={isSubmitting}
+                    id={`${prefix}-target-date`}
+                    onChange={field.handleChange}
+                    value={field.state.value}
+                  />
+                </Field>
+              )}
+            </form.Field>
+            <form.Field name="description">
+              {(field) => (
+                <label
+                  className="grid gap-1 text-sm sm:col-span-2"
+                  htmlFor={`${prefix}-description`}
+                >
+                  Description
+                  <Textarea
+                    disabled={isSubmitting}
+                    id={`${prefix}-description`}
+                    maxLength={20_000}
+                    name={field.name}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
+                </label>
+              )}
+            </form.Field>
+          </div>
+        )}
+      </form.Subscribe>
+      <div className="flex gap-2">
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
+            <Button disabled={isSubmitting} type="submit">
+              {submitLabel}
+            </Button>
+          )}
+        </form.Subscribe>
+        {onCancel ? (
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => (
+              <Button
+                disabled={isSubmitting}
+                onClick={onCancel}
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+            )}
+          </form.Subscribe>
+        ) : null}
+      </div>
+      {error ? (
+        <p className="text-destructive text-sm" role="alert">
+          This action could not be completed.
+        </p>
+      ) : null}
+    </form>
   );
 }
 
@@ -116,7 +259,6 @@ function MilestoneCard({
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(() => milestoneDraft(milestone));
   const [selectedWorkId, setSelectedWorkId] = useState(works[0]?.id ?? "");
   const [preview, setPreview] = useState<RelationPreview | null>(null);
   const [relationIdempotencyKey, setRelationIdempotencyKey] = useState<
@@ -128,12 +270,12 @@ function MilestoneCard({
     }),
   );
   const updateMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (draft: MilestoneDraft) =>
       runOnlineOnlyWrite(() =>
         client.updateMilestone({
           baseRevision: milestone.revision,
           clientIdempotencyKey: crypto.randomUUID(),
-          description: draft.description.trim() || null,
+          description: draft.description || null,
           milestoneId: milestone.id,
           projectId,
           targetDate: draft.targetDate || null,
@@ -238,10 +380,7 @@ function MilestoneCard({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
-            onClick={() => {
-              setDraft(milestoneDraft(milestone));
-              setEditing(true);
-            }}
+            onClick={() => setEditing(true)}
             size="sm"
             type="button"
             variant="outline"
@@ -273,34 +412,17 @@ function MilestoneCard({
       </header>
 
       {editing ? (
-        <form
+        <MilestoneEditor
           className="grid gap-3 border-t pt-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            updateMutation.mutate();
-          }}
-        >
-          <MilestoneFormFields
-            disabled={updateMutation.isPending}
-            draft={draft}
-            onChange={setDraft}
-            prefix={`milestone-edit-${milestone.id}`}
-          />
-          <div className="flex gap-2">
-            <Button disabled={updateMutation.isPending} type="submit">
-              Save
-            </Button>
-            <Button
-              onClick={() => setEditing(false)}
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
+          error={updateMutation.isError}
+          initialValues={milestoneDraft(milestone)}
+          onCancel={() => setEditing(false)}
+          onSave={(draft) => updateMutation.mutateAsync(draft)}
+          prefix={`milestone-edit-${milestone.id}`}
+          submitLabel="Save"
+        />
       ) : null}
-      {updateMutation.isError || statusMutation.isError ? (
+      {statusMutation.isError ? (
         <p className="text-destructive text-sm" role="alert">
           This action could not be completed.
         </p>
@@ -423,17 +545,16 @@ export default function ProjectMilestones({
   works: WorkProfile[];
 }) {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState(EMPTY_DRAFT);
   const query = useQuery(
     orpc.projectMilestones.queryOptions({ input: { projectId } }),
   );
   const createMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (draft: MilestoneDraft) =>
       runOnlineOnlyWrite(() =>
         client.createMilestone({
           baseRevision: 0,
           clientIdempotencyKey: crypto.randomUUID(),
-          description: draft.description.trim() || null,
+          description: draft.description || null,
           id: crypto.randomUUID(),
           projectId,
           targetDate: draft.targetDate || null,
@@ -441,7 +562,6 @@ export default function ProjectMilestones({
         }),
       ),
     onSuccess: async () => {
-      setDraft(EMPTY_DRAFT);
       await invalidateMilestones(queryClient, projectId);
     },
   });
@@ -462,30 +582,14 @@ export default function ProjectMilestones({
           through an explicit action.
         </p>
       </header>
-      <form
+      <MilestoneEditor
         className="grid gap-3 rounded-lg border bg-card p-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          createMutation.mutate();
-        }}
-      >
-        <MilestoneFormFields
-          disabled={createMutation.isPending}
-          draft={draft}
-          onChange={setDraft}
-          prefix={`milestone-create-${projectId}`}
-        />
-        <div>
-          <Button disabled={createMutation.isPending} type="submit">
-            Create Milestone
-          </Button>
-        </div>
-        {createMutation.isError ? (
-          <p className="text-destructive text-sm" role="alert">
-            This action could not be completed.
-          </p>
-        ) : null}
-      </form>
+        error={createMutation.isError}
+        initialValues={EMPTY_DRAFT}
+        onSave={(draft) => createMutation.mutateAsync(draft)}
+        prefix={`milestone-create-${projectId}`}
+        submitLabel="Create Milestone"
+      />
       {(query.data ?? []).length ? (
         <div className="grid gap-3">
           {(query.data ?? []).map((milestone: Milestone) => (
