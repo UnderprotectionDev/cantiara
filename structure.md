@@ -142,7 +142,8 @@
 │       │   ├── work-blockers.e2e.ts
 │       │   ├── work-drafts.e2e.ts
 │       │   ├── work-lifecycle.e2e.ts
-│       │   └── work-templates.e2e.ts
+│       │   ├── work-templates.e2e.ts
+│       │   └── unified-calendar.e2e.ts
 │       ├── src/
 │       │   ├── components/
 │       │   │   ├── header.tsx

@@ -22,7 +22,11 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { describe, expect, test, vi } from "vitest";
 
-import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
+import {
+  MutationStaleBaseRevisionError,
+  type MutationUndoPlan,
+  materializeMutationUndoMetadata,
+} from "../../mutation-and-undo/server/mutation-contract";
 import type {
   WorkRelations,
   WorkRelationsMutationAdapter,
@@ -75,6 +79,82 @@ test("setting Reappear date preserves Work status and project membership", async
     status: created.status,
   });
 });
+
+test.each(["plannedStartDate", "targetDate", "reappearDate"] as const)(
+  "updates only the represented %s date and safely undoes the change",
+  async (dateField) => {
+    const updateCommands: MutationCommand<MutationPayload>[] = [];
+    const lifecycle = createMemoryWorkLifecycle({
+      beforeUpdateApply: (command) => {
+        updateCommands.push(command);
+        return Promise.resolve();
+      },
+    });
+    let before = await lifecycle.create(
+      "account-1",
+      createInput(`calendar-date-create-${dateField}`, {
+        plannedStartDate: "2026-10-01",
+        targetDate: "2026-10-03",
+      }),
+    );
+    if (dateField === "reappearDate") {
+      before = await lifecycle.updateReappearDate("account-1", {
+        baseRevision: before.revision,
+        clientIdempotencyKey: "calendar-reappear-before",
+        reappearDate: "2026-10-02",
+        workId: before.id,
+      });
+    }
+
+    const previousDates = {
+      plannedStartDate: before.plannedStartDate,
+      reappearDate: before.reappearDate,
+      targetDate: before.targetDate,
+    };
+    const updated = await lifecycle.updateDate("account-1", {
+      baseRevision: before.revision,
+      clientIdempotencyKey: `calendar-date-update-${dateField}`,
+      date: "2026-10-04",
+      dateField,
+      workId: before.id,
+    });
+
+    expect(updated).toMatchObject({
+      ...previousDates,
+      [dateField]: "2026-10-04",
+      status: before.status,
+    });
+    expect(updated.receiptId).toBeTruthy();
+    expect(updateCommands.at(-1)?.payload).toEqual({
+      date: "2026-10-04",
+      dateField,
+      workId: before.id,
+    });
+
+    const statusChange = await lifecycle.updateStatus(
+      "account-1",
+      {
+        baseRevision: updated.revision,
+        clientIdempotencyKey: `calendar-date-status-${dateField}`,
+        status: "In Progress",
+        workId: updated.id,
+      },
+      VISIBLE_USER,
+    );
+
+    const undone = await lifecycle.undoDate("account-1", {
+      baseRevision: statusChange.revision,
+      clientIdempotencyKey: `calendar-date-undo-${dateField}`,
+      receiptId: updated.receiptId,
+      workId: updated.id,
+    });
+
+    expect(undone).toMatchObject({
+      ...previousDates,
+      status: "In Progress",
+    });
+  },
+);
 
 function createMemoryWorkLifecycle(
   options: {
@@ -402,7 +482,11 @@ function createMemoryWorkLifecycle(
       | "restoreMergedRelations"
     >;
 
-  function undoMetadataFromOptions(mutationOptions: unknown) {
+  function undoMetadataFromOptions(
+    mutationOptions: unknown,
+    previousValue: WorkLifecycleMutationValue,
+    nextValue: WorkLifecycleMutationValue,
+  ) {
     if (!mutationOptions || typeof mutationOptions !== "object") {
       return;
     }
@@ -439,6 +523,17 @@ function createMemoryWorkLifecycle(
         kind: "atomic-transform" as const,
         scope: candidate.scope,
       };
+    }
+    if (
+      candidate.kind === "field" &&
+      "scope" in candidate &&
+      typeof candidate.scope === "string"
+    ) {
+      return materializeMutationUndoMetadata(
+        candidate as MutationUndoPlan,
+        previousValue,
+        nextValue,
+      );
     }
   }
 
@@ -683,7 +778,11 @@ function createMemoryWorkLifecycle(
             previousValue,
             revision: nextValue.work.revision,
             targetId: command.targetId,
-            undo: undoMetadataFromOptions(mutationOptions),
+            undo: undoMetadataFromOptions(
+              mutationOptions,
+              previousValue,
+              nextValue,
+            ),
           } satisfies MutationReceipt<WorkLifecycleMutationValue>;
           await applyMergedState(nextValue, nextValue.work.updatedAt);
           updateReceipts.set(receiptKey, { payload, receipt });

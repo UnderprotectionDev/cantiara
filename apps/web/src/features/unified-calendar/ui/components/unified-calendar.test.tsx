@@ -13,6 +13,7 @@ const work = {
   plannedStartDate: "2026-09-22",
   projectId: "project-1",
   reappearDate: "2026-09-23",
+  revision: 0,
   status: "Not Started" as const,
   targetDate: "2026-09-24",
   title: "Payment flow",
@@ -25,6 +26,9 @@ const base = {
   selectedProjectId: "all",
   works: [work],
 };
+const noopDateChange = () => undefined;
+const TARGET_DATE_EDITOR_BUTTON =
+  /<button[^>]*aria-label="Target date for Payment flow"[^>]*>/;
 
 function calendarDayContent(html: string, date: string) {
   const label = `aria-label="${formatAccountDate(
@@ -41,6 +45,17 @@ function calendarDayContent(html: string, date: string) {
 }
 
 describe("Unified Calendar", () => {
+  test.each(["Planned start", "Target date", "Reappear date"] as const)(
+    "exposes the %s source date as a movable mark",
+    (dateKind) => {
+      const html = renderToStaticMarkup(
+        <UnifiedCalendar {...base} view="Week" />,
+      );
+
+      expect(html).toContain(`aria-label="${dateKind} for Payment flow"`);
+    },
+  );
+
   test("Day shows only date positions on the selected day", () => {
     const html = renderToStaticMarkup(<UnifiedCalendar {...base} view="Day" />);
     const selectedDay = calendarDayContent(html, base.selectedDate);
@@ -257,5 +272,20 @@ describe("Unified Calendar", () => {
     expect(html).toContain("Payment flow");
     expect(html).not.toContain("Other project");
     expect(html.match(/>Open source record</g)).toHaveLength(1);
+  });
+
+  test("Agenda exposes an accessible date editor for each visible date kind", () => {
+    const html = renderToStaticMarkup(
+      <UnifiedCalendar
+        {...base}
+        onDateChange={noopDateChange}
+        selectedDateKinds={["targetDate"]}
+        view="Agenda"
+      />,
+    );
+
+    expect(html).toMatch(TARGET_DATE_EDITOR_BUTTON);
+    expect(html).not.toContain('aria-label="Planned start for Payment flow"');
+    expect(html).not.toContain('aria-label="Reappear date for Payment flow"');
   });
 });

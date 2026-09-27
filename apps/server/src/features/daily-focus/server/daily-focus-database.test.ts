@@ -297,8 +297,8 @@ describeDatabase("Daily Focus personal day membership", () => {
       {
         id: closedWorkId,
         projectId: secondProjectId,
-        key: "BETA-2",
-        number: 2,
+        key: "BETA-4",
+        number: 4,
         title: "Closed Work with a near Target date",
         type: "Task",
         status: "Closed",
