@@ -11,17 +11,45 @@ import { join } from "node:path";
 
 import type { NeonDatabase } from "drizzle-orm/neon-serverless";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
-
+import { verifyMigrationTarget } from "../../../scripts/workspace-neon";
 import { createDb } from "../src/index";
 import { createSecurityEventDb } from "../src/security-events";
-import { migrationConnectionString } from "./migration-connection";
+import {
+  assertLocalPostgresTarget,
+  migrationConnectionString,
+} from "./migration-connection";
 import {
   migrationRepairTagFromArgs,
   selectMigrations,
 } from "./migration-selection";
 
 const securityEvents = process.argv.includes("--security-events");
+const deployment = process.argv.includes("--deployment");
+if (deployment && process.env.CANTIARA_DEPLOY_MIGRATION !== "true") {
+  throw new Error(
+    "Deployment migration requires its explicit deployment command",
+  );
+}
 const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
+if (!deployment) {
+  if (process.env.NEON_LOCAL === "true") {
+    assertLocalPostgresTarget(
+      securityEvents
+        ? process.env.SECURITY_EVENT_DATABASE_URL
+        : process.env.DATABASE_URL,
+    );
+  } else {
+    await verifyMigrationTarget(
+      securityEvents ? "security" : "primary",
+      securityEvents
+        ? process.env.SECURITY_EVENT_DATABASE_URL
+        : process.env.DATABASE_URL,
+      securityEvents
+        ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
+        : process.env.DATABASE_URL_UNPOOLED,
+    );
+  }
+}
 const databaseUrl = migrationConnectionString(
   securityEvents
     ? process.env.SECURITY_EVENT_DATABASE_URL

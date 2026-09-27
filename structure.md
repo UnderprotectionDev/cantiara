@@ -532,9 +532,16 @@
 │   │   └── tsconfig.base.json
 │   ├── db/
 │   │   ├── scripts/
+│   │   │   ├── base-history.test.ts
+│   │   │   ├── base-history.ts
+│   │   │   ├── migration-connection.test.ts
+│   │   │   ├── migration-connection.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
-│   │   │   └── migrate.ts
+│   │   │   ├── migrate.ts
+│   │   │   ├── push-local.ts
+│   │   │   ├── verify-development-base.ts
+│   │   │   └── verify-pr-migrations.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
 │   │   │   │   └── security-events/
@@ -580,8 +587,14 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
+│   ├── conductor-workspace.ts
 │   ├── install-hooks.ts
-│   └── neon-local-proxy.ts
+│   ├── neon-local-proxy.ts
+│   ├── workspace-migrate.ts
+│   ├── workspace-env.test.ts
+│   ├── workspace-env.ts
+│   ├── workspace-neon.test.ts
+│   └── workspace-neon.ts
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock

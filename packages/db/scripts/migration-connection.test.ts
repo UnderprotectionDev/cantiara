@@ -1,8 +1,23 @@
 import { describe, expect, test } from "vitest";
 
-import { migrationConnectionString } from "./migration-connection";
+import {
+  assertLocalPostgresTarget,
+  migrationConnectionString,
+} from "./migration-connection";
 
 describe("migrationConnectionString", () => {
+  test("local migration mode rejects a remote URL", () => {
+    expect(() =>
+      assertLocalPostgresTarget(
+        "postgres://app:secret@localhost:5432/cantiara",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertLocalPostgresTarget(
+        "postgres://app:secret@ep-example.neon.tech/cantiara",
+      ),
+    ).toThrow();
+  });
   test("uses the explicit unpooled Neon connection string", () => {
     expect(
       migrationConnectionString(

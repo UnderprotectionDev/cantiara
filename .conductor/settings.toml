@@ -138,3 +138,22 @@ Before reporting completion:
 
 After creation or update, respond to the user in Turkish with the pull request title, whether it is Draft or ready for review, the test status, the pull request URL, and any remaining blocker or risk.
 '''
+
+[scripts]
+setup = "bun install && bun scripts/conductor-workspace.ts setup"
+archive = "bun scripts/conductor-workspace.ts archive"
+run_mode = "concurrent"
+
+[scripts.run.dev]
+available_in = ["local"]
+command = "bun scripts/conductor-workspace.ts run"
+default = true
+icon = "play"
+
+[[preview_urls]]
+name = "Web"
+url = "http://localhost:$((CONDUCTOR_PORT + 1))"
+
+[[preview_urls]]
+name = "API"
+url = "http://localhost:$CONDUCTOR_PORT"

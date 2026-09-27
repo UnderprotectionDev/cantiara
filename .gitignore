@@ -16,6 +16,8 @@ local.db-*
 # Environment variables
 .env
 .env*.local
+.context/
+.conductor/settings.local.toml
 
 # IDEs and editors
 .vscode/*
