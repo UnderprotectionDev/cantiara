@@ -23,6 +23,7 @@ export interface ProjectBoundary {
   baseBranchId: string;
   productionBranchId: string;
   projectId: string;
+  retainedBaseBranchIds?: string[];
 }
 
 export interface WorkspaceState {
@@ -50,6 +51,13 @@ const workspaceIdPattern = /^[a-zA-Z0-9-]{1,80}$/;
 const ownerNoncePattern = /^[a-f0-9]{16}$/;
 const protectedBranchNamePattern =
   /^(main|master|production|shared|development|dev)$/i;
+const developmentBaseNamePattern = /^development-base(?:-[a-z0-9][a-z0-9-]*)?$/;
+
+export function assertDevelopmentBaseName(name: string) {
+  if (!developmentBaseNamePattern.test(name)) {
+    throw new Error("Neon development base name is invalid");
+  }
+}
 
 export function branchName(
   workspaceId: string,
@@ -94,10 +102,34 @@ export function assertWorkspaceRecord(
   kind: "primary" | "security",
   boundary: ProjectBoundary,
 ) {
+  assertRecordAgainstBases(record, state, kind, boundary, [
+    boundary.baseBranchId,
+  ]);
+}
+
+export function assertArchiveWorkspaceRecord(
+  record: BranchRecord,
+  state: WorkspaceState,
+  kind: "primary" | "security",
+  boundary: ProjectBoundary,
+) {
+  assertRecordAgainstBases(record, state, kind, boundary, [
+    boundary.baseBranchId,
+    ...(boundary.retainedBaseBranchIds ?? []),
+  ]);
+}
+
+function assertRecordAgainstBases(
+  record: BranchRecord,
+  state: WorkspaceState,
+  kind: "primary" | "security",
+  boundary: ProjectBoundary,
+  allowedBaseIds: string[],
+) {
   if (
     record.projectId !== boundary.projectId ||
-    record.parentId !== boundary.baseBranchId ||
-    record.branchId === boundary.baseBranchId ||
+    !allowedBaseIds.includes(record.parentId) ||
+    allowedBaseIds.includes(record.branchId) ||
     record.branchId === boundary.productionBranchId ||
     record.name !== branchName(state.workspaceId, state.ownerNonce, kind)
   ) {

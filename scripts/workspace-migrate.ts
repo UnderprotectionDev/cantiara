@@ -4,10 +4,12 @@ const [, , kind] = process.argv;
 if (kind !== "primary" && kind !== "security") {
   throw new Error("Expected primary or security migration target");
 }
-const env = await workspaceEnvironment(readState());
+const local = process.env.NEON_LOCAL === "true";
+const env = local ? process.env : await workspaceEnvironment(readState());
 const child = Bun.spawn(
   [
     "bun",
+    ...(local ? ["--env-file=../../apps/server/.env.local"] : []),
     "./scripts/migrate.ts",
     ...(kind === "security" ? ["--security-events"] : []),
     ...process.argv.slice(3),

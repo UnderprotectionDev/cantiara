@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertArchiveWorkspaceRecord,
   assertBranch,
   assertConnection,
+  assertDevelopmentBaseName,
   assertWorkspaceRecord,
   branchName,
   neon,
@@ -18,6 +20,53 @@ const expected = {
 };
 
 describe("workspace Neon boundary", () => {
+  it("accepts versioned development bases", () => {
+    expect(() => assertDevelopmentBaseName("development-base")).not.toThrow();
+    expect(() =>
+      assertDevelopmentBaseName("development-base-main-abcdef0"),
+    ).not.toThrow();
+    expect(() => assertDevelopmentBaseName("production")).toThrow();
+  });
+
+  it("archives a workspace from an explicitly retained base after renewal", () => {
+    const state = {
+      version: 2 as const,
+      workspaceId: "abc",
+      ownerNonce: "0123456789abcdef",
+    };
+    const record = {
+      ...expected,
+      name: branchName("abc", state.ownerNonce, "primary"),
+    };
+    const boundary = {
+      projectId: expected.projectId,
+      baseBranchId: "br-new-base",
+      retainedBaseBranchIds: [expected.parentId],
+      productionBranchId: "br-production",
+    };
+    expect(() =>
+      assertWorkspaceRecord(record, state, "primary", boundary),
+    ).toThrow();
+    expect(() =>
+      assertArchiveWorkspaceRecord(record, state, "primary", boundary),
+    ).not.toThrow();
+    expect(() =>
+      assertArchiveWorkspaceRecord(
+        { ...record, branchId: expected.parentId },
+        state,
+        "primary",
+        boundary,
+      ),
+    ).toThrow();
+    expect(() =>
+      assertArchiveWorkspaceRecord(
+        { ...record, parentId: "br-foreign" },
+        state,
+        "primary",
+        boundary,
+      ),
+    ).toThrow();
+  });
   it("rejects setup without a valid local Conductor port", () => {
     const previous = process.env.CONDUCTOR_PORT;
     try {

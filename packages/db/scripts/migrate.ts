@@ -14,7 +14,10 @@ import { migrate } from "drizzle-orm/neon-serverless/migrator";
 import { verifyMigrationTarget } from "../../../scripts/workspace-neon";
 import { createDb } from "../src/index";
 import { createSecurityEventDb } from "../src/security-events";
-import { migrationConnectionString } from "./migration-connection";
+import {
+  assertLocalPostgresTarget,
+  migrationConnectionString,
+} from "./migration-connection";
 import {
   migrationRepairTagFromArgs,
   selectMigrations,
@@ -30,17 +33,22 @@ if (deployment && process.env.CANTIARA_DEPLOY_MIGRATION !== "true") {
 const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
 if (!deployment) {
   if (process.env.NEON_LOCAL === "true") {
-    throw new Error("Workspace migrations require workspace Neon branches");
+    assertLocalPostgresTarget(
+      securityEvents
+        ? process.env.SECURITY_EVENT_DATABASE_URL
+        : process.env.DATABASE_URL,
+    );
+  } else {
+    await verifyMigrationTarget(
+      securityEvents ? "security" : "primary",
+      securityEvents
+        ? process.env.SECURITY_EVENT_DATABASE_URL
+        : process.env.DATABASE_URL,
+      securityEvents
+        ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
+        : process.env.DATABASE_URL_UNPOOLED,
+    );
   }
-  await verifyMigrationTarget(
-    securityEvents ? "security" : "primary",
-    securityEvents
-      ? process.env.SECURITY_EVENT_DATABASE_URL
-      : process.env.DATABASE_URL,
-    securityEvents
-      ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
-      : process.env.DATABASE_URL_UNPOOLED,
-  );
 }
 const databaseUrl = migrationConnectionString(
   securityEvents

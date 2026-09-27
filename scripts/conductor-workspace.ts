@@ -1,8 +1,12 @@
+import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 
+import { verifyDevelopmentBase } from "../packages/db/scripts/verify-development-base";
 import { mergeWorkspaceEnv } from "./workspace-env";
 import {
+  assertArchiveWorkspaceRecord,
   assertBranch,
+  assertDevelopmentBaseName,
   assertWorkspaceRecord,
   branchName,
   connectionStrings,
@@ -21,6 +25,7 @@ interface ProjectConfig {
   baseBranchId: string;
   productionBranchId: string;
   projectId: string;
+  retainedBaseBranchIds?: string[];
 }
 interface Config {
   primary: ProjectConfig;
@@ -42,11 +47,21 @@ function workspaceId() {
 function assertProjectConfiguration() {
   if (
     config.primary.projectId === config.security.projectId ||
-    kinds.some(
-      (kind) =>
-        !(config[kind].projectId && config[kind].baseBranchId) ||
-        config[kind].baseBranchId === config[kind].productionBranchId,
-    )
+    kinds.some((kind) => {
+      const target = config[kind];
+      const retained = target.retainedBaseBranchIds ?? [];
+      return (
+        !(target.projectId && target.baseBranchId) ||
+        target.baseBranchId === target.productionBranchId ||
+        retained.some(
+          (id) =>
+            !id ||
+            id === target.baseBranchId ||
+            id === target.productionBranchId,
+        ) ||
+        new Set(retained).size !== retained.length
+      );
+    })
   ) {
     throw new Error("Primary and security Neon project boundaries are invalid");
   }
@@ -57,14 +72,11 @@ async function provision(kind: "primary" | "security", state: WorkspaceState) {
   const name = branchName(state.workspaceId, state.ownerNonce, kind);
   const branches = await listBranches(target.projectId);
   const base = branches.find((branch) => branch.id === target.baseBranchId);
-  if (
-    !base ||
-    base.primary ||
-    base.protected ||
-    base.name !== "development-base"
-  ) {
+  if (!base || base.primary || base.protected) {
     throw new Error("Clean Neon development base is unavailable");
   }
+  assertDevelopmentBaseName(base.name);
+  await verifyDevelopmentBase(kind, target.projectId, target.baseBranchId);
   let record = state[kind];
   if (record) {
     const recorded = record;
@@ -164,6 +176,14 @@ function writeWorkspaceEnv(env: NodeJS.ProcessEnv) {
 async function setup() {
   assertProjectConfiguration();
   workspacePort();
+  try {
+    execFileSync("git", ["fetch", "--quiet", "origin", "main"], {
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+  } catch {
+    // biome-ignore lint/style/useErrorCause: Git errors can contain local credential details.
+    throw new Error("Could not refresh origin/main before workspace setup");
+  }
   const id = workspaceId();
   const state: WorkspaceState = readInitialState(id);
   const primary = await provision("primary", state);
@@ -200,7 +220,7 @@ async function archive() {
       continue;
     }
     const target = config[kind];
-    assertWorkspaceRecord(record, state, kind, target);
+    assertArchiveWorkspaceRecord(record, state, kind, target);
     // biome-ignore lint/performance/noAwaitInLoops: Archive must verify and persist each branch before deleting the next.
     const branch = await getBranch(record);
     if (branch) {

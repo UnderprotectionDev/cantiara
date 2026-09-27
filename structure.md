@@ -522,10 +522,13 @@
 │   │   └── tsconfig.base.json
 │   ├── db/
 │   │   ├── scripts/
+│   │   │   ├── base-history.test.ts
+│   │   │   ├── base-history.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
 │   │   │   ├── migrate.ts
 │   │   │   ├── push-local.ts
+│   │   │   ├── verify-development-base.ts
 │   │   │   └── verify-pr-migrations.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
