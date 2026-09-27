@@ -506,8 +506,9 @@ async function validateStoredRelation(
     relation.sourceRecordType !== "Work" ||
     !source ||
     !target ||
-    source.project.id !== target.project.id ||
-    source.project.id !== relation.targetProjectId
+    (relation.targetRecordType === "Milestone" &&
+      source.project.id !== target.project.id) ||
+    target.project.id !== relation.targetProjectId
   ) {
     return false;
   }
@@ -1253,7 +1254,11 @@ async function assertRelationEndpoints(
       ? findOwnedWork(executor, accountId, input.target.recordId, false)
       : findOwnedMilestone(executor, accountId, input.target.recordId, false),
   ]);
-  if (!(source && target) || source.project.id !== target.project.id) {
+  if (
+    !(source && target) ||
+    (input.target.recordType === "Milestone" &&
+      source.project.id !== target.project.id)
+  ) {
     throw new RelationRecordUnavailableError();
   }
   return { source, target };

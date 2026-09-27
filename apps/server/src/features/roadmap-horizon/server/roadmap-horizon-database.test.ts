@@ -224,7 +224,9 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
             recordId: targetMilestoneId,
             recordType: "Milestone",
           })
-        ).map(({ source }) => source.title),
+        )
+          .map(({ source }) => source.title)
+          .sort(),
       ).toEqual(["Milestone Work 1", "Milestone Work 2"]);
     }
 
