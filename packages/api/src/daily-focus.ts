@@ -22,9 +22,25 @@ export const dailyFocusWorkSchema = z
 
 export type DailyFocusWork = z.infer<typeof dailyFocusWorkSchema>;
 
+export const dailyFocusEventSchema = z
+  .object({
+    id: identifierSchema,
+    kind: z.enum(["Abandoned", "Completed", "Reopened"]),
+    occurredAt: z.string().datetime({ offset: true }),
+    projectId: identifierSchema,
+    projectName: identifierSchema,
+    workId: identifierSchema,
+    workKey: identifierSchema,
+    workTitle: identifierSchema,
+  })
+  .strict();
+
+export type DailyFocusEvent = z.infer<typeof dailyFocusEventSchema>;
+
 export const dailyFocusDaySchema = z
   .object({
     available: z.array(dailyFocusWorkSchema),
+    events: z.array(dailyFocusEventSchema),
     focusDate: z.iso.date(),
     members: z.array(dailyFocusWorkSchema),
   })

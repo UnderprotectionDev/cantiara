@@ -1,6 +1,7 @@
 import { createDb } from "@cantiara/db";
-import { user, workspace } from "@cantiara/db/schema/auth";
+import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import {
   priorityMetricDefinition,
   workPriorityMetricValue,
@@ -142,6 +143,9 @@ describeDatabase("Daily Focus personal day membership", () => {
   afterEach(async () => {
     await database?.delete(user).where(eq(user.id, firstAccountId));
     await database?.delete(user).where(eq(user.id, secondAccountId));
+    await database
+      ?.delete(mutationHistory)
+      .where(eq(mutationHistory.actorId, firstAccountId));
   });
 
   afterAll(async () => {
@@ -244,5 +248,144 @@ describeDatabase("Daily Focus personal day membership", () => {
     await expect(
       focus.remove(firstAccountId, focusDate, firstWorkId),
     ).resolves.toBeUndefined();
+  });
+
+  test("derives Work lifecycle events from the profile day without changing their timestamps", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-03-08";
+    const beforeDayId = `history-${crypto.randomUUID()}`;
+    const reopenedId = `history-${crypto.randomUUID()}`;
+    const abandonedId = `history-${crypto.randomUUID()}`;
+    const completedId = `history-${crypto.randomUUID()}`;
+    const afterDayId = `history-${crypto.randomUUID()}`;
+    const unchangedStatusId = `history-${crypto.randomUUID()}`;
+    const workValue = (status: string, closureResult: string | null) => ({
+      work: { closureResult, status },
+    });
+
+    await database.insert(accountPreferences).values({
+      accountId: firstAccountId,
+      timeZone: "America/New_York",
+    });
+    await database.insert(mutationHistory).values([
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: beforeDayId,
+        nextValue: workValue("Closed", "Completed"),
+        occurredAt: new Date("2026-03-08T04:59:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "a".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 1,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: reopenedId,
+        nextValue: workValue("In Progress", null),
+        occurredAt: new Date("2026-03-08T05:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "b".repeat(64),
+        previousValue: workValue("Closed", "Completed"),
+        revision: 2,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: abandonedId,
+        nextValue: workValue("Closed", "Abandoned"),
+        occurredAt: new Date("2026-03-08T13:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "f".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 1,
+        targetId: secondWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: completedId,
+        nextValue: workValue("Closed", "Completed"),
+        occurredAt: new Date("2026-03-09T03:59:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "c".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 3,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: afterDayId,
+        nextValue: workValue("In Progress", null),
+        occurredAt: new Date("2026-03-09T04:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "d".repeat(64),
+        previousValue: workValue("Closed", "Completed"),
+        revision: 4,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: unchangedStatusId,
+        nextValue: workValue("In Progress", null),
+        occurredAt: new Date("2026-03-08T12:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "e".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 5,
+        targetId: firstWorkId,
+      },
+    ]);
+
+    const historyBeforeRead = await database
+      .select()
+      .from(mutationHistory)
+      .where(eq(mutationHistory.actorId, firstAccountId))
+      .orderBy(asc(mutationHistory.occurredAt), asc(mutationHistory.id));
+    const newYorkDay = await focus.list(firstAccountId, focusDate);
+
+    expect(newYorkDay.events.map(({ id, kind }) => [id, kind])).toEqual([
+      [reopenedId, "Reopened"],
+      [abandonedId, "Abandoned"],
+      [completedId, "Completed"],
+    ]);
+    expect(newYorkDay.events[0]).toMatchObject({
+      projectId: firstProjectId,
+      projectName: "Alpha",
+      workId: firstWorkId,
+      workKey: "ALPHA-1",
+      workTitle: "First Work",
+    });
+
+    await database
+      .update(accountPreferences)
+      .set({ timeZone: "UTC" })
+      .where(eq(accountPreferences.accountId, firstAccountId));
+    const utcDay = await focus.list(firstAccountId, focusDate);
+
+    expect(utcDay.events.map(({ id, kind }) => [id, kind])).toEqual([
+      [beforeDayId, "Completed"],
+      [reopenedId, "Reopened"],
+      [abandonedId, "Abandoned"],
+    ]);
+    expect(
+      (
+        await database
+          .select()
+          .from(mutationHistory)
+          .where(eq(mutationHistory.actorId, firstAccountId))
+          .orderBy(asc(mutationHistory.occurredAt), asc(mutationHistory.id))
+      ).map(({ occurredAt }) => occurredAt.toISOString()),
+    ).toEqual(
+      historyBeforeRead.map(({ occurredAt }) => occurredAt.toISOString()),
+    );
   });
 });

@@ -59,7 +59,12 @@ describe("Daily Focus selected profile day", () => {
         data: { timeZone: "America/Los_Angeles" },
       } as never)
       .mockReturnValueOnce({
-        data: { focusDate: "2026-09-27", members: [], available: [] },
+        data: {
+          focusDate: "2026-09-27",
+          members: [],
+          available: [],
+          events: [],
+        },
       } as never);
 
     const html = renderToStaticMarkup(
@@ -69,5 +74,50 @@ describe("Daily Focus selected profile day", () => {
     expect(mocks.dayInput).toHaveBeenCalledWith("2026-09-27");
     expect(html).toContain('value="2026-09-27"');
     expect(html).toContain("No Work in Daily Focus for this day.");
+  });
+
+  test("shows derived events with profile time, Project scope, and source link", () => {
+    vi.mocked(useQuery)
+      .mockReturnValueOnce({
+        data: {
+          dateFormat: "locale",
+          locale: "en-US",
+          timeZone: "America/Los_Angeles",
+        },
+      } as never)
+      .mockReturnValueOnce({
+        data: {
+          available: [],
+          events: [
+            {
+              id: "history-reopened",
+              kind: "Reopened",
+              occurredAt: "2026-09-27T17:30:00.000Z",
+              projectId: "project-alpha",
+              projectName: "Alpha",
+              workId: "work-1",
+              workKey: "ALPHA-1",
+              workTitle: "First Work",
+            },
+          ],
+          focusDate: "2026-09-27",
+          members: [],
+        },
+      } as never);
+
+    const html = renderToStaticMarkup(
+      <DailyFocusView
+        accountId="founder"
+        day="2026-09-27"
+        onSelectDay={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("What happened today?");
+    expect(html).toContain("Reopened");
+    expect(html).toContain("10:30 AM");
+    expect(html).toContain("Alpha");
+    expect(html).toContain("ALPHA-1 First Work");
+    expect(html).toContain("Open source record");
   });
 });
