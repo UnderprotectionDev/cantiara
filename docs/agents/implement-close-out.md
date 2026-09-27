@@ -12,7 +12,6 @@ Spec veya ticket'tan ne çıktı — `/implement`'in yaptığı işin özeti:
 
 - Teslim edilen davranış veya yetenek (ürün değişikliği) ya da süreç/kural değişikliği (agent doc, skill)
 - Dokunan ana dosya, route, API veya şema — yönlendirme için yeterli, ham diff değil
-- Şema değiştiyse çalışan uygulamanın veritabanındaki migration kaydı ve şema doğrulaması; doğrulanamadıysa özellik çalışma zamanı açısından tamamlanmış gibi sunulmadan engel ve etkisi
 - Kapsam dışı: bilinçli olarak yapılmayan
 
 **Done when** okuyucu diff açmadan “ne teslim edildi?” sorusunu yanıtlayabilir.
