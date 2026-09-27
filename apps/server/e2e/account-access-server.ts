@@ -53,6 +53,7 @@ import { createDatabaseProjectShell } from "../src/features/project-shell/server
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
+import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -126,6 +127,7 @@ const workLifecycle = createDatabaseWorkLifecycle(database, {
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
 const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
+const roadmapHorizon = createDatabaseRoadmapHorizon(database);
 const workContext = createWorkContextAccess(workLifecycle, relations, {
   priorityValues: async (accountId, work) => {
     const values = await priorityMetrics.values(accountId, work.id);
@@ -251,6 +253,7 @@ const app = createApp({
   prioritizationSessions,
   recordActions,
   relations,
+  roadmapHorizon,
   tags,
   tagMutationContracts,
   workLifecycle,

@@ -9,6 +9,10 @@ function roadmapWork(page: Page, title: string) {
 
 async function openAllWorkRoadmap(page: Page) {
   await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Work", exact: true })
+    .click();
+  await page
     .getByRole("navigation", { name: "Planning surfaces" })
     .getByRole("link", { name: "Roadmap", exact: true })
     .click();
@@ -56,13 +60,19 @@ test("refreshes a Roadmap horizon selection after another tab changes it", async
   expect((await createResponse).ok()).toBe(true);
 
   await openAllWorkRoadmap(page);
+  await page
+    .locator("#roadmap details > summary")
+    .filter({ hasText: "Unplanned candidates" })
+    .click();
   const firstTabWork = roadmapWork(page, title);
   await expect(firstTabWork).toBeVisible();
   await firstTabWork.getByRole("button", { name: "Place on plan" }).click();
   const placementEditor = firstTabWork.getByRole("region", {
     name: PLACE_ON_PLAN_REGION_NAME_PATTERN,
   });
-  await placementEditor.getByLabel("Horizon").selectOption("Later");
+  await placementEditor
+    .getByRole("combobox", { exact: true, name: "Horizon" })
+    .selectOption("Later");
   await placementEditor.getByRole("button", { name: "Preview" }).click();
   await placementEditor.getByRole("button", { name: "Confirm" }).click();
   const firstTabHorizon = firstTabWork.getByRole("combobox", {
@@ -82,9 +92,15 @@ test("refreshes a Roadmap horizon selection after another tab changes it", async
     await secondTabWork
       .getByRole("combobox", { name: "Horizon" })
       .selectOption("Now");
+    const remoteHorizonUpdate = secondTab.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/rpc/updateWorkHorizon"),
+    );
     await secondTabWork
       .getByRole("button", { name: "Place on horizon" })
       .click();
+    expect((await remoteHorizonUpdate).ok()).toBe(true);
     await expect(
       secondTabWork.getByRole("combobox", { name: "Horizon" }),
     ).toHaveValue("Now");
@@ -93,6 +109,9 @@ test("refreshes a Roadmap horizon selection after another tab changes it", async
       response.url().includes("/rpc/projectWorks"),
     );
     await page.bringToFront();
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("visibilitychange")),
+    );
     await firstTabRefresh;
     await expect(
       firstTabWork.getByRole("combobox", { name: "Horizon" }),
