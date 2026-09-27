@@ -34,17 +34,15 @@ const roadmapViewFieldsSchema = z
   .strict();
 const distinctViewFields = (view: { groupBy: string; markBy: string }) =>
   view.groupBy !== view.markBy;
-export const roadmapViewSchema = roadmapViewFieldsSchema.refine(
-  distinctViewFields,
-  {
+export const roadmapViewSchema = roadmapViewFieldsSchema
+  .extend({ revision: z.number().int().nonnegative().safe() })
+  .refine(distinctViewFields, {
     message: "Group and mark must use different fields.",
-  },
-);
+  });
 export type RoadmapView = z.infer<typeof roadmapViewSchema>;
 
-export const saveRoadmapViewInputSchema = roadmapViewFieldsSchema
-  .omit({ id: true })
-  .extend({ id: identifier.optional() })
+export const saveRoadmapViewInputSchema = humanMutationEnvelopeSchema
+  .extend(roadmapViewFieldsSchema.shape)
   .strict()
   .refine(distinctViewFields, {
     message: "Group and mark must use different fields.",

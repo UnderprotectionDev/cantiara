@@ -1,0 +1,2 @@
+ALTER TABLE "roadmap_view" ADD COLUMN "revision" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "roadmap_view" ADD CONSTRAINT "roadmap_view_revision_check" CHECK ("roadmap_view"."revision" >= 0);

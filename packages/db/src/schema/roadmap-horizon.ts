@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -22,6 +23,7 @@ export const roadmapView = pgTable(
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
+    revision: integer("revision").default(0).notNull(),
     types: jsonb("types").$type<string[]>().default([]).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -32,6 +34,7 @@ export const roadmapView = pgTable(
       table.name,
     ),
     check("roadmap_view_name_check", sql`length(btrim(${table.name})) > 0`),
+    check("roadmap_view_revision_check", sql`${table.revision} >= 0`),
     check(
       "roadmap_view_group_check",
       sql`${table.groupBy} in ('Horizon', 'Type', 'Status')`,

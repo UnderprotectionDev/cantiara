@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   presentRoadmap,
   roadmapViewSchema,
+  saveRoadmapViewInputSchema,
   updateWorkHorizonInputSchema,
 } from "./roadmap-horizon";
 
@@ -73,6 +74,7 @@ describe("Roadmap Horizon", () => {
       id: "view-1",
       name: "Delivery",
       projectId: "project-1",
+      revision: 1,
       types: ["Task"],
       horizons: ["Later"],
       groupBy: "Type",
@@ -102,6 +104,34 @@ describe("Roadmap Horizon", () => {
     ).toBe(false);
     expect(
       roadmapViewSchema.safeParse({ ...view, markBy: "Type" }).success,
+    ).toBe(false);
+  });
+
+  test("saving a named view requires a base revision and idempotency key", () => {
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "save-view-1",
+      groupBy: "Horizon",
+      horizons: ["Next"],
+      id: "view-1",
+      markBy: "Type",
+      name: "Delivery",
+      projectId: "project-1",
+      types: ["Task"],
+    };
+
+    expect(saveRoadmapViewInputSchema.parse(input)).toEqual(input);
+    expect(
+      saveRoadmapViewInputSchema.safeParse({
+        ...input,
+        baseRevision: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      saveRoadmapViewInputSchema.safeParse({
+        ...input,
+        clientIdempotencyKey: undefined,
+      }).success,
     ).toBe(false);
   });
 });

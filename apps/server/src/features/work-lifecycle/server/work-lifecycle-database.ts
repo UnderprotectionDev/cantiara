@@ -230,6 +230,24 @@ async function findOwnedWork(
   return result?.record ?? null;
 }
 
+async function findOwnedWorkInUnarchivedProject(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  workId: string,
+) {
+  const record = await findOwnedWork(executor, accountId, workId, false);
+  if (!record) {
+    return null;
+  }
+  const ownedProject = await findOwnedProject(
+    executor,
+    accountId,
+    record.projectId,
+    true,
+  );
+  return ownedProject?.record.archivedAt === null ? record : null;
+}
+
 function emptyWorkTarget(
   targetId: string,
 ): MutationTarget<WorkLifecycleMutationValue> {
@@ -974,6 +992,13 @@ function createWorkUpdateMutationTarget(
 ): MutationDatabaseTargetAdapter<WorkLifecycleMutationValue> {
   return {
     async find(executor, targetId, lock, context) {
+      const initialRecord = lock
+        ? await findOwnedWorkInUnarchivedProject(executor, accountId, targetId)
+        : await findOwnedWork(executor, accountId, targetId, false);
+      if (!initialRecord) {
+        return null;
+      }
+
       if (lock) {
         const mergeParticipantId =
           mergeWorkIdFromMutationPayload(context?.payload, "duplicateWorkId") ??
@@ -990,6 +1015,9 @@ function createWorkUpdateMutationTarget(
         }
       }
       const record = await findOwnedWork(executor, accountId, targetId, lock);
+      if (!record || record.projectId !== initialRecord.projectId) {
+        return null;
+      }
       return record
         ? {
             id: record.id,
@@ -1050,9 +1078,9 @@ function createWorkUpdateMutationTarget(
         executor,
         accountId,
         nextWork.projectId,
-        false,
+        true,
       );
-      if (!ownedProject) {
+      if (!ownedProject || ownedProject.record.archivedAt !== null) {
         return null;
       }
 

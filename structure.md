@@ -95,6 +95,8 @@
 │   │   │   │   ├── priority-metrics/
 │   │   │   │   ├── prioritization-sessions/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── roadmap-horizon/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── record-actions/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── relations/
@@ -273,6 +275,12 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           └── prioritization-surface.tsx
+│       │   │   ├── roadmap-horizon/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── project-roadmap.tsx
+│       │   │   │           ├── research-direction.tsx
+│       │   │   │           └── roadmap-view-editor.tsx
 │       │   │   ├── relations/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -474,6 +482,8 @@
 │   │   │   ├── backlog.ts
 │   │   │   ├── prioritization-sessions.test.ts
 │   │   │   ├── prioritization-sessions.ts
+│   │   │   ├── roadmap-horizon.test.ts
+│   │   │   ├── roadmap-horizon.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
 │   │   │   ├── external-handoffs.test.ts
@@ -527,6 +537,7 @@
 │   │   │   │   ├── backlog.ts
 │   │   │   │   ├── priority-metrics.ts
 │   │   │   │   ├── prioritization-session.ts
+│   │   │   │   ├── roadmap-horizon.ts
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
 │   │   │   │   ├── security-event.ts
@@ -575,6 +586,8 @@ Priority metrics source ownership is split across the API contract (`packages/ap
 External Execution Handoff source ownership is split across the API contract (`packages/api/src/external-handoffs.ts`), the PostgreSQL schema and versioned migrations (`packages/db/src/schema/work-external-handoff.ts`, `packages/db/src/migrations/`), the Work-owned server boundary (`apps/server/src/features/external-handoffs/server/`), and the Work-list surface (`apps/web/src/features/external-handoffs/`).
 
 Backlog's prepared collection, manual order, and saved alternative presentation are separate Project-scoped sources of truth. Its API contract lives in `packages/api/src/backlog.ts`, its order and presentation schemas live in `packages/db/src/schema/backlog.ts`, its server access and mutations live under `apps/server/src/features/backlog/server/`, and its Project surface lives in `apps/web/src/features/backlog/`. Work archive and Trash timestamps are owned by `packages/db/src/schema/work.ts` and the versioned SQL in `packages/db/src/migrations/`. Prioritization Sessions remain a separate source of truth with their API contract in `packages/api/src/prioritization-sessions.ts`, schema in `packages/db/src/schema/prioritization-session.ts`, server access under `apps/server/src/features/prioritization-sessions/server/`, and comparison surface and session controls in `apps/web/src/features/prioritization-sessions/`.
+
+Roadmap Horizon named views and Work placement are owned by `packages/api/src/roadmap-horizon.ts`, `packages/db/src/schema/roadmap-horizon.ts`, `apps/server/src/features/roadmap-horizon/server/`, and `apps/web/src/features/roadmap-horizon/ui/components/`.
 
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).

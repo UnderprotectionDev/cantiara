@@ -8,7 +8,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FormEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
@@ -37,6 +37,7 @@ function viewFromValues(
   value: ViewValues,
   id: string,
   projectId: string,
+  revision: number,
 ): RoadmapView {
   return {
     groupBy: value.groupBy,
@@ -45,6 +46,7 @@ function viewFromValues(
     markBy: value.markBy,
     name: value.name || "All Work types",
     projectId,
+    revision,
     types: value.type ? [value.type as (typeof WORK_TYPE_OPTIONS)[number]] : [],
   };
 }
@@ -62,14 +64,42 @@ export default function RoadmapViewEditor({
 }) {
   const queryClient = useQueryClient();
   const [draftId, setDraftId] = useState(() => crypto.randomUUID());
+  const pendingCommand = useRef<{
+    clientIdempotencyKey: string;
+    fingerprint: string;
+  } | null>(null);
   const saveView = useMutation({
-    mutationFn: (value: ViewValues) =>
-      runOnlineOnlyWrite(() =>
+    mutationFn: (value: ViewValues) => {
+      const baseRevision = saved?.revision ?? 0;
+      const view = viewFromValues(
+        value,
+        saved?.id ?? draftId,
+        projectId,
+        baseRevision,
+      );
+      const command = {
+        baseRevision,
+        groupBy: view.groupBy,
+        horizons: view.horizons,
+        id: view.id,
+        markBy: view.markBy,
+        name: value.name.trim(),
+        projectId: view.projectId,
+        types: view.types,
+      };
+      const fingerprint = JSON.stringify(command);
+      const pending =
+        pendingCommand.current?.fingerprint === fingerprint
+          ? pendingCommand.current
+          : { clientIdempotencyKey: crypto.randomUUID(), fingerprint };
+      pendingCommand.current = pending;
+      return runOnlineOnlyWrite(() =>
         client.saveRoadmapView({
-          ...viewFromValues(value, saved?.id ?? draftId, projectId),
-          name: value.name.trim(),
+          ...command,
+          clientIdempotencyKey: pending.clientIdempotencyKey,
         }),
-      ),
+      );
+    },
     onSuccess: async (view) => {
       await queryClient.invalidateQueries({
         queryKey: orpc.projectRoadmapViews.queryOptions({
@@ -77,6 +107,7 @@ export default function RoadmapViewEditor({
         }).queryKey,
       });
       onSaved(view.id);
+      pendingCommand.current = null;
       setDraftId(crypto.randomUUID());
     },
   });
@@ -214,7 +245,14 @@ export default function RoadmapViewEditor({
       </form>
       <form.Subscribe selector={(state) => state.values}>
         {(values) =>
-          renderResults(viewFromValues(values, saved?.id ?? draftId, projectId))
+          renderResults(
+            viewFromValues(
+              values,
+              saved?.id ?? draftId,
+              projectId,
+              saved?.revision ?? 0,
+            ),
+          )
         }
       </form.Subscribe>
     </div>
