@@ -1,4 +1,5 @@
 import {
+  buildDailyFocusCandidates,
   type DailyFocusAccess,
   DailyFocusWorkUnavailableError,
   dailyFocusDaySchema,
@@ -40,7 +41,7 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
     async list(accountId, focusDate) {
       const workspaceId = await ownedWorkspaceId(accountId);
       if (!workspaceId) {
-        return { available: [], focusDate, members: [] };
+        return { available: [], candidates: [], focusDate, members: [] };
       }
       const [works, memberships] = await Promise.all([
         database
@@ -49,7 +50,9 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
             key: work.key,
             projectId: project.id,
             projectName: project.name,
+            reappearDate: work.reappearDate,
             status: work.status,
+            targetDate: work.targetDate,
             title: work.title,
           })
           .from(work)
@@ -73,10 +76,21 @@ export function createDatabaseDailyFocus(database: Database): DailyFocusAccess {
           ),
       ]);
       const selectedIds = new Set(memberships.map(({ workId }) => workId));
+      const availableCandidates = works.filter(
+        ({ id }) => !selectedIds.has(id),
+      );
+      const visibleWorks = works.map(
+        ({
+          reappearDate: _reappearDate,
+          targetDate: _targetDate,
+          ...visibleWork
+        }) => visibleWork,
+      );
       return dailyFocusDaySchema.parse({
-        available: works.filter(({ id }) => !selectedIds.has(id)),
+        available: visibleWorks.filter(({ id }) => !selectedIds.has(id)),
+        candidates: buildDailyFocusCandidates(availableCandidates, focusDate),
         focusDate,
-        members: works.filter(({ id }) => selectedIds.has(id)),
+        members: visibleWorks.filter(({ id }) => selectedIds.has(id)),
       });
     },
     async add(accountId, focusDate, workId) {
