@@ -591,6 +591,7 @@
 │   ├── conductor-workspace.ts
 │   ├── install-hooks.ts
 │   ├── neon-local-proxy.ts
+│   ├── wait-for-workspace-api.ts
 │   ├── workspace-migrate.ts
 │   ├── workspace-env.test.ts
 │   ├── workspace-env.ts
