@@ -21,7 +21,7 @@ const expected = {
   name: "ws-abc-primary",
   endpointId: "ep-child-one",
 };
-const localWorkspaceIdPattern = /^local-[a-f0-9]{32}$/;
+const localWorkspaceIdPattern = /^local-[a-f0-9]{24}$/;
 
 describe("workspace Neon boundary", () => {
   it("derives a stable local identity when Conductor setup omits its workspace ID", () => {
@@ -33,6 +33,9 @@ describe("workspace Neon boundary", () => {
     };
     const id = workspaceIdentity(setupEnv, root);
     expect(id).toMatch(localWorkspaceIdPattern);
+    expect(
+      branchName(id, "0123456789abcdef", "security").length,
+    ).toBeLessThanOrEqual(63);
     expect(workspaceIdentity(setupEnv, root)).toBe(id);
     expect(
       workspaceIdentity({ ...setupEnv, CONDUCTOR_PORT: undefined }, root),

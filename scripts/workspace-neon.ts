@@ -51,7 +51,7 @@ interface NeonBranch {
 
 const workspaceIdPattern = /^[a-zA-Z0-9-]{1,80}$/;
 const ownerNoncePattern = /^[a-f0-9]{16}$/;
-const localWorkspaceIdPattern = /^local-[a-f0-9]{32}$/;
+const localWorkspaceIdPattern = /^local-[a-f0-9]{24}(?:[a-f0-9]{8})?$/;
 const protectedBranchNamePattern =
   /^(main|master|production|shared|development|dev)$/i;
 const developmentBaseNamePattern = /^development-base(?:-[a-z0-9][a-z0-9-]*)?$/;
@@ -200,7 +200,7 @@ function localWorkspaceIdentity(
     return `local-${createHash("sha256")
       .update(workspacePath)
       .digest("hex")
-      .slice(0, 32)}`;
+      .slice(0, 24)}`;
   } catch {
     return null;
   }
