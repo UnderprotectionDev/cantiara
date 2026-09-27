@@ -485,6 +485,7 @@
 │   │   │   ├── completion-effects.test.ts
 │   │   │   ├── completion-effects.ts
 │   │   │   ├── capture-triage.ts
+│   │   │   ├── daily-focus.test.ts
 │   │   │   ├── daily-focus.ts
 │   │   │   ├── context.ts
 │   │   │   ├── file-attachments.test.ts

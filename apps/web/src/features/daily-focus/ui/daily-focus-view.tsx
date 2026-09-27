@@ -12,11 +12,17 @@ import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 export default function DailyFocusView({
   accountId,
   day,
+  onOpenCloseFocus,
+  onReturnToDailyFocus,
   onSelectDay,
+  view,
 }: {
   accountId?: string;
   day?: string;
+  onOpenCloseFocus: (day: string) => void;
+  onReturnToDailyFocus: (day: string) => void;
   onSelectDay: (day: string) => void;
+  view?: "close";
 }) {
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const [now, setNow] = useState(() => new Date());
@@ -42,14 +48,153 @@ export default function DailyFocusView({
   }
 
   const focusDate = day ?? accountLocalDate(now, preferences.data.timeZone);
-  return <DailyFocusDayView focusDate={focusDate} onSelectDay={onSelectDay} />;
+  if (view === "close") {
+    return (
+      <DailyFocusCloseView
+        focusDate={focusDate}
+        locale={preferences.data.locale}
+        onReturnToDailyFocus={onReturnToDailyFocus}
+      />
+    );
+  }
+  return (
+    <DailyFocusDayView
+      focusDate={focusDate}
+      onOpenCloseFocus={onOpenCloseFocus}
+      onSelectDay={onSelectDay}
+    />
+  );
+}
+
+function DailyFocusCloseView({
+  focusDate,
+  locale,
+  onReturnToDailyFocus,
+}: {
+  focusDate: string;
+  locale: string;
+  onReturnToDailyFocus: (day: string) => void;
+}) {
+  const closeQuery = useQuery(
+    orpc.dailyFocusClose.queryOptions({ input: { focusDate } }),
+  );
+  const selectedDay = new Intl.DateTimeFormat(locale, {
+    dateStyle: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${focusDate}T12:00:00.000Z`));
+
+  return (
+    <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
+      <div className="flex flex-col gap-4 border-border/70 border-b pb-7 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-semibold text-3xl tracking-tight">Close focus</h1>
+          <p className="mt-2 text-muted-foreground text-sm">
+            Selected day · {selectedDay}
+          </p>
+        </div>
+        <Button
+          onClick={() => onReturnToDailyFocus(focusDate)}
+          type="button"
+          variant="outline"
+        >
+          Daily Focus
+        </Button>
+      </div>
+
+      {closeQuery.isPending ? (
+        <p className="pt-8 text-muted-foreground" role="status">
+          Loading Work…
+        </p>
+      ) : null}
+      {closeQuery.isError ? (
+        <p className="pt-8" role="alert">
+          Daily Focus is unavailable. Try loading this page again.
+        </p>
+      ) : null}
+      {closeQuery.data ? (
+        <div className="space-y-8 pt-8">
+          <DailyFocusCloseGroup
+            headingId="daily-focus-close-completed"
+            label="Completed"
+            work={closeQuery.data.completed}
+          />
+          <DailyFocusCloseGroup
+            headingId="daily-focus-close-abandoned"
+            label="Abandoned"
+            work={closeQuery.data.abandoned}
+          />
+          <DailyFocusCloseGroup
+            headingId="daily-focus-close-deferred"
+            label="Deferred"
+            work={closeQuery.data.deferred}
+          />
+          <DailyFocusCloseGroup
+            headingId="daily-focus-close-open"
+            label="Still open"
+            work={closeQuery.data.stillOpen}
+          />
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+function DailyFocusCloseGroup({
+  headingId,
+  label,
+  work,
+}: {
+  headingId: string;
+  label: string;
+  work: Array<{
+    id: string;
+    key: string;
+    projectId: string;
+    projectName: string;
+    status: string;
+    title: string;
+  }>;
+}) {
+  if (work.length === 0) {
+    return null;
+  }
+
+  return (
+    <section aria-labelledby={headingId}>
+      <h2 className="mb-3 font-semibold text-lg" id={headingId}>
+        {label}
+      </h2>
+      <ul className="divide-y border-border/70 border-y">
+        {work.map((item) => (
+          <li key={item.id}>
+            <Link
+              className="flex min-h-16 flex-col justify-center gap-1 rounded-sm py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              hash={workRecordHash(item.id)}
+              params={{ projectId: item.projectId }}
+              to="/projects/$projectId"
+            >
+              <span className="font-medium">{item.title}</span>
+              <span className="text-muted-foreground text-sm">
+                {item.projectName} · {item.key}
+              </span>
+              <span className="text-muted-foreground text-sm">
+                Open source record
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function DailyFocusDayView({
   focusDate,
+  onOpenCloseFocus,
   onSelectDay,
 }: {
   focusDate: string;
+  onOpenCloseFocus: (day: string) => void;
   onSelectDay: (day: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -98,23 +243,32 @@ function DailyFocusDayView({
         <div>
           <h1 className="font-semibold text-3xl tracking-tight">Daily Focus</h1>
         </div>
-        <label
-          className="flex flex-col gap-2 text-sm"
-          htmlFor="daily-focus-day"
-        >
-          <span className="font-medium">Selected day</span>
-          <input
-            className="h-11 rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            id="daily-focus-day"
-            onChange={(event) => {
-              if (event.target.value) {
-                onSelectDay(event.target.value);
-              }
-            }}
-            type="date"
-            value={focusDate}
-          />
-        </label>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label
+            className="flex flex-col gap-2 text-sm"
+            htmlFor="daily-focus-day"
+          >
+            <span className="font-medium">Selected day</span>
+            <input
+              className="h-11 rounded-md border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              id="daily-focus-day"
+              onChange={(event) => {
+                if (event.target.value) {
+                  onSelectDay(event.target.value);
+                }
+              }}
+              type="date"
+              value={focusDate}
+            />
+          </label>
+          <Button
+            onClick={() => onOpenCloseFocus(focusDate)}
+            type="button"
+            variant="outline"
+          >
+            Close focus
+          </Button>
+        </div>
       </div>
 
       <section aria-label="Daily Focus Work" className="pt-8">

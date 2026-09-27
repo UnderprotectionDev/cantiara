@@ -3050,6 +3050,14 @@ export const appRouter = {
     .handler(({ context, input }) =>
       requireDailyFocus(context).list(context.session.user.id, input.focusDate),
     ),
+  dailyFocusClose: protectedProcedure
+    .input(dailyFocusDayInputSchema)
+    .handler(({ context, input }) =>
+      requireDailyFocus(context).readClose(
+        context.session.user.id,
+        input.focusDate,
+      ),
+    ),
   addToDailyFocus: protectedProcedure
     .input(dailyFocusMembershipInputSchema)
     .handler(async ({ context, input }) => {
