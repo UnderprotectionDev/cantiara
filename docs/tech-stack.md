@@ -34,6 +34,8 @@ Dar kapsamlı tarihsel Prioritization şeması onarımı yalnızca mevcut verita
 
 `0059_external-handoff-result-reconciliation` geçmişi eksik görünürken `reconcile_decision` veya `result` sütunlarından en az biri zaten varsa, normal `0059` adımının yinelenen sütunda durmasını önlemek için `bun run db:migrate -- --repair-external-handoff-result-reconciliation` seçici onarımı kullanılır. Yalnızca idempotent `0060_external-handoff-schema-compatibility` girdisini çalıştırıp normal Drizzle migration geçmişine kaydeder; ardından bayraksız `bun run db:migrate` bekleyen `0061` ve sonraki migration'ları uygular. Bu kip ilk kurulumun veya olağan migration akışının yerine geçmez.
 
+`0065` son kayıt olduğu halde `0066` durum zamanı şeması ile `0067–0068` backfill SQL hash'leri farklı zaman damgalarıyla uygulanmışsa `packages/db` içinde `bun run db:migrate --repair-roadmap-history` seçici onarımı kullanılır. Komut `0065` hash'ini, mevcut sütun ve kısıtı, backfill hash'lerini ve `0069–0072` nesnelerinin henüz bulunmadığını doğrulamadan yazmaz. Yalnızca sürümlü `0069–0072` SQL'lerini sırayla uygular ve Drizzle geçmişine kaydeder; eski alternatif kayıtları yeniden adlandırmaz. Ardından bayraksız `bun run db:migrate` çalıştırıp yeni şema nesnelerini ve kayıtları doğrula. Bu kip yalnızca belirtilen ayrışma içindir; eski kayıt farkları sonraki şema değişikliğinde yeniden incelenir.
+
 ### Paralel geliştirmede paylaşılan veritabanı
 
 Her issue kendi şema değişikliğinin migration'ını taşır; birkaç spec veya issue bitene kadar migration biriktirilmez. Paylaşılan geliştirme veritabanının migration geçmişi ise tek bir sıralı hattır: kod paralel ilerlerken bu veritabanına şema uygulama işi sırayla yürür.
