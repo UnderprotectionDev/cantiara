@@ -524,7 +524,9 @@
 │   │   ├── scripts/
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
-│   │   │   └── migrate.ts
+│   │   │   ├── migrate.ts
+│   │   │   ├── push-local.ts
+│   │   │   └── verify-pr-migrations.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
 │   │   │   │   └── security-events/
@@ -569,8 +571,12 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
+│   ├── conductor-workspace.ts
 │   ├── install-hooks.ts
-│   └── neon-local-proxy.ts
+│   ├── neon-local-proxy.ts
+│   ├── workspace-migrate.ts
+│   ├── workspace-neon.test.ts
+│   └── workspace-neon.ts
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock

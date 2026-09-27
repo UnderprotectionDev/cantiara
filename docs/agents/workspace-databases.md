@@ -1,0 +1,35 @@
+# Conductor çalışma alanı veritabanları
+
+## Yaşam döngüsü
+
+`.conductor/settings.toml` yerel setup, run ve archive komutlarını yönetir. Setup, `CONDUCTOR_WORKSPACE_ID` ve kurulmadan önce kaydedilen rastgele sahiplik işaretiyle `cantiara` ve `cantiara-security-events` projelerinde ayrı dallar oluşturur. Issue numarası dal kimliği değildir. Proje, temel dal, dal ve endpoint kimlikleri ile dört bağlantı değeri Git tarafından izlenmeyen `.context/neon-workspace.json` içinde 0600 izinleriyle saklanır. Yeniden kurulum doğru dalları kullanır; ilk dal oluşturulup ikinci dalda hata oluşursa yeniden deneme ilk dalı doğrular ve yalnız eksik dalı tamamlar. Erişim hatası bir dalı kayıp saydırmaz. Durum dosyası kaybolursa aynı adlı dalı tahminen sahiplenmek yerine yeni sahiplik işaretiyle kurulum yapılır; sahipsiz kalan dal proje ve ad doğrulanarak ayrıca incelenir.
+
+Run kayıtlı dalları Neon üzerinden doğrular, iki migration zincirini sırayla uygular, API'yi Conductor portunda başlatır ve `/api/auth/get-session` hazır olunca web'i sonraki portta açar. Migration başarısızsa API ve web başlamaz. API, worker'lar ve web aynı süreç ortamından çalışma alanı URL'lerini alır. `.env.local` kopyası veya `neon env pull` bu kayıtla çelişirse run ve migration koruması kayıtlı Neon dalını kullanır; `.env.local` dosyası setup ile yeniden oluşturulabilir. Manuel `bun run db:migrate` ve `bun run db:security:migrate` çalışma alanı durumundan doğru URL'leri yükler, migrator ise canlı Neon dalı ve endpoint kimliğini tekrar doğrular. Ortak veya üretim dalı bu komutlardan geçmez.
+
+Archive, her dalı silmeden hemen önce proje, parent, ad, workspace kimliği, `primary` ve `protected` alanlarını yeniden denetler. Kayıtlı dallardan biri zaten silinmişse kalan dalı temizler; aynı archive tekrar güvenle çalışır. Durumu bulunmayan veya kimliği çelişen kaynağı silmez. `development-base` ve varsayılan dallar archive kapsamı dışındadır.
+
+Conductor yerel çalışma alanına `CONDUCTOR_PORT` ile başlayan on port ayırır. API ilkini, Vite ikincisini kullanır; `BETTER_AUTH_URL`, `CORS_ORIGIN` ve `VITE_SERVER_URL` aynı adres çiftinden üretilir. GitHub OAuth App callback yolu `/api/auth/callback/github` olarak kalır. GitHub [loopback OAuth yönlendirmesinde port farkını kabul eder](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#loopback-redirect-urls); kurulu OAuth App'in host ve callback yolu eşleşmelidir. Conductor portları bulut çalışma alanında verilmediğinden bu run betiği yalnız yereldir.
+
+## Temel dallar ve güncelleme
+
+`.conductor/neon.json` proje ve temel dal kimliklerini kaydeder; burada bağlantı URL'si veya kimlik bilgisi yoktur. İki proje için ayrı `development-base` dalı, varsayılan daldan **schema-only** oluşturuldu; yalnız yeni dalda `public`, `drizzle` ve `pgboss` şemaları temizlendi. Güncel `origin/main` sürümlü SQL zinciri sıfırdan uygulandı. Ana temelde 70/70, güvenlik temelinde 4/4 zaman damgası ve SQL hash'i eşleşti. Üretim veya eski paylaşılan bağlantı temel olarak kullanılmaz.
+
+`main` migration geçmişi ilerlediğinde eski temeli yerinde değiştirmeyin. Her iki projede yeni adlarla schema-only dal oluşturun, yalnız yeni dalları boş şemaya çevirin, güncel `origin/main` zincirini sıfırdan uygulayıp journal zaman damgalarını ve SQL hash'lerini doğrulayın. Ardından `.conductor/neon.json` temel kimliklerini birlikte değiştirin. Eski temel dalı, ona bağlı açık çalışma alanları arşivlenene kadar koruyun. Açık bir issue, Git dalını `main` ile uzlaştırdıktan sonra yeni temelden çalışma alanı dalları oluşturup kendi migration'larını yeniden uygular; mevcut dalın tarihçesini sessizce eşitlemez. Bu değişiklik temel kimlikleri güncellemezse setup eski temelde durur, dolayısıyla temel güncelleme ile konfigürasyon aynı değişiklikte yapılmalıdır.
+
+## Issue migration ve PR kapısı
+
+Her issue kaynak şema, sürümlü SQL, journal ve snapshot değişikliğini birlikte taşır. Paralel Git dalları aynı Drizzle sıra numarasını kullandıysa aday dal güncel `origin/main` ile uzlaştırılır. Henüz kalıcı veritabanına uygulanmamış aday migration, Drizzle Kit ile yeni sırada yeniden üretilir ve yalnız atılabilir workspace dalları temiz temelden yenilenir. Kalıcı veritabanında uygulanmış migration dosyası ve journal girdisi yeniden adlandırılmaz veya değiştirilmez; ayrışma için migration onarım sınırı uygulanır.
+
+Birleşme öncesinde `bun run db:verify-pr-migrations` çalıştırın. Komut aday journal'ın güncel `origin/main` önekini ve o önekteki SQL hash'lerini koruduğunu denetler. Her projede geçici schema-only dal oluşturur, yalnız bu dalın kopya şemasını sıfırlar, aday zinciri baştan uygular, migration kayıtlarını ve son snapshot'taki tablo/sütunları doğrular, ardından kendi geçici dallarını siler. Dal oluşturma veya silme yetkisi yoksa komut başarısız olur. Beklenmedik ağ kesintisi yaratılmış geçici dalın silinmesini engelleyebilir; `pr-check-<workspace-id>-<timestamp>` adını, proje ve dal kimliğini doğrulamadan manuel temizlemeyin.
+
+## Eski bağlantı ve korunan onarım yolu
+
+2026-09-27 salt okunur denetiminde önceki “paylaşılan geliştirme” URL'lerinin iki projenin varsayılan dalları (`production` ve `main`) olduğu Neon CLI ile doğrulandı. Ana dalda 76 migration kaydı vardı; bu repo journal'ındaki 70 girdiden 48'i birebir eşleşti, 20'si (0066–0068 dahil) eksikti, 2 ortak zaman damgasının SQL hash'i farklıydı ve 26 kayıt repo dışında kaldı. `work.status_changed_at` sütunu, 0066 kaydı yokken şemada vardı. 47 public tablo ve 38 dolu tablo bulundu; `work` için 186, `account` için 28 satır sayıldı. Güvenlik olay dalındaki 4 kayıt repo ile eşleşti. Bu bulgular veri taşıma/silme izni vermez; varsayılan dallar ve verileri korunur.
+
+Tarihsel `--repair-*` kipleri kalıcı veritabanındaki bilinen ayrışmalar için tutulur. Yeni çalışma alanları bunları olağan migration yerine kullanmaz. `db:push` yalnız açıkça seçilmiş atılabilir yerel PostgreSQL içindir. Drizzle sürümü bu geçişte değiştirilmedi; sürümlü SQL, journal ve snapshot biçimi korunur.
+
+## Makineye özgü ayar geçişi
+
+Conductor önceliğinde `<repo>/.conductor/settings.local.toml`, paylaşılan `.conductor/settings.toml` dosyasının üstündedir. Eski yerel ayarda sabit portlu `switch-local-dev.zsh`, `nonconcurrent` ve üretim/ortak URL ortam değerleri varsa, paylaşılan ayarların etkinleşmesi için ilgili `[scripts]` ve statik veritabanı/port anahtarlarını yerel ayardan kaldırın. Secret anahtarları yerel ayarda kalabilir. Yeni run betiği başka çalışma alanı portunu veya sürecini öldürmez. Paylaşılan TOML Conductor Mac'te `origin/main` üzerinden okunduğu için bu geçiş PR birleşmesiyle birlikte uygulanır; eski yerel override kaldığı sürece Conductor düğmesi yeni akışı kullanmaz.
+
+Neon CLI, güvenli yerel OAuth oturumunu veya her iki projeye kapsamlı bir API anahtarını kullanır. Her projede dal oluşturma/silme ve bağlantı dizesi okuma izni gerekir. Erişim anahtarı sohbete, Git'e veya bu belgeye yazılmaz. Neon planının dal sınırı iki temel, açık çalışma alanları ve PR doğrulama dalları için yeterli olmalıdır.

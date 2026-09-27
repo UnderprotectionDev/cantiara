@@ -34,14 +34,14 @@ Dar kapsamlı tarihsel Prioritization şeması onarımı yalnızca mevcut verita
 
 `0059_external-handoff-result-reconciliation` geçmişi eksik görünürken `reconcile_decision` veya `result` sütunlarından en az biri zaten varsa, normal `0059` adımının yinelenen sütunda durmasını önlemek için `bun run db:migrate -- --repair-external-handoff-result-reconciliation` seçici onarımı kullanılır. Yalnızca idempotent `0060_external-handoff-schema-compatibility` girdisini çalıştırıp normal Drizzle migration geçmişine kaydeder; ardından bayraksız `bun run db:migrate` bekleyen `0061` ve sonraki migration'ları uygular. Bu kip ilk kurulumun veya olağan migration akışının yerine geçmez.
 
-### Paralel geliştirmede paylaşılan veritabanı
+### Paralel geliştirmede çalışma alanı veritabanları
 
-Her issue kendi şema değişikliğinin migration'ını taşır; birkaç spec veya issue bitene kadar migration biriktirilmez. Paylaşılan geliştirme veritabanının migration geçmişi ise tek bir sıralı hattır: kod paralel ilerlerken bu veritabanına şema uygulama işi sırayla yürür.
+Her Conductor çalışma alanı, issue numarasından bağımsız `CONDUCTOR_WORKSPACE_ID` ile iki ayrı Neon projesinde birer dal edinir. Ana ve güvenlik olayı projelerinin `development-base` dalları güncel `origin/main` migration zincirinden temiz olarak kurulur; üretim dalları veya tarihsel ayrışmış veritabanı geliştirme temeli olamaz. `scripts/conductor-workspace.ts setup` kimlikleri `.context/neon-workspace.json` içinde tutar ve doğru dalları yeniden kullanır. Run önce iki migration'ı uygular, sonra API'yi başlatır; API hazır olduğunda web'i açar. Archive yalnız kayıtlı proje, parent, dal, ad ve sahiplik doğrulaması geçen dalları siler. Conductor port aralığının ilk portu API'ye, ikincisi web'e ayrılır. Ayrıntılı geçiş ve yenileme yolu [`docs/agents/workspace-databases.md`](agents/workspace-databases.md) içindedir.
 
-1. Bir issue tablo, sütun veya kısıt değiştiriyorsa aynı issue içinde kaynak şemayı değiştir, sürümlü SQL migration'ını üret ve gözden geçir. Migration'ı `bun run db:migrate` ile doğrula; issue'yu bitirmeden hedef veritabanında beklenen şema nesnesini ve migration kaydını kontrol et. Şema değişmiyorsa yeni migration üretme.
-2. Hedef paylaşılan geliştirme veritabanıysa önce çalışma dalına en güncel kanonik migration geçmişini al ve journal ile `drizzle.__drizzle_migrations` kayıtlarını zaman damgası, sıra ve SQL hash'i açısından karşılaştır. Veritabanında dalın bilmediği yeni migration veya dalda veritabanının atladığı eski migration varsa uygulamayı durdur; `bun run db:migrate` başarılı dönse bile eski migration'ları atlayabilir.
-3. Paylaşılan veritabanına aynı anda yalnız bir issue migration'ı uygula. Henüz ana dala birleşmemiş bir migration uygulandıysa onun SQL'i ve journal girdisi artık kalıcıdır: sonraki issue migration'ından önce bu geçmişi ana dala taşı ve diğer çalışma dallarına aldır. Erken doğrulama gerekiyor ama bu sıralamayı bekleyemiyorsa issue için atılabilir yerel PostgreSQL veritabanında migrate et.
-4. Paralel dallarda çakışan journal girdilerini ana dala birleştirirken tek sıraya uzlaştır; paylaşılan veya kalıcı veritabanına uygulanmış migration'ı yeniden adlandırma ya da değiştirme. Uzlaştırılmış geçmişi temiz bir atılabilir veritabanında baştan uygula. Geçmiş ile gerçek şema zaten ayrışmışsa bu bölümdeki migration onarım sınırına göre idempotent compatibility migration hazırla; paylaşılan veritabanında `db:push` ile ayrışmayı gizleme.
+1. Her issue kendi şema değişikliğini ve Drizzle Kit'in sürümlü SQL, journal ve snapshot çıktısını aynı değişiklikte taşır. Workspace dalında `bun run db:migrate` ve gerektiğinde `bun run db:security:migrate` kullanılır; bu komutlar hedef proje, parent, dal ve endpoint kimliğini uygulamadan önce doğrular. Şema değişmiyorsa migration üretilmez.
+2. İki Git dalı journal/snapshot dizininde çakışırsa güncel `origin/main` öneki korunur. Aday migration henüz kalıcı veritabanına uygulanmadıysa Drizzle Kit ile yeni sırada yeniden üretilir; yalnız atılabilir çalışma alanı dalı temiz temelden yeniden kurulur. Kalıcı veritabanına uygulanmış sürümlü SQL, journal girdisi veya hash değiştirilmez.
+3. Birleşme öncesi `bun run db:verify-pr-migrations`, güncel `origin/main` önekiyle aday zincirin aynı olduğunu doğrular ve temiz, geçici Neon dallarında zinciri baştan uygular. Beklenen tablo/sütun nesneleri ile `drizzle.__drizzle_migrations` zaman damgaları ve SQL hash'leri denetlenir. Workspace dalında başarılı migrate tek başına kabul değildir.
+4. `main` ilerleyince temel dallar yeni temiz dallar olarak sürümlenir; açık çalışma alanı dalları eski temelde kalır. Aday dalı güncel `main` ile uzlaştıran geliştirici, issue migration'larını yeni temelden açılmış çalışma alanı dallarında yeniden uygular. Eski dalı `main` geçmişiymiş gibi kabul etmez. Eski temel, ona bağlı çalışma alanları bitene kadar korunur.
 
 ## Arayüz ve durum yönetimi
 
@@ -173,6 +173,7 @@ Her issue kendi şema değişikliğinin migration'ını taşır; birkaç spec ve
 | Grafana k6 OSS | Performans testleri |
 | GitHub Actions | CI/CD; kabul kanıtının kabul edildiği tek koşturucu. Repository'nin kendi Vitest/Playwright paketleri workflow service container'ındaki geçici PostgreSQL'e bağlanır; ayrı yönetilen test projesi açılmaz |
 | GitHub Dependabot | Bağımlılık güncellemeleri |
+| Conductor + Bun | Yerel issue çalışma alanı yaşam döngüsü, çalışma alanına ayrılmış portlar, iki Neon proje dalının kurulumu ve güvenli arşivi; betikler Bun ile çalışır |
 
 ## Bilinçli olarak eklenmeyenler
 
