@@ -17,6 +17,7 @@ import type {
   updateResearchDirectionInputSchema,
   updateWorkHorizonInputSchema,
 } from "./roadmap-horizon";
+import type { WorkNotNowSummary } from "./work-not-now";
 
 export const WORK_TYPE_OPTIONS = [
   "Feature",
@@ -737,6 +738,7 @@ export interface WorkProfile {
   featureHealthHistory: FeatureHealthUpdate[];
   id: string;
   key: string;
+  notNow?: WorkNotNowSummary;
   number: number;
   originPosition?: WorkOriginPosition;
   plannedStartDate?: string | null;

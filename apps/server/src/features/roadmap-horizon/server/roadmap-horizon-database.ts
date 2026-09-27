@@ -23,6 +23,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { createDatabaseWorkNotNow } from "./not-now-database";
 
 interface RoadmapViewMutationValue {
   view: ReturnType<typeof roadmapViewSchema.parse> | null;
@@ -207,6 +208,7 @@ async function findRoadmapViewTarget(
 export function createDatabaseRoadmapHorizon(
   database: Database,
 ): RoadmapHorizonAccess {
+  const workNotNow = createDatabaseWorkNotNow(database);
   async function ownsProject(accountId: string, projectId: string) {
     return Boolean(
       await findOwnedProject(database, accountId, projectId, false),
@@ -289,6 +291,7 @@ export function createDatabaseRoadmapHorizon(
         return [{ blockedWorkId, blocker }];
       });
     },
+    ...workNotNow,
     async listOrigins(accountId, projectId) {
       if (!(await ownsProject(accountId, projectId))) {
         return null;

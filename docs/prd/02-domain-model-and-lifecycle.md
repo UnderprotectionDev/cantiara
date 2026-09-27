@@ -589,10 +589,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Araştırma yönü kaydetme hatası | `Research direction could not be saved.` | Araştırma bağlamı yazması başarısız oldu |
 | Kayıtlı olmayan araştırma bağlamı | `Not recorded` | Araştırma problem/fırsat veya beklenen sonuç değeri boş |
 | Şimdi değil | `Not now` | İş üzerindeki sahipli erteleme izi; durum, Parked veya Karar kaydı değildir |
-| Şimdi değil uygula | `Apply Not now` | Açık İşte `Not now` izini kaydetme eylemi |
-| Yeniden değerlendiriliyor | `Reconsidering` | Etkin `Not now` izini kapatan eylem |
+| Şimdi değil gerekçesi | `Reason` | `Not now` karar izinin kısa gerekçesi |
 | Yeniden değerlendirme koşulu | `Re-evaluation condition` | Kullanıcının yazdığı serbest metin; sistem izlemez |
-| Dayanaklar | `Grounds` | `Not now` izinin Karar, Risk, Geri Bildirim, Kaynak veya Belge dayanakları |
+| Dayanak kayıtlar | `Supporting records` | `Not now` izinin Karar, Risk, Geri Bildirim, Kaynak veya Belge dayanakları |
+| Önizleme | `Preview` | `Not now` kaydından önce gösterilen gerekçe, koşul ve dayanaklar |
+| Şimdi değil onayı | `Confirm Not now` | Önizlenen `Not now` izini kaydetme eylemi |
+| Yeniden değerlendiriliyor | `Reconsidering` | Etkin `Not now` izini kapatan eylem |
+| Yerine konmuş | `Replaced` | Önceki etkin `Not now` izini yeni bir iz ile kapatan geçmiş durumu |
+| Geçmiş | `History` | Önceki `Not now` izlerinin gerekçe, koşul, dayanak, yazar ve zaman kayıtları |
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |

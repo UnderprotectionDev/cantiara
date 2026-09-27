@@ -20,6 +20,7 @@ import { useMemo, useState } from "react";
 
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { mutationErrorMessage } from "@/lib/mutation-messages";
+import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { orpc } from "@/utils/orpc";
 import { usePrioritizationSessions } from "../../hooks/use-prioritization-sessions";
 import { moveWorkInOrder, workPosition } from "../../lib/session-order";
@@ -394,13 +395,16 @@ function BacklogOrderSection({
                 className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-card/30 px-3 py-2.5"
                 key={workId}
               >
-                <p className="min-w-0 text-sm">
-                  <span className="mr-2 text-muted-foreground tabular-nums">
-                    {index + 1}.
-                  </span>
-                  <span className="text-muted-foreground">{work.key}</span>{" "}
-                  {work.title}
-                </p>
+                <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                  <p className="min-w-0 text-sm">
+                    <span className="mr-2 text-muted-foreground tabular-nums">
+                      {index + 1}.
+                    </span>
+                    <span className="text-muted-foreground">{work.key}</span>{" "}
+                    {work.title}
+                  </p>
+                  <WorkNotNowControl compact work={work} />
+                </div>
                 <ul
                   aria-label={`${work.key} priority metrics`}
                   className="flex min-w-full flex-wrap gap-2 text-xs sm:min-w-0 sm:flex-1"
@@ -675,44 +679,47 @@ function PrioritizationSessionWork({
             </span>
           ) : null}
         </p>
-        {isClosed ? null : (
-          <div className="flex flex-wrap gap-1">
-            <Button
-              aria-label={`Move ${work.key} up`}
-              disabled={busy || index === 0}
-              onClick={() =>
-                onReorder(moveWorkInOrder(session.workIds, workId, -1))
-              }
-              size="xs"
-              type="button"
-              variant="outline"
-            >
-              Move up
-            </Button>
-            <Button
-              aria-label={`Move ${work.key} down`}
-              disabled={busy || index === session.workIds.length - 1}
-              onClick={() =>
-                onReorder(moveWorkInOrder(session.workIds, workId, 1))
-              }
-              size="xs"
-              type="button"
-              variant="outline"
-            >
-              Move down
-            </Button>
-            <Button
-              aria-label={`Remove ${work.key} from session`}
-              disabled={busy}
-              onClick={() => onRemoveWork(workId)}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              Remove from session
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-1">
+          <WorkNotNowControl compact work={work} />
+          {isClosed ? null : (
+            <>
+              <Button
+                aria-label={`Move ${work.key} up`}
+                disabled={busy || index === 0}
+                onClick={() =>
+                  onReorder(moveWorkInOrder(session.workIds, workId, -1))
+                }
+                size="xs"
+                type="button"
+                variant="outline"
+              >
+                Move up
+              </Button>
+              <Button
+                aria-label={`Move ${work.key} down`}
+                disabled={busy || index === session.workIds.length - 1}
+                onClick={() =>
+                  onReorder(moveWorkInOrder(session.workIds, workId, 1))
+                }
+                size="xs"
+                type="button"
+                variant="outline"
+              >
+                Move down
+              </Button>
+              <Button
+                aria-label={`Remove ${work.key} from session`}
+                disabled={busy}
+                onClick={() => onRemoveWork(workId)}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                Remove from session
+              </Button>
+            </>
+          )}
+        </div>
       </div>
       <div className="grid gap-3 text-xs sm:grid-cols-[minmax(0,1fr)_13rem]">
         <div className="space-y-2">

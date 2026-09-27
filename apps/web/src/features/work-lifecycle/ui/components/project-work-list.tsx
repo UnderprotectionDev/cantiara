@@ -43,6 +43,7 @@ import {
   RecordActionRunDialog,
 } from "@/features/record-actions/ui/components/record-action-runner";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
+import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
@@ -289,6 +290,7 @@ export default function ProjectWorkList({
                     {work.title}
                   </p>
                 </div>
+                <WorkNotNowControl work={work} />
               </div>
               <WorkContextCard
                 projectWorks={allProjectWorksQuery.data ?? query.data}

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 import { type WorkProfile, workTypeSchema } from "./work-lifecycle";
+import type { WorkNotNowAccess } from "./work-not-now";
 
 const identifier = z.string().trim().min(1).max(255);
 
@@ -51,7 +52,7 @@ export const projectRoadmapInputSchema = z
   .object({ projectId: identifier })
   .strict();
 
-export interface RoadmapHorizonAccess {
+export interface RoadmapHorizonAccess extends WorkNotNowAccess {
   listActiveBlockers: (
     accountId: string,
     projectId: string,

@@ -32,6 +32,9 @@ vi.mock("@/utils/orpc", () => ({
     projectBacklog: {
       queryOptions: () => ({}),
     },
+    projectWorks: {
+      queryOptions: () => ({}),
+    },
     projectBacklogOrder: {
       queryOptions: () => ({}),
     },
@@ -44,6 +47,11 @@ vi.mock("@/utils/orpc", () => ({
 function renderBacklog(queryResult: unknown) {
   vi.mocked(useQuery)
     .mockReturnValueOnce(queryResult as never)
+    .mockReturnValueOnce({
+      data: [],
+      isError: false,
+      isPending: false,
+    } as never)
     .mockReturnValueOnce({
       data: { revision: 0, workIds: [] },
       isPending: false,

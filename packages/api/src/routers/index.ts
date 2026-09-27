@@ -241,6 +241,11 @@ import {
   workTypeSchema,
 } from "../work-lifecycle";
 import {
+  reconsiderWorkNotNowInputSchema,
+  recordWorkNotNowInputSchema,
+  workNotNowHistoryInputSchema,
+} from "../work-not-now";
+import {
   createWorkTemplateInputSchema,
   createWorkTemplateMutationInputSchema,
   duplicateWorkMutationInputSchema,
@@ -1391,6 +1396,39 @@ async function runWorkLifecycleOperation<T>(operation: () => Promise<T>) {
     return await operation();
   } catch (error) {
     rethrowWorkLifecycleError(error);
+  }
+}
+
+function rethrowWorkNotNowError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  switch (error.code) {
+    case "WORK_NOT_NOW_CONFLICT":
+      throw new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "Not now has changed. Reload and try again.",
+      });
+    case "WORK_NOT_NOW_GROUND_UNAVAILABLE":
+      throw new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "A selected supporting record is no longer available.",
+      });
+    default:
+      throw error;
+  }
+}
+
+async function runWorkNotNowOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowWorkNotNowError(error);
   }
 }
 
@@ -3245,7 +3283,56 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return blockers;
+  }),
+  workNotNowHistory: protectedProcedure
+    .input(workNotNowHistoryInputSchema)
+    .handler(async ({ context, input }) => {
+      const history = await requireRoadmapHorizon(context).history(
+        context.session.user.id,
+        input.workId,
+      );
+      if (!history) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work history is unavailable.",
+        });
+      }
+      return history;
     }),
+  recordWorkNotNow: protectedProcedure
+    .input(recordWorkNotNowInputSchema)
+    .handler(({ context, input }) =>
+      runWorkNotNowOperation(async () => {
+        const trail = await requireRoadmapHorizon(context).record(
+          context.session.user.id,
+          input,
+        );
+        if (!trail) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Not now can be recorded only on open Work.",
+          });
+        }
+        return trail;
+      }),
+    ),
+  reconsiderWorkNotNow: protectedProcedure
+    .input(reconsiderWorkNotNowInputSchema)
+    .handler(({ context, input }) =>
+      runWorkNotNowOperation(async () => {
+        const trail = await requireRoadmapHorizon(context).reconsider(
+          context.session.user.id,
+          input,
+        );
+        if (!trail) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "The active Not now trail is unavailable.",
+          });
+        }
+        return trail;
+      }),
+    ),
   saveRoadmapView: protectedProcedure
     .input(saveRoadmapViewInputSchema)
     .handler(async ({ context, input }) => {
