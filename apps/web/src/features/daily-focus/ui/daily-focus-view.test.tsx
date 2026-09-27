@@ -59,7 +59,12 @@ describe("Daily Focus selected profile day", () => {
         data: { timeZone: "America/Los_Angeles" },
       } as never)
       .mockReturnValueOnce({
-        data: { focusDate: "2026-09-27", members: [], available: [] },
+        data: {
+          candidates: [],
+          focusDate: "2026-09-27",
+          members: [],
+          available: [],
+        },
       } as never);
 
     const html = renderToStaticMarkup(
@@ -69,5 +74,40 @@ describe("Daily Focus selected profile day", () => {
     expect(mocks.dayInput).toHaveBeenCalledWith("2026-09-27");
     expect(html).toContain('value="2026-09-27"');
     expect(html).toContain("No Work in Daily Focus for this day.");
+  });
+
+  test("explains the date field behind each candidate and offers accept or reject", () => {
+    vi.mocked(useQuery)
+      .mockReturnValueOnce({
+        data: { timeZone: "America/Los_Angeles" },
+      } as never)
+      .mockReturnValueOnce({
+        data: {
+          available: [],
+          candidates: [
+            {
+              id: "work-1",
+              key: "ALPHA-1",
+              projectId: "project-1",
+              projectName: "Alpha",
+              reasons: [{ date: "2026-10-01", label: "Target date is near" }],
+              status: "Not Started",
+              title: "Prepare the release",
+            },
+          ],
+          focusDate: "2026-09-27",
+          members: [],
+        },
+      } as never);
+
+    const html = renderToStaticMarkup(
+      <DailyFocusView accountId="founder" onSelectDay={vi.fn()} />,
+    );
+
+    expect(html).toContain("Candidates");
+    expect(html).toContain("Target date is near:");
+    expect(html).toContain('dateTime="2026-10-01"');
+    expect(html).toContain("Accept");
+    expect(html).toContain("Reject");
   });
 });
