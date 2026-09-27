@@ -51,6 +51,7 @@ export default function Header() {
               className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto sm:gap-1"
             >
               <ShellNavLink to="/projects">Projects</ShellNavLink>
+              <ShellNavLink to="/daily-focus">Daily Focus</ShellNavLink>
               <ShellNavLink to="/capture">Capture Inbox</ShellNavLink>
             </nav>
           </div>
@@ -85,7 +86,7 @@ function ShellNavLink({
   to,
 }: {
   children: string;
-  to: "/capture" | "/projects";
+  to: "/capture" | "/daily-focus" | "/projects";
 }) {
   const linkClassName =
     "inline-flex h-11 min-w-max items-center whitespace-nowrap rounded-md px-2 font-medium text-xs text-muted-foreground hover:bg-muted hover:text-foreground sm:px-2.5 sm:text-sm";
