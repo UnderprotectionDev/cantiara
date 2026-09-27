@@ -8,7 +8,7 @@
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "compile": "tsc --noEmit",
-    "dev": "wxt --port 5555",
+    "dev": "sh -c 'exec wxt --port \"${CONDUCTOR_EXTENSION_PORT:-5555}\"'",
     "dev:firefox": "wxt -b firefox",
     "postinstall": "wxt prepare",
     "zip": "wxt zip",

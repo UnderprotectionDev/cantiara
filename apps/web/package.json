@@ -8,7 +8,7 @@
     "check-types": "tsc -b ../../packages/api && vite build && tsc --noEmit",
     "desktop:build": "tauri build",
     "desktop:dev": "tauri dev",
-    "dev": "vite dev",
+    "dev": "bun ../../scripts/wait-for-workspace-api.ts && vite dev",
     "serve": "vite preview",
     "start": "vite",
     "tauri": "tauri",
