@@ -20,6 +20,7 @@ export default defineConfig({
     "./src/schema/work-draft.ts",
     "./src/schema/work-template.ts",
     "./src/schema/record-action.ts",
+    "./src/schema/roadmap-horizon.ts",
     "./src/schema/relation.ts",
     "./src/schema/tags.ts",
   ],

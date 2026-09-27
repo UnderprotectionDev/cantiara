@@ -1,0 +1,2 @@
+ALTER TABLE "work" ADD COLUMN "roadmap_horizon" text;--> statement-breakpoint
+ALTER TABLE "work" ADD CONSTRAINT "work_roadmap_horizon_check" CHECK ("work"."roadmap_horizon" is null or "work"."roadmap_horizon" in ('Now', 'Next', 'Later'));

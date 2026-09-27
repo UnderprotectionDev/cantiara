@@ -105,6 +105,7 @@ export const DAILY_ACTION_MESSAGES: Record<DailyAction, string> = {
 };
 
 export const BACKLOG_HASH = "backlog";
+export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
 const WORK_RECORD_HASH_PREFIX = "work-";
 
@@ -185,6 +186,7 @@ export function isWorkSurfaceHash(hash: string) {
   return (
     hash === "work" ||
     hash === BACKLOG_HASH ||
+    hash === ROADMAP_HASH ||
     hash === PRIORITY_MAP_HASH ||
     dailyActionFromHash(hash) !== null ||
     isWorkRecordHash(hash) ||

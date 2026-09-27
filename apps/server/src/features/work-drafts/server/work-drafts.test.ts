@@ -163,6 +163,7 @@ function createMemoryStore(
 
 function createWorkLifecycleStub(): WorkLifecycleAccess {
   return {
+    updateRoadmapHorizon: vi.fn(),
     archive: vi.fn(),
     bindOriginPosition: vi.fn(),
     close: vi.fn(),

@@ -46,6 +46,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
@@ -92,6 +93,7 @@ export interface CreateContextOptions {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   recordActions?: RecordActionsAccess;
   relations?: RelationsAccess;
+  roadmapHorizon?: RoadmapHorizonAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   trustedProxyIps: readonly string[];
@@ -121,6 +123,7 @@ export async function createContext({
   auth,
   backlog,
   backlogMutationContracts,
+  roadmapHorizon,
   captureInbox,
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
@@ -174,6 +177,7 @@ export async function createContext({
     accountPreferencesMutationContract,
     backlog,
     backlogMutationContracts,
+    roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),
     captureInbox,

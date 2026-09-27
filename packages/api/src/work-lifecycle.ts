@@ -1,5 +1,4 @@
 import { z } from "zod";
-
 import {
   captureAttachmentSchema,
   captureFieldsSchema,
@@ -13,6 +12,10 @@ import {
   type MutationContract,
 } from "./mutation-and-undo";
 import type { BlockingRelationStatus } from "./relations";
+import type {
+  RoadmapHorizon,
+  updateWorkHorizonInputSchema,
+} from "./roadmap-horizon";
 
 export const WORK_TYPE_OPTIONS = [
   "Feature",
@@ -687,6 +690,7 @@ export interface WorkProfile {
   id: string;
   key: string;
   number: number;
+  originOwnerRecordId?: string | null;
   originPosition?: WorkOriginPosition;
   plannedStartDate?: string | null;
   primaryFeatureId: string | null;
@@ -695,6 +699,7 @@ export interface WorkProfile {
   reappearDate?: string | null;
   recreatedFrom: { id: string; key: string } | null;
   revision: number;
+  roadmapHorizon?: RoadmapHorizon | null;
   status: WorkStatus;
   statusChangedAt: string;
   targetDate: string | null;
@@ -924,6 +929,10 @@ export interface WorkLifecycleAccess {
   updateReappearDate: (
     accountId: string,
     input: UpdateWorkReappearDateInput,
+  ) => Promise<WorkProfile>;
+  updateRoadmapHorizon: (
+    accountId: string,
+    input: z.input<typeof updateWorkHorizonInputSchema>,
   ) => Promise<WorkProfile>;
   updateStatus: (
     accountId: string,

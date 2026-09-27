@@ -30,6 +30,7 @@ export const work = pgTable(
       .$type<unknown[]>()
       .default(sql`'[]'::jsonb`)
       .notNull(),
+    roadmapHorizon: text("roadmap_horizon"),
     id: text("id").primaryKey(),
     key: text("key").notNull(),
     number: integer("number").notNull(),
@@ -68,6 +69,10 @@ export const work = pgTable(
     uniqueIndex("work_project_number_uidx").on(table.projectId, table.number),
     uniqueIndex("work_project_key_uidx").on(table.projectId, table.key),
     check("work_number_check", sql`${table.number} >= 1`),
+    check(
+      "work_roadmap_horizon_check",
+      sql`${table.roadmapHorizon} is null or ${table.roadmapHorizon} in ('Now', 'Next', 'Later')`,
+    ),
     check("work_revision_check", sql`${table.revision} >= 0`),
     check("work_title_check", sql`length(btrim(${table.title})) > 0`),
     check(

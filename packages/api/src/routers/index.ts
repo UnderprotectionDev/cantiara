@@ -167,6 +167,11 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  projectRoadmapInputSchema,
+  saveRoadmapViewInputSchema,
+  updateWorkHorizonInputSchema,
+} from "../roadmap-horizon";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -356,6 +361,13 @@ function requireBacklog(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.backlog;
+}
+
+function requireRoadmapHorizon(context: Context) {
+  if (!context.roadmapHorizon) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.roadmapHorizon;
 }
 
 function requireBacklogMutationContracts(context: Context) {
@@ -3037,6 +3049,30 @@ export const appRouter = {
       }
       return work;
     }),
+  projectRoadmapViews: protectedProcedure
+    .input(projectRoadmapInputSchema)
+    .handler(async ({ context, input }) => {
+      const views = await requireRoadmapHorizon(context).listViews(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!views) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return views;
+    }),
+  saveRoadmapView: protectedProcedure
+    .input(saveRoadmapViewInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireRoadmapHorizon(context).saveView(
+        context.session.user.id,
+        input,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return view;
+    }),
   projectBacklogPresentation: protectedProcedure
     .input(projectBacklogInputSchema)
     .handler(async ({ context, input }) => {
@@ -3741,6 +3777,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateReappearDate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkHorizon: protectedProcedure
+    .input(updateWorkHorizonInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateRoadmapHorizon(
           context.session.user.id,
           input,
         ),

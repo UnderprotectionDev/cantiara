@@ -3,6 +3,7 @@ import {
   fingerprintMutationPayload,
   type MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import { updateWorkHorizonInputSchema } from "@cantiara/api/roadmap-horizon";
 import {
   bindWorkOriginPositionInputSchema,
   closeWorkInputSchema,
@@ -2494,6 +2495,20 @@ export function createWorkLifecycle({
           targetId: input.workId,
         },
         (work, payload) => ({ ...work, reappearDate: payload.reappearDate }),
+      );
+    },
+
+    updateRoadmapHorizon(accountId, rawInput) {
+      const input = updateWorkHorizonInputSchema.parse(rawInput);
+      return mutateWork(
+        accountId,
+        {
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: { horizon: input.horizon, workId: input.workId },
+          targetId: input.workId,
+        },
+        (work, payload) => ({ ...work, roadmapHorizon: payload.horizon }),
       );
     },
 

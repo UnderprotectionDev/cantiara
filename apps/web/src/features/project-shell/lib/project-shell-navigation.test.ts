@@ -7,6 +7,7 @@ import {
   isWorkRecordHash,
   isWorkSurfaceHash,
   navigationSurfaceFromHash,
+  ROADMAP_HASH,
   workRecordHash,
   workRecordHref,
   workRelationsHash,
@@ -40,6 +41,13 @@ describe("Project Shell Work navigation", () => {
     expect(isWorkSurfaceHash(BACKLOG_HASH)).toBe(true);
     expect(isWorkSurfaceHash(workRecordHash("work-1"))).toBe(true);
     expect(navigationSurfaceFromHash(BACKLOG_HASH, ["Work"], [], [])).toBe(
+      "Work",
+    );
+  });
+
+  test("opens Roadmap within the Work surface", () => {
+    expect(isWorkSurfaceHash(ROADMAP_HASH)).toBe(true);
+    expect(navigationSurfaceFromHash(ROADMAP_HASH, ["Work"], [], [])).toBe(
       "Work",
     );
   });

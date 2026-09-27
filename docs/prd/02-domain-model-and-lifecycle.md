@@ -562,6 +562,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Ufka yerleştir | `Place on horizon` | İsteğe bağlı ufku yazma eylemi |
 | Ufuk yok | `No horizon` | Ufku boşaltma |
 | Adlandırılmış görünümü kaydet | `Save named view` | Roadmap filtre ve grup üstverisini kaydetme |
+| Roadmap grup alanı | `Group by` | Adlandırılmış görünümde mevcut alanı grup ekseni seçme |
+| Roadmap işareti | `Mark by` | Adlandırılmış görünümde ikinci alanı renk ve metin işareti seçme |
+| Roadmap filtresiz değer | `No filter` | Seçili alanla kapsamı daraltmama |
 | Şimdi değil | `Not now` | İş üzerindeki sahipli erteleme izi; durum, Parked veya Karar kaydı değildir |
 | Şimdi değil uygula | `Apply Not now` | Açık İşte `Not now` izini kaydetme eylemi |
 | Yeniden değerlendiriliyor | `Reconsidering` | Etkin `Not now` izini kapatan eylem |
