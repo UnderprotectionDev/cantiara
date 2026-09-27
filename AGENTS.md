@@ -21,6 +21,6 @@ Personal project operating system for a solo product builder. This file is the a
 
 - Write Git branch names in English.
 - Apply schema changes with `bun run db:migrate`; reserve `bun run db:push` for disposable local databases. Drizzle Kit generates versioned SQL in `packages/db/src/migrations/` from `packages/db/src/schema/`.
-- **Schema migrations:** When a task changes the database schema, generate and verify its versioned migration in the same task or selected issue. Before applying it to a shared database, follow "Paralel geliştirmede paylaşılan veritabanı" in [`docs/tech-stack.md`](docs/tech-stack.md); stop if histories diverge.
+- **Schema migrations:** When a task changes the database schema, follow "Paralel geliştirmede paylaşılan veritabanı" in [`docs/tech-stack.md`](docs/tech-stack.md) from generation through close-out. Verify the migration against the database used by the running app before reporting the feature complete; if shared histories diverge, stop and report runtime verification as blocked.
 - Treat `apps/web/src/routeTree.gen.ts` as TanStack Router generated output.
 - When `NEON_LOCAL=true`, use the local PostgreSQL boundary in [`docs/tech-stack.md`](docs/tech-stack.md) and `scripts/neon-local-proxy.ts`.
