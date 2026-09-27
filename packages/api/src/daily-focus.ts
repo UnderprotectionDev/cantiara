@@ -1,3 +1,4 @@
+import { addDays, format, parseISO } from "date-fns";
 import { z } from "zod";
 
 const identifierSchema = z.string().trim().min(1).max(255);
@@ -43,9 +44,7 @@ export type DailyFocusCandidateSource = DailyFocusWork & {
 const dailyFocusCandidateLimit = 5;
 
 function addCalendarDays(date: string, days: number) {
-  const result = new Date(`${date}T00:00:00.000Z`);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result.toISOString().slice(0, 10);
+  return format(addDays(parseISO(date), days), "yyyy-MM-dd");
 }
 
 export function buildDailyFocusCandidates(
