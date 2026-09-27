@@ -25,13 +25,28 @@ export type DailyFocusWork = z.infer<typeof dailyFocusWorkSchema>;
 export const dailyFocusEventSchema = z
   .object({
     id: identifierSchema,
-    kind: z.enum(["Abandoned", "Completed", "Reopened"]),
+    kind: z.enum([
+      "Abandoned",
+      "Completed",
+      "Published",
+      "Reached",
+      "Recorded",
+      "Reopened",
+      "Resolved",
+    ]),
     occurredAt: z.string().datetime({ offset: true }),
     projectId: identifierSchema,
     projectName: identifierSchema,
-    workId: identifierSchema,
-    workKey: identifierSchema,
-    workTitle: identifierSchema,
+    sourceId: identifierSchema,
+    sourceKey: identifierSchema.nullable(),
+    sourceTitle: identifierSchema,
+    sourceType: z.enum([
+      "Decision",
+      "Milestone",
+      "Production Incident",
+      "Project Release",
+      "Work",
+    ]),
   })
   .strict();
 

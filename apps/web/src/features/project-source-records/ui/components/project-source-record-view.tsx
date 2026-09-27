@@ -1,0 +1,109 @@
+import type {
+  ProjectSourceRecord,
+  ProjectSourceType,
+} from "@cantiara/api/project-source-records";
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/utils/orpc";
+
+export default function ProjectSourceRecordView({
+  projectId,
+  sourceId,
+  sourceType,
+}: {
+  projectId: string;
+  sourceId: string;
+  sourceType: ProjectSourceType;
+}) {
+  const source = useQuery(
+    orpc.projectSourceRecord.queryOptions({
+      input: { sourceId, sourceType },
+    }),
+  );
+
+  if (source.isPending) {
+    return (
+      <section aria-label={sourceType} className="space-y-4">
+        <h2 className="font-semibold text-2xl tracking-tight">{sourceType}</h2>
+        <p className="text-muted-foreground" role="status">
+          Loading source record…
+        </p>
+      </section>
+    );
+  }
+
+  if (source.isError || !source.data || source.data.projectId !== projectId) {
+    return (
+      <section aria-label={sourceType} className="space-y-4">
+        <h2 className="font-semibold text-2xl tracking-tight">{sourceType}</h2>
+        <p className="text-muted-foreground" role="alert">
+          Source record is unavailable.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label={source.data.sourceType} className="space-y-5">
+      <header className="surface-header">
+        <p className="text-muted-foreground text-sm">
+          {source.data.sourceType}
+        </p>
+        <h2 className="mt-1 font-semibold text-2xl tracking-tight">
+          {recordTitle(source.data)}
+        </h2>
+        <p className="mt-2 text-muted-foreground text-sm">
+          {recordStatus(source.data)}
+        </p>
+      </header>
+      <dl className="grid gap-5 rounded-lg border border-border/70 bg-card/35 p-5">
+        {recordFields(source.data).map(([label, value]) => (
+          <div className="space-y-1" key={label}>
+            <dt className="font-medium text-sm">{label}</dt>
+            <dd className="whitespace-pre-wrap text-muted-foreground text-sm">
+              {value || "—"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function recordTitle(record: ProjectSourceRecord) {
+  return record.sourceType === "Project Release" ? record.name : record.title;
+}
+
+function recordStatus(record: ProjectSourceRecord) {
+  return record.sourceType === "Decision" ? record.life : record.status;
+}
+
+function recordFields(record: ProjectSourceRecord): [string, string][] {
+  switch (record.sourceType) {
+    case "Decision":
+      return [
+        ["Decision text", record.decision],
+        ["Rationale", record.rationale ?? ""],
+      ];
+    case "Milestone":
+      return [
+        ["Description", record.description ?? ""],
+        ["Target date", record.targetDate ?? ""],
+      ];
+    case "Project Release":
+      return [
+        ["Version label", record.versionLabel ?? ""],
+        ["Description", record.description ?? ""],
+      ];
+    case "Production Incident":
+      return [
+        ["Occurred at", record.occurredAt],
+        ["Impact", record.impact ?? ""],
+        ["Detected how", record.detectedHow ?? ""],
+        ["Resolution", record.resolution ?? ""],
+        ["Root cause", record.rootCause ?? ""],
+        ["Learning", record.learning ?? ""],
+      ];
+    default:
+      return [];
+  }
+}

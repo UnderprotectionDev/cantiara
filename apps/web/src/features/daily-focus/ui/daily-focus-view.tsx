@@ -6,7 +6,10 @@ import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
+import {
+  projectSourceRecordHash,
+  workRecordHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 
@@ -211,7 +214,9 @@ function DailyFocusDayView({
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
-                    {event.kind} · {event.workKey} {event.workTitle}
+                    {event.kind} ·{" "}
+                    {event.sourceKey ? `${event.sourceKey} ` : ""}
+                    {event.sourceTitle}
                   </p>
                   <p className="text-muted-foreground text-sm">
                     <time dateTime={event.occurredAt}>
@@ -225,7 +230,14 @@ function DailyFocusDayView({
                 </div>
                 <Link
                   className="shrink-0 rounded-sm text-primary text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  hash={workRecordHash(event.workId)}
+                  hash={
+                    event.sourceType === "Work"
+                      ? workRecordHash(event.sourceId)
+                      : projectSourceRecordHash(
+                          event.sourceType,
+                          event.sourceId,
+                        )
+                  }
                   params={{ projectId: event.projectId }}
                   to="/projects/$projectId"
                 >

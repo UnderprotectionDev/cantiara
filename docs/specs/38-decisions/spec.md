@@ -57,6 +57,7 @@ Karar Proje ana kaydıdır; yaşam `Valid`, `Superseded`, `Withdrawn`. `Supersed
 - **Modules under test.** Decisions only. Spec review, Risk, Assumption, sharing snapshot apply are counterparts.
 - **Prior art.** No suite yet. Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari): acyclic replacement; related records’ status does not change implicitly. Negative: no voting/scoring (19).
 - **Required counterparts.** Two current Decisions after replace impossible; cycle rejected; Work close does not withdraw; published snapshot not silently updated; Search default is Valid.
+- **Daily Focus source-record evidence.** `apps/server/src/features/project-source-records/server/project-source-records-database.test.ts` checks Decision create/update/withdraw history and Account-scoped reads; `packages/api/src/project-source-records.test.ts` rejects direct `Superseded` transitions. These checks do not replace the supersession chain tests above.
 
 ## Out of Scope
 

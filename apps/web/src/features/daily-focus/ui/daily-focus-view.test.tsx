@@ -15,8 +15,18 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: ReactNode }) => (
-    <a href="#work">{children}</a>
+  Link: ({
+    children,
+    hash,
+    params,
+  }: {
+    children: ReactNode;
+    hash?: string;
+    params?: { projectId: string };
+  }) => (
+    <a href={`/projects/${params?.projectId ?? "project"}#${hash ?? "work"}`}>
+      {children}
+    </a>
   ),
 }));
 vi.mock("@/utils/orpc", () => ({
@@ -95,9 +105,54 @@ describe("Daily Focus selected profile day", () => {
               occurredAt: "2026-09-27T17:30:00.000Z",
               projectId: "project-alpha",
               projectName: "Alpha",
-              workId: "work-1",
-              workKey: "ALPHA-1",
-              workTitle: "First Work",
+              sourceId: "work-1",
+              sourceKey: "ALPHA-1",
+              sourceTitle: "First Work",
+              sourceType: "Work",
+            },
+            {
+              id: "decision-1",
+              kind: "Recorded",
+              occurredAt: "2026-09-27T17:35:00.000Z",
+              projectId: "project-alpha",
+              projectName: "Alpha",
+              sourceId: "decision-1",
+              sourceKey: null,
+              sourceTitle: "First release scope",
+              sourceType: "Decision",
+            },
+            {
+              id: "milestone-1",
+              kind: "Reached",
+              occurredAt: "2026-09-27T17:40:00.000Z",
+              projectId: "project-alpha",
+              projectName: "Alpha",
+              sourceId: "milestone-1",
+              sourceKey: null,
+              sourceTitle: "Private beta",
+              sourceType: "Milestone",
+            },
+            {
+              id: "release-1",
+              kind: "Published",
+              occurredAt: "2026-09-27T17:45:00.000Z",
+              projectId: "project-alpha",
+              projectName: "Alpha",
+              sourceId: "release-1",
+              sourceKey: null,
+              sourceTitle: "First release",
+              sourceType: "Project Release",
+            },
+            {
+              id: "incident-1",
+              kind: "Resolved",
+              occurredAt: "2026-09-27T17:50:00.000Z",
+              projectId: "project-alpha",
+              projectName: "Alpha",
+              sourceId: "incident/1",
+              sourceKey: null,
+              sourceTitle: "Queue delay",
+              sourceType: "Production Incident",
             },
           ],
           focusDate: "2026-09-27",
@@ -118,6 +173,19 @@ describe("Daily Focus selected profile day", () => {
     expect(html).toContain("10:30 AM");
     expect(html).toContain("Alpha");
     expect(html).toContain("ALPHA-1 First Work");
-    expect(html).toContain("Open source record");
+    expect(html).toContain('href="/projects/project-alpha#work-work-1"');
+    expect(html).toContain(
+      'href="/projects/project-alpha#source-decision-decision-1"',
+    );
+    expect(html).toContain(
+      'href="/projects/project-alpha#source-milestone-milestone-1"',
+    );
+    expect(html).toContain(
+      'href="/projects/project-alpha#source-project-release-release-1"',
+    );
+    expect(html).toContain(
+      'href="/projects/project-alpha#source-production-incident-incident%2F1"',
+    );
+    expect(html.match(/Open source record/g)).toHaveLength(5);
   });
 });
