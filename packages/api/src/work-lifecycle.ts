@@ -115,6 +115,23 @@ export const workPlannedStartDateSchema = z
 
 export const workReappearDateSchema = z.iso.date().nullable();
 
+export const workPlannedDateFieldSchema = z.enum([
+  "plannedStartDate",
+  "targetDate",
+]);
+export type WorkPlannedDateField = z.infer<typeof workPlannedDateFieldSchema>;
+
+export const updateWorkPlannedDateInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    field: workPlannedDateFieldSchema,
+    value: z.iso.date(),
+    workId: identifierSchema,
+  })
+  .strict();
+export type UpdateWorkPlannedDateInput = z.input<
+  typeof updateWorkPlannedDateInputSchema
+>;
+
 export const WORK_DATE_FIELDS = [
   "plannedStartDate",
   "targetDate",
@@ -968,6 +985,10 @@ export interface WorkLifecycleAccess {
   updateFeaturePrimarySpec: (
     accountId: string,
     input: UpdateFeaturePrimarySpecInput,
+  ) => Promise<WorkProfile>;
+  updatePlannedDate: (
+    accountId: string,
+    input: UpdateWorkPlannedDateInput,
   ) => Promise<WorkProfile>;
   updateReappearDate: (
     accountId: string,

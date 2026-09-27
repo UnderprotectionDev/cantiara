@@ -219,6 +219,7 @@ import {
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
   updateWorkDateInputSchema,
+  updateWorkPlannedDateInputSchema,
   updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
@@ -3146,6 +3147,18 @@ export const appRouter = {
       }
       return origins;
     }),
+  projectRoadmapBlockers: protectedProcedure
+    .input(projectRoadmapInputSchema)
+    .handler(async ({ context, input }) => {
+      const blockers = await requireRoadmapHorizon(context).listActiveBlockers(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!blockers) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return blockers;
+    }),
   saveRoadmapView: protectedProcedure
     .input(saveRoadmapViewInputSchema)
     .handler(async ({ context, input }) => {
@@ -3869,6 +3882,16 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateReappearDate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkPlannedDate: protectedProcedure
+    .input(updateWorkPlannedDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updatePlannedDate(
           context.session.user.id,
           input,
         ),

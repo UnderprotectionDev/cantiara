@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
-import { workTypeSchema } from "./work-lifecycle";
+import { type WorkProfile, workTypeSchema } from "./work-lifecycle";
 
 const identifier = z.string().trim().min(1).max(255);
 
@@ -52,6 +52,10 @@ export const projectRoadmapInputSchema = z
   .strict();
 
 export interface RoadmapHorizonAccess {
+  listActiveBlockers: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<RoadmapBlocker[] | null>;
   listOrigins: (
     accountId: string,
     projectId: string,
@@ -74,12 +78,56 @@ export interface RoadmapOriginLink {
   targetFeatureId: string;
 }
 
+export type RoadmapBlockerSource = Pick<
+  WorkProfile,
+  "archivedAt" | "id" | "key" | "projectId" | "status" | "title" | "type"
+>;
+
+export interface RoadmapBlocker {
+  blockedWorkId: string;
+  blocker: RoadmapBlockerSource;
+}
+
+export type RoadmapPlacementChoice =
+  | { field: "horizon"; value: RoadmapHorizon }
+  | { field: "plannedStartDate" | "targetDate"; value: string };
+
 export interface RoadmapWork {
   horizon: RoadmapHorizon | null;
   id: string;
   originResearchIds: readonly string[];
+  plannedStartDate?: string | null;
+  targetDate?: string | null;
   title: string;
   type: string;
+}
+
+export const ROADMAP_PLACEMENT_FIELD_LABELS = {
+  horizon: "Horizon",
+  plannedStartDate: "Planned start date",
+  targetDate: "Target date",
+} as const satisfies Record<RoadmapPlacementChoice["field"], string>;
+
+export interface RoadmapPlacementPreview {
+  fieldLabel: "Horizon" | "Planned start date" | "Target date";
+  nextValue: string;
+  previousValue: string;
+}
+
+export function createRoadmapPlacementPreview(
+  work: Pick<RoadmapWork, "horizon" | "plannedStartDate" | "targetDate">,
+  placement: RoadmapPlacementChoice,
+): RoadmapPlacementPreview {
+  const previousValueByField = {
+    horizon: work.horizon ?? "No horizon",
+    plannedStartDate: work.plannedStartDate ?? "No date",
+    targetDate: work.targetDate ?? "No date",
+  };
+  return {
+    fieldLabel: ROADMAP_PLACEMENT_FIELD_LABELS[placement.field],
+    nextValue: placement.value,
+    previousValue: previousValueByField[placement.field],
+  };
 }
 
 export function presentRoadmap<T extends RoadmapWork>(
@@ -118,4 +166,16 @@ export function presentRoadmap<T extends RoadmapWork>(
       return [];
     })
     .sort((left, right) => Number(left.secondary) - Number(right.secondary));
+}
+
+export function listUnplannedRoadmapCandidates<T extends RoadmapWork>(
+  works: readonly T[],
+  view: RoadmapView | null,
+): Array<{ work: T; secondary: boolean }> {
+  return presentRoadmap(works, view).filter(
+    ({ work }) =>
+      work.horizon === null &&
+      (work.plannedStartDate === null || work.plannedStartDate === undefined) &&
+      (work.targetDate === null || work.targetDate === undefined),
+  );
 }
