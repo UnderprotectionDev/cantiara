@@ -7,7 +7,7 @@ import {
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
-import { eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -34,6 +34,14 @@ describeDatabase("Daily Focus personal day membership", () => {
   const firstWorkId = `work-${crypto.randomUUID()}`;
   const secondWorkId = `work-${crypto.randomUUID()}`;
   const metricId = `metric-${crypto.randomUUID()}`;
+  const secondMetricId = `metric-${crypto.randomUUID()}`;
+  const priorityDescriptions = {
+    "Very low": "Very low impact",
+    Low: "Low impact",
+    Medium: "Medium impact",
+    High: "High impact",
+    "Very high": "Very high impact",
+  };
 
   beforeEach(async () => {
     if (!database) {
@@ -91,32 +99,44 @@ describeDatabase("Daily Focus personal day membership", () => {
         status: "In Progress",
       },
     ]);
-    await database.insert(projectBacklogOrder).values({
-      projectId: firstProjectId,
-      workIds: [firstWorkId],
-      revision: 1,
-    });
-    await database.insert(priorityMetricDefinition).values({
-      id: metricId,
-      projectId: firstProjectId,
-      name: "Impact",
-      nameKey: "impact",
-      shortDescription: "Expected impact",
-      rankDescriptions: {
-        "Very low": "Very low impact",
-        Low: "Low impact",
-        Medium: "Medium impact",
-        High: "High impact",
-        "Very high": "Very high impact",
+    await database.insert(projectBacklogOrder).values([
+      { projectId: firstProjectId, workIds: [firstWorkId], revision: 1 },
+      { projectId: secondProjectId, workIds: [secondWorkId], revision: 2 },
+    ]);
+    await database.insert(priorityMetricDefinition).values([
+      {
+        id: metricId,
+        projectId: firstProjectId,
+        name: "Impact",
+        nameKey: "impact",
+        shortDescription: "Expected impact",
+        rankDescriptions: priorityDescriptions,
       },
-    });
-    await database.insert(workPriorityMetricValue).values({
-      id: `value-${crypto.randomUUID()}`,
-      metricId,
-      projectId: firstProjectId,
-      rank: "High",
-      workId: firstWorkId,
-    });
+      {
+        id: secondMetricId,
+        projectId: secondProjectId,
+        name: "Impact",
+        nameKey: "impact",
+        shortDescription: "Expected impact",
+        rankDescriptions: priorityDescriptions,
+      },
+    ]);
+    await database.insert(workPriorityMetricValue).values([
+      {
+        id: `value-${crypto.randomUUID()}`,
+        metricId,
+        projectId: firstProjectId,
+        rank: "High",
+        workId: firstWorkId,
+      },
+      {
+        id: `value-${crypto.randomUUID()}`,
+        metricId: secondMetricId,
+        projectId: secondProjectId,
+        rank: "Low",
+        workId: secondWorkId,
+      },
+    ]);
   });
 
   afterEach(async () => {
@@ -133,22 +153,39 @@ describeDatabase("Daily Focus personal day membership", () => {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
     const focus = createDatabaseDailyFocus(database);
-    const beforeWork = await database
-      .select()
-      .from(work)
-      .where(eq(work.id, firstWorkId));
-    const beforeProject = await database
-      .select()
-      .from(project)
-      .where(eq(project.id, firstProjectId));
-    const beforeOrder = await database
-      .select()
-      .from(projectBacklogOrder)
-      .where(eq(projectBacklogOrder.projectId, firstProjectId));
-    const beforePriority = await database
-      .select()
-      .from(workPriorityMetricValue)
-      .where(eq(workPriorityMetricValue.workId, firstWorkId));
+    const workIds = [firstWorkId, secondWorkId];
+    const projectIds = [firstProjectId, secondProjectId];
+    const readWorks = () =>
+      database
+        .select()
+        .from(work)
+        .where(inArray(work.id, workIds))
+        .orderBy(asc(work.id));
+    const readProjects = () =>
+      database
+        .select()
+        .from(project)
+        .where(inArray(project.id, projectIds))
+        .orderBy(asc(project.id));
+    const readOrders = () =>
+      database
+        .select()
+        .from(projectBacklogOrder)
+        .where(inArray(projectBacklogOrder.projectId, projectIds))
+        .orderBy(asc(projectBacklogOrder.projectId));
+    const readPriorities = () =>
+      database
+        .select()
+        .from(workPriorityMetricValue)
+        .where(inArray(workPriorityMetricValue.workId, workIds))
+        .orderBy(asc(workPriorityMetricValue.workId));
+    const [beforeWork, beforeProject, beforeOrder, beforePriority] =
+      await Promise.all([
+        readWorks(),
+        readProjects(),
+        readOrders(),
+        readPriorities(),
+      ]);
 
     await focus.add(firstAccountId, "2026-09-27", firstWorkId);
     await focus.add(firstAccountId, "2026-09-27", secondWorkId);
@@ -177,26 +214,9 @@ describeDatabase("Daily Focus personal day membership", () => {
         ({ id }) => id,
       ),
     ).toEqual([secondWorkId]);
-    expect(
-      await database.select().from(work).where(eq(work.id, firstWorkId)),
-    ).toEqual(beforeWork);
-    expect(
-      await database
-        .select()
-        .from(project)
-        .where(eq(project.id, firstProjectId)),
-    ).toEqual(beforeProject);
-    expect(
-      await database
-        .select()
-        .from(projectBacklogOrder)
-        .where(eq(projectBacklogOrder.projectId, firstProjectId)),
-    ).toEqual(beforeOrder);
-    expect(
-      await database
-        .select()
-        .from(workPriorityMetricValue)
-        .where(eq(workPriorityMetricValue.workId, firstWorkId)),
-    ).toEqual(beforePriority);
+    expect(await readWorks()).toEqual(beforeWork);
+    expect(await readProjects()).toEqual(beforeProject);
+    expect(await readOrders()).toEqual(beforeOrder);
+    expect(await readPriorities()).toEqual(beforePriority);
   });
 });

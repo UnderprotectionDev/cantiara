@@ -38,6 +38,19 @@ describe("Daily Focus selected profile day", () => {
     mocks.dayInput.mockReset();
   });
 
+  test("waits for the Account time zone before choosing a writable day", () => {
+    vi.mocked(useQuery).mockReturnValueOnce({ isPending: true } as never);
+
+    const html = renderToStaticMarkup(
+      <DailyFocusView accountId="founder" onSelectDay={vi.fn()} />,
+    );
+
+    expect(mocks.dayInput).not.toHaveBeenCalled();
+    expect(html).toContain("Loading Work…");
+    expect(html).not.toContain("Selected day");
+    expect(html).not.toContain("Add to Daily Focus");
+  });
+
   test("opens the Account's calendar day without bringing yesterday's Work forward", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-28T00:30:00.000Z"));

@@ -1,6 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Daily Focus controls close over the selected day and Work.
 
-import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { accountLocalDate } from "@cantiara/api/backlog";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,14 +19,39 @@ export default function DailyFocusView({
   onSelectDay: (day: string) => void;
 }) {
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
-  const timeZone =
-    preferences.data?.timeZone ?? DEFAULT_ACCOUNT_PREFERENCES.timeZone;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-  const focusDate = day ?? accountLocalDate(now, timeZone);
+  if (!preferences.data) {
+    return (
+      <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
+        <h1 className="font-semibold text-3xl tracking-tight">Daily Focus</h1>
+        {preferences.isError ? (
+          <p className="mt-6" role="alert">
+            Daily Focus is unavailable. Try loading this page again.
+          </p>
+        ) : (
+          <p className="mt-6 text-muted-foreground" role="status">
+            Loading Work…
+          </p>
+        )}
+      </main>
+    );
+  }
+
+  const focusDate = day ?? accountLocalDate(now, preferences.data.timeZone);
+  return <DailyFocusDayView focusDate={focusDate} onSelectDay={onSelectDay} />;
+}
+
+function DailyFocusDayView({
+  focusDate,
+  onSelectDay,
+}: {
+  focusDate: string;
+  onSelectDay: (day: string) => void;
+}) {
   const queryClient = useQueryClient();
   const dailyFocus = useQuery(
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
@@ -60,16 +84,9 @@ export default function DailyFocusView({
   });
 
   return (
-    <main
-      className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8"
-      id="main-content"
-      tabIndex={-1}
-    >
+    <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
       <div className="flex flex-col gap-6 border-border/70 border-b pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="mb-2 text-muted-foreground text-sm">
-            Your personal day
-          </p>
           <h1 className="font-semibold text-3xl tracking-tight">Daily Focus</h1>
         </div>
         <label
