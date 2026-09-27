@@ -20,6 +20,7 @@ import type {
   CustomFieldMutationContracts,
   CustomFieldsAccess,
 } from "@cantiara/api/custom-fields";
+import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import {
   DEFAULT_DESKTOP_API_COMPATIBILITY_WINDOW,
   DESKTOP_API_CONTRACT_HEADER,
@@ -139,6 +140,7 @@ export interface AppDependencies {
   corsOrigin: string;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
+  dailyFocus?: DailyFocusAccess;
   database: Database;
   desktopApiNow?: () => Date;
   desktopApiWindow?: DesktopApiCompatibilityWindow;
@@ -1131,6 +1133,7 @@ export function createApp(dependencies: AppDependencies) {
       auth: dependencies.auth,
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
+      dailyFocus: dependencies.dailyFocus,
       roadmapHorizon: dependencies.roadmapHorizon,
       captureInbox: dependencies.captureInbox,
       completionEffectsPreferences: dependencies.completionEffectsPreferences,

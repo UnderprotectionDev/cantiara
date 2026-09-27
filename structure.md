@@ -82,6 +82,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── daily-focus/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── file-attachments/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── external-handoffs/
@@ -150,6 +152,10 @@
 │       │   │   ├── theme-provider.tsx
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
+│       │   │   ├── daily-focus/
+│       │   │   │   └── ui/
+│       │   │   │       ├── daily-focus-view.test.tsx
+│       │   │   │       └── daily-focus-view.tsx
 │       │   │   ├── backlog/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
@@ -411,6 +417,11 @@
 │       │   │   │           ├── work-duplicate-form.tsx
 │       │   │   │           ├── work-template-editor.test.tsx
 │       │   │   │           └── work-template-editor.tsx
+│       │   │   ├── unified-calendar/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── unified-calendar.test.tsx
+│       │   │   │           └── unified-calendar.tsx
 │       │   │   └── workspace-overview/
 │       │   │       └── ui/
 │       │   │           └── components/
@@ -434,6 +445,8 @@
 │       │   │   │   │   │   └── index.tsx
 │       │   │   │   │   ├── index.tsx
 │       │   │   │   │   └── new.tsx
+│       │   │   │   ├── calendar.tsx
+│       │   │   │   ├── daily-focus.tsx
 │       │   │   │   ├── dashboard.tsx
 │       │   │   │   └── route.tsx
 │       │   │   ├── __root.tsx
@@ -471,6 +484,7 @@
 │   │   │   ├── completion-effects.test.ts
 │   │   │   ├── completion-effects.ts
 │   │   │   ├── capture-triage.ts
+│   │   │   ├── daily-focus.ts
 │   │   │   ├── context.ts
 │   │   │   ├── file-attachments.test.ts
 │   │   │   ├── file-attachments.ts
@@ -594,6 +608,6 @@ Record Actions source ownership is split across the API contract (`packages/api/
 
 Bulk Editing owns explicit Work selection, status preview/apply UI, and in-memory operation progress under `apps/web/src/features/bulk-editing/`; it uses the Work Lifecycle API for status changes and safe Undo receipts.
 
-Daily Focus membership persistence is owned by the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`); Record Actions consumes that membership through its atomic write boundary.
+Daily Focus membership uses the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`), the API contract (`packages/api/src/daily-focus.ts`), the server access layer (`apps/server/src/features/daily-focus/server/`), and the personal day view (`apps/web/src/features/daily-focus/`). The authenticated route is `apps/web/src/routes/_auth/daily-focus.tsx`; Record Actions consumes the same membership through its atomic write boundary.
 
 Completion Effects preferences are an Account-scoped catalog owned by `packages/api/src/completion-effects.ts`, persisted in `packages/db/src/schema/completion-effects.ts`, served from `apps/server/src/features/completion-effects/server/`, and configured through `apps/web/src/features/completion-effects/`.

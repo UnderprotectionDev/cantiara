@@ -6,6 +6,7 @@ import type {
 import type { WorkStatus } from "@cantiara/api/work-lifecycle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
+import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
@@ -14,7 +15,6 @@ import {
   requestKanbanStatusMove,
 } from "../../lib/kanban-status";
 import {
-  currentDateInTimeZone,
   filterDefaultKanbanWorks,
   sortKanbanWorks,
 } from "../../lib/kanban-view";
