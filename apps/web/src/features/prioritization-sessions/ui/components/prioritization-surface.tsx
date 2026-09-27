@@ -19,6 +19,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { orpc } from "@/utils/orpc";
 import { usePrioritizationSessions } from "../../hooks/use-prioritization-sessions";
 import { moveWorkInOrder, workPosition } from "../../lib/session-order";
@@ -775,8 +776,4 @@ function formatDate(value: string | null) {
         new Date(value),
       )
     : "Not set";
-}
-
-function mutationErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
 }

@@ -2,6 +2,7 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
+import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 
 import UnifiedCalendar from "./unified-calendar";
 
@@ -12,6 +13,7 @@ const work = {
   plannedStartDate: "2026-09-22",
   projectId: "project-1",
   reappearDate: "2026-09-23",
+  revision: 0,
   status: "Not Started" as const,
   targetDate: "2026-09-24",
   title: "Payment flow",
@@ -24,6 +26,9 @@ const base = {
   selectedProjectId: "all",
   works: [work],
 };
+const noopDateChange = () => undefined;
+const TARGET_DATE_EDITOR_BUTTON =
+  /<button[^>]*aria-label="Target date for Payment flow"[^>]*>/;
 
 function calendarDayContent(html: string, date: string) {
   const label = `aria-label="${formatAccountDate(
@@ -40,6 +45,17 @@ function calendarDayContent(html: string, date: string) {
 }
 
 describe("Unified Calendar", () => {
+  test.each(["Planned start", "Target date", "Reappear date"] as const)(
+    "exposes the %s source date as a movable mark",
+    (dateKind) => {
+      const html = renderToStaticMarkup(
+        <UnifiedCalendar {...base} view="Week" />,
+      );
+
+      expect(html).toContain(`aria-label="${dateKind} for Payment flow"`);
+    },
+  );
+
   test("Day shows only date positions on the selected day", () => {
     const html = renderToStaticMarkup(<UnifiedCalendar {...base} view="Day" />);
     const selectedDay = calendarDayContent(html, base.selectedDate);
@@ -165,5 +181,111 @@ describe("Unified Calendar", () => {
       expect(dayContent).toContain("Payment flow");
       expect(dayContent).toContain("Planned start · Target date");
     }
+  });
+
+  test("Agenda lists selected-month date fields chronologically and opens their sources", () => {
+    const laterWork = {
+      ...work,
+      id: "work-2",
+      key: "PAY-2",
+      plannedStartDate: "2026-10-03",
+      projectId: "project-2",
+      reappearDate: "2026-09-21",
+      targetDate: null,
+      title: "Card recovery",
+    };
+    const html = renderToStaticMarkup(
+      <UnifiedCalendar
+        {...base}
+        projects={[...base.projects, { id: "project-2", name: "Recovery" }]}
+        view="Agenda"
+        works={[work, laterWork]}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Agenda Calendar"');
+    const dateLabels = [
+      "2026-09-21",
+      "2026-09-22",
+      "2026-09-23",
+      "2026-09-24",
+    ].map((date) => formatAccountDate(date, DEFAULT_ACCOUNT_PREFERENCES));
+    const datePositions = dateLabels.map((date) => html.indexOf(date));
+
+    expect(datePositions.every((position) => position >= 0)).toBe(true);
+    expect(datePositions).toEqual(
+      [...datePositions].sort((left, right) => left - right),
+    );
+    expect(html).not.toContain(
+      formatAccountDate("2026-10-03", DEFAULT_ACCOUNT_PREFERENCES),
+    );
+    expect(html.match(/>Open source record</g)).toHaveLength(4);
+    expect(
+      html.match(
+        new RegExp(`href="${workRecordHref("project-1", "work-1")}"`, "g"),
+      ),
+    ).toHaveLength(3);
+    expect(
+      html.match(
+        new RegExp(`href="${workRecordHref("project-2", "work-2")}"`, "g"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  test.each(["Agenda", "Day", "Month", "Week"] as const)(
+    "%s keeps only the selected date kind visible",
+    (view) => {
+      const html = renderToStaticMarkup(
+        <UnifiedCalendar
+          {...base}
+          selectedDate="2026-09-24"
+          selectedDateKinds={["targetDate"]}
+          view={view}
+        />,
+      );
+
+      expect(html).toContain("Target date");
+      expect(html).not.toContain("Planned start");
+      expect(html).not.toContain("Reappear date");
+    },
+  );
+
+  test("Agenda applies the selected Project scope to date-kind rows", () => {
+    const html = renderToStaticMarkup(
+      <UnifiedCalendar
+        {...base}
+        selectedDateKinds={["targetDate"]}
+        selectedProjectId="project-1"
+        view="Agenda"
+        works={[
+          work,
+          {
+            ...work,
+            id: "other-project-work",
+            projectId: "project-2",
+            title: "Other project",
+          },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("Payment flow");
+    expect(html).not.toContain("Other project");
+    expect(html.match(/>Open source record</g)).toHaveLength(1);
+  });
+
+  test("Agenda exposes an accessible date editor for each visible date kind", () => {
+    const html = renderToStaticMarkup(
+      <UnifiedCalendar
+        {...base}
+        onDateChange={noopDateChange}
+        selectedDateKinds={["targetDate"]}
+        view="Agenda"
+      />,
+    );
+
+    expect(html).toMatch(TARGET_DATE_EDITOR_BUTTON);
+    expect(html).not.toContain('aria-label="Planned start for Payment flow"');
+    expect(html).not.toContain('aria-label="Reappear date for Payment flow"');
   });
 });

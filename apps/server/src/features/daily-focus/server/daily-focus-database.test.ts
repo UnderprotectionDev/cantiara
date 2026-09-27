@@ -1,6 +1,7 @@
 import { createDb } from "@cantiara/db";
 import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
+import { dailyFocusMembership } from "@cantiara/db/schema/daily-focus";
 import { decision } from "@cantiara/db/schema/decision";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import {
@@ -38,6 +39,8 @@ describeDatabase("Daily Focus personal day membership", () => {
   const secondProjectId = `project-${crypto.randomUUID()}`;
   const firstWorkId = `work-${crypto.randomUUID()}`;
   const secondWorkId = `work-${crypto.randomUUID()}`;
+  const thirdWorkId = `work-${crypto.randomUUID()}`;
+  const fourthWorkId = `work-${crypto.randomUUID()}`;
   const metricId = `metric-${crypto.randomUUID()}`;
   const secondMetricId = `metric-${crypto.randomUUID()}`;
   const priorityDescriptions = {
@@ -68,6 +71,10 @@ describeDatabase("Daily Focus personal day membership", () => {
       { id: firstWorkspaceId, ownerAccountId: firstAccountId },
       { id: secondWorkspaceId, ownerAccountId: secondAccountId },
     ]);
+    await database.insert(accountPreferences).values({
+      accountId: firstAccountId,
+      timeZone: "America/Los_Angeles",
+    });
     await database.insert(project).values([
       {
         id: firstProjectId,
@@ -103,10 +110,32 @@ describeDatabase("Daily Focus personal day membership", () => {
         type: "Task",
         status: "In Progress",
       },
+      {
+        id: thirdWorkId,
+        projectId: secondProjectId,
+        key: "BETA-2",
+        number: 2,
+        title: "Third Work",
+        type: "Task",
+        status: "In Progress",
+      },
+      {
+        id: fourthWorkId,
+        projectId: secondProjectId,
+        key: "BETA-3",
+        number: 3,
+        title: "Fourth Work",
+        type: "Task",
+        status: "Not Started",
+      },
     ]);
     await database.insert(projectBacklogOrder).values([
       { projectId: firstProjectId, workIds: [firstWorkId], revision: 1 },
-      { projectId: secondProjectId, workIds: [secondWorkId], revision: 2 },
+      {
+        projectId: secondProjectId,
+        workIds: [secondWorkId, thirdWorkId, fourthWorkId],
+        revision: 2,
+      },
     ]);
     await database.insert(priorityMetricDefinition).values([
       {
@@ -147,9 +176,6 @@ describeDatabase("Daily Focus personal day membership", () => {
   afterEach(async () => {
     await database?.delete(user).where(eq(user.id, firstAccountId));
     await database?.delete(user).where(eq(user.id, secondAccountId));
-    await database
-      ?.delete(mutationHistory)
-      .where(eq(mutationHistory.actorId, firstAccountId));
   });
 
   afterAll(async () => {
@@ -228,6 +254,145 @@ describeDatabase("Daily Focus personal day membership", () => {
     expect(await readPriorities()).toEqual(beforePriority);
   });
 
+  test("explains only near Target dates and arrived Reappear dates without adding candidates", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+    const outsideTargetId = `work-${crypto.randomUUID()}`;
+    const futureReappearId = `work-${crypto.randomUUID()}`;
+    const closedWorkId = `work-${crypto.randomUUID()}`;
+
+    await database
+      .update(work)
+      .set({
+        reappearDate: "2026-09-28",
+        targetDate: "2026-10-04",
+      })
+      .where(eq(work.id, firstWorkId));
+    await database
+      .update(work)
+      .set({
+        reappearDate: "2026-09-27",
+      })
+      .where(eq(work.id, secondWorkId));
+    await database.insert(work).values([
+      {
+        id: outsideTargetId,
+        projectId: firstProjectId,
+        key: "ALPHA-2",
+        number: 2,
+        title: "Target date outside the window",
+        type: "Task",
+        status: "Not Started",
+        targetDate: "2026-10-05",
+      },
+      {
+        id: futureReappearId,
+        projectId: firstProjectId,
+        key: "ALPHA-3",
+        number: 3,
+        title: "Reappear date has not arrived",
+        type: "Task",
+        status: "Not Started",
+        reappearDate: "2026-09-28",
+      },
+      {
+        id: closedWorkId,
+        projectId: secondProjectId,
+        key: "BETA-4",
+        number: 4,
+        title: "Closed Work with a near Target date",
+        type: "Task",
+        status: "Closed",
+        closureResult: "Completed",
+        targetDate: "2026-10-01",
+      },
+    ]);
+
+    const day = await focus.list(firstAccountId, focusDate);
+
+    expect(day.candidates.map(({ id, reasons }) => ({ id, reasons }))).toEqual([
+      {
+        id: firstWorkId,
+        reasons: [{ date: "2026-10-04", label: "Target date is near" }],
+      },
+      {
+        id: secondWorkId,
+        reasons: [{ date: "2026-09-27", label: "Reappear date has arrived" }],
+      },
+    ]);
+    expect(day.members).toEqual([]);
+    expect(day.available.map(({ id }) => id)).toContain(firstWorkId);
+    expect(day.available.map(({ id }) => id)).toContain(secondWorkId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(outsideTargetId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(futureReappearId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(closedWorkId);
+  });
+
+  test("accepting a candidate adds only day membership", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+    const workIds = [firstWorkId, secondWorkId];
+    const projectIds = [firstProjectId, secondProjectId];
+    await database
+      .update(work)
+      .set({
+        targetDate: "2026-10-01",
+      })
+      .where(eq(work.id, firstWorkId));
+    const readWorks = () =>
+      database
+        .select()
+        .from(work)
+        .where(inArray(work.id, workIds))
+        .orderBy(asc(work.id));
+    const readProjects = () =>
+      database
+        .select()
+        .from(project)
+        .where(inArray(project.id, projectIds))
+        .orderBy(asc(project.id));
+    const readOrders = () =>
+      database
+        .select()
+        .from(projectBacklogOrder)
+        .where(inArray(projectBacklogOrder.projectId, projectIds))
+        .orderBy(asc(projectBacklogOrder.projectId));
+    const readPriorities = () =>
+      database
+        .select()
+        .from(workPriorityMetricValue)
+        .where(inArray(workPriorityMetricValue.workId, workIds))
+        .orderBy(asc(workPriorityMetricValue.workId));
+    const [beforeWork, beforeProject, beforeOrder, beforePriority] =
+      await Promise.all([
+        readWorks(),
+        readProjects(),
+        readOrders(),
+        readPriorities(),
+      ]);
+
+    expect(
+      (await focus.list(firstAccountId, focusDate)).candidates.map(
+        ({ id }) => id,
+      ),
+    ).toContain(firstWorkId);
+    await focus.add(firstAccountId, focusDate, firstWorkId);
+    const day = await focus.list(firstAccountId, focusDate);
+
+    expect(day.members.map(({ id }) => id)).toContain(firstWorkId);
+    expect(day.candidates.map(({ id }) => id)).not.toContain(firstWorkId);
+    expect(await readWorks()).toEqual(beforeWork);
+    expect(await readProjects()).toEqual(beforeProject);
+    expect(await readOrders()).toEqual(beforeOrder);
+    expect(await readPriorities()).toEqual(beforePriority);
+  });
+
   test("hides archived Work and rejects new membership while allowing removal", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -254,6 +419,246 @@ describeDatabase("Daily Focus personal day membership", () => {
     ).resolves.toBeUndefined();
   });
 
+  test("keeps archived Work in the selected day's close view", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+
+    await focus.add(firstAccountId, focusDate, firstWorkId);
+    await database
+      .update(work)
+      .set({ archivedAt: new Date("2026-09-28T12:00:00.000Z") })
+      .where(eq(work.id, firstWorkId));
+
+    const close = await focus.readClose(firstAccountId, focusDate);
+
+    expect(close.stillOpen.map(({ id }) => id)).toEqual([firstWorkId]);
+  });
+
+  test("reads the selected profile day from Work history without writing state or membership", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-09-27";
+    const workIds = [firstWorkId, secondWorkId, thirdWorkId, fourthWorkId];
+    await Promise.all(
+      workIds.map((workId) => focus.add(firstAccountId, focusDate, workId)),
+    );
+    await database
+      .update(work)
+      .set({
+        closureReason: null,
+        closureResult: "Completed",
+        status: "Closed",
+        statusChangedAt: new Date("2026-09-28T07:30:00.000Z"),
+      })
+      .where(eq(work.id, firstWorkId));
+    await database
+      .update(work)
+      .set({ reappearDate: "2026-09-29", status: "Not Started" })
+      .where(eq(work.id, secondWorkId));
+    await database
+      .update(work)
+      .set({
+        closureReason: null,
+        closureResult: "Completed",
+        status: "Closed",
+        statusChangedAt: new Date("2026-09-28T07:30:00.000Z"),
+      })
+      .where(eq(work.id, thirdWorkId));
+    await database
+      .update(work)
+      .set({ reappearDate: "2026-09-29" })
+      .where(eq(work.id, fourthWorkId));
+
+    await database.insert(mutationHistory).values([
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: firstWorkId,
+        revision: 2,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "a".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "In Progress",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: "Completed",
+            reappearDate: null,
+            status: "Closed",
+          },
+        },
+        occurredAt: new Date("2026-09-28T06:30:00.000Z"),
+      },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: secondWorkId,
+        revision: 2,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "b".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: null,
+            reappearDate: "2026-09-29",
+            status: "Not Started",
+          },
+        },
+        occurredAt: new Date("2026-09-27T22:00:00.000Z"),
+      },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: thirdWorkId,
+        revision: 2,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "c".repeat(64),
+        previousValue: {
+          closureResult: null,
+          status: "Not Started",
+        },
+        nextValue: {
+          closureResult: null,
+          status: "In Progress",
+        },
+        occurredAt: new Date("2026-09-27T21:00:00.000Z"),
+      },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: thirdWorkId,
+        revision: 3,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "d".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "In Progress",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: "Completed",
+            reappearDate: null,
+            status: "Closed",
+          },
+        },
+        occurredAt: new Date("2026-09-28T07:30:00.000Z"),
+      },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: fourthWorkId,
+        revision: 2,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "e".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        occurredAt: new Date("2026-09-27T21:30:00.000Z"),
+      },
+      {
+        id: `history-${crypto.randomUUID()}`,
+        targetId: fourthWorkId,
+        revision: 3,
+        actorType: "User",
+        actorId: firstAccountId,
+        authorizingUserId: firstAccountId,
+        originKind: "human",
+        payloadFingerprint: "f".repeat(64),
+        previousValue: {
+          work: {
+            closureResult: null,
+            reappearDate: null,
+            status: "Not Started",
+          },
+        },
+        nextValue: {
+          work: {
+            closureResult: null,
+            reappearDate: "2026-09-29",
+            status: "Not Started",
+          },
+        },
+        occurredAt: new Date("2026-09-28T07:30:00.000Z"),
+      },
+    ]);
+
+    const readWorks = () =>
+      database
+        .select()
+        .from(work)
+        .where(inArray(work.id, workIds))
+        .orderBy(asc(work.id));
+    const readMemberships = () =>
+      database
+        .select()
+        .from(dailyFocusMembership)
+        .where(eq(dailyFocusMembership.workspaceId, firstWorkspaceId))
+        .orderBy(asc(dailyFocusMembership.workId));
+    const readHistory = () =>
+      database
+        .select()
+        .from(mutationHistory)
+        .where(inArray(mutationHistory.targetId, workIds))
+        .orderBy(asc(mutationHistory.targetId), asc(mutationHistory.revision));
+    const [beforeWorks, beforeMemberships, beforeHistory] = await Promise.all([
+      readWorks(),
+      readMemberships(),
+      readHistory(),
+    ]);
+
+    const close = await focus.readClose(firstAccountId, focusDate);
+
+    expect(close.completed.map(({ id }) => id)).toEqual([firstWorkId]);
+    expect(close.abandoned).toEqual([]);
+    expect(close.deferred.map(({ id }) => id)).toEqual([secondWorkId]);
+    expect(close.stillOpen.map(({ id }) => id)).toEqual([
+      thirdWorkId,
+      fourthWorkId,
+    ]);
+    expect(await readWorks()).toEqual(beforeWorks);
+    expect(await readMemberships()).toEqual(beforeMemberships);
+    expect(await readHistory()).toEqual(beforeHistory);
+  });
+
   test("derives Work lifecycle events from the profile day without changing their timestamps", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -270,10 +675,10 @@ describeDatabase("Daily Focus personal day membership", () => {
       work: { closureResult, status },
     });
 
-    await database.insert(accountPreferences).values({
-      accountId: firstAccountId,
-      timeZone: "America/New_York",
-    });
+    await database
+      .update(accountPreferences)
+      .set({ timeZone: "America/New_York" })
+      .where(eq(accountPreferences.accountId, firstAccountId));
     await database.insert(mutationHistory).values([
       {
         actorId: firstAccountId,
@@ -410,10 +815,10 @@ describeDatabase("Daily Focus personal day membership", () => {
     const incidentHistoryId = `history-${crypto.randomUUID()}`;
     const nextDayIncidentHistoryId = `history-${crypto.randomUUID()}`;
 
-    await database.insert(accountPreferences).values({
-      accountId: firstAccountId,
-      timeZone: "America/Los_Angeles",
-    });
+    await database
+      .update(accountPreferences)
+      .set({ timeZone: "America/Los_Angeles" })
+      .where(eq(accountPreferences.accountId, firstAccountId));
     await database.insert(decision).values({
       createdAt: new Date("2026-03-08T08:00:00.000Z"),
       decision: "Keep the first release small.",

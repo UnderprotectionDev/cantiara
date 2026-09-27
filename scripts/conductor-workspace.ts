@@ -18,6 +18,7 @@ import {
   saveState,
   type WorkspaceState,
   workspaceEnvironment,
+  workspaceIdentity,
   workspacePort,
 } from "./workspace-neon";
 
@@ -35,14 +36,6 @@ const config = JSON.parse(
   readFileSync(".conductor/neon.json", "utf8"),
 ) as Config;
 const kinds = ["primary", "security"] as const;
-
-function workspaceId() {
-  const id = process.env.CONDUCTOR_WORKSPACE_ID;
-  if (!id) {
-    throw new Error("CONDUCTOR_WORKSPACE_ID is required");
-  }
-  return id;
-}
 
 function assertProjectConfiguration() {
   if (
@@ -187,7 +180,7 @@ async function setup() {
     // biome-ignore lint/style/useErrorCause: Git errors can contain local credential details.
     throw new Error("Could not refresh origin/main before workspace setup");
   }
-  const id = workspaceId();
+  const id = workspaceIdentity();
   const state: WorkspaceState = readInitialState(id);
   const primary = await provision("primary", state);
   const security = await provision("security", state);
@@ -265,67 +258,91 @@ async function runMigration(
 
 async function run() {
   assertProjectConfiguration();
-  const env = await workspaceEnvironment(readState());
+  const workspaceEnv = await workspaceEnvironment(readState());
+  const port = Number(workspaceEnv.PORT);
+  const env = {
+    ...workspaceEnv,
+    CONDUCTOR_DOCS_PORT: String(port + 2),
+    CONDUCTOR_EXTENSION_PORT: String(port + 3),
+  };
   await runMigration("primary", env);
   await runMigration("security", env);
-  const api = Bun.spawn(["bun", "run", "--cwd", "apps/server", "dev"], {
-    env,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  let web: ReturnType<typeof Bun.spawn> | undefined;
-  const stop = () => {
-    web?.kill();
-    api.kill();
-  };
+  const dev = Bun.spawn(
+    [
+      "./node_modules/.bin/turbo",
+      "run",
+      "dev",
+      "--ui=tui",
+      "--filter=server",
+      "--filter=web",
+      "--filter=@cantiara/api",
+      "--filter=fumadocs",
+      "--filter=extension",
+    ],
+    {
+      env,
+      stdout: "inherit",
+      stderr: "inherit",
+      stdin: "inherit",
+    },
+  );
+  const stop = () => dev.kill();
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
   try {
-    let ready = false;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      if (api.exitCode !== null) {
-        throw new Error("API exited before becoming ready");
-      }
-      try {
-        // biome-ignore lint/performance/noAwaitInLoops: Readiness probes must run in order.
-        const response = await fetch(
-          `${env.BETTER_AUTH_URL}/api/auth/get-session`,
-          {
-            signal: AbortSignal.timeout(2000),
-          },
-        );
-        if (response.ok) {
-          ready = true;
-          break;
-        }
-      } catch {
-        /* API is still starting. */
-      }
-      await Bun.sleep(500);
-    }
-    if (!ready) {
-      throw new Error("API did not become ready; web was not started");
-    }
-    web = Bun.spawn(
-      [
-        "bun",
-        "run",
-        "--cwd",
-        "apps/web",
-        "dev",
-        "--host",
-        "localhost",
-        "--port",
-        String(Number(env.PORT) + 1),
-      ],
-      { env, stdout: "inherit", stderr: "inherit" },
-    );
-    const code = await web.exited;
-    if (code !== 0) {
-      throw new Error("Web process exited unsuccessfully");
+    if ((await dev.exited) !== 0) {
+      throw new Error("Development tasks exited unsuccessfully");
     }
   } finally {
     stop();
+    process.off("SIGTERM", stop);
+    process.off("SIGINT", stop);
+  }
+}
+
+async function runOne(name: string) {
+  const commands: Record<string, string[]> = {
+    web: ["bun", "run", "--cwd", "apps/web", "dev"],
+    server: ["bun", "run", "--cwd", "apps/server", "dev"],
+    docs: ["bun", "run", "--cwd", "apps/fumadocs", "dev"],
+    extension: ["bun", "run", "--cwd", "apps/extension", "dev"],
+    "api-types": ["bun", "run", "--cwd", "packages/api", "dev"],
+  };
+  const command = commands[name];
+  if (!command) {
+    throw new Error("Expected web, server, docs, extension, or api-types");
+  }
+
+  assertProjectConfiguration();
+  const workspaceEnv = await workspaceEnvironment(readState());
+  const port = Number(workspaceEnv.PORT);
+  const env = {
+    ...workspaceEnv,
+    CONDUCTOR_DOCS_PORT: String(port + 2),
+    CONDUCTOR_EXTENSION_PORT: String(port + 3),
+  };
+  if (name === "server") {
+    await runMigration("primary", env);
+    await runMigration("security", env);
+  }
+
+  const child = Bun.spawn(command, {
+    env,
+    stdout: "inherit",
+    stderr: "inherit",
+    stdin: "inherit",
+  });
+  const stop = () => child.kill();
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+  try {
+    if ((await child.exited) !== 0) {
+      throw new Error(`${name} exited unsuccessfully`);
+    }
+  } finally {
+    stop();
+    process.off("SIGTERM", stop);
+    process.off("SIGINT", stop);
   }
 }
 
@@ -336,6 +353,9 @@ try {
       break;
     case "run":
       await run();
+      break;
+    case "run-one":
+      await runOne(process.argv[3]);
       break;
     case "archive":
       await archive();

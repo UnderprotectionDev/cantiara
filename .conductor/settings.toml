@@ -150,6 +150,31 @@ command = "bun scripts/conductor-workspace.ts run"
 default = true
 icon = "play"
 
+[scripts.run.web]
+available_in = ["local"]
+command = "bun scripts/conductor-workspace.ts run-one web"
+icon = "globe"
+
+[scripts.run.server]
+available_in = ["local"]
+command = "bun scripts/conductor-workspace.ts run-one server"
+icon = "server"
+
+[scripts.run.docs]
+available_in = ["local"]
+command = "bun scripts/conductor-workspace.ts run-one docs"
+icon = "book-open"
+
+[scripts.run.extension]
+available_in = ["local"]
+command = "bun scripts/conductor-workspace.ts run-one extension"
+icon = "puzzle"
+
+[scripts.run.api-types]
+available_in = ["local"]
+command = "bun scripts/conductor-workspace.ts run-one api-types"
+icon = "braces"
+
 [[preview_urls]]
 name = "Web"
 url = "http://localhost:$((CONDUCTOR_PORT + 1))"
@@ -157,3 +182,7 @@ url = "http://localhost:$((CONDUCTOR_PORT + 1))"
 [[preview_urls]]
 name = "API"
 url = "http://localhost:$CONDUCTOR_PORT"
+
+[[preview_urls]]
+name = "Docs"
+url = "http://localhost:$((CONDUCTOR_PORT + 2))"

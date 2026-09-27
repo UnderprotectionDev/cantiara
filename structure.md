@@ -144,7 +144,8 @@
 │       │   ├── work-blockers.e2e.ts
 │       │   ├── work-drafts.e2e.ts
 │       │   ├── work-lifecycle.e2e.ts
-│       │   └── work-templates.e2e.ts
+│       │   ├── work-templates.e2e.ts
+│       │   └── unified-calendar.e2e.ts
 │       ├── src/
 │       │   ├── components/
 │       │   │   ├── header.tsx
@@ -491,6 +492,7 @@
 │   │   │   ├── completion-effects.test.ts
 │   │   │   ├── completion-effects.ts
 │   │   │   ├── capture-triage.ts
+│   │   │   ├── daily-focus.test.ts
 │   │   │   ├── daily-focus.ts
 │   │   │   ├── context.ts
 │   │   │   ├── file-attachments.test.ts
@@ -603,6 +605,7 @@
 │   ├── conductor-workspace.ts
 │   ├── install-hooks.ts
 │   ├── neon-local-proxy.ts
+│   ├── wait-for-workspace-api.ts
 │   ├── workspace-migrate.ts
 │   ├── workspace-env.test.ts
 │   ├── workspace-env.ts

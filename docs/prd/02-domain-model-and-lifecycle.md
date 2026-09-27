@@ -275,7 +275,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Gün | `Day` | Birleşik Takvimde yalnız seçili gündeki tarih konumlarını gösteren görünüm |
 | Ay | `Month` | Birleşik Takvimde ay penceresindeki konumlar ve başlangıç–hedef aralığı |
 | Hafta görünümü | `Week` | Birleşik Takvimde hafta penceresindeki konumlar ve başlangıç–hedef aralığı; Hesap tercihindeki hafta önizlemesi değildir |
-| Agenda | `Agenda` | Birleşik Takvimde aynı kayıtları kapsam ve tarih türü filtreleriyle kronolojik yoğun listede sunan görünüm; Event kaydı, üyelik veya ikinci takvim gerçeği değildir |
+| Agenda | `Agenda` | Birleşik Takvimde seçili ayın kayıtlarını kapsam ve tarih türü filtreleriyle kronolojik yoğun listede sunan görünüm; Event kaydı, üyelik veya ikinci takvim gerçeği değildir |
+| Tarih türleri | `Date kinds` | Birleşik Takvimde Planned start, Target date ve Reappear date filtre grubu; seçimi Day, Week, Month ve Agenda boyunca korunur |
 | Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının bütün Projeleri kapsayan seçeneği |
 | Takvimde tarihli İş yok | `No dated Work in this Calendar view.` | Seçili görünüm penceresinde tarihli İş olmadığında boş durum |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
