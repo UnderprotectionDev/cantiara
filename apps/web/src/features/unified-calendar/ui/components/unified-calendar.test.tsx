@@ -1,6 +1,7 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 
 import UnifiedCalendar from "./unified-calendar";
 
@@ -24,15 +25,29 @@ const base = {
   works: [work],
 };
 
+function calendarDayContent(html: string, date: string) {
+  const label = `aria-label="${formatAccountDate(
+    date,
+    DEFAULT_ACCOUNT_PREFERENCES,
+  )}"`;
+  const labelIndex = html.indexOf(label);
+  if (labelIndex < 0) {
+    throw new Error(`Calendar did not render the day region for ${date}.`);
+  }
+  const contentStart = html.indexOf(">", labelIndex) + 1;
+  const contentEnd = html.indexOf("</section>", contentStart);
+  return html.slice(contentStart, contentEnd);
+}
+
 describe("Unified Calendar", () => {
   test("Day shows only date positions on the selected day", () => {
     const html = renderToStaticMarkup(<UnifiedCalendar {...base} view="Day" />);
+    const selectedDay = calendarDayContent(html, base.selectedDate);
 
-    expect(html).toContain("Reappear date");
-    expect(html).not.toContain("Planned start");
-    expect(html).not.toContain("Target date");
-    expect(html).not.toContain("date-range");
-    expect(html).toContain("Payment flow");
+    expect(selectedDay).toContain("Reappear date");
+    expect(selectedDay).not.toContain("Planned start");
+    expect(selectedDay).not.toContain("Target date");
+    expect(selectedDay).toContain("Payment flow");
   });
 
   test.each(["Week", "Month"] as const)(
@@ -42,40 +57,51 @@ describe("Unified Calendar", () => {
         <UnifiedCalendar {...base} view={view} />,
       );
 
-      expect(html.match(/data-date-range="work-1"/g)).toHaveLength(3);
+      for (const date of ["2026-09-22", "2026-09-23", "2026-09-24"]) {
+        const dayContent = calendarDayContent(html, date);
+        expect(dayContent).toContain("Payment flow");
+        expect(dayContent).toContain("Planned start · Target date");
+      }
       expect(html).toContain("Planned start");
       expect(html).toContain("Target date");
       expect(html).toContain("Reappear date");
-      expect(html).toContain("2026-09-22");
-      expect(html).toContain("2026-09-24");
+      expect(html).toContain(
+        formatAccountDate("2026-09-22", DEFAULT_ACCOUNT_PREFERENCES),
+      );
+      expect(html).toContain(
+        formatAccountDate("2026-09-24", DEFAULT_ACCOUNT_PREFERENCES),
+      );
     },
   );
 
-  test("scope keeps planned Work regardless of its status", () => {
-    const html = renderToStaticMarkup(
-      <UnifiedCalendar
-        {...base}
-        selectedDate="2026-09-22"
-        selectedProjectId="project-1"
-        view="Day"
-        works={[
-          work,
-          {
-            ...work,
-            id: "work-2",
-            key: "OTHER-2",
-            projectId: "project-2",
-            title: "Other project",
-          },
-        ]}
-      />,
-    );
+  test.each(["Not Started", "In Progress", "Blocked", "Closed"] as const)(
+    "scope keeps planned Work with %s status visible",
+    (status) => {
+      const html = renderToStaticMarkup(
+        <UnifiedCalendar
+          {...base}
+          selectedDate="2026-09-22"
+          selectedProjectId="project-1"
+          view="Day"
+          works={[
+            { ...work, status },
+            {
+              ...work,
+              id: "work-2",
+              key: "OTHER-2",
+              projectId: "project-2",
+              title: "Other project",
+            },
+          ]}
+        />,
+      );
+      const selectedDay = calendarDayContent(html, "2026-09-22");
 
-    expect(html).toContain("Planned start");
-    expect(html).toContain("Payment flow");
-    expect(html).not.toContain("Other project");
-    expect(html).not.toContain("date-range");
-  });
+      expect(selectedDay).toContain("Planned start");
+      expect(selectedDay).toContain("Payment flow");
+      expect(html).not.toContain("Other project");
+    },
+  );
 
   test("a lone planned start stays a single kind and an empty window is explicit", () => {
     const startOnly = { ...work, reappearDate: null, targetDate: null };
@@ -91,8 +117,10 @@ describe("Unified Calendar", () => {
       />,
     );
 
-    expect(week).toContain("Planned start");
-    expect(week).not.toContain("date-range");
+    const plannedStartDay = calendarDayContent(week, "2026-09-22");
+    expect(plannedStartDay).toContain("Planned start");
+    expect(plannedStartDay).not.toContain("Planned start · Target date");
+    expect(plannedStartDay).not.toContain("Target date");
     expect(emptyDay).toContain("No dated Work in this Calendar view.");
   });
 
@@ -115,7 +143,6 @@ describe("Unified Calendar", () => {
     );
 
     expect(html).not.toContain("August Work");
-    expect(html).not.toContain('data-calendar-day="2026-08-31"');
   });
 
   test("a start and target still form a range when target precedes start", () => {
@@ -133,8 +160,10 @@ describe("Unified Calendar", () => {
       />,
     );
 
-    expect(html.match(/data-date-range="work-1"/g)).toHaveLength(3);
-    expect(html).toContain("Planned start");
-    expect(html).toContain("Target date");
+    for (const date of ["2026-09-22", "2026-09-23", "2026-09-24"]) {
+      const dayContent = calendarDayContent(html, date);
+      expect(dayContent).toContain("Payment flow");
+      expect(dayContent).toContain("Planned start · Target date");
+    }
   });
 });

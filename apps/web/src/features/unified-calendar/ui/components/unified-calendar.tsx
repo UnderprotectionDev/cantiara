@@ -10,6 +10,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
+import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
 
 export type CalendarView = "Day" | "Week" | "Month";
 export type CalendarWork = Pick<
@@ -40,10 +41,6 @@ function dateSpan(work: CalendarWork) {
     end: plannedStartDate > targetDate ? plannedStartDate : targetDate,
     start: plannedStartDate < targetDate ? plannedStartDate : targetDate,
   };
-}
-
-function sourceHref(work: CalendarWork) {
-  return `/projects/${encodeURIComponent(work.projectId)}#work-${encodeURIComponent(work.id)}`;
 }
 
 function visibleDays(
@@ -152,7 +149,6 @@ export default function UnifiedCalendar({
             <section
               aria-label={formatAccountDate(day, preferences)}
               className="min-h-28 rounded-lg border border-border/70 bg-card/40 p-3"
-              data-calendar-day={day}
               key={day}
             >
               <h2 className="mb-2 border-border/60 border-b pb-2 font-medium text-sm">
@@ -165,8 +161,7 @@ export default function UnifiedCalendar({
               {ranges.map(({ work }) => (
                 <a
                   className="mb-2 block rounded bg-primary/10 px-2 py-1 text-xs hover:bg-primary/15 focus-visible:outline-2 focus-visible:outline-ring"
-                  data-date-range={work.id}
-                  href={sourceHref(work)}
+                  href={workRecordHref(work.projectId, work.id)}
                   key={work.id}
                 >
                   <span className="font-medium">{work.key}</span> · {work.title}
@@ -181,7 +176,7 @@ export default function UnifiedCalendar({
                     <li key={`${work.id}:${field}`}>
                       <a
                         className="block rounded border border-border/70 px-2 py-1 text-xs hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-                        href={sourceHref(work)}
+                        href={workRecordHref(work.projectId, work.id)}
                       >
                         <span className="block font-medium">{label}</span>
                         <span>

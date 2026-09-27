@@ -8,6 +8,7 @@ import {
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { addDays, addMonths, addWeeks, format, parseISO } from "date-fns";
+import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import UnifiedCalendar, {
   type CalendarView,
 } from "@/features/unified-calendar/ui/components/unified-calendar";
@@ -38,19 +39,6 @@ export const Route = createFileRoute("/_auth/calendar")({
   component: CalendarRoute,
 });
 
-function profileToday(timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(
-    parts.map(({ type, value }) => [type, value]),
-  );
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
 function CalendarRoute() {
   const { session } = Route.useRouteContext();
   const search = Route.useSearch();
@@ -60,7 +48,8 @@ function CalendarRoute() {
     accountPreferencesQueryOptions(session.data?.user.id),
   );
   const formatting = preferences.data ?? DEFAULT_ACCOUNT_PREFERENCES;
-  const selectedDate = search.calendarDay ?? profileToday(formatting.timeZone);
+  const selectedDate =
+    search.calendarDay ?? currentDateInTimeZone(formatting.timeZone);
   const view = search.view ?? "Month";
   const selectedProjectId =
     search.projectId && projects.data?.some(({ id }) => id === search.projectId)
@@ -77,9 +66,16 @@ function CalendarRoute() {
         }),
       ),
   });
+  const failed =
+    preferences.isError ||
+    projects.isError ||
+    workQueries.some((query) => query.isError);
   const loading =
-    projects.isPending || workQueries.some((query) => query.isPending);
-  const failed = projects.isError || workQueries.some((query) => query.isError);
+    !failed &&
+    (preferences.isPending ||
+      projects.isPending ||
+      workQueries.some((query) => query.isPending));
+  const preferencesUnavailable = preferences.isPending || preferences.isError;
   const works = workQueries.flatMap((query) => query.data ?? []);
 
   function updateSearch(next: Partial<typeof search>) {
@@ -109,69 +105,73 @@ function CalendarRoute() {
             Explore Work dates across Projects.
           </p>
         </header>
-        <div className="mb-6 flex flex-wrap items-end gap-4">
-          <fieldset className="flex gap-1">
-            <legend className="sr-only">Calendar view</legend>
-            {VIEWS.map((option) => (
+        {preferencesUnavailable ? null : (
+          <div className="mb-6 flex flex-wrap items-end gap-4">
+            <fieldset className="flex gap-1">
+              <legend className="sr-only">Calendar view</legend>
+              {VIEWS.map((option) => (
+                <Button
+                  aria-pressed={view === option}
+                  key={option}
+                  onClick={() => updateSearch({ view: option })}
+                  size="sm"
+                  type="button"
+                  variant={view === option ? "secondary" : "outline"}
+                >
+                  {option}
+                </Button>
+              ))}
+            </fieldset>
+            <label className="grid gap-1 text-sm">
+              Selected day
+              <input
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                onChange={(event) =>
+                  updateSearch({ calendarDay: event.target.value })
+                }
+                type="date"
+                value={selectedDate}
+              />
+            </label>
+            <div className="grid gap-1 text-sm">
+              <label htmlFor="calendar-project">Project</label>
+              <NativeSelect
+                id="calendar-project"
+                onChange={(event) =>
+                  updateSearch({ projectId: event.target.value })
+                }
+                value={selectedProjectId}
+              >
+                <NativeSelectOption value="all">
+                  All Projects
+                </NativeSelectOption>
+                {projects.data?.map((project) => (
+                  <NativeSelectOption key={project.id} value={project.id}>
+                    {project.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex gap-1">
               <Button
-                aria-pressed={view === option}
-                key={option}
-                onClick={() => updateSearch({ view: option })}
+                onClick={() => move(-1)}
                 size="sm"
                 type="button"
-                variant={view === option ? "secondary" : "outline"}
+                variant="outline"
               >
-                {option}
+                Previous
               </Button>
-            ))}
-          </fieldset>
-          <label className="grid gap-1 text-sm">
-            Selected day
-            <input
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              onChange={(event) =>
-                updateSearch({ calendarDay: event.target.value })
-              }
-              type="date"
-              value={selectedDate}
-            />
-          </label>
-          <div className="grid gap-1 text-sm">
-            <label htmlFor="calendar-project">Project</label>
-            <NativeSelect
-              id="calendar-project"
-              onChange={(event) =>
-                updateSearch({ projectId: event.target.value })
-              }
-              value={selectedProjectId}
-            >
-              <NativeSelectOption value="all">All Projects</NativeSelectOption>
-              {projects.data?.map((project) => (
-                <NativeSelectOption key={project.id} value={project.id}>
-                  {project.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              <Button
+                onClick={() => move(1)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Next
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-1">
-            <Button
-              onClick={() => move(-1)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Previous
-            </Button>
-            <Button
-              onClick={() => move(1)}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        )}
         {loading ? <p role="status">Loading Calendar…</p> : null}
         {failed ? (
           <p className="text-destructive text-sm" role="alert">
