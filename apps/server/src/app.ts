@@ -28,6 +28,7 @@ import {
   type DesktopApiCompatibilityWindow,
   evaluateDesktopApiCompatibility,
 } from "@cantiara/api/desktop-api-window";
+import type { DocumentsAccess } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import {
@@ -147,6 +148,7 @@ export interface AppDependencies {
   desktopApiNow?: () => Date;
   desktopApiWindow?: DesktopApiCompatibilityWindow;
   desktopOrigins: readonly string[];
+  documents?: DocumentsAccess;
   fileAttachments?: FileAttachmentAccess;
   githubAvailability: Pick<
     GitHubAvailability,
@@ -1138,6 +1140,7 @@ export function createApp(dependencies: AppDependencies) {
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
       dailyFocus: dependencies.dailyFocus,
+      documents: dependencies.documents,
       roadmapHorizon: dependencies.roadmapHorizon,
       captureInbox: dependencies.captureInbox,
       completionEffectsPreferences: dependencies.completionEffectsPreferences,

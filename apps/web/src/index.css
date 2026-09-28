@@ -8,4 +8,23 @@
   .skip-link:focus-visible {
     @apply top-3 ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
+
+  .document-rich-editor:focus-within {
+    @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  .document-rich-editor :is(h1, h2, h3),
+  .document-preview :is(h1, h2, h3) {
+    @apply mt-4 mb-2 font-semibold;
+  }
+
+  .document-rich-editor :is(pre, table),
+  .document-preview :is(pre, table) {
+    @apply my-3 overflow-auto rounded-md border border-border bg-muted p-3 text-sm;
+  }
+
+  .document-rich-editor :is(td, th),
+  .document-preview :is(td, th) {
+    @apply border border-border px-3 py-2 text-left;
+  }
 }

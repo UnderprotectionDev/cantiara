@@ -512,6 +512,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Durum | `Status` | Yapılandırma modu dışında günlük durum değiştirme |
 | Planlama | `Planning` | Yapılandırma modu dışında günlük planlama |
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
+| Belge oluştur | `Create Document` | Projede yeni Belge kaydı oluşturma eylemi |
+| Belge düzenleyici | `Document editor` | Belgenin zengin metin düzenleme alanı |
+| Belge önizlemesi | `Document preview` | Belgenin Markdown, diyagram ve formül görünümü |
+| Belge seç | `Select a Document.` | Belge seçilmediğinde gösterilen boş durum |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Karar hükmü | `Decision text` | Kararın yürürlükteki seçim metni |

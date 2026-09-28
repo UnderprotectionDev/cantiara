@@ -10,6 +10,7 @@ export default defineConfig({
     "./src/schema/completion-effects.ts",
     "./src/schema/daily-focus.ts",
     "./src/schema/decision.ts",
+    "./src/schema/document.ts",
     "./src/schema/file-attachments.ts",
     "./src/schema/project.ts",
     "./src/schema/project-milestone.ts",

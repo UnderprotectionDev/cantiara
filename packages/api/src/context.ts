@@ -18,6 +18,7 @@ import type {
   CustomFieldsAccess,
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
+import type { DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
@@ -150,6 +151,7 @@ export interface Context {
   dailyFocus?: DailyFocusAccess;
   db: Database;
   desktopApiContract?: string;
+  documents?: DocumentsAccess;
   fileAttachments?: FileAttachmentAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;

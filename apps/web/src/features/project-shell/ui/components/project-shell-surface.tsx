@@ -63,6 +63,9 @@ import type { WorkStatusActionRequest } from "@/features/work-lifecycle/ui/forms
 const PriorityMap = lazy(
   () => import("@/features/priority-metrics/ui/components/priority-map"),
 );
+const ProjectDocumentsSurface = lazy(
+  () => import("@/features/documents/ui/components/project-documents-surface"),
+);
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
@@ -204,7 +207,14 @@ export default function ProjectShellSurface({
       configuration.enabledAreas.includes("Documents") &&
       !configuration.hiddenAreas.includes("Documents")
     ) {
-      return <FileAttachmentsSurface projectId={projectId} />;
+      return (
+        <div className="space-y-8">
+          <Suspense fallback={<p>Loading Documents…</p>}>
+            <ProjectDocumentsSurface projectId={projectId} />
+          </Suspense>
+          <FileAttachmentsSurface projectId={projectId} />
+        </div>
+      );
     }
 
     return (

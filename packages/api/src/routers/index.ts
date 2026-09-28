@@ -63,6 +63,14 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  createDocumentInputSchema,
+  DocumentStaleRevisionError,
+  DocumentUnavailableError,
+  documentIdSchema,
+  projectIdSchema,
+  updateDocumentInputSchema,
+} from "../documents";
+import {
   cancelExternalExecutionHandoffInputSchema,
   confirmExternalExecutionHandoffReconcileInputSchema,
   listExternalExecutionHandoffHistoryInputSchema,
@@ -2042,6 +2050,72 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  documents: protectedProcedure
+    .input(z.object({ projectId: projectIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.list(
+          context.session.user.id,
+          input.projectId,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  document: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const result = await context.documents.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return result;
+    }),
+  createDocument: protectedProcedure
+    .input(createDocumentInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.create(context.session.user.id, input);
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  updateDocument: protectedProcedure
+    .input(updateDocumentInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.update(context.session.user.id, input);
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        if (error instanceof DocumentStaleRevisionError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
   externalExecutionHandoffs: protectedProcedure
     .input(listExternalExecutionHandoffsInputSchema)
     .handler(async ({ context, input }) => {

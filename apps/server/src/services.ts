@@ -45,6 +45,7 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { createDatabaseDocuments } from "./features/documents/server/documents-database";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
@@ -86,6 +87,7 @@ import { createDatabaseWorkTemplates } from "./features/work-templates/server/wo
 import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/server/workspace-overview-database";
 
 const db = createDb(env);
+export const documents = createDatabaseDocuments(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
 const securityEventDb =

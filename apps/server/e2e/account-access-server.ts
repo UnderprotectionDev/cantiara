@@ -42,6 +42,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseDocuments } from "../src/features/documents/server/documents-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "../src/features/prioritization-sessions/server/prioritization-sessions-database";
@@ -79,6 +80,7 @@ if (!(databaseUrl && securityEventDatabaseUrl && secret)) {
 }
 
 const database = createDb({ DATABASE_URL: databaseUrl });
+const documents = createDatabaseDocuments(database);
 const securityEventDatabase = createSecurityEventDb({
   DATABASE_URL: securityEventDatabaseUrl,
 });
@@ -238,6 +240,7 @@ const app = createApp({
   customFieldMutationContracts,
   corsOrigin: webOrigin,
   database,
+  documents,
   // Keep integration coverage inside the API window regardless of CI date.
   desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
   desktopOrigins: [],
@@ -407,6 +410,7 @@ async function createE2EFixture(fixtureKey: string) {
           starterConfiguration: "Blank Project",
         })
       : null;
+  const documentsProject = await createDocumentsFixture(fixtureKey, founder.id);
   if (tagsProject) {
     await workLifecycle.create(founder.id, {
       baseRevision: 0,
@@ -500,6 +504,7 @@ async function createE2EFixture(fixtureKey: string) {
     calendarProject?.id ??
     scopeTreeProject?.id ??
     tagsProject?.id ??
+    documentsProject?.id ??
     bulkEditProgressFixture?.projectId;
 
   return {
@@ -516,6 +521,17 @@ async function createE2EFixture(fixtureKey: string) {
       ? { usedInSourceProjectId, usedInSourceWorkId }
       : {}),
   };
+}
+
+function createDocumentsFixture(fixtureKey: string, accountId: string) {
+  if (fixtureKey !== "documents") {
+    return null;
+  }
+  return projectShell.create(accountId, {
+    name: "Documents Project",
+    shortCode: "DOCS",
+    starterConfiguration: "Blank Project",
+  });
 }
 
 async function createBulkEditProgressFixture(accountId: string) {

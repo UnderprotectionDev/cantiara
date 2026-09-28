@@ -6,6 +6,7 @@ export * from "./completion-effects";
 export * from "./custom-fields";
 export * from "./daily-focus";
 export * from "./decision";
+export * from "./document";
 export * from "./file-attachments";
 export * from "./personal-reminders";
 export * from "./prioritization-session";
