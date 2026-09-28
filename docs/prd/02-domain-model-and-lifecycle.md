@@ -598,6 +598,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine konmuş | `Replaced` | Önceki etkin `Not now` izini yeni bir iz ile kapatan geçmiş durumu |
 | Geçmiş | `History` | Önceki `Not now` izlerinin gerekçe, koşul, dayanak, yazar ve zaman kayıtları |
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
+| Yeniden bak hatırlatması yok | `No Review Later reminders.` | Work için henüz `Review Later` hatırlatması bulunmadığını bildiren boş durum |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
