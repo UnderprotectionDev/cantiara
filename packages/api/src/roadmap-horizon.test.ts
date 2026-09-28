@@ -1,16 +1,88 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  createMilestoneInputSchema,
   createRoadmapPlacementPreview,
   listUnplannedRoadmapCandidates,
+  milestoneSchema,
+  milestoneStatusSchema,
   presentRoadmap,
   roadmapViewSchema,
   saveRoadmapViewInputSchema,
+  updateMilestoneInputSchema,
+  updateMilestoneStatusInputSchema,
   updateWorkHorizonInputSchema,
 } from "./roadmap-horizon";
 import { updateWorkPlannedDateInputSchema } from "./work-lifecycle";
 
 describe("Roadmap Horizon", () => {
+  test("Milestone starts Planned and changes only through explicit Reach or Abandon actions", () => {
+    const milestone = {
+      description: "A usable first release is available to early users.",
+      id: "milestone-1",
+      projectId: "project-1",
+      revision: 1,
+      status: "Planned",
+      targetDate: null,
+      title: "Private beta",
+    };
+    expect(milestoneStatusSchema.options).toEqual([
+      "Planned",
+      "Reached",
+      "Abandoned",
+    ]);
+    expect(milestoneSchema.parse(milestone)).toEqual(milestone);
+
+    const createInput = {
+      baseRevision: 0,
+      clientIdempotencyKey: "create-milestone-1",
+      description: milestone.description,
+      id: milestone.id,
+      projectId: milestone.projectId,
+      targetDate: milestone.targetDate,
+      title: milestone.title,
+    };
+    expect(createMilestoneInputSchema.parse(createInput)).toEqual(createInput);
+    expect(
+      createMilestoneInputSchema.safeParse({
+        ...createInput,
+        status: "Reached",
+      }).success,
+    ).toBe(false);
+
+    const updateInput = {
+      baseRevision: 1,
+      clientIdempotencyKey: "update-milestone-1",
+      description: "Early users can finish the core flow.",
+      milestoneId: "milestone-1",
+      projectId: "project-1",
+      targetDate: "2026-12-01",
+      title: "Private beta",
+    };
+    expect(updateMilestoneInputSchema.parse(updateInput)).toEqual(updateInput);
+    expect(
+      updateMilestoneInputSchema.safeParse({
+        ...updateInput,
+        status: "Reached",
+      }).success,
+    ).toBe(false);
+
+    const action = {
+      baseRevision: 1,
+      clientIdempotencyKey: "reach-milestone-1",
+      milestoneId: "milestone-1",
+      projectId: "project-1",
+      status: "Reached",
+    };
+    expect(updateMilestoneStatusInputSchema.parse(action)).toEqual(action);
+    for (const status of ["Planned", "Closed", "Canceled"]) {
+      expect(
+        updateMilestoneStatusInputSchema.safeParse({ ...action, status })
+          .success,
+      ).toBe(false);
+    }
+  });
+
   test("placing Work accepts only its optional horizon and cannot carry status, priority, dates, or Backlog order", () => {
     const command = {
       baseRevision: 2,

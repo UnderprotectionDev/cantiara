@@ -293,6 +293,8 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           ├── project-roadmap.tsx
+│       │   │   │           ├── project-milestones.test.tsx
+│       │   │   │           ├── project-milestones.tsx
 │       │   │   │           ├── research-direction.tsx
 │       │   │   │           └── roadmap-view-editor.tsx
 │       │   │   ├── relations/
@@ -307,6 +309,7 @@
 │       │   │   │       └── components/
 │       │   │   │           ├── project-overview-sections.tsx
 │       │   │   │           ├── project-overview.test.tsx
+│       │   │   │           ├── project-overview-surface.tsx
 │       │   │   │           └── project-overview.tsx
 │       │   │   ├── project-shell/
 │       │   │   │   ├── hooks/
@@ -573,12 +576,12 @@
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
 │   │   │   │   ├── project.ts
+│   │   │   │   ├── project-milestone.ts
 │   │   │   │   ├── backlog.ts
 │   │   │   │   ├── priority-metrics.ts
 │   │   │   │   ├── personal-reminders.ts
 │   │   │   │   ├── prioritization-session.ts
 │   │   │   │   ├── production-incident.ts
-│   │   │   │   ├── project-milestone.ts
 │   │   │   │   ├── project-release.ts
 │   │   │   │   ├── roadmap-horizon.ts
 │   │   │   │   ├── record-action.ts
@@ -641,7 +644,8 @@ External Execution Handoff source ownership is split across the API contract (`p
 
 Backlog's prepared collection, manual order, and saved alternative presentation are separate Project-scoped sources of truth. Its API contract lives in `packages/api/src/backlog.ts`, its order and presentation schemas live in `packages/db/src/schema/backlog.ts`, its server access and mutations live under `apps/server/src/features/backlog/server/`, and its Project surface lives in `apps/web/src/features/backlog/`. Work archive and Trash timestamps are owned by `packages/db/src/schema/work.ts` and the versioned SQL in `packages/db/src/migrations/`. Prioritization Sessions remain a separate source of truth with their API contract in `packages/api/src/prioritization-sessions.ts`, schema in `packages/db/src/schema/prioritization-session.ts`, server access under `apps/server/src/features/prioritization-sessions/server/`, and comparison surface and session controls in `apps/web/src/features/prioritization-sessions/`.
 
-Roadmap Horizon named views and Work placement are owned by `packages/api/src/roadmap-horizon.ts`, `packages/db/src/schema/roadmap-horizon.ts`, `apps/server/src/features/roadmap-horizon/server/`, and `apps/web/src/features/roadmap-horizon/ui/components/`. The Work-owned `Not now` decision trail contract and persistence are owned by `packages/api/src/work-not-now.ts`, `packages/db/src/schema/work-not-now.ts`, and `apps/server/src/features/roadmap-horizon/server/not-now-database.ts`; its shared control is `apps/web/src/features/roadmap-horizon/ui/components/work-not-now-control.tsx`, consumed by Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
+Roadmap Horizon named views, Work placement, and Project Milestones are owned by `packages/api/src/roadmap-horizon.ts`, `packages/db/src/schema/roadmap-horizon.ts`, `packages/db/src/schema/project-milestone.ts`, `apps/server/src/features/roadmap-horizon/server/`, and `apps/web/src/features/roadmap-horizon/ui/components/`.
+The Work-owned `Not now` decision trail contract and persistence are owned by `packages/api/src/work-not-now.ts`, `packages/db/src/schema/work-not-now.ts`, and `apps/server/src/features/roadmap-horizon/server/not-now-database.ts`; its shared control is `apps/web/src/features/roadmap-horizon/ui/components/work-not-now-control.tsx`, consumed by Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
 
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).

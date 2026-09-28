@@ -51,6 +51,7 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
   project,
+  projectMilestone,
   usageLink,
   work,
   workRelation,
@@ -67,6 +68,7 @@ import { relationBlockingStatus } from "./relation-blocking-status";
 
 type WorkRecord = typeof work.$inferSelect;
 type ProjectRecord = typeof project.$inferSelect;
+type ProjectMilestoneRecord = typeof projectMilestone.$inferSelect;
 type RelationRecord = typeof workRelation.$inferSelect;
 type UsageLinkRecord = typeof usageLink.$inferSelect;
 
@@ -180,6 +182,13 @@ interface WorkWithProject {
 
 type OwnedWork = WorkWithProject;
 
+interface MilestoneWithProject {
+  project: ProjectRecord;
+  record: ProjectMilestoneRecord;
+}
+
+type OwnedRelationTarget = OwnedWork | MilestoneWithProject;
+
 interface RelationWithSource {
   relation: RelationRecord;
   sourceProject: ProjectRecord;
@@ -257,6 +266,32 @@ async function findOwnedWork(
     .from(work)
     .innerJoin(project, eq(work.projectId, project.id))
     .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
+    .limit(1);
+  const records = lock ? await query.for("update") : await query;
+  return records[0] ?? null;
+}
+
+async function findOwnedMilestone(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  milestoneId: string,
+  lock: boolean,
+): Promise<MilestoneWithProject | null> {
+  const workspaceId = await findOwnedWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    return null;
+  }
+
+  const query = executor
+    .select({ project, record: projectMilestone })
+    .from(projectMilestone)
+    .innerJoin(project, eq(projectMilestone.projectId, project.id))
+    .where(
+      and(
+        eq(projectMilestone.id, milestoneId),
+        eq(project.workspaceId, workspaceId),
+      ),
+    )
     .limit(1);
   const records = lock ? await query.for("update") : await query;
   return records[0] ?? null;
@@ -451,15 +486,29 @@ async function validateStoredRelation(
     relation.sourceRecordId,
     false,
   );
-  const target =
-    relation.targetRecordType === "Work"
-      ? await findOwnedWork(executor, accountId, relation.targetRecordId, false)
-      : null;
+  let target: OwnedRelationTarget | null = null;
+  if (relation.targetRecordType === "Work") {
+    target = await findOwnedWork(
+      executor,
+      accountId,
+      relation.targetRecordId,
+      false,
+    );
+  } else if (relation.targetRecordType === "Milestone") {
+    target = await findOwnedMilestone(
+      executor,
+      accountId,
+      relation.targetRecordId,
+      false,
+    );
+  }
   if (
     relation.sourceRecordType !== "Work" ||
-    relation.targetRecordType !== "Work" ||
     !source ||
-    !target
+    !target ||
+    (relation.targetRecordType === "Milestone" &&
+      source.project.id !== target.project.id) ||
+    target.project.id !== relation.targetProjectId
   ) {
     return false;
   }
@@ -774,7 +823,7 @@ function brokenEndpoint(
   };
 }
 
-interface ResolvedWorkEndpoint {
+interface ResolvedRelationEndpoint {
   archived: boolean;
   key: string | null;
   originPosition: RelationOriginPosition | null;
@@ -798,7 +847,7 @@ const ENDPOINT_RESOLVERS: Partial<
       executor: MutationDatabaseExecutor,
       accountId: string,
       recordId: string,
-    ) => Promise<ResolvedWorkEndpoint | null>
+    ) => Promise<ResolvedRelationEndpoint | null>
   >
 > = {
   Work: async (executor, accountId, recordId) => {
@@ -827,11 +876,31 @@ const ENDPOINT_RESOLVERS: Partial<
       workType: owned.record.type as WorkType,
     };
   },
+  Milestone: async (executor, accountId, recordId) => {
+    const owned = await findOwnedMilestone(
+      executor,
+      accountId,
+      recordId,
+      false,
+    );
+    if (!owned) {
+      return null;
+    }
+    return {
+      archived: owned.project.archivedAt !== null,
+      key: null,
+      originPosition: null,
+      projectId: owned.record.projectId,
+      status: null,
+      title: owned.record.title,
+      workType: null,
+    };
+  },
 };
 
 function resolvedEndpointView(
   endpoint: RelationEndpoint,
-  resolved: ResolvedWorkEndpoint,
+  resolved: ResolvedRelationEndpoint,
   establishedAt: string,
 ): RelationEndpointView {
   return {
@@ -844,7 +913,7 @@ function resolvedEndpointView(
         }
       : null,
     key: resolved.key,
-    label: resolved.key,
+    label: resolved.key ?? resolved.title,
     originPosition: resolved.originPosition,
     projectId: resolved.projectId,
     status: resolved.status,
@@ -1125,6 +1194,36 @@ async function relationView(
   };
 }
 
+function relationPreviewEndpoint(
+  endpoint: RelationEndpoint,
+  owned: OwnedRelationTarget,
+): RelationEndpointView {
+  if ("key" in owned.record) {
+    return {
+      ...endpoint,
+      broken: null,
+      key: owned.record.key,
+      label: owned.record.key,
+      originPosition: null,
+      projectId: owned.project.id,
+      status: owned.record.status as WorkStatus,
+      title: owned.record.title,
+      workType: owned.record.type as WorkType,
+    };
+  }
+  return {
+    ...endpoint,
+    broken: null,
+    key: null,
+    label: owned.record.title,
+    originPosition: null,
+    projectId: owned.project.id,
+    status: null,
+    title: owned.record.title,
+    workType: null,
+  };
+}
+
 function assertCatalogEndpoints(input: RelationCreatePreviewInput) {
   if (
     !isAllowedRelationEndpoints(
@@ -1137,22 +1236,29 @@ function assertCatalogEndpoints(input: RelationCreatePreviewInput) {
   }
 }
 
-async function assertWorkEndpoints(
+async function assertRelationEndpoints(
   executor: MutationDatabaseExecutor,
   accountId: string,
   input: RelationCreatePreviewInput,
 ) {
   if (
     input.source.recordType !== "Work" ||
-    input.target.recordType !== "Work"
+    (input.target.recordType !== "Work" &&
+      input.target.recordType !== "Milestone")
   ) {
     throw new RelationRecordUnavailableError();
   }
   const [source, target] = await Promise.all([
     findOwnedWork(executor, accountId, input.source.recordId, false),
-    findOwnedWork(executor, accountId, input.target.recordId, false),
+    input.target.recordType === "Work"
+      ? findOwnedWork(executor, accountId, input.target.recordId, false)
+      : findOwnedMilestone(executor, accountId, input.target.recordId, false),
   ]);
-  if (!(source && target)) {
+  if (
+    !(source && target) ||
+    (input.target.recordType === "Milestone" &&
+      source.project.id !== target.project.id)
+  ) {
     throw new RelationRecordUnavailableError();
   }
   return { source, target };
@@ -1327,7 +1433,7 @@ async function changeBlockerStatus(
 function relationCreatePayload(
   input: RelationCreateInput,
   source: OwnedWork,
-  target: OwnedWork,
+  target: OwnedRelationTarget,
 ): RelationMutationPayload {
   return {
     operation: "create",
@@ -1339,7 +1445,8 @@ function relationCreatePayload(
       kind: input.kind,
       sourceRecordId: source.record.id,
       sourceRecordType: input.source.recordType,
-      targetLabel: target.record.key,
+      targetLabel:
+        "key" in target.record ? target.record.key : target.record.title,
       targetProjectId: target.project.id,
       targetRecordId: target.record.id,
       targetRecordType: input.target.recordType,
@@ -1372,12 +1479,15 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
     async previewCreate(accountId, rawInput) {
       const input = relationCreatePreviewInputSchema.parse(rawInput);
       await assertCatalogEndpoints(input);
-      const { source, target } = await assertWorkEndpoints(
+      const { source, target } = await assertRelationEndpoints(
         database,
         accountId,
         input,
       );
-      if (source.record.id === target.record.id) {
+      if (
+        input.source.recordType === input.target.recordType &&
+        source.record.id === target.record.id
+      ) {
         throw new RelationEndpointNotAllowedError();
       }
       await assertRelationCreatable(database, input);
@@ -1396,42 +1506,23 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
         kind: input.kind,
         label: relationLabel(input.kind, "outgoing"),
         previewId,
-        source: {
-          broken: null,
-          key: source.record.key,
-          label: source.record.key,
-          originPosition: null,
-          projectId: source.record.projectId,
-          recordId: source.record.id,
-          recordType: input.source.recordType,
-          status: source.record.status as WorkStatus,
-          title: source.record.title,
-          workType: source.record.type as WorkType,
-        },
-        target: {
-          broken: null,
-          key: target.record.key,
-          label: target.record.key,
-          originPosition: null,
-          projectId: target.record.projectId,
-          recordId: target.record.id,
-          recordType: input.target.recordType,
-          status: target.record.status as WorkStatus,
-          title: target.record.title,
-          workType: target.record.type as WorkType,
-        },
+        source: relationPreviewEndpoint(input.source, source),
+        target: relationPreviewEndpoint(input.target, target),
       } satisfies RelationPreview;
     },
 
     async create(accountId, rawInput) {
       const input = relationCreateInputSchema.parse(rawInput);
       await assertCatalogEndpoints(input);
-      const { source, target } = await assertWorkEndpoints(
+      const { source, target } = await assertRelationEndpoints(
         database,
         accountId,
         input,
       );
-      if (source.record.id === target.record.id) {
+      if (
+        input.source.recordType === input.target.recordType &&
+        source.record.id === target.record.id
+      ) {
         throw new RelationEndpointNotAllowedError();
       }
       const expectedPreviewId = await relationPreviewId(input);
@@ -1489,6 +1580,46 @@ export function createDatabaseRelations(database: Database): RelationsAccess {
 
     async list(accountId, rawInput) {
       const input = relationsInputSchema.parse(rawInput);
+      if (input.recordType === "Milestone") {
+        const milestone = await findOwnedMilestone(
+          database,
+          accountId,
+          input.recordId,
+          false,
+        );
+        if (!milestone) {
+          return [];
+        }
+        const workspaceId = await findOwnedWorkspaceId(database, accountId);
+        if (!workspaceId) {
+          return [];
+        }
+        const records = await database
+          .select({
+            relation: workRelation,
+            sourceProject: project,
+            sourceWork: work,
+          })
+          .from(workRelation)
+          .innerJoin(work, eq(workRelation.sourceWorkId, work.id))
+          .innerJoin(project, eq(work.projectId, project.id))
+          .where(
+            and(
+              eq(project.workspaceId, workspaceId),
+              eq(workRelation.sourceRecordType, "Work"),
+              eq(workRelation.targetProjectId, milestone.project.id),
+              eq(workRelation.targetRecordType, "Milestone"),
+              eq(workRelation.targetRecordId, input.recordId),
+              isNull(workRelation.deletedAt),
+            ),
+          )
+          .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
+        return Promise.all(
+          records.map((record) =>
+            relationView(database, accountId, record, "incoming"),
+          ),
+        );
+      }
       if (input.recordType !== "Work") {
         return [];
       }

@@ -185,8 +185,11 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  createMilestoneInputSchema,
   projectRoadmapInputSchema,
   saveRoadmapViewInputSchema,
+  updateMilestoneInputSchema,
+  updateMilestoneStatusInputSchema,
   updateResearchDirectionInputSchema,
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
@@ -3416,6 +3419,53 @@ export const appRouter = {
         return trail;
       }),
     ),
+  projectMilestones: protectedProcedure
+    .input(projectRoadmapInputSchema)
+    .handler(async ({ context, input }) => {
+      const milestones = await requireRoadmapHorizon(context).listMilestones(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!milestones) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return milestones;
+    }),
+  createMilestone: protectedProcedure
+    .input(createMilestoneInputSchema)
+    .handler(async ({ context, input }) => {
+      const milestone = await requireRoadmapHorizon(context).createMilestone(
+        context.session.user.id,
+        input,
+      );
+      if (!milestone) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return milestone;
+    }),
+  updateMilestone: protectedProcedure
+    .input(updateMilestoneInputSchema)
+    .handler(async ({ context, input }) => {
+      const milestone = await requireRoadmapHorizon(context).updateMilestone(
+        context.session.user.id,
+        input,
+      );
+      if (!milestone) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return milestone;
+    }),
+  updateMilestoneStatus: protectedProcedure
+    .input(updateMilestoneStatusInputSchema)
+    .handler(async ({ context, input }) => {
+      const milestone = await requireRoadmapHorizon(
+        context,
+      ).updateMilestoneStatus(context.session.user.id, input);
+      if (!milestone) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return milestone;
+    }),
   saveRoadmapView: protectedProcedure
     .input(saveRoadmapViewInputSchema)
     .handler(async ({ context, input }) => {

@@ -7,6 +7,8 @@ import {
   getProjectShellConfiguration,
   type ProjectProfile,
 } from "@cantiara/api/project-shell";
+import type { Milestone } from "@cantiara/api/roadmap-horizon";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -17,7 +19,9 @@ import {
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 
+import { orpc } from "@/utils/orpc";
 import ProjectOverviewView from "./project-overview";
+import ProjectOverviewSurface from "./project-overview-surface";
 
 const projectOverviewRootRoute = createRootRoute({});
 const projectOverviewRoute = createRoute({
@@ -138,7 +142,49 @@ function renderOverview(
   );
 }
 
+function renderOverviewSurface(milestones: Milestone[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+  });
+  const queryOptions = orpc.projectMilestones.queryOptions({
+    input: { projectId: project.id },
+  });
+  queryClient.setQueryData(queryOptions.queryKey, milestones);
+  const router = createRouter({
+    history: createMemoryHistory({ initialEntries: ["/projects/project-1"] }),
+    routeTree: projectOverviewRouteTree,
+  });
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>
+      <RouterContextProvider router={router}>
+        <ProjectOverviewSurface project={project} />
+      </RouterContextProvider>
+    </QueryClientProvider>,
+  );
+}
+
 describe("Project Overview", () => {
+  test("shows Project Milestones and opens their Roadmap source", () => {
+    const html = renderOverviewSurface([
+      {
+        description: "Early users can complete the core flow.",
+        id: "milestone-1",
+        projectId: project.id,
+        revision: 1,
+        status: "Planned",
+        targetDate: "2026-11-15",
+        title: "Private beta",
+      },
+    ]);
+
+    expect(html).toContain('data-overview-module="Milestones"');
+    expect(html).toContain("Private beta");
+    expect(html).toContain("Planned");
+    expect(html).toContain("Early users can complete the core flow.");
+    expect(html.match(/href="\/projects\/project-1#roadmap"/g)).toHaveLength(3);
+  });
+
   test("summarizes source records in the named neutral modules", () => {
     const html = renderOverview();
 

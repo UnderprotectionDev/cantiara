@@ -22,7 +22,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
-import ProjectOverviewView from "@/features/project-overview/ui/components/project-overview";
+import ProjectOverviewSurface from "@/features/project-overview/ui/components/project-overview-surface";
 import {
   isProjectShellExplanationDismissed,
   rememberProjectShellExplanationDismissal,
@@ -209,7 +209,7 @@ export default function ProjectShellSurface({
 
     return (
       <>
-        <ProjectOverviewView
+        <ProjectOverviewSurface
           accountFormattingPreferences={accountFormattingPreferences}
           project={project}
         />
