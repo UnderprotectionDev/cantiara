@@ -39,6 +39,7 @@ Kurucu Proje ana kaydı Üretim Olayını `Open`, `Watching`, veya `Resolved` il
 - **Modules under test.** Production Incidents only.
 - **Prior art.** First contract tests at this seam. Synthetic [Üretim olayı öğrenimi](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).
 - **Required counterparts.** Not pager/S1; not Sentry; follow-up without preview rejected; not auto Bug/Risk.
+- **Daily Focus source-record evidence.** `apps/server/src/features/project-source-records/server/project-source-records-database.test.ts` checks `Open` → `Watching` → `Resolved` mutation history and Account-scoped reads; the source module does not subscribe to pager or Sentry inputs.
 
 ## Out of Scope
 

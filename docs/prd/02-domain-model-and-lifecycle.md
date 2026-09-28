@@ -285,6 +285,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Odağı kapat | `Close focus` | Günlük Odak’ta seçili gün için isteğe bağlı sakin kapanış görünümü; açık İşi kapatmaz |
 | Hâlâ açık | `Still open` | Kapanış görünümünde Günlük Odak’ta açık kalan İşler grubu |
 | Bugün ne oldu? | `What happened today?` | Seçili profil günündeki türetilmiş önemli olaylar; Daily Note veya ikinci olay geçmişi değildir |
+| Bugün önemli olay yok | `No notable events for this day.` | Seçili profil gününde desteklenen önemli olay olmadığında boş durum |
+| Karar kaydı olayı | `Recorded` | `What happened today?` içinde kaynak Kararın oluşturulduğu günü gösterir |
+| Kaynak kaydı yükleniyor | `Loading source record…` | Proje kabuğunda seçilen kaynak kaydı okunurken erişilebilir yüklenme durumu |
+| Kaynak kaydı kullanılamıyor | `Source record is unavailable.` | Kaynak kaydı bulunamadığında veya geçerli Projeye ait olmadığında salt okunur hata durumu |
+| Kaynak açıklaması | `Description` | Kilometre Taşı veya Proje Sürümünün isteğe bağlı açıklama alanı; İş açıklamasıyla aynı gövde alanı değildir |
+| Sürüm etiketi | `Version label` | Proje Sürümünde isteğe bağlı kullanıcı tanımlı sürüm metni |
+| Olay zamanı | `Occurred at` | Üretim Olayının gerçekleşme zamanı; Geri Bildirim özgün mesaj zamanıyla aynı etiketi bağlamında kullanır |
+| Olay etkisi | `Impact` | Üretim Olayının kullanıcı veya sistem üzerindeki etkisi; Risk etkisi değildir |
+| Tespit biçimi | `Detected how` | Üretim Olayının nasıl fark edildiği |
+| Çözüm | `Resolution` | Üretim Olayının nasıl çözüldüğü |
+| Kök neden | `Root cause` | Üretim Olayının kullanıcı tarafından kaydedilen kök neden açıklaması |
+| Öğrenim | `Learning` | Üretim Olayından çıkarılan kullanıcı tarafından kaydedilen öğrenim |
 | Adaylar | `Candidates` | Günlük Odak’ta hedef tarihi yaklaşan veya yeniden görünme tarihi gelen az sayıda İş önerisi; üyelik değildir |
 | Günlük Odakta aday yok | `No Candidates for this day.` | Seçili günde önerilecek aday olmadığında boş durum |
 | Aday kuralı | `Work appears here when Target date is this day through the next 7 days, or Reappear date is on or before this day.` | Aday listesinin hangi tarih alanlarıyla dolduğunu açıklayan metin |

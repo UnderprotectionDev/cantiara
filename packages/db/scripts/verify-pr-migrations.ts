@@ -656,17 +656,17 @@ async function verifySnapshot(
         index_data.indisunique AS is_unique,
         access_method.amname AS method,
         pg_get_expr(index_data.indpred, index_data.indrelid, true) AS predicate,
-        ARRAY(
+        to_json(ARRAY(
           SELECT pg_get_indexdef(index_data.indexrelid, ordinal.number::integer, true)
           FROM generate_series(1, index_data.indnatts) AS ordinal(number)
           ORDER BY ordinal.number
-        ) AS expressions,
-        ARRAY(
+        )) AS expressions,
+        to_json(ARRAY(
           SELECT (index_data.indoption[ordinal.number - 1]::integer & 1) = 0
           FROM generate_series(1, index_data.indnkeyatts) AS ordinal(number)
           ORDER BY ordinal.number
-        ) AS ascending,
-        ARRAY(
+        )) AS ascending,
+        to_json(ARRAY(
           SELECT CASE
             WHEN (index_data.indoption[ordinal.number - 1]::integer & 2) = 2
               THEN 'first'
@@ -674,8 +674,8 @@ async function verifySnapshot(
           END
           FROM generate_series(1, index_data.indnkeyatts) AS ordinal(number)
           ORDER BY ordinal.number
-        ) AS nulls_order,
-        COALESCE(index_class.reloptions, ARRAY[]::text[]) AS with_options,
+        )) AS nulls_order,
+        to_json(COALESCE(index_class.reloptions, ARRAY[]::text[])) AS with_options,
         index_data.indnkeyatts AS key_count
       FROM pg_index index_data
       JOIN pg_class index_class ON index_class.oid = index_data.indexrelid
@@ -696,22 +696,22 @@ async function verifySnapshot(
         constraint_data.conname AS constraint_name,
         constraint_data.contype AS constraint_type,
         referenced_table.relname AS referenced_table,
-        ARRAY(
+        to_json(ARRAY(
           SELECT attribute.attname
           FROM unnest(constraint_data.conkey) WITH ORDINALITY AS key_column(attnum, ordinal)
           JOIN pg_attribute attribute
             ON attribute.attrelid = constraint_data.conrelid
             AND attribute.attnum = key_column.attnum
           ORDER BY key_column.ordinal
-        ) AS columns,
-        ARRAY(
+        )) AS columns,
+        to_json(ARRAY(
           SELECT attribute.attname
           FROM unnest(constraint_data.confkey) WITH ORDINALITY AS key_column(attnum, ordinal)
           JOIN pg_attribute attribute
             ON attribute.attrelid = constraint_data.confrelid
             AND attribute.attnum = key_column.attnum
           ORDER BY key_column.ordinal
-        ) AS referenced_columns,
+        )) AS referenced_columns,
         CASE constraint_data.confdeltype
           WHEN 'a' THEN 'no action'
           WHEN 'r' THEN 'restrict'

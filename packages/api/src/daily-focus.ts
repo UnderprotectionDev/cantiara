@@ -23,6 +23,36 @@ export const dailyFocusWorkSchema = z
 
 export type DailyFocusWork = z.infer<typeof dailyFocusWorkSchema>;
 
+export const dailyFocusEventSchema = z
+  .object({
+    id: identifierSchema,
+    kind: z.enum([
+      "Abandoned",
+      "Completed",
+      "Published",
+      "Reached",
+      "Recorded",
+      "Reopened",
+      "Resolved",
+    ]),
+    occurredAt: z.string().datetime({ offset: true }),
+    projectId: identifierSchema,
+    projectName: identifierSchema,
+    sourceId: identifierSchema,
+    sourceKey: identifierSchema.nullable(),
+    sourceTitle: identifierSchema,
+    sourceType: z.enum([
+      "Decision",
+      "Milestone",
+      "Production Incident",
+      "Project Release",
+      "Work",
+    ]),
+  })
+  .strict();
+
+export type DailyFocusEvent = z.infer<typeof dailyFocusEventSchema>;
+
 const dailyFocusCandidateReasonSchema = z
   .object({
     date: z.iso.date(),
@@ -83,6 +113,7 @@ export const dailyFocusDaySchema = z
   .object({
     available: z.array(dailyFocusWorkSchema),
     candidates: z.array(dailyFocusCandidateSchema),
+    events: z.array(dailyFocusEventSchema),
     focusDate: z.iso.date(),
     members: z.array(dailyFocusWorkSchema),
   })
