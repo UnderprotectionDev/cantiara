@@ -339,6 +339,209 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
     ).toBe("Planned");
   });
 
+  test("planned-date placement updates one date field and leaves status and horizon alone", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Planned Date Project",
+        shortCode: "PDT",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const workId = `work-${crypto.randomUUID()}`;
+    await database.insert(work).values({
+      id: workId,
+      key: "PDT-1",
+      number: 1,
+      projectId: profile.id,
+      status: "Blocked",
+      title: "Candidate",
+      type: "Task",
+    });
+    const lifecycle = createDatabaseWorkLifecycle(database);
+    const before = await lifecycle.find(accountId, workId);
+    if (!before) {
+      throw new Error("Expected Work");
+    }
+
+    const saved = await lifecycle.updatePlannedDate(accountId, {
+      baseRevision: before.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      field: "targetDate",
+      value: "2026-10-02",
+      workId,
+    });
+
+    expect(saved.targetDate).toBe("2026-10-02");
+    expect(saved.plannedStartDate).toBeNull();
+    expect(saved.roadmapHorizon).toBeNull();
+    expect(saved.status).toBe("Blocked");
+    expect(saved.statusChangedAt).toBe(before.statusChangedAt);
+  });
+
+  test("active blocker projection returns only exact sources for visible Roadmap Work", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Roadmap Project",
+        shortCode: "RMP",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const externalProject = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Dependency Project",
+        shortCode: "DEP",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const ids = {
+      blocked: `work-${crypto.randomUUID()}`,
+      blocker: `work-${crypto.randomUUID()}`,
+      externalBlocker: `work-${crypto.randomUUID()}`,
+      otherTarget: `work-${crypto.randomUUID()}`,
+      resolvedBlocker: `work-${crypto.randomUUID()}`,
+    };
+    await database.insert(work).values([
+      {
+        id: ids.blocked,
+        key: "RMP-1",
+        number: 1,
+        projectId: profile.id,
+        title: "Blocked Work",
+        type: "Task",
+      },
+      {
+        id: ids.blocker,
+        key: "RMP-2",
+        number: 2,
+        projectId: profile.id,
+        title: "Local source",
+        type: "Task",
+      },
+      {
+        id: ids.resolvedBlocker,
+        key: "RMP-3",
+        number: 3,
+        projectId: profile.id,
+        title: "Resolved source",
+        type: "Task",
+      },
+      {
+        id: ids.otherTarget,
+        key: "DEP-1",
+        number: 1,
+        projectId: externalProject.id,
+        title: "Other target",
+        type: "Task",
+      },
+      {
+        id: ids.externalBlocker,
+        key: "DEP-2",
+        number: 2,
+        projectId: externalProject.id,
+        title: "Cross-project source",
+        type: "Task",
+      },
+    ]);
+    await database.insert(workRelation).values([
+      {
+        id: `relation-${crypto.randomUUID()}`,
+        blockingStatus: "Active",
+        kind: "Blocks",
+        sourceWorkId: ids.blocker,
+        targetLabel: "Blocked Work",
+        targetProjectId: profile.id,
+        targetRecordId: ids.blocked,
+        targetRecordType: "Work",
+      },
+      {
+        id: `relation-${crypto.randomUUID()}`,
+        blockingStatus: "Active",
+        kind: "Blocks",
+        sourceWorkId: ids.externalBlocker,
+        targetLabel: "Blocked Work",
+        targetProjectId: profile.id,
+        targetRecordId: ids.blocked,
+        targetRecordType: "Work",
+      },
+      {
+        id: `relation-${crypto.randomUUID()}`,
+        blockingStatus: "Resolved",
+        kind: "Blocks",
+        sourceWorkId: ids.resolvedBlocker,
+        targetLabel: "Blocked Work",
+        targetProjectId: profile.id,
+        targetRecordId: ids.blocked,
+        targetRecordType: "Work",
+      },
+      {
+        id: `relation-${crypto.randomUUID()}`,
+        blockingStatus: "Active",
+        kind: "Blocks",
+        sourceWorkId: ids.blocker,
+        targetLabel: "Other target",
+        targetProjectId: externalProject.id,
+        targetRecordId: ids.otherTarget,
+        targetRecordType: "Work",
+      },
+    ]);
+
+    const blockers = await createDatabaseRoadmapHorizon(
+      database,
+    ).listActiveBlockers(accountId, profile.id);
+
+    expect(blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          blockedWorkId: ids.blocked,
+          blocker: expect.objectContaining({
+            id: ids.blocker,
+            key: "RMP-2",
+            projectId: profile.id,
+            title: "Local source",
+          }),
+        }),
+        expect.objectContaining({
+          blockedWorkId: ids.blocked,
+          blocker: expect.objectContaining({
+            id: ids.externalBlocker,
+            key: "DEP-2",
+            projectId: externalProject.id,
+            title: "Cross-project source",
+          }),
+        }),
+      ]),
+    );
+    expect(blockers).toHaveLength(2);
+    for (const blocker of blockers ?? []) {
+      expect(Object.keys(blocker.blocker).sort()).toEqual(
+        [
+          "archivedAt",
+          "id",
+          "key",
+          "projectId",
+          "status",
+          "title",
+          "type",
+        ].sort(),
+      );
+    }
+    expect(
+      await createDatabaseRoadmapHorizon(database).listActiveBlockers(
+        "another-account",
+        profile.id,
+      ),
+    ).toBeNull();
+  });
+
   test("saved view filters remain metadata and cannot create Work membership", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

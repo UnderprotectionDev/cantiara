@@ -216,10 +216,13 @@ import {
   recordFeatureHealthInputSchema,
   recreateWorkInputSchema,
   reopenWorkInputSchema,
+  undoWorkDateInputSchema,
   undoWorkMergeInputSchema,
   undoWorkStatusInputSchema,
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
+  updateWorkDateInputSchema,
+  updateWorkPlannedDateInputSchema,
   updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
   updateWorkTypeInputSchema,
@@ -1028,6 +1031,12 @@ function mapWorkLifecycleError(
         data: { code: error.code },
         defined: true,
         message: "This Work status change is no longer available for Undo.",
+      });
+    case "WORK_DATE_UNDO_UNAVAILABLE":
+      return new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "This Work date change is no longer available for Undo.",
       });
     case "WORK_RELATION_NOT_PORTABLE":
     case "WORK_RECREATE_FIELD_REQUIRED":
@@ -3141,6 +3150,18 @@ export const appRouter = {
       }
       return origins;
     }),
+  projectRoadmapBlockers: protectedProcedure
+    .input(projectRoadmapInputSchema)
+    .handler(async ({ context, input }) => {
+      const blockers = await requireRoadmapHorizon(context).listActiveBlockers(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!blockers) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return blockers;
+    }),
   projectMilestones: protectedProcedure
     .input(projectRoadmapInputSchema)
     .handler(async ({ context, input }) => {
@@ -3839,6 +3860,13 @@ export const appRouter = {
         ),
       ),
     ),
+  undoWorkDate: protectedProcedure
+    .input(undoWorkDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).undoDate(context.session.user.id, input),
+      ),
+    ),
   recreateWork: protectedProcedure
     .input(recreateWorkInputSchema)
     .handler(({ context, input }) =>
@@ -3904,6 +3932,26 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runWorkLifecycleOperation(() =>
         requireWorkLifecycle(context).updateReappearDate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkPlannedDate: protectedProcedure
+    .input(updateWorkPlannedDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updatePlannedDate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateWorkDate: protectedProcedure
+    .input(updateWorkDateInputSchema)
+    .handler(({ context, input }) =>
+      runWorkLifecycleOperation(() =>
+        requireWorkLifecycle(context).updateDate(
           context.session.user.id,
           input,
         ),

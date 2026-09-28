@@ -75,12 +75,15 @@ function createWorkLifecycleStub(
     updateChecklist: vi.fn(),
     updateStatus: vi.fn(),
     updateReappearDate: vi.fn(),
+    updatePlannedDate: vi.fn(),
+    updateDate: vi.fn(),
     updateType: vi.fn(),
     unarchive: vi.fn(),
     recreate: vi.fn(),
     resolve: vi.fn(),
     undoMerge: vi.fn(),
     undoStatus: vi.fn(),
+    undoDate: vi.fn(),
     ...overrides,
   };
 }
@@ -138,6 +141,49 @@ describe("Work Lifecycle RPC", () => {
       "account-1",
       input,
     );
+  });
+
+  test("updates one represented date through the authenticated Work interface", async () => {
+    const updateDate = vi.fn().mockResolvedValue({
+      ...work,
+      receiptId: "receipt-calendar-date",
+      targetDate: "2026-10-04",
+    });
+    const client = createRouterClient(appRouter, {
+      context: createContext(createWorkLifecycleStub({ updateDate })),
+    });
+    const input = {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "calendar-date-1",
+      date: "2026-10-04",
+      dateField: "targetDate" as const,
+      workId: work.id,
+    };
+
+    await expect(client.updateWorkDate(input)).resolves.toMatchObject({
+      receiptId: "receipt-calendar-date",
+      status: work.status,
+      targetDate: "2026-10-04",
+    });
+    expect(updateDate).toHaveBeenCalledExactlyOnceWith("account-1", input);
+  });
+
+  test("undoes one represented date through the authenticated Work interface", async () => {
+    const undoDate = vi.fn().mockResolvedValue(work);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createWorkLifecycleStub({ undoDate })),
+    });
+    const input = {
+      baseRevision: work.revision,
+      clientIdempotencyKey: "calendar-date-undo-1",
+      receiptId: "receipt-calendar-date",
+      workId: work.id,
+    };
+
+    await expect(client.undoWorkDate(input)).resolves.toMatchObject({
+      status: work.status,
+    });
+    expect(undoDate).toHaveBeenCalledExactlyOnceWith("account-1", input);
   });
 
   test("creates, lists, and reads Work through the authenticated interface", async () => {

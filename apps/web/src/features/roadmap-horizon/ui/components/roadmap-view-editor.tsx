@@ -52,13 +52,15 @@ function viewFromValues(
 }
 
 export default function RoadmapViewEditor({
+  presentationMode,
   projectId,
   renderResults,
   saved,
   onSaved,
 }: {
+  presentationMode: boolean;
   projectId: string;
-  renderResults: (view: RoadmapView) => ReactNode;
+  renderResults: (view: RoadmapView, presentationMode: boolean) => ReactNode;
   saved: RoadmapView | null;
   onSaved: (id: string) => void;
 }) {
@@ -132,6 +134,7 @@ export default function RoadmapViewEditor({
     <div className="space-y-5">
       <form
         className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4"
+        hidden={presentationMode}
         onSubmit={submit}
       >
         <form.Field name="type">
@@ -252,6 +255,7 @@ export default function RoadmapViewEditor({
               projectId,
               saved?.revision ?? 0,
             ),
+            presentationMode,
           )
         }
       </form.Subscribe>

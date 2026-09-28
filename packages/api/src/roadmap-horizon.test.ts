@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 
 import {
   createMilestoneInputSchema,
+  createRoadmapPlacementPreview,
+  listUnplannedRoadmapCandidates,
   milestoneSchema,
   milestoneStatusSchema,
   presentRoadmap,
@@ -11,6 +13,7 @@ import {
   updateMilestoneStatusInputSchema,
   updateWorkHorizonInputSchema,
 } from "./roadmap-horizon";
+import { updateWorkPlannedDateInputSchema } from "./work-lifecycle";
 
 describe("Roadmap Horizon", () => {
   test("Milestone starts Planned and changes only through explicit Reach or Abandon actions", () => {
@@ -176,6 +179,135 @@ describe("Roadmap Horizon", () => {
     ).toBe(false);
     expect(
       roadmapViewSchema.safeParse({ ...view, markBy: "Type" }).success,
+    ).toBe(false);
+  });
+
+  test("unplanned candidates are the view's matching Work without any plan date or horizon", () => {
+    const view = roadmapViewSchema.parse({
+      id: "view-1",
+      name: "Tasks",
+      projectId: "project-1",
+      revision: 1,
+      types: ["Task"],
+      horizons: [],
+      groupBy: "Type",
+      markBy: "Horizon",
+    });
+    const works = [
+      {
+        id: "candidate",
+        type: "Task",
+        horizon: null,
+        plannedStartDate: null,
+        targetDate: null,
+        originResearchIds: [],
+        title: "Candidate",
+      },
+      {
+        id: "planned-start",
+        type: "Task",
+        horizon: null,
+        plannedStartDate: "2026-10-01",
+        targetDate: null,
+        originResearchIds: [],
+        title: "Planned start",
+      },
+      {
+        id: "target",
+        type: "Task",
+        horizon: null,
+        plannedStartDate: null,
+        targetDate: "2026-10-02",
+        originResearchIds: [],
+        title: "Target",
+      },
+      {
+        id: "horizon",
+        type: "Task",
+        horizon: "Later",
+        plannedStartDate: null,
+        targetDate: null,
+        originResearchIds: [],
+        title: "Horizon",
+      },
+      {
+        id: "wrong-type",
+        type: "Feature",
+        horizon: null,
+        plannedStartDate: null,
+        targetDate: null,
+        originResearchIds: [],
+        title: "Wrong type",
+      },
+    ] as const;
+
+    expect(
+      listUnplannedRoadmapCandidates(works, view).map(({ work }) => work.id),
+    ).toEqual(["candidate"]);
+    expect(
+      listUnplannedRoadmapCandidates(works, {
+        ...view,
+        horizons: ["Next"],
+      }),
+    ).toEqual([]);
+  });
+
+  test("candidate preview names the only value that confirmation will change", () => {
+    const work = {
+      horizon: null,
+      plannedStartDate: null,
+      targetDate: null,
+    };
+
+    expect(
+      createRoadmapPlacementPreview(work, {
+        field: "horizon",
+        value: "Now",
+      }),
+    ).toEqual({
+      fieldLabel: "Horizon",
+      previousValue: "No horizon",
+      nextValue: "Now",
+    });
+    expect(
+      createRoadmapPlacementPreview(work, {
+        field: "targetDate",
+        value: "2026-10-02",
+      }),
+    ).toEqual({
+      fieldLabel: "Target date",
+      previousValue: "No date",
+      nextValue: "2026-10-02",
+    });
+  });
+
+  test("planned-date command accepts only one explicit date field", () => {
+    const command = {
+      baseRevision: 2,
+      clientIdempotencyKey: "plan-date-1",
+      field: "targetDate",
+      value: "2026-10-02",
+      workId: "work-1",
+    };
+
+    expect(updateWorkPlannedDateInputSchema.parse(command)).toEqual(command);
+    expect(
+      updateWorkPlannedDateInputSchema.safeParse({
+        ...command,
+        status: "In Progress",
+      }).success,
+    ).toBe(false);
+    expect(
+      updateWorkPlannedDateInputSchema.safeParse({
+        ...command,
+        field: "horizon",
+      }).success,
+    ).toBe(false);
+    expect(
+      updateWorkPlannedDateInputSchema.safeParse({
+        ...command,
+        value: "October 2",
+      }).success,
     ).toBe(false);
   });
 

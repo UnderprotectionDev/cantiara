@@ -191,10 +191,13 @@ function createWorkLifecycleStub(): WorkLifecycleAccess {
     unarchive: vi.fn(),
     undoMerge: vi.fn(),
     undoStatus: vi.fn(),
+    undoDate: vi.fn(),
     updateFeaturePrimarySpec: vi.fn(),
     updateChecklist: vi.fn(),
     updateStatus: vi.fn(),
     updateReappearDate: vi.fn(),
+    updatePlannedDate: vi.fn(),
+    updateDate: vi.fn(),
     updateType: vi.fn(),
   };
 }

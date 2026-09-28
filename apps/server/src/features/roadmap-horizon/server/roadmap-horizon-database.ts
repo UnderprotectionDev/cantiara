@@ -6,12 +6,14 @@ import {
   createMilestoneInputSchema,
   type Milestone,
   milestoneSchema,
+  type RoadmapBlockerSource,
   type RoadmapHorizonAccess,
   roadmapViewSchema,
   saveRoadmapViewInputSchema,
   updateMilestoneInputSchema,
   updateMilestoneStatusInputSchema,
 } from "@cantiara/api/roadmap-horizon";
+import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
@@ -19,7 +21,7 @@ import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { roadmapView } from "@cantiara/db/schema/roadmap-horizon";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import {
   MutationConflictError,
@@ -383,6 +385,81 @@ export function createDatabaseRoadmapHorizon(
   }
 
   return {
+    async listActiveBlockers(accountId, projectId) {
+      if (!(await ownsProject(accountId, projectId))) {
+        return null;
+      }
+      const relations = await database
+        .select({
+          blockedWorkId: work.id,
+          blockerWorkId: workRelation.sourceWorkId,
+        })
+        .from(workRelation)
+        .innerJoin(
+          work,
+          and(
+            eq(workRelation.targetRecordId, work.id),
+            eq(workRelation.targetRecordType, "Work"),
+          ),
+        )
+        .where(
+          and(
+            eq(work.projectId, projectId),
+            isNull(work.archivedAt),
+            eq(workRelation.targetProjectId, projectId),
+            eq(workRelation.kind, "Blocks"),
+            eq(workRelation.sourceRecordType, "Work"),
+            eq(workRelation.targetRecordType, "Work"),
+            eq(workRelation.blockingStatus, "Active"),
+            isNull(workRelation.deletedAt),
+          ),
+        )
+        .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
+      const blockerIds = [
+        ...new Set(relations.map(({ blockerWorkId }) => blockerWorkId)),
+      ];
+      if (!blockerIds.length) {
+        return [];
+      }
+
+      const sources = await database
+        .select({
+          archivedAt: work.archivedAt,
+          id: work.id,
+          key: work.key,
+          projectId: work.projectId,
+          status: work.status,
+          title: work.title,
+          type: work.type,
+        })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+        .where(
+          and(
+            inArray(work.id, blockerIds),
+            eq(workspace.ownerAccountId, accountId),
+          ),
+        );
+      const sourcesById = new Map(sources.map((record) => [record.id, record]));
+
+      return relations.flatMap(({ blockedWorkId, blockerWorkId }) => {
+        const record = sourcesById.get(blockerWorkId);
+        if (!record) {
+          return [];
+        }
+        const blocker: RoadmapBlockerSource = {
+          archivedAt: record.archivedAt?.toISOString() ?? null,
+          id: record.id,
+          key: record.key,
+          projectId: record.projectId,
+          status: record.status as WorkProfile["status"],
+          title: record.title,
+          type: record.type as WorkProfile["type"],
+        };
+        return [{ blockedWorkId, blocker }];
+      });
+    },
     async createMilestone(accountId, rawInput) {
       const input = createMilestoneInputSchema.parse(rawInput);
       const mutation = createProjectMilestoneMutation(database, accountId);
