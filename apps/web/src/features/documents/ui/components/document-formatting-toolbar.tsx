@@ -85,6 +85,20 @@ function ToolButton({
   );
 }
 
+function FieldErrors({
+  errors,
+}: {
+  errors: readonly ({ message: string } | undefined)[];
+}) {
+  return errors
+    .filter((error) => error !== undefined)
+    .map((error) => (
+      <p key={error.message} role="alert">
+        {error.message}
+      </p>
+    ));
+}
+
 export default function DocumentFormattingToolbar({
   editor,
 }: {
@@ -245,13 +259,7 @@ export default function DocumentFormattingToolbar({
                         placeholder="https://example.com"
                         value={field.state.value}
                       />
-                      {field.state.meta.errors
-                        .filter((error) => error !== undefined)
-                        .map((error) => (
-                          <p key={error.message} role="alert">
-                            {error.message}
-                          </p>
-                        ))}
+                      <FieldErrors errors={field.state.meta.errors} />
                     </>
                   )}
                 </linkForm.Field>
@@ -399,13 +407,7 @@ export default function DocumentFormattingToolbar({
                         placeholder="x^2"
                         value={field.state.value}
                       />
-                      {field.state.meta.errors
-                        .filter((error) => error !== undefined)
-                        .map((error) => (
-                          <p key={error.message} role="alert">
-                            {error.message}
-                          </p>
-                        ))}
+                      <FieldErrors errors={field.state.meta.errors} />
                     </div>
                   )}
                 </formulaForm.Field>
