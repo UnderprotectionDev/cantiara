@@ -36,6 +36,25 @@ describe("server environment", () => {
     });
   });
 
+  test("derives a separate security-event database for local development", () => {
+    const { SECURITY_EVENT_DATABASE_URL: _ignored, ...localEnvironment } =
+      validEnvironment;
+    expect(
+      createServerEnv({ ...localEnvironment, NEON_LOCAL: "true" })
+        .SECURITY_EVENT_DATABASE_URL,
+    ).toBe("postgresql://user:password@localhost:5432/cantiara_security");
+  });
+
+  test("still requires an explicit security-event URL in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...productionEnvironment,
+        SECURITY_EVENT_DATABASE_URL: undefined,
+        NEON_LOCAL: "true",
+      }),
+    ).toThrow("SECURITY_EVENT_DATABASE_URL");
+  });
+
   test("rejects a short Better Auth secret", () => {
     expect(() =>
       createServerEnv({ ...validEnvironment, BETTER_AUTH_SECRET: "too-short" }),

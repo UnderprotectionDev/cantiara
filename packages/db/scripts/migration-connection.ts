@@ -44,3 +44,13 @@ export function assertLocalPostgresTarget(value: string | undefined) {
     throw new Error("Local migration requires a local PostgreSQL target");
   }
 }
+
+export function assertDevelopmentMigrationTarget(
+  value: string | undefined,
+  localMode: boolean,
+) {
+  if (!localMode) {
+    throw new Error("Development migrations require NEON_LOCAL=true");
+  }
+  assertLocalPostgresTarget(value);
+}

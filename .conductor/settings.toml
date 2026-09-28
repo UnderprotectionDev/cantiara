@@ -140,49 +140,48 @@ After creation or update, respond to the user in Turkish with the pull request t
 '''
 
 [scripts]
-setup = "bun install && bun scripts/conductor-workspace.ts setup"
-archive = "bun scripts/conductor-workspace.ts archive"
-run_mode = "concurrent"
+setup = "bun install"
+run_mode = "nonconcurrent"
 
 [scripts.run.dev]
 available_in = ["local"]
-command = "bun scripts/conductor-workspace.ts run"
+command = "bun --env-file=apps/server/.env.local scripts/local-dev.ts"
 default = true
 icon = "play"
 
 [scripts.run.web]
 available_in = ["local"]
-command = "bun scripts/conductor-workspace.ts run-one web"
+command = "bun run dev:web"
 icon = "globe"
 
 [scripts.run.server]
 available_in = ["local"]
-command = "bun scripts/conductor-workspace.ts run-one server"
+command = "bun --env-file=apps/server/.env.local scripts/local-dev.ts server"
 icon = "server"
 
 [scripts.run.docs]
 available_in = ["local"]
-command = "bun scripts/conductor-workspace.ts run-one docs"
+command = "bun run --cwd apps/fumadocs dev"
 icon = "book-open"
 
 [scripts.run.extension]
 available_in = ["local"]
-command = "bun scripts/conductor-workspace.ts run-one extension"
+command = "bun run --cwd apps/extension dev"
 icon = "puzzle"
 
 [scripts.run.api-types]
 available_in = ["local"]
-command = "bun scripts/conductor-workspace.ts run-one api-types"
+command = "bun run dev:types"
 icon = "braces"
 
 [[preview_urls]]
 name = "Web"
-url = "http://localhost:$((CONDUCTOR_PORT + 1))"
+url = "http://localhost:3001"
 
 [[preview_urls]]
 name = "API"
-url = "http://localhost:$CONDUCTOR_PORT"
+url = "http://localhost:3000"
 
 [[preview_urls]]
 name = "Docs"
-url = "http://localhost:$((CONDUCTOR_PORT + 2))"
+url = "http://localhost:4000"

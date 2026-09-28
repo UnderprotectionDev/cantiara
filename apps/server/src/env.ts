@@ -3,6 +3,7 @@ import {
   DESKTOP_API_PREVIOUS_CONTRACT,
   DESKTOP_API_PUBLISHED_AT,
 } from "@cantiara/api/desktop-api-window";
+import { resolveSecurityEventDatabaseUrl } from "@cantiara/db/security-event-database-url";
 import { createEnv } from "@t3-oss/env-core";
 import ipaddr from "ipaddr.js";
 import { z } from "zod";
@@ -44,6 +45,10 @@ const trustedProxyIpsSchema = z
 export function createServerEnv(
   runtimeEnv: Record<string, string | undefined> = process.env,
 ) {
+  const securityEventDatabaseUrl = resolveSecurityEventDatabaseUrl(runtimeEnv);
+  if (!securityEventDatabaseUrl) {
+    throw new Error("SECURITY_EVENT_DATABASE_URL is required");
+  }
   const serverEnv = createEnv({
     server: {
       NODE_ENV: z
@@ -76,7 +81,10 @@ export function createServerEnv(
       SECURITY_EVENT_DATABASE_URL: z.string().min(1),
       TRUSTED_PROXY_IPS: trustedProxyIpsSchema,
     },
-    runtimeEnv,
+    runtimeEnv: {
+      ...runtimeEnv,
+      SECURITY_EVENT_DATABASE_URL: securityEventDatabaseUrl,
+    },
     emptyStringAsUndefined: true,
   });
 
