@@ -123,6 +123,7 @@
 │   │   │   ├── index.ts
 │   │   │   └── services.ts
 │   │   ├── .env.example
+│   │   ├── .env.migrations.example
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── tsdown.config.ts
@@ -600,6 +601,8 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
+│   ├── dev-database-mode.test.ts
+│   ├── dev-database-mode.ts
 │   ├── install-hooks.ts
 │   ├── local-dev.ts
 │   └── neon-local-proxy.ts

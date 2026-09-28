@@ -79,6 +79,7 @@ export function createServerEnv(
       R2_BUCKET: z.string().min(1).optional(),
       R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
       SECURITY_EVENT_DATABASE_URL: z.string().min(1),
+      SECURITY_EVENT_LOCAL: z.enum(["true", "false"]).default("false"),
       TRUSTED_PROXY_IPS: trustedProxyIpsSchema,
     },
     runtimeEnv: {
@@ -101,6 +102,29 @@ export function createServerEnv(
     throw new Error(
       "SECURITY_EVENT_DATABASE_URL must identify a database outside the primary restore unit",
     );
+  }
+
+  if (serverEnv.SECURITY_EVENT_LOCAL === "true") {
+    if (serverEnv.NODE_ENV === "production") {
+      throw new Error("SECURITY_EVENT_LOCAL is forbidden in production");
+    }
+    let securityEventDatabase: URL;
+    try {
+      securityEventDatabase = new URL(serverEnv.SECURITY_EVENT_DATABASE_URL);
+    } catch {
+      // biome-ignore lint/style/useErrorCause: URL parser errors may expose credentials.
+      throw new Error("SECURITY_EVENT_LOCAL requires local PostgreSQL");
+    }
+    if (
+      !(
+        ["postgres:", "postgresql:"].includes(securityEventDatabase.protocol) &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(
+          securityEventDatabase.hostname,
+        )
+      )
+    ) {
+      throw new Error("SECURITY_EVENT_LOCAL requires local PostgreSQL");
+    }
   }
 
   if (serverEnv.NODE_ENV === "production") {

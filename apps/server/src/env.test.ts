@@ -45,6 +45,25 @@ describe("server environment", () => {
     ).toBe("postgresql://user:password@localhost:5432/cantiara_security");
   });
 
+  test("accepts Neon primary data with a local security-event database in development", () => {
+    expect(
+      createServerEnv({
+        ...validEnvironment,
+        DATABASE_URL: "postgresql://owner:secret@ep-main.neon.tech/neondb",
+        SECURITY_EVENT_LOCAL: "true",
+      }).SECURITY_EVENT_LOCAL,
+    ).toBe("true");
+  });
+
+  test("rejects a local security-event database in production", () => {
+    expect(() =>
+      createServerEnv({
+        ...productionEnvironment,
+        SECURITY_EVENT_LOCAL: "true",
+      }),
+    ).toThrow("SECURITY_EVENT_LOCAL");
+  });
+
   test("still requires an explicit security-event URL in production", () => {
     expect(() =>
       createServerEnv({

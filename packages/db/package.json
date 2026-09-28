@@ -14,10 +14,10 @@
   "scripts": {
     "build": "tsc -b",
     "check-types": "tsc -b",
-    "db:generate": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit generate",
-    "db:migrate": "bun --env-file=../../apps/server/.env.local ./scripts/migrate.ts",
+    "db:generate": "bun --env-file=../../apps/server/.env.migrations.local ./node_modules/.bin/drizzle-kit generate",
+    "db:migrate": "bun --env-file=../../apps/server/.env.migrations.local ./scripts/migrate.ts",
     "db:migrate:deploy": "CANTIARA_DEPLOY_MIGRATION=true bun ./scripts/migrate.ts --deployment",
-    "db:push": "bun --env-file=../../apps/server/.env.local ./scripts/push-local.ts",
+    "db:push": "bun --env-file=../../apps/server/.env.migrations.local ./scripts/push-local.ts",
     "db:security:generate": "bun --env-file=../../apps/server/.env.local ./node_modules/.bin/drizzle-kit generate --config drizzle.security.config.ts",
     "db:security:migrate": "bun --env-file=../../apps/server/.env.local ./scripts/migrate.ts --security-events",
     "db:security:migrate:deploy": "CANTIARA_DEPLOY_MIGRATION=true bun ./scripts/migrate.ts --security-events --deployment",

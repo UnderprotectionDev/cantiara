@@ -13,7 +13,10 @@ import type { NeonDatabase } from "drizzle-orm/neon-serverless";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
 import { createDb } from "../src/index";
 import { resolveSecurityEventDatabaseUrl } from "../src/security-event-database-url";
-import { createSecurityEventDb } from "../src/security-events";
+import {
+  createLocalSecurityEventDb,
+  createSecurityEventDb,
+} from "../src/security-events";
 import {
   assertDevelopmentMigrationTarget,
   migrationConnectionString,
@@ -25,6 +28,8 @@ import {
 
 const securityEvents = process.argv.includes("--security-events");
 const deployment = process.argv.includes("--deployment");
+const localSecurityEvents =
+  securityEvents && process.env.SECURITY_EVENT_LOCAL === "true";
 const securityEventDatabaseUrl = resolveSecurityEventDatabaseUrl(process.env);
 if (deployment && process.env.CANTIARA_DEPLOY_MIGRATION !== "true") {
   throw new Error(
@@ -34,7 +39,7 @@ if (deployment && process.env.CANTIARA_DEPLOY_MIGRATION !== "true") {
 if (!deployment) {
   assertDevelopmentMigrationTarget(
     securityEvents ? securityEventDatabaseUrl : process.env.DATABASE_URL,
-    process.env.NEON_LOCAL === "true",
+    process.env.NEON_LOCAL === "true" || localSecurityEvents,
   );
 }
 const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
@@ -43,7 +48,9 @@ const databaseUrl = migrationConnectionString(
   securityEvents
     ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
     : process.env.DATABASE_URL_UNPOOLED,
-  { useLocalPostgres: process.env.NEON_LOCAL === "true" },
+  {
+    useLocalPostgres: process.env.NEON_LOCAL === "true" || localSecurityEvents,
+  },
 );
 
 if (!databaseUrl) {
@@ -65,7 +72,12 @@ const migrationsFolder = securityEvents
   : "./src/migrations";
 
 if (securityEvents) {
-  const database = createSecurityEventDb({ DATABASE_URL: databaseUrl });
+  const database = localSecurityEvents
+    ? await createLocalSecurityEventDb({
+        DATABASE_URL: databaseUrl,
+        proxyAddress: process.env.NEON_LOCAL_PROXY,
+      })
+    : createSecurityEventDb({ DATABASE_URL: databaseUrl });
   try {
     await runMigrations(database, migrationsFolder, compatibilityRepairTag);
   } finally {
