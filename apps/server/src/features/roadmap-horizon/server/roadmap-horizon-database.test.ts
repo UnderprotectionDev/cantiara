@@ -1,7 +1,11 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
-import { mutationHistory, mutationReceipt } from "@cantiara/db/schema/mutation";
+import {
+  mutationHistory,
+  mutationReceipt,
+  mutationStaging,
+} from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
@@ -21,6 +25,7 @@ import {
   MutationTargetNotFoundError,
 } from "../../mutation-and-undo/server/mutation-contract";
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
+import { createDatabaseRelations } from "../../relations/server/relations";
 import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseRoadmapHorizon } from "./roadmap-horizon-database";
 
@@ -48,6 +53,9 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
       .values({ id: workspaceId, ownerAccountId: accountId });
   });
   afterEach(async () => {
+    await database
+      ?.delete(mutationStaging)
+      .where(eq(mutationStaging.actorId, accountId));
     await database
       ?.delete(mutationHistory)
       .where(eq(mutationHistory.actorId, accountId));
@@ -125,6 +133,210 @@ describeDatabase("Roadmap Horizon PostgreSQL contract", () => {
       ids[1],
       ids[0],
     ]);
+  });
+
+  test("Milestone status changes leave linked Work unchanged, and closed Work does not reach a Milestone", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const profile = await createDatabaseProjectShell(database).create(
+      accountId,
+      {
+        name: "Milestone Project",
+        shortCode: "MLS",
+        starterConfiguration: "Blank Project",
+      },
+    );
+    const roadmap = createDatabaseRoadmapHorizon(database);
+    const relations = createDatabaseRelations(database);
+    const lifecycle = createDatabaseWorkLifecycle(database);
+    const milestoneId = `milestone-${crypto.randomUUID()}`;
+    const milestone = await roadmap.createMilestone(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      description: "Early users can complete the core flow.",
+      id: milestoneId,
+      projectId: profile.id,
+      targetDate: "2026-11-15",
+      title: "Private beta",
+    });
+    expect(milestone).toMatchObject({
+      description: "Early users can complete the core flow.",
+      id: milestoneId,
+      projectId: profile.id,
+      revision: 1,
+      status: "Planned",
+      targetDate: "2026-11-15",
+    });
+    if (!milestone) {
+      throw new Error("Expected created Milestone");
+    }
+
+    const workIds = [crypto.randomUUID(), crypto.randomUUID()];
+    await database.insert(work).values(
+      workIds.map((id, index) => ({
+        id,
+        key: `MLS-${index + 1}`,
+        number: index + 1,
+        projectId: profile.id,
+        title: `Milestone Work ${index + 1}`,
+        type: "Task",
+      })),
+    );
+    async function linkWorksToMilestone(targetMilestoneId: string) {
+      const previews = await Promise.all(
+        workIds.map((workId) =>
+          relations.previewCreate(accountId, {
+            kind: "Contributes to Milestone",
+            source: { recordId: workId, recordType: "Work" },
+            target: {
+              recordId: targetMilestoneId,
+              recordType: "Milestone",
+            },
+          }),
+        ),
+      );
+      const linkedRelations = await Promise.all(
+        previews.map((preview) =>
+          relations.create(accountId, {
+            baseRevision: preview.baseRevision,
+            clientIdempotencyKey: crypto.randomUUID(),
+            kind: preview.kind,
+            previewId: preview.previewId,
+            source: {
+              recordId: preview.source.recordId,
+              recordType: preview.source.recordType,
+            },
+            target: {
+              recordId: preview.target.recordId,
+              recordType: preview.target.recordType,
+            },
+          }),
+        ),
+      );
+      expect(linkedRelations.map(({ relation }) => relation?.kind)).toEqual([
+        "Contributes to Milestone",
+        "Contributes to Milestone",
+      ]);
+      expect(
+        (
+          await relations.list(accountId, {
+            recordId: targetMilestoneId,
+            recordType: "Milestone",
+          })
+        )
+          .map(({ source }) => source.title)
+          .sort(),
+      ).toEqual(["Milestone Work 1", "Milestone Work 2"]);
+    }
+
+    await linkWorksToMilestone(milestoneId);
+
+    const abandonedId = `milestone-${crypto.randomUUID()}`;
+    const abandoned = await roadmap.createMilestone(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      description: null,
+      id: abandonedId,
+      projectId: profile.id,
+      targetDate: null,
+      title: "Cancelled experiment",
+    });
+    if (!abandoned) {
+      throw new Error("Expected created Milestone");
+    }
+    await linkWorksToMilestone(abandonedId);
+
+    const stillPlannedId = `milestone-${crypto.randomUUID()}`;
+    const stillPlanned = await roadmap.createMilestone(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      description: null,
+      id: stillPlannedId,
+      projectId: profile.id,
+      targetDate: null,
+      title: "Open work remains planned",
+    });
+    if (!stillPlanned) {
+      throw new Error("Expected created Milestone");
+    }
+    await linkWorksToMilestone(stillPlannedId);
+
+    expect(
+      (
+        await Promise.all(
+          workIds.map((workId) => lifecycle.find(accountId, workId)),
+        )
+      ).map((current) => current?.status),
+    ).toEqual(["Not Started", "Not Started"]);
+
+    const reached = await roadmap.updateMilestoneStatus(accountId, {
+      baseRevision: milestone.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      milestoneId,
+      projectId: profile.id,
+      status: "Reached",
+    });
+    expect(reached?.status).toBe("Reached");
+    expect(
+      (
+        await Promise.all(
+          workIds.map((workId) => lifecycle.find(accountId, workId)),
+        )
+      ).map((current) => current?.status),
+    ).toEqual(["Not Started", "Not Started"]);
+
+    const abandonedStatus = await roadmap.updateMilestoneStatus(accountId, {
+      baseRevision: abandoned.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      milestoneId: abandonedId,
+      projectId: profile.id,
+      status: "Abandoned",
+    });
+    expect(abandonedStatus?.status).toBe("Abandoned");
+    expect(
+      (
+        await Promise.all(
+          workIds.map((workId) => lifecycle.find(accountId, workId)),
+        )
+      ).map((current) => current?.status),
+    ).toEqual(["Not Started", "Not Started"]);
+
+    const currentWorks = await Promise.all(
+      workIds.map((workId) => lifecycle.find(accountId, workId)),
+    );
+    if (currentWorks.some((current) => current === null)) {
+      throw new Error("Expected linked Work");
+    }
+    await Promise.all(
+      currentWorks.map((current) => {
+        if (!current) {
+          throw new Error("Expected linked Work");
+        }
+        return lifecycle.close(
+          accountId,
+          {
+            baseRevision: current.revision,
+            clientIdempotencyKey: crypto.randomUUID(),
+            closureResult: "Completed",
+            workId: current.id,
+          },
+          { kind: "Visible user" },
+        );
+      }),
+    );
+    expect(
+      (
+        await Promise.all(
+          workIds.map((workId) => lifecycle.find(accountId, workId)),
+        )
+      ).map((current) => current?.status),
+    ).toEqual(["Closed", "Closed"]);
+    expect(
+      (await roadmap.listMilestones(accountId, profile.id))?.find(
+        ({ id }) => id === stillPlannedId,
+      )?.status,
+    ).toBe("Planned");
   });
 
   test("planned-date placement updates one date field and leaves status and horizon alone", async () => {

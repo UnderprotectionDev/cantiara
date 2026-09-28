@@ -9,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { orpc } from "@/utils/orpc";
+import ProjectMilestones from "./project-milestones";
 import { RoadmapResults } from "./roadmap-results";
 import RoadmapViewEditor from "./roadmap-view-editor";
 
@@ -343,6 +344,9 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
         </>
       )}
       {!presentationMode && roadmapContent}
+      {!presentationMode && (
+        <ProjectMilestones projectId={projectId} works={works} />
+      )}
     </section>
   );
 }
