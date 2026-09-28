@@ -10,6 +10,7 @@ import type {
 } from "@cantiara/api/backlog";
 import { partitionDeferredBacklog } from "@cantiara/api/backlog";
 import { PRIORITY_METRIC_RANKS } from "@cantiara/api/priority-metrics";
+import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { Calendar } from "@cantiara/ui/components/calendar";
 import {
@@ -40,8 +41,10 @@ import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
+import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import {
@@ -54,11 +57,13 @@ function BacklogCard({
   canReorder,
   formattingPreferences,
   projectId,
+  profile,
   work,
 }: {
   canReorder: boolean;
   formattingPreferences: AccountPreferences;
   projectId: string;
+  profile: WorkProfile | undefined;
   work: BacklogWork;
 }) {
   const queryClient = useQueryClient();
@@ -132,6 +137,12 @@ function BacklogCard({
           {work.title}
         </span>
       </Link>
+      {profile ? (
+        <div className="flex items-center gap-1">
+          <WorkReviewLaterControl compact work={profile} />
+          <WorkNotNowControl compact work={profile} />
+        </div>
+      ) : null}
       <div className="mr-3 flex items-center gap-2 text-xs">
         <Popover onOpenChange={setDateOpen} open={dateOpen}>
           <PopoverTrigger
@@ -238,6 +249,9 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   const query = useQuery(
     orpc.projectBacklog.queryOptions({ input: { projectId } }),
   );
+  const workProfilesQuery = useQuery(
+    orpc.projectWorks.queryOptions({ input: { archived: false, projectId } }),
+  );
   const orderQuery = useQuery(
     orpc.projectBacklogOrder.queryOptions({ input: { projectId } }),
   );
@@ -310,6 +324,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
 
   if (
     query.isPending ||
+    workProfilesQuery.isPending ||
     orderQuery.isPending ||
     presentationQuery.isPending ||
     preferencesQuery.isPending
@@ -322,6 +337,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   }
   if (
     query.isError ||
+    workProfilesQuery.isError ||
     orderQuery.isError ||
     presentationQuery.isError ||
     preferencesQuery.isError
@@ -341,6 +357,9 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   }
 
   const works = query.data;
+  const profilesById = new Map(
+    (workProfilesQuery.data ?? []).map((profile) => [profile.id, profile]),
+  );
   const formattingPreferences = {
     ...DEFAULT_ACCOUNT_PREFERENCES,
     ...preferencesQuery.data,
@@ -545,6 +564,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
                 canReorder={canReorder}
                 formattingPreferences={formattingPreferences}
                 key={work.id}
+                profile={profilesById.get(work.id)}
                 projectId={projectId}
                 work={work}
               />
@@ -561,6 +581,7 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
                 canReorder={false}
                 formattingPreferences={formattingPreferences}
                 key={work.id}
+                profile={profilesById.get(work.id)}
                 projectId={projectId}
                 work={work}
               />

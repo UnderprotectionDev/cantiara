@@ -121,6 +121,8 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 - **Kullanıcı etkin kararı `Yeniden değerlendiriliyor` eylemiyle kapatabilir veya yeni bir `Şimdi değil` kararıyla değiştirebilir.** Önceki gerekçe, koşul, dayanaklar, yazar ve zaman normal kayıt geçmişinde korunur. Kararı kapatmak ya da değiştirmek daha önce ayrıca kurulmuş `Yeniden bak` hatırlatmasını sessizce silmez; ilgili hatırlatmayı koruma veya kaldırma etkisi kullanıcıya ayrıca gösterilir. İşi kapatmak, arşivlemek veya durumunu değiştirmek de `Şimdi değil` kararını kendiliğinden kapatmaz.
 
+- **Kayıt penceresi `Reason`, `Re-evaluation condition` ve `Supporting records` alanlarını içerir; `Preview` bu değerleri ve korunan geçmişi gösterir, `Confirm Not now` açık onaydan sonra izi kaydeder.** Etkin iz ve eski izler `History` içinde görünür; değiştirilerek kapanan eski iz `Replaced` olarak işaretlenir.
+
 ### Öncelik ölçütleri
 
 - **İşin önceliği yalnız proje bazlı öncelik ölçütü değerleriyle ifade edilir.** İş kaydında bunlardan ayrı, tek başına duran skaler bir `öncelik` alanı bulunmaz; ürün ölçüt değerlerinden tek bir öncelik değeri, sırası veya hükmü türetmez.

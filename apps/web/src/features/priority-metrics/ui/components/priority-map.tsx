@@ -17,9 +17,11 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { priorityMetricItemsForWork } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
+import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { orpc } from "@/utils/orpc";
 
 const EVIDENCE_COUNT_LABELS = [
@@ -370,12 +372,19 @@ function PriorityMapWork({
 
   return (
     <article className="space-y-2 rounded-md border border-border/70 bg-card p-2.5">
-      <a
-        className="block font-medium text-sm underline-offset-4 hover:underline"
-        href={workRecordHref(projectId, work.id)}
-      >
-        <span className="text-muted-foreground">{work.key}</span> — {work.title}
-      </a>
+      <div className="flex items-start justify-between gap-2">
+        <a
+          className="min-w-0 font-medium text-sm underline-offset-4 hover:underline"
+          href={workRecordHref(projectId, work.id)}
+        >
+          <span className="text-muted-foreground">{work.key}</span> —{" "}
+          {work.title}
+        </a>
+        <div className="flex shrink-0 items-center gap-1">
+          <WorkReviewLaterControl compact work={work} />
+          <WorkNotNowControl compact work={work} />
+        </div>
+      </div>
       {showEvidenceSignals ? (
         <EvidenceSignals context={context} work={work} works={works} />
       ) : null}

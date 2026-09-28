@@ -50,6 +50,8 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
+import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
+import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
 import { createPrioritizationSessionsAccess } from "./features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "./features/prioritization-sessions/server/prioritization-sessions-database";
 import { createDatabasePrioritizationSessionMutationContracts } from "./features/prioritization-sessions/server/prioritization-sessions-mutation-database";
@@ -125,6 +127,16 @@ const backlogReappearSignalWorker = createBacklogReappearSignalWorker({
 export const startBacklogReappearSignalWorker =
   backlogReappearSignalWorker.start;
 export const stopBacklogReappearSignalWorker = backlogReappearSignalWorker.stop;
+const personalReminderStore = createDatabasePersonalReminders(db);
+export const personalReminders = personalReminderStore;
+export const sweepDueWorkReviewLater = (now = new Date()) =>
+  personalReminderStore.fireDueWorkReviewLater(now);
+const personalReminderWorker = createPersonalReminderWorker({
+  connectionString: env.DATABASE_URL,
+  process: async () => (await sweepDueWorkReviewLater()).processedCount,
+});
+export const startPersonalReminderWorker = personalReminderWorker.start;
+export const stopPersonalReminderWorker = personalReminderWorker.stop;
 const priorityMetricStore = createDatabasePriorityMetrics(db);
 export const priorityMetrics = createPriorityMetricsAccess(priorityMetricStore);
 export const priorityMetricMutationContracts =

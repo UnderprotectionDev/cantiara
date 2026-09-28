@@ -275,7 +275,7 @@ _Avoid_: Kanban, Initiative, Idea yaşam döngüsü, `Show on Roadmap` üyeliği
 _Avoid_: İş akışı durumu, Parked, sprint, yayın kapsamı
 
 **Şimdi değil karar izi**:
-Açık İş üzerindeki sahipli erteleme izi; kısa gerekçe, isteğe bağlı yeniden değerlendirme koşulu ve dayanak ilişkileri taşır. Ayrı durum, kapanış sonucu, Backlog veya planlama üyeliği, öncelik değeri, Parked sütunu veya Karar kaydı değildir ([`Şimdi değil` karar izi](docs/prd/06-work-management-and-planning.md#şimdi-değil-karar-izi)). UI: `Not now`, `Reconsidering`.
+Açık İş üzerindeki sahipli erteleme izi; kısa gerekçe, isteğe bağlı yeniden değerlendirme koşulu ve dayanak ilişkileri taşır. Ayrı durum, kapanış sonucu, Backlog veya planlama üyeliği, öncelik değeri, Parked sütunu veya Karar kaydı değildir ([`Şimdi değil` karar izi](docs/prd/06-work-management-and-planning.md#şimdi-değil-karar-izi)). UI: `Not now`, `Reason`, `Re-evaluation condition`, `Supporting records`, `Preview`, `Confirm Not now`, `Reconsidering`, `Replaced`, `History`.
 _Avoid_: Parked, kapanış sonucu, Karar kaydı, Initiative, `Show on Roadmap` üyeliği
 
 **Planlanmamış adaylar**:

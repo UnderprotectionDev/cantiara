@@ -23,6 +23,7 @@ import {
   githubAvailability,
   githubIdentityConfirmation,
   mutationContract,
+  personalReminders,
   prioritizationSessionMutationContracts,
   prioritizationSessions,
   priorityMetricMutationContracts,
@@ -36,6 +37,7 @@ import {
   roadmapHorizon,
   startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
+  startPersonalReminderWorker,
   sweepExpiredFileAttachmentUploads,
   sweepExpiredPriorityMetrics,
   tagMutationContracts,
@@ -59,6 +61,7 @@ initLogger({
 await replaySecurityRevocations();
 await startFileAttachmentPreviewWorker();
 await startBacklogReappearSignalWorker();
+await startPersonalReminderWorker();
 await sweepExpiredFileAttachmentUploads();
 await sweepExpiredPriorityMetrics();
 setInterval(
@@ -102,6 +105,7 @@ const app = createApp({
   mutationContract,
   priorityMetricMutationContracts,
   priorityMetrics,
+  personalReminders,
   prioritizationSessionMutationContracts,
   prioritizationSessions,
   projectShell,

@@ -3,6 +3,7 @@ import type {
   RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -82,15 +83,17 @@ function renderResults(presentationMode = false) {
   });
   const blockers: RoadmapBlocker[] = [{ blockedWorkId: candidate.id, blocker }];
   return renderToStaticMarkup(
-    <RouterContextProvider router={router}>
-      <RoadmapResults
-        blockers={blockers}
-        origins={[]}
-        presentationMode={presentationMode}
-        view={view}
-        works={[candidate]}
-      />
-    </RouterContextProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <RouterContextProvider router={router}>
+        <RoadmapResults
+          blockers={blockers}
+          origins={[]}
+          presentationMode={presentationMode}
+          view={view}
+          works={[candidate]}
+        />
+      </RouterContextProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -102,6 +105,7 @@ describe("Roadmap Horizon presentation", () => {
     expect(html).toContain("(1)");
     expect(html).not.toMatch(OPEN_DETAILS);
     expect(html).toContain("Place on plan");
+    expect(html).toContain("Review Later");
     expect(html).toContain("Blocked Work");
     expect(html).toContain("Blocked by");
     expect(html).toContain("Get provider access");

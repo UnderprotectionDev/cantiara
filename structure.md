@@ -99,6 +99,11 @@
 │   │   │   │   ├── priority-metrics/
 │   │   │   │   ├── prioritization-sessions/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── personal-reminders/
+│   │   │   │   │   └── server/
+│   │   │   │   │       ├── personal-reminder-worker.ts
+│   │   │   │   │       ├── personal-reminders-database.test.ts
+│   │   │   │   │       └── personal-reminders-database.ts
 │   │   │   │   ├── roadmap-horizon/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── record-actions/
@@ -508,6 +513,7 @@
 │   │   │   ├── backlog.ts
 │   │   │   ├── prioritization-sessions.test.ts
 │   │   │   ├── prioritization-sessions.ts
+│   │   │   ├── personal-reminders.ts
 │   │   │   ├── roadmap-horizon.test.ts
 │   │   │   ├── roadmap-horizon.ts
 │   │   │   ├── desktop-api-window.test.ts
@@ -573,9 +579,9 @@
 │   │   │   │   ├── project-milestone.ts
 │   │   │   │   ├── backlog.ts
 │   │   │   │   ├── priority-metrics.ts
+│   │   │   │   ├── personal-reminders.ts
 │   │   │   │   ├── prioritization-session.ts
 │   │   │   │   ├── production-incident.ts
-│   │   │   │   ├── project-milestone.ts
 │   │   │   │   ├── project-release.ts
 │   │   │   │   ├── roadmap-horizon.ts
 │   │   │   │   ├── record-action.ts
@@ -630,11 +636,16 @@ File Attachments source ownership is split across the API contract (`packages/ap
 
 Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
 
+Personal Reminder lifecycle is owned by the account-scoped schema (`packages/db/src/schema/personal-reminders.ts`) and server boundary (`apps/server/src/features/personal-reminders/server/`). Roadmap Horizon calls its Work `Review Later` handling adapter in the same database transaction as replacing or reconsidering a `Not now` trail.
+
+The Work `Review Later` surface lives at `apps/web/src/features/personal-reminders/ui/components/work-review-later-control.tsx`; it is consumed on Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
+
 External Execution Handoff source ownership is split across the API contract (`packages/api/src/external-handoffs.ts`), the PostgreSQL schema and versioned migrations (`packages/db/src/schema/work-external-handoff.ts`, `packages/db/src/migrations/`), the Work-owned server boundary (`apps/server/src/features/external-handoffs/server/`), and the Work-list surface (`apps/web/src/features/external-handoffs/`).
 
 Backlog's prepared collection, manual order, and saved alternative presentation are separate Project-scoped sources of truth. Its API contract lives in `packages/api/src/backlog.ts`, its order and presentation schemas live in `packages/db/src/schema/backlog.ts`, its server access and mutations live under `apps/server/src/features/backlog/server/`, and its Project surface lives in `apps/web/src/features/backlog/`. Work archive and Trash timestamps are owned by `packages/db/src/schema/work.ts` and the versioned SQL in `packages/db/src/migrations/`. Prioritization Sessions remain a separate source of truth with their API contract in `packages/api/src/prioritization-sessions.ts`, schema in `packages/db/src/schema/prioritization-session.ts`, server access under `apps/server/src/features/prioritization-sessions/server/`, and comparison surface and session controls in `apps/web/src/features/prioritization-sessions/`.
 
 Roadmap Horizon named views, Work placement, and Project Milestones are owned by `packages/api/src/roadmap-horizon.ts`, `packages/db/src/schema/roadmap-horizon.ts`, `packages/db/src/schema/project-milestone.ts`, `apps/server/src/features/roadmap-horizon/server/`, and `apps/web/src/features/roadmap-horizon/ui/components/`.
+The Work-owned `Not now` decision trail contract and persistence are owned by `packages/api/src/work-not-now.ts`, `packages/db/src/schema/work-not-now.ts`, and `apps/server/src/features/roadmap-horizon/server/not-now-database.ts`; its shared control is `apps/web/src/features/roadmap-horizon/ui/components/work-not-now-control.tsx`, consumed by Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
 
 
 Record Actions source ownership is split across the API contract (`packages/api/src/record-actions.ts`), the PostgreSQL schema (`packages/db/src/schema/record-action.ts`), the server boundary (`apps/server/src/features/record-actions/server/`), and the Project Configuration Mode editor and run surface (`apps/web/src/features/record-actions/`).

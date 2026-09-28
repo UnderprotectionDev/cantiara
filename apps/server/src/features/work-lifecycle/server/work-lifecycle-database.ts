@@ -42,6 +42,7 @@ import {
   createDatabaseWorkRelations,
   type WorkRelationsMutationAdapter,
 } from "../../relations/server/work-relations";
+import { workNotNowSummariesForWorks } from "../../roadmap-horizon/server/not-now-database";
 import {
   createWork,
   createWorkLifecycle,
@@ -1305,7 +1306,14 @@ export function createDatabaseWorkLifecycle(
           ),
         )
         .orderBy(asc(work.number));
-      return records.map(({ record }) => toWorkProfile(record));
+      const notNowSummaries = await workNotNowSummariesForWorks(
+        database,
+        records.map(({ record }) => record.id),
+      );
+      return records.map(({ record }) => ({
+        ...toWorkProfile(record),
+        notNow: notNowSummaries.get(record.id),
+      }));
     },
 
     async listIncluded(accountId, featureId) {

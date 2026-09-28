@@ -93,6 +93,11 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  cancelWorkReviewLaterInputSchema,
+  createWorkReviewLaterInputSchema,
+  workReviewLaterInputSchema,
+} from "../personal-reminders";
+import {
   closePrioritizationSessionInputSchema,
   closePrioritizationSessionMutationInputSchema,
   createPrioritizationSessionInputSchema,
@@ -243,6 +248,11 @@ import {
   workTypeChangePreviewInputSchema,
   workTypeSchema,
 } from "../work-lifecycle";
+import {
+  reconsiderWorkNotNowInputSchema,
+  recordWorkNotNowInputSchema,
+  workNotNowHistoryInputSchema,
+} from "../work-not-now";
 import {
   createWorkTemplateInputSchema,
   createWorkTemplateMutationInputSchema,
@@ -409,6 +419,13 @@ function requireRoadmapHorizon(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.roadmapHorizon;
+}
+
+function requirePersonalReminders(context: Context) {
+  if (!context.personalReminders) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.personalReminders;
 }
 
 function requireBacklogMutationContracts(context: Context) {
@@ -762,6 +779,7 @@ function rethrowFileAttachmentError(error: unknown): never {
     default:
       if (error.code.startsWith("FILE_ATTACHMENT_")) {
         throw new ORPCError("BAD_REQUEST", {
+          cause: error,
           data: { code: error.code },
           defined: true,
           message,
@@ -1394,6 +1412,65 @@ async function runWorkLifecycleOperation<T>(operation: () => Promise<T>) {
     return await operation();
   } catch (error) {
     rethrowWorkLifecycleError(error);
+  }
+}
+
+function rethrowWorkNotNowError(error: unknown): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  switch (error.code) {
+    case "WORK_NOT_NOW_CONFLICT":
+      throw new ORPCError("PRECONDITION_FAILED", {
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string"
+            ? error.message
+            : "Not now has changed. Reload and try again.",
+      });
+    case "WORK_NOT_NOW_GROUND_UNAVAILABLE":
+      throw new ORPCError("CONFLICT", {
+        data: { code: error.code },
+        defined: true,
+        message: "A selected supporting record is no longer available.",
+      });
+    default:
+      throw error;
+  }
+}
+
+async function runWorkNotNowOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    rethrowWorkNotNowError(error);
+  }
+}
+
+async function runPersonalReminderOperation<T>(operation: () => Promise<T>) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isRecord(error)) {
+      if (error.code === "WORK_REVIEW_LATER_FIRE_AT_MUST_BE_FUTURE") {
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          data: { code: error.code },
+          defined: true,
+          message: "Review Later must be scheduled for a future time.",
+        });
+      }
+      if (error.code === "WORK_REVIEW_LATER_IDEMPOTENCY_CONFLICT") {
+        throw new ORPCError("CONFLICT", {
+          cause: error,
+          data: { code: error.code },
+          defined: true,
+          message: "This Review Later request key was already used.",
+        });
+      }
+    }
+    throw error;
   }
 }
 
@@ -3249,6 +3326,99 @@ export const appRouter = {
       }
       return blockers;
     }),
+  workReviewLater: protectedProcedure
+    .input(workReviewLaterInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminders = await requirePersonalReminders(
+        context,
+      ).listWorkReviewLater(context.session.user.id, input.workId);
+      if (!reminders) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work reminders are unavailable.",
+        });
+      }
+      return reminders;
+    }),
+  createWorkReviewLater: protectedProcedure
+    .input(createWorkReviewLaterInputSchema)
+    .handler(({ context, input }) =>
+      runPersonalReminderOperation(async () => {
+        const reminder = await requirePersonalReminders(
+          context,
+        ).createWorkReviewLater(context.session.user.id, input);
+        if (!reminder) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Review Later is unavailable for this Work.",
+          });
+        }
+        return reminder;
+      }),
+    ),
+  cancelWorkReviewLater: protectedProcedure
+    .input(cancelWorkReviewLaterInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminder = await requirePersonalReminders(
+        context,
+      ).cancelWorkReviewLater(context.session.user.id, input.reminderId);
+      if (!reminder) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Planned Review Later is unavailable.",
+        });
+      }
+      return reminder;
+    }),
+  workNotNowHistory: protectedProcedure
+    .input(workNotNowHistoryInputSchema)
+    .handler(async ({ context, input }) => {
+      const history = await requireRoadmapHorizon(context).history(
+        context.session.user.id,
+        input.workId,
+      );
+      if (!history) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Work history is unavailable.",
+        });
+      }
+      return history;
+    }),
+  recordWorkNotNow: protectedProcedure
+    .input(recordWorkNotNowInputSchema)
+    .handler(({ context, input }) =>
+      runWorkNotNowOperation(async () => {
+        const trail = await requireRoadmapHorizon(context).record(
+          context.session.user.id,
+          input,
+        );
+        if (!trail) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Not now can be recorded only on open Work.",
+          });
+        }
+        return trail;
+      }),
+    ),
+  reconsiderWorkNotNow: protectedProcedure
+    .input(reconsiderWorkNotNowInputSchema)
+    .handler(({ context, input }) =>
+      runWorkNotNowOperation(async () => {
+        const trail = await requireRoadmapHorizon(context).reconsider(
+          context.session.user.id,
+          input,
+        );
+        if (!trail) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "The active Not now trail is unavailable.",
+          });
+        }
+        return trail;
+      }),
+    ),
   projectMilestones: protectedProcedure
     .input(projectRoadmapInputSchema)
     .handler(async ({ context, input }) => {

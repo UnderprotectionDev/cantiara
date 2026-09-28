@@ -17,7 +17,9 @@ import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
+import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
 import ResearchDirection from "./research-direction";
@@ -465,12 +467,20 @@ function RoadmapWorkItem({
           role={role}
           work={work}
         />
-        {presentationMode || candidate ? null : (
-          <HorizonControl
-            key={`${work.id}-${work.roadmapHorizon ?? ""}`}
-            work={work}
-          />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {presentationMode ? null : (
+            <>
+              <WorkNotNowControl compact work={work} />
+              <WorkReviewLaterControl compact work={work} />
+            </>
+          )}
+          {presentationMode || candidate ? null : (
+            <HorizonControl
+              key={`${work.id}-${work.roadmapHorizon ?? ""}`}
+              work={work}
+            />
+          )}
+        </div>
       </div>
       <BlockerBadge
         blockers={activeBlockers}

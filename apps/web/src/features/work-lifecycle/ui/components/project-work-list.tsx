@@ -32,6 +32,7 @@ import useUserInitiatedWorkSuccess, {
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import {
   priorityMetricItemsForWork,
   usePriorityMetricProjectValues,
@@ -43,6 +44,7 @@ import {
   RecordActionRunDialog,
 } from "@/features/record-actions/ui/components/record-action-runner";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
+import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";
@@ -288,6 +290,10 @@ export default function ProjectWorkList({
                     <span className="text-muted-foreground">{work.key}</span>{" "}
                     {work.title}
                   </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <WorkReviewLaterControl work={work} />
+                  <WorkNotNowControl work={work} />
                 </div>
               </div>
               <WorkContextCard

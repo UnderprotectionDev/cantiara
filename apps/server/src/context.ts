@@ -29,6 +29,7 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -88,6 +89,7 @@ export interface CreateContextOptions {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
+  personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
@@ -148,6 +150,7 @@ export async function createContext({
   priorityMetrics,
   prioritizationSessionMutationContracts,
   prioritizationSessions,
+  personalReminders,
   recordActions,
   workspaceOverview,
   tags,
@@ -207,6 +210,7 @@ export async function createContext({
     priorityMetrics,
     prioritizationSessionMutationContracts,
     prioritizationSessions,
+    personalReminders,
     recordActions,
     workspaceOverview,
     tags,

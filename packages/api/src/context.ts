@@ -21,6 +21,7 @@ import type { DailyFocusAccess } from "./daily-focus";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
+import type { PersonalRemindersAccess } from "./personal-reminders";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -153,6 +154,7 @@ export interface Context {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;
+  personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
