@@ -13,6 +13,47 @@ import { workRecordHash } from "@/features/project-shell/lib/project-shell-navig
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 
+async function abandonSelectedWork(
+  periodId: string,
+  workIds: string[],
+  closeAnyway: boolean,
+  decide: (
+    input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
+  ) => Promise<unknown>,
+  afterEach: (workId: string) => void,
+) {
+  for (const selectedWorkId of workIds) {
+    // biome-ignore lint/performance/noAwaitInLoops: Each Work closure precedes its individual decision for retry safety.
+    const current = await client.work({ workId: selectedWorkId });
+    if (current.status !== "Closed") {
+      const preview = await client.workClosePreview({ workId: selectedWorkId });
+      const hasChecks =
+        preview.closureCheck.activeBlockers.length > 0 ||
+        preview.closureCheck.incompleteChecklistItems.length > 0;
+      if (hasChecks && !closeAnyway) {
+        throw new Error("Review closure checks or select Close anyway.");
+      }
+      await runOnlineOnlyWrite(() =>
+        client.closeWork({
+          workId: selectedWorkId,
+          baseRevision: current.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          closureResult: "Abandoned",
+          ...(closeAnyway ? { closureCheck: "Close anyway" as const } : {}),
+        }),
+      );
+    } else if (current.closureResult !== "Abandoned") {
+      throw new Error("Work was already completed.");
+    }
+    await decide({
+      periodId,
+      workIds: [selectedWorkId],
+      destination: "Abandon",
+    });
+    afterEach(selectedWorkId);
+  }
+}
+
 export default function FocusPeriodsView() {
   const queryClient = useQueryClient();
   const periods = useQuery(orpc.focusPeriods.queryOptions());
@@ -56,6 +97,12 @@ export default function FocusPeriodsView() {
       runOnlineOnlyWrite(() => client.closeFocusPeriod({ periodId })),
     onSuccess: refresh,
   });
+  const decide = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
+    ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
+    onSuccess: refresh,
+  });
   const form = useForm({
     defaultValues: { purpose: "", startDate: "", endDate: "" },
     onSubmit: async ({ value }) => {
@@ -86,13 +133,23 @@ export default function FocusPeriodsView() {
     try {
       await action();
     } catch (mutationError) {
-      setError(
+      const localMessage =
         mutationError instanceof Error &&
+        [
+          "Confirm Abandon first.",
+          "Review closure checks or select Close anyway.",
+          "Work was already completed.",
+        ].includes(mutationError.message)
+          ? mutationError.message
+          : null;
+      setError(
+        localMessage ??
+          (mutationError instanceof Error &&
           "code" in mutationError &&
           mutationError.code === "CONFLICT" &&
           conflictMessage
-          ? conflictMessage
-          : "Focus Period could not be updated.",
+            ? conflictMessage
+            : "Focus Period could not be updated."),
       );
     }
   }
@@ -220,8 +277,10 @@ export default function FocusPeriodsView() {
               add={add}
               cancel={cancel}
               close={close}
+              decide={decide}
               key={selected.id}
               period={selected}
+              periods={periods.data}
               remove={remove}
             />
           ) : null}
@@ -231,15 +290,22 @@ export default function FocusPeriodsView() {
   );
 }
 
+function isOpenPeriod(period: FocusPeriodRecord) {
+  return period.status === "Planned" || period.status === "Active";
+}
+
 function PeriodDetail({
   period,
   add,
   remove,
   cancel,
   close,
+  decide,
+  periods,
   act,
 }: {
   period: FocusPeriodRecord;
+  periods: FocusPeriodRecord[];
   add: {
     mutateAsync: (input: {
       periodId: string;
@@ -254,6 +320,11 @@ function PeriodDetail({
   };
   cancel: { mutateAsync: (periodId: string) => Promise<unknown> };
   close: { mutateAsync: (periodId: string) => Promise<unknown> };
+  decide: {
+    mutateAsync: (
+      input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
+    ) => Promise<unknown>;
+  };
   act: (
     action: () => Promise<unknown>,
     conflictMessage?: string,
@@ -261,8 +332,53 @@ function PeriodDetail({
 }) {
   const [workId, setWorkId] = useState("");
   const [showCloseReview, setShowCloseReview] = useState(false);
-  const open = period.status === "Planned" || period.status === "Active";
+  const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
+  const [destination, setDestination] = useState<
+    "Next period" | "Another period" | "Backlog" | "Abandon"
+  >("Backlog");
+  const [targetPeriodId, setTargetPeriodId] = useState("");
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
+  const [closeAnyway, setCloseAnyway] = useState(false);
+  const open = isOpenPeriod(period);
   const stillOpen = period.members.filter((item) => item.status !== "Closed");
+  const undecided = (period.closeSnapshot ?? []).filter(
+    (item) =>
+      item.status !== "Closed" &&
+      !period.leftoverDecisions.some((decision) => decision.workId === item.id),
+  );
+  const targets = periods.filter(
+    (item) => item.id !== period.id && isOpenPeriod(item),
+  );
+  async function sendDecisions() {
+    if (!selectedWorkIds.length) {
+      return;
+    }
+    if (destination === "Abandon") {
+      if (!confirmAbandon) {
+        throw new Error("Confirm Abandon first.");
+      }
+      await abandonSelectedWork(
+        period.id,
+        selectedWorkIds,
+        closeAnyway,
+        decide.mutateAsync,
+        (decidedWorkId) =>
+          setSelectedWorkIds((ids) => ids.filter((id) => id !== decidedWorkId)),
+      );
+    } else {
+      for (const selectedWorkId of selectedWorkIds) {
+        // biome-ignore lint/performance/noAwaitInLoops: Each selected Work is recorded independently for recoverable partial sends.
+        await decide.mutateAsync({
+          periodId: period.id,
+          workIds: [selectedWorkId],
+          destination,
+          ...(destination === "Another period" ? { targetPeriodId } : {}),
+        });
+        setSelectedWorkIds((ids) => ids.filter((id) => id !== selectedWorkId));
+      }
+    }
+    setSelectedWorkIds([]);
+  }
   return (
     <section aria-label={period.purpose} className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -325,6 +441,98 @@ function PeriodDetail({
               Keep period open
             </Button>
           </div>
+        </section>
+      ) : null}
+      {period.status === "Closed" && undecided.length ? (
+        <section
+          aria-label="Still-open Work decisions"
+          className="space-y-3 rounded-md border p-4"
+        >
+          <h3 className="font-semibold">Still-open Work</h3>
+          <p>
+            Select Work and choose where it goes. Nothing moves automatically.
+          </p>
+          <div className="space-y-2">
+            {undecided.map((item) => (
+              <label className="flex items-center gap-2" key={item.id}>
+                <input
+                  checked={selectedWorkIds.includes(item.id)}
+                  onChange={(event) =>
+                    setSelectedWorkIds((ids) =>
+                      event.target.checked
+                        ? [...ids, item.id]
+                        : ids.filter((id) => id !== item.id),
+                    )
+                  }
+                  type="checkbox"
+                />
+                {item.title} · {item.key}
+              </label>
+            ))}
+          </div>
+          <label className="flex flex-col gap-1">
+            Destination
+            <select
+              className="rounded-md border bg-background px-3 py-2"
+              onChange={(event) =>
+                setDestination(event.target.value as typeof destination)
+              }
+              value={destination}
+            >
+              <option>Next period</option>
+              <option>Backlog</option>
+              <option>Another period</option>
+              <option>Abandon</option>
+            </select>
+          </label>
+          {destination === "Another period" ? (
+            <label className="flex flex-col gap-1">
+              Another period
+              <select
+                className="rounded-md border bg-background px-3 py-2"
+                onChange={(event) => setTargetPeriodId(event.target.value)}
+                value={targetPeriodId}
+              >
+                <option value="">Select Focus Period</option>
+                {targets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.purpose}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {destination === "Abandon" ? (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2">
+                <input
+                  checked={confirmAbandon}
+                  onChange={(event) => setConfirmAbandon(event.target.checked)}
+                  type="checkbox"
+                />
+                Confirm Abandon selected Work
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  checked={closeAnyway}
+                  onChange={(event) => setCloseAnyway(event.target.checked)}
+                  type="checkbox"
+                />
+                Close anyway if closure checks remain
+              </label>
+            </div>
+          ) : null}
+          <Button
+            disabled={
+              !selectedWorkIds.length ||
+              (destination === "Another period" && !targetPeriodId) ||
+              (destination === "Abandon" && !confirmAbandon)
+            }
+            onClick={() => act(sendDecisions)}
+            type="button"
+          >
+            Send
+          </Button>
         </section>
       ) : null}
       {open ? (

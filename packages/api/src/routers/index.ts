@@ -87,6 +87,7 @@ import {
   createFocusPeriodInputSchema,
   FocusPeriodConflictError,
   FocusPeriodUnavailableError,
+  focusPeriodDecisionInputSchema,
   focusPeriodIdInputSchema,
   focusPeriodMembershipInputSchema,
 } from "../focus-period";
@@ -3240,6 +3241,19 @@ export const appRouter = {
         await requireFocusPeriod(context).close(
           context.session.user.id,
           input.periodId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  decideFocusPeriodLeftovers: protectedProcedure
+    .input(focusPeriodDecisionInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).decide(
+          context.session.user.id,
+          input,
         );
         return { status: true };
       } catch (error) {

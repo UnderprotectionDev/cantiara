@@ -26,6 +26,26 @@ export const focusPeriodIdInputSchema = z.object({ periodId: id }).strict();
 export const focusPeriodMembershipInputSchema = focusPeriodIdInputSchema
   .extend({ workId: id })
   .strict();
+export const focusPeriodDecisionInputSchema = focusPeriodIdInputSchema
+  .extend({
+    workIds: z.array(id).length(1),
+    destination: z.enum([
+      "Next period",
+      "Another period",
+      "Backlog",
+      "Abandon",
+    ]),
+    targetPeriodId: id.optional(),
+  })
+  .strict();
+export type FocusPeriodDecisionInput = z.infer<
+  typeof focusPeriodDecisionInputSchema
+>;
+export interface FocusPeriodLeftoverDecision {
+  destination: FocusPeriodDecisionInput["destination"];
+  targetPeriodId: string | null;
+  workId: string;
+}
 export const focusPeriodStatusSchema = z.enum([
   "Planned",
   "Active",
@@ -48,6 +68,7 @@ export interface FocusPeriodRecord {
   closeSnapshot: FocusPeriodWork[] | null;
   endDate: string;
   id: string;
+  leftoverDecisions: FocusPeriodLeftoverDecision[];
   members: FocusPeriodWork[];
   purpose: string;
   startDate: string;
@@ -66,6 +87,7 @@ export interface FocusPeriodAccess {
     accountId: string,
     input: CreateFocusPeriodInput,
   ) => Promise<FocusPeriodRecord>;
+  decide: (accountId: string, input: FocusPeriodDecisionInput) => Promise<void>;
   find: (
     accountId: string,
     periodId: string,

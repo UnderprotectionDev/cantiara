@@ -15,6 +15,7 @@ const period = {
   startSnapshot: [],
   closeSnapshot: null,
   closedAt: null,
+  leftoverDecisions: [],
 };
 
 function testClient(session: Context["session"]) {
@@ -26,6 +27,7 @@ function testClient(session: Context["session"]) {
     remove: vi.fn().mockResolvedValue(undefined),
     cancel: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
+    decide: vi.fn().mockResolvedValue(undefined),
   };
   const context = { focusPeriod, session } as Context;
   return { client: createRouterClient(appRouter, { context }), focusPeriod };
@@ -57,6 +59,18 @@ describe("Focus Period RPC", () => {
       "period-1",
       "work-1",
     );
+    await expect(
+      client.decideFocusPeriodLeftovers({
+        periodId: "period-1",
+        workIds: ["work-1"],
+        destination: "Backlog",
+      }),
+    ).resolves.toEqual({ status: true });
+    expect(focusPeriod.decide).toHaveBeenCalledExactlyOnceWith("founder", {
+      periodId: "period-1",
+      workIds: ["work-1"],
+      destination: "Backlog",
+    });
   });
 
   test("rejects anonymous and invalid 1–8 week windows before access", async () => {
@@ -70,6 +84,13 @@ describe("Focus Period RPC", () => {
       }),
     ).rejects.toThrow();
     expect(anonymous.focusPeriod.list).not.toHaveBeenCalled();
+    await expect(
+      anonymous.client.decideFocusPeriodLeftovers({
+        periodId: "period-1",
+        workIds: ["work-1"],
+        destination: "Backlog",
+      }),
+    ).rejects.toThrow();
     const authenticated = testClient({
       session: { id: "session-1" },
       user: { id: "founder" },
@@ -82,5 +103,13 @@ describe("Focus Period RPC", () => {
       }),
     ).rejects.toThrow();
     expect(authenticated.focusPeriod.create).not.toHaveBeenCalled();
+    await expect(
+      authenticated.client.decideFocusPeriodLeftovers({
+        periodId: "period-1",
+        workIds: ["work-1", "work-2"],
+        destination: "Backlog",
+      }),
+    ).rejects.toThrow();
+    expect(authenticated.focusPeriod.decide).not.toHaveBeenCalled();
   });
 });

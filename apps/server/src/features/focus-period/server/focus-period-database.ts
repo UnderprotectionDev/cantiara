@@ -4,6 +4,7 @@ import {
   type CreateFocusPeriodInput,
   type FocusPeriodAccess,
   FocusPeriodConflictError,
+  type FocusPeriodDecisionInput,
   type FocusPeriodRecord,
   FocusPeriodUnavailableError,
 } from "@cantiara/api/focus-period";
@@ -12,6 +13,7 @@ import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
 import {
   focusPeriod,
   focusPeriodActiveWork,
+  focusPeriodLeftoverDecision,
   focusPeriodMembership,
 } from "@cantiara/db/schema/focus-period";
 import { project } from "@cantiara/db/schema/project";
@@ -61,7 +63,7 @@ export function createDatabaseFocusPeriod(
     return period;
   }
 
-  function worksFor(workspaceId: string) {
+  function worksFor(workspaceId: string, includeInactive = false) {
     return database
       .select({
         id: work.id,
@@ -74,11 +76,13 @@ export function createDatabaseFocusPeriod(
       .from(work)
       .innerJoin(project, eq(work.projectId, project.id))
       .where(
-        and(
-          eq(project.workspaceId, workspaceId),
-          isNull(work.trashedAt),
-          isNull(work.archivedAt),
-        ),
+        includeInactive
+          ? eq(project.workspaceId, workspaceId)
+          : and(
+              eq(project.workspaceId, workspaceId),
+              isNull(work.trashedAt),
+              isNull(work.archivedAt),
+            ),
       )
       .orderBy(asc(project.name), asc(work.number));
   }
@@ -185,7 +189,17 @@ export function createDatabaseFocusPeriod(
   ): Promise<FocusPeriodRecord> {
     const period = await ownedPeriod(workspaceId, periodId);
     const ids = await currentIds(periodId);
-    const works = await worksFor(workspaceId);
+    const works = await worksFor(workspaceId, true);
+    const availableWorks = await worksFor(workspaceId);
+    const decisions = await database
+      .select({
+        workId: focusPeriodLeftoverDecision.workId,
+        destination: focusPeriodLeftoverDecision.destination,
+        targetPeriodId: focusPeriodLeftoverDecision.targetPeriodId,
+      })
+      .from(focusPeriodLeftoverDecision)
+      .where(eq(focusPeriodLeftoverDecision.periodId, periodId))
+      .orderBy(asc(focusPeriodLeftoverDecision.workId));
     const selected = new Set(ids);
     return {
       id: period.id,
@@ -194,14 +208,129 @@ export function createDatabaseFocusPeriod(
       endDate: period.endDate,
       status: period.status as FocusPeriodRecord["status"],
       members: works.filter((item) => selected.has(item.id)),
-      available: works.filter((item) => !selected.has(item.id)),
+      leftoverDecisions: decisions as FocusPeriodRecord["leftoverDecisions"],
+      available: availableWorks.filter((item) => !selected.has(item.id)),
       startSnapshot: period.startSnapshot ?? null,
       closeSnapshot: period.closeSnapshot ?? null,
       closedAt: period.closedAt?.toISOString() ?? null,
     };
   }
 
+  async function decisionTargetId(
+    workspaceId: string,
+    source: typeof focusPeriod.$inferSelect,
+    input: FocusPeriodDecisionInput,
+  ): Promise<string | null> {
+    if (input.destination === "Next period") {
+      const [next] = await database
+        .select({ id: focusPeriod.id })
+        .from(focusPeriod)
+        .where(
+          and(
+            eq(focusPeriod.workspaceId, workspaceId),
+            inArray(focusPeriod.status, ["Planned", "Active"]),
+            gte(focusPeriod.startDate, source.endDate),
+            ne(focusPeriod.id, source.id),
+          ),
+        )
+        .orderBy(asc(focusPeriod.startDate), asc(focusPeriod.id))
+        .limit(1);
+      if (!next) {
+        throw new FocusPeriodConflictError(
+          "No next Focus Period is available.",
+        );
+      }
+      return next.id;
+    }
+    if (input.destination === "Another period") {
+      if (!input.targetPeriodId) {
+        throw new FocusPeriodConflictError("Select another Focus Period.");
+      }
+      const target = await ownedPeriod(workspaceId, input.targetPeriodId);
+      if (target.status !== "Planned" && target.status !== "Active") {
+        throw new FocusPeriodConflictError("Focus Period is no longer open.");
+      }
+      return target.id;
+    }
+    if (input.targetPeriodId) {
+      throw new FocusPeriodConflictError(
+        "This destination does not take a Focus Period.",
+      );
+    }
+    return null;
+  }
+
+  async function validateDecisionWork(
+    workspaceId: string,
+    input: FocusPeriodDecisionInput,
+    workId: string,
+  ) {
+    const existing = await database
+      .select({ workId: focusPeriodLeftoverDecision.workId })
+      .from(focusPeriodLeftoverDecision)
+      .where(
+        and(
+          eq(focusPeriodLeftoverDecision.periodId, input.periodId),
+          eq(focusPeriodLeftoverDecision.workId, workId),
+        ),
+      )
+      .limit(1);
+    if (existing.length) {
+      throw new FocusPeriodConflictError("Work already has a close decision.");
+    }
+    const [current] = await database
+      .select({ status: work.status, closureResult: work.closureResult })
+      .from(work)
+      .innerJoin(project, eq(work.projectId, project.id))
+      .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
+      .limit(1);
+    const matches =
+      input.destination === "Abandon"
+        ? current?.status === "Closed" && current.closureResult === "Abandoned"
+        : current?.status !== "Closed";
+    if (!(current && matches)) {
+      throw new FocusPeriodConflictError(
+        "Work lifecycle does not match the close decision.",
+      );
+    }
+  }
+
   return {
+    async decide(accountId, input: FocusPeriodDecisionInput) {
+      const { workspaceId, today } = await scope(accountId);
+      await sync(workspaceId, today);
+      const source = await ownedPeriod(workspaceId, input.periodId);
+      if (source.status !== "Closed" || !source.closeSnapshot) {
+        throw new FocusPeriodConflictError("Close the Focus Period first.");
+      }
+      const openAtClose = new Set(
+        source.closeSnapshot
+          .filter((item) => item.status !== "Closed")
+          .map((item) => item.id),
+      );
+      if (
+        new Set(input.workIds).size !== input.workIds.length ||
+        input.workIds.some((id) => !openAtClose.has(id))
+      ) {
+        throw new FocusPeriodConflictError(
+          "Selected Work was not open at close.",
+        );
+      }
+      const targetPeriodId = await decisionTargetId(workspaceId, source, input);
+      for (const workId of input.workIds) {
+        // biome-ignore lint/performance/noAwaitInLoops: Decisions are recorded sequentially so each Work is validated before its destination changes.
+        await validateDecisionWork(workspaceId, input, workId);
+        if (targetPeriodId) {
+          await this.add(accountId, targetPeriodId, workId);
+        }
+        await database.insert(focusPeriodLeftoverDecision).values({
+          periodId: input.periodId,
+          workId,
+          destination: input.destination,
+          targetPeriodId,
+        });
+      }
+    },
     async list(accountId) {
       const { workspaceId, today } = await scope(accountId);
       await sync(workspaceId, today);

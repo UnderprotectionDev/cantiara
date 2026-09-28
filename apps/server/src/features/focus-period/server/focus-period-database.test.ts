@@ -229,6 +229,8 @@ describeDatabase("Focus Period working window", () => {
     clock = new Date("2026-10-30T12:00:00.000Z");
     expect((await periods.find(accountId, first.id))?.status).toBe("Active");
     expect((await periods.find(accountId, second.id))?.status).toBe("Active");
+    await periods.cancel(accountId, first.id);
+    await periods.cancel(accountId, second.id);
   });
 
   test("canceling Planned keeps its membership historical without either snapshot", async () => {
@@ -251,5 +253,131 @@ describeDatabase("Focus Period working window", () => {
     expect(canceled?.closeSnapshot).toBeNull();
     clock = new Date("2026-11-20T12:00:00.000Z");
     expect((await periods.find(accountId, period.id))?.status).toBe("Canceled");
+    await database
+      .update(work)
+      .set({ archivedAt: new Date() })
+      .where(eq(work.id, secondWorkId));
+    expect(
+      (await periods.find(accountId, period.id))?.members.map(
+        (item) => item.key,
+      ),
+    ).toEqual(["BETA-1"]);
+    await database
+      .update(work)
+      .set({ archivedAt: null })
+      .where(eq(work.id, secondWorkId));
+  });
+
+  test("records explicit bulk decisions after close without automatic rollover", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2026-12-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const source = await periods.create(accountId, {
+      purpose: "Finish current scope",
+      startDate: "2026-12-01",
+      endDate: "2026-12-07",
+    });
+    const next = await periods.create(accountId, {
+      purpose: "Next scope",
+      startDate: "2026-12-08",
+      endDate: "2026-12-14",
+    });
+    await periods.add(accountId, source.id, firstWorkId);
+    await periods.add(accountId, source.id, secondWorkId);
+    await periods.close(accountId, source.id);
+    expect((await periods.find(accountId, next.id))?.members).toEqual([]);
+    expect(
+      (await periods.find(accountId, source.id))?.leftoverDecisions,
+    ).toEqual([]);
+    await periods.decide(accountId, {
+      periodId: source.id,
+      workIds: [firstWorkId],
+      destination: "Next period",
+    });
+    await periods.decide(accountId, {
+      periodId: source.id,
+      workIds: [secondWorkId],
+      destination: "Backlog",
+    });
+    expect(
+      (await periods.find(accountId, next.id))?.members.map((item) => item.id),
+    ).toEqual([firstWorkId]);
+    expect(
+      (await periods.find(accountId, source.id))?.leftoverDecisions,
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          workId: firstWorkId,
+          destination: "Next period",
+          targetPeriodId: next.id,
+        },
+        { workId: secondWorkId, destination: "Backlog", targetPeriodId: null },
+      ]),
+    );
+    await expect(
+      periods.decide(accountId, {
+        periodId: source.id,
+        workIds: [firstWorkId],
+        destination: "Backlog",
+      }),
+    ).rejects.toThrow();
+    await periods.cancel(accountId, next.id);
+  });
+
+  test("sends to another period and accepts Abandon only after explicit Work closure", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-01-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const source = await periods.create(accountId, {
+      purpose: "January scope",
+      startDate: "2027-01-01",
+      endDate: "2027-01-07",
+    });
+    const another = await periods.create(accountId, {
+      purpose: "Later scope",
+      startDate: "2027-01-08",
+      endDate: "2027-01-14",
+    });
+    await periods.add(accountId, source.id, firstWorkId);
+    await periods.add(accountId, source.id, secondWorkId);
+    await periods.close(accountId, source.id);
+    await periods.decide(accountId, {
+      periodId: source.id,
+      workIds: [firstWorkId],
+      destination: "Another period",
+      targetPeriodId: another.id,
+    });
+    await expect(
+      periods.decide(accountId, {
+        periodId: source.id,
+        workIds: [secondWorkId],
+        destination: "Abandon",
+      }),
+    ).rejects.toThrow("Work lifecycle does not match");
+    await database
+      .update(work)
+      .set({ status: "Closed", closureResult: "Abandoned" })
+      .where(eq(work.id, secondWorkId));
+    await periods.decide(accountId, {
+      periodId: source.id,
+      workIds: [secondWorkId],
+      destination: "Abandon",
+    });
+    expect(
+      (await periods.find(accountId, source.id))?.leftoverDecisions,
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          workId: firstWorkId,
+          destination: "Another period",
+          targetPeriodId: another.id,
+        },
+        { workId: secondWorkId, destination: "Abandon", targetPeriodId: null },
+      ]),
+    );
   });
 });

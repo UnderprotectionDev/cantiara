@@ -88,3 +88,29 @@ export const focusPeriodActiveWork = pgTable(
   },
   (table) => [index("focus_period_active_work_period_idx").on(table.periodId)],
 );
+
+export const focusPeriodLeftoverDecision = pgTable(
+  "focus_period_leftover_decision",
+  {
+    periodId: text("period_id")
+      .notNull()
+      .references(() => focusPeriod.id, { onDelete: "cascade" }),
+    workId: text("work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+    destination: text("destination").notNull(),
+    targetPeriodId: text("target_period_id").references(() => focusPeriod.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("focus_period_leftover_decision_uidx").on(
+      table.periodId,
+      table.workId,
+    ),
+    check(
+      "focus_period_leftover_destination_check",
+      sql`${table.destination} in ('Next period', 'Another period', 'Backlog', 'Abandon')`,
+    ),
+  ],
+);
