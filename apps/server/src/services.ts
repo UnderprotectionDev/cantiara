@@ -3,7 +3,10 @@ import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effe
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
 import { createAuth } from "@cantiara/auth";
 import { createDb, type Database } from "@cantiara/db";
-import { createSecurityEventDb } from "@cantiara/db/security-events";
+import {
+  createLocalSecurityEventDb,
+  createSecurityEventDb,
+} from "@cantiara/db/security-events";
 
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
@@ -85,9 +88,15 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 const db = createDb(env);
 export const dailyFocus = createDatabaseDailyFocus(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
-const securityEventDb = createSecurityEventDb({
-  DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
-});
+const securityEventDb =
+  env.SECURITY_EVENT_LOCAL === "true"
+    ? await createLocalSecurityEventDb({
+        DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
+        proxyAddress: process.env.NEON_LOCAL_PROXY,
+      })
+    : createSecurityEventDb({
+        DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
+      });
 const priorityMetricPermanentDeleteEvents =
   createDatabasePriorityMetricPermanentDeleteEvents(securityEventDb);
 const priorityMetricTrashMaintenance =

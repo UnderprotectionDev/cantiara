@@ -11,13 +11,17 @@ import { join } from "node:path";
 
 import type { NeonDatabase } from "drizzle-orm/neon-serverless";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
-import { verifyMigrationTarget } from "../../../scripts/workspace-neon";
 import { createDb } from "../src/index";
-import { createSecurityEventDb } from "../src/security-events";
+import { resolveSecurityEventDatabaseUrl } from "../src/security-event-database-url";
 import {
-  assertLocalPostgresTarget,
+  createLocalSecurityEventDb,
+  createSecurityEventDb,
+} from "../src/security-events";
+import {
+  assertNeonMigrationTarget,
   migrationConnectionString,
 } from "./migration-connection";
+import { verifyMigrationHistory } from "./migration-history";
 import {
   migrationRepairTagFromArgs,
   selectMigrations,
@@ -25,39 +29,28 @@ import {
 
 const securityEvents = process.argv.includes("--security-events");
 const deployment = process.argv.includes("--deployment");
+const localSecurityEvents =
+  securityEvents && process.env.SECURITY_EVENT_LOCAL === "true";
+const securityEventDatabaseUrl = resolveSecurityEventDatabaseUrl(process.env);
 if (deployment && process.env.CANTIARA_DEPLOY_MIGRATION !== "true") {
   throw new Error(
     "Deployment migration requires its explicit deployment command",
   );
 }
-const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
-if (!deployment) {
-  if (process.env.NEON_LOCAL === "true") {
-    assertLocalPostgresTarget(
-      securityEvents
-        ? process.env.SECURITY_EVENT_DATABASE_URL
-        : process.env.DATABASE_URL,
-    );
-  } else {
-    await verifyMigrationTarget(
-      securityEvents ? "security" : "primary",
-      securityEvents
-        ? process.env.SECURITY_EVENT_DATABASE_URL
-        : process.env.DATABASE_URL,
-      securityEvents
-        ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
-        : process.env.DATABASE_URL_UNPOOLED,
-    );
-  }
+if (!(deployment || localSecurityEvents)) {
+  assertNeonMigrationTarget(
+    securityEvents ? securityEventDatabaseUrl : process.env.DATABASE_URL,
+  );
 }
+const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
 const databaseUrl = migrationConnectionString(
-  securityEvents
-    ? process.env.SECURITY_EVENT_DATABASE_URL
-    : process.env.DATABASE_URL,
+  securityEvents ? securityEventDatabaseUrl : process.env.DATABASE_URL,
   securityEvents
     ? process.env.SECURITY_EVENT_DATABASE_URL_UNPOOLED
     : process.env.DATABASE_URL_UNPOOLED,
-  { useLocalPostgres: process.env.NEON_LOCAL === "true" },
+  {
+    useLocalPostgres: process.env.NEON_LOCAL === "true" || localSecurityEvents,
+  },
 );
 
 if (!databaseUrl) {
@@ -79,18 +72,67 @@ const migrationsFolder = securityEvents
   : "./src/migrations";
 
 if (securityEvents) {
-  const database = createSecurityEventDb({ DATABASE_URL: databaseUrl });
+  const database = localSecurityEvents
+    ? await createLocalSecurityEventDb({
+        DATABASE_URL: databaseUrl,
+        proxyAddress: process.env.NEON_LOCAL_PROXY,
+      })
+    : createSecurityEventDb({ DATABASE_URL: databaseUrl });
   try {
-    await runMigrations(database, migrationsFolder, compatibilityRepairTag);
+    await runLockedMigrations(
+      database,
+      migrationsFolder,
+      compatibilityRepairTag,
+      localSecurityEvents,
+    );
   } finally {
     await database.$client.end();
   }
 } else {
   const database = createDb({ DATABASE_URL: databaseUrl });
   try {
-    await runMigrations(database, migrationsFolder, compatibilityRepairTag);
+    await runLockedMigrations(
+      database,
+      migrationsFolder,
+      compatibilityRepairTag,
+    );
   } finally {
     await database.$client.end();
+  }
+}
+
+async function runLockedMigrations<TSchema extends Record<string, unknown>>(
+  database: NeonDatabase<TSchema>,
+  folder: string,
+  compatibilityTag: string | null,
+  clientAlreadyConnected = false,
+) {
+  const client = clientAlreadyConnected
+    ? database.$client
+    : await database.$client.connect();
+  let locked = false;
+  try {
+    const result = await client.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(1128351316, 1296648018) AS locked",
+    );
+    locked = result.rows[0]?.locked === true;
+    if (!locked) {
+      throw new Error("Another migration is running on this database");
+    }
+    if (!compatibilityTag) {
+      await verifyMigrationHistory(database.$client, folder);
+    }
+    await runMigrations(database, folder, compatibilityTag);
+  } finally {
+    try {
+      if (locked) {
+        await client.query("SELECT pg_advisory_unlock(1128351316, 1296648018)");
+      }
+    } finally {
+      if ("release" in client) {
+        client.release();
+      }
+    }
   }
 }
 

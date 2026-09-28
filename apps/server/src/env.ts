@@ -3,6 +3,7 @@ import {
   DESKTOP_API_PREVIOUS_CONTRACT,
   DESKTOP_API_PUBLISHED_AT,
 } from "@cantiara/api/desktop-api-window";
+import { resolveSecurityEventDatabaseUrl } from "@cantiara/db/security-event-database-url";
 import { createEnv } from "@t3-oss/env-core";
 import ipaddr from "ipaddr.js";
 import { z } from "zod";
@@ -41,9 +42,49 @@ const trustedProxyIpsSchema = z
   .transform(parseTrustedProxyIps)
   .refine((entries) => entries.every(isValidTrustedProxyIp));
 
+function assertManagedSecurityEventDatabase(
+  serverEnv: {
+    NODE_ENV: "development" | "production" | "test";
+    DATABASE_URL: string;
+    SECURITY_EVENT_DATABASE_URL: string;
+    SECURITY_EVENT_LOCAL: "true" | "false";
+  },
+  localPrimary: boolean,
+) {
+  const managedSecurityEvents =
+    serverEnv.NODE_ENV === "production" ||
+    (serverEnv.NODE_ENV === "development" &&
+      !localPrimary &&
+      serverEnv.SECURITY_EVENT_LOCAL !== "true");
+  if (!managedSecurityEvents) {
+    return;
+  }
+  const primaryDatabase = new URL(serverEnv.DATABASE_URL);
+  const securityEventDatabase = new URL(serverEnv.SECURITY_EVENT_DATABASE_URL);
+  if (
+    serverEnv.NODE_ENV === "development" &&
+    !securityEventDatabase.hostname.endsWith(".neon.tech")
+  ) {
+    throw new Error("SECURITY_EVENT_DATABASE_URL must use Neon");
+  }
+  if (
+    primaryDatabase.hostname === securityEventDatabase.hostname ||
+    primaryDatabase.username === securityEventDatabase.username ||
+    primaryDatabase.password === securityEventDatabase.password
+  ) {
+    throw new Error(
+      "SECURITY_EVENT_DATABASE_URL must use a separate managed project and credentials",
+    );
+  }
+}
+
 export function createServerEnv(
   runtimeEnv: Record<string, string | undefined> = process.env,
 ) {
+  const securityEventDatabaseUrl = resolveSecurityEventDatabaseUrl(runtimeEnv);
+  if (!securityEventDatabaseUrl) {
+    throw new Error("SECURITY_EVENT_DATABASE_URL is required");
+  }
   const serverEnv = createEnv({
     server: {
       NODE_ENV: z
@@ -74,9 +115,13 @@ export function createServerEnv(
       R2_BUCKET: z.string().min(1).optional(),
       R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
       SECURITY_EVENT_DATABASE_URL: z.string().min(1),
+      SECURITY_EVENT_LOCAL: z.enum(["true", "false"]).default("false"),
       TRUSTED_PROXY_IPS: trustedProxyIpsSchema,
     },
-    runtimeEnv,
+    runtimeEnv: {
+      ...runtimeEnv,
+      SECURITY_EVENT_DATABASE_URL: securityEventDatabaseUrl,
+    },
     emptyStringAsUndefined: true,
   });
 
@@ -95,21 +140,33 @@ export function createServerEnv(
     );
   }
 
-  if (serverEnv.NODE_ENV === "production") {
-    const primaryDatabase = new URL(serverEnv.DATABASE_URL);
-    const securityEventDatabase = new URL(
-      serverEnv.SECURITY_EVENT_DATABASE_URL,
-    );
+  if (serverEnv.SECURITY_EVENT_LOCAL === "true") {
+    if (serverEnv.NODE_ENV === "production") {
+      throw new Error("SECURITY_EVENT_LOCAL is forbidden in production");
+    }
+    let securityEventDatabase: URL;
+    try {
+      securityEventDatabase = new URL(serverEnv.SECURITY_EVENT_DATABASE_URL);
+    } catch {
+      // biome-ignore lint/style/useErrorCause: URL parser errors may expose credentials.
+      throw new Error("SECURITY_EVENT_LOCAL requires local PostgreSQL");
+    }
     if (
-      primaryDatabase.hostname === securityEventDatabase.hostname ||
-      primaryDatabase.username === securityEventDatabase.username ||
-      primaryDatabase.password === securityEventDatabase.password
+      !(
+        ["postgres:", "postgresql:"].includes(securityEventDatabase.protocol) &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(
+          securityEventDatabase.hostname,
+        )
+      )
     ) {
-      throw new Error(
-        "SECURITY_EVENT_DATABASE_URL must use a separate managed project and credentials",
-      );
+      throw new Error("SECURITY_EVENT_LOCAL requires local PostgreSQL");
     }
   }
+
+  assertManagedSecurityEventDatabase(
+    serverEnv,
+    runtimeEnv.NEON_LOCAL === "true",
+  );
 
   const r2Configuration = [
     serverEnv.R2_ACCESS_KEY_ID,

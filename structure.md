@@ -552,16 +552,14 @@
 │   │   └── tsconfig.base.json
 │   ├── db/
 │   │   ├── scripts/
-│   │   │   ├── base-history.test.ts
-│   │   │   ├── base-history.ts
 │   │   │   ├── migration-connection.test.ts
 │   │   │   ├── migration-connection.ts
+│   │   │   ├── migration-history.test.ts
+│   │   │   ├── migration-history.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
 │   │   │   ├── migrate.ts
-│   │   │   ├── push-local.ts
-│   │   │   ├── verify-development-base.ts
-│   │   │   └── verify-pr-migrations.ts
+│   │   │   └── push-local.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
 │   │   │   │   └── security-events/
@@ -595,6 +593,8 @@
 │   │   │   ├── env.ts
 │   │   │   ├── index.ts
 │   │   │   ├── local-postgres.ts
+│   │   │   ├── security-event-database-url.test.ts
+│   │   │   ├── security-event-database-url.ts
 │   │   │   └── security-events.ts
 │   │   ├── drizzle.config.ts
 │   │   ├── drizzle.security.config.ts
@@ -612,15 +612,11 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
-│   ├── conductor-workspace.ts
+│   ├── dev-database-mode.test.ts
+│   ├── dev-database-mode.ts
 │   ├── install-hooks.ts
-│   ├── neon-local-proxy.ts
-│   ├── wait-for-workspace-api.ts
-│   ├── workspace-migrate.ts
-│   ├── workspace-env.test.ts
-│   ├── workspace-env.ts
-│   ├── workspace-neon.test.ts
-│   └── workspace-neon.ts
+│   ├── local-dev.ts
+│   └── neon-local-proxy.ts
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock

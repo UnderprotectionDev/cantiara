@@ -5,9 +5,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   server: {
-    port: process.env.CONDUCTOR_PORT
-      ? Number(process.env.CONDUCTOR_PORT) + 1
-      : 3001,
+    port: 3001,
     strictPort: true,
   },
   resolve: {
