@@ -18,9 +18,10 @@ import {
   createSecurityEventDb,
 } from "../src/security-events";
 import {
-  assertDevelopmentMigrationTarget,
+  assertNeonMigrationTarget,
   migrationConnectionString,
 } from "./migration-connection";
+import { verifyMigrationHistory } from "./migration-history";
 import {
   migrationRepairTagFromArgs,
   selectMigrations,
@@ -36,10 +37,9 @@ if (deployment && process.env.CANTIARA_DEPLOY_MIGRATION !== "true") {
     "Deployment migration requires its explicit deployment command",
   );
 }
-if (!deployment) {
-  assertDevelopmentMigrationTarget(
+if (!(deployment || localSecurityEvents)) {
+  assertNeonMigrationTarget(
     securityEvents ? securityEventDatabaseUrl : process.env.DATABASE_URL,
-    process.env.NEON_LOCAL === "true" || localSecurityEvents,
   );
 }
 const compatibilityRepairTag = migrationRepairTagFromArgs(process.argv);
@@ -79,16 +79,60 @@ if (securityEvents) {
       })
     : createSecurityEventDb({ DATABASE_URL: databaseUrl });
   try {
-    await runMigrations(database, migrationsFolder, compatibilityRepairTag);
+    await runLockedMigrations(
+      database,
+      migrationsFolder,
+      compatibilityRepairTag,
+      localSecurityEvents,
+    );
   } finally {
     await database.$client.end();
   }
 } else {
   const database = createDb({ DATABASE_URL: databaseUrl });
   try {
-    await runMigrations(database, migrationsFolder, compatibilityRepairTag);
+    await runLockedMigrations(
+      database,
+      migrationsFolder,
+      compatibilityRepairTag,
+    );
   } finally {
     await database.$client.end();
+  }
+}
+
+async function runLockedMigrations<TSchema extends Record<string, unknown>>(
+  database: NeonDatabase<TSchema>,
+  folder: string,
+  compatibilityTag: string | null,
+  clientAlreadyConnected = false,
+) {
+  const client = clientAlreadyConnected
+    ? database.$client
+    : await database.$client.connect();
+  let locked = false;
+  try {
+    const result = await client.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock(1128351316, 1296648018) AS locked",
+    );
+    locked = result.rows[0]?.locked === true;
+    if (!locked) {
+      throw new Error("Another migration is running on this database");
+    }
+    if (!compatibilityTag) {
+      await verifyMigrationHistory(database.$client, folder);
+    }
+    await runMigrations(database, folder, compatibilityTag);
+  } finally {
+    try {
+      if (locked) {
+        await client.query("SELECT pg_advisory_unlock(1128351316, 1296648018)");
+      }
+    } finally {
+      if ("release" in client) {
+        client.release();
+      }
+    }
   }
 }
 

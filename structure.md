@@ -123,7 +123,6 @@
 │   │   │   ├── index.ts
 │   │   │   └── services.ts
 │   │   ├── .env.example
-│   │   ├── .env.migrations.example
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── tsdown.config.ts
@@ -546,6 +545,8 @@
 │   │   ├── scripts/
 │   │   │   ├── migration-connection.test.ts
 │   │   │   ├── migration-connection.ts
+│   │   │   ├── migration-history.test.ts
+│   │   │   ├── migration-history.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
 │   │   │   ├── migrate.ts

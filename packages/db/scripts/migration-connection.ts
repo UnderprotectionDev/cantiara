@@ -45,12 +45,20 @@ export function assertLocalPostgresTarget(value: string | undefined) {
   }
 }
 
-export function assertDevelopmentMigrationTarget(
-  value: string | undefined,
-  localMode: boolean,
-) {
-  if (!localMode) {
-    throw new Error("Development migrations require NEON_LOCAL=true");
+export function assertNeonMigrationTarget(value: string | undefined) {
+  let url: URL;
+  try {
+    url = new URL(value ?? "");
+  } catch {
+    // biome-ignore lint/style/useErrorCause: URL parser errors may expose credentials.
+    throw new Error("Migration target must be Neon");
   }
-  assertLocalPostgresTarget(value);
+  if (
+    !(
+      ["postgres:", "postgresql:"].includes(url.protocol) &&
+      url.hostname.endsWith(".neon.tech")
+    )
+  ) {
+    throw new Error("Migration target must be Neon");
+  }
 }

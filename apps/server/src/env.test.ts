@@ -55,6 +55,29 @@ describe("server environment", () => {
     ).toBe("true");
   });
 
+  test("requires a separate Neon security project in development", () => {
+    const developmentEnvironment = {
+      ...validEnvironment,
+      NODE_ENV: "development",
+      NEON_LOCAL: "false",
+      DATABASE_URL:
+        "postgresql://owner:primary-secret@ep-main.neon.tech/neondb",
+      SECURITY_EVENT_DATABASE_URL:
+        "postgresql://security:security-secret@ep-security.neon.tech/neondb",
+      SECURITY_EVENT_LOCAL: "false",
+    };
+    expect(
+      createServerEnv(developmentEnvironment).SECURITY_EVENT_DATABASE_URL,
+    ).toBe(developmentEnvironment.SECURITY_EVENT_DATABASE_URL);
+    expect(() =>
+      createServerEnv({
+        ...developmentEnvironment,
+        SECURITY_EVENT_DATABASE_URL:
+          "postgresql://security:security-secret@127.0.0.1:5432/cantiara_security",
+      }),
+    ).toThrow("SECURITY_EVENT_DATABASE_URL must use Neon");
+  });
+
   test("rejects a local security-event database in production", () => {
     expect(() =>
       createServerEnv({

@@ -29,8 +29,22 @@ export function developmentDatabaseMode(
     assertLocalPostgresTarget(securityUrl);
   } else if (environment.NEON_LOCAL === "true") {
     assertLocalPostgresTarget(securityUrl);
-  } else if (!securityUrl) {
-    throw new Error("SECURITY_EVENT_DATABASE_URL is required");
+  } else {
+    let security: URL;
+    try {
+      security = new URL(securityUrl ?? "");
+    } catch {
+      // biome-ignore lint/style/useErrorCause: URL parser errors may expose credentials.
+      throw new Error("Security event development database must be Neon");
+    }
+    if (
+      !(
+        ["postgres:", "postgresql:"].includes(security.protocol) &&
+        security.hostname.endsWith(".neon.tech")
+      )
+    ) {
+      throw new Error("Security event development database must be Neon");
+    }
   }
 
   return {

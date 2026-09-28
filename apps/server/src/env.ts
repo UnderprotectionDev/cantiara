@@ -42,6 +42,42 @@ const trustedProxyIpsSchema = z
   .transform(parseTrustedProxyIps)
   .refine((entries) => entries.every(isValidTrustedProxyIp));
 
+function assertManagedSecurityEventDatabase(
+  serverEnv: {
+    NODE_ENV: "development" | "production" | "test";
+    DATABASE_URL: string;
+    SECURITY_EVENT_DATABASE_URL: string;
+    SECURITY_EVENT_LOCAL: "true" | "false";
+  },
+  localPrimary: boolean,
+) {
+  const managedSecurityEvents =
+    serverEnv.NODE_ENV === "production" ||
+    (serverEnv.NODE_ENV === "development" &&
+      !localPrimary &&
+      serverEnv.SECURITY_EVENT_LOCAL !== "true");
+  if (!managedSecurityEvents) {
+    return;
+  }
+  const primaryDatabase = new URL(serverEnv.DATABASE_URL);
+  const securityEventDatabase = new URL(serverEnv.SECURITY_EVENT_DATABASE_URL);
+  if (
+    serverEnv.NODE_ENV === "development" &&
+    !securityEventDatabase.hostname.endsWith(".neon.tech")
+  ) {
+    throw new Error("SECURITY_EVENT_DATABASE_URL must use Neon");
+  }
+  if (
+    primaryDatabase.hostname === securityEventDatabase.hostname ||
+    primaryDatabase.username === securityEventDatabase.username ||
+    primaryDatabase.password === securityEventDatabase.password
+  ) {
+    throw new Error(
+      "SECURITY_EVENT_DATABASE_URL must use a separate managed project and credentials",
+    );
+  }
+}
+
 export function createServerEnv(
   runtimeEnv: Record<string, string | undefined> = process.env,
 ) {
@@ -127,21 +163,10 @@ export function createServerEnv(
     }
   }
 
-  if (serverEnv.NODE_ENV === "production") {
-    const primaryDatabase = new URL(serverEnv.DATABASE_URL);
-    const securityEventDatabase = new URL(
-      serverEnv.SECURITY_EVENT_DATABASE_URL,
-    );
-    if (
-      primaryDatabase.hostname === securityEventDatabase.hostname ||
-      primaryDatabase.username === securityEventDatabase.username ||
-      primaryDatabase.password === securityEventDatabase.password
-    ) {
-      throw new Error(
-        "SECURITY_EVENT_DATABASE_URL must use a separate managed project and credentials",
-      );
-    }
-  }
+  assertManagedSecurityEventDatabase(
+    serverEnv,
+    runtimeEnv.NEON_LOCAL === "true",
+  );
 
   const r2Configuration = [
     serverEnv.R2_ACCESS_KEY_ID,

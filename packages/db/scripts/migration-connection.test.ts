@@ -1,21 +1,18 @@
 import { describe, expect, test } from "vitest";
 
 import {
-  assertDevelopmentMigrationTarget,
   assertLocalPostgresTarget,
+  assertNeonMigrationTarget,
   migrationConnectionString,
 } from "./migration-connection";
 
 describe("migrationConnectionString", () => {
-  test("development migration requires local mode and a local PostgreSQL URL", () => {
+  test("development migration requires a Neon URL", () => {
     const local = "postgres://app:secret@localhost:5432/cantiara";
     const remote = "postgres://app:secret@ep-example.neon.tech/cantiara";
-    expect(() => assertDevelopmentMigrationTarget(local, true)).not.toThrow();
-    expect(() => assertDevelopmentMigrationTarget(local, false)).toThrow(
-      "Development migrations require NEON_LOCAL=true",
-    );
-    expect(() => assertDevelopmentMigrationTarget(remote, true)).toThrow(
-      "Local migration requires a local PostgreSQL target",
+    expect(() => assertNeonMigrationTarget(remote)).not.toThrow();
+    expect(() => assertNeonMigrationTarget(local)).toThrow(
+      "Migration target must be Neon",
     );
   });
   test("local migration mode rejects a remote URL", () => {
