@@ -62,6 +62,7 @@ import {
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
 import { createDatabaseRelations } from "./features/relations/server/relations";
 import {
@@ -81,6 +82,7 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 
 const db = createDb(env);
 export const dailyFocus = createDatabaseDailyFocus(db);
+export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
 const securityEventDb = createSecurityEventDb({
   DATABASE_URL: env.SECURITY_EVENT_DATABASE_URL,
 });

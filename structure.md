@@ -94,6 +94,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── project-source-records/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── priority-metrics/
 │   │   │   │   ├── prioritization-sessions/
 │   │   │   │   │   └── server/
@@ -328,6 +330,11 @@
 │       │   │   │           ├── project-create-view.tsx
 │       │   │   │           ├── project-shell-view.tsx
 │       │   │   │           └── projects-view.tsx
+│       │   │   ├── project-source-records/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── project-source-record-view.test.tsx
+│       │   │   │           └── project-source-record-view.tsx
 │       │   │   ├── web-macos-client/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   ├── use-health-check.ts
@@ -508,6 +515,8 @@
 │   │   │   ├── mutation-and-undo.ts
 │   │   │   ├── project-overview.ts
 │   │   │   ├── project-shell.ts
+│   │   │   ├── project-source-records.test.ts
+│   │   │   ├── project-source-records.ts
 │   │   │   ├── record-actions.test.ts
 │   │   │   ├── record-actions.ts
 │   │   │   ├── relations.ts
@@ -549,6 +558,7 @@
 │   │   │   │   ├── completion-effects.ts
 │   │   │   │   ├── custom-fields.ts
 │   │   │   │   ├── daily-focus.ts
+│   │   │   │   ├── decision.ts
 │   │   │   │   ├── file-attachments.ts
 │   │   │   │   ├── index.ts
 │   │   │   │   ├── mutation.ts
@@ -556,6 +566,9 @@
 │   │   │   │   ├── backlog.ts
 │   │   │   │   ├── priority-metrics.ts
 │   │   │   │   ├── prioritization-session.ts
+│   │   │   │   ├── production-incident.ts
+│   │   │   │   ├── project-milestone.ts
+│   │   │   │   ├── project-release.ts
 │   │   │   │   ├── roadmap-horizon.ts
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
@@ -617,5 +630,7 @@ Record Actions source ownership is split across the API contract (`packages/api/
 Bulk Editing owns explicit Work selection, status preview/apply UI, and in-memory operation progress under `apps/web/src/features/bulk-editing/`; it uses the Work Lifecycle API for status changes and safe Undo receipts.
 
 Daily Focus membership uses the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`), the API contract (`packages/api/src/daily-focus.ts`), the server access layer (`apps/server/src/features/daily-focus/server/`), and the personal day view (`apps/web/src/features/daily-focus/`). The authenticated route is `apps/web/src/routes/_auth/daily-focus.tsx`; Record Actions consumes the same membership through its atomic write boundary.
+
+Decision, Milestone, Project Release, and Production Incident source records used by Daily Focus are owned by `packages/api/src/project-source-records.ts`, their PostgreSQL schemas in `packages/db/src/schema/`, versioned migrations in `packages/db/src/migrations/`, and the Account-scoped lifecycle access layer under `apps/server/src/features/project-source-records/server/`. The read-only detail surface lives under `apps/web/src/features/project-source-records/`; `apps/server/src/features/daily-focus/server/` derives timeline events from these source records and mutation history.
 
 Completion Effects preferences are an Account-scoped catalog owned by `packages/api/src/completion-effects.ts`, persisted in `packages/db/src/schema/completion-effects.ts`, served from `apps/server/src/features/completion-effects/server/`, and configured through `apps/web/src/features/completion-effects/`.

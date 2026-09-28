@@ -108,6 +108,38 @@ export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
 const WORK_RECORD_HASH_PREFIX = "work-";
+const PROJECT_SOURCE_RECORD_HASH_PREFIXES = {
+  Decision: "source-decision-",
+  Milestone: "source-milestone-",
+  "Project Release": "source-project-release-",
+  "Production Incident": "source-production-incident-",
+} as const;
+
+export type ProjectSourceRecordType =
+  keyof typeof PROJECT_SOURCE_RECORD_HASH_PREFIXES;
+
+export function projectSourceRecordHash(
+  sourceType: ProjectSourceRecordType,
+  sourceId: string,
+) {
+  return `${PROJECT_SOURCE_RECORD_HASH_PREFIXES[sourceType]}${encodeURIComponent(sourceId)}`;
+}
+
+export function projectSourceRecordFromHash(hash: string) {
+  for (const [sourceType, prefix] of Object.entries(
+    PROJECT_SOURCE_RECORD_HASH_PREFIXES,
+  ) as [ProjectSourceRecordType, string][]) {
+    if (hash.startsWith(prefix)) {
+      try {
+        const sourceId = decodeURIComponent(hash.slice(prefix.length));
+        return sourceId ? { sourceId, sourceType } : null;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
 
 export function workRecordHash(workId: string) {
   return `${WORK_RECORD_HASH_PREFIX}${encodeURIComponent(workId)}`;

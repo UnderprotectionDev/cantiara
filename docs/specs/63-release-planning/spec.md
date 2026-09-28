@@ -39,6 +39,7 @@ Kurucu tam olarak bir Projeye ait Proje Sürümü ana kaydında yayımlanacak İ
 - **Modules under test.** Project Release Planning only.
 - **Prior art.** First contract tests at this seam. Journeys **Sürüm Kanıt Paketi** (record exists) and **Sürüm erişimi ve sonucu** (hypothesis + later 65 observations).
 - **Required counterparts.** Implicit terminal from GitHub Release absent; type ≠ Milestone/Focus Period; no built-in publish-date column; access hypothesis and outcome hypothesis stay separate and are not gates.
+- **Daily Focus source-record evidence.** `apps/server/src/features/project-source-records/server/project-source-records-database.test.ts` checks the `Draft` → `Preparing` → `Published` mutation history, rejects a post-publish transition, and confirms no built-in publish-date input is accepted by `packages/api/src/project-source-records.test.ts`.
 
 ## Out of Scope
 

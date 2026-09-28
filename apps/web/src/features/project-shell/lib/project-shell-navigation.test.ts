@@ -7,6 +7,8 @@ import {
   isWorkRecordHash,
   isWorkSurfaceHash,
   navigationSurfaceFromHash,
+  projectSourceRecordFromHash,
+  projectSourceRecordHash,
   ROADMAP_HASH,
   workRecordHash,
   workRecordHref,
@@ -66,5 +68,16 @@ describe("Project Shell Work navigation", () => {
     expect(isWorkRecordHash(workRelationsHash("work-1"))).toBe(false);
     expect(isWorkSurfaceHash(hash)).toBe(true);
     expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
+  });
+
+  test("round trips typed source record links without losing encoded IDs", () => {
+    const hash = projectSourceRecordHash("Production Incident", "incident/2");
+
+    expect(hash).toBe("source-production-incident-incident%2F2");
+    expect(projectSourceRecordFromHash(hash)).toEqual({
+      sourceId: "incident/2",
+      sourceType: "Production Incident",
+    });
+    expect(projectSourceRecordFromHash("source-decision-%E0%A4%A")).toBeNull();
   });
 });

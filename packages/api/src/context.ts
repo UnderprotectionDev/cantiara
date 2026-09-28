@@ -33,6 +33,7 @@ import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
 } from "./project-shell";
+import type { ProjectSourceRecordsAccess } from "./project-source-records";
 import type { RecordActionsAccess } from "./record-actions";
 import type {
   RelationsAccess,
@@ -158,6 +159,7 @@ export interface Context {
   priorityMetrics?: PriorityMetricsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
+  projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
   relations?: RelationsAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
