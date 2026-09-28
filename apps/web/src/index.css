@@ -13,9 +13,62 @@
     @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 
+  .document-rich-editor {
+    @apply min-h-72 p-5 text-sm leading-7 outline-none;
+  }
+
+  .document-rich-editor > :first-child {
+    @apply mt-0;
+  }
+
+  .document-rich-editor p {
+    @apply my-2;
+  }
+
+  .document-rich-editor ul,
+  .document-rich-editor ol {
+    @apply my-3 pl-6;
+  }
+
+  .document-rich-editor ul {
+    @apply list-disc;
+  }
+
+  .document-rich-editor ol {
+    @apply list-decimal;
+  }
+
+  .document-rich-editor blockquote {
+    @apply my-3 border-l-2 border-primary/50 pl-4 text-muted-foreground;
+  }
+
   .document-rich-editor :is(h1, h2, h3),
   .document-preview :is(h1, h2, h3) {
     @apply mt-4 mb-2 font-semibold;
+  }
+
+  .document-rich-editor h1 {
+    @apply text-2xl;
+  }
+
+  .document-rich-editor h2 {
+    @apply text-xl;
+  }
+
+  .document-rich-editor h3 {
+    @apply text-lg;
+  }
+
+  .document-rich-editor a {
+    @apply text-primary underline underline-offset-2;
+  }
+
+  .document-rich-editor :not(pre) > code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-xs;
+  }
+
+  .document-rich-editor hr {
+    @apply my-5 border-border;
   }
 
   .document-rich-editor :is(pre, table),

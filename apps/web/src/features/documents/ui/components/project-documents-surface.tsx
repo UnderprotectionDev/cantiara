@@ -20,7 +20,7 @@ import { useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-
+import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentPreview from "./document-preview";
 
 const lowlight = createLowlight(common);
@@ -82,8 +82,7 @@ function DocumentEditor({
     editorProps: {
       attributes: {
         "aria-label": "Document editor",
-        class:
-          "document-rich-editor min-h-36 rounded-md border p-3 focus-visible:outline-2 focus-visible:outline-ring",
+        class: "document-rich-editor",
       },
     },
     onUpdate: ({ editor: current }) =>
@@ -139,7 +138,10 @@ function DocumentEditor({
         </div>
         <div className="space-y-2">
           <Label>Document editor</Label>
-          <EditorContent editor={editor} />
+          <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+            {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
+            <EditorContent editor={editor} />
+          </div>
         </div>
         <form.Field name="body">
           {(field) => (
@@ -301,11 +303,11 @@ export default function ProjectDocumentsSurface({
       {documents.isError ? (
         <p role="alert">Documents could not be loaded.</p>
       ) : null}
-      <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
-        <nav aria-label="Documents" className="space-y-2">
+      <div className="space-y-5">
+        <nav aria-label="Documents" className="flex flex-wrap gap-2">
           {documents.data?.map((item) => (
             <Button
-              className="w-full justify-start"
+              className="max-w-full justify-start"
               key={item.id}
               onClick={() => setSelectedId(item.id)}
               variant={item.id === selectedId ? "secondary" : "ghost"}

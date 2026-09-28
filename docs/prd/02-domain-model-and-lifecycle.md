@@ -514,6 +514,38 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Belge oluştur | `Create Document` | Projede yeni Belge kaydı oluşturma eylemi |
 | Belge düzenleyici | `Document editor` | Belgenin zengin metin düzenleme alanı |
+| Belge biçimlendirme | `Document formatting` | Belge düzenleyicisindeki biçimlendirme araç çubuğu |
+| Metin stili | `Text style` | Paragraf ve başlık düzeyi seçimi |
+| Paragraf | `Paragraph` | Düz metin bloğu |
+| Başlık düzeyleri | `Heading 1`, `Heading 2`, `Heading 3` | Belgedeki üç başlık düzeyi |
+| Metin biçimlendirme | `Text formatting` | Satır içi biçimlendirme grubu |
+| Kalın | `Bold` | Seçili metni kalınlaştırma |
+| İtalik | `Italic` | Seçili metni italikleştirme |
+| Altı çizili | `Underline` | Seçili metnin altını çizme |
+| Üstü çizili | `Strikethrough` | Seçili metnin üstünü çizme |
+| Satır içi kod | `Inline code` | Seçili metni kod olarak biçimlendirme |
+| Bağlantı | `Link` | Seçili metne bağlantı ekleme veya bağlantıyı düzenleme |
+| Bağlantıyı düzenle | `Edit link` | Bağlantı adresini düzenleme penceresi |
+| Adres | `URL` | Bağlantı adresi alanı |
+| Bağlantıyı uygula | `Apply link` | Geçerli bağlantı adresini uygulama |
+| Bağlantıyı kaldır | `Remove link` | Seçili metindeki bağlantıyı kaldırma |
+| Geçerli adres gerekli | `Use an http, https, or mailto URL.` | Desteklenmeyen bağlantı adresi uyarısı |
+| Blok biçimlendirme | `Block formatting` | Liste, alıntı ve kod bloğu grubu |
+| Madde işaretli liste | `Bullet list` | Geçerli bloğu madde işaretli listeye dönüştürme |
+| Numaralı liste | `Numbered list` | Geçerli bloğu numaralı listeye dönüştürme |
+| Alıntı | `Quote` | Geçerli bloğu alıntıya dönüştürme |
+| Kod bloğu | `Code block` | Geçerli bloğu kod bloğuna dönüştürme |
+| İçerik ekle | `Insert content` | Tablo, diyagram ve ayraç ekleme grubu |
+| Tablo ekle | `Insert table` | İmleç konumuna tablo ekleme |
+| Mermaid bloğu | `Mermaid block` | Diyagram kod bloğu ekleme |
+| Yatay çizgi | `Horizontal rule` | İmleç konumuna ayraç ekleme |
+| Düzenleme geçmişi | `Edit history` | Geri alma ve yeniden yapma grubu |
+| Geri al | `Undo` | Son düzenlemeyi geri alma |
+| Yeniden yap | `Redo` | Geri alınan düzenlemeyi yineleme |
+| Tablo düzenleme | `Table editing` | Seçili tablonun satır ve sütun araçları |
+| Satır ekle | `Add row` | Seçili tablodaki konuma satır ekleme |
+| Sütun ekle | `Add column` | Seçili tablodaki konuma sütun ekleme |
+| Tabloyu sil | `Delete table` | Seçili tabloyu kaldırma |
 | Belge önizlemesi | `Document preview` | Belgenin Markdown, diyagram ve formül görünümü |
 | Belge seç | `Select a Document.` | Belge seçilmediğinde gösterilen boş durum |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
