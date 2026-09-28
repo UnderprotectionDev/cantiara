@@ -40,6 +40,7 @@ import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
+import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -154,6 +155,7 @@ export interface AppDependencies {
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
+  personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
@@ -1159,6 +1161,7 @@ export function createApp(dependencies: AppDependencies) {
       prioritizationSessionMutationContracts:
         dependencies.prioritizationSessionMutationContracts,
       prioritizationSessions: dependencies.prioritizationSessions,
+      personalReminders: dependencies.personalReminders,
       recordActions: dependencies.recordActions,
       tagMutationContracts: dependencies.tagMutationContracts,
       tags: dependencies.tags,

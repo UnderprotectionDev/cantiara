@@ -17,6 +17,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { priorityMetricItemsForWork } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import PriorityMetricValuesForm from "@/features/priority-metrics/ui/components/priority-metric-values-form";
 import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
@@ -379,7 +380,10 @@ function PriorityMapWork({
           <span className="text-muted-foreground">{work.key}</span> —{" "}
           {work.title}
         </a>
-        <WorkNotNowControl compact work={work} />
+        <div className="flex shrink-0 items-center gap-1">
+          <WorkReviewLaterControl compact work={work} />
+          <WorkNotNowControl compact work={work} />
+        </div>
       </div>
       {showEvidenceSignals ? (
         <EvidenceSignals context={context} work={work} works={works} />

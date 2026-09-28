@@ -16,6 +16,7 @@ export default defineConfig({
     "./src/schema/project-release.ts",
     "./src/schema/production-incident.ts",
     "./src/schema/priority-metrics.ts",
+    "./src/schema/personal-reminders.ts",
     "./src/schema/backlog.ts",
     "./src/schema/prioritization-session.ts",
     "./src/schema/capture-triage.ts",

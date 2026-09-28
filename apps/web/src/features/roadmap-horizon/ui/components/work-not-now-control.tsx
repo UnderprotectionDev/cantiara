@@ -6,6 +6,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import {
   recordWorkNotNowInputSchema,
   WORK_NOT_NOW_GROUND_RECORD_TYPES,
+  type WorkNotNowReviewLaterHandling,
   type WorkNotNowTrail,
 } from "@cantiara/api/work-not-now";
 import { Badge } from "@cantiara/ui/components/badge";
@@ -133,6 +134,7 @@ interface NotNowDraft {
   condition: string;
   groundRelationIds: string[];
   reason: string;
+  reviewLaterHandling: WorkNotNowReviewLaterHandling;
 }
 
 type NotNowPreview = ReturnType<typeof recordWorkNotNowInputSchema.parse>;
@@ -149,7 +151,10 @@ export function NotNowHistoryPanel({
   onStartNew,
   connection,
   reconsiderPending,
+  reviewLaterHandling,
+  onReviewLaterHandlingChange,
   sources,
+  workId,
   workContextError,
 }: {
   activeFromWork: WorkNotNowTrail | null;
@@ -163,7 +168,12 @@ export function NotNowHistoryPanel({
   onStartNew: () => void;
   connection: string;
   reconsiderPending: boolean;
+  reviewLaterHandling: WorkNotNowReviewLaterHandling;
+  onReviewLaterHandlingChange: (
+    handling: WorkNotNowReviewLaterHandling,
+  ) => void;
   sources: readonly WorkContextSource[];
+  workId: string;
   workContextError: boolean;
 }) {
   let visibleHistory = history ?? [];
@@ -192,9 +202,12 @@ export function NotNowHistoryPanel({
       {!archived && (currentTrail || canStart) ? (
         <div className="space-y-3 border-t pt-3">
           {currentTrail ? (
-            <p className="text-muted-foreground text-xs">
-              Preview: Existing Review Later reminders will remain unchanged.
-            </p>
+            <ReviewLaterHandlingField
+              name={`not-now-review-later-handling-${workId}`}
+              onChange={onReviewLaterHandlingChange}
+              pending={reconsiderPending || historyPending}
+              value={reviewLaterHandling}
+            />
           ) : null}
           <div className="flex flex-wrap gap-2">
             {currentTrail ? (
@@ -228,6 +241,7 @@ export function NotNowEntryForm({
   connection,
   draft,
   error,
+  hasActiveTrail,
   hasHistory,
   groundOptions,
   workContextError,
@@ -243,6 +257,7 @@ export function NotNowEntryForm({
   connection: string;
   draft: NotNowDraft;
   error: string | null;
+  hasActiveTrail: boolean;
   hasHistory: boolean;
   groundOptions: readonly WorkContextSource[];
   workContextError: boolean;
@@ -263,6 +278,7 @@ export function NotNowEntryForm({
         condition: value.condition,
         groundRelationIds: draft.groundRelationIds,
         reason: value.reason,
+        reviewLaterHandling: draft.reviewLaterHandling,
         workId,
       });
       if (!parsed.success) {
@@ -334,6 +350,19 @@ export function NotNowEntryForm({
         workContextError={workContextError}
         workContextPending={workContextPending}
       />
+      {hasActiveTrail ? (
+        <ReviewLaterHandlingField
+          name={`not-now-review-later-handling-${workId}`}
+          onChange={(reviewLaterHandling) =>
+            onDraftChange((current) => ({
+              ...current,
+              reviewLaterHandling,
+            }))
+          }
+          pending={pending}
+          value={draft.reviewLaterHandling}
+        />
+      ) : null}
       {error ? (
         <p className="text-destructive text-xs" role="alert">
           {error}
@@ -451,7 +480,7 @@ function NotNowPreviewPanel({
       {currentTrail ? (
         <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground text-xs">
           The existing reason, condition, and supporting records will remain in
-          history. Existing Review Later reminders will remain unchanged.
+          history. {reviewLaterHandlingPreview(preview.reviewLaterHandling)}
         </p>
       ) : null}
       <dl className="space-y-3 rounded-md border border-border/70 p-3 text-sm">
@@ -514,6 +543,61 @@ function NotNowPreviewPanel({
   );
 }
 
+function reviewLaterHandlingPreview(handling: WorkNotNowReviewLaterHandling) {
+  return handling === "Keep Review later"
+    ? "Planned Review Later reminders will stay scheduled."
+    : "Planned Review Later reminders for this Work will be cancelled.";
+}
+
+function ReviewLaterHandlingField({
+  name,
+  onChange,
+  pending,
+  value,
+}: {
+  name: string;
+  onChange: (handling: WorkNotNowReviewLaterHandling) => void;
+  pending: boolean;
+  value: WorkNotNowReviewLaterHandling;
+}) {
+  return (
+    <fieldset className="space-y-2" disabled={pending}>
+      <legend className="font-medium text-xs">Review Later reminders</legend>
+      {(
+        [
+          [
+            "Keep Review later",
+            "Leave planned Review Later reminders scheduled.",
+          ],
+          [
+            "Remove Review later",
+            "Cancel planned Review Later reminders for this Work.",
+          ],
+        ] as const
+      ).map(([handling, description]) => (
+        <label
+          className="flex items-start gap-2 rounded-md border border-border/70 px-3 py-2 text-xs"
+          key={handling}
+        >
+          <input
+            checked={value === handling}
+            name={name}
+            onChange={() => onChange(handling)}
+            type="radio"
+          />
+          <span>
+            <span className="block font-medium">{handling}</span>
+            <span className="text-muted-foreground">{description}</span>
+          </span>
+        </label>
+      ))}
+      <p aria-live="polite" className="text-muted-foreground text-xs">
+        Preview: {reviewLaterHandlingPreview(value)}
+      </p>
+    </fieldset>
+  );
+}
+
 function shouldRenderNotNowControl(
   compact: boolean,
   canStart: boolean,
@@ -547,6 +631,7 @@ function WorkNotNowDialog({
     condition: "",
     groundRelationIds: [],
     reason: "",
+    reviewLaterHandling: "Keep Review later",
   });
   const [preview, setPreview] = useState<NotNowPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -622,7 +707,12 @@ function WorkNotNowDialog({
   });
 
   function startNewTrail() {
-    setDraft({ condition: "", groundRelationIds: [], reason: "" });
+    setDraft({
+      condition: "",
+      groundRelationIds: [],
+      reason: "",
+      reviewLaterHandling: "Keep Review later",
+    });
     setPreview(null);
     setError(null);
     setMode("form");
@@ -654,6 +744,7 @@ function WorkNotNowDialog({
     const event = JSON.stringify({
       baseRevision: latestRevision,
       trailId: currentTrail.id,
+      reviewLaterHandling: draft.reviewLaterHandling,
       workId: work.id,
     });
     const clientIdempotencyKey =
@@ -665,6 +756,7 @@ function WorkNotNowDialog({
     reconsiderNotNow.mutate({
       baseRevision: latestRevision,
       clientIdempotencyKey,
+      reviewLaterHandling: draft.reviewLaterHandling,
       trailId: currentTrail.id,
       workId: work.id,
     });
@@ -705,10 +797,15 @@ function WorkNotNowDialog({
             historyError={historyQuery.isError}
             historyPending={historyQuery.isPending}
             onReconsider={confirmReconsidering}
+            onReviewLaterHandlingChange={(reviewLaterHandling) =>
+              setDraft((current) => ({ ...current, reviewLaterHandling }))
+            }
             onStartNew={startNewTrail}
             reconsiderPending={reconsiderNotNow.isPending}
+            reviewLaterHandling={draft.reviewLaterHandling}
             sources={workContext?.sources ?? []}
             workContextError={workContextQuery.isError}
+            workId={work.id}
           />
         ) : null}
         {mode === "form" ? (
@@ -718,6 +815,7 @@ function WorkNotNowDialog({
             draft={draft}
             error={error}
             groundOptions={groundOptions}
+            hasActiveTrail={currentTrail !== null}
             hasHistory={(history?.length ?? 0) > 0}
             onDraftChange={setDraft}
             onError={setError}

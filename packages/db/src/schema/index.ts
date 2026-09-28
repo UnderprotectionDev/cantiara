@@ -7,6 +7,7 @@ export * from "./custom-fields";
 export * from "./daily-focus";
 export * from "./decision";
 export * from "./file-attachments";
+export * from "./personal-reminders";
 export * from "./prioritization-session";
 export * from "./priority-metrics";
 export * from "./production-incident";

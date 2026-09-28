@@ -17,10 +17,10 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { useQueries } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
-
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
-import { mutationErrorMessage } from "@/lib/mutation-messages";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
+import { mutationErrorMessage } from "@/lib/mutation-messages";
 import { orpc } from "@/utils/orpc";
 import { usePrioritizationSessions } from "../../hooks/use-prioritization-sessions";
 import { moveWorkInOrder, workPosition } from "../../lib/session-order";
@@ -403,7 +403,10 @@ function BacklogOrderSection({
                     <span className="text-muted-foreground">{work.key}</span>{" "}
                     {work.title}
                   </p>
-                  <WorkNotNowControl compact work={work} />
+                  <div className="flex shrink-0 items-center gap-1">
+                    <WorkReviewLaterControl compact work={work} />
+                    <WorkNotNowControl compact work={work} />
+                  </div>
                 </div>
                 <ul
                   aria-label={`${work.key} priority metrics`}
@@ -680,6 +683,7 @@ function PrioritizationSessionWork({
           ) : null}
         </p>
         <div className="flex flex-wrap gap-1">
+          <WorkReviewLaterControl compact work={work} />
           <WorkNotNowControl compact work={work} />
           {isClosed ? null : (
             <>

@@ -19,7 +19,7 @@ import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { workNotNowTrail } from "@cantiara/db/schema/work-not-now";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-
+import { cancelPlannedReviewLaterForWork } from "../../personal-reminders/server/personal-reminders-database";
 import { createDatabaseRelations } from "../../relations/server/relations";
 
 type WorkNotNowDatabaseRecord = typeof workNotNowTrail.$inferSelect;
@@ -357,8 +357,18 @@ export function createDatabaseWorkNotNow(database: Database) {
       rawInput: Parameters<typeof recordWorkNotNowInputSchema.parse>[0],
     ) {
       const input = recordWorkNotNowInputSchema.parse(rawInput);
-      const { baseRevision, clientIdempotencyKey, ...payload } = input;
-      const payloadFingerprint = await workNotNowPayloadFingerprint(payload);
+      const {
+        baseRevision,
+        clientIdempotencyKey,
+        reviewLaterHandling,
+        ...payload
+      } = input;
+      const fingerprintPayload =
+        reviewLaterHandling === "Keep Review later"
+          ? payload
+          : { ...payload, reviewLaterHandling };
+      const payloadFingerprint =
+        await workNotNowPayloadFingerprint(fingerprintPayload);
 
       return database.transaction(async (transaction) => {
         const target = await findOwnedWork(
@@ -407,6 +417,12 @@ export function createDatabaseWorkNotNow(database: Database) {
         let nextRevision = currentRevision + 1;
 
         if (activeTrail) {
+          if (reviewLaterHandling === "Remove Review later") {
+            await cancelPlannedReviewLaterForWork(transaction, {
+              accountId,
+              workId: input.workId,
+            });
+          }
           const closePayload = {
             clientIdempotencyKey,
             eventType: "Replaced",
@@ -453,9 +469,18 @@ export function createDatabaseWorkNotNow(database: Database) {
       rawInput: Parameters<typeof reconsiderWorkNotNowInputSchema.parse>[0],
     ) {
       const input = reconsiderWorkNotNowInputSchema.parse(rawInput);
-      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      const {
+        baseRevision,
+        clientIdempotencyKey,
+        reviewLaterHandling,
+        ...payload
+      } = input;
+      const fingerprintPayload =
+        reviewLaterHandling === "Keep Review later"
+          ? payload
+          : { ...payload, reviewLaterHandling };
       const payloadFingerprint = await workNotNowPayloadFingerprint({
-        ...payload,
+        ...fingerprintPayload,
         eventType: "Reconsidering",
       });
 
@@ -504,6 +529,12 @@ export function createDatabaseWorkNotNow(database: Database) {
           throw new WorkNotNowConflictError();
         }
 
+        if (reviewLaterHandling === "Remove Review later") {
+          await cancelPlannedReviewLaterForWork(transaction, {
+            accountId,
+            workId: input.workId,
+          });
+        }
         const closed = await closeWorkNotNowTrail(transaction, {
           accountId,
           clientIdempotencyKey,

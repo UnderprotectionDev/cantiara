@@ -88,7 +88,10 @@ function renderHistoryPanel() {
       onReconsider: vi.fn(),
       onStartNew: vi.fn(),
       reconsiderPending: false,
+      reviewLaterHandling: "Keep Review later",
+      onReviewLaterHandlingChange: vi.fn(),
       sources: [],
+      workId: "work-1",
       workContextError: false,
     }),
   );
@@ -113,11 +116,13 @@ describe("Work Not now control", () => {
     expect(html).not.toContain("Not now");
   });
 
-  test("previews that existing Review Later reminders stay unchanged before reconsidering", () => {
+  test("shows explicit Review Later handling choices before reconsidering", () => {
     const html = renderHistoryPanel();
 
+    expect(html).toContain("Keep Review later");
+    expect(html).toContain("Remove Review later");
     expect(html).toContain(
-      "Preview: Existing Review Later reminders will remain unchanged.",
+      "Preview: Planned Review Later reminders will stay scheduled.",
     );
     expect(html).toContain("Reconsidering");
   });
@@ -144,7 +149,10 @@ describe("Work Not now control", () => {
         onReconsider: vi.fn(),
         onStartNew: vi.fn(),
         reconsiderPending: false,
+        reviewLaterHandling: "Keep Review later",
+        onReviewLaterHandlingChange: vi.fn(),
         sources: [],
+        workId: "work-1",
         workContextError: false,
       }),
     );
@@ -159,8 +167,14 @@ describe("Work Not now control", () => {
       createElement(NotNowEntryForm, {
         baseRevision: 2,
         connection: "online",
-        draft: { condition: "", groundRelationIds: [], reason: "" },
+        draft: {
+          condition: "",
+          groundRelationIds: [],
+          reason: "",
+          reviewLaterHandling: "Remove Review later",
+        },
         error: null,
+        hasActiveTrail: true,
         hasHistory: true,
         groundOptions: [],
         onDraftChange: vi.fn(),
@@ -176,6 +190,10 @@ describe("Work Not now control", () => {
 
     expect(html).toContain("History");
     expect(html).toContain("Preview");
+    expect(html).toContain("Remove Review later");
+    expect(html).toContain(
+      "Preview: Planned Review Later reminders for this Work will be cancelled.",
+    );
   });
 
   test("keeps a history entry point on closed or archived Work", () => {

@@ -101,11 +101,19 @@ const groundRelationIdsSchema = z
     }
   });
 
+export const workNotNowReviewLaterHandlingSchema = z
+  .enum(["Keep Review later", "Remove Review later"])
+  .default("Keep Review later");
+export type WorkNotNowReviewLaterHandling = z.infer<
+  typeof workNotNowReviewLaterHandlingSchema
+>;
+
 export const recordWorkNotNowInputSchema = humanMutationEnvelopeSchema
   .extend({
     condition: conditionSchema,
     groundRelationIds: groundRelationIdsSchema,
     reason: reasonSchema,
+    reviewLaterHandling: workNotNowReviewLaterHandlingSchema,
     workId: identifierSchema,
   })
   .strict();
@@ -114,6 +122,7 @@ export type RecordWorkNotNowInput = z.input<typeof recordWorkNotNowInputSchema>;
 
 export const reconsiderWorkNotNowInputSchema = humanMutationEnvelopeSchema
   .extend({
+    reviewLaterHandling: workNotNowReviewLaterHandlingSchema,
     trailId: identifierSchema,
     workId: identifierSchema,
   })

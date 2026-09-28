@@ -32,6 +32,7 @@ import useUserInitiatedWorkSuccess, {
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import {
   priorityMetricItemsForWork,
   usePriorityMetricProjectValues,
@@ -290,7 +291,10 @@ export default function ProjectWorkList({
                     {work.title}
                   </p>
                 </div>
-                <WorkNotNowControl work={work} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <WorkReviewLaterControl work={work} />
+                  <WorkNotNowControl work={work} />
+                </div>
               </div>
               <WorkContextCard
                 projectWorks={allProjectWorksQuery.data ?? query.data}

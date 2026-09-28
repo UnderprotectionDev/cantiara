@@ -41,6 +41,7 @@ import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
+import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { usePriorityMetricProjectValues } from "@/features/priority-metrics/hooks/use-priority-metrics";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
@@ -136,7 +137,12 @@ function BacklogCard({
           {work.title}
         </span>
       </Link>
-      {profile ? <WorkNotNowControl compact work={profile} /> : null}
+      {profile ? (
+        <div className="flex items-center gap-1">
+          <WorkReviewLaterControl compact work={profile} />
+          <WorkNotNowControl compact work={profile} />
+        </div>
+      ) : null}
       <div className="mr-3 flex items-center gap-2 text-xs">
         <Popover onOpenChange={setDateOpen} open={dateOpen}>
           <PopoverTrigger

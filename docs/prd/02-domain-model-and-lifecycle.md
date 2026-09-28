@@ -601,7 +601,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
+| Hatırlatma koşulu | `Condition` | Zamanı gelince açık/çözülmüş kaynak yaşamını değerlendirme seçimi |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
+| Yeniden bak oluştur | `Set Review Later` | İşe kaynak bağlantılı `Review Later` Hatırlatması kurma eylemi |
 | Hatırlatmayı kapat | `Dismiss` | Tetiklenmiş Hatırlatma sinyalini kapatan açık eylem; İş veya kopya üretmez |
 | Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
 | Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |

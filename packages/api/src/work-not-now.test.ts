@@ -15,6 +15,7 @@ describe("Roadmap Horizon Not now decision trail", () => {
       condition: "After the next customer interview.",
       groundRelationIds: ["relation-decision", "relation-source"],
       reason: "The problem needs more evidence.",
+      reviewLaterHandling: "Keep Review later",
       workId: "work-1",
     };
 
@@ -48,6 +49,29 @@ describe("Roadmap Horizon Not now decision trail", () => {
         }).success,
       ).toBe(false);
     }
+  });
+
+  test("defaults reminder handling to keeping existing Review Later reminders", () => {
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "not-now-1",
+      condition: null,
+      groundRelationIds: [],
+      reason: "Wait for more evidence.",
+      workId: "work-1",
+    };
+
+    expect(recordWorkNotNowInputSchema.parse(input).reviewLaterHandling).toBe(
+      "Keep Review later",
+    );
+    expect(
+      reconsiderWorkNotNowInputSchema.parse({
+        baseRevision: 1,
+        clientIdempotencyKey: "reconsider-1",
+        trailId: "trail-1",
+        workId: "work-1",
+      }).reviewLaterHandling,
+    ).toBe("Keep Review later");
   });
 
   test("limits supporting records to the specified record families", () => {
@@ -122,6 +146,7 @@ describe("Roadmap Horizon Not now decision trail", () => {
     const input = {
       baseRevision: 3,
       clientIdempotencyKey: "reconsider-1",
+      reviewLaterHandling: "Keep Review later",
       trailId: "trail-1",
       workId: "work-1",
     };

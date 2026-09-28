@@ -69,6 +69,10 @@ import {
   mutationTarget,
 } from "./schema/mutation";
 import {
+  personalReminder,
+  personalReminderAttentionSignal,
+} from "./schema/personal-reminders";
+import {
   prioritizationSession,
   prioritizationSessionWork,
 } from "./schema/prioritization-session";
@@ -131,6 +135,8 @@ const schema = {
   projectShortCode,
   projectShortCodeRelations,
   priorityMetricDefinition,
+  personalReminder,
+  personalReminderAttentionSignal,
   prioritizationSession,
   prioritizationSessionWork,
   productionIncident,
