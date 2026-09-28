@@ -25,6 +25,7 @@ import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
+import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type {
   MutationContract,
   MutationPayload,
@@ -86,6 +87,7 @@ export interface CreateContextOptions {
   dailyFocus?: DailyFocusAccess;
   database: Database;
   fileAttachments?: FileAttachmentAccess;
+  focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
@@ -130,6 +132,7 @@ export async function createContext({
   backlog,
   backlogMutationContracts,
   dailyFocus,
+  focusPeriod,
   roadmapHorizon,
   captureInbox,
   completionEffectsPreferences,
@@ -187,6 +190,7 @@ export async function createContext({
     backlog,
     backlogMutationContracts,
     dailyFocus,
+    focusPeriod,
     roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),

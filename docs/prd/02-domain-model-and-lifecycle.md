@@ -104,6 +104,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
 | Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |
+| Odak Dönemine İş ekle | `Add Work` | Seçili İşi dönem üyeliğine ekler; İş durumunu veya Proje aşamasını değiştirmez |
+| Çakışan Odak Dönemi üyeliği | `Work is already in another Focus Period.` | Örtüşen dönem pencerelerine ikinci üyelik reddi |
+| Odak Dönemini açık tut | `Keep period open` | Kapanış kapsamı kaydedilmeden döneme dönme |
+| Odak Dönemi yükleniyor | `Loading Focus Period…` | Dönem listesi yüklenirken canlı durum iletisi |
+| Odak Dönemi kullanılamıyor | `Focus Period is unavailable.` | Dönem listesi okunamadığında hata iletisi |
+| Odak Dönemi oluşturulamadı | `Focus Period could not be created.` | Oluşturma yazması başarısız olduğunda hata iletisi |
+| Odak Dönemi güncellenemedi | `Focus Period could not be updated.` | Üyelik veya yaşam yazması başarısız olduğunda hata iletisi |
+| Açık İş kalmadı | `No Work remains open.` | Kapanış incelemesinde açık İş olmadığında boş durum |
 | Odak Dönemini kapat | `Close` | Yalnız `Active` dönemden kapanış-kapsamı snapshot’ı ve açık kalan İş kararı |
 | Odak Dönemini iptal et | `Cancel` | `Planned` veya `Active` dönemi kapanış hesabı olmadan bitirme |
 | Başlangıç tarihi | `Start date` | Odak Dönemi penceresinin ilk günü |

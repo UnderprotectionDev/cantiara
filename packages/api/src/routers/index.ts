@@ -83,6 +83,13 @@ import {
   fileAttachmentPreviewInputSchema,
   fileAttachmentUndoMarkingInputSchema,
 } from "../file-attachments";
+import {
+  createFocusPeriodInputSchema,
+  FocusPeriodConflictError,
+  FocusPeriodUnavailableError,
+  focusPeriodIdInputSchema,
+  focusPeriodMembershipInputSchema,
+} from "../focus-period";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   humanMutationEnvelopeSchema,
@@ -398,6 +405,23 @@ function requireDailyFocus(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.dailyFocus;
+}
+
+function requireFocusPeriod(context: Context) {
+  if (!context.focusPeriod) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.focusPeriod;
+}
+
+function rethrowFocusPeriodError(error: unknown): never {
+  if (error instanceof FocusPeriodUnavailableError) {
+    throw new ORPCError("NOT_FOUND", { cause: error });
+  }
+  if (error instanceof FocusPeriodConflictError) {
+    throw new ORPCError("CONFLICT", { cause: error });
+  }
+  throw error;
 }
 
 function requireProjectSourceRecords(context: Context) {
@@ -3146,6 +3170,80 @@ export const appRouter = {
         return { status: true };
       } catch (error) {
         rethrowPriorityMetricMutationError(error, targetId);
+      }
+    }),
+  focusPeriods: protectedProcedure.handler(({ context }) =>
+    requireFocusPeriod(context).list(context.session.user.id),
+  ),
+  focusPeriod: protectedProcedure
+    .input(focusPeriodIdInputSchema)
+    .handler(({ context, input }) =>
+      requireFocusPeriod(context).find(context.session.user.id, input.periodId),
+    ),
+  createFocusPeriod: protectedProcedure
+    .input(createFocusPeriodInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFocusPeriod(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  addToFocusPeriod: protectedProcedure
+    .input(focusPeriodMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).add(
+          context.session.user.id,
+          input.periodId,
+          input.workId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  removeFromFocusPeriod: protectedProcedure
+    .input(focusPeriodMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).remove(
+          context.session.user.id,
+          input.periodId,
+          input.workId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  cancelFocusPeriod: protectedProcedure
+    .input(focusPeriodIdInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).cancel(
+          context.session.user.id,
+          input.periodId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  closeFocusPeriod: protectedProcedure
+    .input(focusPeriodIdInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).close(
+          context.session.user.id,
+          input.periodId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
       }
     }),
   dailyFocusDay: protectedProcedure

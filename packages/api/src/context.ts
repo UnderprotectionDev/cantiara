@@ -20,6 +20,7 @@ import type {
 import type { DailyFocusAccess } from "./daily-focus";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
+import type { FocusPeriodAccess } from "./focus-period";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type { PersonalRemindersAccess } from "./personal-reminders";
 import type {
@@ -151,6 +152,7 @@ export interface Context {
   db: Database;
   desktopApiContract?: string;
   fileAttachments?: FileAttachmentAccess;
+  focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;

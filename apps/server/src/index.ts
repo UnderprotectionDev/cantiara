@@ -19,6 +19,7 @@ import {
   customFields,
   dailyFocus,
   fileAttachments,
+  focusPeriod,
   getDb,
   githubAvailability,
   githubIdentityConfirmation,
@@ -91,6 +92,7 @@ const app = createApp({
   customFields,
   customFieldMutationContracts,
   dailyFocus,
+  focusPeriod,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
     previousContract: env.CANTIARA_DESKTOP_API_PREVIOUS_CONTRACT,
