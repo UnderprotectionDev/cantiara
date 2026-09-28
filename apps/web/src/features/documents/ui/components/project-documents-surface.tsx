@@ -71,7 +71,7 @@ function DocumentEditor({
   });
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit.configure({ codeBlock: false, underline: false }),
       CodeBlockLowlight.configure({ lowlight }),
       Mathematics,
       TableKit,

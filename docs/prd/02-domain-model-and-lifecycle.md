@@ -521,7 +521,6 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Metin biçimlendirme | `Text formatting` | Satır içi biçimlendirme grubu |
 | Kalın | `Bold` | Seçili metni kalınlaştırma |
 | İtalik | `Italic` | Seçili metni italikleştirme |
-| Altı çizili | `Underline` | Seçili metnin altını çizme |
 | Üstü çizili | `Strikethrough` | Seçili metnin üstünü çizme |
 | Satır içi kod | `Inline code` | Seçili metni kod olarak biçimlendirme |
 | Bağlantı | `Link` | Seçili metne bağlantı ekleme veya bağlantıyı düzenleme |

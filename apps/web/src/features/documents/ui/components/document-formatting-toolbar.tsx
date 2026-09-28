@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "@cantiara/ui/components/popover";
 import { Separator } from "@cantiara/ui/components/separator";
+import { useForm } from "@tanstack/react-form";
 import { type useEditor, useEditorState } from "@tiptap/react";
 import {
   Bold,
@@ -29,15 +30,29 @@ import {
   Strikethrough,
   Table2,
   Trash2,
-  Underline,
   Undo2,
   Unlink2,
   Workflow,
 } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 
 type Editor = NonNullable<ReturnType<typeof useEditor>>;
 const allowedLinkPattern = /^(https?:\/\/|mailto:)/i;
+const linkSchema = z
+  .string()
+  .trim()
+  .refine((value) => {
+    if (!allowedLinkPattern.test(value)) {
+      return false;
+    }
+    try {
+      const url = new URL(value);
+      return url.protocol === "mailto:" ? !!url.pathname : !!url.hostname;
+    } catch {
+      return false;
+    }
+  }, "Use an http, https, or mailto URL.");
 
 function ToolButton({
   label,
@@ -75,8 +90,18 @@ export default function DocumentFormattingToolbar({
   editor: Editor;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const [linkError, setLinkError] = useState("");
+  const linkForm = useForm({
+    defaultValues: { url: "" },
+    onSubmit: ({ value }) => {
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange("link")
+        .setLink({ href: value.url.trim() })
+        .run();
+      setLinkOpen(false);
+    },
+  });
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -85,7 +110,6 @@ export default function DocumentFormattingToolbar({
       heading3: current.isActive("heading", { level: 3 }),
       bold: current.isActive("bold"),
       italic: current.isActive("italic"),
-      underline: current.isActive("underline"),
       strike: current.isActive("strike"),
       code: current.isActive("code"),
       link: current.isActive("link"),
@@ -106,17 +130,6 @@ export default function DocumentFormattingToolbar({
     block = "heading2";
   } else if (state.heading3) {
     block = "heading3";
-  }
-
-  function applyLink() {
-    const url = linkUrl.trim();
-    if (!allowedLinkPattern.test(url)) {
-      setLinkError("Use an http, https, or mailto URL.");
-      return;
-    }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-    setLinkError("");
-    setLinkOpen(false);
   }
 
   return (
@@ -163,12 +176,6 @@ export default function DocumentFormattingToolbar({
           onClick={() => editor.chain().focus().toggleItalic().run()}
         />
         <ToolButton
-          active={state.underline}
-          icon={Underline}
-          label="Underline"
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-        />
-        <ToolButton
           active={state.strike}
           icon={Strikethrough}
           label="Strikethrough"
@@ -186,8 +193,7 @@ export default function DocumentFormattingToolbar({
             aria-pressed={state.link}
             className={`inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring ${state.link ? "bg-accent text-accent-foreground" : ""}`}
             onClick={() => {
-              setLinkUrl(editor.getAttributes("link").href ?? "");
-              setLinkError("");
+              linkForm.reset({ url: editor.getAttributes("link").href ?? "" });
             }}
             title="Link"
             type="button"
@@ -199,19 +205,33 @@ export default function DocumentFormattingToolbar({
               className="space-y-2"
               onSubmit={(event) => {
                 event.preventDefault();
-                applyLink();
+                linkForm.handleSubmit().catch(() => undefined);
               }}
             >
               <label className="font-medium" htmlFor="document-link-url">
                 URL
               </label>
-              <Input
-                id="document-link-url"
-                onChange={(event) => setLinkUrl(event.target.value)}
-                placeholder="https://example.com"
-                value={linkUrl}
-              />
-              {linkError ? <p role="alert">{linkError}</p> : null}
+              <linkForm.Field name="url" validators={{ onSubmit: linkSchema }}>
+                {(field) => (
+                  <>
+                    <Input
+                      id="document-link-url"
+                      onChange={(event) =>
+                        field.handleChange(event.target.value)
+                      }
+                      placeholder="https://example.com"
+                      value={field.state.value}
+                    />
+                    {field.state.meta.errors
+                      .filter((error) => error !== undefined)
+                      .map((error) => (
+                        <p key={error.message} role="alert">
+                          {error.message}
+                        </p>
+                      ))}
+                  </>
+                )}
+              </linkForm.Field>
               <div className="flex justify-end gap-2">
                 {state.link ? (
                   <Button
