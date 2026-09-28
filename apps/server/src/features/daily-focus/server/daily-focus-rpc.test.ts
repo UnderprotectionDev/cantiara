@@ -6,7 +6,13 @@ import { describe, expect, test, vi } from "vitest";
 
 const focusDate = "2026-09-27";
 const accountId = "founder-account";
-const day = { focusDate, available: [], candidates: [], members: [] };
+const day = {
+  focusDate,
+  available: [],
+  candidates: [],
+  events: [],
+  members: [],
+};
 const closeView = { abandoned: [], completed: [], deferred: [], stillOpen: [] };
 
 function testClient(session: Context["session"]) {

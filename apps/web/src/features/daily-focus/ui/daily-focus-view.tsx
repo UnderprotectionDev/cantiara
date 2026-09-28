@@ -1,11 +1,15 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Daily Focus controls close over the selected day and Work.
 
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { accountLocalDate } from "@cantiara/api/backlog";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
+import { useEffect, useRef, useState } from "react";
+import {
+  projectSourceRecordHash,
+  workRecordHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 
@@ -25,11 +29,31 @@ export default function DailyFocusView({
   view?: "close";
 }) {
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
+  const queryClient = useQueryClient();
   const [now, setNow] = useState(() => new Date());
+  const previousTimeZone = useRef<string | null>(null);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    const timeZone = preferences.data?.timeZone;
+    if (!timeZone) {
+      return;
+    }
+    const changed =
+      previousTimeZone.current !== null &&
+      previousTimeZone.current !== timeZone;
+    previousTimeZone.current = timeZone;
+    if (changed) {
+      const focusDate = day ?? accountLocalDate(new Date(), timeZone);
+      queryClient.invalidateQueries({
+        queryKey: orpc.dailyFocusDay.queryOptions({
+          input: { focusDate },
+        }).queryKey,
+      });
+    }
+  }, [day, preferences.data?.timeZone, queryClient]);
   if (!preferences.data) {
     return (
       <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
@@ -62,6 +86,7 @@ export default function DailyFocusView({
       focusDate={focusDate}
       onOpenCloseFocus={onOpenCloseFocus}
       onSelectDay={onSelectDay}
+      preferences={preferences.data}
     />
   );
 }
@@ -192,10 +217,12 @@ function DailyFocusDayView({
   focusDate,
   onOpenCloseFocus,
   onSelectDay,
+  preferences,
 }: {
   focusDate: string;
   onOpenCloseFocus: (day: string) => void;
   onSelectDay: (day: string) => void;
+  preferences: AccountPreferences;
 }) {
   const queryClient = useQueryClient();
   const dailyFocus = useQuery(
@@ -315,6 +342,65 @@ function DailyFocusDayView({
                 >
                   Remove from Daily Focus
                 </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      <section
+        aria-labelledby="daily-focus-events-heading"
+        className="mt-10 space-y-4"
+      >
+        <h2
+          className="font-semibold text-xl tracking-tight"
+          id="daily-focus-events-heading"
+        >
+          What happened today?
+        </h2>
+        {dailyFocus.data?.events.length === 0 ? (
+          <p className="text-muted-foreground">
+            No notable events for this day.
+          </p>
+        ) : null}
+        {dailyFocus.data?.events.length ? (
+          <ul className="divide-y border-border/70 border-y">
+            {dailyFocus.data.events.map((event) => (
+              <li
+                className="flex min-h-16 items-center gap-3 py-3"
+                key={event.id}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {event.kind} ·{" "}
+                    {event.sourceKey ? `${event.sourceKey} ` : ""}
+                    {event.sourceTitle}
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    <time dateTime={event.occurredAt}>
+                      {new Intl.DateTimeFormat(preferences.locale, {
+                        timeStyle: "short",
+                        timeZone: preferences.timeZone,
+                      }).format(new Date(event.occurredAt))}
+                    </time>
+                    <span> · {event.projectName}</span>
+                  </p>
+                </div>
+                <Link
+                  className="shrink-0 rounded-sm text-primary text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  hash={
+                    event.sourceType === "Work"
+                      ? workRecordHash(event.sourceId)
+                      : projectSourceRecordHash(
+                          event.sourceType,
+                          event.sourceId,
+                        )
+                  }
+                  params={{ projectId: event.projectId }}
+                  to="/projects/$projectId"
+                >
+                  Open source record
+                </Link>
               </li>
             ))}
           </ul>

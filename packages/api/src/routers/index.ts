@@ -144,6 +144,14 @@ import {
   updateProjectShortCodeInputSchema,
   type WorkContextLayoutMutationResult,
 } from "../project-shell";
+import {
+  createProjectSourceRecordInputSchema,
+  ProjectSourceRecordConflictError,
+  projectSourceRecordInputSchema,
+  projectSourceRecordsProjectInputSchema,
+  transitionProjectSourceRecordInputSchema,
+  updateProjectSourceRecordInputSchema,
+} from "../project-source-records";
 import type { RecordActionsAccess } from "../record-actions";
 import {
   applyRecordActionInputSchema,
@@ -380,6 +388,20 @@ function requireDailyFocus(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.dailyFocus;
+}
+
+function requireProjectSourceRecords(context: Context) {
+  if (!context.projectSourceRecords) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectSourceRecords;
+}
+
+function rethrowProjectSourceRecordError(error: unknown): never {
+  if (error instanceof ProjectSourceRecordConflictError) {
+    throw new ORPCError("CONFLICT", { cause: error });
+  }
+  throw error;
 }
 
 function requireRoadmapHorizon(context: Context) {
@@ -3054,6 +3076,71 @@ export const appRouter = {
     .handler(({ context, input }) =>
       requireDailyFocus(context).list(context.session.user.id, input.focusDate),
     ),
+  projectSourceRecords: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).list(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  projectSourceRecord: protectedProcedure
+    .input(projectSourceRecordInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).find(
+        context.session.user.id,
+        input.sourceType,
+        input.sourceId,
+      ),
+    ),
+  createProjectSourceRecord: protectedProcedure
+    .input(createProjectSourceRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectSourceRecords(context).create(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
+  updateProjectSourceRecord: protectedProcedure
+    .input(updateProjectSourceRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectSourceRecords(context).update(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
+  transitionProjectSourceRecord: protectedProcedure
+    .input(transitionProjectSourceRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectSourceRecords(context).transition(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
   dailyFocusClose: protectedProcedure
     .input(dailyFocusDayInputSchema)
     .handler(({ context, input }) =>

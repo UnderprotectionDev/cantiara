@@ -45,11 +45,13 @@ import {
   navigationHash,
   navigationSurfaceFromHash,
   PRIORITY_MAP_HASH,
+  projectSourceRecordFromHash,
   ROADMAP_HASH,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
+import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
@@ -92,6 +94,7 @@ export default function ProjectShellSurface({
       configurationMode ? "Project areas" : null,
     );
   const dailyAction = dailyActionFromHash(activeHash);
+  const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
@@ -157,6 +160,16 @@ export default function ProjectShellSurface({
   }
 
   const projectSurface = (() => {
+    if (sourceRecordRoute) {
+      return (
+        <ProjectSourceRecordView
+          projectId={projectId}
+          sourceId={sourceRecordRoute.sourceId}
+          sourceType={sourceRecordRoute.sourceType}
+        />
+      );
+    }
+
     if (activeHash === "tags") {
       return <ProjectTagsSurface projectId={projectId} />;
     }

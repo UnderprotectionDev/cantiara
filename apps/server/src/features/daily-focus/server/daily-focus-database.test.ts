@@ -2,12 +2,16 @@ import { createDb } from "@cantiara/db";
 import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
 import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
 import { dailyFocusMembership } from "@cantiara/db/schema/daily-focus";
+import { decision } from "@cantiara/db/schema/decision";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
+import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
+import { projectMilestone } from "@cantiara/db/schema/project-milestone";
+import { projectRelease } from "@cantiara/db/schema/project-release";
 import { work } from "@cantiara/db/schema/work";
 import { asc, eq, inArray } from "drizzle-orm";
 import {
@@ -170,6 +174,9 @@ describeDatabase("Daily Focus personal day membership", () => {
   });
 
   afterEach(async () => {
+    await database
+      ?.delete(mutationHistory)
+      .where(eq(mutationHistory.actorId, firstAccountId));
     await database?.delete(user).where(eq(user.id, firstAccountId));
     await database?.delete(user).where(eq(user.id, secondAccountId));
   });
@@ -653,5 +660,317 @@ describeDatabase("Daily Focus personal day membership", () => {
     expect(await readWorks()).toEqual(beforeWorks);
     expect(await readMemberships()).toEqual(beforeMemberships);
     expect(await readHistory()).toEqual(beforeHistory);
+  });
+
+  test("derives Work lifecycle events from the profile day without changing their timestamps", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-03-08";
+    const beforeDayId = `history-${crypto.randomUUID()}`;
+    const reopenedId = `history-${crypto.randomUUID()}`;
+    const abandonedId = `history-${crypto.randomUUID()}`;
+    const completedId = `history-${crypto.randomUUID()}`;
+    const afterDayId = `history-${crypto.randomUUID()}`;
+    const unchangedStatusId = `history-${crypto.randomUUID()}`;
+    const workValue = (status: string, closureResult: string | null) => ({
+      work: { closureResult, status },
+    });
+
+    await database
+      .update(accountPreferences)
+      .set({ timeZone: "America/New_York" })
+      .where(eq(accountPreferences.accountId, firstAccountId));
+    await database.insert(mutationHistory).values([
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: beforeDayId,
+        nextValue: workValue("Closed", "Completed"),
+        occurredAt: new Date("2026-03-08T04:59:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "a".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 1,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: reopenedId,
+        nextValue: workValue("In Progress", null),
+        occurredAt: new Date("2026-03-08T05:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "b".repeat(64),
+        previousValue: workValue("Closed", "Completed"),
+        revision: 2,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: abandonedId,
+        nextValue: workValue("Closed", "Abandoned"),
+        occurredAt: new Date("2026-03-08T13:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "f".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 1,
+        targetId: secondWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: completedId,
+        nextValue: workValue("Closed", "Completed"),
+        occurredAt: new Date("2026-03-09T03:59:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "c".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 3,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: afterDayId,
+        nextValue: workValue("In Progress", null),
+        occurredAt: new Date("2026-03-09T04:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "d".repeat(64),
+        previousValue: workValue("Closed", "Completed"),
+        revision: 4,
+        targetId: firstWorkId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: unchangedStatusId,
+        nextValue: workValue("In Progress", null),
+        occurredAt: new Date("2026-03-08T12:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "e".repeat(64),
+        previousValue: workValue("In Progress", null),
+        revision: 5,
+        targetId: firstWorkId,
+      },
+    ]);
+
+    const historyBeforeRead = await database
+      .select()
+      .from(mutationHistory)
+      .where(eq(mutationHistory.actorId, firstAccountId))
+      .orderBy(asc(mutationHistory.occurredAt), asc(mutationHistory.id));
+    const newYorkDay = await focus.list(firstAccountId, focusDate);
+
+    expect(newYorkDay.events.map(({ id, kind }) => [id, kind])).toEqual([
+      [reopenedId, "Reopened"],
+      [abandonedId, "Abandoned"],
+      [completedId, "Completed"],
+    ]);
+    expect(newYorkDay.events[0]).toMatchObject({
+      projectId: firstProjectId,
+      projectName: "Alpha",
+      sourceId: firstWorkId,
+      sourceKey: "ALPHA-1",
+      sourceTitle: "First Work",
+      sourceType: "Work",
+    });
+
+    await database
+      .update(accountPreferences)
+      .set({ timeZone: "UTC" })
+      .where(eq(accountPreferences.accountId, firstAccountId));
+    const utcDay = await focus.list(firstAccountId, focusDate);
+
+    expect(utcDay.events.map(({ id, kind }) => [id, kind])).toEqual([
+      [beforeDayId, "Completed"],
+      [reopenedId, "Reopened"],
+      [abandonedId, "Abandoned"],
+    ]);
+    expect(
+      (
+        await database
+          .select()
+          .from(mutationHistory)
+          .where(eq(mutationHistory.actorId, firstAccountId))
+          .orderBy(asc(mutationHistory.occurredAt), asc(mutationHistory.id))
+      ).map(({ occurredAt }) => occurredAt.toISOString()),
+    ).toEqual(
+      historyBeforeRead.map(({ occurredAt }) => occurredAt.toISOString()),
+    );
+  });
+
+  test("derives source lifecycle events on the profile day", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const focus = createDatabaseDailyFocus(database);
+    const focusDate = "2026-03-08";
+    const decisionId = `decision-${crypto.randomUUID()}`;
+    const milestoneId = `milestone-${crypto.randomUUID()}`;
+    const releaseId = `release-${crypto.randomUUID()}`;
+    const incidentId = `incident-${crypto.randomUUID()}`;
+    const nextDayIncidentId = `incident-${crypto.randomUUID()}`;
+    const milestoneHistoryId = `history-${crypto.randomUUID()}`;
+    const releaseHistoryId = `history-${crypto.randomUUID()}`;
+    const incidentHistoryId = `history-${crypto.randomUUID()}`;
+    const nextDayIncidentHistoryId = `history-${crypto.randomUUID()}`;
+
+    await database
+      .update(accountPreferences)
+      .set({ timeZone: "America/Los_Angeles" })
+      .where(eq(accountPreferences.accountId, firstAccountId));
+    await database.insert(decision).values({
+      createdAt: new Date("2026-03-08T08:00:00.000Z"),
+      decision: "Keep the first release small.",
+      id: decisionId,
+      life: "Valid",
+      projectId: firstProjectId,
+      rationale: null,
+      title: "First release scope",
+      updatedAt: new Date("2026-03-08T08:00:00.000Z"),
+    });
+    await database.insert(projectMilestone).values({
+      createdAt: new Date("2026-03-07T12:00:00.000Z"),
+      description: null,
+      id: milestoneId,
+      projectId: firstProjectId,
+      status: "Reached",
+      targetDate: null,
+      title: "Private beta",
+      updatedAt: new Date("2026-03-08T08:01:00.000Z"),
+    });
+    await database.insert(projectRelease).values({
+      createdAt: new Date("2026-03-07T12:00:00.000Z"),
+      description: null,
+      id: releaseId,
+      name: "First release",
+      projectId: firstProjectId,
+      status: "Published",
+      updatedAt: new Date("2026-03-09T06:59:59.000Z"),
+      versionLabel: "1.0.0",
+    });
+    await database.insert(productionIncident).values([
+      {
+        createdAt: new Date("2026-03-07T12:00:00.000Z"),
+        detectedHow: null,
+        id: incidentId,
+        impact: "Requests were delayed.",
+        learning: null,
+        occurredAt: new Date("2026-03-08T06:30:00.000Z"),
+        projectId: firstProjectId,
+        resolution: null,
+        rootCause: null,
+        status: "Resolved",
+        title: "Queue delay",
+        updatedAt: new Date("2026-03-08T10:00:00.000Z"),
+      },
+      {
+        createdAt: new Date("2026-03-07T12:00:00.000Z"),
+        detectedHow: null,
+        id: nextDayIncidentId,
+        impact: "A separate queue stalled.",
+        learning: null,
+        occurredAt: new Date("2026-03-09T06:30:00.000Z"),
+        projectId: firstProjectId,
+        resolution: null,
+        rootCause: null,
+        status: "Resolved",
+        title: "Next-day queue delay",
+        updatedAt: new Date("2026-03-09T07:00:00.000Z"),
+      },
+    ]);
+    await database.insert(mutationHistory).values([
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: milestoneHistoryId,
+        nextValue: { milestone: { status: "Reached" } },
+        occurredAt: new Date("2026-03-08T08:01:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "1".repeat(64),
+        previousValue: { milestone: { status: "Planned" } },
+        revision: 2,
+        targetId: milestoneId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: releaseHistoryId,
+        nextValue: { projectRelease: { status: "Published" } },
+        occurredAt: new Date("2026-03-09T06:59:59.000Z"),
+        originKind: "human",
+        payloadFingerprint: "2".repeat(64),
+        previousValue: { projectRelease: { status: "Preparing" } },
+        revision: 2,
+        targetId: releaseId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: incidentHistoryId,
+        nextValue: { productionIncident: { status: "Resolved" } },
+        occurredAt: new Date("2026-03-08T10:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "3".repeat(64),
+        previousValue: { productionIncident: { status: "Watching" } },
+        revision: 2,
+        targetId: incidentId,
+      },
+      {
+        actorId: firstAccountId,
+        actorType: "User",
+        id: nextDayIncidentHistoryId,
+        nextValue: { productionIncident: { status: "Resolved" } },
+        occurredAt: new Date("2026-03-09T07:00:00.000Z"),
+        originKind: "human",
+        payloadFingerprint: "4".repeat(64),
+        previousValue: { productionIncident: { status: "Watching" } },
+        revision: 2,
+        targetId: nextDayIncidentId,
+      },
+    ]);
+
+    const { events } = await focus.list(firstAccountId, focusDate);
+    expect(
+      events.map(({ kind, sourceId, sourceType }) => ({
+        kind,
+        sourceId,
+        sourceType,
+      })),
+    ).toEqual([
+      { kind: "Recorded", sourceId: decisionId, sourceType: "Decision" },
+      { kind: "Reached", sourceId: milestoneId, sourceType: "Milestone" },
+      {
+        kind: "Resolved",
+        sourceId: incidentId,
+        sourceType: "Production Incident",
+      },
+      {
+        kind: "Published",
+        sourceId: releaseId,
+        sourceType: "Project Release",
+      },
+    ]);
+    expect(events.map(({ occurredAt }) => occurredAt)).toEqual([
+      "2026-03-08T08:00:00.000Z",
+      "2026-03-08T08:01:00.000Z",
+      "2026-03-08T10:00:00.000Z",
+      "2026-03-09T06:59:59.000Z",
+    ]);
+    expect(
+      events.every(
+        ({ projectId, projectName }) =>
+          projectId === firstProjectId && projectName === "Alpha",
+      ),
+    ).toBe(true);
+    expect(events.map(({ sourceTitle }) => sourceTitle)).toEqual([
+      "First release scope",
+      "Private beta",
+      "Queue delay",
+      "First release",
+    ]);
   });
 });
