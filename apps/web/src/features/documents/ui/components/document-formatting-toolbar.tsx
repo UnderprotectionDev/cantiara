@@ -27,6 +27,7 @@ import {
   Quote,
   Redo2,
   Rows3,
+  Sigma,
   Strikethrough,
   Table2,
   Trash2,
@@ -90,6 +91,7 @@ export default function DocumentFormattingToolbar({
   editor: Editor;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
+  const [formulaOpen, setFormulaOpen] = useState(false);
   const linkForm = useForm({
     defaultValues: { url: "" },
     onSubmit: ({ value }) => {
@@ -100,6 +102,19 @@ export default function DocumentFormattingToolbar({
         .setLink({ href: value.url.trim() })
         .run();
       setLinkOpen(false);
+    },
+  });
+  const formulaForm = useForm({
+    defaultValues: { latex: "", placement: "inline" },
+    onSubmit: ({ value }) => {
+      const latex = value.latex.trim();
+      if (value.placement === "block") {
+        editor.chain().focus().insertBlockMath({ latex }).run();
+      } else {
+        editor.chain().focus().insertInlineMath({ latex }).run();
+      }
+      setFormulaOpen(false);
+      formulaForm.reset();
     },
   });
   const state = useEditorState({
@@ -118,6 +133,7 @@ export default function DocumentFormattingToolbar({
       orderedList: current.isActive("orderedList"),
       blockquote: current.isActive("blockquote"),
       codeBlock: current.isActive("codeBlock"),
+      codeLanguage: current.getAttributes("codeBlock").language ?? "",
       mermaid: current.isActive("codeBlock", { language: "mermaid" }),
       canUndo: current.can().undo(),
       canRedo: current.can().redo(),
@@ -133,227 +149,351 @@ export default function DocumentFormattingToolbar({
   }
 
   return (
-    <div
-      aria-label="Document formatting"
-      className="flex flex-wrap items-center gap-1 border-border border-b bg-muted/35 p-2"
-      role="toolbar"
-    >
-      <NativeSelect
-        aria-label="Text style"
-        className="mr-1 min-w-36"
-        onChange={(event) => {
-          const { value } = event.target;
-          if (value === "paragraph") {
-            editor.chain().focus().setParagraph().run();
-          } else {
-            const level = Number(value.slice(-1)) as 1 | 2 | 3;
-            editor.chain().focus().setHeading({ level }).run();
-          }
-        }}
-        size="sm"
-        value={block}
+    <>
+      <div
+        aria-describedby="document-toolbar-hint"
+        aria-label="Document formatting"
+        className="flex max-w-full items-center gap-1 overflow-x-auto border-border border-b bg-muted/25 p-2 [scrollbar-width:thin]"
+        role="toolbar"
       >
-        <NativeSelectOption value="paragraph">Paragraph</NativeSelectOption>
-        <NativeSelectOption value="heading1">Heading 1</NativeSelectOption>
-        <NativeSelectOption value="heading2">Heading 2</NativeSelectOption>
-        <NativeSelectOption value="heading3">Heading 3</NativeSelectOption>
-      </NativeSelect>
-      <Separator className="mx-1 h-7" orientation="vertical" />
-      <fieldset
-        aria-label="Text formatting"
-        className="flex items-center gap-1 border-0 p-0"
-      >
-        <ToolButton
-          active={state.bold}
-          icon={Bold}
-          label="Bold"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        />
-        <ToolButton
-          active={state.italic}
-          icon={Italic}
-          label="Italic"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        />
-        <ToolButton
-          active={state.strike}
-          icon={Strikethrough}
-          label="Strikethrough"
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-        />
-        <ToolButton
-          active={state.code}
-          icon={Code2}
-          label="Inline code"
-          onClick={() => editor.chain().focus().toggleCode().run()}
-        />
-        <Popover onOpenChange={setLinkOpen} open={linkOpen}>
-          <PopoverTrigger
-            aria-label="Link"
-            aria-pressed={state.link}
-            className={`inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring ${state.link ? "bg-accent text-accent-foreground" : ""}`}
-            onClick={() => {
-              linkForm.reset({ url: editor.getAttributes("link").href ?? "" });
-            }}
-            title="Link"
-            type="button"
-          >
-            <Link2 aria-hidden="true" className="size-4" />
-          </PopoverTrigger>
-          <PopoverContent align="start" aria-label="Edit link">
-            <form
-              className="space-y-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                linkForm.handleSubmit().catch(() => undefined);
-              }}
-            >
-              <label className="font-medium" htmlFor="document-link-url">
-                URL
-              </label>
-              <linkForm.Field name="url" validators={{ onSubmit: linkSchema }}>
-                {(field) => (
-                  <>
-                    <Input
-                      id="document-link-url"
-                      onChange={(event) =>
-                        field.handleChange(event.target.value)
-                      }
-                      placeholder="https://example.com"
-                      value={field.state.value}
-                    />
-                    {field.state.meta.errors
-                      .filter((error) => error !== undefined)
-                      .map((error) => (
-                        <p key={error.message} role="alert">
-                          {error.message}
-                        </p>
-                      ))}
-                  </>
-                )}
-              </linkForm.Field>
-              <div className="flex justify-end gap-2">
-                {state.link ? (
-                  <Button
-                    onClick={() => {
-                      editor.chain().focus().unsetLink().run();
-                      setLinkOpen(false);
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Unlink2 aria-hidden="true" /> Remove link
-                  </Button>
-                ) : null}
-                <Button size="sm" type="submit">
-                  Apply link
-                </Button>
-              </div>
-            </form>
-          </PopoverContent>
-        </Popover>
-      </fieldset>
-      <Separator className="mx-1 h-7" orientation="vertical" />
-      <fieldset
-        aria-label="Block formatting"
-        className="flex items-center gap-1 border-0 p-0"
-      >
-        <ToolButton
-          active={state.bulletList}
-          icon={List}
-          label="Bullet list"
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-        />
-        <ToolButton
-          active={state.orderedList}
-          icon={ListOrdered}
-          label="Numbered list"
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-        />
-        <ToolButton
-          active={state.blockquote}
-          icon={Quote}
-          label="Quote"
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-        />
-        <ToolButton
-          active={state.codeBlock && !state.mermaid}
-          icon={Braces}
-          label="Code block"
-          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        />
-      </fieldset>
-      <Separator className="mx-1 h-7" orientation="vertical" />
-      <fieldset
-        aria-label="Insert content"
-        className="flex items-center gap-1 border-0 p-0"
-      >
-        <ToolButton
-          icon={Table2}
-          label="Insert table"
-          onClick={() =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run()
-          }
-        />
-        <ToolButton
-          active={state.mermaid}
-          icon={Workflow}
-          label="Mermaid block"
-          onClick={() =>
-            editor.chain().focus().setCodeBlock({ language: "mermaid" }).run()
-          }
-        />
-        <ToolButton
-          icon={Minus}
-          label="Horizontal rule"
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
-        />
-      </fieldset>
-      <Separator className="mx-1 h-7" orientation="vertical" />
-      <fieldset
-        aria-label="Edit history"
-        className="flex items-center gap-1 border-0 p-0"
-      >
-        <ToolButton
-          disabled={!state.canUndo}
-          icon={Undo2}
-          label="Undo"
-          onClick={() => editor.chain().focus().undo().run()}
-        />
-        <ToolButton
-          disabled={!state.canRedo}
-          icon={Redo2}
-          label="Redo"
-          onClick={() => editor.chain().focus().redo().run()}
-        />
-      </fieldset>
-      {state.table ? (
+        <NativeSelect
+          aria-label="Text style"
+          className="mr-1 min-w-36 shrink-0"
+          onChange={(event) => {
+            const { value } = event.target;
+            if (value === "paragraph") {
+              editor.chain().focus().setParagraph().run();
+            } else {
+              const level = Number(value.slice(-1)) as 1 | 2 | 3;
+              editor.chain().focus().setHeading({ level }).run();
+            }
+          }}
+          size="sm"
+          value={block}
+        >
+          <NativeSelectOption value="paragraph">Paragraph</NativeSelectOption>
+          <NativeSelectOption value="heading1">Heading 1</NativeSelectOption>
+          <NativeSelectOption value="heading2">Heading 2</NativeSelectOption>
+          <NativeSelectOption value="heading3">Heading 3</NativeSelectOption>
+        </NativeSelect>
+        <Separator className="mx-1 h-7 shrink-0" orientation="vertical" />
         <fieldset
-          aria-label="Table editing"
-          className="flex basis-full items-center gap-1 border-border border-t pt-1"
+          aria-label="Text formatting"
+          className="flex shrink-0 items-center gap-1 border-0 p-0"
         >
           <ToolButton
-            icon={Rows3}
-            label="Add row"
-            onClick={() => editor.chain().focus().addRowAfter().run()}
+            active={state.bold}
+            icon={Bold}
+            label="Bold"
+            onClick={() => editor.chain().focus().toggleBold().run()}
           />
           <ToolButton
-            icon={Columns3}
-            label="Add column"
-            onClick={() => editor.chain().focus().addColumnAfter().run()}
+            active={state.italic}
+            icon={Italic}
+            label="Italic"
+            onClick={() => editor.chain().focus().toggleItalic().run()}
           />
           <ToolButton
-            icon={Trash2}
-            label="Delete table"
-            onClick={() => editor.chain().focus().deleteTable().run()}
+            active={state.strike}
+            icon={Strikethrough}
+            label="Strikethrough"
+            onClick={() => editor.chain().focus().toggleStrike().run()}
+          />
+          <ToolButton
+            active={state.code}
+            icon={Code2}
+            label="Inline code"
+            onClick={() => editor.chain().focus().toggleCode().run()}
+          />
+          <Popover onOpenChange={setLinkOpen} open={linkOpen}>
+            <PopoverTrigger
+              aria-label="Link"
+              aria-pressed={state.link}
+              className={`inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring ${state.link ? "bg-accent text-accent-foreground" : ""}`}
+              onClick={() => {
+                linkForm.reset({
+                  url: editor.getAttributes("link").href ?? "",
+                });
+              }}
+              title="Link"
+              type="button"
+            >
+              <Link2 aria-hidden="true" className="size-4" />
+            </PopoverTrigger>
+            <PopoverContent align="start" aria-label="Edit link">
+              <form
+                className="space-y-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  linkForm.handleSubmit().catch(() => undefined);
+                }}
+              >
+                <label className="font-medium" htmlFor="document-link-url">
+                  URL
+                </label>
+                <linkForm.Field
+                  name="url"
+                  validators={{ onSubmit: linkSchema }}
+                >
+                  {(field) => (
+                    <>
+                      <Input
+                        id="document-link-url"
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        placeholder="https://example.com"
+                        value={field.state.value}
+                      />
+                      {field.state.meta.errors
+                        .filter((error) => error !== undefined)
+                        .map((error) => (
+                          <p key={error.message} role="alert">
+                            {error.message}
+                          </p>
+                        ))}
+                    </>
+                  )}
+                </linkForm.Field>
+                <div className="flex justify-end gap-2">
+                  {state.link ? (
+                    <Button
+                      onClick={() => {
+                        editor.chain().focus().unsetLink().run();
+                        setLinkOpen(false);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Unlink2 aria-hidden="true" /> Remove link
+                    </Button>
+                  ) : null}
+                  <Button size="sm" type="submit">
+                    Apply link
+                  </Button>
+                </div>
+              </form>
+            </PopoverContent>
+          </Popover>
+        </fieldset>
+        <Separator className="mx-1 h-7 shrink-0" orientation="vertical" />
+        <fieldset
+          aria-label="Block formatting"
+          className="flex shrink-0 items-center gap-1 border-0 p-0"
+        >
+          <ToolButton
+            active={state.bulletList}
+            icon={List}
+            label="Bullet list"
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+          />
+          <ToolButton
+            active={state.orderedList}
+            icon={ListOrdered}
+            label="Numbered list"
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          />
+          <ToolButton
+            active={state.blockquote}
+            icon={Quote}
+            label="Quote"
+            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          />
+          <ToolButton
+            active={state.codeBlock && !state.mermaid}
+            icon={Braces}
+            label="Code block"
+            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          />
+          {state.codeBlock && !state.mermaid ? (
+            <NativeSelect
+              aria-label="Code language"
+              className="min-w-32"
+              onChange={(event) =>
+                editor
+                  .chain()
+                  .focus()
+                  .updateAttributes("codeBlock", {
+                    language: event.target.value,
+                  })
+                  .run()
+              }
+              size="sm"
+              value={state.codeLanguage}
+            >
+              <NativeSelectOption value="">Auto detect</NativeSelectOption>
+              <NativeSelectOption value="typescript">
+                TypeScript
+              </NativeSelectOption>
+              <NativeSelectOption value="javascript">
+                JavaScript
+              </NativeSelectOption>
+              <NativeSelectOption value="json">JSON</NativeSelectOption>
+              <NativeSelectOption value="sql">SQL</NativeSelectOption>
+              <NativeSelectOption value="bash">Bash</NativeSelectOption>
+              <NativeSelectOption value="python">Python</NativeSelectOption>
+            </NativeSelect>
+          ) : null}
+        </fieldset>
+        <Separator className="mx-1 h-7 shrink-0" orientation="vertical" />
+        <fieldset
+          aria-label="Insert content"
+          className="flex shrink-0 items-center gap-1 border-0 p-0"
+        >
+          <ToolButton
+            icon={Table2}
+            label="Insert table"
+            onClick={() =>
+              editor
+                .chain()
+                .focus()
+                .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                .run()
+            }
+          />
+          <ToolButton
+            active={state.mermaid}
+            icon={Workflow}
+            label="Mermaid block"
+            onClick={() =>
+              editor.chain().focus().setCodeBlock({ language: "mermaid" }).run()
+            }
+          />
+          <Popover onOpenChange={setFormulaOpen} open={formulaOpen}>
+            <PopoverTrigger
+              aria-label="Insert formula"
+              className="inline-flex size-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              title="Insert formula"
+              type="button"
+            >
+              <Sigma aria-hidden="true" className="size-4" />
+            </PopoverTrigger>
+            <PopoverContent align="start" aria-label="Formula">
+              <form
+                className="space-y-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  formulaForm.handleSubmit().catch(() => undefined);
+                }}
+              >
+                <formulaForm.Field
+                  name="latex"
+                  validators={{
+                    onSubmit: z.string().trim().min(1, "LaTeX is required."),
+                  }}
+                >
+                  {(field) => (
+                    <div className="space-y-1">
+                      <label
+                        className="font-medium"
+                        htmlFor="document-formula-latex"
+                      >
+                        LaTeX
+                      </label>
+                      <Input
+                        id="document-formula-latex"
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        placeholder="x^2"
+                        value={field.state.value}
+                      />
+                      {field.state.meta.errors
+                        .filter((error) => error !== undefined)
+                        .map((error) => (
+                          <p key={error.message} role="alert">
+                            {error.message}
+                          </p>
+                        ))}
+                    </div>
+                  )}
+                </formulaForm.Field>
+                <formulaForm.Field name="placement">
+                  {(field) => (
+                    <div className="space-y-1">
+                      <label
+                        className="font-medium"
+                        htmlFor="document-formula-placement"
+                      >
+                        Placement
+                      </label>
+                      <NativeSelect
+                        id="document-formula-placement"
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        value={field.state.value}
+                      >
+                        <NativeSelectOption value="inline">
+                          Inline
+                        </NativeSelectOption>
+                        <NativeSelectOption value="block">
+                          Block
+                        </NativeSelectOption>
+                      </NativeSelect>
+                    </div>
+                  )}
+                </formulaForm.Field>
+                <Button className="self-end" size="sm" type="submit">
+                  Insert formula
+                </Button>
+              </form>
+            </PopoverContent>
+          </Popover>
+          <ToolButton
+            icon={Minus}
+            label="Horizontal rule"
+            onClick={() => editor.chain().focus().setHorizontalRule().run()}
           />
         </fieldset>
-      ) : null}
-    </div>
+        <Separator className="mx-1 h-7 shrink-0" orientation="vertical" />
+        <fieldset
+          aria-label="Edit history"
+          className="flex shrink-0 items-center gap-1 border-0 p-0"
+        >
+          <ToolButton
+            disabled={!state.canUndo}
+            icon={Undo2}
+            label="Undo"
+            onClick={() => editor.chain().focus().undo().run()}
+          />
+          <ToolButton
+            disabled={!state.canRedo}
+            icon={Redo2}
+            label="Redo"
+            onClick={() => editor.chain().focus().redo().run()}
+          />
+        </fieldset>
+        {state.table ? (
+          <fieldset
+            aria-label="Table editing"
+            className="flex shrink-0 items-center gap-1 border-border border-l pl-2"
+          >
+            <ToolButton
+              icon={Rows3}
+              label="Add row"
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+            />
+            <ToolButton
+              icon={Columns3}
+              label="Add column"
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+            />
+            <ToolButton
+              icon={Trash2}
+              label="Delete table"
+              onClick={() => editor.chain().focus().deleteTable().run()}
+            />
+          </fieldset>
+        ) : null}
+      </div>
+      <p
+        className="border-border border-b px-3 py-1 text-muted-foreground text-xs sm:hidden"
+        id="document-toolbar-hint"
+      >
+        Swipe for more formatting tools →
+      </p>
+    </>
   );
 }

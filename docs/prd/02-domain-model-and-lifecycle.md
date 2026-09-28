@@ -513,8 +513,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Planlama | `Planning` | Yapılandırma modu dışında günlük planlama |
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Belge oluştur | `Create Document` | Projede yeni Belge kaydı oluşturma eylemi |
+| Belge oluşturma açıklaması | `Give this Document a title and choose its type.` | Oluşturma penceresindeki kısa yönlendirme |
+| İptal | `Cancel` | Belge oluşturma penceresini kayıt oluşturmadan kapatma |
 | Belge düzenleyici | `Document editor` | Belgenin zengin metin düzenleme alanı |
+| Belge görünümü | `Document view` | Aynı Belgenin yazma, Markdown ve önizleme sekmeleri |
+| Yaz | `Write` | Belgeyi Tiptap ile görsel düzenleme görünümü |
+| Önizleme | `Preview` | Belgenin işlenmiş Markdown görünümü sekmesi |
+| Markdown kaynağı | `Markdown source` | Aynı Belgenin düzenlenebilir Markdown metni |
+| Güvenli dönüşüm yok | `This Markdown cannot be safely converted to Write. Continue editing in Markdown, or use Preview; your source is unchanged.` | Kayıpsız görsel dönüşüm mümkün olmadığında kaynak metnin korunduğunu söyleyen uyarı |
 | Belge biçimlendirme | `Document formatting` | Belge düzenleyicisindeki biçimlendirme araç çubuğu |
+| Diğer biçimlendirme araçları | `Swipe for more formatting tools →` | Dar ekranda araç çubuğunun yatay kaydırılabildiğini gösteren ipucu |
 | Metin stili | `Text style` | Paragraf ve başlık düzeyi seçimi |
 | Paragraf | `Paragraph` | Düz metin bloğu |
 | Başlık düzeyleri | `Heading 1`, `Heading 2`, `Heading 3` | Belgedeki üç başlık düzeyi |
@@ -534,9 +542,19 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Numaralı liste | `Numbered list` | Geçerli bloğu numaralı listeye dönüştürme |
 | Alıntı | `Quote` | Geçerli bloğu alıntıya dönüştürme |
 | Kod bloğu | `Code block` | Geçerli bloğu kod bloğuna dönüştürme |
+| Kod dili | `Code language` | Kod bloğunun vurgulama dilini seçme |
+| Otomatik dil algılama | `Auto detect` | Kod bloğunda belirli dil seçilmediğinde algılama kullanma |
+| Kod dilleri | `TypeScript`, `JavaScript`, `JSON`, `SQL`, `Bash`, `Python` | Kod bloğunda açıkça seçilebilen vurgulama dilleri |
 | İçerik ekle | `Insert content` | Tablo, diyagram ve ayraç ekleme grubu |
 | Tablo ekle | `Insert table` | İmleç konumuna tablo ekleme |
 | Mermaid bloğu | `Mermaid block` | Diyagram kod bloğu ekleme |
+| Formül ekle | `Insert formula` | Satır içi veya blok LaTeX formülü ekleme |
+| Formül | `Formula` | LaTeX formülü oluşturma penceresi |
+| LaTeX | `LaTeX` | Formül kaynak alanı |
+| Yerleşim | `Placement` | Formülün satır içi veya blok görünümünü seçme |
+| Satır içi | `Inline` | Formülü metin akışı içinde yerleştirme |
+| Blok | `Block` | Formülü ayrı blokta yerleştirme |
+| LaTeX gerekli | `LaTeX is required.` | Boş formül kaynağı uyarısı |
 | Yatay çizgi | `Horizontal rule` | İmleç konumuna ayraç ekleme |
 | Düzenleme geçmişi | `Edit history` | Geri alma ve yeniden yapma grubu |
 | Geri al | `Undo` | Son düzenlemeyi geri alma |

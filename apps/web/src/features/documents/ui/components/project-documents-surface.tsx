@@ -1,12 +1,26 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Document controls close over the selected record and current editor state.
 import { type Document, documentTypeSchema } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@cantiara/ui/components/dialog";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@cantiara/ui/components/tabs";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
@@ -16,7 +30,7 @@ import { Markdown as TiptapMarkdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -24,6 +38,11 @@ import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentPreview from "./document-preview";
 
 const lowlight = createLowlight(common);
+type DocumentView = "write" | "markdown" | "preview";
+
+function comparableMarkdown(source: string) {
+  return source.replaceAll("\r\n", "\n");
+}
 
 function DocumentEditor({
   record,
@@ -34,6 +53,9 @@ function DocumentEditor({
 }) {
   const [revision, setRevision] = useState(record.revision);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<DocumentView>("write");
+  const [conversionWarning, setConversionWarning] = useState(false);
+  const allowRichUpdates = useRef(false);
   const save = useMutation({
     mutationFn: (value: {
       title: string;
@@ -79,15 +101,73 @@ function DocumentEditor({
     ],
     content: record.body,
     contentType: "markdown",
+    editable: false,
     editorProps: {
       attributes: {
         "aria-label": "Document editor",
         class: "document-rich-editor",
       },
     },
-    onUpdate: ({ editor: current }) =>
-      form.setFieldValue("body", current.getMarkdown()),
+    onUpdate: ({ editor: current }) => {
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref changes when the user enters Write.
+      if (allowRichUpdates.current) {
+        form.setFieldValue("body", current.getMarkdown());
+      }
+    },
   });
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+    const safe =
+      comparableMarkdown(editor.getMarkdown()) ===
+      comparableMarkdown(record.body);
+    if (safe) {
+      editor.setEditable(true);
+      allowRichUpdates.current = true;
+    }
+    if (!safe) {
+      setView("markdown");
+      setConversionWarning(true);
+    }
+  }, [editor, record.body]);
+
+  function changeView(next: string) {
+    if (next !== "write") {
+      allowRichUpdates.current = false;
+      setView(next as DocumentView);
+      return;
+    }
+    if (!editor) {
+      return;
+    }
+    const source = form.getFieldValue("body");
+    try {
+      const { markdown } = editor;
+      if (!markdown) {
+        throw new Error("Markdown conversion is unavailable.");
+      }
+      const parsed = markdown.parse(source);
+      const converted = markdown.serialize(parsed);
+      if (comparableMarkdown(converted) !== comparableMarkdown(source)) {
+        setConversionWarning(true);
+        setView("markdown");
+        return;
+      }
+      editor.commands.setContent(source, {
+        contentType: "markdown",
+        emitUpdate: false,
+      });
+      editor.setEditable(true);
+      allowRichUpdates.current = true;
+      setConversionWarning(false);
+      setView("write");
+    } catch {
+      setConversionWarning(true);
+      setView("markdown");
+    }
+  }
 
   return (
     <section aria-label="Document">
@@ -98,12 +178,15 @@ function DocumentEditor({
           form.handleSubmit().catch(() => undefined);
         }}
       >
-        <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
+        <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
           <form.Field name="title">
             {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor="document-title">Title</Label>
+              <div className="min-w-60 flex-1">
+                <Label className="sr-only" htmlFor="document-title">
+                  Title
+                </Label>
                 <Input
+                  className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 font-semibold text-2xl shadow-none dark:bg-transparent"
                   id="document-title"
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
@@ -114,7 +197,7 @@ function DocumentEditor({
           </form.Field>
           <form.Field name="type">
             {(field) => (
-              <div className="space-y-2">
+              <div className="w-40 space-y-2">
                 <Label htmlFor="document-type">Type</Label>
                 <NativeSelect
                   id="document-type"
@@ -135,59 +218,75 @@ function DocumentEditor({
               </div>
             )}
           </form.Field>
+          <form.Subscribe
+            selector={(state) => ({
+              title: state.values.title,
+              isSubmitting: state.isSubmitting,
+            })}
+          >
+            {({ title, isSubmitting }) => (
+              <Button disabled={isSubmitting || !title.trim()} type="submit">
+                Save
+              </Button>
+            )}
+          </form.Subscribe>
         </div>
-        <div className="space-y-2">
-          <Label>Document editor</Label>
-          <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-            {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
-            <EditorContent editor={editor} />
-          </div>
-        </div>
-        <form.Field name="body">
-          {(field) => (
-            <div className="space-y-2">
-              <Label htmlFor="document-markdown">Markdown</Label>
-              <textarea
-                className="min-h-44 w-full rounded-md border bg-background p-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-ring"
-                id="document-markdown"
-                onChange={(event) => {
-                  const next = event.target.value;
-                  field.handleChange(next);
-                  try {
-                    editor?.commands.setContent(next, {
-                      contentType: "markdown",
-                      emitUpdate: false,
-                    });
-                  } catch {
-                    /* The source stays editable when rich parsing fails. */
-                  }
-                }}
-                value={field.state.value}
-              />
+        <Tabs onValueChange={changeView} value={view}>
+          <TabsList aria-label="Document view" className="mb-1" variant="line">
+            <TabsTrigger value="write">Write</TabsTrigger>
+            <TabsTrigger value="markdown">Markdown</TabsTrigger>
+            <TabsTrigger value="preview">Preview</TabsTrigger>
+          </TabsList>
+          <TabsContent keepMounted value="write">
+            <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+              {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
+              <EditorContent editor={editor} />
             </div>
-          )}
-        </form.Field>
+          </TabsContent>
+          <TabsContent keepMounted value="markdown">
+            <div className="space-y-3">
+              {conversionWarning ? (
+                <p
+                  className="rounded-md border border-border bg-muted/50 p-3 text-sm"
+                  role="alert"
+                >
+                  This Markdown cannot be safely converted to Write. Continue
+                  editing in Markdown, or use Preview; your source is unchanged.
+                </p>
+              ) : null}
+              <form.Field name="body">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="document-markdown">Markdown source</Label>
+                    <textarea
+                      className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
+                      id="document-markdown"
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                        setConversionWarning(false);
+                      }}
+                      value={field.state.value}
+                    />
+                  </div>
+                )}
+              </form.Field>
+            </div>
+          </TabsContent>
+          <TabsContent value="preview">
+            <form.Subscribe selector={(state) => state.values.body}>
+              {(body) => (
+                <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
+                  <DocumentPreview source={body} />
+                </div>
+              )}
+            </form.Subscribe>
+          </TabsContent>
+        </Tabs>
         {error ? (
           <p className="text-destructive" role="alert">
             {error}
           </p>
         ) : null}
-        <form.Subscribe
-          selector={(state) => ({
-            body: state.values.body,
-            title: state.values.title,
-            isSubmitting: state.isSubmitting,
-          })}
-        >
-          {({ body, title, isSubmitting }) => (
-            <>
-              <Button disabled={isSubmitting || !title.trim()} type="submit">
-                Save
-              </Button>
-              <DocumentPreview source={body} />
-            </>
-          )}
-        </form.Subscribe>
       </form>
     </section>
   );
@@ -203,6 +302,7 @@ export default function ProjectDocumentsSurface({
   const documents = useQuery(options);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const create = useMutation({
     mutationFn: (value: { title: string; type: Document["type"] }) =>
       runOnlineOnlyWrite(() =>
@@ -215,6 +315,7 @@ export default function ProjectDocumentsSurface({
     onSuccess: async (created) => {
       setError(null);
       form.reset();
+      setCreateOpen(false);
       setSelectedId(created.id);
       await queryClient.invalidateQueries({ queryKey: options.queryKey });
     },
@@ -235,71 +336,106 @@ export default function ProjectDocumentsSurface({
 
   return (
     <section aria-label="Documents" className="space-y-6">
-      <header>
+      <header className="flex items-center justify-between gap-4">
         <h2 className="font-semibold text-2xl">Documents</h2>
+        <Button onClick={() => setCreateOpen(true)} type="button">
+          Create Document
+        </Button>
       </header>
-      <form
-        className="grid items-end gap-3 sm:grid-cols-[1fr_12rem_auto]"
-        onSubmit={(event) => {
-          event.preventDefault();
-          form.handleSubmit().catch(() => undefined);
+      <Dialog
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) {
+            form.reset();
+            setError(null);
+          }
         }}
+        open={createOpen}
       >
-        <form.Field name="title">
-          {(field) => (
-            <div className="space-y-2">
-              <Label htmlFor="new-document-title">Title</Label>
-              <Input
-                id="new-document-title"
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-                required
-                value={field.state.value}
-              />
-            </div>
-          )}
-        </form.Field>
-        <form.Field name="type">
-          {(field) => (
-            <div className="space-y-2">
-              <Label htmlFor="new-document-type">Type</Label>
-              <NativeSelect
-                id="new-document-type"
-                onBlur={field.handleBlur}
-                onChange={(event) =>
-                  field.handleChange(
-                    documentTypeSchema.parse(event.target.value),
-                  )
-                }
-                value={field.state.value}
+        <DialogContent className="rounded-xl p-6 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Create Document</DialogTitle>
+            <DialogDescription>
+              Give this Document a title and choose its type.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              form.handleSubmit().catch(() => undefined);
+            }}
+          >
+            <form.Field name="title">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="new-document-title">Title</Label>
+                  <Input
+                    autoFocus
+                    id="new-document-title"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    required
+                    value={field.state.value}
+                  />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="type">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="new-document-type">Type</Label>
+                  <NativeSelect
+                    id="new-document-type"
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(
+                        documentTypeSchema.parse(event.target.value),
+                      )
+                    }
+                    value={field.state.value}
+                  >
+                    {documentTypeSchema.options.map((option) => (
+                      <NativeSelectOption key={option} value={option}>
+                        {option}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </div>
+              )}
+            </form.Field>
+            {error ? (
+              <p className="text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                onClick={() => setCreateOpen(false)}
+                type="button"
+                variant="outline"
               >
-                {documentTypeSchema.options.map((option) => (
-                  <NativeSelectOption key={option} value={option}>
-                    {option}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-          )}
-        </form.Field>
-        <form.Subscribe
-          selector={(state) => ({
-            title: state.values.title,
-            isSubmitting: state.isSubmitting,
-          })}
-        >
-          {({ title, isSubmitting }) => (
-            <Button disabled={isSubmitting || !title.trim()} type="submit">
-              Create Document
-            </Button>
-          )}
-        </form.Subscribe>
-      </form>
-      {error ? (
-        <p className="text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+                Cancel
+              </Button>
+              <form.Subscribe
+                selector={(state) => ({
+                  title: state.values.title,
+                  isSubmitting: state.isSubmitting,
+                })}
+              >
+                {({ title, isSubmitting }) => (
+                  <Button
+                    disabled={isSubmitting || !title.trim()}
+                    type="submit"
+                  >
+                    Create Document
+                  </Button>
+                )}
+              </form.Subscribe>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       {documents.isError ? (
         <p role="alert">Documents could not be loaded.</p>
       ) : null}
