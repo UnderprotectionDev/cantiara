@@ -47,6 +47,7 @@ test("rejecting a Daily Focus candidate hides it only from the current view", as
               title: "Prepare the release",
             },
           ],
+          events: [],
           focusDate: "2026-09-27",
           members: [],
         },

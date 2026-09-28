@@ -174,6 +174,9 @@ describeDatabase("Daily Focus personal day membership", () => {
   });
 
   afterEach(async () => {
+    await database
+      ?.delete(mutationHistory)
+      .where(eq(mutationHistory.actorId, firstAccountId));
     await database?.delete(user).where(eq(user.id, firstAccountId));
     await database?.delete(user).where(eq(user.id, secondAccountId));
   });
@@ -909,7 +912,7 @@ describeDatabase("Daily Focus personal day membership", () => {
         actorType: "User",
         id: incidentHistoryId,
         nextValue: { productionIncident: { status: "Resolved" } },
-        occurredAt: new Date("2026-03-09T07:00:00.000Z"),
+        occurredAt: new Date("2026-03-08T10:00:00.000Z"),
         originKind: "human",
         payloadFingerprint: "3".repeat(64),
         previousValue: { productionIncident: { status: "Watching" } },
