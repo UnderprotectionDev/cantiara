@@ -776,6 +776,7 @@ function rethrowFileAttachmentError(error: unknown): never {
     default:
       if (error.code.startsWith("FILE_ATTACHMENT_")) {
         throw new ORPCError("BAD_REQUEST", {
+          cause: error,
           data: { code: error.code },
           defined: true,
           message,
