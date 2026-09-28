@@ -2,6 +2,7 @@
 
 import {
   createFocusPeriodInputSchema,
+  type FocusPeriodLearning,
   type FocusPeriodRecord,
 } from "@cantiara/api/focus-period";
 import { Button } from "@cantiara/ui/components/button";
@@ -101,6 +102,18 @@ export default function FocusPeriodsView() {
     mutationFn: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
     ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
+    onSuccess: refresh,
+  });
+  const saveEvaluation = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
+    ) => runOnlineOnlyWrite(() => client.saveFocusPeriodEvaluation(input)),
+    onSuccess: refresh,
+  });
+  const createFollowUp = useMutation({
+    mutationFn: (
+      input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
+    ) => runOnlineOnlyWrite(() => client.createFocusPeriodFollowUpWork(input)),
     onSuccess: refresh,
   });
   const form = useForm({
@@ -277,11 +290,13 @@ export default function FocusPeriodsView() {
               add={add}
               cancel={cancel}
               close={close}
+              createFollowUp={createFollowUp}
               decide={decide}
               key={selected.id}
               period={selected}
               periods={periods.data}
               remove={remove}
+              saveEvaluation={saveEvaluation}
             />
           ) : null}
         </div>
@@ -301,6 +316,8 @@ function PeriodDetail({
   cancel,
   close,
   decide,
+  saveEvaluation,
+  createFollowUp,
   periods,
   act,
 }: {
@@ -323,6 +340,16 @@ function PeriodDetail({
   decide: {
     mutateAsync: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
+    ) => Promise<unknown>;
+  };
+  saveEvaluation: {
+    mutateAsync: (
+      input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
+    ) => Promise<unknown>;
+  };
+  createFollowUp: {
+    mutateAsync: (
+      input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
     ) => Promise<unknown>;
   };
   act: (
@@ -569,48 +596,12 @@ function PeriodDetail({
           </Button>
         </div>
       ) : null}
-      <section aria-label="Work">
-        <h3 className="font-semibold">Work</h3>
-        {period.members.length === 0 ? (
-          <p className="mt-2 text-muted-foreground">
-            No Work in this Focus Period.
-          </p>
-        ) : (
-          <ul className="mt-2 space-y-2">
-            {period.members.map((item) => (
-              <li
-                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                key={item.id}
-              >
-                <Link
-                  hash={workRecordHash(item.id)}
-                  params={{ projectId: item.projectId }}
-                  to="/projects/$projectId"
-                >
-                  {item.title} · {item.key} · {item.projectName} · {item.status}
-                </Link>
-                {open ? (
-                  <Button
-                    onClick={() =>
-                      act(() =>
-                        remove.mutateAsync({
-                          periodId: period.id,
-                          workId: item.id,
-                        }),
-                      )
-                    }
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Remove
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <WorkMembersSection
+        act={act}
+        open={open}
+        period={period}
+        remove={remove}
+      />
       {period.startSnapshot ? (
         <p className="text-muted-foreground text-sm">
           In start snapshot: {period.startSnapshot.length}
@@ -630,6 +621,465 @@ function PeriodDetail({
           </ul>
         </section>
       ) : null}
+      <CloseComparisonSection period={period} />
+      {period.status === "Closed" ? (
+        <>
+          <PeriodEvaluationSection
+            act={act}
+            period={period}
+            saveEvaluation={saveEvaluation}
+          />
+          <FollowUpWorkSection
+            act={act}
+            createFollowUp={createFollowUp}
+            period={period}
+          />
+        </>
+      ) : null}
+      <DependenciesSection period={period} />
+    </section>
+  );
+}
+
+const EVALUATION_FIELD_BY_LEARNING = {
+  Keep: "keep",
+  Change: "change",
+  "Try next": "tryNext",
+} as const;
+
+type FocusPeriodAction = (
+  action: () => Promise<unknown>,
+  conflictMessage?: string,
+) => Promise<void>;
+
+interface FocusPeriodSaveEvaluation {
+  mutateAsync: (
+    input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
+  ) => Promise<unknown>;
+}
+
+interface FocusPeriodCreateFollowUp {
+  mutateAsync: (
+    input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
+  ) => Promise<unknown>;
+}
+
+interface FocusPeriodRemove {
+  mutateAsync: (input: {
+    periodId: string;
+    workId: string;
+  }) => Promise<unknown>;
+}
+
+function WorkMembersSection({
+  period,
+  open,
+  remove,
+  act,
+}: {
+  period: FocusPeriodRecord;
+  open: boolean;
+  remove: FocusPeriodRemove;
+  act: FocusPeriodAction;
+}) {
+  return (
+    <section aria-label="Work">
+      <h3 className="font-semibold">Work</h3>
+      {period.members.length === 0 ? (
+        <p className="mt-2 text-muted-foreground">
+          No Work in this Focus Period.
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {period.members.map((item) => (
+            <li
+              className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+              key={item.id}
+            >
+              <Link
+                hash={workRecordHash(item.id)}
+                params={{ projectId: item.projectId }}
+                to="/projects/$projectId"
+              >
+                {item.title} · {item.key} · {item.projectName} · {item.status}
+              </Link>
+              {open ? (
+                <Button
+                  onClick={() =>
+                    act(() =>
+                      remove.mutateAsync({
+                        periodId: period.id,
+                        workId: item.id,
+                      }),
+                    )
+                  }
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
+  const comparison = period.closeComparison;
+  if (!comparison) {
+    return null;
+  }
+  const totals = [
+    ["In start snapshot", comparison.inStartSnapshot.length],
+    ["Added later", comparison.addedLater.length],
+    ["Removed", comparison.removed.length],
+    ["Completed", comparison.completed.length],
+    ["Still-open Work", comparison.stillOpen.length],
+  ] as const;
+  return (
+    <section aria-label="Close comparison" className="space-y-3">
+      <h3 className="font-semibold">Close comparison</h3>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {totals.map(([label, count]) => (
+          <div key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-medium">{count}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function PeriodEvaluationSection({
+  period,
+  saveEvaluation,
+  act,
+}: {
+  period: FocusPeriodRecord;
+  saveEvaluation: FocusPeriodSaveEvaluation;
+  act: FocusPeriodAction;
+}) {
+  const [evaluation, setEvaluation] = useState({
+    keep: period.evaluation?.keep ?? "",
+    change: period.evaluation?.change ?? "",
+    tryNext: period.evaluation?.tryNext ?? "",
+  });
+  function save(next: typeof evaluation) {
+    setEvaluation(next);
+    return act(() =>
+      saveEvaluation.mutateAsync({ periodId: period.id, evaluation: next }),
+    );
+  }
+  return (
+    <section aria-label="Period evaluation" className="space-y-3">
+      <h3 className="font-semibold">Period evaluation</h3>
+      <p className="text-muted-foreground text-sm">
+        Optional learning notes. Leave the fields blank to skip.
+      </p>
+      <label className="flex flex-col gap-1">
+        Keep
+        <textarea
+          className="min-h-20 rounded-md border bg-background px-3 py-2"
+          onChange={(event) =>
+            setEvaluation((value) => ({ ...value, keep: event.target.value }))
+          }
+          value={evaluation.keep}
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        Change
+        <textarea
+          className="min-h-20 rounded-md border bg-background px-3 py-2"
+          onChange={(event) =>
+            setEvaluation((value) => ({ ...value, change: event.target.value }))
+          }
+          value={evaluation.change}
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        Try next
+        <textarea
+          className="min-h-20 rounded-md border bg-background px-3 py-2"
+          onChange={(event) =>
+            setEvaluation((value) => ({
+              ...value,
+              tryNext: event.target.value,
+            }))
+          }
+          value={evaluation.tryNext}
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => save(evaluation)} type="button">
+          Save evaluation
+        </Button>
+        <Button
+          onClick={() => save({ keep: "", change: "", tryNext: "" })}
+          type="button"
+          variant="outline"
+        >
+          Skip
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function FollowUpWorkSection({
+  period,
+  createFollowUp,
+  act,
+}: {
+  period: FocusPeriodRecord;
+  createFollowUp: FocusPeriodCreateFollowUp;
+  act: FocusPeriodAction;
+}) {
+  const [learning, setLearning] = useState<FocusPeriodLearning>("Try next");
+  const [projectId, setProjectId] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [clientIdempotencyKey, setClientIdempotencyKey] = useState(() =>
+    crypto.randomUUID(),
+  );
+  const [showPreview, setShowPreview] = useState(false);
+  const projectsQuery = useQuery(orpc.projects.queryOptions());
+  const projects = (projectsQuery.data ?? []).filter(
+    (item) => item.status === "Active" || item.status === "Pending",
+  );
+  const learningText =
+    period.evaluation?.[EVALUATION_FIELD_BY_LEARNING[learning]] ?? "";
+  function editDraft(update: () => void) {
+    update();
+    setClientIdempotencyKey(crypto.randomUUID());
+    setShowPreview(false);
+  }
+  async function confirm() {
+    await createFollowUp.mutateAsync({
+      periodId: period.id,
+      learning,
+      projectId,
+      title,
+      type: "Task",
+      clientIdempotencyKey,
+      ...(description.trim() ? { description } : {}),
+    });
+    setTitle("");
+    setDescription("");
+    setShowPreview(false);
+    setClientIdempotencyKey(crypto.randomUUID());
+  }
+  return (
+    <>
+      <section aria-label="Add follow-up Work" className="space-y-3">
+        <h3 className="font-semibold">Add follow-up Work</h3>
+        <p className="text-muted-foreground text-sm">
+          Review the Work and its source learning before confirming. No Work is
+          created until you confirm.
+        </p>
+        <label className="flex flex-col gap-1">
+          Learning source
+          <select
+            className="rounded-md border bg-background px-3 py-2"
+            onChange={(event) =>
+              editDraft(() =>
+                setLearning(event.target.value as FocusPeriodLearning),
+              )
+            }
+            value={learning}
+          >
+            <option>Keep</option>
+            <option>Change</option>
+            <option>Try next</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          Project
+          <select
+            className="rounded-md border bg-background px-3 py-2"
+            onChange={(event) =>
+              editDraft(() => setProjectId(event.target.value))
+            }
+            value={projectId}
+          >
+            <option value="">Select Project</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          Title
+          <input
+            className="rounded-md border bg-background px-3 py-2"
+            maxLength={255}
+            onChange={(event) => editDraft(() => setTitle(event.target.value))}
+            value={title}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          Description
+          <textarea
+            className="min-h-20 rounded-md border bg-background px-3 py-2"
+            maxLength={100_000}
+            onChange={(event) =>
+              editDraft(() => setDescription(event.target.value))
+            }
+            value={description}
+          />
+        </label>
+        <Button
+          disabled={!(learningText.trim() && projectId && title.trim())}
+          onClick={() => setShowPreview(true)}
+          type="button"
+          variant="outline"
+        >
+          Preview Follow-up Work
+        </Button>
+        {learningText.trim() ? null : (
+          <p className="text-muted-foreground text-sm">
+            Save a {learning} learning before creating Follow-up Work.
+          </p>
+        )}
+        {showPreview ? (
+          <section
+            aria-label="Follow-up Work preview"
+            className="space-y-3 rounded-md border p-4"
+          >
+            <h4 className="font-semibold">Follow-up Work preview</h4>
+            <dl className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Title</dt>
+                <dd>{title}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Project</dt>
+                <dd>
+                  {projects.find((item) => item.id === projectId)?.name ?? ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Learning</dt>
+                <dd>
+                  {learning}: {learningText}
+                </dd>
+              </div>
+              {description.trim() ? (
+                <div>
+                  <dt className="text-muted-foreground">Description</dt>
+                  <dd>{description}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-muted-foreground">Source Focus Period</dt>
+                <dd>{period.purpose}</dd>
+              </div>
+            </dl>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => act(confirm)} type="button">
+                Confirm
+              </Button>
+              <Button
+                onClick={() => setShowPreview(false)}
+                type="button"
+                variant="outline"
+              >
+                Change
+              </Button>
+            </div>
+          </section>
+        ) : null}
+      </section>
+      <section aria-label="Follow-up Work" className="space-y-2">
+        <h3 className="font-semibold">Created Follow-up Work</h3>
+        {period.followUpWorks.length ? (
+          <ul className="space-y-2">
+            {period.followUpWorks.map((item) => (
+              <li className="rounded-md border px-3 py-2" key={item.id}>
+                <Link
+                  aria-label={`Open source record: ${item.key} ${item.title}`}
+                  hash={workRecordHash(item.id)}
+                  params={{ projectId: item.projectId }}
+                  to="/projects/$projectId"
+                >
+                  {item.title} · {item.key} · {item.projectName}
+                </Link>
+                <p className="text-muted-foreground text-sm">
+                  {item.learning}: {item.learningText}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            No Follow-up Work linked to this Focus Period.
+          </p>
+        )}
+      </section>
+    </>
+  );
+}
+
+function DependenciesSection({ period }: { period: FocusPeriodRecord }) {
+  return (
+    <section aria-label="Dependencies" className="space-y-3">
+      <h3 className="font-semibold">Dependencies</h3>
+      {period.dependencies.edges.length ? (
+        <ul className="space-y-2">
+          {period.dependencies.edges.map((edge) => {
+            const inCycle = period.dependencies.cycles.some((cycle) =>
+              cycle.edges.some(
+                ({ relationId }) => relationId === edge.relationId,
+              ),
+            );
+            const blocker = period.members.find(
+              (item) => item.id === edge.blocker.recordId,
+            );
+            const blocked = period.members.find(
+              (item) => item.id === edge.blocked.recordId,
+            );
+            return (
+              <li className="rounded-md border px-3 py-2" key={edge.relationId}>
+                {blocker ? (
+                  <Link
+                    aria-label={`Open source record: ${blocker.key} ${blocker.title}`}
+                    hash={workRecordHash(blocker.id)}
+                    params={{ projectId: blocker.projectId }}
+                    to="/projects/$projectId"
+                  >
+                    {blocker.title} · {blocker.key}
+                  </Link>
+                ) : null}
+                {" blocks "}
+                {blocked ? (
+                  <Link
+                    aria-label={`Open source record: ${blocked.key} ${blocked.title}`}
+                    hash={workRecordHash(blocked.id)}
+                    params={{ projectId: blocked.projectId }}
+                    to="/projects/$projectId"
+                  >
+                    {blocked.title} · {blocked.key}
+                  </Link>
+                ) : null}
+                <p className="text-muted-foreground text-sm">
+                  {edge.status}
+                  {inCycle ? " · Part of a dependency cycle" : ""}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          No dependencies in this Focus Period.
+        </p>
+      )}
     </section>
   );
 }

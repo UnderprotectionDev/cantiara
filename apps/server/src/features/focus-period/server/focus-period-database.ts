@@ -5,20 +5,32 @@ import {
   type FocusPeriodAccess,
   FocusPeriodConflictError,
   type FocusPeriodDecisionInput,
+  type FocusPeriodEvaluationInput,
+  type FocusPeriodFollowUpLinkInput,
   type FocusPeriodRecord,
+  type FocusPeriodSnapshotWork,
   FocusPeriodUnavailableError,
 } from "@cantiara/api/focus-period";
+import {
+  projectWorkDependencies,
+  type RelationEndpointView,
+  type RelationView,
+} from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
 import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
 import {
   focusPeriod,
   focusPeriodActiveWork,
+  focusPeriodFollowUpWork,
   focusPeriodLeftoverDecision,
   focusPeriodMembership,
 } from "@cantiara/db/schema/focus-period";
 import { project } from "@cantiara/db/schema/project";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+
+type FocusPeriodSnapshotExecutor = Pick<Database, "select">;
 
 export function createDatabaseFocusPeriod(
   database: Database,
@@ -72,6 +84,7 @@ export function createDatabaseFocusPeriod(
         projectName: project.name,
         status: work.status,
         title: work.title,
+        type: work.type,
       })
       .from(work)
       .innerJoin(project, eq(work.projectId, project.id))
@@ -84,6 +97,30 @@ export function createDatabaseFocusPeriod(
               isNull(work.archivedAt),
             ),
       )
+      .orderBy(asc(project.name), asc(work.number));
+  }
+
+  function snapshotWorks(
+    executor: FocusPeriodSnapshotExecutor,
+    workspaceId: string,
+    ids: string[],
+  ) {
+    if (!ids.length) {
+      return [];
+    }
+    return executor
+      .select({
+        closureResult: work.closureResult,
+        id: work.id,
+        key: work.key,
+        projectId: project.id,
+        projectName: project.name,
+        status: work.status,
+        title: work.title,
+      })
+      .from(work)
+      .innerJoin(project, eq(work.projectId, project.id))
+      .where(and(eq(project.workspaceId, workspaceId), inArray(work.id, ids)))
       .orderBy(asc(project.name), asc(work.number));
   }
 
@@ -130,23 +167,7 @@ export function createDatabaseFocusPeriod(
           ),
         );
       const ids = memberships.map(({ workId }) => workId);
-      const snapshot = ids.length
-        ? await tx
-            .select({
-              id: work.id,
-              key: work.key,
-              projectId: project.id,
-              projectName: project.name,
-              status: work.status,
-              title: work.title,
-            })
-            .from(work)
-            .innerJoin(project, eq(work.projectId, project.id))
-            .where(
-              and(eq(project.workspaceId, workspaceId), inArray(work.id, ids)),
-            )
-            .orderBy(asc(project.name), asc(work.number))
-        : [];
+      const snapshot = await snapshotWorks(tx, workspaceId, ids);
       if (ids.length) {
         const claimed = await tx
           .insert(focusPeriodActiveWork)
@@ -154,9 +175,10 @@ export function createDatabaseFocusPeriod(
           .onConflictDoNothing()
           .returning({ workId: focusPeriodActiveWork.workId });
         if (claimed.length !== ids.length) {
-          throw new FocusPeriodConflictError(
-            "Work is already in an Active Focus Period.",
-          );
+          await tx
+            .delete(focusPeriodActiveWork)
+            .where(eq(focusPeriodActiveWork.periodId, periodId));
+          return;
         }
       }
       await tx
@@ -189,8 +211,171 @@ export function createDatabaseFocusPeriod(
   ): Promise<FocusPeriodRecord> {
     const period = await ownedPeriod(workspaceId, periodId);
     const ids = await currentIds(periodId);
+    const selected = new Set(ids);
     const works = await worksFor(workspaceId, true);
     const availableWorks = await worksFor(workspaceId);
+    const members = works.filter((item) => selected.has(item.id));
+    const memberById = new Map(members.map((item) => [item.id, item]));
+    const relationRows = ids.length
+      ? await database
+          .select({
+            blockingResolutionNote: workRelation.blockingResolutionNote,
+            blockingResolvedAt: workRelation.blockingResolvedAt,
+            blockingStatus: workRelation.blockingStatus,
+            createdAt: workRelation.createdAt,
+            id: workRelation.id,
+            revision: workRelation.revision,
+            sourceWorkId: workRelation.sourceWorkId,
+            targetRecordId: workRelation.targetRecordId,
+          })
+          .from(workRelation)
+          .where(
+            and(
+              isNull(workRelation.deletedAt),
+              eq(workRelation.kind, "Blocks"),
+              eq(workRelation.sourceRecordType, "Work"),
+              eq(workRelation.targetRecordType, "Work"),
+              inArray(workRelation.blockingStatus, ["Active", "Resolved"]),
+              inArray(workRelation.sourceWorkId, ids),
+              inArray(workRelation.targetRecordId, ids),
+            ),
+          )
+      : [];
+    const dependencyRelations: RelationView[] = relationRows.flatMap((row) => {
+      const source = memberById.get(row.sourceWorkId);
+      const target = memberById.get(row.targetRecordId);
+      if (!(source && target)) {
+        return [];
+      }
+      const endpoint = (item: (typeof members)[number]) =>
+        ({
+          broken: null,
+          key: item.key,
+          label: item.title,
+          originPosition: null,
+          projectId: item.projectId,
+          recordId: item.id,
+          recordType: "Work",
+          status: item.status as RelationEndpointView["status"],
+          title: item.title,
+          workType: item.type as RelationEndpointView["workType"],
+        }) satisfies RelationEndpointView;
+      return [
+        {
+          blockingHistory: [],
+          blockingResolutionNote: row.blockingResolutionNote,
+          blockingResolvedAt: row.blockingResolvedAt?.toISOString() ?? null,
+          blockingStatus: row.blockingStatus as RelationView["blockingStatus"],
+          createdAt: row.createdAt.toISOString(),
+          direction: "outgoing",
+          id: row.id,
+          inverseLabel: "Blocked by",
+          kind: "Blocks",
+          label: "Blocks",
+          revision: row.revision,
+          source: endpoint(source),
+          target: endpoint(target),
+        },
+      ];
+    });
+    const dependencies = projectWorkDependencies(dependencyRelations);
+    const followUpRows = await database
+      .select({
+        id: work.id,
+        key: work.key,
+        learning: focusPeriodFollowUpWork.learning,
+        learningText: focusPeriodFollowUpWork.learningText,
+        projectId: project.id,
+        projectName: project.name,
+        status: work.status,
+        title: work.title,
+      })
+      .from(focusPeriodFollowUpWork)
+      .innerJoin(work, eq(work.id, focusPeriodFollowUpWork.workId))
+      .innerJoin(project, eq(work.projectId, project.id))
+      .where(
+        and(
+          eq(focusPeriodFollowUpWork.periodId, periodId),
+          eq(project.workspaceId, workspaceId),
+        ),
+      )
+      .orderBy(asc(focusPeriodFollowUpWork.createdAt), asc(work.number));
+    const membershipHistory = period.closeSnapshot
+      ? await database
+          .select({
+            joinedAt: focusPeriodMembership.joinedAt,
+            removedAt: focusPeriodMembership.removedAt,
+            workId: focusPeriodMembership.workId,
+          })
+          .from(focusPeriodMembership)
+          .where(eq(focusPeriodMembership.periodId, periodId))
+      : [];
+    const closeComparison =
+      period.status === "Closed" &&
+      period.startSnapshot &&
+      period.closeSnapshot &&
+      period.closedAt
+        ? (() => {
+            const startIds = new Set(
+              period.startSnapshot?.map((item) => item.id),
+            );
+            const closeIds = new Set(
+              period.closeSnapshot?.map((item) => item.id),
+            );
+            const addedIds = new Set(
+              membershipHistory
+                .filter(
+                  (item) =>
+                    period.startedAt && item.joinedAt > period.startedAt,
+                )
+                .map((item) => item.workId),
+            );
+            const removedIds = new Set(
+              membershipHistory
+                .filter((item) => item.removedAt && !closeIds.has(item.workId))
+                .map((item) => item.workId),
+            );
+            const historicalWorkById = new Map(
+              works.map((item) => [item.id, item]),
+            );
+            const toWork = (item: FocusPeriodSnapshotWork) => ({
+              id: item.id,
+              key: item.key,
+              projectId: item.projectId,
+              projectName: item.projectName,
+              status: item.status,
+              title: item.title,
+            });
+            const memberForId = (id: string) => {
+              const closed = period.closeSnapshot?.find(
+                (item) => item.id === id,
+              );
+              const current = historicalWorkById.get(id);
+              return closed ? toWork(closed) : current;
+            };
+            return {
+              addedLater: [...addedIds]
+                .filter((id) => !startIds.has(id))
+                .map(memberForId)
+                .filter((item): item is NonNullable<typeof item> => !!item),
+              completed: period.closeSnapshot
+                .filter(
+                  (item) =>
+                    item.closureResult === "Completed" &&
+                    period.startSnapshot?.find(({ id }) => id === item.id)
+                      ?.closureResult !== "Completed",
+                )
+                .map(toWork),
+              inStartSnapshot: period.startSnapshot.map(toWork),
+              removed: [...removedIds]
+                .map(memberForId)
+                .filter((item): item is NonNullable<typeof item> => !!item),
+              stillOpen: period.closeSnapshot
+                .filter((item) => item.status !== "Closed")
+                .map(toWork),
+            };
+          })()
+        : null;
     const decisions = await database
       .select({
         workId: focusPeriodLeftoverDecision.workId,
@@ -200,18 +385,34 @@ export function createDatabaseFocusPeriod(
       .from(focusPeriodLeftoverDecision)
       .where(eq(focusPeriodLeftoverDecision.periodId, periodId))
       .orderBy(asc(focusPeriodLeftoverDecision.workId));
-    const selected = new Set(ids);
     return {
       id: period.id,
       purpose: period.purpose,
       startDate: period.startDate,
       endDate: period.endDate,
       status: period.status as FocusPeriodRecord["status"],
-      members: works.filter((item) => selected.has(item.id)),
+      members,
       leftoverDecisions: decisions as FocusPeriodRecord["leftoverDecisions"],
       available: availableWorks.filter((item) => !selected.has(item.id)),
       startSnapshot: period.startSnapshot ?? null,
       closeSnapshot: period.closeSnapshot ?? null,
+      closeComparison,
+      dependencies,
+      evaluation:
+        period.evaluationKeep ||
+        period.evaluationChange ||
+        period.evaluationTryNext
+          ? {
+              keep: period.evaluationKeep,
+              change: period.evaluationChange,
+              tryNext: period.evaluationTryNext,
+            }
+          : null,
+      followUpWorks: followUpRows.map((item) => ({
+        ...item,
+        learning:
+          item.learning as FocusPeriodRecord["followUpWorks"][number]["learning"],
+      })),
       closedAt: period.closedAt?.toISOString() ?? null,
     };
   }
@@ -356,6 +557,84 @@ export function createDatabaseFocusPeriod(
         .limit(1);
       return period ? present(workspaceId, period.id) : null;
     },
+    async saveEvaluation(accountId, input: FocusPeriodEvaluationInput) {
+      const { workspaceId, today } = await scope(accountId);
+      await sync(workspaceId, today);
+      const period = await ownedPeriod(workspaceId, input.periodId);
+      if (period.status !== "Closed") {
+        throw new FocusPeriodConflictError(
+          "Only a Closed Focus Period can save an evaluation.",
+        );
+      }
+      const nullableText = (value: string) => value.trim() || null;
+      await database
+        .update(focusPeriod)
+        .set({
+          evaluationKeep: nullableText(input.evaluation.keep),
+          evaluationChange: nullableText(input.evaluation.change),
+          evaluationTryNext: nullableText(input.evaluation.tryNext),
+        })
+        .where(eq(focusPeriod.id, input.periodId));
+    },
+    async linkFollowUpWork(accountId, input: FocusPeriodFollowUpLinkInput) {
+      const { workspaceId, today } = await scope(accountId);
+      await sync(workspaceId, today);
+      const period = await ownedPeriod(workspaceId, input.periodId);
+      if (period.status !== "Closed") {
+        throw new FocusPeriodConflictError(
+          "Follow-up Work needs a Closed Focus Period.",
+        );
+      }
+      const learningText = input.learningText.trim();
+      if (!learningText || learningText.length > 2000) {
+        throw new FocusPeriodConflictError(
+          "Follow-up Work needs a saved period learning.",
+        );
+      }
+      const [ownedWork] = await database
+        .select({ id: work.id })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .where(
+          and(eq(work.id, input.workId), eq(project.workspaceId, workspaceId)),
+        )
+        .limit(1);
+      if (!ownedWork) {
+        throw new FocusPeriodUnavailableError("Work is unavailable.");
+      }
+      const inserted = await database
+        .insert(focusPeriodFollowUpWork)
+        .values({
+          periodId: input.periodId,
+          workId: input.workId,
+          learning: input.learning,
+          learningText,
+        })
+        .onConflictDoNothing()
+        .returning({ workId: focusPeriodFollowUpWork.workId });
+      if (inserted.length) {
+        return;
+      }
+      const [existing] = await database
+        .select({
+          learning: focusPeriodFollowUpWork.learning,
+          learningText: focusPeriodFollowUpWork.learningText,
+          periodId: focusPeriodFollowUpWork.periodId,
+        })
+        .from(focusPeriodFollowUpWork)
+        .where(eq(focusPeriodFollowUpWork.workId, input.workId))
+        .limit(1);
+      if (
+        existing?.periodId === input.periodId &&
+        existing.learning === input.learning &&
+        existing.learningText === learningText
+      ) {
+        return;
+      }
+      throw new FocusPeriodConflictError(
+        "Work is already linked to another Focus Period learning.",
+      );
+    },
     async create(accountId, input: CreateFocusPeriodInput) {
       const { workspaceId, today } = await scope(accountId);
       const id = crypto.randomUUID();
@@ -441,9 +720,12 @@ export function createDatabaseFocusPeriod(
             );
           }
         }
-        await tx
-          .insert(focusPeriodMembership)
-          .values({ id: crypto.randomUUID(), periodId, workId });
+        await tx.insert(focusPeriodMembership).values({
+          id: crypto.randomUUID(),
+          joinedAt: now(),
+          periodId,
+          workId,
+        });
       });
     },
     async remove(accountId, periodId, workId) {
@@ -550,26 +832,7 @@ export function createDatabaseFocusPeriod(
             ),
           );
         const ids = memberships.map(({ workId }) => workId);
-        const snapshot = ids.length
-          ? await tx
-              .select({
-                id: work.id,
-                key: work.key,
-                projectId: project.id,
-                projectName: project.name,
-                status: work.status,
-                title: work.title,
-              })
-              .from(work)
-              .innerJoin(project, eq(work.projectId, project.id))
-              .where(
-                and(
-                  eq(project.workspaceId, workspaceId),
-                  inArray(work.id, ids),
-                ),
-              )
-              .orderBy(asc(project.name), asc(work.number))
-          : [];
+        const snapshot = await snapshotWorks(tx, workspaceId, ids);
         await tx
           .update(focusPeriod)
           .set({ status: "Closed", closedAt: now(), closeSnapshot: snapshot })

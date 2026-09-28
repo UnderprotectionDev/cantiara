@@ -88,6 +88,8 @@ import {
   FocusPeriodConflictError,
   FocusPeriodUnavailableError,
   focusPeriodDecisionInputSchema,
+  focusPeriodEvaluationInputSchema,
+  focusPeriodFollowUpWorkInputSchema,
   focusPeriodIdInputSchema,
   focusPeriodMembershipInputSchema,
 } from "../focus-period";
@@ -3256,6 +3258,71 @@ export const appRouter = {
           input,
         );
         return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  saveFocusPeriodEvaluation: protectedProcedure
+    .input(focusPeriodEvaluationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).saveEvaluation(
+          context.session.user.id,
+          input,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  createFocusPeriodFollowUpWork: protectedProcedure
+    .input(focusPeriodFollowUpWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const access = requireFocusPeriod(context);
+      try {
+        const source = await access.find(accountId, input.periodId);
+        if (!source) {
+          throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
+        }
+        if (source.status !== "Closed") {
+          throw new FocusPeriodConflictError(
+            "Follow-up Work needs a Closed Focus Period.",
+          );
+        }
+        const learningKey = {
+          Keep: "keep",
+          Change: "change",
+          "Try next": "tryNext",
+        } as const satisfies Record<
+          typeof input.learning,
+          "keep" | "change" | "tryNext"
+        >;
+        const learningText = source.evaluation?.[learningKey[input.learning]];
+        if (!learningText) {
+          throw new FocusPeriodConflictError(
+            "Follow-up Work needs a saved period learning.",
+          );
+        }
+        const created = await runWorkLifecycleOperation(() =>
+          requireWorkLifecycle(context).create(accountId, {
+            baseRevision: 0,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            projectId: input.projectId,
+            title: input.title,
+            type: input.type,
+            ...(input.description === undefined
+              ? {}
+              : { description: input.description }),
+          }),
+        );
+        await access.linkFollowUpWork(accountId, {
+          periodId: input.periodId,
+          workId: created.id,
+          learning: input.learning,
+          learningText,
+        });
+        return created;
       } catch (error) {
         rethrowFocusPeriodError(error);
       }

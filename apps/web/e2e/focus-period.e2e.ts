@@ -10,6 +10,7 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   page,
   request,
 }) => {
+  test.setTimeout(90_000);
   const setupResponse = await request.get(
     `${serverUrl}/__e2e/setup?fixture=project-shell`,
   );
@@ -77,6 +78,9 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   ).toBeVisible();
   await expect(detail).toContainText("Prepare Focus Period release");
   await expect(detail).toContainText("Not Started");
+  await expect(
+    detail.getByRole("region", { name: "Dependencies" }),
+  ).toContainText("No dependencies in this Focus Period.");
   await page.reload();
   await expect(
     page.getByRole("region", { name: "Ship the release" }),
@@ -95,9 +99,44 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await expect(
     page.getByRole("region", { name: "Ship the release" }),
   ).toContainText("Closed");
+  const closeComparison = page
+    .getByRole("region", { name: "Ship the release" })
+    .getByRole("region", { name: "Close comparison" });
+  await expect(
+    closeComparison
+      .getByText("Added later", { exact: true })
+      .locator("..")
+      .locator("dd"),
+  ).toHaveText("2");
   await expect(
     page.getByRole("region", { name: "Ship the release" }),
   ).toContainText("Not Started");
+  const closedDetail = page.getByRole("region", { name: "Ship the release" });
+  await closedDetail.getByLabel("Keep", { exact: true }).fill("Pair early");
+  await closedDetail
+    .getByLabel("Try next", { exact: true })
+    .fill("Ship smaller");
+  await closedDetail.getByRole("button", { name: "Save evaluation" }).click();
+  await expect(closedDetail).toContainText("Pair early");
+  await closedDetail.getByLabel("Learning source").selectOption("Try next");
+  await closedDetail.getByLabel("Project").selectOption({
+    label: "Focus Period Project",
+  });
+  await closedDetail
+    .getByLabel("Title", { exact: true })
+    .fill("Split the release");
+  await closedDetail
+    .getByRole("button", { name: "Preview Follow-up Work" })
+    .click();
+  const followUpPreview = closedDetail.getByRole("region", {
+    name: "Follow-up Work preview",
+  });
+  await expect(followUpPreview).toContainText("Split the release");
+  await expect(followUpPreview).toContainText("Try next");
+  await expect(followUpPreview).toContainText("Ship smaller");
+  await expect(followUpPreview).toContainText("Ship the release");
+  await followUpPreview.getByRole("button", { name: "Confirm" }).click();
+  await expect(closedDetail).toContainText("Split the release");
   const decisions = page.getByRole("region", {
     name: "Still-open Work decisions",
   });
@@ -116,8 +155,11 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await decisions
     .getByRole("checkbox", { name: "Confirm Abandon selected Work" })
     .check();
+  await decisions
+    .getByRole("checkbox", { name: "Close anyway if closure checks remain" })
+    .check();
   await decisions.getByRole("button", { name: "Send" }).click();
-  await expect(decisions).toHaveCount(0);
+  await expect(decisions).toHaveCount(0, { timeout: 30_000 });
   await page.reload();
   await expect(
     page.getByRole("region", { name: "Still-open Work decisions" }),

@@ -568,6 +568,13 @@
       "when": 1790629724219,
       "tag": "0080_fantastic_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1790634993098,
+      "tag": "0081_strong_raider",
+      "breakpoints": true
     }
   ]
 }

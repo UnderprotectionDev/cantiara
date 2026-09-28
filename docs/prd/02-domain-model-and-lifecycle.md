@@ -141,12 +141,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başlangıç snapshot’ında | `In start snapshot` | Kapanış karşılaştırmasında başlangıç kapsamında bulunan İş |
 | Sonradan eklenen | `Added later` | Başlangıçtan sonra kapanış kapsamına giren İş |
 | Kapsamdan çıkan | `Removed` | Başlangıç kapsamındayken kapanışta bulunmayan İş |
+| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılarla karşılaştırma |
 | Dönem değerlendirmesi | `Period evaluation` | Kapanışta atlanabilir öğrenim metni |
+| Değerlendirmeyi kaydet | `Save evaluation` | İsteğe bağlı dönem öğrenim metinlerini kaydetme |
 | Atla | `Skip` | Dönem değerlendirmesini atlama |
 | Sürdür | `Keep` | Değerlendirmede sürdürülecek öğrenim |
 | Değiştir | `Change` | Değerlendirmede değiştirilecek öğrenim |
 | Sonrakinde dene | `Try next` | Sonraki dönemde denenecek öğrenim |
 | Onayla | `Confirm` | Takip İş önizlemesini onaylayıp oluşturma |
+| Takip İşini önizle | `Preview Follow-up Work` | Takip İşini ve kaynak dönem öğrenimi bağlantısını onaydan önce gösterme |
+| Takip İş önizlemesi | `Follow-up Work preview` | Oluşacak İş, kaynak öğrenim ve kaynak Odak Dönemini gösteren onay bölümü |
+| Öğrenim kaynağı | `Learning source` | Takip İşinin bağlanacağı `Keep`, `Change` veya `Try next` dönem öğrenimi |
+| Kaynak Odak Dönemi | `Source Focus Period` | Takip İşinin oluşturulduğu döneme kalıcı bağlantısı |
 | Tarih karşılaştırması | `Date comparison` | Başlangıç snapshot’ındaki hedef tarihlerin mevcut geçmiş ve kapanış anıyla tarafsız karşılaştırması |
 | Hedefi öne alınan | `Moved earlier` | Başlangıçtaki hedef tarihi öne çekilen İş |
 | Hedefi ileri alınan | `Moved later` | Başlangıçtaki hedef tarihi ileri alınan İş |

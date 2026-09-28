@@ -1,5 +1,12 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { z } from "zod";
+import type { WorkDependenciesProjection } from "./relations";
+import {
+  WORK_DEFAULT_TYPE,
+  workDescriptionSchema,
+  workTitleSchema,
+  workTypeSchema,
+} from "./work-lifecycle";
 
 const id = z.string().trim().min(1).max(255);
 
@@ -41,6 +48,42 @@ export const focusPeriodDecisionInputSchema = focusPeriodIdInputSchema
 export type FocusPeriodDecisionInput = z.infer<
   typeof focusPeriodDecisionInputSchema
 >;
+export const focusPeriodLearningSchema = z.enum(["Keep", "Change", "Try next"]);
+export type FocusPeriodLearning = z.infer<typeof focusPeriodLearningSchema>;
+export const focusPeriodEvaluationInputSchema = focusPeriodIdInputSchema
+  .extend({
+    evaluation: z
+      .object({
+        keep: z.string().trim().max(2000),
+        change: z.string().trim().max(2000),
+        tryNext: z.string().trim().max(2000),
+      })
+      .strict(),
+  })
+  .strict();
+export type FocusPeriodEvaluationInput = z.infer<
+  typeof focusPeriodEvaluationInputSchema
+>;
+export const focusPeriodFollowUpWorkInputSchema = focusPeriodIdInputSchema
+  .extend({
+    clientIdempotencyKey: id,
+    description: workDescriptionSchema.optional(),
+    learning: focusPeriodLearningSchema,
+    projectId: id,
+    title: workTitleSchema,
+    type: workTypeSchema.default(WORK_DEFAULT_TYPE),
+  })
+  .strict();
+export type FocusPeriodFollowUpWorkInput = z.infer<
+  typeof focusPeriodFollowUpWorkInputSchema
+>;
+export type FocusPeriodFollowUpLinkInput = Pick<
+  FocusPeriodFollowUpWorkInput,
+  "learning" | "periodId"
+> & {
+  learningText: string;
+  workId: string;
+};
 export interface FocusPeriodLeftoverDecision {
   destination: FocusPeriodDecisionInput["destination"];
   targetPeriodId: string | null;
@@ -62,17 +105,44 @@ export interface FocusPeriodWork {
   title: string;
 }
 
+export interface FocusPeriodSnapshotWork extends FocusPeriodWork {
+  closureResult: string | null;
+}
+
+export interface FocusPeriodCloseComparison {
+  addedLater: FocusPeriodWork[];
+  completed: FocusPeriodWork[];
+  inStartSnapshot: FocusPeriodWork[];
+  removed: FocusPeriodWork[];
+  stillOpen: FocusPeriodWork[];
+}
+
+export interface FocusPeriodEvaluation {
+  change: string | null;
+  keep: string | null;
+  tryNext: string | null;
+}
+
+export interface FocusPeriodFollowUpWork extends FocusPeriodWork {
+  learning: FocusPeriodLearning;
+  learningText: string;
+}
+
 export interface FocusPeriodRecord {
   available: FocusPeriodWork[];
+  closeComparison: FocusPeriodCloseComparison | null;
   closedAt: string | null;
-  closeSnapshot: FocusPeriodWork[] | null;
+  closeSnapshot: FocusPeriodSnapshotWork[] | null;
+  dependencies: WorkDependenciesProjection;
   endDate: string;
+  evaluation: FocusPeriodEvaluation | null;
+  followUpWorks: FocusPeriodFollowUpWork[];
   id: string;
   leftoverDecisions: FocusPeriodLeftoverDecision[];
   members: FocusPeriodWork[];
   purpose: string;
   startDate: string;
-  startSnapshot: FocusPeriodWork[] | null;
+  startSnapshot: FocusPeriodSnapshotWork[] | null;
   status: z.infer<typeof focusPeriodStatusSchema>;
 }
 
@@ -92,10 +162,18 @@ export interface FocusPeriodAccess {
     accountId: string,
     periodId: string,
   ) => Promise<FocusPeriodRecord | null>;
+  linkFollowUpWork: (
+    accountId: string,
+    input: FocusPeriodFollowUpLinkInput,
+  ) => Promise<void>;
   list: (accountId: string) => Promise<FocusPeriodRecord[]>;
   remove: (
     accountId: string,
     periodId: string,
     workId: string,
+  ) => Promise<void>;
+  saveEvaluation: (
+    accountId: string,
+    input: FocusPeriodEvaluationInput,
   ) => Promise<void>;
 }

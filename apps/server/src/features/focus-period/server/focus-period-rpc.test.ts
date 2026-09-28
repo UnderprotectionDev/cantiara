@@ -14,6 +14,10 @@ const period = {
   available: [],
   startSnapshot: [],
   closeSnapshot: null,
+  closeComparison: null,
+  dependencies: { cycles: [], edges: [], nodes: [] },
+  evaluation: null,
+  followUpWorks: [],
   closedAt: null,
   leftoverDecisions: [],
 };
@@ -28,6 +32,8 @@ function testClient(session: Context["session"]) {
     cancel: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
     decide: vi.fn().mockResolvedValue(undefined),
+    saveEvaluation: vi.fn().mockResolvedValue(undefined),
+    linkFollowUpWork: vi.fn().mockResolvedValue(undefined),
   };
   const context = { focusPeriod, session } as Context;
   return { client: createRouterClient(appRouter, { context }), focusPeriod };
@@ -111,5 +117,72 @@ describe("Focus Period RPC", () => {
       }),
     ).rejects.toThrow();
     expect(authenticated.focusPeriod.decide).not.toHaveBeenCalled();
+  });
+
+  test("saves an optional evaluation and creates confirmed follow-up Work linked to its learning", async () => {
+    const session = {
+      session: { id: "session-1" },
+      user: { id: "founder" },
+    } as Context["session"];
+    const { client, focusPeriod } = testClient(session);
+    const create = vi.fn().mockResolvedValue({ id: "follow-up-work" });
+    const followUpContext = {
+      focusPeriod,
+      session,
+      workLifecycle: { create },
+    } as unknown as Context;
+    const followUpClient = createRouterClient(appRouter, {
+      context: followUpContext,
+    });
+
+    await expect(
+      client.saveFocusPeriodEvaluation({
+        periodId: "period-1",
+        evaluation: { keep: "Pair early", change: "", tryNext: "Ship smaller" },
+      }),
+    ).resolves.toEqual({ status: true });
+    expect(focusPeriod.saveEvaluation).toHaveBeenCalledExactlyOnceWith(
+      "founder",
+      {
+        periodId: "period-1",
+        evaluation: { keep: "Pair early", change: "", tryNext: "Ship smaller" },
+      },
+    );
+    focusPeriod.find = vi.fn().mockResolvedValue({
+      ...period,
+      status: "Closed",
+      evaluation: {
+        keep: "Pair early",
+        change: null,
+        tryNext: "Ship smaller",
+      },
+    });
+
+    await expect(
+      followUpClient.createFocusPeriodFollowUpWork({
+        periodId: "period-1",
+        learning: "Try next",
+        projectId: "project-1",
+        title: "Split the release",
+        type: "Task",
+        clientIdempotencyKey: "follow-up-key",
+      }),
+    ).resolves.toEqual({ id: "follow-up-work" });
+    expect(create).toHaveBeenCalledExactlyOnceWith("founder", {
+      baseRevision: 0,
+      clientIdempotencyKey: "follow-up-key",
+      projectId: "project-1",
+      title: "Split the release",
+      type: "Task",
+    });
+    expect(focusPeriod.linkFollowUpWork).toHaveBeenCalledExactlyOnceWith(
+      "founder",
+      {
+        periodId: "period-1",
+        workId: "follow-up-work",
+        learning: "Try next",
+        learningText: "Ship smaller",
+      },
+    );
   });
 });
