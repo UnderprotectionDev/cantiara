@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const FOCUS_PERIOD_WORK_NAME = /Prepare Focus Period release/;
 const ABANDON_WORK_NAME = /Retire Focus Period draft/;
+const SOURCE_PERIOD_NAME = /Ship the release/;
+const LATER_PERIOD_NAME = /Later window/;
 
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
@@ -78,10 +80,41 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   ).toBeVisible();
   await expect(detail).toContainText("Prepare Focus Period release");
   await expect(detail).toContainText("Not Started");
+  await page.getByLabel("Purpose").fill("Later window");
+  await page.getByLabel("Start date").fill(start);
+  await page.getByLabel("End date").fill(end);
+  await page.getByRole("button", { name: "Create Focus Period" }).click();
+  const laterWindow = page.getByRole("region", { name: "Later window" });
+  await expect(laterWindow).toContainText("Active");
+  await laterWindow
+    .getByLabel("Select Work", { exact: true })
+    .selectOption({ index: 1 });
+  await expect(
+    laterWindow.getByRole("button", { name: "Move", exact: true }),
+  ).toBeVisible();
+  await laterWindow.getByRole("button", { name: "Move", exact: true }).click();
+  await expect(laterWindow).toContainText("Prepare Focus Period release");
+  await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
+  await expect(detail).toContainText("Retire Focus Period draft");
+  await expect(
+    detail.getByRole("link", { name: FOCUS_PERIOD_WORK_NAME }),
+  ).toHaveCount(0);
+  await detail
+    .getByLabel("Select Work", { exact: true })
+    .selectOption({ index: 1 });
+  await expect(
+    detail.getByRole("button", { name: "Move", exact: true }),
+  ).toBeVisible();
+  await detail.getByRole("button", { name: "Move", exact: true }).click();
+  await expect(detail).toContainText("Prepare Focus Period release");
+  await page.getByRole("button", { name: LATER_PERIOD_NAME }).click();
+  await expect(laterWindow).toContainText("No Work in this Focus Period.");
+  await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
   await expect(
     detail.getByRole("region", { name: "Dependencies" }),
   ).toContainText("No dependencies in this Focus Period.");
   await page.reload();
+  await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
   await expect(
     page.getByRole("region", { name: "Ship the release" }),
   ).toContainText("Prepare Focus Period release");
