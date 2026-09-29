@@ -76,9 +76,17 @@ function DocumentEditor({
     input: { documentId: record.id },
   });
   const versions = useQuery(versionOptions);
-  const selectedSnapshot = versions.data?.find(
-    (item) => item.revision === selectedVersion,
-  );
+  const selectedVersionQuery = useQuery({
+    ...orpc.documentVersion.queryOptions({
+      input: {
+        documentId: record.id,
+        revision: selectedVersion ?? record.revision,
+      },
+    }),
+    enabled: selectedVersion !== null && selectedVersion !== record.revision,
+  });
+  const selectedSnapshot =
+    selectedVersion === record.revision ? record : selectedVersionQuery.data;
   const allowRichUpdates = useRef(false);
   const pendingSave = useRef<{
     baseRevision: number;
@@ -381,8 +389,13 @@ function DocumentEditor({
           className="space-y-3 border-border border-t pt-5"
         >
           <h3 className="font-semibold">Versions</h3>
-          {versions.isError ? (
+          {versions.isError || selectedVersionQuery.isError ? (
             <p role="alert">Versions could not be loaded.</p>
+          ) : null}
+          {selectedVersion !== null &&
+          selectedVersion !== record.revision &&
+          selectedVersionQuery.isPending ? (
+            <p role="status">Loading…</p>
           ) : null}
           <div className="flex flex-wrap gap-2">
             {versions.data?.map((version) => (

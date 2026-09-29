@@ -69,6 +69,7 @@ import {
   DocumentUnavailableError,
   documentIdSchema,
   documentSchema,
+  documentVersionInputSchema,
   projectIdSchema,
   restoreDocumentVersionInputSchema,
   updateDocumentInputSchema,
@@ -2181,18 +2182,32 @@ export const appRouter = {
       }
       return versions;
     }),
+  documentVersion: protectedProcedure
+    .input(documentVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const version = await context.documents.getVersion(
+        context.session.user.id,
+        input.documentId,
+        input.revision,
+      );
+      if (!version) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return version;
+    }),
   restoreDocumentVersion: protectedProcedure
     .input(restoreDocumentVersionInputSchema)
     .handler(async ({ context, input }) => {
       if (!context.documents) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
-      const versions = await context.documents.versions(
+      const selected = await context.documents.getVersion(
         context.session.user.id,
         input.documentId,
-      );
-      const selected = versions?.find(
-        (version) => version.revision === input.revision,
+        input.revision,
       );
       if (!selected) {
         throw new ORPCError("NOT_FOUND");

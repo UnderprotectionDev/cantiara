@@ -191,12 +191,28 @@ describeDatabase("Documents database boundary", () => {
       title: "Revised architecture",
     });
 
-    expect(
-      await documents.documentVersions({ documentId: created.id }),
-    ).toMatchObject([
-      { revision: 2, body: changed.body, title: changed.title },
-      { revision: 1, body: created.body, title: created.title },
+    const versionsBeforeRestore = await documents.documentVersions({
+      documentId: created.id,
+    });
+    expect(versionsBeforeRestore).toMatchObject([
+      { revision: 2, title: changed.title, type: changed.type },
+      { revision: 1, title: created.title, type: created.type },
     ]);
+    expect(
+      versionsBeforeRestore?.every((version) => !("body" in version)),
+    ).toBe(true);
+    expect(
+      await documents.documentVersion({
+        documentId: created.id,
+        revision: changed.revision,
+      }),
+    ).toEqual(changed);
+    expect(
+      await documents.documentVersion({
+        documentId: created.id,
+        revision: created.revision,
+      }),
+    ).toEqual(created);
     const restored = await documents.restoreDocumentVersion({
       baseRevision: changed.revision,
       clientIdempotencyKey: "version-restore",
@@ -218,13 +234,23 @@ describeDatabase("Documents database boundary", () => {
       title: created.title,
       type: created.type,
     });
-    expect(
-      await documents.documentVersions({ documentId: created.id }),
-    ).toMatchObject([
-      { revision: 3, body: created.body },
-      { revision: 2, body: changed.body },
-      { revision: 1, body: created.body },
+    const versionsAfterRestore = await documents.documentVersions({
+      documentId: created.id,
+    });
+    expect(versionsAfterRestore).toMatchObject([
+      { revision: 3, title: created.title },
+      { revision: 2, title: changed.title },
+      { revision: 1, title: created.title },
     ]);
+    expect(versionsAfterRestore?.every((version) => !("body" in version))).toBe(
+      true,
+    );
+    expect(
+      await documents.documentVersion({
+        documentId: created.id,
+        revision: created.revision,
+      }),
+    ).toEqual(created);
     await expect(
       documents.restoreDocumentVersion({
         baseRevision: changed.revision,

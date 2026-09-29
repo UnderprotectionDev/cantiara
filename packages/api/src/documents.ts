@@ -79,7 +79,26 @@ export const documentSchema = createDocumentInputSchema.extend({
   updatedAt: z.string(),
 });
 
+export const documentVersionSummarySchema = documentSchema.pick({
+  id: true,
+  revision: true,
+  title: true,
+  type: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const documentVersionInputSchema = z
+  .object({
+    documentId: documentIdSchema,
+    revision: documentRevisionSchema,
+  })
+  .strict();
+
 export type Document = z.infer<typeof documentSchema>;
+export type DocumentVersionSummary = z.infer<
+  typeof documentVersionSummarySchema
+>;
 export type CreateDocumentInput = z.infer<typeof createDocumentInputSchema>;
 export type UpdateDocumentInput = z.infer<typeof updateDocumentInputSchema>;
 
@@ -94,11 +113,16 @@ export interface DocumentMutationContracts {
 
 export interface DocumentsAccess {
   get: (accountId: string, documentId: string) => Promise<Document | null>;
+  getVersion: (
+    accountId: string,
+    documentId: string,
+    revision: number,
+  ) => Promise<Document | null>;
   list: (accountId: string, projectId: string) => Promise<Document[]>;
   versions: (
     accountId: string,
     documentId: string,
-  ) => Promise<Document[] | null>;
+  ) => Promise<DocumentVersionSummary[] | null>;
 }
 
 export class DocumentUnavailableError extends Error {
