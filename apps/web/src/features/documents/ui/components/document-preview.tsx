@@ -20,7 +20,7 @@ const highlightThemeCss = createThemeCss({
 });
 
 const previewPattern =
-  /^[ ]{0,3}(?<fenceCharacter>`|~)(?<fenceTail>\k<fenceCharacter>{2,})(?<language>[^\n]*)\n(?<fenceBody>[\s\S]*?)\n[ ]{0,3}\k<fenceCharacter>\k<fenceTail>\k<fenceCharacter>*[ \t]*(?=\n|$)|(`+)([^`\n]*?)\5|\$\$([\s\S]*?)\$\$/gm;
+  /^[ ]{0,3}(?<fenceCharacter>`|~)(?<fenceTail>\k<fenceCharacter>{2,})(?<language>[^\n]*)\n(?<fenceBody>[\s\S]*?)\n[ ]{0,3}\k<fenceCharacter>\k<fenceTail>\k<fenceCharacter>*[ \t]*(?=\r?\n|$)|(`+)([^`\n]*?)\5|\$\$([\s\S]*?)\$\$/gm;
 
 const inlineMathExtension: MarkdownExtension = {
   name: "document-inline-math",

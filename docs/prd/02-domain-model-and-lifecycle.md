@@ -595,6 +595,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge kaydedilemedi | `Document could not be saved.` | Belge güncelleme isteği başarısız olduğunda gösterilen genel hata |
 | Belge oluşturulamadı | `Document could not be created.` | Yeni Belge oluşturma isteği başarısız olduğunda gösterilen genel hata |
 | Belgeler yüklenemedi | `Documents could not be loaded.` | Proje Belge listesi yüklenemediğinde gösterilen hata durumu |
+| Belge veya Proje kullanılamıyor | `Document or Project is unavailable.` | Belge veya Proje hedefi bulunamadığında gösterilen hata durumu |
 | Diyagram işlenemedi | `Diagram could not be rendered.` | Mermaid diyagramı işlenemediğinde gösterilen genel hata |
 | Formül işlenemedi | `Formula could not be rendered.` | LaTeX formülü işlenemediğinde gösterilen genel hata |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
