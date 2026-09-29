@@ -143,7 +143,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başlangıç snapshot’ında | `In start snapshot` | Kapanış karşılaştırmasında başlangıç kapsamında bulunan İş |
 | Sonradan eklenen | `Added later` | Başlangıçtan sonra kapanış kapsamına giren İş |
 | Kapsamdan çıkan | `Removed` | Başlangıç kapsamındayken kapanışta bulunmayan İş |
-| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılarla karşılaştırma |
+| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılar ve salt okunur tarihsel kayıtlarla karşılaştırma; kaynak bağlantısı güncel İşi açar |
 | Dönem değerlendirmesi | `Period evaluation` | Kapanışta atlanabilir öğrenim metni |
 | Değerlendirmeyi kaydet | `Save evaluation` | İsteğe bağlı dönem öğrenim metinlerini kaydetme |
 | Atla | `Skip` | Dönem değerlendirmesini atlama |
