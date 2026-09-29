@@ -1,5 +1,6 @@
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { projectBacklogOrder } from "@cantiara/db/schema/backlog";
 import { focusPeriod } from "@cantiara/db/schema/focus-period";
 import { project } from "@cantiara/db/schema/project";
 import { workRelation } from "@cantiara/db/schema/relation";
@@ -13,6 +14,8 @@ import {
   expect,
   test,
 } from "vitest";
+import { createBacklogAccess } from "../../backlog/server/backlog";
+import { createDatabaseBacklog } from "../../backlog/server/backlog-database";
 import { createDatabaseFocusPeriod } from "./focus-period-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -131,12 +134,18 @@ describeDatabase("Focus Period working window", () => {
     await database.execute(sql`
       update work
       set status = case id
-        when ${firstWorkId} then 'Blocked'
-        when ${secondWorkId} then 'In Progress'
-        when ${thirdWorkId} then 'In Progress'
-        else 'Not Started'
-      end,
-      closure_result = null,
+          when ${firstWorkId} then 'Blocked'
+          when ${secondWorkId} then 'In Progress'
+          when ${thirdWorkId} then 'In Progress'
+          else 'Not Started'
+        end,
+        title = case id
+          when ${firstWorkId} then 'First Work'
+          when ${secondWorkId} then 'Second Work'
+          when ${thirdWorkId} then 'Third Work'
+          else 'Follow-up Work'
+        end,
+        closure_result = null,
       closure_reason = null,
       archived_at = null,
       trashed_at = null
@@ -389,6 +398,88 @@ describeDatabase("Focus Period working window", () => {
         (item) => item.id,
       ),
     ).toEqual([firstWorkId]);
+  }, 30_000);
+
+  test("keeps removed Work in the comparison from the historical snapshot", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-05-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Historical comparison",
+      startDate: "2027-05-02",
+      endDate: "2027-05-08",
+    });
+    await periods.add(accountId, period.id, secondWorkId);
+    clock = new Date("2027-05-02T12:00:00.000Z");
+    expect((await periods.find(accountId, period.id))?.status).toBe("Active");
+    await periods.remove(accountId, period.id, secondWorkId);
+    await database
+      .update(work)
+      .set({ status: "Closed", closureResult: "Completed", title: "Changed" })
+      .where(eq(work.id, secondWorkId));
+    await periods.close(accountId, period.id);
+
+    const closed = await periods.find(accountId, period.id);
+    expect(closed?.closeSnapshot).toEqual([]);
+    expect(closed?.closeComparison?.removed).toEqual([
+      expect.objectContaining({
+        id: secondWorkId,
+        status: "In Progress",
+        title: "Second Work",
+      }),
+    ]);
+  }, 30_000);
+
+  test("keeps added-later and removed Work stable without exposing close metadata", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-10-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Transient comparison",
+      startDate: "2027-10-02",
+      endDate: "2027-10-08",
+    });
+    clock = new Date("2027-10-02T12:00:00.000Z");
+    expect((await periods.find(accountId, period.id))?.status).toBe("Active");
+    clock = new Date("2027-10-02T12:01:00.000Z");
+    await periods.add(accountId, period.id, secondWorkId);
+    await periods.remove(accountId, period.id, secondWorkId);
+    await periods.close(accountId, period.id);
+
+    await database
+      .update(work)
+      .set({
+        status: "Closed",
+        closureResult: "Completed",
+        title: "Changed after close",
+      })
+      .where(eq(work.id, secondWorkId));
+
+    const closed = await periods.find(accountId, period.id);
+    expect(closed?.closeSnapshot).toEqual([]);
+    expect(closed?.leftoverDecisions).toEqual([]);
+    expect(closed?.closeComparison).toMatchObject({
+      addedLater: [
+        expect.objectContaining({
+          id: secondWorkId,
+          status: "In Progress",
+          title: "Second Work",
+        }),
+      ],
+      completed: [],
+      removed: [
+        expect.objectContaining({
+          id: secondWorkId,
+          status: "In Progress",
+          title: "Second Work",
+        }),
+      ],
+      stillOpen: [],
+    });
   }, 30_000);
 
   test("keeps a conflicting due period Planned and allows recovery operations", async () => {
@@ -734,6 +825,197 @@ describeDatabase("Focus Period working window", () => {
       }),
     ).rejects.toThrow();
     await periods.cancel(accountId, next.id);
+  }, 30_000);
+
+  test("applies a bulk decision atomically when one selected Work conflicts", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-06-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const source = await periods.create(accountId, {
+      purpose: "Atomic source window",
+      startDate: "2027-06-01",
+      endDate: "2027-06-07",
+    });
+    await periods.add(accountId, source.id, firstWorkId);
+    await periods.add(accountId, source.id, secondWorkId);
+    await periods.close(accountId, source.id);
+
+    const target = await periods.create(accountId, {
+      purpose: "Atomic target window",
+      startDate: "2027-06-01",
+      endDate: "2027-06-07",
+    });
+    const conflicting = await periods.create(accountId, {
+      purpose: "Conflicting target window",
+      startDate: "2027-06-01",
+      endDate: "2027-06-07",
+    });
+    await periods.add(accountId, conflicting.id, secondWorkId);
+
+    await expect(
+      periods.decide(accountId, {
+        periodId: source.id,
+        workIds: [firstWorkId, secondWorkId],
+        destination: "Another period",
+        targetPeriodId: target.id,
+      }),
+    ).rejects.toThrow("Work is already in an active Focus Period. Use Move.");
+    expect((await periods.find(accountId, target.id))?.members).toEqual([]);
+    expect(
+      (await periods.find(accountId, conflicting.id))?.members.map(
+        (item) => item.id,
+      ),
+    ).toEqual([secondWorkId]);
+    expect(
+      (await periods.find(accountId, source.id))?.leftoverDecisions,
+    ).toEqual([]);
+  }, 30_000);
+
+  test("rejects an unavailable Work and rolls back the whole batch", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-08-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const source = await periods.create(accountId, {
+      purpose: "Unavailable Work source",
+      startDate: "2027-08-01",
+      endDate: "2027-08-07",
+    });
+    await periods.add(accountId, source.id, firstWorkId);
+    await periods.add(accountId, source.id, secondWorkId);
+    await periods.close(accountId, source.id);
+    const target = await periods.create(accountId, {
+      purpose: "Unavailable Work destination",
+      startDate: "2027-08-08",
+      endDate: "2027-08-14",
+    });
+    await database
+      .update(work)
+      .set({ archivedAt: new Date("2027-08-01T13:00:00.000Z") })
+      .where(eq(work.id, firstWorkId));
+
+    await expect(
+      periods.decide(accountId, {
+        periodId: source.id,
+        workIds: [secondWorkId, firstWorkId],
+        destination: "Another period",
+        targetPeriodId: target.id,
+      }),
+    ).rejects.toThrow("Work is unavailable.");
+    expect((await periods.find(accountId, target.id))?.members).toEqual([]);
+    expect(
+      (await periods.find(accountId, source.id))?.leftoverDecisions,
+    ).toEqual([]);
+  }, 30_000);
+
+  test("serializes conflicting planned destinations across closed sources", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-09-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const firstSource = await periods.create(accountId, {
+      purpose: "First closed source",
+      startDate: "2027-09-01",
+      endDate: "2027-09-07",
+    });
+    await periods.add(accountId, firstSource.id, firstWorkId);
+    await periods.add(accountId, firstSource.id, secondWorkId);
+    await periods.close(accountId, firstSource.id);
+
+    const secondSource = await periods.create(accountId, {
+      purpose: "Second closed source",
+      startDate: "2027-09-08",
+      endDate: "2027-09-14",
+    });
+    await periods.add(accountId, secondSource.id, firstWorkId);
+    await periods.add(accountId, secondSource.id, secondWorkId);
+    clock = new Date("2027-09-08T12:00:00.000Z");
+    expect((await periods.find(accountId, secondSource.id))?.status).toBe(
+      "Active",
+    );
+    await periods.close(accountId, secondSource.id);
+
+    const firstTarget = await periods.create(accountId, {
+      purpose: "First planned destination",
+      startDate: "2027-09-15",
+      endDate: "2027-09-21",
+    });
+    const secondTarget = await periods.create(accountId, {
+      purpose: "Second planned destination",
+      startDate: "2027-09-16",
+      endDate: "2027-09-22",
+    });
+    const firstDecision = createDatabaseFocusPeriod(database, () => clock);
+    const secondDecision = createDatabaseFocusPeriod(database, () => clock);
+    const results = await Promise.allSettled([
+      firstDecision.decide(accountId, {
+        periodId: firstSource.id,
+        workIds: [firstWorkId, secondWorkId],
+        destination: "Another period",
+        targetPeriodId: firstTarget.id,
+      }),
+      secondDecision.decide(accountId, {
+        periodId: secondSource.id,
+        workIds: [secondWorkId, firstWorkId],
+        destination: "Another period",
+        targetPeriodId: secondTarget.id,
+      }),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "rejected"),
+    ).toHaveLength(1);
+    const firstTargetMembers = (
+      await periods.find(accountId, firstTarget.id)
+    )?.members.map((item) => item.id);
+    const secondTargetMembers = (
+      await periods.find(accountId, secondTarget.id)
+    )?.members.map((item) => item.id);
+    expect([firstTargetMembers, secondTargetMembers]).toEqual(
+      expect.arrayContaining([[firstWorkId, secondWorkId], []]),
+    );
+  }, 30_000);
+
+  test("records explicit Backlog membership without rewriting manual order", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-07-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const source = await periods.create(accountId, {
+      purpose: "Backlog handoff",
+      startDate: "2027-07-01",
+      endDate: "2027-07-07",
+    });
+    await periods.add(accountId, source.id, firstWorkId);
+    await periods.add(accountId, source.id, thirdWorkId);
+    await database.insert(projectBacklogOrder).values({
+      projectId: firstProjectId,
+      revision: 4,
+      workIds: [thirdWorkId, firstWorkId],
+    });
+    await periods.close(accountId, source.id);
+    await periods.decide(accountId, {
+      periodId: source.id,
+      workIds: [firstWorkId, thirdWorkId],
+      destination: "Backlog",
+    });
+
+    const backlog = createBacklogAccess(createDatabaseBacklog(database));
+    await expect(
+      backlog.list(accountId, firstProjectId),
+    ).resolves.toMatchObject({
+      projectId: firstProjectId,
+      revision: 4,
+      workIds: [thirdWorkId, firstWorkId],
+    });
   }, 30_000);
 
   test("sends to another period and accepts Abandon only after explicit Work closure", async () => {
