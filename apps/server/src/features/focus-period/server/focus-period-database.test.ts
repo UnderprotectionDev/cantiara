@@ -289,12 +289,106 @@ describeDatabase("Focus Period working window", () => {
     await periods.add(accountId, first.id, firstWorkId);
     await expect(
       periods.add(accountId, second.id, firstWorkId),
-    ).rejects.toThrow("already in an Active Focus Period");
+    ).rejects.toThrow("Work is already in another Focus Period.");
     clock = new Date("2026-10-30T12:00:00.000Z");
     expect((await periods.find(accountId, first.id))?.status).toBe("Active");
     expect((await periods.find(accountId, second.id))?.status).toBe("Active");
     await periods.cancel(accountId, first.id);
     await periods.cancel(accountId, second.id);
+  }, 30_000);
+
+  test("requires an explicit move between Active Focus Periods and preserves source history", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2026-10-20T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const source = await periods.create(accountId, {
+      purpose: "Current window",
+      startDate: "2026-10-21",
+      endDate: "2026-10-27",
+    });
+    await periods.add(accountId, source.id, firstWorkId);
+
+    clock = new Date("2026-10-21T12:00:00.000Z");
+    expect(
+      (await periods.find(accountId, source.id))?.startSnapshot?.map(
+        (item) => item.id,
+      ),
+    ).toEqual([firstWorkId]);
+    const target = await periods.create(accountId, {
+      purpose: "New window",
+      startDate: "2026-10-21",
+      endDate: "2026-10-27",
+    });
+    expect(target.status).toBe("Active");
+
+    await expect(
+      periods.add(accountId, target.id, firstWorkId),
+    ).rejects.toThrow("Work is already in an active Focus Period. Use Move.");
+    expect((await periods.find(accountId, target.id))?.members).toEqual([]);
+
+    await periods.move(accountId, target.id, firstWorkId);
+    expect((await periods.find(accountId, source.id))?.members).toEqual([]);
+    expect(
+      (await periods.find(accountId, target.id))?.members.map(
+        (item) => item.id,
+      ),
+    ).toEqual([firstWorkId]);
+    expect(
+      (await periods.find(accountId, source.id))?.startSnapshot?.map(
+        (item) => item.id,
+      ),
+    ).toEqual([firstWorkId]);
+    expect((await periods.find(accountId, target.id))?.startSnapshot).toEqual(
+      [],
+    );
+
+    await periods.close(accountId, source.id);
+    const closedSource = await periods.find(accountId, source.id);
+    expect(closedSource?.closeSnapshot).toEqual([]);
+    expect(closedSource?.closeComparison).toMatchObject({
+      inStartSnapshot: [{ id: firstWorkId }],
+      removed: [{ id: firstWorkId }],
+    });
+    expect(
+      (await periods.find(accountId, target.id))?.members.map(
+        (item) => item.id,
+      ),
+    ).toEqual([firstWorkId]);
+  }, 30_000);
+
+  test("allows Work in a new Active Focus Period after its prior period is Closed", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2026-11-10T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const closed = await periods.create(accountId, {
+      purpose: "Completed window",
+      startDate: "2026-11-10",
+      endDate: "2026-11-16",
+    });
+    await periods.add(accountId, closed.id, firstWorkId);
+    await periods.close(accountId, closed.id);
+
+    const active = await periods.create(accountId, {
+      purpose: "Current window",
+      startDate: "2026-11-10",
+      endDate: "2026-11-16",
+    });
+    await periods.add(accountId, active.id, firstWorkId);
+
+    expect(
+      (await periods.find(accountId, closed.id))?.closeSnapshot?.map(
+        (item) => item.id,
+      ),
+    ).toEqual([firstWorkId]);
+    expect(
+      (await periods.find(accountId, active.id))?.members.map(
+        (item) => item.id,
+      ),
+    ).toEqual([firstWorkId]);
   }, 30_000);
 
   test("keeps a conflicting due period Planned and allows recovery operations", async () => {

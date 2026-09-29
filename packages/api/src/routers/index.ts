@@ -96,6 +96,8 @@ import {
 } from "../file-attachments";
 import {
   createFocusPeriodInputSchema,
+  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
   FocusPeriodConflictError,
   FocusPeriodUnavailableError,
   focusPeriodDecisionInputSchema,
@@ -440,6 +442,15 @@ function rethrowFocusPeriodError(error: unknown): never {
     throw new ORPCError("NOT_FOUND", { cause: error });
   }
   if (error instanceof FocusPeriodConflictError) {
+    if (
+      error.message === FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE ||
+      error.message === FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE
+    ) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        message: error.message,
+      });
+    }
     throw new ORPCError("CONFLICT", { cause: error });
   }
   throw error;
@@ -3381,6 +3392,20 @@ export const appRouter = {
     .handler(async ({ context, input }) => {
       try {
         await requireFocusPeriod(context).add(
+          context.session.user.id,
+          input.periodId,
+          input.workId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  moveToFocusPeriod: protectedProcedure
+    .input(focusPeriodMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).move(
           context.session.user.id,
           input.periodId,
           input.workId,
