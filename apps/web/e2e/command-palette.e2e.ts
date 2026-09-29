@@ -112,6 +112,8 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
   // A fresh page resets the application command/query state without multiplying
   // the reference workspace startup cost across isolated browser contexts.
   const samples: number[] = [];
+  let pagePreparationDurationMs = 0;
+  let visibilityMeasurementDurationMs = 0;
 
   const measureBatch = async (offset: number): Promise<void> => {
     if (offset >= count) {
@@ -119,6 +121,7 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
     }
 
     const batchSize = Math.min(COLD_CACHE_BATCH_SIZE, count - offset);
+    const pagePreparationStartedAt = performance.now();
     const pages = await Promise.all(
       Array.from({ length: batchSize }, async (_, pageIndex) => {
         const page = await context.newPage();
@@ -132,18 +135,23 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
         await expect(
           page.getByRole("heading", { name: "Projects", level: 1 }),
         ).toBeVisible();
-        await page.waitForSelector(COMMAND_PALETTE_TRIGGER_SELECTOR);
-        await page.waitForLoadState("networkidle");
+        await expect(
+          page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR),
+        ).toBeVisible();
         return page;
       }),
     );
+    pagePreparationDurationMs += performance.now() - pagePreparationStartedAt;
 
+    const visibilityMeasurementStartedAt = performance.now();
     const batchSamples = await Promise.all(
       pages.map(async (page) => {
         const [sample] = await measureVisibilitySamples(page, 1);
         return sample ?? Number.POSITIVE_INFINITY;
       }),
     );
+    visibilityMeasurementDurationMs +=
+      performance.now() - visibilityMeasurementStartedAt;
     samples.push(...batchSamples);
     await Promise.all(pages.map((page) => page.close()));
     return measureBatch(offset + batchSize);
@@ -151,7 +159,11 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
 
   await measureBatch(0);
 
-  return samples;
+  return {
+    pagePreparationDurationMs,
+    samples,
+    visibilityMeasurementDurationMs,
+  };
 }
 
 function percentile(samples: readonly number[], rank: number) {
@@ -448,32 +460,49 @@ test("measures Command Palette visibility at the reference workspace scale", asy
   await page.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
 
-  const hotCacheSamples = await measureVisibilitySamples(
-    page,
-    HOT_CACHE_SAMPLES,
-  );
-  const coldCacheSamples = await measureColdCacheSamples(
-    context,
-    COLD_CACHE_SAMPLES,
-  );
+  const hotCacheMeasurementStartedAt = performance.now();
+  const hotCacheSamples =
+    await test.step("Measure hot-cache Command Palette visibility", () =>
+      measureVisibilitySamples(page, HOT_CACHE_SAMPLES));
+  const hotCacheMeasurementDurationMs =
+    performance.now() - hotCacheMeasurementStartedAt;
+  const coldCacheMeasurement =
+    await test.step("Measure cold-cache Command Palette visibility", () =>
+      measureColdCacheSamples(context, COLD_CACHE_SAMPLES));
+  const {
+    pagePreparationDurationMs,
+    samples: coldCacheSamples,
+    visibilityMeasurementDurationMs: coldCacheMeasurementDurationMs,
+  } = coldCacheMeasurement;
 
   expect(hotCacheSamples).toHaveLength(HOT_CACHE_SAMPLES);
   expect(coldCacheSamples).toHaveLength(COLD_CACHE_SAMPLES);
 
+  const hotCacheP95 = percentile(hotCacheSamples, 0.95);
+  const hotCacheP99 = percentile(hotCacheSamples, 0.99);
+  const coldCacheP95 = percentile(coldCacheSamples, 0.95);
+  const coldCacheP99 = percentile(coldCacheSamples, 0.99);
+  console.info(
+    `Command Palette visibility (ms): hot p95=${hotCacheP95.toFixed(1)}, p99=${hotCacheP99.toFixed(1)}; cold p95=${coldCacheP95.toFixed(1)}, p99=${coldCacheP99.toFixed(1)}`,
+  );
+  console.info(
+    `Command Palette durations (ms): hot visibility sampling=${hotCacheMeasurementDurationMs.toFixed(1)}, cold page preparation=${pagePreparationDurationMs.toFixed(1)}, cold visibility sampling=${coldCacheMeasurementDurationMs.toFixed(1)}`,
+  );
+
   expect(
-    percentile(hotCacheSamples, 0.95),
+    hotCacheP95,
     "Hot-cache Command Palette p95 visibility budget",
   ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
   expect(
-    percentile(hotCacheSamples, 0.99),
+    hotCacheP99,
     "Hot-cache Command Palette p99 visibility budget",
   ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
   expect(
-    percentile(coldCacheSamples, 0.95),
+    coldCacheP95,
     "Cold-cache Command Palette p95 visibility budget",
   ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
   expect(
-    percentile(coldCacheSamples, 0.99),
+    coldCacheP99,
     "Cold-cache Command Palette p99 visibility budget",
   ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
 });
