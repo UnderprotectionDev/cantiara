@@ -60,7 +60,10 @@ export function createDatabaseTechnicalDiagrams(
         ),
       )
       .limit(1);
-    if (!row || row.document.revision !== input.documentRevision) {
+    if (
+      !row?.document.projectId ||
+      row.document.revision !== input.documentRevision
+    ) {
       return null;
     }
     const block = row.document.body.slice(input.blockStart, input.blockEnd);

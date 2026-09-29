@@ -2,6 +2,7 @@ import {
   DESKTOP_API_UPDATE_REQUIRED_CODE,
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
 } from "@cantiara/api/desktop-api-window";
+import { documentConflictDraftSchema } from "@cantiara/api/documents";
 import { MUTATION_UI_LABELS } from "@cantiara/api/mutation-and-undo";
 import {
   createSupportReference,
@@ -205,17 +206,23 @@ function preservedMutationResponseFrom(
     return;
   }
 
+  const parsedDraft = documentConflictDraftSchema.safeParse(data.conflictDraft);
+  const conflictDraft =
+    parsedDraft.success && parsedDraft.data.documentId === data.targetId
+      ? parsedDraft.data
+      : null;
   return {
     code: "PRECONDITION_FAILED",
     data: {
       code: "STALE_BASE_REVISION",
       currentRevision: data.currentRevision,
       currentValue: data.currentValue,
+      ...(conflictDraft ? { conflictDraft } : {}),
       label: MUTATION_UI_LABELS.currentValue,
       targetId: data.targetId,
     },
     defined: true,
-    message: MUTATION_UI_LABELS.currentValue,
+    message: conflictDraft ? "Conflict Draft" : MUTATION_UI_LABELS.currentValue,
   };
 }
 
