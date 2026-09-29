@@ -8,6 +8,7 @@ import { projectAreaNavigationHash } from "./project-area-navigation";
 export const ALWAYS_REACHABLE_SURFACES = [
   "Overview",
   "Tags",
+  "Smart Collection",
   "All Tools",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
@@ -180,6 +181,19 @@ export function navigationSurfaceFromHash(
     return "Tags";
   }
   if (
+    hash === "smart-collections" ||
+    hash.startsWith("smart-collection-view-")
+  ) {
+    return "Smart Collection";
+  }
+  if (
+    (hash === "technical-diagrams" || hash.startsWith("technical-diagram-")) &&
+    enabledAreas.includes("Technical Diagrams") &&
+    !hiddenAreas.includes("Technical Diagrams")
+  ) {
+    return "Technical Diagrams";
+  }
+  if (
     isWorkSurfaceHash(hash) &&
     enabledAreas.includes("Work") &&
     !hiddenAreas.includes("Work")
@@ -235,6 +249,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Tags") {
     return "tags";
+  }
+  if (surface === "Smart Collection") {
+    return "smart-collections";
   }
   return projectAreaNavigationHash(surface);
 }

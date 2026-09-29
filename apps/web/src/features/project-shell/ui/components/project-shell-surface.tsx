@@ -111,6 +111,7 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
   const diagramPrefix = "technical-diagram-";
   if (
     activeHash === "technical-diagrams" ||
+    activeHash === "project-area-technical-diagrams" ||
     activeHash.startsWith(diagramPrefix)
   ) {
     const selectedDiagramId = activeHash.startsWith(diagramPrefix)
