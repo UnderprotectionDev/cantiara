@@ -356,8 +356,14 @@ async function assertDocumentSectionAcyclic(
   const rows = await executor
     .select({ body: document.body, id: document.id })
     .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .leftJoin(project, eq(document.projectId, project.id))
+    .innerJoin(
+      workspace,
+      eq(
+        sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
+        workspace.id,
+      ),
+    )
     .where(eq(workspace.ownerAccountId, accountId));
   const bodies = new Map(rows.map((row) => [row.id, row.body]));
   bodies.set(documentId, body);
@@ -419,10 +425,16 @@ async function findOwnedDocument(
   lock: boolean,
 ) {
   const [ownership] = await executor
-    .select({ projectId: document.projectId })
+    .select({ projectId: document.projectId, workspaceId: workspace.id })
     .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .leftJoin(project, eq(document.projectId, project.id))
+    .innerJoin(
+      workspace,
+      eq(
+        sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
+        workspace.id,
+      ),
+    )
     .where(
       and(eq(document.id, documentId), eq(workspace.ownerAccountId, accountId)),
     )
@@ -431,13 +443,14 @@ async function findOwnedDocument(
     return null;
   }
 
-  const ownedProject = await findOwnedProject(
-    executor,
-    accountId,
-    ownership.projectId,
-    lock,
-  );
-  if (!ownedProject || ownedProject.archivedAt !== null) {
+  const ownedProject =
+    ownership.projectId === null
+      ? null
+      : await findOwnedProject(executor, accountId, ownership.projectId, lock);
+  if (
+    ownership.projectId !== null &&
+    (!ownedProject || ownedProject.archivedAt !== null)
+  ) {
     return null;
   }
 
@@ -447,7 +460,12 @@ async function findOwnedDocument(
     .where(
       and(
         eq(document.id, documentId),
-        eq(document.projectId, ownership.projectId),
+        ownership.projectId === null
+          ? and(
+              isNull(document.projectId),
+              eq(document.workspaceId, ownership.workspaceId),
+            )
+          : eq(document.projectId, ownership.projectId),
       ),
     )
     .limit(1);
@@ -463,6 +481,11 @@ function createDocumentTarget(
       const payload = createDocumentInputSchema.safeParse(context?.payload);
       if (!payload.success) {
         return null;
+      }
+      if (payload.data.projectId === null) {
+        return (await findWorkspaceId(executor, accountId))
+          ? emptyTarget(targetId)
+          : null;
       }
       const ownedProject = await findOwnedProject(
         executor,
@@ -503,6 +526,10 @@ function createDocumentTarget(
           createdAt: input.committedAt,
           id: nextDocument.id,
           projectId: nextDocument.projectId,
+          workspaceId:
+            nextDocument.projectId === null
+              ? await findWorkspaceId(executor, accountId)
+              : null,
           revision: 1,
           title: nextDocument.title,
           type: nextDocument.type,
@@ -603,8 +630,14 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
     const [row] = await database
       .select({ document })
       .from(document)
-      .innerJoin(project, eq(document.projectId, project.id))
-      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .leftJoin(project, eq(document.projectId, project.id))
+      .innerJoin(
+        workspace,
+        eq(
+          sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
+          workspace.id,
+        ),
+      )
       .where(
         and(
           eq(document.id, documentId),
@@ -754,6 +787,23 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
       return [...versions.values()].sort((a, b) => b.revision - a.revision);
     },
     async list(accountId, projectId) {
+      if (projectId === null) {
+        const workspaceId = await findWorkspaceId(database, accountId);
+        if (!workspaceId) {
+          throw new DocumentUnavailableError();
+        }
+        const rows = await database
+          .select()
+          .from(document)
+          .where(
+            and(
+              isNull(document.projectId),
+              eq(document.workspaceId, workspaceId),
+            ),
+          )
+          .orderBy(desc(document.updatedAt));
+        return rows.map(toDocument);
+      }
       const ownedProject = await findOwnedProject(
         database,
         accountId,

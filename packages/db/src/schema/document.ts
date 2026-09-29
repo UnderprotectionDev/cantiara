@@ -7,16 +7,19 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-
+import { workspace } from "./auth";
 import { project } from "./project";
 
 export const document = pgTable(
   "document",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => project.id, {
+      onDelete: "cascade",
+    }),
+    workspaceId: text("workspace_id").references(() => workspace.id, {
+      onDelete: "cascade",
+    }),
     title: text("title").notNull(),
     body: text("body").notNull(),
     type: text("type").notNull().default("General"),
@@ -26,6 +29,11 @@ export const document = pgTable(
   },
   (table) => [
     index("document_project_updated_idx").on(table.projectId, table.updatedAt),
+    index("document_wiki_updated_idx").on(table.workspaceId, table.updatedAt),
+    check(
+      "document_ownership_check",
+      sql`(${table.projectId} IS NOT NULL AND ${table.workspaceId} IS NULL) OR (${table.projectId} IS NULL AND ${table.workspaceId} IS NOT NULL)`,
+    ),
     check(
       "document_title_check",
       sql`length(btrim(${table.title})) between 1 and 255`,

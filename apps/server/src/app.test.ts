@@ -52,6 +52,7 @@ function createTestApp(
     desktopApiNow?: () => Date;
     desktopApiWindow?: DesktopApiCompatibilityWindow;
     desktopOrigins?: readonly string[];
+    documents?: AppDependencies["documents"];
     fileAttachments?: FileAttachmentAccess;
     githubAvailability?: AppDependencies["githubAvailability"];
     githubIdentityConfirmation?: GitHubIdentityConfirmation;
@@ -117,6 +118,7 @@ function createTestApp(
     desktopApiNow: options.desktopApiNow,
     desktopApiWindow: options.desktopApiWindow,
     desktopOrigins: options.desktopOrigins ?? [],
+    documents: options.documents,
     fileAttachments: options.fileAttachments,
     githubAvailability: options.githubAvailability ?? availableGitHub,
     githubIdentityConfirmation: options.githubIdentityConfirmation,
@@ -139,6 +141,55 @@ function createTestApp(
 }
 
 describe("server app Account Access boundary", () => {
+  test("Personal Wiki unauthenticated GET leaks neither live Document names nor bodies", async () => {
+    const documents = {
+      get: vi.fn().mockResolvedValue({
+        title: "Secret Wiki name",
+        body: "Secret Wiki body",
+      }),
+      getLiveWork: vi.fn(),
+      getVersion: vi.fn(),
+      list: vi
+        .fn()
+        .mockResolvedValue([
+          { title: "Secret Wiki name", body: "Secret Wiki body" },
+        ]),
+      versions: vi.fn(),
+    } satisfies NonNullable<AppDependencies["documents"]>;
+    const { app } = createTestApp({ documents });
+    await Promise.all(
+      [
+        ["documents", { projectId: null }],
+        ["document", { documentId: "private-wiki" }],
+        ["documentVersions", { documentId: "private-wiki" }],
+        ["documentVersion", { documentId: "private-wiki", revision: 1 }],
+      ].map(async ([procedure, input]) => {
+        const data = encodeURIComponent(JSON.stringify({ json: input }));
+        const response = await app.fetch(
+          new Request(
+            `https://api.cantiara.example/rpc/${procedure}?data=${data}`,
+          ),
+        );
+        expect(response.status).toBe(405);
+        const body = await response.text();
+        expect(body).not.toContain("Secret Wiki");
+        expect(response.headers.get("cache-control")).toContain("no-store");
+        const authenticatedMethod = await app.fetch(
+          new Request(`https://api.cantiara.example/rpc/${procedure}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ json: input }),
+          }),
+        );
+        expect(authenticatedMethod.status).toBe(401);
+        expect(await authenticatedMethod.text()).not.toContain("Secret Wiki");
+      }),
+    );
+    expect(documents.get).not.toHaveBeenCalled();
+    expect(documents.list).not.toHaveBeenCalled();
+    expect(documents.getVersion).not.toHaveBeenCalled();
+    expect(documents.versions).not.toHaveBeenCalled();
+  });
   test("serves paired Web Capture requests only through an extension origin and bearer token", async () => {
     const webCapture = {
       createPairingCode: vi.fn(),
@@ -376,7 +427,7 @@ describe("server app Account Access boundary", () => {
     expect(response.url).not.toContain("r2");
   });
 
-  test("rejects an unauthenticated File Attachment asset request", async () => {
+  test("Personal Wiki unauthenticated File Attachment GET leaks neither name nor bytes", async () => {
     const fileAttachments = {
       canSelectIntoExternalSurface: vi.fn(),
       cleanupVersionDerivatives: vi.fn(),
@@ -387,7 +438,10 @@ describe("server app Account Access boundary", () => {
       listMarkings: vi.fn(),
       previewLocationBind: vi.fn(),
       preview: vi.fn(),
-      readAsset: vi.fn(),
+      readAsset: vi.fn().mockResolvedValue({
+        fileName: "Secret Wiki attachment",
+        bytes: new TextEncoder().encode("Secret Wiki bytes"),
+      }),
       stage: vi.fn(),
       undoMarking: vi.fn(),
       bindLocation: vi.fn(),
@@ -401,6 +455,8 @@ describe("server app Account Access boundary", () => {
     );
 
     expect(response.status).toBe(401);
+    expect(await response.text()).not.toContain("Secret Wiki");
+    expect(response.headers.get("content-disposition")).toBeNull();
     expect(fileAttachments.readAsset).not.toHaveBeenCalled();
   });
 

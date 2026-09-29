@@ -51,6 +51,7 @@ export default function Header() {
               className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto sm:gap-1"
             >
               <ShellNavLink to="/projects">Projects</ShellNavLink>
+              <ShellNavLink to="/personal-wiki">Personal Wiki</ShellNavLink>
               <ShellNavLink to="/daily-focus">Daily Focus</ShellNavLink>
               <ShellNavLink to="/focus-periods">Focus Period</ShellNavLink>
               <ShellNavLink to="/calendar">Calendar</ShellNavLink>
@@ -93,6 +94,7 @@ function ShellNavLink({
     | "/capture"
     | "/daily-focus"
     | "/focus-periods"
+    | "/personal-wiki"
     | "/projects";
 }) {
   const linkClassName =

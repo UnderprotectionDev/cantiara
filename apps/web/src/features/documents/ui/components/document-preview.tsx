@@ -134,10 +134,15 @@ const inlineRecordReferenceExtension: MarkdownExtension = {
 };
 
 function recordReferenceHref(
-  projectId: string,
+  projectId: string | null,
   recordType: string,
   recordId: string,
 ) {
+  if (projectId === null) {
+    return recordType === "Document"
+      ? `/personal-wiki#${documentRecordHash(recordId)}`
+      : null;
+  }
   if (recordType === "Work") {
     return workRecordHref(projectId, recordId);
   }
@@ -315,7 +320,11 @@ function LiveSectionCard({
       <Markdown extensions={[inlineMathExtension]}>{source.text}</Markdown>
       <a
         className="underline"
-        href={`/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`}
+        href={
+          source.projectId === null
+            ? `/personal-wiki#${documentRecordHash(source.documentId)}`
+            : `/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`
+        }
       >
         Open source record
       </a>
