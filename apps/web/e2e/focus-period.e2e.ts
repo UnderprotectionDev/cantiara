@@ -110,9 +110,19 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await page.getByRole("button", { name: LATER_PERIOD_NAME }).click();
   await expect(laterWindow).toContainText("No Work in this Focus Period.");
   await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
+  const dependencies = detail.getByRole("region", { name: "Dependencies" });
   await expect(
-    detail.getByRole("region", { name: "Dependencies" }),
-  ).toContainText("No dependencies in this Focus Period.");
+    dependencies.getByText("No dependencies in this Focus Period."),
+  ).not.toBeVisible();
+  await dependencies.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    dependencies.getByText("No dependencies in this Focus Period."),
+  ).toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(
+    dependencies.getByText("No dependencies in this Focus Period."),
+  ).not.toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
   await expect(
