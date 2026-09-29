@@ -129,6 +129,7 @@
         "@vidstack/react": "1.15.6",
         "better-auth": "catalog:",
         "date-fns": "^4.4.0",
+        "diff": "^8.0.4",
         "katex": "^0.18.9",
         "konva": "^10.2.0",
         "lowlight": "^3.3.0",

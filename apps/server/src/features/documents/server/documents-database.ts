@@ -4,19 +4,22 @@ import type {
   DocumentMutationContracts,
   DocumentMutationValue,
   DocumentsAccess,
+  DocumentVersionSummary,
 } from "@cantiara/api/documents";
 import {
   createDocumentInputSchema,
   DocumentUnavailableError,
   documentSchema,
+  documentVersionSummarySchema,
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -35,6 +38,35 @@ function toDocument(row: typeof document.$inferSelect): Document {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   });
+}
+
+function toDocumentVersionSummary(value: Document): DocumentVersionSummary {
+  return documentVersionSummarySchema.parse({
+    id: value.id,
+    revision: value.revision,
+    title: value.title,
+    type: value.type,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  });
+}
+
+function documentVersionSummaryProjection(
+  value:
+    | typeof mutationHistory.previousValue
+    | typeof mutationHistory.nextValue,
+) {
+  const snapshot = sql`${value}->'document'`;
+  return sql<unknown>`CASE
+    WHEN ${snapshot}->>'id' IS NOT NULL THEN jsonb_build_object(
+      'id', ${snapshot}->'id',
+      'revision', ${snapshot}->'revision',
+      'title', ${snapshot}->'title',
+      'type', ${snapshot}->'type',
+      'createdAt', ${snapshot}->'createdAt',
+      'updatedAt', ${snapshot}->'updatedAt'
+    )
+  END`;
 }
 
 function toTarget(
@@ -253,6 +285,70 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
 
   return {
     get,
+    async getVersion(accountId, documentId, revision) {
+      const current = await get(accountId, documentId);
+      if (!current) {
+        return null;
+      }
+      if (current.revision === revision) {
+        return current;
+      }
+      if (revision < 1 || revision > current.revision) {
+        return null;
+      }
+
+      const historyRevision = revision === 1 ? 2 : revision;
+      const snapshot =
+        revision === 1
+          ? sql<unknown>`${mutationHistory.previousValue}->'document'`
+          : sql<unknown>`${mutationHistory.nextValue}->'document'`;
+      const [entry] = await database
+        .select({ snapshot })
+        .from(mutationHistory)
+        .where(
+          and(
+            eq(mutationHistory.targetId, documentId),
+            eq(mutationHistory.revision, historyRevision),
+          ),
+        )
+        .limit(1);
+      const parsed = documentSchema.safeParse(entry?.snapshot);
+      return parsed.success &&
+        parsed.data.id === documentId &&
+        parsed.data.revision === revision
+        ? parsed.data
+        : null;
+    },
+    async versions(accountId, documentId) {
+      const current = await get(accountId, documentId);
+      if (!current) {
+        return null;
+      }
+      const history = await database
+        .select({
+          previousVersion: documentVersionSummaryProjection(
+            mutationHistory.previousValue,
+          ),
+          nextVersion: documentVersionSummaryProjection(
+            mutationHistory.nextValue,
+          ),
+        })
+        .from(mutationHistory)
+        .where(eq(mutationHistory.targetId, documentId))
+        .orderBy(desc(mutationHistory.revision));
+      const versions = new Map<number, DocumentVersionSummary>([
+        [current.revision, toDocumentVersionSummary(current)],
+      ]);
+      for (const entry of history) {
+        for (const value of [entry.nextVersion, entry.previousVersion]) {
+          const parsed = documentVersionSummarySchema.safeParse(value);
+          if (parsed.success && parsed.data.id === documentId) {
+            versions.set(parsed.data.revision, parsed.data);
+          }
+        }
+      }
+      return [...versions.values()].sort((a, b) => b.revision - a.revision);
+    },
     async list(accountId, projectId) {
       const ownedProject = await findOwnedProject(
         database,

@@ -35,7 +35,7 @@ import {
   Unlink2,
   Workflow,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { z } from "zod";
 
 type Editor = NonNullable<ReturnType<typeof useEditor>>;
@@ -105,16 +105,21 @@ export default function DocumentFormattingToolbar({
   editor: Editor;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
+  const linkSelection = useRef<Editor["state"]["selection"] | null>(null);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const linkForm = useForm({
     defaultValues: { url: "" },
     onSubmit: ({ value }) => {
-      editor
-        .chain()
-        .focus()
-        .extendMarkRange("link")
-        .setLink({ href: value.url.trim() })
-        .run();
+      const chain = editor.chain().focus();
+      if (linkSelection.current) {
+        const selection = linkSelection.current;
+        chain.command(({ tr }) => {
+          tr.setSelection(selection);
+          return true;
+        });
+      }
+      chain.extendMarkRange("link").setLink({ href: value.url.trim() }).run();
+      linkSelection.current = null;
       setLinkOpen(false);
     },
   });
@@ -229,6 +234,9 @@ export default function DocumentFormattingToolbar({
                   url: editor.getAttributes("link").href ?? "",
                 });
               }}
+              onMouseDown={() => {
+                linkSelection.current = editor.state.selection;
+              }}
               title="Link"
               type="button"
             >
@@ -239,6 +247,7 @@ export default function DocumentFormattingToolbar({
                 className="space-y-2"
                 onSubmit={(event) => {
                   event.preventDefault();
+                  event.stopPropagation();
                   linkForm.handleSubmit().catch(() => undefined);
                 }}
               >
@@ -382,6 +391,7 @@ export default function DocumentFormattingToolbar({
                 className="space-y-2"
                 onSubmit={(event) => {
                   event.preventDefault();
+                  event.stopPropagation();
                   formulaForm.handleSubmit().catch(() => undefined);
                 }}
               >

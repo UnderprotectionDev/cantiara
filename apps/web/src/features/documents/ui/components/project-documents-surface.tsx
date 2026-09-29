@@ -36,6 +36,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentPreview from "./document-preview";
+import DocumentVersionCompare from "./document-version-compare";
 
 const lowlight = createLowlight(common);
 type DocumentView = "write" | "markdown" | "preview";
@@ -65,6 +66,27 @@ function DocumentEditor({
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<DocumentView>("write");
   const [conversionWarning, setConversionWarning] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const pendingRestore = useRef<{
+    sourceRevision: number;
+    baseRevision: number;
+    clientIdempotencyKey: string;
+  } | null>(null);
+  const versionOptions = orpc.documentVersions.queryOptions({
+    input: { documentId: record.id },
+  });
+  const versions = useQuery(versionOptions);
+  const selectedVersionQuery = useQuery({
+    ...orpc.documentVersion.queryOptions({
+      input: {
+        documentId: record.id,
+        revision: selectedVersion ?? record.revision,
+      },
+    }),
+    enabled: selectedVersion !== null && selectedVersion !== record.revision,
+  });
+  const selectedSnapshot =
+    selectedVersion === record.revision ? record : selectedVersionQuery.data;
   const allowRichUpdates = useRef(false);
   const pendingSave = useRef<{
     baseRevision: number;
@@ -122,6 +144,42 @@ function DocumentEditor({
           : "Document could not be saved.",
       ),
   });
+  const restore = useMutation({
+    mutationFn: (sourceRevision: number) => {
+      if (
+        pendingRestore.current?.sourceRevision !== sourceRevision ||
+        pendingRestore.current.baseRevision !== revision
+      ) {
+        pendingRestore.current = {
+          sourceRevision,
+          baseRevision: revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+        };
+      }
+      const command = pendingRestore.current;
+      return runOnlineOnlyWrite(() =>
+        client.restoreDocumentVersion({
+          documentId: record.id,
+          revision: sourceRevision,
+          baseRevision: command.baseRevision,
+          clientIdempotencyKey: command.clientIdempotencyKey,
+        }),
+      );
+    },
+    onSuccess: async (restored) => {
+      pendingRestore.current = null;
+      setRevision(restored.revision);
+      setSelectedVersion(null);
+      setError(null);
+      await onSaved();
+    },
+    onError: (failure) =>
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Document could not be restored.",
+      ),
+  });
   const form = useForm({
     defaultValues: {
       title: record.title,
@@ -164,6 +222,11 @@ function DocumentEditor({
     if (!editor) {
       return;
     }
+    if (save.isPending) {
+      allowRichUpdates.current = false;
+      editor.setEditable(false);
+      return;
+    }
     const safe =
       comparableMarkdown(editor.getMarkdown()) ===
       comparableMarkdown(record.body);
@@ -175,7 +238,7 @@ function DocumentEditor({
       setView("markdown");
       setConversionWarning(true);
     }
-  }, [editor, record.body]);
+  }, [editor, record.body, save.isPending]);
 
   function changeView(next: string) {
     if (next !== "write") {
@@ -222,110 +285,160 @@ function DocumentEditor({
           form.handleSubmit().catch(() => undefined);
         }}
       >
-        <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
-          <form.Field name="title">
-            {(field) => (
-              <div className="min-w-60 flex-1">
-                <Label className="sr-only" htmlFor="document-title">
-                  Title
-                </Label>
-                <Input
-                  className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 font-semibold text-2xl shadow-none dark:bg-transparent"
-                  id="document-title"
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  value={field.state.value}
-                />
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="type">
-            {(field) => (
-              <div className="w-40 space-y-2">
-                <Label htmlFor="document-type">Type</Label>
-                <NativeSelect
-                  id="document-type"
-                  onBlur={field.handleBlur}
-                  onChange={(event) =>
-                    field.handleChange(
-                      documentTypeSchema.parse(event.target.value),
-                    )
-                  }
-                  value={field.state.value}
-                >
-                  {documentTypeSchema.options.map((option) => (
-                    <NativeSelectOption key={option} value={option}>
-                      {option}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </div>
-            )}
-          </form.Field>
-          <form.Subscribe
-            selector={(state) => ({
-              title: state.values.title,
-              isSubmitting: state.isSubmitting,
-            })}
-          >
-            {({ title, isSubmitting }) => (
-              <Button disabled={isSubmitting || !title.trim()} type="submit">
-                Save
-              </Button>
-            )}
-          </form.Subscribe>
-        </div>
-        <Tabs onValueChange={changeView} value={view}>
-          <TabsList aria-label="Document view" className="mb-1" variant="line">
-            <TabsTrigger value="write">Write</TabsTrigger>
-            <TabsTrigger value="markdown">Markdown</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-          </TabsList>
-          <TabsContent keepMounted value="write">
-            <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-              {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
-              <EditorContent editor={editor} />
-            </div>
-          </TabsContent>
-          <TabsContent keepMounted value="markdown">
-            <div className="space-y-3">
-              {conversionWarning ? (
-                <p
-                  className="rounded-md border border-border bg-muted/50 p-3 text-sm"
-                  role="alert"
-                >
-                  This Markdown cannot be safely converted to Write. Continue
-                  editing in Markdown, or use Preview; your source is unchanged.
-                </p>
-              ) : null}
-              <form.Field name="body">
-                {(field) => (
-                  <div className="space-y-2">
-                    <Label htmlFor="document-markdown">Markdown source</Label>
-                    <textarea
-                      className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
-                      id="document-markdown"
-                      onChange={(event) => {
-                        field.handleChange(event.target.value);
-                        setConversionWarning(false);
-                      }}
-                      value={field.state.value}
-                    />
-                  </div>
-                )}
-              </form.Field>
-            </div>
-          </TabsContent>
-          <TabsContent value="preview">
-            <form.Subscribe selector={(state) => state.values.body}>
-              {(body) => (
-                <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
-                  <DocumentPreview source={body} />
+        <fieldset
+          className="min-w-0 space-y-5 border-0 p-0"
+          disabled={save.isPending}
+        >
+          <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
+            <form.Field name="title">
+              {(field) => (
+                <div className="min-w-60 flex-1">
+                  <Label className="sr-only" htmlFor="document-title">
+                    Title
+                  </Label>
+                  <Input
+                    className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 font-semibold text-2xl shadow-none dark:bg-transparent"
+                    id="document-title"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
                 </div>
               )}
+            </form.Field>
+            <form.Field name="type">
+              {(field) => (
+                <div className="w-40 space-y-2">
+                  <Label htmlFor="document-type">Type</Label>
+                  <NativeSelect
+                    id="document-type"
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(
+                        documentTypeSchema.parse(event.target.value),
+                      )
+                    }
+                    value={field.state.value}
+                  >
+                    {documentTypeSchema.options.map((option) => (
+                      <NativeSelectOption key={option} value={option}>
+                        {option}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </div>
+              )}
+            </form.Field>
+            <form.Subscribe
+              selector={(state) => ({
+                title: state.values.title,
+                isSubmitting: state.isSubmitting,
+              })}
+            >
+              {({ title, isSubmitting }) => (
+                <Button disabled={isSubmitting || !title.trim()} type="submit">
+                  Save
+                </Button>
+              )}
             </form.Subscribe>
-          </TabsContent>
-        </Tabs>
+          </div>
+          <Tabs onValueChange={changeView} value={view}>
+            <TabsList
+              aria-label="Document view"
+              className="mb-1"
+              variant="line"
+            >
+              <TabsTrigger value="write">Write</TabsTrigger>
+              <TabsTrigger value="markdown">Markdown</TabsTrigger>
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+            </TabsList>
+            <TabsContent keepMounted value="write">
+              <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+                {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
+                <EditorContent editor={editor} />
+              </div>
+            </TabsContent>
+            <TabsContent keepMounted value="markdown">
+              <div className="space-y-3">
+                {conversionWarning ? (
+                  <p
+                    className="rounded-md border border-border bg-muted/50 p-3 text-sm"
+                    role="alert"
+                  >
+                    This Markdown cannot be safely converted to Write. Continue
+                    editing in Markdown, or use Preview; your source is
+                    unchanged.
+                  </p>
+                ) : null}
+                <form.Field name="body">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor="document-markdown">Markdown source</Label>
+                      <textarea
+                        className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
+                        id="document-markdown"
+                        onChange={(event) => {
+                          field.handleChange(event.target.value);
+                          setConversionWarning(false);
+                        }}
+                        value={field.state.value}
+                      />
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+            </TabsContent>
+            <TabsContent value="preview">
+              <form.Subscribe selector={(state) => state.values.body}>
+                {(body) => (
+                  <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
+                    <DocumentPreview source={body} />
+                  </div>
+                )}
+              </form.Subscribe>
+            </TabsContent>
+          </Tabs>
+          <section
+            aria-label="Versions"
+            className="space-y-3 border-border border-t pt-5"
+          >
+            <h3 className="font-semibold">Versions</h3>
+            {versions.isError || selectedVersionQuery.isError ? (
+              <p role="alert">Versions could not be loaded.</p>
+            ) : null}
+            {selectedVersion !== null &&
+            selectedVersion !== record.revision &&
+            selectedVersionQuery.isPending ? (
+              <p role="status">Loading…</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {versions.data?.map((version) => (
+                <Button
+                  aria-pressed={selectedVersion === version.revision}
+                  key={version.revision}
+                  onClick={() => setSelectedVersion(version.revision)}
+                  type="button"
+                  variant={
+                    selectedVersion === version.revision
+                      ? "secondary"
+                      : "outline"
+                  }
+                >
+                  Version {version.revision}
+                </Button>
+              ))}
+            </div>
+            {selectedSnapshot ? (
+              <DocumentVersionCompare
+                current={{ ...record, revision }}
+                onRestore={() => restore.mutate(selectedSnapshot.revision)}
+                pending={restore.isPending}
+                selected={selectedSnapshot}
+                unsavedChanges={form.state.isDirty}
+              />
+            ) : null}
+          </section>
+        </fieldset>
         {error ? (
           <p className="text-destructive" role="alert">
             {error}
@@ -537,10 +650,17 @@ export default function ProjectDocumentsSurface({
         </nav>
         {selected ? (
           <DocumentEditor
-            key={selected.id}
-            onSaved={() =>
-              queryClient.invalidateQueries({ queryKey: options.queryKey })
-            }
+            key={`${selected.id}-${selected.revision}`}
+            onSaved={async () => {
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: options.queryKey }),
+                queryClient.invalidateQueries({
+                  queryKey: orpc.documentVersions.queryOptions({
+                    input: { documentId: selected.id },
+                  }).queryKey,
+                }),
+              ]);
+            }}
             record={selected}
           />
         ) : (
