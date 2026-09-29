@@ -537,6 +537,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Durum | `Status` | Yapılandırma modu dışında günlük durum değiştirme |
 | Planlama | `Planning` | Yapılandırma modu dışında günlük planlama |
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
+| Belgeler yükleniyor | `Loading Documents…` | Proje Belgeleri alanı yüklenirken gösterilen ilerleme durumu |
 | Belge oluştur | `Create Document` | Projede yeni Belge kaydı oluşturma eylemi |
 | Belge oluşturma açıklaması | `Give this Document a title and choose its type.` | Oluşturma penceresindeki kısa yönlendirme |
 | İptal | `Cancel` | Belge oluşturma penceresini kayıt oluşturmadan kapatma |
