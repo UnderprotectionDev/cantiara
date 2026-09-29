@@ -11,6 +11,7 @@ export default defineConfig({
     "./src/schema/daily-focus.ts",
     "./src/schema/document.ts",
     "./src/schema/decision.ts",
+    "./src/schema/document.ts",
     "./src/schema/file-attachments.ts",
     "./src/schema/focus-period.ts",
     "./src/schema/project.ts",

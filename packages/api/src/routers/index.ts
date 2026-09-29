@@ -63,6 +63,17 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  createDocumentInputSchema,
+  createDocumentMutationInputSchema,
+  type DocumentMutationValue,
+  DocumentUnavailableError,
+  documentIdSchema,
+  documentSchema,
+  projectIdSchema,
+  updateDocumentInputSchema,
+  updateDocumentMutationInputSchema,
+} from "../documents";
+import {
   cancelExternalExecutionHandoffInputSchema,
   confirmExternalExecutionHandoffReconcileInputSchema,
   listExternalExecutionHandoffHistoryInputSchema,
@@ -394,6 +405,13 @@ function requireUsageLinkMutationContracts(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.usageLinkMutationContracts;
+}
+
+function requireDocumentMutationContracts(context: Context) {
+  if (!context.documentMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.documentMutationContracts;
 }
 
 function requireBacklog(context: Context) {
@@ -2043,6 +2061,51 @@ function rethrowUsageLinkMutationError(
   throw error;
 }
 
+function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowDocumentMutationError(error.cause, targetId);
+  }
+
+  if (error.code === "TARGET_NOT_FOUND") {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "Document or Project is unavailable.",
+    });
+  }
+
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId, label: MUTATION_UI_LABELS.conflict },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+
+  if (error.code === "STALE_BASE_REVISION") {
+    throw new ORPCError("PRECONDITION_FAILED", {
+      data: {
+        code: error.code,
+        ...(isRecord(error.currentValue)
+          ? { currentValue: error.currentValue }
+          : {}),
+        ...(typeof error.currentRevision === "number"
+          ? { currentRevision: error.currentRevision }
+          : {}),
+        label: MUTATION_UI_LABELS.currentValue,
+        targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.currentValue,
+    });
+  }
+
+  throw error;
+}
+
 async function runTagOperation<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
@@ -2069,6 +2132,124 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  documents: protectedProcedure
+    .input(z.object({ projectId: projectIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.list(
+          context.session.user.id,
+          input.projectId,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  document: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const result = await context.documents.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return result;
+    }),
+  createDocument: protectedProcedure
+    .input(createDocumentMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = createDocumentInputSchema.parse(payloadInput);
+      const mutation = requireDocumentMutationContracts(context).create(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ committedAt, currentRevision, payload: mutationPayload }) =>
+            ({
+              document: documentSchema.parse({
+                ...mutationPayload,
+                createdAt: committedAt,
+                id: crypto.randomUUID(),
+                revision: currentRevision + 1,
+                updatedAt: committedAt,
+              }),
+            }) satisfies DocumentMutationValue,
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  updateDocument: protectedProcedure
+    .input(updateDocumentMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = updateDocumentInputSchema.parse(payloadInput);
+      const mutation = requireDocumentMutationContracts(context).update(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => {
+            const current = currentValue.document;
+            return {
+              document: current
+                ? documentSchema.parse({
+                    ...current,
+                    ...(payload.title === undefined
+                      ? {}
+                      : { title: payload.title }),
+                    ...(payload.body === undefined
+                      ? {}
+                      : { body: payload.body }),
+                    ...(payload.type === undefined
+                      ? {}
+                      : { type: payload.type }),
+                    revision: currentRevision + 1,
+                    updatedAt: committedAt,
+                  })
+                : null,
+            } satisfies DocumentMutationValue;
+          },
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.documentId);
+      }
+    }),
   externalExecutionHandoffs: protectedProcedure
     .input(listExternalExecutionHandoffsInputSchema)
     .handler(async ({ context, input }) => {

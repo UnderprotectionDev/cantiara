@@ -18,6 +18,8 @@ import {
   customFieldMutationContracts,
   customFields,
   dailyFocus,
+  documentMutationContracts,
+  documents,
   fileAttachments,
   focusPeriod,
   getDb,
@@ -92,6 +94,8 @@ const app = createApp({
   customFields,
   customFieldMutationContracts,
   dailyFocus,
+  documentMutationContracts,
+  documents,
   focusPeriod,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
