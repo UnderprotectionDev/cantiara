@@ -66,9 +66,67 @@ const PriorityMap = lazy(
 const ProjectDocumentsSurface = lazy(
   () => import("@/features/documents/ui/components/project-documents-surface"),
 );
+const ProjectSmartCollectionsSurface = lazy(
+  () =>
+    import(
+      "@/features/smart-collections/ui/components/project-smart-collections-surface"
+    ),
+);
+const ProjectTechnicalDiagramsSurface = lazy(
+  () =>
+    import(
+      "@/features/technical-diagrams/ui/components/project-technical-diagrams-surface"
+    ),
+);
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
+
+function decodedSourceId(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
+}
+
+function liveSourceRouteForHash(activeHash: string, projectId: string) {
+  const collectionPrefix = "smart-collection-view-";
+  if (
+    activeHash === "smart-collections" ||
+    activeHash.startsWith(collectionPrefix)
+  ) {
+    const selectedViewId = activeHash.startsWith(collectionPrefix)
+      ? decodedSourceId(activeHash.slice(collectionPrefix.length))
+      : undefined;
+    return (
+      <Suspense fallback={<p>Loading source record…</p>}>
+        <ProjectSmartCollectionsSurface
+          projectId={projectId}
+          selectedViewId={selectedViewId}
+        />
+      </Suspense>
+    );
+  }
+  const diagramPrefix = "technical-diagram-";
+  if (
+    activeHash === "technical-diagrams" ||
+    activeHash.startsWith(diagramPrefix)
+  ) {
+    const selectedDiagramId = activeHash.startsWith(diagramPrefix)
+      ? decodedSourceId(activeHash.slice(diagramPrefix.length))
+      : undefined;
+    return (
+      <Suspense fallback={<p>Loading source record…</p>}>
+        <ProjectTechnicalDiagramsSurface
+          projectId={projectId}
+          selectedDiagramId={selectedDiagramId}
+        />
+      </Suspense>
+    );
+  }
+  return null;
+}
 
 export default function ProjectShellSurface({
   accountId,
@@ -200,6 +258,11 @@ export default function ProjectShellSurface({
           projectId={projectId}
         />
       );
+    }
+
+    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
+    if (liveSourceRoute) {
+      return liveSourceRoute;
     }
 
     if (

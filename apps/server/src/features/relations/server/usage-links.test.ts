@@ -72,6 +72,8 @@ describe("Relations usage links", () => {
       "Production Incident",
       "Project Release",
       "Risk",
+      "Smart Collection View",
+      "Technical Diagram",
       "Test Gap",
       "Test Handoff",
       "Test Session",

@@ -69,6 +69,7 @@ import {
   DocumentUnavailableError,
   documentBodySchema,
   documentIdSchema,
+  documentLiveDirectives,
   documentLiveWorkIds,
   documentSchema,
   projectIdSchema,
@@ -217,6 +218,11 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  createSmartCollectionInputSchema,
+  SmartCollectionConflictError,
+  SmartCollectionUnavailableError,
+} from "../smart-collections";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -227,6 +233,11 @@ import {
   tagsInputSchema,
   undoTagRenameInputSchema,
 } from "../tags";
+import {
+  confirmMermaidConversionInputSchema,
+  createDiagramViewInputSchema,
+  mermaidConversionInputSchema,
+} from "../technical-diagrams";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   previewWorkContextLayout,
@@ -2200,6 +2211,215 @@ export const appRouter = {
           };
         }),
       );
+    }),
+  documentLiveOtherBlocks: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          body: documentBodySchema.optional(),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (
+        !(
+          context.documents &&
+          context.smartCollections &&
+          context.technicalDiagrams
+        )
+      ) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const record = await context.documents.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!record) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return Promise.all(
+        documentLiveDirectives(input.body ?? record.body)
+          .filter(({ kind }) => kind !== "Work")
+          .map(async ({ id, kind, viewId }) => ({
+            id,
+            kind,
+            viewId: viewId ?? null,
+            source:
+              kind === "Smart Collection"
+                ? ((await context.smartCollections?.getView(
+                    context.session.user.id,
+                    id,
+                  )) ?? null)
+                : ((await context.technicalDiagrams?.get(
+                    context.session.user.id,
+                    id,
+                    viewId,
+                  )) ?? null),
+          })),
+      );
+    }),
+  createSmartCollection: protectedProcedure
+    .input(createSmartCollectionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.smartCollections.create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof SmartCollectionUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        if (error instanceof SmartCollectionConflictError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  smartCollectionViews: protectedProcedure
+    .input(z.object({ projectId: projectIdSchema }).strict())
+    .handler(({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return context.smartCollections.listViews(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  smartCollectionView: protectedProcedure
+    .input(z.object({ viewId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const view = await context.smartCollections.getView(
+        context.session.user.id,
+        input.viewId,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return view;
+    }),
+  technicalDiagrams: protectedProcedure
+    .input(z.object({ projectId: projectIdSchema }).strict())
+    .handler(({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return context.technicalDiagrams.list(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  technicalDiagram: protectedProcedure
+    .input(
+      z
+        .object({
+          diagramId: z.string().min(1),
+          viewId: z.string().min(1).optional(),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const diagram = await context.technicalDiagrams.get(
+        context.session.user.id,
+        input.diagramId,
+        input.viewId,
+      );
+      if (!diagram) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return diagram;
+    }),
+  createDiagramView: protectedProcedure
+    .input(createDiagramViewInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const view = await context.technicalDiagrams.createView(
+          context.session.user.id,
+          input,
+        );
+        if (!view) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return view;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  technicalDiagramViews: protectedProcedure
+    .input(z.object({ diagramId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const views = await context.technicalDiagrams.listViews(
+        context.session.user.id,
+        input.diagramId,
+      );
+      if (!views) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return views;
+    }),
+  previewMermaidConversion: protectedProcedure
+    .input(mermaidConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const preview = await context.technicalDiagrams.previewConversion(
+          context.session.user.id,
+          input,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return preview;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("BAD_REQUEST", { cause: error });
+      }
+    }),
+  convertMermaidToTechnicalDiagram: protectedProcedure
+    .input(confirmMermaidConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.convert(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
     }),
   createDocument: protectedProcedure
     .input(createDocumentMutationInputSchema)

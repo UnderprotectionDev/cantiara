@@ -90,6 +90,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | AI ajanı | `AI Agent` | `AI agent` ve `agent` varyantlarının ortak kavramı |
 | Repository | `Repository` | GitHub'ın dış sistem kavramıdır; genel “depo” eşanlamlı kayıt türü oluşturmaz |
 | Teknik Diyagram | `Technical Diagram` | Veri modeli, teknik mimari veya sistemler arası sıralı etkileşimi bağımsız kimlik ve türlenmiş yapısal modelle taşıyan Proje ana kaydı |
+| Teknik Diyagram kullanılamıyor | `Technical Diagram is unavailable.` | Diyagram kaynağı çözümlenemediğinde salt okunur hata durumu |
+| Diyagram Görünümü kaydedilemedi | `Diagram View could not be saved.` | Seçili yapısal öğeleri gösteren adlandırılmış görünüm yazılamadığında hata durumu |
 | Diyagram otorite kipi | `Diagram Authority Mode` | Kanonik içeriğin `Product-authored Model`, `Repository-derived View`, `Imported Independent Copy` veya `External Source Link` seçeneklerinden hangisine ait olduğunu kayıt kimliği boyunca değişmez biçimde belirleyen tek sınıflandırma; başka otorite yeni kimlikli açık dönüşüm ister |
 | Diyagram Sürümü | `Diagram Version` | Teknik Diyagramın kullanıcı tarafından adlandırılıp değişmez hâle getirilen kesin yapısal model ve görünüm checkpoint'i |
 | Migration Artefaktı | `Migration Artifact` | İki kesin Veri Modeli Diyagramı Sürümü arasındaki onaylanmış schema-only değişikliği ve desteklenen PostgreSQL SQL'ini kaynak manifestiyle koruyan değişmez sahipli bileşen |
@@ -641,6 +643,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Gallery | `Gallery` | Akıllı Koleksiyon adlandırılmış görünüm sunumu; Dosya Eki kütüphanesi, Moodboard veya ayrı kapak kaydı değildir |
 | Varsayılan görünüm | `Default` | İş koleksiyonunda ilk adlandırılmış görünüm adı |
 | Adlandırılmış görünüm | `Named view` | Aynı Akıllı Koleksiyon üyeliği üzerindeki saklı sunum; ikinci üyelik kümesi değildir |
+| Akıllı Koleksiyon kaydedilemedi | `Smart Collection could not be saved.` | Yeni koleksiyon ve ilk adlandırılmış görünüm birlikte kaydedilemediğinde hata durumu |
+| Akıllı Koleksiyon kullanılamıyor | `Smart Collection is unavailable.` | Kaynak görünüm çözümlenemediğinde salt okunur hata durumu |
 | Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
 | Yeni iş | `New work` | İş koleksiyonunda doğrudan tekil alan eşitliğini dolduran oluşturma; tarih aralığı veya olumsuz koşul uygulamaz |
 | Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
@@ -1051,6 +1055,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Karşılaştır | `Compare` | İki Belge sürümünün gövde farkını gösterme |
 | Geri yükle | `Restore` | Seçilen Belge sürümünü yeni uç olarak yazma; geçmişi silmez |
 | Canlı İş bloğu | `Live Work block` | Belgeye gömülen, kaynak İş kimliğini kopyasız izleyen eyleme açık kart |
+| Canlı koleksiyon görünümü | `Smart Collection · Named view` | Belgedeki kaynak adlandırılmış görünümün salt okunur canlı bloğu |
 | Durumu değiştir | `Change status` | Canlı İş bloğunda olağan İş durum yazması |
 | Kapat | `Close` | Canlı İş bloğunda olağan İş kapanışı |
 | Kaynak kaydı aç | `Open source record` | Canlı gömmenin kaynak kaydını açma |
@@ -1059,6 +1064,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Toplu dönüştür | `Convert in bulk` | Liste satırlarından atomik İş dönüşümü |
 | Kayda dönüştür | `Convert to record` | Seçili metinden tam bir kayıt üretme |
 | Teknik Diyagrama dönüştür | `Convert to Technical Diagram` | Fenced Mermaid’den İçe aktarılmış bağımsız kopya |
+| Bağımsız Mermaid bloğu | `Original Mermaid block stays independent.` | Dönüşüm önizlemesinde kaynak bloğun Belge içinde korunacağını bildirir |
 | İçe aktarılmış bağımsız kopya | `Imported Independent Copy` | Mermaid dönüşümünün 59’da oluşan kanonik diyagram kopyası |
 | Dosya Eki | `File Attachment` | Dosya Eki dönüşüm hedefi |
 | Dosya seç | `Choose file` | Dosya Eki yükleme denetiminin görünür dosya seçme eylemi |

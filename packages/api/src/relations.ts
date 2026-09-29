@@ -975,6 +975,8 @@ export const USAGE_LINK_RECORD_TYPE_OPTIONS = [
   "Production Incident",
   "Project Release",
   "Risk",
+  "Smart Collection View",
+  "Technical Diagram",
   "Test Gap",
   "Test Handoff",
   "Test Session",

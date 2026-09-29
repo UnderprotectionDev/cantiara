@@ -59,10 +59,12 @@ import { createDatabaseProjectShellMutationContracts } from "../src/features/pro
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
+import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
 } from "../src/features/tags/server/tags-database";
+import { createDatabaseTechnicalDiagrams } from "../src/features/technical-diagrams/server/technical-diagrams-database";
 import { createWorkContextAccess } from "../src/features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
@@ -85,6 +87,8 @@ if (!(databaseUrl && securityEventDatabaseUrl && secret)) {
 
 const database = createDb({ DATABASE_URL: databaseUrl });
 const documents = createDatabaseDocuments(database);
+const smartCollections = createDatabaseSmartCollections(database);
+const technicalDiagrams = createDatabaseTechnicalDiagrams(database);
 const documentMutationContracts =
   createDatabaseDocumentMutationContracts(database);
 const securityEventDatabase = createSecurityEventDb({
@@ -249,6 +253,8 @@ const app = createApp({
   database,
   documentMutationContracts,
   documents,
+  smartCollections,
+  technicalDiagrams,
   // Keep integration coverage inside the API window regardless of CI date.
   desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
   desktopOrigins: [],

@@ -1,0 +1,268 @@
+import type {
+  MermaidConversionInput,
+  TechnicalDiagramSource,
+  TechnicalDiagramsAccess,
+} from "@cantiara/api/technical-diagrams";
+import type { Database } from "@cantiara/db";
+import { workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
+import { project } from "@cantiara/db/schema/project";
+import {
+  diagramDocumentOrigin,
+  diagramView,
+  technicalDiagram,
+} from "@cantiara/db/schema/technical-diagram";
+import { and, eq } from "drizzle-orm";
+
+import { parseMermaidArchitecture } from "./mermaid-conversion";
+
+export class MermaidConversionConflictError extends Error {}
+
+const mermaidBlockPattern = /^```mermaid[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/;
+
+export function createDatabaseTechnicalDiagrams(
+  database: Database,
+): TechnicalDiagramsAccess {
+  async function previewConversion(
+    accountId: string,
+    input: MermaidConversionInput,
+  ) {
+    const [row] = await database
+      .select({ document })
+      .from(document)
+      .innerJoin(project, eq(document.projectId, project.id))
+      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .where(
+        and(
+          eq(document.id, input.documentId),
+          eq(workspace.ownerAccountId, accountId),
+        ),
+      )
+      .limit(1);
+    if (!row || row.document.revision !== input.documentRevision) {
+      return null;
+    }
+    const block = row.document.body.slice(input.blockStart, input.blockEnd);
+    const source = mermaidBlockPattern.exec(block)?.[1];
+    if (!source || input.blockEnd > row.document.body.length) {
+      throw new MermaidConversionConflictError(
+        "The selected Mermaid block is unavailable.",
+      );
+    }
+    return {
+      title: input.title,
+      projectId: row.document.projectId,
+      documentId: input.documentId,
+      documentRevision: input.documentRevision,
+      blockStart: input.blockStart,
+      blockEnd: input.blockEnd,
+      type: "Technical Architecture" as const,
+      authorityMode: "Imported Independent Copy" as const,
+      originalBlock: "Keep independent" as const,
+      model: parseMermaidArchitecture(source),
+    };
+  }
+  async function get(
+    accountId: string,
+    diagramId: string,
+    viewId?: string,
+  ): Promise<TechnicalDiagramSource | null> {
+    const [row] = await database
+      .select({ diagram: technicalDiagram })
+      .from(technicalDiagram)
+      .innerJoin(project, eq(technicalDiagram.projectId, project.id))
+      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .where(
+        and(
+          eq(technicalDiagram.id, diagramId),
+          eq(workspace.ownerAccountId, accountId),
+        ),
+      )
+      .limit(1);
+    if (row?.diagram.authorityMode !== "Imported Independent Copy") {
+      return null;
+    }
+    const [view] = await database
+      .select()
+      .from(diagramView)
+      .where(
+        and(
+          eq(diagramView.diagramId, diagramId),
+          viewId ? eq(diagramView.id, viewId) : eq(diagramView.name, "Default"),
+        ),
+      )
+      .limit(1);
+    if (viewId && !view) {
+      return null;
+    }
+    const { diagram } = row;
+    return {
+      id: diagram.id,
+      projectId: diagram.projectId,
+      title: diagram.title,
+      type: diagram.type as TechnicalDiagramSource["type"],
+      authorityMode: "Imported Independent Copy",
+      model: diagram.model,
+      view: view
+        ? {
+            id: view.id,
+            name: view.name,
+            selectedNodeIds: view.selectedNodeIds,
+          }
+        : null,
+    };
+  }
+  return {
+    get,
+    previewConversion,
+    async createView(accountId, input) {
+      const diagram = await get(accountId, input.diagramId);
+      if (!diagram) {
+        return null;
+      }
+      const allowed = new Set(diagram.model.nodes.map(({ id }) => id));
+      if (
+        new Set(input.selectedNodeIds).size !== input.selectedNodeIds.length ||
+        input.selectedNodeIds.some((id) => !allowed.has(id))
+      ) {
+        throw new MermaidConversionConflictError(
+          "Diagram View contains an unknown element.",
+        );
+      }
+      const existing = await get(
+        accountId,
+        input.diagramId,
+        input.clientIdempotencyKey,
+      );
+      if (existing?.view) {
+        if (
+          existing.view.name !== input.name ||
+          JSON.stringify(existing.view.selectedNodeIds) !==
+            JSON.stringify(input.selectedNodeIds)
+        ) {
+          throw new MermaidConversionConflictError(
+            "This confirmation key was used for another Diagram View.",
+          );
+        }
+        return existing;
+      }
+      const [created] = await database
+        .insert(diagramView)
+        .values({
+          id: input.clientIdempotencyKey,
+          diagramId: input.diagramId,
+          name: input.name,
+          selectedNodeIds: input.selectedNodeIds,
+        })
+        .onConflictDoNothing()
+        .returning({ id: diagramView.id });
+      if (!created) {
+        throw new MermaidConversionConflictError(
+          "Diagram View name or confirmation key is already used.",
+        );
+      }
+      return get(accountId, input.diagramId, created.id);
+    },
+    async convert(accountId, input) {
+      const diagramId = input.clientIdempotencyKey;
+      const existing = await get(accountId, diagramId);
+      if (existing) {
+        const [origin] = await database
+          .select()
+          .from(diagramDocumentOrigin)
+          .where(eq(diagramDocumentOrigin.diagramId, diagramId))
+          .limit(1);
+        if (
+          !origin ||
+          existing.title !== input.title ||
+          origin.documentId !== input.documentId ||
+          origin.documentRevision !== input.documentRevision ||
+          origin.blockStart !== input.blockStart ||
+          origin.blockEnd !== input.blockEnd
+        ) {
+          throw new MermaidConversionConflictError(
+            "This confirmation key was used for another conversion.",
+          );
+        }
+        return existing;
+      }
+      const preview = await previewConversion(accountId, input);
+      if (!preview) {
+        return null;
+      }
+      await database.transaction(async (tx) => {
+        const [saved] = await tx
+          .select({ revision: document.revision })
+          .from(document)
+          .where(eq(document.id, input.documentId))
+          .for("update")
+          .limit(1);
+        if (saved?.revision !== input.documentRevision) {
+          throw new MermaidConversionConflictError(
+            "The Document changed after preview.",
+          );
+        }
+        const [created] = await tx
+          .insert(technicalDiagram)
+          .values({
+            id: diagramId,
+            projectId: preview.projectId,
+            title: input.title,
+            type: preview.type,
+            authorityMode: preview.authorityMode,
+            model: preview.model,
+          })
+          .onConflictDoNothing()
+          .returning({ id: technicalDiagram.id });
+        if (!created) {
+          throw new MermaidConversionConflictError(
+            "This confirmation key was used for another conversion.",
+          );
+        }
+        await tx.insert(diagramDocumentOrigin).values({
+          diagramId,
+          documentId: input.documentId,
+          documentRevision: input.documentRevision,
+          blockStart: input.blockStart,
+          blockEnd: input.blockEnd,
+        });
+        await tx.insert(diagramView).values({
+          id: `${diagramId}:default`,
+          diagramId,
+          name: "Default",
+          selectedNodeIds: preview.model.nodes.map(({ id }) => id),
+        });
+      });
+      return get(accountId, diagramId);
+    },
+    async list(accountId, projectId) {
+      const rows = await database
+        .select({ id: technicalDiagram.id })
+        .from(technicalDiagram)
+        .innerJoin(project, eq(technicalDiagram.projectId, project.id))
+        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+        .where(
+          and(
+            eq(technicalDiagram.projectId, projectId),
+            eq(workspace.ownerAccountId, accountId),
+          ),
+        );
+      return (
+        await Promise.all(rows.map(({ id }) => get(accountId, id)))
+      ).filter((value): value is TechnicalDiagramSource => value !== null);
+    },
+    async listViews(accountId, diagramId) {
+      if (!(await get(accountId, diagramId))) {
+        return null;
+      }
+      return database
+        .select({
+          id: diagramView.id,
+          name: diagramView.name,
+          selectedNodeIds: diagramView.selectedNodeIds,
+        })
+        .from(diagramView)
+        .where(eq(diagramView.diagramId, diagramId));
+    },
+  };
+}

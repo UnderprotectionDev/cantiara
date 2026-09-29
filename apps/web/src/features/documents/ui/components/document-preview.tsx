@@ -1,7 +1,9 @@
 import {
-  documentLiveWorkDirectives,
+  documentLiveDirectives,
   type LiveWorkSource,
 } from "@cantiara/api/documents";
+import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { defaultHighlighter } from "@tanstack/highlight";
 import { createTanStackMarkdownHighlighter } from "@tanstack/highlight/markdown";
@@ -34,6 +36,12 @@ const highlightThemeCss = createThemeCss({
 
 const previewPattern =
   /^[ ]{0,3}(?<fenceCharacter>`|~)(?<fenceTail>\k<fenceCharacter>{2,})(?<language>[^\n]*)\n(?<fenceBody>[\s\S]*?)\n[ ]{0,3}\k<fenceCharacter>\k<fenceTail>\k<fenceCharacter>*[ \t]*(?=\r?\n|$)|(`+)([^`\n]*?)\5|\$\$([\s\S]*?)\$\$/gm;
+
+const livePartKind = {
+  Work: "live-work",
+  "Smart Collection": "live-collection",
+  "Technical Diagram": "live-diagram",
+} as const;
 
 const inlineMathExtension: MarkdownExtension = {
   name: "document-inline-math",
@@ -178,6 +186,113 @@ interface LiveWorkBlock {
   workId: string;
 }
 
+interface LiveOtherBlock {
+  id: string;
+  kind: "Work" | "Smart Collection" | "Technical Diagram";
+  source: SmartCollectionViewSource | TechnicalDiagramSource | null;
+  viewId: string | null;
+}
+
+function LiveOtherCard({
+  block,
+  kind,
+  loading,
+}: {
+  block?: LiveOtherBlock;
+  kind: "Smart Collection" | "Technical Diagram";
+  loading: boolean;
+}) {
+  const source = block?.source;
+  if (!source) {
+    return (
+      <section aria-label={kind} className="rounded-lg border p-4">
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      </section>
+    );
+  }
+  if ("works" in source) {
+    return (
+      <section
+        aria-label="Smart Collection"
+        className="space-y-2 rounded-lg border p-4"
+      >
+        <p className="text-xs">Smart Collection · Named view</p>
+        <h3 className="font-medium">
+          {source.collectionName} · {source.name}
+        </h3>
+        <p className="text-muted-foreground text-sm">{source.presentation}</p>
+        {source.presentation === "Table" ? (
+          <table className="w-full text-left">
+            <thead>
+              <tr>
+                <th>Work</th>
+                <th>Status</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {source.works.map((work) => (
+                <tr key={work.id}>
+                  <td>
+                    {work.key} · {work.title}
+                  </td>
+                  <td>{work.status}</td>
+                  <td>{work.type}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <ul className="list-inside list-disc">
+            {source.works.map((work) => (
+              <li key={work.id}>
+                {work.key} · {work.title} · {work.status}
+              </li>
+            ))}
+          </ul>
+        )}
+        <a
+          className="underline"
+          href={`/projects/${source.projectId}#smart-collection-view-${encodeURIComponent(source.id)}`}
+        >
+          Open source record
+        </a>
+      </section>
+    );
+  }
+  const selected =
+    source.view?.selectedNodeIds ?? source.model.nodes.map(({ id }) => id);
+  return (
+    <section
+      aria-label="Technical Diagram"
+      className="space-y-2 rounded-lg border p-4"
+    >
+      <p className="text-xs">
+        Technical Diagram · {source.view?.name ?? "Default"}
+      </p>
+      <h3 className="font-medium">{source.title}</h3>
+      <p className="text-muted-foreground text-sm">
+        {source.type} · {source.authorityMode}
+      </p>
+      <ul className="list-inside list-disc">
+        {source.model.nodes
+          .filter(({ id }) => selected.includes(id))
+          .map((node) => (
+            <li key={node.id}>{node.label}</li>
+          ))}
+      </ul>
+      <a
+        className="underline"
+        href={`/projects/${source.projectId}#technical-diagram-${encodeURIComponent(source.id)}`}
+      >
+        Open source record
+      </a>
+    </section>
+  );
+}
+
 function LiveWorkCard({
   block,
   loading,
@@ -266,19 +381,32 @@ function LiveWorkCard({
 }
 
 export default function DocumentPreview({
+  liveOtherBlocks,
   liveWorkBlocks,
+  onMermaidConvert,
   onLiveWorkAction,
   source,
 }: {
+  liveOtherBlocks?: readonly LiveOtherBlock[];
   liveWorkBlocks?: readonly LiveWorkBlock[];
+  onMermaidConvert?: (blockStart: number, blockEnd: number) => void;
   onLiveWorkAction?: (workId: string, action: "status" | "close") => void;
   source: string;
 }) {
   const parts: Array<{
-    kind: "markdown" | "mermaid" | "math" | "live-work";
+    kind:
+      | "markdown"
+      | "mermaid"
+      | "math"
+      | "live-work"
+      | "live-collection"
+      | "live-diagram";
     value: string;
+    start?: number;
+    end?: number;
+    viewId?: string;
   }> = [];
-  const directives = documentLiveWorkDirectives(source);
+  const directives = documentLiveDirectives(source);
   function appendMarkdown(value: string, offset: number) {
     let last = 0;
     for (const directive of directives) {
@@ -292,7 +420,11 @@ export default function DocumentPreview({
           value: value.slice(last, relativeStart),
         });
       }
-      parts.push({ kind: "live-work", value: directive.id });
+      parts.push({
+        kind: livePartKind[directive.kind],
+        value: directive.id,
+        viewId: directive.viewId,
+      });
       last = directive.end - offset;
     }
     if (last < value.length) {
@@ -314,7 +446,12 @@ export default function DocumentPreview({
     if (match[1] === undefined) {
       parts.push({ kind: "math", value: match[7] ?? "" });
     } else {
-      parts.push({ kind: "mermaid", value: match[4] ?? "" });
+      parts.push({
+        kind: "mermaid",
+        value: match[4] ?? "",
+        start: position,
+        end: position + match[0].length,
+      });
     }
     cursor = position + match[0].length;
   }
@@ -334,7 +471,25 @@ export default function DocumentPreview({
       {parts.map((part, index) => {
         const key = `${index}-${part.kind}`;
         if (part.kind === "mermaid") {
-          return <MermaidPreview key={key} source={part.value} />;
+          return (
+            <div key={key}>
+              <MermaidPreview source={part.value} />
+              {onMermaidConvert &&
+              part.start !== undefined &&
+              part.end !== undefined ? (
+                <Button
+                  // biome-ignore lint/performance/noJsxPropsBind: The selected Mermaid offsets belong to this rendered block.
+                  onClick={() =>
+                    onMermaidConvert(part.start as number, part.end as number)
+                  }
+                  type="button"
+                  variant="outline"
+                >
+                  Convert to Technical Diagram
+                </Button>
+              ) : null}
+            </div>
+          );
         }
         if (part.kind === "math") {
           return <MathPreview key={key} source={part.value} />;
@@ -349,6 +504,26 @@ export default function DocumentPreview({
               key={key}
               loading={!liveWorkBlocks}
               onAction={onLiveWorkAction}
+            />
+          );
+        }
+        if (part.kind === "live-collection" || part.kind === "live-diagram") {
+          const kind =
+            part.kind === "live-collection"
+              ? "Smart Collection"
+              : "Technical Diagram";
+          const block = liveOtherBlocks?.find(
+            (candidate) =>
+              candidate.id === part.value &&
+              candidate.kind === kind &&
+              candidate.viewId === (part.viewId ?? null),
+          );
+          return (
+            <LiveOtherCard
+              block={block}
+              key={key}
+              kind={kind}
+              loading={!liveOtherBlocks}
             />
           );
         }

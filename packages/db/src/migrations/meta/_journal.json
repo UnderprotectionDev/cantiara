@@ -575,6 +575,13 @@
       "when": 1790634993098,
       "tag": "0081_strong_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1790668289774,
+      "tag": "0082_outgoing_stone_men",
+      "breakpoints": true
     }
   ]
 }

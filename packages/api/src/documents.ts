@@ -22,10 +22,43 @@ const markdownLinesPattern = /\n/;
 const markdownFencePattern = /^ {0,3}(`{3,}|~{3,})/;
 const markdownFenceClosePattern = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 const liveWorkDirectivePattern = /^:::live-work\{workId="([^"]{1,255})"\}$/;
+const liveCollectionDirectivePattern =
+  /^:::live-collection\{viewId="([^"]{1,255})"\}$/;
+const liveDiagramDirectivePattern =
+  /^:::live-diagram\{diagramId="([^"]{1,255})"(?: viewId="([^"]{1,255})")?\}$/;
+
+export interface DocumentLiveDirective {
+  end: number;
+  id: string;
+  kind: "Work" | "Smart Collection" | "Technical Diagram";
+  start: number;
+  viewId?: string;
+}
+
+function liveDirectiveFromLine(line: string) {
+  const workId = liveWorkDirectivePattern.exec(line)?.[1];
+  if (workId) {
+    return { id: workId, kind: "Work" as const };
+  }
+  const collectionId = liveCollectionDirectivePattern.exec(line)?.[1];
+  if (collectionId) {
+    return { id: collectionId, kind: "Smart Collection" as const };
+  }
+  const diagramMatch = liveDiagramDirectivePattern.exec(line);
+  const diagramId = diagramMatch?.[1];
+  if (diagramId) {
+    return {
+      id: diagramId,
+      kind: "Technical Diagram" as const,
+      viewId: diagramMatch[2],
+    };
+  }
+  return null;
+}
 
 /** Live block directives carry only source identity; current fields are read at view time. */
-export function documentLiveWorkDirectives(body: string) {
-  const directives: Array<{ end: number; id: string; start: number }> = [];
+export function documentLiveDirectives(body: string): DocumentLiveDirective[] {
+  const directives: DocumentLiveDirective[] = [];
   let fence: { marker: string; length: number } | null = null;
   let start = 0;
   for (const line of body.split(markdownLinesPattern)) {
@@ -48,14 +81,26 @@ export function documentLiveWorkDirectives(body: string) {
       start += line.length + 1;
       continue;
     }
-    const match = liveWorkDirectivePattern.exec(normalizedLine);
-    const id = match?.[1];
-    if (id && documentIdSchema.safeParse(id).success) {
-      directives.push({ start, end: start + normalizedLine.length, id });
+    const directive = liveDirectiveFromLine(normalizedLine);
+    if (
+      directive &&
+      documentIdSchema.safeParse(directive.id).success &&
+      (!directive.viewId ||
+        documentIdSchema.safeParse(directive.viewId).success)
+    ) {
+      directives.push({
+        ...directive,
+        start,
+        end: start + normalizedLine.length,
+      });
     }
     start += line.length + 1;
   }
   return directives;
+}
+
+export function documentLiveWorkDirectives(body: string) {
+  return documentLiveDirectives(body).filter(({ kind }) => kind === "Work");
 }
 
 export function documentLiveWorkIds(body: string): string[] {

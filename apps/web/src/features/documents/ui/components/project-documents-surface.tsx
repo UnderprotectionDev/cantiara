@@ -68,6 +68,14 @@ function DocumentEditor({
   const [view, setView] = useState<DocumentView>("write");
   const [conversionWarning, setConversionWarning] = useState(false);
   const [previewBody, setPreviewBody] = useState(record.body);
+  const [savedBody, setSavedBody] = useState(record.body);
+  const [selectedDiagramId, setSelectedDiagramId] = useState("");
+  const [conversionSelection, setConversionSelection] = useState<{
+    start: number;
+    end: number;
+  } | null>(null);
+  const [conversionTitle, setConversionTitle] = useState(record.title);
+  const conversionKey = useRef<string | null>(null);
   const [workAction, setWorkAction] = useState<{
     id: string;
     kind: "status" | "close";
@@ -79,6 +87,68 @@ function DocumentEditor({
   const liveWorkBlocks = useQuery({
     ...liveWorkOptions,
     enabled: view === "preview",
+  });
+  const liveOtherOptions = orpc.documentLiveOtherBlocks.queryOptions({
+    input: { documentId: record.id, body: previewBody },
+  });
+  const liveOtherBlocks = useQuery({
+    ...liveOtherOptions,
+    enabled: view === "preview",
+  });
+  const collectionViews = useQuery({
+    ...orpc.smartCollectionViews.queryOptions({
+      input: { projectId: record.projectId },
+    }),
+    enabled: view === "markdown",
+  });
+  const diagrams = useQuery({
+    ...orpc.technicalDiagrams.queryOptions({
+      input: { projectId: record.projectId },
+    }),
+    enabled: view === "markdown",
+  });
+  const diagramViews = useQuery({
+    ...orpc.technicalDiagramViews.queryOptions({
+      input: { diagramId: selectedDiagramId },
+    }),
+    enabled: view === "markdown" && selectedDiagramId.length > 0,
+  });
+  const conversionPreview = useQuery({
+    ...orpc.previewMermaidConversion.queryOptions({
+      input: {
+        documentId: record.id,
+        documentRevision: revision,
+        blockStart: conversionSelection?.start ?? 0,
+        blockEnd: conversionSelection?.end ?? 1,
+        title: conversionTitle,
+      },
+    }),
+    enabled: conversionSelection !== null,
+  });
+  const convertDiagram = useMutation({
+    mutationFn: () => {
+      if (!conversionSelection) {
+        throw new Error("No Mermaid block selected.");
+      }
+      conversionKey.current ??= crypto.randomUUID();
+      return runOnlineOnlyWrite(() =>
+        client.convertMermaidToTechnicalDiagram({
+          documentId: record.id,
+          documentRevision: revision,
+          blockStart: conversionSelection.start,
+          blockEnd: conversionSelection.end,
+          title: conversionTitle,
+          clientIdempotencyKey: conversionKey.current as string,
+        }),
+      );
+    },
+    onSuccess: async () => {
+      setConversionSelection(null);
+      conversionKey.current = null;
+      await queryClient.invalidateQueries({
+        queryKey: orpc.technicalDiagrams.key(),
+      });
+    },
   });
   const works = useQuery({
     ...orpc.projectWorks.queryOptions({
@@ -138,6 +208,7 @@ function DocumentEditor({
         pendingSave.current = null;
       }
       setRevision(saved.revision);
+      setSavedBody(command.value.body);
       setError(null);
       await queryClient.invalidateQueries({
         queryKey: liveWorkOptions.queryKey,
@@ -182,7 +253,7 @@ function DocumentEditor({
       },
     },
     onUpdate: ({ editor: current }) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: the ref changes when the user enters Write.
+      // biome-ignore lint/suspicious/noUnnecessaryConditions: Write mode changes this mutable ref after editor initialization.
       if (allowRichUpdates.current) {
         form.setFieldValue("body", current.getMarkdown());
       }
@@ -359,6 +430,90 @@ function DocumentEditor({
                         </NativeSelectOption>
                       ))}
                     </NativeSelect>
+                    <Label htmlFor="document-live-collection">Named view</Label>
+                    <NativeSelect
+                      id="document-live-collection"
+                      onChange={(event) => {
+                        const viewId = event.target.value;
+                        if (viewId) {
+                          const spacer = field.state.value.trimEnd()
+                            ? "\n\n"
+                            : "";
+                          field.handleChange(
+                            `${field.state.value.trimEnd()}${spacer}:::live-collection{viewId="${viewId}"}\n`,
+                          );
+                        }
+                      }}
+                      value=""
+                    >
+                      <NativeSelectOption value="">
+                        Named view
+                      </NativeSelectOption>
+                      {collectionViews.data?.map((source) => (
+                        <NativeSelectOption key={source.id} value={source.id}>
+                          {source.collectionName} · {source.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                    <a
+                      className="text-sm underline"
+                      href={`/projects/${record.projectId}#smart-collections`}
+                    >
+                      Smart Collection
+                    </a>
+                    <Label htmlFor="document-live-diagram">
+                      Technical Diagram
+                    </Label>
+                    <NativeSelect
+                      id="document-live-diagram"
+                      onChange={(event) =>
+                        setSelectedDiagramId(event.target.value)
+                      }
+                      value={selectedDiagramId}
+                    >
+                      <NativeSelectOption value="">
+                        Technical Diagram
+                      </NativeSelectOption>
+                      {diagrams.data?.map((source) => (
+                        <NativeSelectOption key={source.id} value={source.id}>
+                          {source.title} · {source.type}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                    {selectedDiagramId ? (
+                      <>
+                        <Label htmlFor="document-live-diagram-view">
+                          Diagram View
+                        </Label>
+                        <NativeSelect
+                          id="document-live-diagram-view"
+                          onChange={(event) => {
+                            const viewId = event.target.value;
+                            if (viewId) {
+                              const spacer = field.state.value.trimEnd()
+                                ? "\n\n"
+                                : "";
+                              field.handleChange(
+                                `${field.state.value.trimEnd()}${spacer}:::live-diagram{diagramId="${selectedDiagramId}" viewId="${viewId}"}\n`,
+                              );
+                            }
+                          }}
+                          value=""
+                        >
+                          <NativeSelectOption value="">
+                            Diagram View
+                          </NativeSelectOption>
+                          {diagramViews.data?.map((diagramView) => (
+                            <NativeSelectOption
+                              key={diagramView.id}
+                              value={diagramView.id}
+                            >
+                              {diagramView.name}
+                            </NativeSelectOption>
+                          ))}
+                        </NativeSelect>
+                      </>
+                    ) : null}
                     <Label htmlFor="document-markdown">Markdown source</Label>
                     <textarea
                       className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
@@ -379,6 +534,11 @@ function DocumentEditor({
               {(body) => (
                 <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
                   <DocumentPreview
+                    liveOtherBlocks={
+                      liveOtherBlocks.isPending
+                        ? undefined
+                        : (liveOtherBlocks.data ?? [])
+                    }
                     liveWorkBlocks={
                       liveWorkBlocks.isPending
                         ? undefined
@@ -390,6 +550,15 @@ function DocumentEditor({
                         kind,
                         requestId: crypto.randomUUID(),
                       })
+                    }
+                    onMermaidConvert={
+                      previewBody === savedBody
+                        ? (start, end) => {
+                            conversionKey.current = null;
+                            setConversionTitle(record.title);
+                            setConversionSelection({ start, end });
+                          }
+                        : undefined
                     }
                     source={body}
                   />
@@ -448,6 +617,66 @@ function DocumentEditor({
           ) : (
             <p role="status">Loading source record…</p>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setConversionSelection(null);
+            conversionKey.current = null;
+          }
+        }}
+        open={conversionSelection !== null}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convert to Technical Diagram</DialogTitle>
+            <DialogDescription>Imported Independent Copy</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="converted-diagram-title">Title</Label>
+            <Input
+              id="converted-diagram-title"
+              onChange={(event) => setConversionTitle(event.target.value)}
+              value={conversionTitle}
+            />
+            {conversionPreview.data ? (
+              <div className="text-sm">
+                <p>
+                  Document: {record.title} · Version:{" "}
+                  {conversionPreview.data.documentRevision}
+                </p>
+                <p>Technical Architecture · Imported Independent Copy</p>
+                <p>Original Mermaid block stays independent.</p>
+                <p>
+                  {conversionPreview.data.model.nodes.length} nodes ·{" "}
+                  {conversionPreview.data.model.links.length} links
+                </p>
+              </div>
+            ) : null}
+            {conversionPreview.isError ? (
+              <p role="alert">{conversionPreview.error.message}</p>
+            ) : null}
+            {convertDiagram.isError ? (
+              <p role="alert">{convertDiagram.error.message}</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setConversionSelection(null)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!conversionPreview.data || convertDiagram.isPending}
+              onClick={() => convertDiagram.mutate()}
+              type="button"
+            >
+              Convert to Technical Diagram
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </section>

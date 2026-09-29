@@ -55,7 +55,9 @@ import type {
   UsageLinksAccess,
 } from "@cantiara/api/relations";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
+import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
+import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -108,8 +110,10 @@ export interface CreateContextOptions {
   recordActions?: RecordActionsAccess;
   relations?: RelationsAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
+  smartCollections?: SmartCollectionsAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
+  technicalDiagrams?: TechnicalDiagramsAccess;
   trustedProxyIps: readonly string[];
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
@@ -140,6 +144,8 @@ export async function createContext({
   dailyFocus,
   documentMutationContracts,
   documents,
+  smartCollections,
+  technicalDiagrams,
   focusPeriod,
   roadmapHorizon,
   captureInbox,
@@ -200,6 +206,8 @@ export async function createContext({
     dailyFocus,
     documentMutationContracts,
     documents,
+    smartCollections,
+    technicalDiagrams,
     focusPeriod,
     roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),

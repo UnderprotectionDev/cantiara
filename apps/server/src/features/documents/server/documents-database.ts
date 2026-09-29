@@ -8,7 +8,7 @@ import type {
 import {
   createDocumentInputSchema,
   DocumentUnavailableError,
-  documentLiveWorkIds,
+  documentLiveDirectives,
   documentSchema,
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
@@ -75,7 +75,7 @@ async function findWorkspaceId(
   return record?.id ?? null;
 }
 
-async function syncDocumentLiveWorkUsageLinks(
+async function syncDocumentLiveUsageLinks(
   executor: MutationDatabaseExecutor,
   accountId: string,
   documentId: string,
@@ -90,6 +90,7 @@ async function syncDocumentLiveWorkUsageLinks(
       id: usageLink.id,
       location: usageLink.location,
       sourceRecordId: usageLink.sourceRecordId,
+      sourceRecordType: usageLink.sourceRecordType,
     })
     .from(usageLink)
     .where(
@@ -104,29 +105,44 @@ async function syncDocumentLiveWorkUsageLinks(
     ({ location }) =>
       !!location &&
       typeof location === "object" &&
-      "documentLiveWorkOrdinal" in location,
+      ("documentLiveWorkOrdinal" in location ||
+        "documentLiveOrdinal" in location),
   );
-  const workIds = documentLiveWorkIds(body);
+  const directives = documentLiveDirectives(body);
   const newLinks: (typeof usageLink.$inferInsert)[] = [];
-  const locationUpdates: { id: string; ordinal: number }[] = [];
-  for (const [index, workId] of workIds.entries()) {
+  const locationUpdates: { id: string; ordinal: number; viewId?: string }[] =
+    [];
+  for (const [index, directive] of directives.entries()) {
+    const sourceRecordType =
+      directive.kind === "Smart Collection"
+        ? "Smart Collection View"
+        : directive.kind;
     const previousIndex = available.findIndex(
-      (candidate) => candidate.sourceRecordId === workId,
+      (candidate) =>
+        candidate.sourceRecordId === directive.id &&
+        candidate.sourceRecordType === sourceRecordType,
     );
     if (previousIndex !== -1) {
       const [previous] = available.splice(previousIndex, 1);
       if (previous) {
-        locationUpdates.push({ id: previous.id, ordinal: index });
+        locationUpdates.push({
+          id: previous.id,
+          ordinal: index,
+          viewId: directive.viewId,
+        });
       }
       continue;
     }
     newLinks.push({
       id: crypto.randomUUID(),
       kind: "Live block",
-      location: { documentLiveWorkOrdinal: index },
+      location: {
+        documentLiveOrdinal: index,
+        ...(directive.viewId ? { viewId: directive.viewId } : {}),
+      },
       revision: 1,
-      sourceRecordId: workId,
-      sourceRecordType: "Work",
+      sourceRecordId: directive.id,
+      sourceRecordType,
       surfaceRecordId: documentId,
       surfaceRecordType: "Document",
       workspaceId,
@@ -141,10 +157,15 @@ async function syncDocumentLiveWorkUsageLinks(
     );
   }
   await Promise.all(
-    locationUpdates.map(({ id, ordinal }) =>
+    locationUpdates.map(({ id, ordinal, viewId }) =>
       executor
         .update(usageLink)
-        .set({ location: { documentLiveWorkOrdinal: ordinal } })
+        .set({
+          location: {
+            documentLiveOrdinal: ordinal,
+            ...(viewId ? { viewId } : {}),
+          },
+        })
         .where(eq(usageLink.id, id)),
     ),
   );
@@ -265,7 +286,7 @@ function createDocumentTarget(
         })
         .returning();
       if (created) {
-        await syncDocumentLiveWorkUsageLinks(
+        await syncDocumentLiveUsageLinks(
           executor,
           accountId,
           created.id,
@@ -323,7 +344,7 @@ function updateDocumentTarget(
         )
         .returning();
       if (updated) {
-        await syncDocumentLiveWorkUsageLinks(
+        await syncDocumentLiveUsageLinks(
           executor,
           accountId,
           updated.id,

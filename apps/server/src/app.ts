@@ -67,8 +67,10 @@ import type {
 } from "@cantiara/api/relations";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
+import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
+import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import {
   type WebCaptureAccess,
   webCapturePairingInputSchema,
@@ -175,9 +177,11 @@ export interface AppDependencies {
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
+  smartCollections?: SmartCollectionsAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   tauriSessionAccess?: TauriSessionAccess;
+  technicalDiagrams?: TechnicalDiagramsAccess;
   trustedProxyIps: readonly string[];
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
@@ -1148,6 +1152,8 @@ export function createApp(dependencies: AppDependencies) {
       dailyFocus: dependencies.dailyFocus,
       documentMutationContracts: dependencies.documentMutationContracts,
       documents: dependencies.documents,
+      smartCollections: dependencies.smartCollections,
+      technicalDiagrams: dependencies.technicalDiagrams,
       focusPeriod: dependencies.focusPeriod,
       roadmapHorizon: dependencies.roadmapHorizon,
       captureInbox: dependencies.captureInbox,

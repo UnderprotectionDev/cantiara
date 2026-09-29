@@ -13,11 +13,18 @@ import {
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
+import {
+  diagramDocumentOrigin,
+  diagramView,
+  technicalDiagram,
+} from "@cantiara/db/schema/technical-diagram";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDatabaseUsageLinks } from "../../relations/server/usage-links-database";
+import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
+import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -52,6 +59,8 @@ describeDatabase("Documents database boundary", () => {
       documentMutationContracts:
         createDatabaseDocumentMutationContracts(database),
       documents: createDatabaseDocuments(database),
+      smartCollections: createDatabaseSmartCollections(database),
+      technicalDiagrams: createDatabaseTechnicalDiagrams(database),
       githubAvailability: { getStatus: () => "available" },
       session: {
         session: { id: "session-1" },
@@ -277,5 +286,187 @@ describeDatabase("Documents database boundary", () => {
         recordType: "Work",
       }),
     ).toEqual([]);
+  });
+
+  it("embeds a named Smart Collection view and Diagram View from their current sources", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const api = client();
+    await database.insert(work).values({
+      id: "collection-work",
+      key: "DOC-2",
+      number: 2,
+      projectId,
+      title: "Matching Work",
+      type: "Task",
+      status: "In Progress",
+    });
+    const createCollection = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      name: "Active tasks",
+      conditions: { status: "In Progress" },
+      viewName: "Team list",
+      presentation: "List",
+    } as const;
+    const collection = await api.createSmartCollection(createCollection);
+    expect(await api.createSmartCollection(createCollection)).toEqual(
+      collection,
+    );
+    await expect(
+      api.createSmartCollection({ ...createCollection, name: "Different" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(collection.works).toMatchObject([{ title: "Matching Work" }]);
+    await database.insert(technicalDiagram).values({
+      id: "diagram-source",
+      projectId,
+      title: "Architecture",
+      type: "Technical Architecture",
+      authorityMode: "Imported Independent Copy",
+      model: {
+        nodes: [{ id: "service", label: "API", kind: "Service" }],
+        links: [],
+      },
+    });
+    await database.insert(diagramView).values({
+      id: "diagram-view",
+      diagramId: "diagram-source",
+      name: "Services",
+      selectedNodeIds: ["service"],
+    });
+    const created = await api.createDocument({
+      baseRevision: 0,
+      body: `:::live-collection{viewId="${collection.id}"}\n:::live-diagram{diagramId="diagram-source" viewId="diagram-view"}`,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Embedded sources",
+      type: "General",
+    });
+    expect(
+      await api.documentLiveOtherBlocks({ documentId: created.id }),
+    ).toMatchObject([
+      {
+        kind: "Smart Collection",
+        source: { works: [{ title: "Matching Work" }] },
+      },
+      { kind: "Technical Diagram", source: { view: { name: "Services" } } },
+    ]);
+    await database
+      .update(work)
+      .set({ status: "Not Started" })
+      .where(eq(work.id, "collection-work"));
+    expect(
+      await api.documentLiveOtherBlocks({ documentId: created.id }),
+    ).toMatchObject([
+      { source: { works: [] } },
+      { source: { model: { nodes: [{ label: "API" }] } } },
+    ]);
+    const links = await createDatabaseUsageLinks(database).listBySource(
+      accountId,
+      {
+        recordType: "Technical Diagram",
+        recordId: "diagram-source",
+      },
+    );
+    expect(links).toMatchObject([
+      { kind: "Live block", surface: { recordId: created.id } },
+    ]);
+    expect(
+      await createDatabaseSmartCollections(database).getView(
+        "another-account",
+        collection.id,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseTechnicalDiagrams(database).get(
+        "another-account",
+        "diagram-source",
+      ),
+    ).toBeNull();
+    await database
+      .delete(diagramView)
+      .where(eq(diagramView.id, "diagram-view"));
+    await database
+      .delete(technicalDiagram)
+      .where(eq(technicalDiagram.id, "diagram-source"));
+    expect(
+      await api.documentLiveOtherBlocks({ documentId: created.id }),
+    ).toMatchObject([{ source: { works: [] } }, { source: null }]);
+  });
+
+  it("previews and atomically converts a saved Mermaid block into an independent Technical Diagram", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const api = client();
+    const block = "```mermaid\ngraph TD\nweb[Web] --> api[API]\n```";
+    const saved = await api.createDocument({
+      baseRevision: 0,
+      body: `# Design\n\n${block}`,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Design",
+      type: "General",
+    });
+    const command = {
+      documentId: saved.id,
+      documentRevision: saved.revision,
+      blockStart: saved.body.indexOf(block),
+      blockEnd: saved.body.indexOf(block) + block.length,
+      title: "Web architecture",
+    };
+    const preview = await api.previewMermaidConversion(command);
+    expect(preview).toMatchObject({
+      authorityMode: "Imported Independent Copy",
+      originalBlock: "Keep independent",
+      model: { nodes: [{ label: "Web" }, { label: "API" }] },
+    });
+    const confirmed = { ...command, clientIdempotencyKey: crypto.randomUUID() };
+    const created = await api.convertMermaidToTechnicalDiagram(confirmed);
+    expect(created).toMatchObject({
+      title: "Web architecture",
+      view: { name: "Default" },
+    });
+    const viewInput = {
+      clientIdempotencyKey: crypto.randomUUID(),
+      diagramId: created.id,
+      name: "Web only",
+      selectedNodeIds: ["web"],
+    };
+    const namedView = await api.createDiagramView(viewInput);
+    expect(namedView.view).toMatchObject({
+      name: "Web only",
+      selectedNodeIds: ["web"],
+    });
+    expect(await api.createDiagramView(viewInput)).toEqual(namedView);
+    await expect(
+      api.createDiagramView({
+        ...viewInput,
+        clientIdempotencyKey: crypto.randomUUID(),
+        selectedNodeIds: ["missing"],
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await api.convertMermaidToTechnicalDiagram(confirmed)).toEqual(
+      created,
+    );
+    expect((await api.document({ documentId: saved.id })).body).toBe(
+      saved.body,
+    );
+    expect(
+      await database
+        .select()
+        .from(diagramDocumentOrigin)
+        .where(eq(diagramDocumentOrigin.diagramId, created.id)),
+    ).toMatchObject([
+      { documentId: saved.id, documentRevision: saved.revision },
+    ]);
+    await expect(
+      api.previewMermaidConversion({
+        ...command,
+        blockEnd: command.blockEnd - 1,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(1);
   });
 });
