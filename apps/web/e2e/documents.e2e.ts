@@ -395,9 +395,11 @@ test("formats a Document from the rich editor toolbar", async ({
   await document.getByRole("button", { name: "Link", exact: true }).click();
   await page.getByLabel("URL", { exact: true }).fill("javascript:alert(1)");
   await page.getByRole("button", { name: "Apply link" }).click();
-  await expect(page.getByRole("alert")).toHaveText(
-    "Use an http, https, or mailto URL.",
-  );
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Use an http, https, or mailto URL." }),
+  ).toHaveText("Use an http, https, or mailto URL.");
   await page.getByLabel("URL", { exact: true }).fill("https://example.com");
   await page.getByRole("button", { name: "Apply link" }).click();
   await document.getByRole("tab", { name: "Markdown" }).click();
