@@ -149,6 +149,11 @@ export interface FocusPeriodRecord {
 export class FocusPeriodUnavailableError extends Error {}
 export class FocusPeriodConflictError extends Error {}
 
+export const FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE =
+  "Work is already in an active Focus Period. Use Move.";
+export const FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE =
+  "Work is already in another Focus Period.";
+
 export interface FocusPeriodAccess {
   add: (accountId: string, periodId: string, workId: string) => Promise<void>;
   cancel: (accountId: string, periodId: string) => Promise<void>;
@@ -167,6 +172,7 @@ export interface FocusPeriodAccess {
     input: FocusPeriodFollowUpLinkInput,
   ) => Promise<void>;
   list: (accountId: string) => Promise<FocusPeriodRecord[]>;
+  move: (accountId: string, periodId: string, workId: string) => Promise<void>;
   remove: (
     accountId: string,
     periodId: string,

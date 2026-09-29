@@ -73,9 +73,11 @@ import {
   documentLiveDirectives,
   documentLiveWorkIds,
   documentSchema,
+  documentVersionInputSchema,
   documentRecordReferences as parseDocumentRecordReferences,
   pinDocumentEvidenceInputSchema,
   projectIdSchema,
+  restoreDocumentVersionInputSchema,
   updateDocumentInputSchema,
   updateDocumentMutationInputSchema,
 } from "../documents";
@@ -102,6 +104,8 @@ import {
 } from "../file-attachments";
 import {
   createFocusPeriodInputSchema,
+  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
   FocusPeriodConflictError,
   FocusPeriodUnavailableError,
   focusPeriodDecisionInputSchema,
@@ -458,6 +462,15 @@ function rethrowFocusPeriodError(error: unknown): never {
     throw new ORPCError("NOT_FOUND", { cause: error });
   }
   if (error instanceof FocusPeriodConflictError) {
+    if (
+      error.message === FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE ||
+      error.message === FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE
+    ) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        message: error.message,
+      });
+    }
     throw new ORPCError("CONFLICT", { cause: error });
   }
   throw error;
@@ -2679,6 +2692,91 @@ export const appRouter = {
         throw new ORPCError("CONFLICT", { cause: error });
       }
     }),
+  documentVersions: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const versions = await context.documents.versions(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!versions) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return versions;
+    }),
+  documentVersion: protectedProcedure
+    .input(documentVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const version = await context.documents.getVersion(
+        context.session.user.id,
+        input.documentId,
+        input.revision,
+      );
+      if (!version) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return version;
+    }),
+  restoreDocumentVersion: protectedProcedure
+    .input(restoreDocumentVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const selected = await context.documents.getVersion(
+        context.session.user.id,
+        input.documentId,
+        input.revision,
+      );
+      if (!selected) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      const mutation = requireDocumentMutationContracts(context).update(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {
+              documentId: input.documentId,
+              title: selected.title,
+              body: selected.body,
+              type: selected.type,
+            },
+            targetId: input.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) =>
+            ({
+              document: currentValue.document
+                ? documentSchema.parse({
+                    ...currentValue.document,
+                    title: selected.title,
+                    body: selected.body,
+                    type: selected.type,
+                    revision: currentRevision + 1,
+                    updatedAt: committedAt,
+                  })
+                : null,
+            }) satisfies DocumentMutationValue,
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.documentId);
+      }
+    }),
   createDocument: protectedProcedure
     .input(createDocumentMutationInputSchema)
     .handler(async ({ context, input }) => {
@@ -3895,6 +3993,20 @@ export const appRouter = {
     .handler(async ({ context, input }) => {
       try {
         await requireFocusPeriod(context).add(
+          context.session.user.id,
+          input.periodId,
+          input.workId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  moveToFocusPeriod: protectedProcedure
+    .input(focusPeriodMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).move(
           context.session.user.id,
           input.periodId,
           input.workId,

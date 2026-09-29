@@ -2,6 +2,8 @@ import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import { accountLocalDate } from "@cantiara/api/backlog";
 import {
   type CreateFocusPeriodInput,
+  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
   type FocusPeriodAccess,
   FocusPeriodConflictError,
   type FocusPeriodDecisionInput,
@@ -30,7 +32,11 @@ import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 
-type FocusPeriodSnapshotExecutor = Pick<Database, "select">;
+type FocusPeriodReadExecutor = Pick<Database, "select">;
+type FocusPeriodMutationExecutor = Pick<
+  Database,
+  "execute" | "insert" | "select" | "update"
+>;
 
 export function createDatabaseFocusPeriod(
   database: Database,
@@ -101,7 +107,7 @@ export function createDatabaseFocusPeriod(
   }
 
   function snapshotWorks(
-    executor: FocusPeriodSnapshotExecutor,
+    executor: FocusPeriodReadExecutor,
     workspaceId: string,
     ids: string[],
   ) {
@@ -135,6 +141,251 @@ export function createDatabaseFocusPeriod(
         ),
       );
     return rows.map((row) => row.workId);
+  }
+
+  async function assertNoOtherActiveMembership(
+    executor: FocusPeriodReadExecutor,
+    periodId: string,
+    workId: string,
+  ) {
+    const [activeMembership] = await executor
+      .select({ periodId: focusPeriodActiveWork.periodId })
+      .from(focusPeriodActiveWork)
+      .where(
+        and(
+          eq(focusPeriodActiveWork.workId, workId),
+          ne(focusPeriodActiveWork.periodId, periodId),
+        ),
+      )
+      .limit(1);
+    if (activeMembership) {
+      throw new FocusPeriodConflictError(
+        FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+      );
+    }
+  }
+
+  async function lockMovePeriods(
+    executor: FocusPeriodMutationExecutor,
+    workspaceId: string,
+    targetPeriodId: string,
+    workId: string,
+  ) {
+    await executor.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${workId}))`,
+    );
+    const [activeMembership] = await executor
+      .select({ periodId: focusPeriodActiveWork.periodId })
+      .from(focusPeriodActiveWork)
+      .where(eq(focusPeriodActiveWork.workId, workId))
+      .limit(1);
+    const periodIds = [
+      ...new Set(
+        [targetPeriodId, activeMembership?.periodId].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    ];
+    const lockedPeriods = await executor
+      .select()
+      .from(focusPeriod)
+      .where(
+        and(
+          eq(focusPeriod.workspaceId, workspaceId),
+          inArray(focusPeriod.id, periodIds),
+        ),
+      )
+      .orderBy(asc(focusPeriod.id))
+      .for("update");
+    const target = lockedPeriods.find((period) => period.id === targetPeriodId);
+    if (!target) {
+      throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
+    }
+    if (target.status !== "Active") {
+      throw new FocusPeriodConflictError(
+        "Move requires an Active Focus Period.",
+      );
+    }
+    if (activeMembership?.periodId === targetPeriodId) {
+      return null;
+    }
+    if (!activeMembership) {
+      throw new FocusPeriodConflictError(
+        "Work is not in another Active Focus Period.",
+      );
+    }
+    const source = lockedPeriods.find(
+      (period) => period.id === activeMembership.periodId,
+    );
+    if (source?.status !== "Active") {
+      throw new FocusPeriodConflictError(
+        "Work is not in another Active Focus Period.",
+      );
+    }
+    return { sourcePeriodId: source.id, targetPeriodId: target.id };
+  }
+
+  async function endMoveSourceMembership(
+    executor: FocusPeriodMutationExecutor,
+    sourcePeriodId: string,
+    workId: string,
+    timestamp: Date,
+  ) {
+    const [sourceMembership] = await executor
+      .select({ id: focusPeriodMembership.id })
+      .from(focusPeriodMembership)
+      .where(
+        and(
+          eq(focusPeriodMembership.periodId, sourcePeriodId),
+          eq(focusPeriodMembership.workId, workId),
+          isNull(focusPeriodMembership.removedAt),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!sourceMembership) {
+      throw new FocusPeriodConflictError(
+        "Work is not in another Active Focus Period.",
+      );
+    }
+    const removed = await executor
+      .update(focusPeriodMembership)
+      .set({ removedAt: timestamp })
+      .where(
+        and(
+          eq(focusPeriodMembership.id, sourceMembership.id),
+          isNull(focusPeriodMembership.removedAt),
+        ),
+      )
+      .returning({ id: focusPeriodMembership.id });
+    if (!removed.length) {
+      throw new FocusPeriodConflictError(
+        "Work is not in another Active Focus Period.",
+      );
+    }
+  }
+
+  async function transferActiveMembership(
+    executor: FocusPeriodMutationExecutor,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+    workId: string,
+  ) {
+    const moved = await executor
+      .update(focusPeriodActiveWork)
+      .set({ periodId: targetPeriodId })
+      .where(
+        and(
+          eq(focusPeriodActiveWork.workId, workId),
+          eq(focusPeriodActiveWork.periodId, sourcePeriodId),
+        ),
+      )
+      .returning({ workId: focusPeriodActiveWork.workId });
+    if (!moved.length) {
+      throw new FocusPeriodConflictError(
+        "Work is not in another Active Focus Period.",
+      );
+    }
+  }
+
+  async function assertNoOverlappingMembership(
+    executor: FocusPeriodReadExecutor,
+    period: typeof focusPeriod.$inferSelect,
+    workId: string,
+  ) {
+    const [overlapping] = await executor
+      .select({ id: focusPeriodMembership.id })
+      .from(focusPeriodMembership)
+      .innerJoin(
+        focusPeriod,
+        eq(focusPeriodMembership.periodId, focusPeriod.id),
+      )
+      .where(
+        and(
+          eq(focusPeriodMembership.workId, workId),
+          isNull(focusPeriodMembership.removedAt),
+          eq(focusPeriod.workspaceId, period.workspaceId),
+          ne(focusPeriod.id, period.id),
+          inArray(focusPeriod.status, ["Planned", "Active"]),
+          lte(focusPeriod.startDate, period.endDate),
+          gte(focusPeriod.endDate, period.startDate),
+        ),
+      )
+      .limit(1);
+    if (overlapping) {
+      throw new FocusPeriodConflictError(
+        FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
+      );
+    }
+  }
+
+  async function claimActiveWork(
+    executor: FocusPeriodMutationExecutor,
+    periodId: string,
+    workId: string,
+  ) {
+    const claimed = await executor
+      .insert(focusPeriodActiveWork)
+      .values({ periodId, workId })
+      .onConflictDoNothing()
+      .returning({ workId: focusPeriodActiveWork.workId });
+    if (!claimed.length) {
+      throw new FocusPeriodConflictError(
+        FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+      );
+    }
+  }
+
+  async function addMembership(
+    executor: FocusPeriodMutationExecutor,
+    workspaceId: string,
+    periodId: string,
+    workId: string,
+  ) {
+    const [period] = await executor
+      .select()
+      .from(focusPeriod)
+      .where(
+        and(
+          eq(focusPeriod.id, periodId),
+          eq(focusPeriod.workspaceId, workspaceId),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!period) {
+      throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
+    }
+    if (period.status !== "Planned" && period.status !== "Active") {
+      throw new FocusPeriodConflictError("Focus Period is no longer open.");
+    }
+    const existing = await executor
+      .select({ id: focusPeriodMembership.id })
+      .from(focusPeriodMembership)
+      .where(
+        and(
+          eq(focusPeriodMembership.periodId, periodId),
+          eq(focusPeriodMembership.workId, workId),
+          isNull(focusPeriodMembership.removedAt),
+        ),
+      )
+      .limit(1);
+    if (existing.length) {
+      return;
+    }
+    if (period.status === "Active") {
+      await assertNoOtherActiveMembership(executor, periodId, workId);
+    }
+    await assertNoOverlappingMembership(executor, period, workId);
+    if (period.status === "Active") {
+      await claimActiveWork(executor, periodId, workId);
+    }
+    await executor.insert(focusPeriodMembership).values({
+      id: crypto.randomUUID(),
+      joinedAt: now(),
+      periodId,
+      workId,
+    });
   }
 
   async function activate(
@@ -653,77 +904,38 @@ export function createDatabaseFocusPeriod(
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext(${workId}))`,
         );
-        const [period] = await tx
-          .select()
-          .from(focusPeriod)
-          .where(
-            and(
-              eq(focusPeriod.id, periodId),
-              eq(focusPeriod.workspaceId, workspaceId),
-            ),
-          )
-          .for("update")
-          .limit(1);
-        if (!period) {
-          throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
-        }
-        if (period.status !== "Planned" && period.status !== "Active") {
-          throw new FocusPeriodConflictError("Focus Period is no longer open.");
-        }
-        const existing = await tx
-          .select({ id: focusPeriodMembership.id })
-          .from(focusPeriodMembership)
-          .where(
-            and(
-              eq(focusPeriodMembership.periodId, periodId),
-              eq(focusPeriodMembership.workId, workId),
-              isNull(focusPeriodMembership.removedAt),
-            ),
-          )
-          .limit(1);
-        if (existing.length) {
+        await addMembership(tx, workspaceId, periodId, workId);
+      });
+    },
+    async move(accountId, periodId, workId) {
+      const { workspaceId, today } = await scope(accountId);
+      await sync(workspaceId, today);
+      const availableWorks = await worksFor(workspaceId);
+      if (!availableWorks.some((item) => item.id === workId)) {
+        throw new FocusPeriodUnavailableError("Work is unavailable.");
+      }
+      await database.transaction(async (tx) => {
+        const move = await lockMovePeriods(tx, workspaceId, periodId, workId);
+        if (!move) {
           return;
         }
-        const overlapping = await tx
-          .select({ id: focusPeriodMembership.id })
-          .from(focusPeriodMembership)
-          .innerJoin(
-            focusPeriod,
-            eq(focusPeriodMembership.periodId, focusPeriod.id),
-          )
-          .where(
-            and(
-              eq(focusPeriodMembership.workId, workId),
-              isNull(focusPeriodMembership.removedAt),
-              eq(focusPeriod.workspaceId, workspaceId),
-              ne(focusPeriod.id, periodId),
-              inArray(focusPeriod.status, ["Planned", "Active"]),
-              lte(focusPeriod.startDate, period.endDate),
-              gte(focusPeriod.endDate, period.startDate),
-            ),
-          )
-          .limit(1);
-        if (overlapping.length) {
-          throw new FocusPeriodConflictError(
-            "Work is already in an Active Focus Period.",
-          );
-        }
-        if (period.status === "Active") {
-          const claimed = await tx
-            .insert(focusPeriodActiveWork)
-            .values({ periodId, workId })
-            .onConflictDoNothing()
-            .returning({ workId: focusPeriodActiveWork.workId });
-          if (!claimed.length) {
-            throw new FocusPeriodConflictError(
-              "Work is already in an Active Focus Period.",
-            );
-          }
-        }
+        const timestamp = now();
+        await endMoveSourceMembership(
+          tx,
+          move.sourcePeriodId,
+          workId,
+          timestamp,
+        );
+        await transferActiveMembership(
+          tx,
+          move.sourcePeriodId,
+          move.targetPeriodId,
+          workId,
+        );
         await tx.insert(focusPeriodMembership).values({
           id: crypto.randomUUID(),
-          joinedAt: now(),
-          periodId,
+          joinedAt: timestamp,
+          periodId: move.targetPeriodId,
           workId,
         });
       });

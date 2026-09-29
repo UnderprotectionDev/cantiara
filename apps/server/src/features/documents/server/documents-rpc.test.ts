@@ -4,6 +4,7 @@ import type {
   DocumentMutationContracts,
   DocumentMutationValue,
   DocumentsAccess,
+  DocumentVersionSummary,
 } from "@cantiara/api/documents";
 import type {
   MutationApply,
@@ -25,6 +26,15 @@ const initialDocument: Document = {
   title: "Architecture",
   type: "Spec",
   updatedAt: "2026-09-29T12:00:00.000Z",
+};
+
+const initialDocumentVersionSummary: DocumentVersionSummary = {
+  createdAt: initialDocument.createdAt,
+  id: initialDocument.id,
+  revision: initialDocument.revision,
+  title: initialDocument.title,
+  type: initialDocument.type,
+  updatedAt: initialDocument.updatedAt,
 };
 
 function createContext(
@@ -56,7 +66,17 @@ function createDocumentsAccess(): DocumentsAccess {
   return {
     get: vi.fn().mockResolvedValue(initialDocument),
     getLiveWork: vi.fn().mockResolvedValue(null),
+    getVersion: vi
+      .fn()
+      .mockImplementation(
+        async (_accountId: string, documentId: string, revision: number) =>
+          documentId === initialDocument.id &&
+          revision === initialDocument.revision
+            ? initialDocument
+            : null,
+      ),
     list: vi.fn().mockResolvedValue([initialDocument]),
+    versions: vi.fn().mockResolvedValue([initialDocumentVersionSummary]),
   };
 }
 
@@ -187,6 +207,62 @@ describe("Documents RPC", () => {
       client.documentLiveWorkBlocks({
         documentId: "document-1",
         body: ':::live-work{workId="draft-work"}',
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  test("lists product versions and restores the selected body as a new revision", async () => {
+    const documents = createDocumentsAccess();
+    const update = createMutationContract(initialDocument);
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => update.contract,
+      }),
+    });
+
+    expect(
+      await client.documentVersion({
+        documentId: initialDocument.id,
+        revision: initialDocument.revision,
+      }),
+    ).toEqual(initialDocument);
+    await expect(
+      client.documentVersion({
+        documentId: initialDocument.id,
+        revision: 99,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(
+      await client.documentVersions({ documentId: initialDocument.id }),
+    ).toEqual([initialDocumentVersionSummary]);
+    expect(documents.getVersion).toHaveBeenCalledWith(
+      "account-1",
+      initialDocument.id,
+      initialDocument.revision,
+    );
+    const restored = await client.restoreDocumentVersion({
+      baseRevision: initialDocument.revision,
+      clientIdempotencyKey: "restore-document-1",
+      documentId: initialDocument.id,
+      revision: 1,
+    });
+    expect(restored).toMatchObject({ body: initialDocument.body, revision: 2 });
+    expect(update.commands[0]).toMatchObject({
+      baseRevision: 1,
+      payload: { body: initialDocument.body, documentId: initialDocument.id },
+      targetId: initialDocument.id,
+    });
+    expect(documents.getVersion).toHaveBeenLastCalledWith(
+      "account-1",
+      initialDocument.id,
+      initialDocument.revision,
+    );
+    await expect(
+      client.restoreDocumentVersion({
+        baseRevision: 1,
+        clientIdempotencyKey: "restore-missing",
+        documentId: initialDocument.id,
+        revision: 99,
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });

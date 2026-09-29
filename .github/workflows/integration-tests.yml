@@ -61,13 +61,17 @@ jobs:
           bun run --cwd apps/server test -- --no-file-parallelism
           bun run --cwd apps/web test
 
-  # Keep functional E2E sequential because all requests share one local client
-  # identity and rate-limit bucket. Run the reference-scale measurement on its
-  # own runner so test work cannot distort its budget.
+  # Keep one worker per isolated database: requests within each shard share a
+  # local client identity and rate-limit bucket. Run the reference-scale
+  # measurement on its own runner so test work cannot distort its budget.
   browser-integration:
-    name: Browser integration
+    name: Browser integration (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:16
@@ -111,9 +115,13 @@ jobs:
           bun run --cwd packages/db db:security:migrate:deploy
           bun run test:e2e -- \
             --workers=1 \
+            --reporter=list \
+            --shard=${{ matrix.shard }}/2 \
             --grep-invert \
             "Web Capture|measures Command Palette visibility at the reference workspace scale"
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run --cwd apps/web test:e2e:extension
+      - name: Run browser extension integration test
+        if: matrix.shard == 1
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" bun run --cwd apps/web test:e2e:extension
 
   command-palette-performance:
     name: Command Palette performance
@@ -150,9 +158,11 @@ jobs:
       - name: Prepare PostgreSQL boundaries
         run: psql "$DATABASE_URL" -c 'CREATE DATABASE cantiara_security'
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bunx playwright install --with-deps --only-shell chromium
         working-directory: apps/web
       - name: Measure Command Palette performance
+        env:
+          PLAYWRIGHT_LIST_PRINT_STEPS: "true"
         run: |
           set -euo pipefail
           bun scripts/neon-local-proxy.ts &
@@ -162,6 +172,7 @@ jobs:
           bun run --cwd packages/db db:security:migrate:deploy
           bun run test:e2e -- \
             --workers=1 \
+            --reporter=list \
             --grep \
             "measures Command Palette visibility at the reference workspace scale"
 

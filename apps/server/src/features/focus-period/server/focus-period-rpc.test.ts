@@ -1,5 +1,8 @@
 import type { Context } from "@cantiara/api/context";
-import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
+import {
+  type FocusPeriodAccess,
+  FocusPeriodConflictError,
+} from "@cantiara/api/focus-period";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
@@ -34,12 +37,30 @@ function testClient(session: Context["session"]) {
     decide: vi.fn().mockResolvedValue(undefined),
     saveEvaluation: vi.fn().mockResolvedValue(undefined),
     linkFollowUpWork: vi.fn().mockResolvedValue(undefined),
+    move: vi.fn().mockResolvedValue(undefined),
   };
   const context = { focusPeriod, session } as Context;
   return { client: createRouterClient(appRouter, { context }), focusPeriod };
 }
 
 describe("Focus Period RPC", () => {
+  test.each([
+    "Work is already in an active Focus Period. Use Move.",
+    "Work is already in another Focus Period.",
+  ])("preserves the membership conflict message: %s", async (message) => {
+    const { client, focusPeriod } = testClient({
+      session: { id: "session-1" },
+      user: { id: "founder" },
+    } as Context["session"]);
+    vi.spyOn(focusPeriod, "add").mockRejectedValue(
+      new FocusPeriodConflictError(message),
+    );
+
+    await expect(
+      client.addToFocusPeriod({ periodId: "period-1", workId: "work-1" }),
+    ).rejects.toMatchObject({ code: "CONFLICT", message });
+  });
+
   test("binds period creation and membership to the authenticated Account", async () => {
     const { client, focusPeriod } = testClient({
       session: { id: "session-1" },
@@ -63,6 +84,14 @@ describe("Focus Period RPC", () => {
     expect(focusPeriod.add).toHaveBeenCalledExactlyOnceWith(
       "founder",
       "period-1",
+      "work-1",
+    );
+    await expect(
+      client.moveToFocusPeriod({ periodId: "period-2", workId: "work-1" }),
+    ).resolves.toEqual({ status: true });
+    expect(focusPeriod.move).toHaveBeenCalledExactlyOnceWith(
+      "founder",
+      "period-2",
       "work-1",
     );
     await expect(

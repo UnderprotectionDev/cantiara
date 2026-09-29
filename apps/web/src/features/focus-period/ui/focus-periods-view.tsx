@@ -2,6 +2,8 @@
 
 import {
   createFocusPeriodInputSchema,
+  FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+  FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
   type FocusPeriodLearning,
   type FocusPeriodRecord,
 } from "@cantiara/api/focus-period";
@@ -83,6 +85,11 @@ export default function FocusPeriodsView() {
       runOnlineOnlyWrite(() => client.addToFocusPeriod(input)),
     onSuccess: refresh,
   });
+  const move = useMutation({
+    mutationFn: (input: { periodId: string; workId: string }) =>
+      runOnlineOnlyWrite(() => client.moveToFocusPeriod(input)),
+    onSuccess: refresh,
+  });
   const remove = useMutation({
     mutationFn: (input: { periodId: string; workId: string }) =>
       runOnlineOnlyWrite(() => client.removeFromFocusPeriod(input)),
@@ -141,7 +148,7 @@ export default function FocusPeriodsView() {
     event.preventDefault();
     form.handleSubmit().catch(() => undefined);
   }
-  async function act(action: () => Promise<unknown>, conflictMessage?: string) {
+  async function act(action: () => Promise<unknown>) {
     setError(null);
     try {
       await action();
@@ -155,14 +162,20 @@ export default function FocusPeriodsView() {
         ].includes(mutationError.message)
           ? mutationError.message
           : null;
+      const membershipConflictMessage =
+        mutationError instanceof Error &&
+        "code" in mutationError &&
+        mutationError.code === "CONFLICT" &&
+        [
+          FOCUS_PERIOD_ACTIVE_MEMBERSHIP_CONFLICT_MESSAGE,
+          FOCUS_PERIOD_OVERLAPPING_MEMBERSHIP_CONFLICT_MESSAGE,
+        ].includes(mutationError.message)
+          ? mutationError.message
+          : null;
       setError(
         localMessage ??
-          (mutationError instanceof Error &&
-          "code" in mutationError &&
-          mutationError.code === "CONFLICT" &&
-          conflictMessage
-            ? conflictMessage
-            : "Focus Period could not be updated."),
+          membershipConflictMessage ??
+          "Focus Period could not be updated.",
       );
     }
   }
@@ -293,6 +306,7 @@ export default function FocusPeriodsView() {
               createFollowUp={createFollowUp}
               decide={decide}
               key={selected.id}
+              move={move}
               period={selected}
               periods={periods.data}
               remove={remove}
@@ -309,9 +323,16 @@ function isOpenPeriod(period: FocusPeriodRecord) {
   return period.status === "Planned" || period.status === "Active";
 }
 
+type FocusPeriodMembershipInput = Parameters<typeof client.addToFocusPeriod>[0];
+
+interface FocusPeriodMembershipMutation {
+  mutateAsync: (input: FocusPeriodMembershipInput) => Promise<unknown>;
+}
+
 function PeriodDetail({
   period,
   add,
+  move,
   remove,
   cancel,
   close,
@@ -323,18 +344,9 @@ function PeriodDetail({
 }: {
   period: FocusPeriodRecord;
   periods: FocusPeriodRecord[];
-  add: {
-    mutateAsync: (input: {
-      periodId: string;
-      workId: string;
-    }) => Promise<unknown>;
-  };
-  remove: {
-    mutateAsync: (input: {
-      periodId: string;
-      workId: string;
-    }) => Promise<unknown>;
-  };
+  add: FocusPeriodMembershipMutation;
+  move: FocusPeriodMembershipMutation;
+  remove: FocusPeriodMembershipMutation;
   cancel: { mutateAsync: (periodId: string) => Promise<unknown> };
   close: { mutateAsync: (periodId: string) => Promise<unknown> };
   decide: {
@@ -357,7 +369,6 @@ function PeriodDetail({
     conflictMessage?: string,
   ) => Promise<void>;
 }) {
-  const [workId, setWorkId] = useState("");
   const [showCloseReview, setShowCloseReview] = useState(false);
   const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
   const [destination, setDestination] = useState<
@@ -563,38 +574,13 @@ function PeriodDetail({
         </section>
       ) : null}
       {open ? (
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex min-w-56 flex-1 flex-col gap-1 text-sm">
-            <label htmlFor={`focus-period-work-${period.id}`}>
-              Select Work
-            </label>
-            <select
-              className="rounded-md border bg-background px-3 py-2"
-              id={`focus-period-work-${period.id}`}
-              onChange={(event) => setWorkId(event.target.value)}
-              value={workId}
-            >
-              <option value="">Select Work</option>
-              {period.available.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.projectName} · {item.key} · {item.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button
-            disabled={!workId}
-            onClick={() =>
-              act(async () => {
-                await add.mutateAsync({ periodId: period.id, workId });
-                setWorkId("");
-              }, "Work is already in another Focus Period.")
-            }
-            type="button"
-          >
-            Add Work
-          </Button>
-        </div>
+        <FocusPeriodMembershipControl
+          act={act}
+          add={add}
+          move={move}
+          period={period}
+          periods={periods}
+        />
       ) : null}
       <WorkMembersSection
         act={act}
@@ -641,16 +627,71 @@ function PeriodDetail({
   );
 }
 
+function FocusPeriodMembershipControl({
+  period,
+  periods,
+  add,
+  move,
+  act,
+}: {
+  period: FocusPeriodRecord;
+  periods: FocusPeriodRecord[];
+  add: FocusPeriodMembershipMutation;
+  move: FocusPeriodMembershipMutation;
+  act: FocusPeriodAction;
+}) {
+  const [workId, setWorkId] = useState("");
+  const activeSource =
+    period.status === "Active" && workId
+      ? periods.find(
+          (item) =>
+            item.id !== period.id &&
+            item.status === "Active" &&
+            item.members.some((member) => member.id === workId),
+        )
+      : undefined;
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <div className="flex min-w-56 flex-1 flex-col gap-1 text-sm">
+        <label htmlFor={`focus-period-work-${period.id}`}>Select Work</label>
+        <select
+          className="rounded-md border bg-background px-3 py-2"
+          id={`focus-period-work-${period.id}`}
+          onChange={(event) => setWorkId(event.target.value)}
+          value={workId}
+        >
+          <option value="">Select Work</option>
+          {period.available.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.projectName} · {item.key} · {item.title}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Button
+        disabled={!workId}
+        onClick={() =>
+          act(async () => {
+            const mutation = activeSource ? move : add;
+            await mutation.mutateAsync({ periodId: period.id, workId });
+            setWorkId("");
+          })
+        }
+        type="button"
+      >
+        {activeSource ? "Move" : "Add Work"}
+      </Button>
+    </div>
+  );
+}
+
 const EVALUATION_FIELD_BY_LEARNING = {
   Keep: "keep",
   Change: "change",
   "Try next": "tryNext",
 } as const;
 
-type FocusPeriodAction = (
-  action: () => Promise<unknown>,
-  conflictMessage?: string,
-) => Promise<void>;
+type FocusPeriodAction = (action: () => Promise<unknown>) => Promise<void>;
 
 interface FocusPeriodSaveEvaluation {
   mutateAsync: (

@@ -102,9 +102,26 @@ test("creates and edits a database-backed Document while preserving technical Ma
   const editedSource = await editor
     .getByRole("textbox", { name: "Markdown source" })
     .inputValue();
+  let releaseUpdateStarted: () => void = () => undefined;
+  const updateStarted = new Promise<void>((resolve) => {
+    releaseUpdateStarted = resolve;
+  });
+  let delayNextUpdate = true;
+  await page.route("**/rpc/updateDocument", async (route) => {
+    if (delayNextUpdate) {
+      delayNextUpdate = false;
+      releaseUpdateStarted();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    await route.continue();
+  });
   await editor.getByRole("button", { name: "Save" }).click();
+  await updateStarted;
+  await expect(editor.getByLabel("Type")).toBeDisabled();
+  await expect(editor.getByLabel("Type")).toBeEnabled();
   await editor.getByLabel("Type").selectOption("Spec");
   await editor.getByRole("button", { name: "Save" }).click();
+  await expect(editor.getByRole("button", { name: "Save" })).toBeEnabled();
   await page.reload();
   await page
     .getByRole("navigation", { name: "Documents" })
@@ -374,6 +391,7 @@ test("formats a Document from the rich editor toolbar", async ({
     document.getByRole("textbox", { name: "Markdown source" }),
   ).toHaveValue("**A clear priority**");
   await document.getByRole("tab", { name: "Write" }).click();
+  await richEditor.selectText();
   await document.getByRole("button", { name: "Link", exact: true }).click();
   await page.getByLabel("URL", { exact: true }).fill("javascript:alert(1)");
   await page.getByRole("button", { name: "Apply link" }).click();

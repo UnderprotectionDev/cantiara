@@ -46,6 +46,7 @@ import { client, orpc } from "@/utils/orpc";
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentPreview from "./document-preview";
+import DocumentVersionCompare from "./document-version-compare";
 
 const lowlight = createLowlight(common);
 type DocumentView = "write" | "markdown" | "preview";
@@ -178,6 +179,27 @@ function DocumentEditor({
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<DocumentView>("write");
   const [conversionWarning, setConversionWarning] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const pendingRestore = useRef<{
+    sourceRevision: number;
+    baseRevision: number;
+    clientIdempotencyKey: string;
+  } | null>(null);
+  const versionOptions = orpc.documentVersions.queryOptions({
+    input: { documentId: record.id },
+  });
+  const versions = useQuery(versionOptions);
+  const selectedVersionQuery = useQuery({
+    ...orpc.documentVersion.queryOptions({
+      input: {
+        documentId: record.id,
+        revision: selectedVersion ?? record.revision,
+      },
+    }),
+    enabled: selectedVersion !== null && selectedVersion !== record.revision,
+  });
+  const selectedSnapshot =
+    selectedVersion === record.revision ? record : selectedVersionQuery.data;
   const [previewBody, setPreviewBody] = useState(record.body);
   const [savedBody, setSavedBody] = useState(record.body);
   const [selectedDiagramId, setSelectedDiagramId] = useState("");
@@ -440,6 +462,42 @@ function DocumentEditor({
         failure instanceof Error
           ? failure.message
           : "Document could not be saved.",
+      ),
+  });
+  const restore = useMutation({
+    mutationFn: (sourceRevision: number) => {
+      if (
+        pendingRestore.current?.sourceRevision !== sourceRevision ||
+        pendingRestore.current.baseRevision !== revision
+      ) {
+        pendingRestore.current = {
+          sourceRevision,
+          baseRevision: revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+        };
+      }
+      const command = pendingRestore.current;
+      return runOnlineOnlyWrite(() =>
+        client.restoreDocumentVersion({
+          documentId: record.id,
+          revision: sourceRevision,
+          baseRevision: command.baseRevision,
+          clientIdempotencyKey: command.clientIdempotencyKey,
+        }),
+      );
+    },
+    onSuccess: async (restored) => {
+      pendingRestore.current = null;
+      setRevision(restored.revision);
+      setSelectedVersion(null);
+      setError(null);
+      await onSaved();
+    },
+    onError: (failure) =>
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Document could not be restored.",
       ),
   });
   const form = useForm({
@@ -715,446 +773,504 @@ function DocumentEditor({
           form.handleSubmit().catch(() => undefined);
         }}
       >
-        <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
-          <form.Field name="title">
-            {(field) => (
-              <div className="min-w-60 flex-1">
-                <Label className="sr-only" htmlFor="document-title">
-                  Title
-                </Label>
-                <Input
-                  className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 font-semibold text-2xl shadow-none dark:bg-transparent"
-                  id="document-title"
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  value={field.state.value}
-                />
-              </div>
-            )}
-          </form.Field>
-          <form.Field name="type">
-            {(field) => (
-              <div className="w-40 space-y-2">
-                <Label htmlFor="document-type">Type</Label>
-                <NativeSelect
-                  id="document-type"
-                  onBlur={field.handleBlur}
-                  onChange={(event) =>
-                    field.handleChange(
-                      documentTypeSchema.parse(event.target.value),
-                    )
-                  }
-                  value={field.state.value}
-                >
-                  {documentTypeSchema.options.map((option) => (
-                    <NativeSelectOption key={option} value={option}>
-                      {option}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </div>
-            )}
-          </form.Field>
-          <form.Subscribe
-            selector={(state) => ({
-              title: state.values.title,
-              isSubmitting: state.isSubmitting,
-            })}
-          >
-            {({ title, isSubmitting }) => (
-              <Button disabled={isSubmitting || !title.trim()} type="submit">
-                Save
-              </Button>
-            )}
-          </form.Subscribe>
-        </div>
-        {convertedDiagram ? (
-          <div
-            className="rounded-md border border-border bg-muted/50 p-3 text-sm"
-            role="status"
-          >
-            <p>Technical Diagram: {convertedDiagram.title}</p>
-            <a
-              className="underline"
-              href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
+        <fieldset
+          className="min-w-0 space-y-5 border-0 p-0"
+          disabled={save.isPending}
+        >
+          <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
+            <form.Field name="title">
+              {(field) => (
+                <div className="min-w-60 flex-1">
+                  <Label className="sr-only" htmlFor="document-title">
+                    Title
+                  </Label>
+                  <Input
+                    className="h-auto min-h-12 border-0 bg-transparent px-0 py-1 font-semibold text-2xl shadow-none dark:bg-transparent"
+                    id="document-title"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="type">
+              {(field) => (
+                <div className="w-40 space-y-2">
+                  <Label htmlFor="document-type">Type</Label>
+                  <NativeSelect
+                    id="document-type"
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(
+                        documentTypeSchema.parse(event.target.value),
+                      )
+                    }
+                    value={field.state.value}
+                  >
+                    {documentTypeSchema.options.map((option) => (
+                      <NativeSelectOption key={option} value={option}>
+                        {option}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </div>
+              )}
+            </form.Field>
+            <form.Subscribe
+              selector={(state) => ({
+                title: state.values.title,
+                isSubmitting: state.isSubmitting,
+              })}
             >
-              Open source record
-            </a>
+              {({ title, isSubmitting }) => (
+                <Button disabled={isSubmitting || !title.trim()} type="submit">
+                  Save
+                </Button>
+              )}
+            </form.Subscribe>
           </div>
-        ) : null}
-        <Tabs onValueChange={changeView} value={view}>
-          <TabsList aria-label="Document view" className="mb-1" variant="line">
-            <TabsTrigger value="write">Write</TabsTrigger>
-            <TabsTrigger value="markdown">Markdown</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
-          </TabsList>
-          <TabsContent keepMounted value="write">
-            <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-              {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
-              <EditorContent editor={editor} />
+          {convertedDiagram ? (
+            <div
+              className="rounded-md border border-border bg-muted/50 p-3 text-sm"
+              role="status"
+            >
+              <p>Technical Diagram: {convertedDiagram.title}</p>
+              <a
+                className="underline"
+                href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
+              >
+                Open source record
+              </a>
             </div>
-          </TabsContent>
-          <TabsContent keepMounted value="markdown">
-            <div className="space-y-3">
-              {conversionWarning ? (
-                <p
-                  className="rounded-md border border-border bg-muted/50 p-3 text-sm"
-                  role="alert"
-                >
-                  This Markdown cannot be safely converted to Write. Continue
-                  editing in Markdown, or use Preview; your source is unchanged.
-                </p>
-              ) : null}
-              <form.Field name="body">
-                {(field) => (
-                  <div className="space-y-2">
-                    <Label htmlFor="document-live-work">Live Work block</Label>
-                    <NativeSelect
-                      id="document-live-work"
-                      onChange={(event) => {
-                        const workId = event.target.value;
-                        if (!workId) {
-                          return;
-                        }
-                        const spacer = field.state.value.trimEnd()
-                          ? "\n\n"
-                          : "";
-                        field.handleChange(
-                          `${field.state.value.trimEnd()}${spacer}:::live-work{workId="${workId}"}\n`,
-                        );
-                      }}
-                      value=""
-                    >
-                      <NativeSelectOption value="">
+          ) : null}
+          <Tabs onValueChange={changeView} value={view}>
+            <TabsList
+              aria-label="Document view"
+              className="mb-1"
+              variant="line"
+            >
+              <TabsTrigger value="write">Write</TabsTrigger>
+              <TabsTrigger value="markdown">Markdown</TabsTrigger>
+              <TabsTrigger value="preview">Preview</TabsTrigger>
+            </TabsList>
+            <TabsContent keepMounted value="write">
+              <div className="overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+                {editor ? <DocumentFormattingToolbar editor={editor} /> : null}
+                <EditorContent editor={editor} />
+              </div>
+            </TabsContent>
+            <TabsContent keepMounted value="markdown">
+              <div className="space-y-3">
+                {conversionWarning ? (
+                  <p
+                    className="rounded-md border border-border bg-muted/50 p-3 text-sm"
+                    role="alert"
+                  >
+                    This Markdown cannot be safely converted to Write. Continue
+                    editing in Markdown, or use Preview; your source is
+                    unchanged.
+                  </p>
+                ) : null}
+                <form.Field name="body">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor="document-live-work">
                         Live Work block
-                      </NativeSelectOption>
-                      {works.data?.map((work) => (
-                        <NativeSelectOption key={work.id} value={work.id}>
-                          {work.key} · {work.title}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                    <Label htmlFor="document-live-section-document">
-                      Read-only live section
-                    </Label>
-                    <NativeSelect
-                      id="document-live-section-document"
-                      onChange={(event) => {
-                        setSectionDocumentId(event.target.value);
-                        setSectionId("");
-                      }}
-                      value={sectionDocumentId}
-                    >
-                      <NativeSelectOption value="">
-                        Choose a Document
-                      </NativeSelectOption>
-                      {documentsForSections.data
-                        ?.filter(({ id }) => id !== record.id)
-                        .map((candidate) => (
-                          <NativeSelectOption
-                            key={candidate.id}
-                            value={candidate.id}
-                          >
-                            {candidate.title}
-                          </NativeSelectOption>
-                        ))}
-                    </NativeSelect>
-                    <NativeSelect
-                      aria-label="Document section"
-                      disabled={!sectionSourceDocument}
-                      onChange={(event) => setSectionId(event.target.value)}
-                      value={sectionId}
-                    >
-                      <NativeSelectOption value="">
-                        Choose a section
-                      </NativeSelectOption>
-                      {availableSections.map((section) => (
-                        <NativeSelectOption key={section.id} value={section.id}>
-                          {section.heading}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                    <Button
-                      disabled={!(sectionDocumentId && sectionId)}
-                      onClick={() => {
-                        const spacer = field.state.value.trimEnd()
-                          ? "\n\n"
-                          : "";
-                        field.handleChange(
-                          `${field.state.value.trimEnd()}${spacer}:::live-section{documentId="${sectionDocumentId}" sectionId="${sectionId}"}\n`,
-                        );
-                      }}
-                      type="button"
-                      variant="outline"
-                    >
-                      Insert Read-only live section
-                    </Button>
-                    <Label htmlFor="document-live-collection">Named view</Label>
-                    <NativeSelect
-                      id="document-live-collection"
-                      onChange={(event) => {
-                        const viewId = event.target.value;
-                        if (viewId) {
+                      </Label>
+                      <NativeSelect
+                        id="document-live-work"
+                        onChange={(event) => {
+                          const workId = event.target.value;
+                          if (!workId) {
+                            return;
+                          }
                           const spacer = field.state.value.trimEnd()
                             ? "\n\n"
                             : "";
                           field.handleChange(
-                            `${field.state.value.trimEnd()}${spacer}:::live-collection{viewId="${viewId}"}\n`,
+                            `${field.state.value.trimEnd()}${spacer}:::live-work{workId="${workId}"}\n`,
                           );
-                        }
-                      }}
-                      value=""
-                    >
-                      <NativeSelectOption value="">
-                        Named view
-                      </NativeSelectOption>
-                      {collectionViews.data?.map((source) => (
-                        <NativeSelectOption key={source.id} value={source.id}>
-                          {source.collectionName} · {source.name}
+                        }}
+                        value=""
+                      >
+                        <NativeSelectOption value="">
+                          Live Work block
                         </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                    <a
-                      className="text-sm underline"
-                      href={`/projects/${record.projectId}#smart-collections`}
-                    >
-                      Smart Collection
-                    </a>
-                    <Label htmlFor="document-live-diagram">
-                      Technical Diagram
-                    </Label>
-                    <NativeSelect
-                      id="document-live-diagram"
-                      onChange={(event) =>
-                        setSelectedDiagramId(event.target.value)
-                      }
-                      value={selectedDiagramId}
-                    >
-                      <NativeSelectOption value="">
-                        Technical Diagram
-                      </NativeSelectOption>
-                      {diagrams.data?.map((source) => (
-                        <NativeSelectOption key={source.id} value={source.id}>
-                          {source.title} · {source.type}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                    <a
-                      className="text-sm underline"
-                      href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
-                    >
-                      Technical Diagrams
-                    </a>
-                    {selectedDiagramId ? (
-                      <>
-                        <Label htmlFor="document-live-diagram-view">
-                          Diagram View
-                        </Label>
-                        <NativeSelect
-                          id="document-live-diagram-view"
-                          onChange={(event) => {
-                            const viewId = event.target.value;
-                            if (viewId) {
-                              const spacer = field.state.value.trimEnd()
-                                ? "\n\n"
-                                : "";
-                              field.handleChange(
-                                `${field.state.value.trimEnd()}${spacer}:::live-diagram{diagramId="${selectedDiagramId}" viewId="${viewId}"}\n`,
-                              );
-                            }
-                          }}
-                          value=""
-                        >
-                          <NativeSelectOption value="">
-                            Diagram View
+                        {works.data?.map((work) => (
+                          <NativeSelectOption key={work.id} value={work.id}>
+                            {work.key} · {work.title}
                           </NativeSelectOption>
-                          {diagramViews.data?.map((diagramView) => (
+                        ))}
+                      </NativeSelect>
+                      <Label htmlFor="document-live-section-document">
+                        Read-only live section
+                      </Label>
+                      <NativeSelect
+                        id="document-live-section-document"
+                        onChange={(event) => {
+                          setSectionDocumentId(event.target.value);
+                          setSectionId("");
+                        }}
+                        value={sectionDocumentId}
+                      >
+                        <NativeSelectOption value="">
+                          Choose a Document
+                        </NativeSelectOption>
+                        {documentsForSections.data
+                          ?.filter(({ id }) => id !== record.id)
+                          .map((candidate) => (
                             <NativeSelectOption
-                              key={diagramView.id}
-                              value={diagramView.id}
+                              key={candidate.id}
+                              value={candidate.id}
                             >
-                              {diagramView.name}
+                              {candidate.title}
                             </NativeSelectOption>
                           ))}
-                        </NativeSelect>
-                      </>
-                    ) : null}
-                    <Label htmlFor="document-record-reference">
-                      Record reference
-                    </Label>
-                    <NativeSelect
-                      id="document-record-reference"
-                      onChange={(event) =>
-                        setRecordReferenceChoice(event.target.value)
-                      }
-                      value={recordReferenceChoice}
-                    >
-                      <NativeSelectOption value="">
-                        Choose a record
-                      </NativeSelectOption>
-                      {recordReferenceOptions.map((candidate) => (
-                        <NativeSelectOption
-                          key={`${candidate.recordType}:${candidate.id}`}
-                          value={`${candidate.recordType}:${candidate.id}`}
-                        >
-                          {candidate.recordType} · {candidate.label}
+                      </NativeSelect>
+                      <NativeSelect
+                        aria-label="Document section"
+                        disabled={!sectionSourceDocument}
+                        onChange={(event) => setSectionId(event.target.value)}
+                        value={sectionId}
+                      >
+                        <NativeSelectOption value="">
+                          Choose a section
                         </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                    <Button
-                      disabled={!recordReferenceChoice}
-                      onClick={() => {
-                        const reference = recordReferenceOptions.find(
-                          ({ id, recordType }) =>
-                            `${recordType}:${id}` === recordReferenceChoice,
-                        );
-                        if (!reference) {
-                          return;
+                        {availableSections.map((section) => (
+                          <NativeSelectOption
+                            key={section.id}
+                            value={section.id}
+                          >
+                            {section.heading}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                      <Button
+                        disabled={!(sectionDocumentId && sectionId)}
+                        onClick={() => {
+                          const spacer = field.state.value.trimEnd()
+                            ? "\n\n"
+                            : "";
+                          field.handleChange(
+                            `${field.state.value.trimEnd()}${spacer}:::live-section{documentId="${sectionDocumentId}" sectionId="${sectionId}"}\n`,
+                          );
+                        }}
+                        type="button"
+                        variant="outline"
+                      >
+                        Insert Read-only live section
+                      </Button>
+                      <Label htmlFor="document-live-collection">
+                        Named view
+                      </Label>
+                      <NativeSelect
+                        id="document-live-collection"
+                        onChange={(event) => {
+                          const viewId = event.target.value;
+                          if (viewId) {
+                            const spacer = field.state.value.trimEnd()
+                              ? "\n\n"
+                              : "";
+                            field.handleChange(
+                              `${field.state.value.trimEnd()}${spacer}:::live-collection{viewId="${viewId}"}\n`,
+                            );
+                          }
+                        }}
+                        value=""
+                      >
+                        <NativeSelectOption value="">
+                          Named view
+                        </NativeSelectOption>
+                        {collectionViews.data?.map((source) => (
+                          <NativeSelectOption key={source.id} value={source.id}>
+                            {source.collectionName} · {source.name}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                      <a
+                        className="text-sm underline"
+                        href={`/projects/${record.projectId}#smart-collections`}
+                      >
+                        Smart Collection
+                      </a>
+                      <Label htmlFor="document-live-diagram">
+                        Technical Diagram
+                      </Label>
+                      <NativeSelect
+                        id="document-live-diagram"
+                        onChange={(event) =>
+                          setSelectedDiagramId(event.target.value)
                         }
-                        const label = reference.label
-                          .replaceAll("|", " ")
-                          .replaceAll("]", " ");
-                        const token = `[[record:${reference.recordType}:${reference.id}|${label}]]`;
-                        const spacer = field.state.value.trimEnd()
-                          ? "\n\n"
-                          : "";
-                        field.handleChange(
-                          `${field.state.value.trimEnd()}${spacer}${token}\n`,
-                        );
-                        setRecordReferenceChoice("");
-                      }}
-                      type="button"
-                      variant="outline"
-                    >
-                      Insert record reference
-                    </Button>
-                    <Label htmlFor="document-markdown">Markdown source</Label>
-                    <textarea
-                      className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
-                      id="document-markdown"
-                      onChange={(event) => {
-                        field.handleChange(event.target.value);
-                        setSelectedTextRange({
-                          start: event.target.selectionStart,
-                          end: event.target.selectionEnd,
-                        });
-                        setConversionWarning(false);
-                      }}
-                      onSelect={(event) => {
-                        const nextSelection = {
-                          start: event.currentTarget.selectionStart,
-                          end: event.currentTarget.selectionEnd,
-                        };
-                        if (
-                          nextSelection.start !== selectedTextRange?.start ||
-                          nextSelection.end !== selectedTextRange?.end
-                        ) {
-                          pinEvidenceKey.current = null;
+                        value={selectedDiagramId}
+                      >
+                        <NativeSelectOption value="">
+                          Technical Diagram
+                        </NativeSelectOption>
+                        {diagrams.data?.map((source) => (
+                          <NativeSelectOption key={source.id} value={source.id}>
+                            {source.title} · {source.type}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                      <a
+                        className="text-sm underline"
+                        href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
+                      >
+                        Technical Diagrams
+                      </a>
+                      {selectedDiagramId ? (
+                        <>
+                          <Label htmlFor="document-live-diagram-view">
+                            Diagram View
+                          </Label>
+                          <NativeSelect
+                            id="document-live-diagram-view"
+                            onChange={(event) => {
+                              const viewId = event.target.value;
+                              if (viewId) {
+                                const spacer = field.state.value.trimEnd()
+                                  ? "\n\n"
+                                  : "";
+                                field.handleChange(
+                                  `${field.state.value.trimEnd()}${spacer}:::live-diagram{diagramId="${selectedDiagramId}" viewId="${viewId}"}\n`,
+                                );
+                              }
+                            }}
+                            value=""
+                          >
+                            <NativeSelectOption value="">
+                              Diagram View
+                            </NativeSelectOption>
+                            {diagramViews.data?.map((diagramView) => (
+                              <NativeSelectOption
+                                key={diagramView.id}
+                                value={diagramView.id}
+                              >
+                                {diagramView.name}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </>
+                      ) : null}
+                      <Label htmlFor="document-record-reference">
+                        Record reference
+                      </Label>
+                      <NativeSelect
+                        id="document-record-reference"
+                        onChange={(event) =>
+                          setRecordReferenceChoice(event.target.value)
                         }
-                        setSelectedTextRange(nextSelection);
-                      }}
-                      value={field.state.value}
+                        value={recordReferenceChoice}
+                      >
+                        <NativeSelectOption value="">
+                          Choose a record
+                        </NativeSelectOption>
+                        {recordReferenceOptions.map((candidate) => (
+                          <NativeSelectOption
+                            key={`${candidate.recordType}:${candidate.id}`}
+                            value={`${candidate.recordType}:${candidate.id}`}
+                          >
+                            {candidate.recordType} · {candidate.label}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                      <Button
+                        disabled={!recordReferenceChoice}
+                        onClick={() => {
+                          const reference = recordReferenceOptions.find(
+                            ({ id, recordType }) =>
+                              `${recordType}:${id}` === recordReferenceChoice,
+                          );
+                          if (!reference) {
+                            return;
+                          }
+                          const label = reference.label
+                            .replaceAll("|", " ")
+                            .replaceAll("]", " ");
+                          const token = `[[record:${reference.recordType}:${reference.id}|${label}]]`;
+                          const spacer = field.state.value.trimEnd()
+                            ? "\n\n"
+                            : "";
+                          field.handleChange(
+                            `${field.state.value.trimEnd()}${spacer}${token}\n`,
+                          );
+                          setRecordReferenceChoice("");
+                        }}
+                        type="button"
+                        variant="outline"
+                      >
+                        Insert record reference
+                      </Button>
+                      <Label htmlFor="document-markdown">Markdown source</Label>
+                      <textarea
+                        className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
+                        id="document-markdown"
+                        onChange={(event) => {
+                          field.handleChange(event.target.value);
+                          setSelectedTextRange({
+                            start: event.target.selectionStart,
+                            end: event.target.selectionEnd,
+                          });
+                          setConversionWarning(false);
+                        }}
+                        onSelect={(event) => {
+                          const nextSelection = {
+                            start: event.currentTarget.selectionStart,
+                            end: event.currentTarget.selectionEnd,
+                          };
+                          if (
+                            nextSelection.start !== selectedTextRange?.start ||
+                            nextSelection.end !== selectedTextRange?.end
+                          ) {
+                            pinEvidenceKey.current = null;
+                          }
+                          setSelectedTextRange(nextSelection);
+                        }}
+                        value={field.state.value}
+                      />
+                      <Button
+                        disabled={
+                          !selectedTextRange ||
+                          selectedTextRange.end <= selectedTextRange.start ||
+                          field.state.value !== savedBody
+                        }
+                        onClick={() => setPinEvidenceOpen(true)}
+                        type="button"
+                        variant="outline"
+                      >
+                        Version-pinned evidence
+                      </Button>
+                      <Button
+                        disabled={
+                          !selectedTextRange ||
+                          selectedTextRange.end <= selectedTextRange.start ||
+                          field.state.value !== savedBody
+                        }
+                        onClick={() => {
+                          if (!selectedTextRange) {
+                            return;
+                          }
+                          const selectedText = field.state.value.slice(
+                            selectedTextRange.start,
+                            selectedTextRange.end,
+                          );
+                          setRecordConversionTitle(
+                            titleFromSelectedText(selectedText),
+                          );
+                          setRecordConversionType("Work");
+                          recordConversionKey.current = null;
+                          recordConversionId.current = null;
+                          setRecordConversionOpen(true);
+                        }}
+                        type="button"
+                        variant="outline"
+                      >
+                        Convert to record
+                      </Button>
+                      <Button
+                        disabled={
+                          bulkRows.length === 0 ||
+                          field.state.value !== savedBody
+                        }
+                        onClick={() => {
+                          setBulkConversionOpen(true);
+                        }}
+                        type="button"
+                        variant="outline"
+                      >
+                        Convert in bulk
+                      </Button>
+                    </div>
+                  )}
+                </form.Field>
+              </div>
+            </TabsContent>
+            <TabsContent value="preview">
+              <form.Subscribe selector={(state) => state.values.body}>
+                {(body) => (
+                  <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
+                    <DocumentPreview
+                      documentReferences={
+                        documentReferences.isPending
+                          ? undefined
+                          : (documentReferences.data ?? [])
+                      }
+                      liveOtherBlocks={
+                        liveOtherBlocks.isPending
+                          ? undefined
+                          : (liveOtherBlocks.data ?? [])
+                      }
+                      liveWorkBlocks={
+                        liveWorkBlocks.isPending
+                          ? undefined
+                          : (liveWorkBlocks.data ?? [])
+                      }
+                      onLiveWorkAction={(id, kind) =>
+                        setWorkAction({
+                          id,
+                          kind,
+                          requestId: crypto.randomUUID(),
+                        })
+                      }
+                      onMermaidConvert={
+                        previewBody === savedBody
+                          ? (start, end) => {
+                              conversionKey.current = null;
+                              setConversionTitle(record.title);
+                              setOriginalBlockOutcome("Keep independent");
+                              setConversionSelection({ start, end });
+                            }
+                          : undefined
+                      }
+                      source={body}
                     />
-                    <Button
-                      disabled={
-                        !selectedTextRange ||
-                        selectedTextRange.end <= selectedTextRange.start ||
-                        field.state.value !== savedBody
-                      }
-                      onClick={() => setPinEvidenceOpen(true)}
-                      type="button"
-                      variant="outline"
-                    >
-                      Version-pinned evidence
-                    </Button>
-                    <Button
-                      disabled={
-                        !selectedTextRange ||
-                        selectedTextRange.end <= selectedTextRange.start ||
-                        field.state.value !== savedBody
-                      }
-                      onClick={() => {
-                        if (!selectedTextRange) {
-                          return;
-                        }
-                        const selectedText = field.state.value.slice(
-                          selectedTextRange.start,
-                          selectedTextRange.end,
-                        );
-                        setRecordConversionTitle(
-                          titleFromSelectedText(selectedText),
-                        );
-                        setRecordConversionType("Work");
-                        recordConversionKey.current = null;
-                        recordConversionId.current = null;
-                        setRecordConversionOpen(true);
-                      }}
-                      type="button"
-                      variant="outline"
-                    >
-                      Convert to record
-                    </Button>
-                    <Button
-                      disabled={
-                        bulkRows.length === 0 || field.state.value !== savedBody
-                      }
-                      onClick={() => {
-                        setBulkConversionOpen(true);
-                      }}
-                      type="button"
-                      variant="outline"
-                    >
-                      Convert in bulk
-                    </Button>
                   </div>
                 )}
-              </form.Field>
+              </form.Subscribe>
+            </TabsContent>
+          </Tabs>
+          <section
+            aria-label="Versions"
+            className="space-y-3 border-border border-t pt-5"
+          >
+            <h3 className="font-semibold">Versions</h3>
+            {versions.isError || selectedVersionQuery.isError ? (
+              <p role="alert">Versions could not be loaded.</p>
+            ) : null}
+            {selectedVersion !== null &&
+            selectedVersion !== record.revision &&
+            selectedVersionQuery.isPending ? (
+              <p role="status">Loading…</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {versions.data?.map((version) => (
+                <Button
+                  aria-pressed={selectedVersion === version.revision}
+                  key={version.revision}
+                  onClick={() => setSelectedVersion(version.revision)}
+                  type="button"
+                  variant={
+                    selectedVersion === version.revision
+                      ? "secondary"
+                      : "outline"
+                  }
+                >
+                  Version {version.revision}
+                </Button>
+              ))}
             </div>
-          </TabsContent>
-          <TabsContent value="preview">
-            <form.Subscribe selector={(state) => state.values.body}>
-              {(body) => (
-                <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
-                  <DocumentPreview
-                    documentReferences={
-                      documentReferences.isPending
-                        ? undefined
-                        : (documentReferences.data ?? [])
-                    }
-                    liveOtherBlocks={
-                      liveOtherBlocks.isPending
-                        ? undefined
-                        : (liveOtherBlocks.data ?? [])
-                    }
-                    liveWorkBlocks={
-                      liveWorkBlocks.isPending
-                        ? undefined
-                        : (liveWorkBlocks.data ?? [])
-                    }
-                    onLiveWorkAction={(id, kind) =>
-                      setWorkAction({
-                        id,
-                        kind,
-                        requestId: crypto.randomUUID(),
-                      })
-                    }
-                    onMermaidConvert={
-                      previewBody === savedBody
-                        ? (start, end) => {
-                            conversionKey.current = null;
-                            setConversionTitle(record.title);
-                            setOriginalBlockOutcome("Keep independent");
-                            setConversionSelection({ start, end });
-                          }
-                        : undefined
-                    }
-                    source={body}
-                  />
-                </div>
-              )}
-            </form.Subscribe>
-          </TabsContent>
-        </Tabs>
+            {selectedSnapshot ? (
+              <DocumentVersionCompare
+                current={{ ...record, revision }}
+                onRestore={() => restore.mutate(selectedSnapshot.revision)}
+                pending={restore.isPending}
+                selected={selectedSnapshot}
+                unsavedChanges={form.state.isDirty}
+              />
+            ) : null}
+          </section>
+        </fieldset>
         {error ? (
           <p className="text-destructive" role="alert">
             {error}
