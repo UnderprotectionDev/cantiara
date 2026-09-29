@@ -640,13 +640,21 @@ function DocumentEditor({
               onChange={(event) => setConversionTitle(event.target.value)}
               value={conversionTitle}
             />
-            {conversionPreview.data ? (
+            {conversionPreview.data &&
+            !conversionPreview.isFetching &&
+            conversionPreview.data.title === conversionTitle &&
+            conversionPreview.data.blockStart === conversionSelection?.start &&
+            conversionPreview.data.blockEnd === conversionSelection.end ? (
               <div className="text-sm">
                 <p>
                   Document: {record.title} · Version:{" "}
                   {conversionPreview.data.documentRevision}
                 </p>
                 <p>Technical Architecture · Imported Independent Copy</p>
+                <p>
+                  Mermaid block: {conversionPreview.data.blockStart}–
+                  {conversionPreview.data.blockEnd}
+                </p>
                 <p>Original Mermaid block stays independent.</p>
                 <p>
                   {conversionPreview.data.model.nodes.length} nodes ·{" "}
@@ -670,7 +678,15 @@ function DocumentEditor({
               Cancel
             </Button>
             <Button
-              disabled={!conversionPreview.data || convertDiagram.isPending}
+              disabled={
+                !conversionPreview.data ||
+                conversionPreview.isFetching ||
+                conversionPreview.data.title !== conversionTitle ||
+                conversionPreview.data.blockStart !==
+                  conversionSelection?.start ||
+                conversionPreview.data.blockEnd !== conversionSelection.end ||
+                convertDiagram.isPending
+              }
               onClick={() => convertDiagram.mutate()}
               type="button"
             >

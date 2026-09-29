@@ -97,19 +97,29 @@ export function createDatabaseSmartCollections(
       const collectionId = input.clientIdempotencyKey;
       const viewId = `${collectionId}:default`;
       await database.transaction(async (tx) => {
-        const [existing] = await tx
-          .select()
-          .from(smartCollection)
-          .where(eq(smartCollection.id, collectionId))
-          .limit(1);
-        if (existing) {
+        const [created] = await tx
+          .insert(smartCollection)
+          .values({
+            id: collectionId,
+            projectId: input.projectId,
+            name: input.name,
+            conditions: input.conditions,
+          })
+          .onConflictDoNothing()
+          .returning({ id: smartCollection.id });
+        if (!created) {
+          const [existing] = await tx
+            .select()
+            .from(smartCollection)
+            .where(eq(smartCollection.id, collectionId))
+            .limit(1);
           const [existingView] = await tx
             .select()
             .from(smartCollectionView)
             .where(eq(smartCollectionView.id, viewId))
             .limit(1);
           if (
-            existing.projectId !== input.projectId ||
+            existing?.projectId !== input.projectId ||
             existing.name !== input.name ||
             JSON.stringify(existing.conditions) !==
               JSON.stringify(input.conditions) ||
@@ -120,12 +130,6 @@ export function createDatabaseSmartCollections(
           }
           return;
         }
-        await tx.insert(smartCollection).values({
-          id: collectionId,
-          projectId: input.projectId,
-          name: input.name,
-          conditions: input.conditions,
-        });
         await tx.insert(smartCollectionView).values({
           id: viewId,
           collectionId,

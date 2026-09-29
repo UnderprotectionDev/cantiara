@@ -310,7 +310,12 @@ describeDatabase("Documents database boundary", () => {
       viewName: "Team list",
       presentation: "List",
     } as const;
-    const collection = await api.createSmartCollection(createCollection);
+    const concurrentCollections = await Promise.all([
+      api.createSmartCollection(createCollection),
+      api.createSmartCollection(createCollection),
+    ]);
+    const [collection] = concurrentCollections;
+    expect(concurrentCollections).toEqual([collection, collection]);
     expect(await api.createSmartCollection(createCollection)).toEqual(
       collection,
     );
@@ -385,6 +390,28 @@ describeDatabase("Documents database boundary", () => {
       ),
     ).toBeNull();
     await database
+      .update(technicalDiagram)
+      .set({ authorityMode: "Product-authored Model" })
+      .where(eq(technicalDiagram.id, "diagram-source"));
+    expect(
+      await api.documentLiveOtherBlocks({ documentId: created.id }),
+    ).toMatchObject([
+      { source: { works: [] } },
+      { source: { authorityMode: "Product-authored Model" } },
+    ]);
+    await database
+      .update(technicalDiagram)
+      .set({
+        model: {
+          nodes: [],
+          links: [{ from: "missing", to: "missing", label: null }],
+        },
+      })
+      .where(eq(technicalDiagram.id, "diagram-source"));
+    expect(
+      await api.documentLiveOtherBlocks({ documentId: created.id }),
+    ).toMatchObject([{ source: { works: [] } }, { source: null }]);
+    await database
       .delete(diagramView)
       .where(eq(diagramView.id, "diagram-view"));
     await database
@@ -422,8 +449,33 @@ describeDatabase("Documents database boundary", () => {
       originalBlock: "Keep independent",
       model: { nodes: [{ label: "Web" }, { label: "API" }] },
     });
+    const tildeBlock = "~~~~mermaid\ngraph TD\nweb[Web] --> api[API]\n~~~~";
+    const tildeDocument = await api.createDocument({
+      baseRevision: 0,
+      body: tildeBlock,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Tilde design",
+      type: "General",
+    });
+    expect(
+      await api.previewMermaidConversion({
+        documentId: tildeDocument.id,
+        documentRevision: tildeDocument.revision,
+        blockStart: 0,
+        blockEnd: tildeBlock.length,
+        title: "Tilde architecture",
+      }),
+    ).toMatchObject({
+      model: { nodes: [{ label: "Web" }, { label: "API" }] },
+    });
     const confirmed = { ...command, clientIdempotencyKey: crypto.randomUUID() };
-    const created = await api.convertMermaidToTechnicalDiagram(confirmed);
+    const concurrentConversions = await Promise.all([
+      api.convertMermaidToTechnicalDiagram(confirmed),
+      api.convertMermaidToTechnicalDiagram(confirmed),
+    ]);
+    const [created] = concurrentConversions;
+    expect(concurrentConversions).toEqual([created, created]);
     expect(created).toMatchObject({
       title: "Web architecture",
       view: { name: "Default" },

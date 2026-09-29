@@ -1,3 +1,4 @@
+import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
 import { z } from "zod";
 
 export const technicalDiagramTypeSchema = z.enum([
@@ -5,6 +6,53 @@ export const technicalDiagramTypeSchema = z.enum([
   "Data Model",
   "Technical Sequence",
 ]);
+
+export const diagramModelSchema = z
+  .object({
+    nodes: z.array(
+      z
+        .object({
+          id: z.string().min(1),
+          label: z.string().min(1),
+          kind: z.enum([
+            "Component",
+            "Service",
+            "Datastore",
+            "Queue/Event Bus",
+            "External System",
+            "Boundary",
+          ]),
+        })
+        .strict(),
+    ),
+    links: z.array(
+      z
+        .object({
+          from: z.string().min(1),
+          to: z.string().min(1),
+          label: z.string().nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+  .superRefine((model, context) => {
+    const ids = new Set(model.nodes.map(({ id }) => id));
+    if (ids.size !== model.nodes.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Duplicate diagram node ID.",
+      });
+    }
+    for (const link of model.links) {
+      if (!(ids.has(link.from) && ids.has(link.to))) {
+        context.addIssue({
+          code: "custom",
+          message: "Diagram link target is missing.",
+        });
+      }
+    }
+  });
 
 export const mermaidConversionInputSchema = z
   .object({
@@ -43,12 +91,9 @@ export type ConfirmMermaidConversionInput = z.infer<
 >;
 
 export interface TechnicalDiagramSource {
-  authorityMode: "Imported Independent Copy";
+  authorityMode: "Imported Independent Copy" | "Product-authored Model";
   id: string;
-  model: {
-    nodes: Array<{ id: string; label: string; kind: string }>;
-    links: Array<{ from: string; to: string; label: string | null }>;
-  };
+  model: DiagramModel;
   projectId: string;
   title: string;
   type: z.infer<typeof technicalDiagramTypeSchema>;

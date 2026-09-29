@@ -14,7 +14,17 @@ import { project } from "./project";
 
 export interface DiagramModel {
   links: Array<{ from: string; to: string; label: string | null }>;
-  nodes: Array<{ id: string; label: string; kind: string }>;
+  nodes: Array<{
+    id: string;
+    label: string;
+    kind:
+      | "Component"
+      | "Service"
+      | "Datastore"
+      | "Queue/Event Bus"
+      | "External System"
+      | "Boundary";
+  }>;
 }
 
 export const technicalDiagram = pgTable(

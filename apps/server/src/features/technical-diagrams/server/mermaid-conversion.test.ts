@@ -2,9 +2,9 @@ import { expect, test } from "vitest";
 
 import { parseMermaidArchitecture } from "./mermaid-conversion";
 
-test("converts a supported Mermaid flowchart into an independent structural model", () => {
+test("converts a supported Mermaid flowchart into an independent structural model", async () => {
   expect(
-    parseMermaidArchitecture(
+    await parseMermaidArchitecture(
       "graph TD\nweb[Web] --> api[API]\napi --> db[Database]",
     ),
   ).toEqual({
@@ -20,11 +20,11 @@ test("converts a supported Mermaid flowchart into an independent structural mode
   });
 });
 
-test("refuses unsupported Mermaid syntax instead of losing source lines", () => {
-  expect(() =>
+test("refuses unsupported Mermaid syntax instead of losing source lines", async () => {
+  await expect(
     parseMermaidArchitecture("sequenceDiagram\nAlice->>Bob: Hello"),
-  ).toThrow("Unsupported Mermaid line 1");
-  expect(() =>
+  ).rejects.toThrow("Unsupported Mermaid line 1");
+  await expect(
     parseMermaidArchitecture("graph TD\nclassDef danger fill:red"),
-  ).toThrow("Unsupported Mermaid line 2");
+  ).rejects.toThrow("Unsupported Mermaid line 2");
 });

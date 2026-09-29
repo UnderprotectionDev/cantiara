@@ -3,6 +3,7 @@ import type {
   TechnicalDiagramSource,
   TechnicalDiagramsAccess,
 } from "@cantiara/api/technical-diagrams";
+import { diagramModelSchema } from "@cantiara/api/technical-diagrams";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
@@ -18,7 +19,25 @@ import { parseMermaidArchitecture } from "./mermaid-conversion";
 
 export class MermaidConversionConflictError extends Error {}
 
-const mermaidBlockPattern = /^```mermaid[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/;
+const mermaidFenceOpening = /^ {0,3}(`{3,}|~{3,})mermaid[ \t]*$/;
+
+function mermaidBlockSource(block: string): string | null {
+  const lines = block.replaceAll("\r\n", "\n").split("\n");
+  const opening = mermaidFenceOpening.exec(lines[0] ?? "");
+  if (!opening || lines.length < 3) {
+    return null;
+  }
+  const [, fence] = opening;
+  const closing = lines.at(-1)?.trim() ?? "";
+  if (
+    !fence ||
+    closing.length < fence.length ||
+    ![...closing].every((character) => character === fence[0])
+  ) {
+    return null;
+  }
+  return lines.slice(1, -1).join("\n");
+}
 
 export function createDatabaseTechnicalDiagrams(
   database: Database,
@@ -43,7 +62,7 @@ export function createDatabaseTechnicalDiagrams(
       return null;
     }
     const block = row.document.body.slice(input.blockStart, input.blockEnd);
-    const source = mermaidBlockPattern.exec(block)?.[1];
+    const source = mermaidBlockSource(block);
     if (!source || input.blockEnd > row.document.body.length) {
       throw new MermaidConversionConflictError(
         "The selected Mermaid block is unavailable.",
@@ -59,7 +78,7 @@ export function createDatabaseTechnicalDiagrams(
       type: "Technical Architecture" as const,
       authorityMode: "Imported Independent Copy" as const,
       originalBlock: "Keep independent" as const,
-      model: parseMermaidArchitecture(source),
+      model: await parseMermaidArchitecture(source),
     };
   }
   async function get(
@@ -79,7 +98,10 @@ export function createDatabaseTechnicalDiagrams(
         ),
       )
       .limit(1);
-    if (row?.diagram.authorityMode !== "Imported Independent Copy") {
+    if (
+      row?.diagram.authorityMode !== "Imported Independent Copy" &&
+      row?.diagram.authorityMode !== "Product-authored Model"
+    ) {
       return null;
     }
     const [view] = await database
@@ -96,13 +118,18 @@ export function createDatabaseTechnicalDiagrams(
       return null;
     }
     const { diagram } = row;
+    const parsedModel = diagramModelSchema.safeParse(diagram.model);
+    if (!parsedModel.success) {
+      return null;
+    }
     return {
       id: diagram.id,
       projectId: diagram.projectId,
       title: diagram.title,
       type: diagram.type as TechnicalDiagramSource["type"],
-      authorityMode: "Imported Independent Copy",
-      model: diagram.model,
+      authorityMode:
+        diagram.authorityMode as TechnicalDiagramSource["authorityMode"],
+      model: parsedModel.data,
       view: view
         ? {
             id: view.id,
@@ -157,6 +184,18 @@ export function createDatabaseTechnicalDiagrams(
         .onConflictDoNothing()
         .returning({ id: diagramView.id });
       if (!created) {
+        const repeated = await get(
+          accountId,
+          input.diagramId,
+          input.clientIdempotencyKey,
+        );
+        if (
+          repeated?.view?.name === input.name &&
+          JSON.stringify(repeated.view.selectedNodeIds) ===
+            JSON.stringify(input.selectedNodeIds)
+        ) {
+          return repeated;
+        }
         throw new MermaidConversionConflictError(
           "Diagram View name or confirmation key is already used.",
         );
@@ -165,8 +204,11 @@ export function createDatabaseTechnicalDiagrams(
     },
     async convert(accountId, input) {
       const diagramId = input.clientIdempotencyKey;
-      const existing = await get(accountId, diagramId);
-      if (existing) {
+      async function repeatedConversion() {
+        const existing = await get(accountId, diagramId);
+        if (!existing) {
+          return null;
+        }
         const [origin] = await database
           .select()
           .from(diagramDocumentOrigin)
@@ -186,11 +228,15 @@ export function createDatabaseTechnicalDiagrams(
         }
         return existing;
       }
+      const existing = await repeatedConversion();
+      if (existing) {
+        return existing;
+      }
       const preview = await previewConversion(accountId, input);
       if (!preview) {
         return null;
       }
-      await database.transaction(async (tx) => {
+      const inserted = await database.transaction(async (tx) => {
         const [saved] = await tx
           .select({ revision: document.revision })
           .from(document)
@@ -215,9 +261,7 @@ export function createDatabaseTechnicalDiagrams(
           .onConflictDoNothing()
           .returning({ id: technicalDiagram.id });
         if (!created) {
-          throw new MermaidConversionConflictError(
-            "This confirmation key was used for another conversion.",
-          );
+          return false;
         }
         await tx.insert(diagramDocumentOrigin).values({
           diagramId,
@@ -232,7 +276,11 @@ export function createDatabaseTechnicalDiagrams(
           name: "Default",
           selectedNodeIds: preview.model.nodes.map(({ id }) => id),
         });
+        return true;
       });
+      if (!inserted) {
+        return repeatedConversion();
+      }
       return get(accountId, diagramId);
     },
     async list(accountId, projectId) {
