@@ -95,6 +95,22 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 ### Belge sürüm geçmişi
 
+Çatışma ve bağlantı kurtarma arayüzünün English UI etiketleri:
+
+| Terim | English UI label |
+| --- | --- |
+| Çakışma Taslağı | `Conflict Draft` |
+| Güncel sürümle karşılaştır | `Compare` |
+| Seçilen parçaları uygula | `Apply parts` |
+| Bağımsız Belge oluştur | `Create Document` |
+| Taslağı sil | `Delete` |
+| Yeni Belge oluşturmayı iptal et | `Cancel` |
+| Tamponu kopyala | `Copy` |
+| Tamponu indir | `Download` |
+| Bağlantı kesildi | `Offline` |
+| Son başarılı kayıt | `Last successful save` |
+| Kaynak Belgeyi aç | `Open source record` |
+
 - **Kullanıcı bir Belgenin önceki sürümlerini karşılaştırabilir ve seçtiği sürümü geri yükleyebilir.** Sürüm geçmişi veritabanı içindeki uygulama değişikliklerine dayanır; harici editör senkronizasyonu veya eşzamanlı ortak düzenleme sunmaz.
 
 - **Güncel olmayan taban revizyonuyla Belge kaydetme mevcut sürümün üzerine yazmaz.** Reddedilen metin, Belgeyle aynı kapsam ve yaşam döngüsünde yaşayan Çakışma Taslağı olarak korunur. Kullanıcı güncel sürüm ile taslağı karşılaştırır; seçtiği parçaları uygulayıp yeni Belge sürümü kaydeder, taslağın seçtiği veya bütün içeriğinden kullanıcı başlıklı yeni kimlikli bağımsız Belge oluşturur ya da taslağı siler. Yeni Belge aynı kanonik kapsamda yaşar ve kaynak Belge/Taslağa görünür köken bağı taşır; kaynak geçmişini, çocukları, Dosya Eklerini, ilişkileri, yayın veya paylaşım durumunu miras almaz. Başarılı uygulama, yeni Belge oluşturma veya silme taslağı çözer. Taslak otomatik yeniden denenmez; çözülmeden önce arama, paylaşım, yayın, export veya Belge geçmişine girmez.

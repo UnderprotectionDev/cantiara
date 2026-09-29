@@ -4,6 +4,7 @@ import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { document, documentConflictDraft } from "@cantiara/db/schema/document";
 import {
   mutationHistory,
   mutationReceipt,
@@ -45,7 +46,7 @@ describeDatabase("Documents database boundary", () => {
   const workspaceId = `workspace-${crypto.randomUUID()}`;
   const projectId = `project-${crypto.randomUUID()}`;
 
-  function client() {
+  function client(actorId = accountId) {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
@@ -70,7 +71,7 @@ describeDatabase("Documents database boundary", () => {
       githubAvailability: { getStatus: () => "available" },
       session: {
         session: { id: "session-1" },
-        user: { id: accountId },
+        user: { id: actorId },
       } as Context["session"],
     };
     return createRouterClient(appRouter, { context });
@@ -378,6 +379,34 @@ describeDatabase("Documents database boundary", () => {
       code: "PRECONDITION_FAILED",
       data: { code: "STALE_BASE_REVISION", currentRevision: updated.revision },
     });
+    const drafts = await documents.documentConflictDrafts({
+      documentId: created.id,
+    });
+    expect(drafts).toMatchObject([
+      {
+        body: "stale edit",
+        documentId: created.id,
+        projectId,
+        baseRevision: 1,
+      },
+    ]);
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      updated,
+    );
+    expect(
+      await documents.documentVersions({ documentId: created.id }),
+    ).toHaveLength(2);
+    await expect(
+      documents.updateDocument({
+        baseRevision: 1,
+        body: "stale edit",
+        clientIdempotencyKey: "update-document-stale",
+        documentId: created.id,
+      }),
+    ).rejects.toMatchObject({ data: { conflictDraft: { id: drafts[0]?.id } } });
+    expect(
+      await documents.documentConflictDrafts({ documentId: created.id }),
+    ).toHaveLength(1);
 
     await database
       .update(project)
@@ -404,6 +433,289 @@ describeDatabase("Documents database boundary", () => {
     })) as Document;
     expect(stillReadable).toEqual(updated);
     expect(await documents.documents({ projectId })).toEqual([updated]);
+  });
+
+  it("resolves Conflict Drafts atomically by applying parts, creating an independent Document, or deleting", async () => {
+    const documents = client();
+    const created = await documents.createDocument({
+      projectId,
+      title: "Conflict Notes",
+      body: "Base",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "conflict-create",
+    });
+    const current = await documents.updateDocument({
+      documentId: created.id,
+      body: "Current",
+      baseRevision: 1,
+      clientIdempotencyKey: "conflict-current",
+    });
+    await Promise.all(
+      ["apply", "spawn", "delete"].map(async (key) => {
+        await expect(
+          documents.updateDocument({
+            documentId: created.id,
+            body: `Rejected ${key}`,
+            baseRevision: 1,
+            clientIdempotencyKey: key,
+          }),
+        ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      }),
+    );
+    const drafts = await documents.documentConflictDrafts({
+      documentId: created.id,
+    });
+    const applyDraft = drafts.find((draft) => draft.body === "Rejected apply");
+    const spawnDraft = drafts.find((draft) => draft.body === "Rejected spawn");
+    const deleteDraft = drafts.find(
+      (draft) => draft.body === "Rejected delete",
+    );
+    if (!(applyDraft && spawnDraft && deleteDraft)) {
+      throw new Error("Three Conflict Drafts are required.");
+    }
+    await expect(
+      client("another-account").documentConflictDrafts({
+        documentId: created.id,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const applyInput = {
+      documentId: created.id,
+      conflictDraftId: applyDraft.id,
+      body: "Current\nSelected part",
+      baseRevision: current.revision,
+      clientIdempotencyKey: "resolve-apply",
+    };
+    const applied = await documents.updateDocument(applyInput);
+    expect(applied).toMatchObject({
+      body: "Current\nSelected part",
+      revision: 3,
+    });
+    expect(await documents.updateDocument(applyInput)).toEqual(applied);
+    await expect(
+      documents.updateDocument({
+        ...applyInput,
+        clientIdempotencyKey: "apply-again",
+        baseRevision: 3,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    const spawnInput = {
+      projectId,
+      conflictDraftId: spawnDraft.id,
+      body: spawnDraft.body,
+      title: "Independent Notes",
+      type: spawnDraft.type,
+      baseRevision: 0,
+      clientIdempotencyKey: "resolve-spawn",
+    };
+    const spawned = await documents.createDocument(spawnInput);
+    expect(spawned.id).not.toBe(created.id);
+    expect(spawned).toMatchObject({
+      body: "Rejected spawn",
+      projectId,
+      origin: {
+        documentId: created.id,
+        revision: 1,
+        conflictDraftId: spawnDraft.id,
+      },
+    });
+    expect(await documents.createDocument(spawnInput)).toEqual(spawned);
+    await documents.discardDocumentConflictDraft({
+      documentId: created.id,
+      conflictDraftId: deleteDraft.id,
+    });
+    await documents.discardDocumentConflictDraft({
+      documentId: created.id,
+      conflictDraftId: deleteDraft.id,
+    });
+    expect(
+      await documents.documentConflictDrafts({ documentId: created.id }),
+    ).toEqual([]);
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      applied,
+    );
+    expect(
+      await documents.documentVersions({ documentId: created.id }),
+    ).toHaveLength(3);
+    expect(
+      (await documents.documents({ projectId })).map(({ body }) => body).sort(),
+    ).toEqual(["Current\nSelected part", "Rejected spawn"]);
+  });
+
+  it("rejects stale comparisons and cross-account resolution without producing another draft", async () => {
+    const documents = client();
+    const source = await documents.createDocument({
+      projectId,
+      title: "Comparison Notes",
+      body: "Base",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "comparison-create",
+    });
+    const compared = await documents.updateDocument({
+      documentId: source.id,
+      body: "Compared",
+      baseRevision: 1,
+      clientIdempotencyKey: "comparison-save",
+    });
+    await expect(
+      documents.updateDocument({
+        documentId: source.id,
+        body: "Rejected",
+        baseRevision: 1,
+        clientIdempotencyKey: "comparison-reject",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const [draft] = await documents.documentConflictDrafts({
+      documentId: source.id,
+    });
+    if (!draft) {
+      throw new Error("A Conflict Draft is required.");
+    }
+    const latest = await documents.updateDocument({
+      documentId: source.id,
+      body: "Latest",
+      baseRevision: compared.revision,
+      clientIdempotencyKey: "comparison-compete",
+    });
+    await expect(
+      documents.updateDocument({
+        documentId: source.id,
+        conflictDraftId: draft.id,
+        body: "Must not overwrite",
+        baseRevision: compared.revision,
+        clientIdempotencyKey: "comparison-apply",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    await expect(
+      client("another-account").discardDocumentConflictDraft({
+        documentId: source.id,
+        conflictDraftId: draft.id,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      documents.createDocument({
+        projectId: "another-project",
+        title: "Wrong scope",
+        body: "Rejected",
+        type: "General",
+        conflictDraftId: draft.id,
+        baseRevision: 0,
+        clientIdempotencyKey: "comparison-wrong-scope",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await documents.document({ documentId: source.id })).toEqual(latest);
+    expect(
+      await documents.documentConflictDrafts({ documentId: source.id }),
+    ).toEqual([draft]);
+    expect(
+      await documents.documentVersions({ documentId: source.id }),
+    ).toHaveLength(3);
+  });
+
+  it("keeps Workspace Conflict Drafts in the Document's database scope", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documents = client();
+    const created = await documents.createDocument({
+      projectId: null,
+      title: "Workspace Conflict Notes",
+      body: "Base",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-conflict-create",
+    });
+    const current = await documents.updateDocument({
+      documentId: created.id,
+      body: "Current",
+      baseRevision: created.revision,
+      clientIdempotencyKey: "wiki-conflict-current",
+    });
+    await expect(
+      documents.updateDocument({
+        documentId: created.id,
+        body: "Rejected workspace edit",
+        baseRevision: created.revision,
+        clientIdempotencyKey: "wiki-conflict-rejected",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+    const [draft] = await documents.documentConflictDrafts({
+      documentId: created.id,
+    });
+    if (!draft) {
+      throw new Error("A Workspace Conflict Draft is required.");
+    }
+    expect(draft).toMatchObject({
+      documentId: created.id,
+      projectId: null,
+      workspaceId,
+    });
+    const [persistedScope] = await database
+      .select({
+        draftProjectId: documentConflictDraft.projectId,
+        draftWorkspaceId: documentConflictDraft.workspaceId,
+        documentProjectId: document.projectId,
+        documentWorkspaceId: document.workspaceId,
+      })
+      .from(documentConflictDraft)
+      .innerJoin(document, eq(document.id, documentConflictDraft.documentId))
+      .where(eq(documentConflictDraft.id, draft.id));
+    expect(persistedScope).toEqual({
+      draftProjectId: null,
+      draftWorkspaceId: workspaceId,
+      documentProjectId: null,
+      documentWorkspaceId: workspaceId,
+    });
+
+    await expect(
+      database.insert(documentConflictDraft).values({
+        id: `scope-mismatch-${crypto.randomUUID()}`,
+        documentId: created.id,
+        projectId,
+        workspaceId: null,
+        baseRevision: 1,
+        title: "Wrong scope",
+        body: "Must be rejected by the composite foreign key.",
+        type: "General",
+        clientIdempotencyKey: "wiki-conflict-wrong-db-scope",
+        payloadFingerprint: "wrong-scope",
+      }),
+    ).rejects.toThrow();
+
+    const spawnInput = {
+      projectId: null,
+      conflictDraftId: draft.id,
+      body: draft.body,
+      title: "Recovered Workspace Notes",
+      type: draft.type,
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-conflict-spawn",
+    };
+    const spawned = await documents.createDocument(spawnInput);
+    expect(spawned).toMatchObject({
+      projectId: null,
+      origin: {
+        documentId: created.id,
+        conflictDraftId: draft.id,
+      },
+    });
+    expect(await documents.createDocument(spawnInput)).toEqual(spawned);
+    await expect(
+      documents.createDocument({
+        ...spawnInput,
+        projectId,
+        title: "Wrong scope",
+        clientIdempotencyKey: "wiki-conflict-wrong-api-scope",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      current,
+    );
+    expect(
+      await documents.documentConflictDrafts({ documentId: created.id }),
+    ).toEqual([]);
   });
 
   it("derives live Work usage links from committed Document content", async () => {

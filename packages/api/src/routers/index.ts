@@ -64,9 +64,11 @@ import {
 } from "../daily-focus";
 import {
   createDocumentMutationInputSchema,
+  DocumentConflictDraftError,
   type DocumentMutationValue,
   DocumentSectionCycleError,
   DocumentUnavailableError,
+  discardDocumentConflictDraftInputSchema,
   documentBodySchema,
   documentCreationFields,
   documentCreationInputSchema,
@@ -2217,6 +2219,12 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentConflictDraftError) {
+    throw new ORPCError("CONFLICT", { defined: true, message: error.message });
+  }
+  if (error instanceof DocumentUnavailableError) {
+    throw new ORPCError("NOT_FOUND", { defined: true, message: error.message });
+  }
   if (error instanceof DocumentSectionCycleError) {
     throw new ORPCError("CONFLICT", {
       defined: true,
@@ -2325,6 +2333,34 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return result;
+    }),
+  documentConflictDrafts: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      const drafts = await context.documents?.conflictDrafts?.(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!drafts) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return drafts;
+    }),
+  discardDocumentConflictDraft: protectedProcedure
+    .input(discardDocumentConflictDraftInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents?.discardConflictDraft) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        await context.documents.discardConflictDraft(
+          context.session.user.id,
+          input.documentId,
+          input.conflictDraftId,
+        );
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.documentId);
+      }
     }),
   documentLiveWorkBlocks: protectedProcedure
     .input(
@@ -2788,17 +2824,18 @@ export const appRouter = {
             payload,
             targetId: clientIdempotencyKey,
           },
-          ({ committedAt, currentRevision, payload: mutationPayload }) =>
+          ({ committedAt, currentRevision }) =>
             ({
               document: documentSchema.parse({
-                ...documentCreationFields(
-                  documentCreationInputSchema.parse(mutationPayload),
-                ),
+                ...documentCreationFields(payload),
                 createdAt: committedAt,
                 id: crypto.randomUUID(),
                 revision: currentRevision + 1,
                 updatedAt: committedAt,
               }),
+              ...(payload.conflictDraftId
+                ? { conflictDraftId: payload.conflictDraftId }
+                : {}),
             }) satisfies DocumentMutationValue,
         );
         if (!receipt.nextValue.document) {
@@ -2830,6 +2867,9 @@ export const appRouter = {
           ({ committedAt, currentRevision, currentValue }) => {
             const current = currentValue.document;
             return {
+              ...(payload.conflictDraftId
+                ? { conflictDraftId: payload.conflictDraftId }
+                : {}),
               document: current
                 ? documentSchema.parse({
                     ...current,
@@ -2854,6 +2894,38 @@ export const appRouter = {
         }
         return receipt.nextValue.document;
       } catch (error) {
+        if (
+          isRecord(error) &&
+          error.code === "STALE_BASE_REVISION" &&
+          context.documents?.captureConflictDraft &&
+          !payload.conflictDraftId
+        ) {
+          let conflictDraft: Awaited<
+            ReturnType<
+              NonNullable<typeof context.documents.captureConflictDraft>
+            >
+          >;
+          try {
+            conflictDraft = await context.documents.captureConflictDraft(
+              context.session.user.id,
+              input,
+            );
+          } catch (captureError) {
+            rethrowDocumentMutationError(captureError, payload.documentId);
+          }
+          throw new ORPCError("PRECONDITION_FAILED", {
+            cause: error,
+            defined: true,
+            message: "Conflict Draft",
+            data: {
+              code: "STALE_BASE_REVISION",
+              conflictDraft,
+              currentRevision: error.currentRevision,
+              currentValue: error.currentValue,
+              targetId: payload.documentId,
+            },
+          });
+        }
         rethrowDocumentMutationError(error, payload.documentId);
       }
     }),

@@ -61,8 +61,7 @@ export function createDatabaseTechnicalDiagrams(
       )
       .limit(1);
     if (
-      !row ||
-      row.document.projectId === null ||
+      !row?.document.projectId ||
       row.document.revision !== input.documentRevision
     ) {
       return null;

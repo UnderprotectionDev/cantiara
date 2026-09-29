@@ -1,6 +1,7 @@
 import type {
   CreateDocumentInput,
   Document,
+  DocumentConflictDraft,
   DocumentMutationContracts,
   DocumentMutationValue,
   DocumentsAccess,
@@ -8,8 +9,10 @@ import type {
 } from "@cantiara/api/documents";
 import {
   createDocumentInputSchema,
+  DocumentConflictDraftError,
   DocumentSectionCycleError,
   DocumentUnavailableError,
+  documentConflictDraftSchema,
   documentCreationInputSchema,
   documentLiveDirectives,
   documentRecordReferences,
@@ -18,14 +21,17 @@ import {
   documentVersionSummarySchema,
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
-import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import {
+  fingerprintMutationPayload,
+  type MutationTarget,
+} from "@cantiara/api/mutation-and-undo";
 import {
   resolveProjectShellConfiguration,
   starterConfigurationSchema,
 } from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
-import { document } from "@cantiara/db/schema/document";
+import { document, documentConflictDraft } from "@cantiara/db/schema/document";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import {
   priorityMetricDefinition,
@@ -61,6 +67,15 @@ function toDocument(row: typeof document.$inferSelect): Document {
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    ...(row.originDocumentId && row.originRevision
+      ? {
+          origin: {
+            documentId: row.originDocumentId,
+            revision: row.originRevision,
+            conflictDraftId: row.originConflictDraftId ?? undefined,
+          },
+        }
+      : {}),
   });
 }
 
@@ -110,6 +125,69 @@ function emptyTarget(targetId: string): MutationTarget<DocumentMutationValue> {
     revision: 0,
     value: { document: null },
   };
+}
+
+type DocumentScope = Pick<
+  typeof document.$inferSelect,
+  "projectId" | "workspaceId"
+>;
+
+function conflictDraftScopeCondition(scope: DocumentScope) {
+  return and(
+    scope.projectId === null
+      ? isNull(documentConflictDraft.projectId)
+      : eq(documentConflictDraft.projectId, scope.projectId),
+    scope.workspaceId === null
+      ? isNull(documentConflictDraft.workspaceId)
+      : eq(documentConflictDraft.workspaceId, scope.workspaceId),
+  );
+}
+
+function toConflictDraft(
+  row: typeof documentConflictDraft.$inferSelect,
+): DocumentConflictDraft {
+  return documentConflictDraftSchema.parse({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+  });
+}
+
+async function requireConflictDraft(
+  executor: MutationDatabaseExecutor,
+  draftId: string,
+  scope: DocumentScope,
+  documentId?: string,
+) {
+  const [draft] = await executor
+    .select()
+    .from(documentConflictDraft)
+    .where(
+      and(
+        eq(documentConflictDraft.id, draftId),
+        conflictDraftScopeCondition(scope),
+        isNull(documentConflictDraft.resolvedAt),
+        ...(documentId
+          ? [eq(documentConflictDraft.documentId, documentId)]
+          : []),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  if (!draft) {
+    throw new DocumentConflictDraftError();
+  }
+  return draft;
+}
+
+async function resolveConflictDraft(
+  executor: MutationDatabaseExecutor,
+  draftId: string,
+  committedAt: Date,
+) {
+  await executor
+    .update(documentConflictDraft)
+    .set({ resolvedAt: committedAt })
+    .where(eq(documentConflictDraft.id, draftId));
 }
 
 async function findWorkspaceId(
@@ -482,40 +560,51 @@ function createDocumentTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<DocumentMutationValue> {
   return {
+    committedValue: (target) => target.value,
     async find(executor, targetId, lock, context) {
       const payload = documentCreationInputSchema.safeParse(context?.payload);
       if (!payload.success) {
         return null;
       }
-      if (payload.data.projectId === null) {
-        return (await findWorkspaceId(executor, accountId))
-          ? emptyTarget(targetId)
-          : null;
-      }
-      const ownedProject = await findOwnedProject(
-        executor,
-        accountId,
-        payload.data.projectId,
-        lock,
-      );
-      if (!ownedProject || ownedProject.archivedAt !== null) {
-        return null;
-      }
-      if ("skeleton" in payload.data) {
-        const { skeleton } = payload.data;
-        const configuration = resolveProjectShellConfiguration(
-          ownedProject.configuration,
-          starterConfigurationSchema.parse(ownedProject.starterConfiguration),
-        );
-        if (
-          !configuration.starterSkeletons.some(
-            (selection) =>
-              selection.surface === "Document" &&
-              selection.skeleton === skeleton,
-          )
-        ) {
+      const { projectId } = payload.data;
+      let workspaceId: string | null = null;
+      if (projectId === null) {
+        workspaceId = await findWorkspaceId(executor, accountId);
+        if (!workspaceId) {
           return null;
         }
+      } else {
+        const ownedProject = await findOwnedProject(
+          executor,
+          accountId,
+          projectId,
+          lock,
+        );
+        if (!ownedProject || ownedProject.archivedAt !== null) {
+          return null;
+        }
+        if ("skeleton" in payload.data) {
+          const { skeleton } = payload.data;
+          const configuration = resolveProjectShellConfiguration(
+            ownedProject.configuration,
+            starterConfigurationSchema.parse(ownedProject.starterConfiguration),
+          );
+          if (
+            !configuration.starterSkeletons.some(
+              (selection) =>
+                selection.surface === "Document" &&
+                selection.skeleton === skeleton,
+            )
+          ) {
+            return null;
+          }
+        }
+      }
+      if (payload.data.conflictDraftId) {
+        await requireConflictDraft(executor, payload.data.conflictDraftId, {
+          projectId,
+          workspaceId,
+        });
       }
       return emptyTarget(targetId);
     },
@@ -540,6 +629,20 @@ function createDocumentTarget(
         nextDocument.id,
         nextDocument.body,
       );
+      const draftId = input.nextValue.conflictDraftId;
+      const workspaceId =
+        nextDocument.projectId === null
+          ? await findWorkspaceId(executor, accountId)
+          : null;
+      if (nextDocument.projectId === null && !workspaceId) {
+        return null;
+      }
+      const draft = draftId
+        ? await requireConflictDraft(executor, draftId, {
+            projectId: nextDocument.projectId,
+            workspaceId,
+          })
+        : null;
       const [created] = await executor
         .insert(document)
         .values({
@@ -547,17 +650,20 @@ function createDocumentTarget(
           createdAt: input.committedAt,
           id: nextDocument.id,
           projectId: nextDocument.projectId,
-          workspaceId:
-            nextDocument.projectId === null
-              ? await findWorkspaceId(executor, accountId)
-              : null,
+          workspaceId,
           revision: 1,
           title: nextDocument.title,
           type: nextDocument.type,
           updatedAt: input.committedAt,
+          originDocumentId: draft?.documentId,
+          originRevision: draft?.baseRevision,
+          originConflictDraftId: draft?.id,
         })
         .returning();
       if (created) {
+        if (draftId) {
+          await resolveConflictDraft(executor, draftId, input.committedAt);
+        }
         await syncDocumentLiveUsageLinks(
           executor,
           accountId,
@@ -597,6 +703,14 @@ function updateDocumentTarget(
         targetId,
         lock,
       );
+      if (record && payload.data.conflictDraftId) {
+        await requireConflictDraft(
+          executor,
+          payload.data.conflictDraftId,
+          { projectId: record.projectId, workspaceId: record.workspaceId },
+          record.id,
+        );
+      }
       return record ? toTarget(record) : null;
     },
 
@@ -628,6 +742,10 @@ function updateDocumentTarget(
         )
         .returning();
       if (updated) {
+        const draftId = input.nextValue.conflictDraftId;
+        if (draftId) {
+          await resolveConflictDraft(executor, draftId, input.committedAt);
+        }
         await syncDocumentLiveUsageLinks(
           executor,
           accountId,
@@ -691,6 +809,116 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
   return {
     get,
     getLiveSection,
+    async captureConflictDraft(accountId, input) {
+      const payloadFingerprint = await fingerprintMutationPayload(input);
+      const base = await this.getVersion(
+        accountId,
+        input.documentId,
+        input.baseRevision,
+      );
+      if (!base) {
+        throw new DocumentUnavailableError();
+      }
+      return database.transaction(async (executor) => {
+        const current = await findOwnedDocument(
+          executor,
+          accountId,
+          input.documentId,
+          true,
+        );
+        if (!current) {
+          throw new DocumentUnavailableError();
+        }
+        const [existing] = await executor
+          .select()
+          .from(documentConflictDraft)
+          .where(
+            and(
+              eq(documentConflictDraft.documentId, input.documentId),
+              eq(
+                documentConflictDraft.clientIdempotencyKey,
+                input.clientIdempotencyKey,
+              ),
+            ),
+          )
+          .limit(1);
+        if (existing) {
+          if (existing.payloadFingerprint !== payloadFingerprint) {
+            throw new DocumentConflictDraftError();
+          }
+          return toConflictDraft(existing);
+        }
+        const [draft] = await executor
+          .insert(documentConflictDraft)
+          .values({
+            id: crypto.randomUUID(),
+            documentId: current.id,
+            projectId: current.projectId,
+            workspaceId: current.workspaceId,
+            baseRevision: input.baseRevision,
+            title: input.title ?? base.title,
+            body: input.body ?? base.body,
+            type: input.type ?? base.type,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            payloadFingerprint,
+          })
+          .returning();
+        if (!draft) {
+          throw new DocumentUnavailableError();
+        }
+        return toConflictDraft(draft);
+      });
+    },
+    async conflictDrafts(accountId, documentId) {
+      if (!(await get(accountId, documentId))) {
+        return null;
+      }
+      const drafts = await database
+        .select()
+        .from(documentConflictDraft)
+        .where(
+          and(
+            eq(documentConflictDraft.documentId, documentId),
+            isNull(documentConflictDraft.resolvedAt),
+          ),
+        )
+        .orderBy(asc(documentConflictDraft.createdAt));
+      return drafts.map(toConflictDraft);
+    },
+    async discardConflictDraft(accountId, documentId, draftId) {
+      await database.transaction(async (executor) => {
+        const current = await findOwnedDocument(
+          executor,
+          accountId,
+          documentId,
+          true,
+        );
+        if (!current) {
+          throw new DocumentUnavailableError();
+        }
+        const [draft] = await executor
+          .select()
+          .from(documentConflictDraft)
+          .where(
+            and(
+              eq(documentConflictDraft.id, draftId),
+              eq(documentConflictDraft.documentId, documentId),
+              conflictDraftScopeCondition({
+                projectId: current.projectId,
+                workspaceId: current.workspaceId,
+              }),
+            ),
+          )
+          .limit(1)
+          .for("update");
+        if (!draft) {
+          throw new DocumentConflictDraftError();
+        }
+        if (!draft.resolvedAt) {
+          await resolveConflictDraft(executor, draft.id, new Date());
+        }
+      });
+    },
     async getLiveWork(accountId, workId) {
       const [source] = await database
         .select({
