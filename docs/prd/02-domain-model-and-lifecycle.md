@@ -565,6 +565,11 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tabloyu sil | `Delete table` | Seçili tabloyu kaldırma |
 | Belge önizlemesi | `Document preview` | Belgenin Markdown, diyagram ve formül görünümü |
 | Belge seç | `Select a Document.` | Belge seçilmediğinde gösterilen boş durum |
+| Belge kaydedilemedi | `Document could not be saved.` | Belge güncelleme isteği başarısız olduğunda gösterilen genel hata |
+| Belge oluşturulamadı | `Document could not be created.` | Yeni Belge oluşturma isteği başarısız olduğunda gösterilen genel hata |
+| Belgeler yüklenemedi | `Documents could not be loaded.` | Proje Belge listesi yüklenemediğinde gösterilen hata durumu |
+| Diyagram işlenemedi | `Diagram could not be rendered.` | Mermaid diyagramı işlenemediğinde gösterilen genel hata |
+| Formül işlenemedi | `Formula could not be rendered.` | LaTeX formülü işlenemediğinde gösterilen genel hata |
 | Discovery | `Discovery` | Geri Bildirim ve araştırma kayıtlarını toplayan Proje alanı veya hazır aşama adı |
 | Decisions | `Decisions` | Karar, Risk, Varsayım ve Açık Soruyu toplayan Proje alanı; Research hazır İş Bağlam Kartı bölümü de aynı etiketi kullanır |
 | Karar hükmü | `Decision text` | Kararın yürürlükteki seçim metni |

@@ -23,7 +23,10 @@ import type {
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
-import type { DocumentsAccess } from "@cantiara/api/documents";
+import type {
+  DocumentMutationContracts,
+  DocumentsAccess,
+} from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type {
@@ -86,6 +89,7 @@ export interface CreateContextOptions {
   customFields?: CustomFieldsAccess;
   dailyFocus?: DailyFocusAccess;
   database: Database;
+  documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   fileAttachments?: FileAttachmentAccess;
   githubAvailability: GitHubAvailability;
@@ -132,6 +136,7 @@ export async function createContext({
   backlog,
   backlogMutationContracts,
   dailyFocus,
+  documentMutationContracts,
   documents,
   roadmapHorizon,
   captureInbox,
@@ -190,6 +195,7 @@ export async function createContext({
     backlog,
     backlogMutationContracts,
     dailyFocus,
+    documentMutationContracts,
     documents,
     roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),

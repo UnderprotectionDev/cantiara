@@ -20,7 +20,7 @@ const highlightThemeCss = createThemeCss({
 });
 
 const previewPattern =
-  /(`{3,})([^\n]*)\n([\s\S]*?)\n\1|(`+)([^`\n]*?)\4|\$\$([\s\S]*?)\$\$/g;
+  /(`{3,})([^\n]*)\n([\s\S]*?)\n\1`*|(`+)([^`\n]*?)\4|\$\$([\s\S]*?)\$\$/g;
 
 const inlineMathExtension: MarkdownExtension = {
   name: "document-inline-math",
@@ -109,7 +109,7 @@ function MermaidPreview({ source }: { source: string }) {
   );
 }
 
-function MathPreview({ source }: { source: string }) {
+function useKatexRendering(source: string, displayMode: boolean) {
   const target = useRef<HTMLSpanElement>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -118,7 +118,7 @@ function MathPreview({ source }: { source: string }) {
     }
     try {
       katex.render(source, target.current, {
-        displayMode: true,
+        displayMode,
         throwOnError: true,
         trust: false,
       });
@@ -131,7 +131,12 @@ function MathPreview({ source }: { source: string }) {
           : "Formula could not be rendered.",
       );
     }
-  }, [source]);
+  }, [displayMode, source]);
+  return { error, target };
+}
+
+function MathPreview({ source }: { source: string }) {
+  const { error, target } = useKatexRendering(source, true);
   return (
     <div className="space-y-2">
       {error ? <p role="alert">{error}</p> : null}
@@ -142,28 +147,7 @@ function MathPreview({ source }: { source: string }) {
 }
 
 function InlineMath({ latex }: { latex: string }) {
-  const target = useRef<HTMLSpanElement>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!target.current) {
-      return;
-    }
-    try {
-      katex.render(latex, target.current, {
-        displayMode: false,
-        throwOnError: true,
-        trust: false,
-      });
-      setError(null);
-    } catch (failure) {
-      target.current.replaceChildren();
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Formula could not be rendered.",
-      );
-    }
-  }, [latex]);
+  const { error, target } = useKatexRendering(latex, false);
   return (
     <span>
       {error ? (

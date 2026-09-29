@@ -39,6 +39,16 @@ import DocumentPreview from "./document-preview";
 
 const lowlight = createLowlight(common);
 type DocumentView = "write" | "markdown" | "preview";
+interface DocumentCreateInput {
+  title: string;
+  type: Document["type"];
+}
+
+interface DocumentSaveInput {
+  body: string;
+  title: string;
+  type: Document["type"];
+}
 
 function comparableMarkdown(source: string) {
   return source.replaceAll("\r\n", "\n");
@@ -56,20 +66,51 @@ function DocumentEditor({
   const [view, setView] = useState<DocumentView>("write");
   const [conversionWarning, setConversionWarning] = useState(false);
   const allowRichUpdates = useRef(false);
+  const pendingSave = useRef<{
+    baseRevision: number;
+    clientIdempotencyKey: string;
+    value: DocumentSaveInput;
+  } | null>(null);
+
+  function saveIdempotencyKey(value: DocumentSaveInput) {
+    const pending = pendingSave.current;
+    if (
+      pending?.baseRevision === revision &&
+      pending.value.title === value.title &&
+      pending.value.type === value.type &&
+      pending.value.body === value.body
+    ) {
+      return pending.clientIdempotencyKey;
+    }
+    const clientIdempotencyKey = crypto.randomUUID();
+    pendingSave.current = {
+      baseRevision: revision,
+      clientIdempotencyKey,
+      value: { ...value },
+    };
+    return clientIdempotencyKey;
+  }
+
   const save = useMutation({
-    mutationFn: (value: {
-      title: string;
-      type: Document["type"];
-      body: string;
+    mutationFn: (command: {
+      clientIdempotencyKey: string;
+      value: DocumentSaveInput;
     }) =>
       runOnlineOnlyWrite(() =>
         client.updateDocument({
           documentId: record.id,
           baseRevision: revision,
-          ...value,
+          clientIdempotencyKey: command.clientIdempotencyKey,
+          ...command.value,
         }),
       ),
-    onSuccess: async (saved) => {
+    onSuccess: async (saved, command) => {
+      if (
+        pendingSave.current?.clientIdempotencyKey ===
+        command.clientIdempotencyKey
+      ) {
+        pendingSave.current = null;
+      }
       setRevision(saved.revision);
       setError(null);
       await onSaved();
@@ -88,7 +129,10 @@ function DocumentEditor({
       body: record.body,
     },
     onSubmit: async ({ value }) => {
-      await save.mutateAsync(value);
+      await save.mutateAsync({
+        clientIdempotencyKey: saveIdempotencyKey(value),
+        value,
+      });
     },
   });
   const editor = useEditor({
@@ -303,16 +347,52 @@ export default function ProjectDocumentsSurface({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const pendingCreate = useRef<{
+    clientIdempotencyKey: string;
+    projectId: string;
+    value: DocumentCreateInput;
+  } | null>(null);
+
+  function createIdempotencyKey(value: DocumentCreateInput) {
+    const pending = pendingCreate.current;
+    if (
+      pending &&
+      pending.projectId === projectId &&
+      pending.value.title === value.title &&
+      pending.value.type === value.type
+    ) {
+      return pending.clientIdempotencyKey;
+    }
+    const clientIdempotencyKey = crypto.randomUUID();
+    pendingCreate.current = {
+      clientIdempotencyKey,
+      projectId,
+      value: { ...value },
+    };
+    return clientIdempotencyKey;
+  }
+
   const create = useMutation({
-    mutationFn: (value: { title: string; type: Document["type"] }) =>
+    mutationFn: (command: {
+      clientIdempotencyKey: string;
+      value: DocumentCreateInput;
+    }) =>
       runOnlineOnlyWrite(() =>
         client.createDocument({
           projectId,
-          ...value,
+          baseRevision: 0,
+          clientIdempotencyKey: command.clientIdempotencyKey,
+          ...command.value,
           body: "",
         }),
       ),
-    onSuccess: async (created) => {
+    onSuccess: async (created, command) => {
+      if (
+        pendingCreate.current?.clientIdempotencyKey ===
+        command.clientIdempotencyKey
+      ) {
+        pendingCreate.current = null;
+      }
       setError(null);
       form.reset();
       setCreateOpen(false);
@@ -329,7 +409,10 @@ export default function ProjectDocumentsSurface({
   const form = useForm({
     defaultValues: { title: "", type: "General" as Document["type"] },
     onSubmit: async ({ value }) => {
-      await create.mutateAsync(value);
+      await create.mutateAsync({
+        clientIdempotencyKey: createIdempotencyKey(value),
+        value,
+      });
     },
   });
   const selected = documents.data?.find((item) => item.id === selectedId);

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   createDocumentInputSchema,
+  createDocumentMutationInputSchema,
   documentTypeSchema,
   updateDocumentInputSchema,
+  updateDocumentMutationInputSchema,
 } from "./documents";
 
 describe("Documents", () => {
@@ -46,10 +48,48 @@ describe("Documents", () => {
     expect(
       updateDocumentInputSchema.parse({
         documentId: "document-1",
-        baseRevision: 0,
         type: "Plan",
       }),
     ).toMatchObject({ type: "Plan" });
     expect(documentTypeSchema.safeParse("Wiki").success).toBe(false);
+  });
+
+  it("requires a human mutation envelope for create and update commands", () => {
+    expect(
+      createDocumentMutationInputSchema.safeParse({
+        body: "",
+        projectId: "project-1",
+        title: "Architecture",
+        type: "General",
+      }).success,
+    ).toBe(false);
+    expect(
+      createDocumentMutationInputSchema.parse({
+        baseRevision: 0,
+        body: "",
+        clientIdempotencyKey: "create-document-1",
+        projectId: "project-1",
+        title: "Architecture",
+        type: "General",
+      }),
+    ).toMatchObject({
+      baseRevision: 0,
+      clientIdempotencyKey: "create-document-1",
+    });
+    expect(
+      updateDocumentMutationInputSchema.safeParse({
+        baseRevision: 1,
+        clientIdempotencyKey: "update-document-1",
+        documentId: "document-1",
+        body: "Updated",
+      }).success,
+    ).toBe(true);
+    expect(
+      updateDocumentMutationInputSchema.safeParse({
+        baseRevision: 1,
+        documentId: "document-1",
+        body: "Updated",
+      }).success,
+    ).toBe(false);
   });
 });
