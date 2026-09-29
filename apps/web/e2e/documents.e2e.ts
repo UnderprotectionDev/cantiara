@@ -9,6 +9,8 @@ const tablePattern = /\|/;
 const linkPattern = /https:\/\/example\.com/;
 const typescriptFencePattern = /```typescript/;
 const blockFormulaPattern = /\$\$[\s\S]*x\^2/;
+const technicalDiagramHrefPattern = /#technical-diagram-/;
+const technicalDiagramsHrefPattern = /#technical-diagrams$/;
 
 test("creates and edits a database-backed Document while preserving technical Markdown source", async ({
   context,
@@ -287,6 +289,9 @@ test("converts saved Mermaid into an independent Technical Diagram and embeds it
   await create.getByRole("button", { name: "Create Document" }).click();
   const editor = page.getByRole("region", { name: "Document", exact: true });
   await editor.getByRole("tab", { name: "Markdown" }).click();
+  await expect(
+    editor.getByRole("link", { name: "Technical Diagrams" }),
+  ).toHaveAttribute("href", technicalDiagramsHrefPattern);
   await editor
     .getByLabel("Markdown source")
     .fill("```mermaid\ngraph TD\nweb[Web] --> api[API]\n```");
@@ -304,6 +309,12 @@ test("converts saved Mermaid into an independent Technical Diagram and embeds it
     .getByRole("button", { name: "Convert to Technical Diagram" })
     .click();
   await expect(preview).not.toBeVisible();
+  await expect(
+    editor.getByText("Technical Diagram: Architecture notes"),
+  ).toBeVisible();
+  await expect(
+    editor.getByRole("link", { name: "Open source record" }),
+  ).toHaveAttribute("href", technicalDiagramHrefPattern);
   await editor.getByRole("tab", { name: "Markdown" }).click();
   await editor
     .getByLabel("Technical Diagram")
@@ -317,7 +328,10 @@ test("converts saved Mermaid into an independent Technical Diagram and embeds it
   await expect(
     editor.getByRole("region", { name: "Technical Diagram" }),
   ).toContainText("API");
-  await editor.getByRole("link", { name: "Open source record" }).click();
+  await editor
+    .getByRole("tabpanel", { name: "Preview" })
+    .getByRole("link", { name: "Open source record" })
+    .click();
   const source = page.getByRole("region", { name: "Technical Diagram" });
   await source.getByLabel("Name", { exact: true }).fill("Web only");
   await source.getByRole("checkbox", { name: "API" }).uncheck();

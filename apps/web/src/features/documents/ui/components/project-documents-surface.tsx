@@ -75,6 +75,10 @@ function DocumentEditor({
     end: number;
   } | null>(null);
   const [conversionTitle, setConversionTitle] = useState(record.title);
+  const [convertedDiagram, setConvertedDiagram] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const conversionKey = useRef<string | null>(null);
   const [workAction, setWorkAction] = useState<{
     id: string;
@@ -142,9 +146,12 @@ function DocumentEditor({
         }),
       );
     },
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       setConversionSelection(null);
       conversionKey.current = null;
+      if (created) {
+        setConvertedDiagram({ id: created.id, title: created.title });
+      }
       await queryClient.invalidateQueries({
         queryKey: orpc.technicalDiagrams.key(),
       });
@@ -378,6 +385,20 @@ function DocumentEditor({
             )}
           </form.Subscribe>
         </div>
+        {convertedDiagram ? (
+          <div
+            className="rounded-md border border-border bg-muted/50 p-3 text-sm"
+            role="status"
+          >
+            <p>Technical Diagram: {convertedDiagram.title}</p>
+            <a
+              className="underline"
+              href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
+            >
+              Open source record
+            </a>
+          </div>
+        ) : null}
         <Tabs onValueChange={changeView} value={view}>
           <TabsList aria-label="Document view" className="mb-1" variant="line">
             <TabsTrigger value="write">Write</TabsTrigger>
@@ -480,6 +501,12 @@ function DocumentEditor({
                         </NativeSelectOption>
                       ))}
                     </NativeSelect>
+                    <a
+                      className="text-sm underline"
+                      href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
+                    >
+                      Technical Diagrams
+                    </a>
                     {selectedDiagramId ? (
                       <>
                         <Label htmlFor="document-live-diagram-view">
