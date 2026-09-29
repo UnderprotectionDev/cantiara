@@ -55,6 +55,7 @@ function createContext(
 function createDocumentsAccess(): DocumentsAccess {
   return {
     get: vi.fn().mockResolvedValue(initialDocument),
+    getLiveWork: vi.fn().mockResolvedValue(null),
     list: vi.fn().mockResolvedValue([initialDocument]),
   };
 }
@@ -112,6 +113,83 @@ function createFailingMutationContract(error: unknown) {
 }
 
 describe("Documents RPC", () => {
+  test("resolves a live Work block from its current source and hides an unavailable target", async () => {
+    const documents = createDocumentsAccess();
+    vi.mocked(documents.get).mockResolvedValue({
+      ...initialDocument,
+      body: ':::live-work{workId="work-1"}\n:::live-work{workId="missing"}\n```text\n```not-a-closing-fence\n:::live-work{workId="example-only"}\n```',
+    });
+    const find = vi.fn(async (_accountId: string, id: string) =>
+      id === "work-1"
+        ? {
+            id,
+            projectId: "project-1",
+            key: "PRO-1",
+            title: "Current title",
+            type: "Task",
+            status: "In Progress",
+            plannedStartDate: null,
+            priority: [{ name: "Impact", rank: "High" }],
+            targetDate: null,
+          }
+        : null,
+    );
+    documents.getLiveWork = find;
+    const context = createContext(documents, {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    const client = createRouterClient(appRouter, { context });
+
+    expect(
+      await client.documentLiveWorkBlocks({ documentId: "document-1" }),
+    ).toEqual([
+      {
+        workId: "work-1",
+        source: {
+          id: "work-1",
+          projectId: "project-1",
+          key: "PRO-1",
+          title: "Current title",
+          type: "Task",
+          status: "In Progress",
+          plannedStartDate: null,
+          priority: [{ name: "Impact", rank: "High" }],
+          targetDate: null,
+        },
+      },
+      { workId: "missing", source: null },
+    ]);
+    expect(find).toHaveBeenCalledWith("account-1", "work-1");
+  });
+  test("resolves a preview body while checking access to the saved Document", async () => {
+    const documents = createDocumentsAccess();
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+
+    expect(
+      await client.documentLiveWorkBlocks({
+        documentId: "document-1",
+        body: ':::live-work{workId="draft-work"}',
+      }),
+    ).toEqual([{ workId: "draft-work", source: null }]);
+    expect(documents.getLiveWork).toHaveBeenCalledWith(
+      "account-1",
+      "draft-work",
+    );
+
+    vi.mocked(documents.get).mockResolvedValue(null);
+    await expect(
+      client.documentLiveWorkBlocks({
+        documentId: "document-1",
+        body: ':::live-work{workId="draft-work"}',
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
   test("routes create through the idempotent mutation contract", async () => {
     const documents = createDocumentsAccess();
     const creation = createMutationContract(null);

@@ -139,6 +139,90 @@ test("creates and edits a database-backed Document while preserving technical Ma
   ).toHaveValue(invalidDiagram);
 });
 
+test("a live Work block follows the source and uses ordinary status actions", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+  };
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#documents`);
+
+  await page.getByRole("button", { name: "Create Document" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Create Document" });
+  await createDialog.getByLabel("Title").fill("Work notes");
+  await createDialog.getByRole("button", { name: "Create Document" }).click();
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await editor.getByRole("tab", { name: "Markdown" }).click();
+  await editor.getByLabel("Live Work block").selectOption({
+    label: "DOCS-1 · Live Work source",
+  });
+  await editor.getByRole("tab", { name: "Preview" }).click();
+  await expect(
+    editor.getByRole("region", { name: "Live Work block" }),
+  ).toContainText("Live Work source");
+  await editor.getByRole("button", { name: "Save" }).click();
+  const block = editor.getByRole("region", { name: "Live Work block" });
+  await expect(block).toContainText("Live Work source");
+  await expect(block).toContainText("Not Started");
+
+  await block.getByRole("button", { name: "Change status" }).click();
+  const statusDialog = page.getByRole("dialog", { name: "Change status" });
+  const statusSaved = page.waitForResponse(
+    (response) => response.url().includes("updateWorkStatus") && response.ok(),
+  );
+  await statusDialog
+    .getByRole("combobox", { name: "Status for DOCS-1" })
+    .selectOption("In Progress");
+  await statusSaved;
+  await page.keyboard.press("Escape");
+  await expect(block).toContainText("In Progress");
+
+  await block.getByRole("button", { name: "Close", exact: true }).click();
+  const closeDialog = page.getByRole("dialog", { name: "Close", exact: true });
+  await closeDialog
+    .getByRole("combobox", { name: "Closure result for DOCS-1" })
+    .selectOption("Completed");
+  const closeSaved = page.waitForResponse(
+    (response) => response.url().includes("closeWork") && response.ok(),
+  );
+  await closeDialog
+    .getByRole("dialog", { name: "Close DOCS-1" })
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await closeSaved;
+  await page.keyboard.press("Escape");
+  await expect(block).toContainText("Closed");
+
+  await page.reload();
+  await page
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Work notes" })
+    .click();
+  await editor.getByRole("tab", { name: "Preview" }).click();
+  await expect(
+    editor.getByRole("region", { name: "Live Work block" }),
+  ).toContainText("Closed");
+
+  await editor.getByRole("tab", { name: "Markdown" }).click();
+  const markdown = editor.getByRole("textbox", { name: "Markdown source" });
+  await markdown.fill(
+    `${await markdown.inputValue()}\n:::live-work{workId="missing"}`,
+  );
+  await editor.getByRole("button", { name: "Save" }).click();
+  await editor.getByRole("tab", { name: "Preview" }).click();
+  const broken = editor.getByRole("region", { name: "Live Work block" }).last();
+  await expect(broken).toContainText("Source record is unavailable.");
+  await expect(broken.getByRole("button")).toHaveCount(0);
+});
+
 test("formats a Document from the rich editor toolbar", async ({
   context,
   page,

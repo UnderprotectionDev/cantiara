@@ -34,6 +34,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentPreview from "./document-preview";
 
@@ -61,10 +62,35 @@ function DocumentEditor({
   record: Document;
   onSaved: () => Promise<void>;
 }) {
+  const queryClient = useQueryClient();
   const [revision, setRevision] = useState(record.revision);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<DocumentView>("write");
   const [conversionWarning, setConversionWarning] = useState(false);
+  const [previewBody, setPreviewBody] = useState(record.body);
+  const [workAction, setWorkAction] = useState<{
+    id: string;
+    kind: "status" | "close";
+    requestId: string;
+  } | null>(null);
+  const liveWorkOptions = orpc.documentLiveWorkBlocks.queryOptions({
+    input: { documentId: record.id, body: previewBody },
+  });
+  const liveWorkBlocks = useQuery({
+    ...liveWorkOptions,
+    enabled: view === "preview",
+  });
+  const works = useQuery({
+    ...orpc.projectWorks.queryOptions({
+      input: { projectId: record.projectId },
+    }),
+    enabled: view === "markdown",
+  });
+  const actionWork = useQuery({
+    ...orpc.work.queryOptions({ input: { workId: workAction?.id ?? "" } }),
+    enabled: workAction !== null,
+    refetchOnMount: "always",
+  });
   const allowRichUpdates = useRef(false);
   const pendingSave = useRef<{
     baseRevision: number;
@@ -113,6 +139,9 @@ function DocumentEditor({
       }
       setRevision(saved.revision);
       setError(null);
+      await queryClient.invalidateQueries({
+        queryKey: liveWorkOptions.queryKey,
+      });
       await onSaved();
     },
     onError: (failure) =>
@@ -172,7 +201,7 @@ function DocumentEditor({
       allowRichUpdates.current = true;
     }
     if (!safe) {
-      setView("markdown");
+      setView((current) => (current === "write" ? "markdown" : current));
       setConversionWarning(true);
     }
   }, [editor, record.body]);
@@ -180,6 +209,9 @@ function DocumentEditor({
   function changeView(next: string) {
     if (next !== "write") {
       allowRichUpdates.current = false;
+      if (next === "preview") {
+        setPreviewBody(form.getFieldValue("body"));
+      }
       setView(next as DocumentView);
       return;
     }
@@ -301,6 +333,32 @@ function DocumentEditor({
               <form.Field name="body">
                 {(field) => (
                   <div className="space-y-2">
+                    <Label htmlFor="document-live-work">Live Work block</Label>
+                    <NativeSelect
+                      id="document-live-work"
+                      onChange={(event) => {
+                        const workId = event.target.value;
+                        if (!workId) {
+                          return;
+                        }
+                        const spacer = field.state.value.trimEnd()
+                          ? "\n\n"
+                          : "";
+                        field.handleChange(
+                          `${field.state.value.trimEnd()}${spacer}:::live-work{workId="${workId}"}\n`,
+                        );
+                      }}
+                      value=""
+                    >
+                      <NativeSelectOption value="">
+                        Live Work block
+                      </NativeSelectOption>
+                      {works.data?.map((work) => (
+                        <NativeSelectOption key={work.id} value={work.id}>
+                          {work.key} · {work.title}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
                     <Label htmlFor="document-markdown">Markdown source</Label>
                     <textarea
                       className="min-h-80 w-full resize-y rounded-lg border border-border bg-background p-5 font-mono text-sm leading-6 focus-visible:outline-2 focus-visible:outline-ring"
@@ -320,7 +378,21 @@ function DocumentEditor({
             <form.Subscribe selector={(state) => state.values.body}>
               {(body) => (
                 <div className="min-h-80 rounded-lg border border-border bg-background p-5 text-sm leading-7">
-                  <DocumentPreview source={body} />
+                  <DocumentPreview
+                    liveWorkBlocks={
+                      liveWorkBlocks.isPending
+                        ? undefined
+                        : (liveWorkBlocks.data ?? [])
+                    }
+                    onLiveWorkAction={(id, kind) =>
+                      setWorkAction({
+                        id,
+                        kind,
+                        requestId: crypto.randomUUID(),
+                      })
+                    }
+                    source={body}
+                  />
                 </div>
               )}
             </form.Subscribe>
@@ -332,6 +404,52 @@ function DocumentEditor({
           </p>
         ) : null}
       </form>
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setWorkAction(null);
+            queryClient.invalidateQueries({
+              queryKey: liveWorkOptions.queryKey,
+            });
+          }
+        }}
+        open={workAction !== null}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {workAction?.kind === "close" ? "Close" : "Change status"}
+            </DialogTitle>
+            <DialogDescription>
+              {actionWork.data?.key} · {actionWork.data?.title}
+            </DialogDescription>
+          </DialogHeader>
+          {actionWork.data && !actionWork.isFetching && workAction ? (
+            <WorkStatusForm
+              completionFeedback={{
+                effect: null,
+                noticeVisible: false,
+                reopenStatus: null,
+              }}
+              onCloseOutcome={() =>
+                queryClient.invalidateQueries({
+                  queryKey: liveWorkOptions.queryKey,
+                })
+              }
+              onRequestedStatusActionHandled={() => undefined}
+              requestedStatusAction={
+                workAction.kind === "close"
+                  ? { id: workAction.requestId, status: "Closed" }
+                  : null
+              }
+              work={actionWork.data}
+              workStatusLabels={[]}
+            />
+          ) : (
+            <p role="status">Loading source record…</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

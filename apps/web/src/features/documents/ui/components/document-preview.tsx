@@ -1,3 +1,8 @@
+import {
+  documentLiveWorkDirectives,
+  type LiveWorkSource,
+} from "@cantiara/api/documents";
+import { Button } from "@cantiara/ui/components/button";
 import { defaultHighlighter } from "@tanstack/highlight";
 import { createTanStackMarkdownHighlighter } from "@tanstack/highlight/markdown";
 import { createThemeCss } from "@tanstack/highlight/theme";
@@ -8,7 +13,15 @@ import { Markdown } from "@tanstack/markdown/react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { workRecordHref } from "../../../project-shell/lib/project-shell-navigation";
 
 mermaid.initialize({ securityLevel: "strict", startOnLoad: false });
 
@@ -160,11 +173,132 @@ function InlineMath({ latex }: { latex: string }) {
   );
 }
 
-export default function DocumentPreview({ source }: { source: string }) {
+interface LiveWorkBlock {
+  source: LiveWorkSource | null;
+  workId: string;
+}
+
+function LiveWorkCard({
+  block,
+  loading,
+  onAction,
+}: {
+  block?: LiveWorkBlock;
+  loading: boolean;
+  onAction?: (workId: string, action: "status" | "close") => void;
+}) {
+  const record = block?.source;
+  const handleAction = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const { action } = event.currentTarget.dataset;
+      if (record && (action === "status" || action === "close")) {
+        onAction?.(record.id, action);
+      }
+    },
+    [onAction, record],
+  );
+  return (
+    <section aria-label="Live Work block" className="rounded-lg border p-4">
+      <p className="text-muted-foreground text-xs">Live Work block</p>
+      {record ? (
+        <>
+          <p className="font-medium">
+            {record.key} · {record.title}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {[
+              record.type,
+              record.status,
+              record.plannedStartDate,
+              record.targetDate,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            Priority metrics:{" "}
+            {record.priority.length > 0
+              ? record.priority
+                  .map(({ name, rank }) => `${name}: ${rank}`)
+                  .join(" · ")
+              : "—"}
+          </p>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {onAction ? (
+              <>
+                <Button
+                  data-action="status"
+                  onClick={handleAction}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Change status
+                </Button>
+                {record.status === "Closed" ? null : (
+                  <Button
+                    data-action="close"
+                    onClick={handleAction}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Close
+                  </Button>
+                )}
+              </>
+            ) : null}
+            <a
+              className="self-center underline-offset-4 hover:underline"
+              href={workRecordHref(record.projectId, record.id)}
+            >
+              Open source record
+            </a>
+          </div>
+        </>
+      ) : (
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+export default function DocumentPreview({
+  liveWorkBlocks,
+  onLiveWorkAction,
+  source,
+}: {
+  liveWorkBlocks?: readonly LiveWorkBlock[];
+  onLiveWorkAction?: (workId: string, action: "status" | "close") => void;
+  source: string;
+}) {
   const parts: Array<{
-    kind: "markdown" | "mermaid" | "math";
+    kind: "markdown" | "mermaid" | "math" | "live-work";
     value: string;
   }> = [];
+  const directives = documentLiveWorkDirectives(source);
+  function appendMarkdown(value: string, offset: number) {
+    let last = 0;
+    for (const directive of directives) {
+      if (directive.start < offset || directive.end > offset + value.length) {
+        continue;
+      }
+      const relativeStart = directive.start - offset;
+      if (relativeStart > last) {
+        parts.push({
+          kind: "markdown",
+          value: value.slice(last, relativeStart),
+        });
+      }
+      parts.push({ kind: "live-work", value: directive.id });
+      last = directive.end - offset;
+    }
+    if (last < value.length) {
+      parts.push({ kind: "markdown", value: value.slice(last) });
+    }
+  }
   let cursor = 0;
   for (const match of source.matchAll(previewPattern)) {
     if (match[5] !== undefined) {
@@ -175,7 +309,7 @@ export default function DocumentPreview({ source }: { source: string }) {
     }
     const position = match.index ?? 0;
     if (position > cursor) {
-      parts.push({ kind: "markdown", value: source.slice(cursor, position) });
+      appendMarkdown(source.slice(cursor, position), cursor);
     }
     if (match[1] === undefined) {
       parts.push({ kind: "math", value: match[7] ?? "" });
@@ -185,7 +319,7 @@ export default function DocumentPreview({ source }: { source: string }) {
     cursor = position + match[0].length;
   }
   if (cursor < source.length) {
-    parts.push({ kind: "markdown", value: source.slice(cursor) });
+    appendMarkdown(source.slice(cursor), cursor);
   }
   if (parts.length === 0) {
     parts.push({ kind: "markdown", value: source });
@@ -204,6 +338,19 @@ export default function DocumentPreview({ source }: { source: string }) {
         }
         if (part.kind === "math") {
           return <MathPreview key={key} source={part.value} />;
+        }
+        if (part.kind === "live-work") {
+          const block = liveWorkBlocks?.find(
+            ({ workId }) => workId === part.value,
+          );
+          return (
+            <LiveWorkCard
+              block={block}
+              key={key}
+              loading={!liveWorkBlocks}
+              onAction={onLiveWorkAction}
+            />
+          );
         }
         return (
           <Markdown

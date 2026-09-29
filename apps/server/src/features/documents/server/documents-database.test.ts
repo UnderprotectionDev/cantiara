@@ -8,11 +8,16 @@ import {
   mutationReceipt,
   mutationStaging,
 } from "@cantiara/db/schema/mutation";
+import {
+  priorityMetricDefinition,
+  workPriorityMetricValue,
+} from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
+import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { createDatabaseUsageLinks } from "../../relations/server/usage-links-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -171,5 +176,106 @@ describeDatabase("Documents database boundary", () => {
     })) as Document;
     expect(stillReadable).toEqual(updated);
     expect(await documents.documents({ projectId })).toEqual([updated]);
+  });
+
+  it("derives live Work usage links from committed Document content", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documents = client();
+    const usages = createDatabaseUsageLinks(database);
+    await database.insert(work).values({
+      id: "work-source",
+      key: "DOC-1",
+      number: 1,
+      projectId,
+      title: "Current source",
+      type: "Task",
+    });
+    await database.insert(priorityMetricDefinition).values({
+      id: "metric-impact",
+      name: "Impact",
+      nameKey: "impact",
+      projectId,
+      rankDescriptions: {
+        "Very low": "Very low impact",
+        Low: "Low impact",
+        Medium: "Medium impact",
+        High: "High impact",
+        "Very high": "Very high impact",
+      },
+      shortDescription: "Expected impact",
+    });
+    await database.insert(workPriorityMetricValue).values({
+      id: "value-impact",
+      metricId: "metric-impact",
+      projectId,
+      rank: "High",
+      workId: "work-source",
+    });
+    const created = await documents.createDocument({
+      baseRevision: 0,
+      body: ':::live-work{workId="work-source"}',
+      clientIdempotencyKey: "create-document-live-usage",
+      projectId,
+      title: "Live references",
+      type: "General",
+    });
+    const initialLinks = await usages.listBySource(accountId, {
+      recordId: "work-source",
+      recordType: "Work",
+    });
+    expect(initialLinks).toMatchObject([
+      {
+        kind: "Live block",
+        surface: { recordId: created.id, recordType: "Document" },
+      },
+    ]);
+    expect(
+      await documents.documentLiveWorkBlocks({ documentId: created.id }),
+    ).toMatchObject([
+      {
+        source: {
+          title: "Current source",
+          priority: [{ name: "Impact", rank: "High" }],
+        },
+      },
+    ]);
+
+    await database
+      .update(work)
+      .set({ trashedAt: new Date() })
+      .where(eq(work.id, "work-source"));
+    expect(
+      await documents.documentLiveWorkBlocks({ documentId: created.id }),
+    ).toEqual([{ workId: "work-source", source: null }]);
+
+    const revised = await documents.updateDocument({
+      baseRevision: created.revision,
+      body: 'A note.\n\n:::live-work{workId="work-source"}',
+      clientIdempotencyKey: "keep-document-live-usage",
+      documentId: created.id,
+    });
+    expect(
+      await usages.listBySource(accountId, {
+        recordId: "work-source",
+        recordType: "Work",
+      }),
+    ).toMatchObject([
+      { id: initialLinks[0]?.id, createdAt: initialLinks[0]?.createdAt },
+    ]);
+
+    await documents.updateDocument({
+      baseRevision: revised.revision,
+      body: "Reference removed.",
+      clientIdempotencyKey: "remove-document-live-usage",
+      documentId: created.id,
+    });
+    expect(
+      await usages.listBySource(accountId, {
+        recordId: "work-source",
+        recordType: "Work",
+      }),
+    ).toEqual([]);
   });
 });

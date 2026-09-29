@@ -67,7 +67,9 @@ import {
   createDocumentMutationInputSchema,
   type DocumentMutationValue,
   DocumentUnavailableError,
+  documentBodySchema,
   documentIdSchema,
+  documentLiveWorkIds,
   documentSchema,
   projectIdSchema,
   updateDocumentInputSchema,
@@ -2164,6 +2166,40 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return result;
+    }),
+  documentLiveWorkBlocks: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          body: documentBodySchema.optional(),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { documents } = context;
+      const record = await documents.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!record) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return Promise.all(
+        documentLiveWorkIds(input.body ?? record.body).map(async (workId) => {
+          const work = await documents.getLiveWork(
+            context.session.user.id,
+            workId,
+          );
+          return {
+            workId,
+            source: work ?? null,
+          };
+        }),
+      );
     }),
   createDocument: protectedProcedure
     .input(createDocumentMutationInputSchema)

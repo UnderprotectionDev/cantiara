@@ -18,6 +18,49 @@ export const documentIdSchema = z.string().trim().min(1).max(255);
 export const projectIdSchema = z.string().trim().min(1).max(255);
 export const documentTitleSchema = z.string().trim().min(1).max(255);
 export const documentBodySchema = z.string().max(1_000_000);
+const markdownLinesPattern = /\n/;
+const markdownFencePattern = /^ {0,3}(`{3,}|~{3,})/;
+const markdownFenceClosePattern = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+const liveWorkDirectivePattern = /^:::live-work\{workId="([^"]{1,255})"\}$/;
+
+/** Live block directives carry only source identity; current fields are read at view time. */
+export function documentLiveWorkDirectives(body: string) {
+  const directives: Array<{ end: number; id: string; start: number }> = [];
+  let fence: { marker: string; length: number } | null = null;
+  let start = 0;
+  for (const line of body.split(markdownLinesPattern)) {
+    const normalizedLine = line.endsWith("\r") ? line.slice(0, -1) : line;
+    const openingMarker = markdownFencePattern.exec(normalizedLine)?.[1];
+    if (fence) {
+      const closingMarker = markdownFenceClosePattern.exec(normalizedLine)?.[1];
+      if (
+        closingMarker &&
+        closingMarker[0] === fence.marker &&
+        closingMarker.length >= fence.length
+      ) {
+        fence = null;
+      }
+      start += line.length + 1;
+      continue;
+    }
+    if (openingMarker) {
+      fence = { marker: openingMarker[0] ?? "", length: openingMarker.length };
+      start += line.length + 1;
+      continue;
+    }
+    const match = liveWorkDirectivePattern.exec(normalizedLine);
+    const id = match?.[1];
+    if (id && documentIdSchema.safeParse(id).success) {
+      directives.push({ start, end: start + normalizedLine.length, id });
+    }
+    start += line.length + 1;
+  }
+  return directives;
+}
+
+export function documentLiveWorkIds(body: string): string[] {
+  return documentLiveWorkDirectives(body).map(({ id }) => id);
+}
 
 export const createDocumentInputSchema = z
   .object({
@@ -83,8 +126,24 @@ export interface DocumentMutationContracts {
   update: (accountId: string) => MutationContract<DocumentMutationValue>;
 }
 
+export interface LiveWorkSource {
+  id: string;
+  key: string;
+  plannedStartDate: string | null;
+  priority: Array<{ name: string; rank: string }>;
+  projectId: string;
+  status: string;
+  targetDate: string | null;
+  title: string;
+  type: string;
+}
+
 export interface DocumentsAccess {
   get: (accountId: string, documentId: string) => Promise<Document | null>;
+  getLiveWork: (
+    accountId: string,
+    workId: string,
+  ) => Promise<LiveWorkSource | null>;
   list: (accountId: string, projectId: string) => Promise<Document[]>;
 }
 

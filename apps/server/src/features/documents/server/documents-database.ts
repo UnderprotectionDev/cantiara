@@ -8,6 +8,7 @@ import type {
 import {
   createDocumentInputSchema,
   DocumentUnavailableError,
+  documentLiveWorkIds,
   documentSchema,
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
@@ -15,8 +16,14 @@ import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
+import {
+  priorityMetricDefinition,
+  workPriorityMetricValue,
+} from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
-import { and, desc, eq } from "drizzle-orm";
+import { usageLink } from "@cantiara/db/schema/relation";
+import { work } from "@cantiara/db/schema/work";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -66,6 +73,84 @@ async function findWorkspaceId(
     .where(eq(workspace.ownerAccountId, accountId))
     .limit(1);
   return record?.id ?? null;
+}
+
+async function syncDocumentLiveWorkUsageLinks(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  documentId: string,
+  body: string,
+) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    throw new DocumentUnavailableError();
+  }
+  const existing = await executor
+    .select({
+      id: usageLink.id,
+      location: usageLink.location,
+      sourceRecordId: usageLink.sourceRecordId,
+    })
+    .from(usageLink)
+    .where(
+      and(
+        eq(usageLink.workspaceId, workspaceId),
+        eq(usageLink.surfaceRecordType, "Document"),
+        eq(usageLink.surfaceRecordId, documentId),
+        eq(usageLink.kind, "Live block"),
+      ),
+    );
+  const available = existing.filter(
+    ({ location }) =>
+      !!location &&
+      typeof location === "object" &&
+      "documentLiveWorkOrdinal" in location,
+  );
+  const workIds = documentLiveWorkIds(body);
+  const newLinks: (typeof usageLink.$inferInsert)[] = [];
+  const locationUpdates: { id: string; ordinal: number }[] = [];
+  for (const [index, workId] of workIds.entries()) {
+    const previousIndex = available.findIndex(
+      (candidate) => candidate.sourceRecordId === workId,
+    );
+    if (previousIndex !== -1) {
+      const [previous] = available.splice(previousIndex, 1);
+      if (previous) {
+        locationUpdates.push({ id: previous.id, ordinal: index });
+      }
+      continue;
+    }
+    newLinks.push({
+      id: crypto.randomUUID(),
+      kind: "Live block",
+      location: { documentLiveWorkOrdinal: index },
+      revision: 1,
+      sourceRecordId: workId,
+      sourceRecordType: "Work",
+      surfaceRecordId: documentId,
+      surfaceRecordType: "Document",
+      workspaceId,
+    });
+  }
+  if (available.length > 0) {
+    await executor.delete(usageLink).where(
+      inArray(
+        usageLink.id,
+        available.map(({ id }) => id),
+      ),
+    );
+  }
+  await Promise.all(
+    locationUpdates.map(({ id, ordinal }) =>
+      executor
+        .update(usageLink)
+        .set({ location: { documentLiveWorkOrdinal: ordinal } })
+        .where(eq(usageLink.id, id)),
+    ),
+  );
+  if (newLinks.length > 0) {
+    await executor.insert(usageLink).values(newLinks);
+  }
 }
 
 async function findOwnedProject(
@@ -179,6 +264,14 @@ function createDocumentTarget(
           updatedAt: input.committedAt,
         })
         .returning();
+      if (created) {
+        await syncDocumentLiveWorkUsageLinks(
+          executor,
+          accountId,
+          created.id,
+          created.body,
+        );
+      }
       return created
         ? {
             id: input.targetId,
@@ -229,6 +322,14 @@ function updateDocumentTarget(
           ),
         )
         .returning();
+      if (updated) {
+        await syncDocumentLiveWorkUsageLinks(
+          executor,
+          accountId,
+          updated.id,
+          updated.body,
+        );
+      }
       return updated ? toTarget(updated) : null;
     },
   };
@@ -253,6 +354,58 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
 
   return {
     get,
+    async getLiveWork(accountId, workId) {
+      const [source] = await database
+        .select({
+          id: work.id,
+          key: work.key,
+          plannedStartDate: work.plannedStartDate,
+          projectId: work.projectId,
+          status: work.status,
+          targetDate: work.targetDate,
+          title: work.title,
+          type: work.type,
+        })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+        .where(
+          and(
+            eq(work.id, workId),
+            eq(workspace.ownerAccountId, accountId),
+            isNull(work.trashedAt),
+          ),
+        )
+        .limit(1);
+      if (!source) {
+        return null;
+      }
+      const priorityRows = await database
+        .select({
+          name: priorityMetricDefinition.name,
+          rank: workPriorityMetricValue.rank,
+        })
+        .from(workPriorityMetricValue)
+        .innerJoin(
+          priorityMetricDefinition,
+          eq(workPriorityMetricValue.metricId, priorityMetricDefinition.id),
+        )
+        .where(
+          and(
+            eq(workPriorityMetricValue.workId, workId),
+            eq(priorityMetricDefinition.enabled, true),
+            isNull(priorityMetricDefinition.trashedAt),
+            isNotNull(workPriorityMetricValue.rank),
+          ),
+        )
+        .orderBy(asc(priorityMetricDefinition.createdAt));
+      return {
+        ...source,
+        priority: priorityRows.flatMap(({ name, rank }) =>
+          rank ? [{ name, rank }] : [],
+        ),
+      };
+    },
     async list(accountId, projectId) {
       const ownedProject = await findOwnedProject(
         database,

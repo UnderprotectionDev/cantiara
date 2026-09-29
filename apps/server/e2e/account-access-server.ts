@@ -532,15 +532,23 @@ async function createE2EFixture(fixtureKey: string) {
   };
 }
 
-function createDocumentsFixture(fixtureKey: string, accountId: string) {
+async function createDocumentsFixture(fixtureKey: string, accountId: string) {
   if (fixtureKey !== "documents") {
     return null;
   }
-  return projectShell.create(accountId, {
+  const documentsProject = await projectShell.create(accountId, {
     name: "Documents Project",
     shortCode: "DOCS",
     starterConfiguration: "Blank Project",
   });
+  await workLifecycle.create(accountId, {
+    baseRevision: 0,
+    clientIdempotencyKey: "documents-live-work-source",
+    projectId: documentsProject.id,
+    title: "Live Work source",
+    type: "Task",
+  });
+  return documentsProject;
 }
 
 async function createBulkEditProgressFixture(accountId: string) {
