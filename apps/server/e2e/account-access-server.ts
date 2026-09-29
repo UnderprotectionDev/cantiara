@@ -42,7 +42,10 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
-import { createDatabaseDocuments } from "../src/features/documents/server/documents-database";
+import {
+  createDatabaseDocumentMutationContracts,
+  createDatabaseDocuments,
+} from "../src/features/documents/server/documents-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
@@ -82,6 +85,8 @@ if (!(databaseUrl && securityEventDatabaseUrl && secret)) {
 
 const database = createDb({ DATABASE_URL: databaseUrl });
 const documents = createDatabaseDocuments(database);
+const documentMutationContracts =
+  createDatabaseDocumentMutationContracts(database);
 const securityEventDatabase = createSecurityEventDb({
   DATABASE_URL: securityEventDatabaseUrl,
 });
@@ -242,6 +247,7 @@ const app = createApp({
   customFieldMutationContracts,
   corsOrigin: webOrigin,
   database,
+  documentMutationContracts,
   documents,
   // Keep integration coverage inside the API window regardless of CI date.
   desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
