@@ -104,11 +104,23 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Odak Dönemi | `Focus Period` | Seçili çalışmalar için geçici çalışma penceresi ve tarihsel kapsam snapshot'ı; ara sonuç veya yayımlanacak kapsam değildir |
 | Odak Dönemi yaşamı | `Planned`, `Active`, `Closed`, `Canceled` | Odak Döneminin İngilizce yaşam etiketleri; sprint kadansı değildir |
 | Odak Dönemi oluştur | `Create Focus Period` | Amaç ve başlangıç/bitiş tarihiyle isteğe bağlı dönem açma |
+| Odak Dönemine İş ekle | `Add Work` | Seçili İşi dönem üyeliğine ekler; İş durumunu veya Proje aşamasını değiştirmez |
+| Odak Döneminden İş çıkar | `Remove` | Seçili İşi dönem üyeliğinden çıkarır; İş durumunu değiştirmez |
+| Odak Dönemi amacı | `Purpose` | Dönemin zorunlu çalışma amacı |
+| Odak Dönemine İş seç | `Select Work` | Üyelik için İş seçimi |
+| Çakışan Odak Dönemi üyeliği | `Work is already in another Focus Period.` | Örtüşen dönem pencerelerine ikinci üyelik reddi |
+| Odak Dönemini açık tut | `Keep period open` | Kapanış kapsamı kaydedilmeden döneme dönme |
+| Odak Dönemi yükleniyor | `Loading Focus Period…` | Dönem listesi yüklenirken canlı durum iletisi |
+| Odak Dönemi kullanılamıyor | `Focus Period is unavailable.` | Dönem listesi okunamadığında hata iletisi |
+| Odak Dönemi oluşturulamadı | `Focus Period could not be created.` | Oluşturma yazması başarısız olduğunda hata iletisi |
+| Odak Dönemi güncellenemedi | `Focus Period could not be updated.` | Üyelik veya yaşam yazması başarısız olduğunda hata iletisi |
+| Açık İş kalmadı | `No Work remains open.` | Kapanış incelemesinde açık İş olmadığında boş durum |
 | Odak Dönemini kapat | `Close` | Yalnız `Active` dönemden kapanış-kapsamı snapshot’ı ve açık kalan İş kararı |
 | Odak Dönemini iptal et | `Cancel` | `Planned` veya `Active` dönemi kapanış hesabı olmadan bitirme |
 | Başlangıç tarihi | `Start date` | Odak Dönemi penceresinin ilk günü |
 | Bitiş tarihi | `End date` | Odak Dönemi penceresinin son günü |
 | Açık kalan İş | `Still-open Work` | Kapanışta toplu karar bekleyen açık İş listesi |
+| Açık İş kararı bölgesi | `Still-open Work decisions` | Kapanıştan sonra açık İşlerin toplu kararını sunan erişilebilir bölüm |
 | Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
 | Odak Döneminde İş yok | `No Work in this Focus Period.` | Dönemde üyelik olmadığında boş durum |
 | Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
@@ -116,18 +128,31 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Zaten etkin dönemde | `Work is already in an active Focus Period. Use Move.` | Örtük ikinci etkin üyelik reddi |
 | Amaç gerekli | `Purpose is required.` | Boş Odak Dönemi amacı reddi |
 | Açık kalanı gönder | `Send` | Kapanışta seçili açık İşleri toplu kararla gönderme |
+| Açık kalan İş hedefi | `Destination` | Kapanış kararında seçilen hedef |
+| Başka dönem seç | `Select Focus Period` | Kapanışta hedef başka dönemi seçme |
+| Açık İşten vazgeçmeyi onayla | `Confirm Abandon selected Work` | Seçili İşler için açık kapatma eylemini onaylama |
+| Kapatma denetimine rağmen kapat | `Close anyway if closure checks remain` | Blokaj veya bitmemiş kontrol listesi varken açık vazgeçme kararı |
+| Kapatma denetimini gözden geçir | `Review closure checks or select Close anyway.` | Açık İşten vazgeçerken gereken onay verilmediğinde hata iletisi |
+| Tamamlanmış İş uyarısı | `Work was already completed.` | Tamamlanmış İşe sonradan vazgeçme kararı verilemediğinde hata iletisi |
+| Vazgeçme onayı gerekli | `Confirm Abandon first.` | Açık vazgeçme onayı verilmediğinde hata iletisi |
 | Sonraki dönem | `Next period` | Açık kalan İşin sonraki Odak Dönemine gönderilmesi |
 | Başka dönem | `Another period` | Açık kalan İşin seçilen başka Odak Dönemine gönderilmesi |
 | Odak Döneminde vazgeç | `Abandon` | Kapanışta açık kalan İşi açık kapatma adımıyla `Abandoned` yapmak |
 | Başlangıç snapshot’ında | `In start snapshot` | Kapanış karşılaştırmasında başlangıç kapsamında bulunan İş |
 | Sonradan eklenen | `Added later` | Başlangıçtan sonra kapanış kapsamına giren İş |
 | Kapsamdan çıkan | `Removed` | Başlangıç kapsamındayken kapanışta bulunmayan İş |
+| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılarla karşılaştırma |
 | Dönem değerlendirmesi | `Period evaluation` | Kapanışta atlanabilir öğrenim metni |
+| Değerlendirmeyi kaydet | `Save evaluation` | İsteğe bağlı dönem öğrenim metinlerini kaydetme |
 | Atla | `Skip` | Dönem değerlendirmesini atlama |
 | Sürdür | `Keep` | Değerlendirmede sürdürülecek öğrenim |
 | Değiştir | `Change` | Değerlendirmede değiştirilecek öğrenim |
 | Sonrakinde dene | `Try next` | Sonraki dönemde denenecek öğrenim |
 | Onayla | `Confirm` | Takip İş önizlemesini onaylayıp oluşturma |
+| Takip İşini önizle | `Preview Follow-up Work` | Takip İşini ve kaynak dönem öğrenimi bağlantısını onaydan önce gösterme |
+| Takip İş önizlemesi | `Follow-up Work preview` | Oluşacak İş, kaynak öğrenim ve kaynak Odak Dönemini gösteren onay bölümü |
+| Öğrenim kaynağı | `Learning source` | Takip İşinin bağlanacağı `Keep`, `Change` veya `Try next` dönem öğrenimi |
+| Kaynak Odak Dönemi | `Source Focus Period` | Takip İşinin oluşturulduğu döneme kalıcı bağlantısı |
 | Tarih karşılaştırması | `Date comparison` | Başlangıç snapshot’ındaki hedef tarihlerin mevcut geçmiş ve kapanış anıyla tarafsız karşılaştırması |
 | Hedefi öne alınan | `Moved earlier` | Başlangıçtaki hedef tarihi öne çekilen İş |
 | Hedefi ileri alınan | `Moved later` | Başlangıçtaki hedef tarihi ileri alınan İş |

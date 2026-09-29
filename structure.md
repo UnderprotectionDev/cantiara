@@ -650,6 +650,8 @@ Bulk Editing owns explicit Work selection, status preview/apply UI, and in-memor
 
 Daily Focus membership uses the PostgreSQL schema (`packages/db/src/schema/daily-focus.ts`), the API contract (`packages/api/src/daily-focus.ts`), the server access layer (`apps/server/src/features/daily-focus/server/`), and the personal day view (`apps/web/src/features/daily-focus/`). The authenticated route is `apps/web/src/routes/_auth/daily-focus.tsx`; Record Actions consumes the same membership through its atomic write boundary.
 
+Focus Period owns its workspace-scoped working window, historical membership, and lifecycle in `packages/db/src/schema/focus-period.ts`, `packages/api/src/focus-period.ts`, and `apps/server/src/features/focus-period/server/`. The founder surface is `apps/web/src/features/focus-period/` at `apps/web/src/routes/_auth/focus-periods.tsx`.
+
 Decision, Milestone, Project Release, and Production Incident source records used by Daily Focus are owned by `packages/api/src/project-source-records.ts`, their PostgreSQL schemas in `packages/db/src/schema/`, versioned migrations in `packages/db/src/migrations/`, and the Account-scoped lifecycle access layer under `apps/server/src/features/project-source-records/server/`. The read-only detail surface lives under `apps/web/src/features/project-source-records/`; `apps/server/src/features/daily-focus/server/` derives timeline events from these source records and mutation history.
 
 Completion Effects preferences are an Account-scoped catalog owned by `packages/api/src/completion-effects.ts`, persisted in `packages/db/src/schema/completion-effects.ts`, served from `apps/server/src/features/completion-effects/server/`, and configured through `apps/web/src/features/completion-effects/`.

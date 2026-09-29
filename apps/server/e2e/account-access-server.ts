@@ -42,6 +42,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "../src/features/prioritization-sessions/server/prioritization-sessions-database";
@@ -124,6 +125,7 @@ const customFieldMutationContracts =
 const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
 });
+const focusPeriod = createDatabaseFocusPeriod(database);
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
 const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
@@ -242,6 +244,7 @@ const app = createApp({
   desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
   desktopOrigins: [],
   fileAttachments,
+  focusPeriod,
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
