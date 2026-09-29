@@ -29,6 +29,7 @@ import type {
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
+import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type {
   MutationContract,
   MutationPayload,
@@ -92,6 +93,7 @@ export interface CreateContextOptions {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   fileAttachments?: FileAttachmentAccess;
+  focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
   mutationContract?: MutationContract<MutationPayload>;
@@ -138,6 +140,7 @@ export async function createContext({
   dailyFocus,
   documentMutationContracts,
   documents,
+  focusPeriod,
   roadmapHorizon,
   captureInbox,
   completionEffectsPreferences,
@@ -197,6 +200,7 @@ export async function createContext({
     dailyFocus,
     documentMutationContracts,
     documents,
+    focusPeriod,
     roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
     clientPlatform: requestClientPlatform(context.req.raw),

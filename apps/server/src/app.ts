@@ -40,6 +40,7 @@ import {
   fileAttachmentScopeSchema,
   fileAttachmentStageInputSchema,
 } from "@cantiara/api/file-attachments";
+import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type {
   MutationContract,
   MutationPayload,
@@ -154,6 +155,7 @@ export interface AppDependencies {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   fileAttachments?: FileAttachmentAccess;
+  focusPeriod?: FocusPeriodAccess;
   githubAvailability: Pick<
     GitHubAvailability,
     "getStatus" | "requiresFreshConsent"
@@ -1146,6 +1148,7 @@ export function createApp(dependencies: AppDependencies) {
       dailyFocus: dependencies.dailyFocus,
       documentMutationContracts: dependencies.documentMutationContracts,
       documents: dependencies.documents,
+      focusPeriod: dependencies.focusPeriod,
       roadmapHorizon: dependencies.roadmapHorizon,
       captureInbox: dependencies.captureInbox,
       completionEffectsPreferences: dependencies.completionEffectsPreferences,

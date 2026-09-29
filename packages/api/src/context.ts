@@ -21,6 +21,7 @@ import type { DailyFocusAccess } from "./daily-focus";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
+import type { FocusPeriodAccess } from "./focus-period";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type { PersonalRemindersAccess } from "./personal-reminders";
 import type {
@@ -154,6 +155,7 @@ export interface Context {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   fileAttachments?: FileAttachmentAccess;
+  focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   mutationContract?: MutationContract<MutationPayload>;

@@ -21,6 +21,7 @@ import {
   documentMutationContracts,
   documents,
   fileAttachments,
+  focusPeriod,
   getDb,
   githubAvailability,
   githubIdentityConfirmation,
@@ -95,6 +96,7 @@ const app = createApp({
   dailyFocus,
   documentMutationContracts,
   documents,
+  focusPeriod,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
     previousContract: env.CANTIARA_DESKTOP_API_PREVIOUS_CONTRACT,

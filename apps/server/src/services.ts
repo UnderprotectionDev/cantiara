@@ -56,6 +56,7 @@ import { createFileAttachmentPreviewWorker } from "./features/file-attachments/s
 import { createFileAttachments } from "./features/file-attachments/server/file-attachments";
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
+import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
@@ -94,6 +95,7 @@ export const documents = createDatabaseDocuments(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
+export const focusPeriod = createDatabaseFocusPeriod(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
 const securityEventDb =
   env.SECURITY_EVENT_LOCAL === "true"

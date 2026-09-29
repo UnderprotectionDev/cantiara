@@ -94,6 +94,16 @@ import {
   fileAttachmentPreviewInputSchema,
   fileAttachmentUndoMarkingInputSchema,
 } from "../file-attachments";
+import {
+  createFocusPeriodInputSchema,
+  FocusPeriodConflictError,
+  FocusPeriodUnavailableError,
+  focusPeriodDecisionInputSchema,
+  focusPeriodEvaluationInputSchema,
+  focusPeriodFollowUpWorkInputSchema,
+  focusPeriodIdInputSchema,
+  focusPeriodMembershipInputSchema,
+} from "../focus-period";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   humanMutationEnvelopeSchema,
@@ -416,6 +426,23 @@ function requireDailyFocus(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.dailyFocus;
+}
+
+function requireFocusPeriod(context: Context) {
+  if (!context.focusPeriod) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.focusPeriod;
+}
+
+function rethrowFocusPeriodError(error: unknown): never {
+  if (error instanceof FocusPeriodUnavailableError) {
+    throw new ORPCError("NOT_FOUND", { cause: error });
+  }
+  if (error instanceof FocusPeriodConflictError) {
+    throw new ORPCError("CONFLICT", { cause: error });
+  }
+  throw error;
 }
 
 function requireProjectSourceRecords(context: Context) {
@@ -3327,6 +3354,158 @@ export const appRouter = {
         return { status: true };
       } catch (error) {
         rethrowPriorityMetricMutationError(error, targetId);
+      }
+    }),
+  focusPeriods: protectedProcedure.handler(({ context }) =>
+    requireFocusPeriod(context).list(context.session.user.id),
+  ),
+  focusPeriod: protectedProcedure
+    .input(focusPeriodIdInputSchema)
+    .handler(({ context, input }) =>
+      requireFocusPeriod(context).find(context.session.user.id, input.periodId),
+    ),
+  createFocusPeriod: protectedProcedure
+    .input(createFocusPeriodInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFocusPeriod(context).create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  addToFocusPeriod: protectedProcedure
+    .input(focusPeriodMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).add(
+          context.session.user.id,
+          input.periodId,
+          input.workId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  removeFromFocusPeriod: protectedProcedure
+    .input(focusPeriodMembershipInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).remove(
+          context.session.user.id,
+          input.periodId,
+          input.workId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  cancelFocusPeriod: protectedProcedure
+    .input(focusPeriodIdInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).cancel(
+          context.session.user.id,
+          input.periodId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  closeFocusPeriod: protectedProcedure
+    .input(focusPeriodIdInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).close(
+          context.session.user.id,
+          input.periodId,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  decideFocusPeriodLeftovers: protectedProcedure
+    .input(focusPeriodDecisionInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).decide(
+          context.session.user.id,
+          input,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  saveFocusPeriodEvaluation: protectedProcedure
+    .input(focusPeriodEvaluationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFocusPeriod(context).saveEvaluation(
+          context.session.user.id,
+          input,
+        );
+        return { status: true };
+      } catch (error) {
+        rethrowFocusPeriodError(error);
+      }
+    }),
+  createFocusPeriodFollowUpWork: protectedProcedure
+    .input(focusPeriodFollowUpWorkInputSchema)
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const access = requireFocusPeriod(context);
+      try {
+        const source = await access.find(accountId, input.periodId);
+        if (!source) {
+          throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
+        }
+        if (source.status !== "Closed") {
+          throw new FocusPeriodConflictError(
+            "Follow-up Work needs a Closed Focus Period.",
+          );
+        }
+        const learningKey = {
+          Keep: "keep",
+          Change: "change",
+          "Try next": "tryNext",
+        } as const satisfies Record<
+          typeof input.learning,
+          "keep" | "change" | "tryNext"
+        >;
+        const learningText = source.evaluation?.[learningKey[input.learning]];
+        if (!learningText) {
+          throw new FocusPeriodConflictError(
+            "Follow-up Work needs a saved period learning.",
+          );
+        }
+        const created = await runWorkLifecycleOperation(() =>
+          requireWorkLifecycle(context).create(accountId, {
+            baseRevision: 0,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            projectId: input.projectId,
+            title: input.title,
+            type: input.type,
+            ...(input.description === undefined
+              ? {}
+              : { description: input.description }),
+          }),
+        );
+        await access.linkFollowUpWork(accountId, {
+          periodId: input.periodId,
+          workId: created.id,
+          learning: input.learning,
+          learningText,
+        });
+        return created;
+      } catch (error) {
+        rethrowFocusPeriodError(error);
       }
     }),
   dailyFocusDay: protectedProcedure
