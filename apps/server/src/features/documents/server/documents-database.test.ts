@@ -1,5 +1,6 @@
 import type { Context } from "@cantiara/api/context";
 import type { Document } from "@cantiara/api/documents";
+import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
@@ -107,6 +108,136 @@ describeDatabase("Documents database boundary", () => {
   afterAll(async () => {
     await database?.$client.end();
   });
+
+  it("requires a selected skeleton in an owned, writable Project", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documents = client();
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "create-selected-persona",
+      projectId,
+      skeleton: "Persona" as const,
+    };
+
+    await expect(documents.createDocument(input)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(await documents.documents({ projectId })).toEqual([]);
+
+    await database
+      .update(project)
+      .set({
+        configuration: getProjectShellConfiguration("Solo SaaS"),
+        starterConfiguration: "Solo SaaS",
+      })
+      .where(eq(project.id, projectId));
+    expect(await documents.documents({ projectId })).toEqual([]);
+
+    await expect(
+      documents.createDocument({ ...input, projectId: "unavailable-project" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await database
+      .update(project)
+      .set({ archivedAt: new Date() })
+      .where(eq(project.id, projectId));
+    await expect(documents.createDocument(input)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(await documents.documents({ projectId })).toEqual([]);
+  });
+
+  it.each([
+    {
+      body: "## Context\n\n## Goals\n\n## Behaviors\n\n## Pain Points\n\n## Constraints\n\n## Evidence\n\n## Open Questions",
+      skeleton: "Persona" as const,
+      type: "Persona",
+    },
+    {
+      body: "## Period\n\n## What worked?\n\n## What did not?\n\n## What did we learn?\n\n## Decisions\n\n## Next changes\n\n## Related records",
+      skeleton: "Retrospective" as const,
+      type: "General",
+    },
+    {
+      body: "## Release\n\n## Audience\n\n## Scope\n\n## Readiness\n\n## Communication\n\n## Launch steps\n\n## Risks\n\n## Observation plan\n\n## Related records",
+      skeleton: "Launch Plan" as const,
+      type: "Plan",
+    },
+  ])(
+    "persists $skeleton as an independent, editable Document and replays creation",
+    async ({ body, skeleton, type }) => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      await database
+        .update(project)
+        .set({
+          configuration: getProjectShellConfiguration("Solo SaaS"),
+          starterConfiguration: "Solo SaaS",
+        })
+        .where(eq(project.id, projectId));
+      const documents = client();
+      const input = {
+        baseRevision: 0,
+        clientIdempotencyKey: "create-selected-skeleton",
+        projectId,
+        skeleton,
+      };
+      const created = await documents.createDocument(input);
+
+      expect(created).toMatchObject({
+        body,
+        projectId,
+        revision: 1,
+        title: skeleton,
+        type,
+      });
+      expect(await documents.createDocument(input)).toEqual(created);
+      expect(await documents.documents({ projectId })).toEqual([created]);
+      expect(await documents.document({ documentId: created.id })).toEqual(
+        created,
+      );
+      await expect(
+        documents.createDocument({
+          ...input,
+          skeleton: skeleton === "Persona" ? "Retrospective" : "Persona",
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+
+      await database
+        .update(project)
+        .set({
+          configuration: getProjectShellConfiguration("Blank Project"),
+          starterConfiguration: "Blank Project",
+        })
+        .where(eq(project.id, projectId));
+      const updated = await documents.updateDocument({
+        baseRevision: created.revision,
+        body: `${body}\n\nFounder notes.`,
+        clientIdempotencyKey: "edit-skeleton-document",
+        documentId: created.id,
+        title: "Founder notes",
+        type: "Research Note",
+      });
+      expect(updated).toMatchObject({
+        body: `${body}\n\nFounder notes.`,
+        id: created.id,
+        revision: 2,
+        title: "Founder notes",
+        type: "Research Note",
+      });
+      expect(await documents.document({ documentId: created.id })).toEqual(
+        updated,
+      );
+      expect(
+        await documents.documentVersion({
+          documentId: created.id,
+          revision: 1,
+        }),
+      ).toEqual(created);
+    },
+  );
 
   it("persists Markdown edits, replays retries, and blocks writes after Project archive", async () => {
     if (!database) {

@@ -63,12 +63,13 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
-  createDocumentInputSchema,
   createDocumentMutationInputSchema,
   type DocumentMutationValue,
   DocumentSectionCycleError,
   DocumentUnavailableError,
   documentBodySchema,
+  documentCreationFields,
+  documentCreationInputSchema,
   documentIdSchema,
   documentLiveDirectives,
   documentLiveWorkIds,
@@ -2781,7 +2782,7 @@ export const appRouter = {
     .input(createDocumentMutationInputSchema)
     .handler(async ({ context, input }) => {
       const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
-      const payload = createDocumentInputSchema.parse(payloadInput);
+      const payload = documentCreationInputSchema.parse(payloadInput);
       const mutation = requireDocumentMutationContracts(context).create(
         context.session.user.id,
       );
@@ -2798,7 +2799,9 @@ export const appRouter = {
           ({ committedAt, currentRevision, payload: mutationPayload }) =>
             ({
               document: documentSchema.parse({
-                ...mutationPayload,
+                ...documentCreationFields(
+                  documentCreationInputSchema.parse(mutationPayload),
+                ),
                 createdAt: committedAt,
                 id: crypto.randomUUID(),
                 revision: currentRevision + 1,

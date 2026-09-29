@@ -10,6 +10,7 @@ import {
   createDocumentInputSchema,
   DocumentSectionCycleError,
   DocumentUnavailableError,
+  documentCreationInputSchema,
   documentLiveDirectives,
   documentRecordReferences,
   documentSchema,
@@ -18,6 +19,10 @@ import {
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
+import {
+  resolveProjectShellConfiguration,
+  starterConfigurationSchema,
+} from "@cantiara/api/project-shell";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
@@ -460,7 +465,7 @@ function createDocumentTarget(
 ): MutationDatabaseTargetAdapter<DocumentMutationValue> {
   return {
     async find(executor, targetId, lock, context) {
-      const payload = createDocumentInputSchema.safeParse(context?.payload);
+      const payload = documentCreationInputSchema.safeParse(context?.payload);
       if (!payload.success) {
         return null;
       }
@@ -472,6 +477,22 @@ function createDocumentTarget(
       );
       if (!ownedProject || ownedProject.archivedAt !== null) {
         return null;
+      }
+      if ("skeleton" in payload.data) {
+        const { skeleton } = payload.data;
+        const configuration = resolveProjectShellConfiguration(
+          ownedProject.configuration,
+          starterConfigurationSchema.parse(ownedProject.starterConfiguration),
+        );
+        if (
+          !configuration.starterSkeletons.some(
+            (selection) =>
+              selection.surface === "Document" &&
+              selection.skeleton === skeleton,
+          )
+        ) {
+          return null;
+        }
       }
       return emptyTarget(targetId);
     },

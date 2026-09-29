@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  DOCUMENT_STARTER_SKELETON_OPTIONS,
+  DOCUMENT_STARTER_SKELETONS,
+} from "./document-skeletons";
 import type { MutationContract } from "./mutation-and-undo";
 import {
   cloneWorkContextLayouts,
@@ -26,9 +30,7 @@ export const starterConfigurationSchema = z.enum(STARTER_CONFIGURATION_OPTIONS);
 export const STARTER_SKELETON_OPTIONS = [
   "Sitemap",
   "Customer Journey",
-  "Persona",
-  "Retrospective",
-  "Launch Plan",
+  ...DOCUMENT_STARTER_SKELETON_OPTIONS,
 ] as const;
 
 export type StarterSkeleton = (typeof STARTER_SKELETON_OPTIONS)[number];
@@ -69,47 +71,7 @@ const STARTER_SKELETON_CATALOG = [
     skeleton: "Customer Journey",
     surface: "Project Wall",
   },
-  {
-    emptyHeadings: [
-      "Context",
-      "Goals",
-      "Behaviors",
-      "Pain Points",
-      "Constraints",
-      "Evidence",
-      "Open Questions",
-    ],
-    skeleton: "Persona",
-    surface: "Document",
-  },
-  {
-    emptyHeadings: [
-      "Period",
-      "What worked?",
-      "What did not?",
-      "What did we learn?",
-      "Decisions",
-      "Next changes",
-      "Related records",
-    ],
-    skeleton: "Retrospective",
-    surface: "Document",
-  },
-  {
-    emptyHeadings: [
-      "Release",
-      "Audience",
-      "Scope",
-      "Readiness",
-      "Communication",
-      "Launch steps",
-      "Risks",
-      "Observation plan",
-      "Related records",
-    ],
-    skeleton: "Launch Plan",
-    surface: "Document",
-  },
+  ...DOCUMENT_STARTER_SKELETONS,
 ] as const satisfies readonly StarterSkeletonSelection[];
 
 function cloneStarterSkeletons(

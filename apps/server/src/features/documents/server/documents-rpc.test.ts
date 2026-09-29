@@ -133,6 +133,66 @@ function createFailingMutationContract(error: unknown) {
 }
 
 describe("Documents RPC", () => {
+  test("creates Persona with only its contracted empty headings", async () => {
+    const context = createContext(createDocumentsAccess(), {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    const client = createRouterClient(appRouter, { context });
+
+    expect(
+      await client.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: "create-persona",
+        projectId: "project-1",
+        skeleton: "Persona",
+      }),
+    ).toMatchObject({
+      body: "## Context\n\n## Goals\n\n## Behaviors\n\n## Pain Points\n\n## Constraints\n\n## Evidence\n\n## Open Questions",
+      projectId: "project-1",
+      revision: 1,
+      title: "Persona",
+      type: "Persona",
+    });
+  });
+
+  test.each([
+    {
+      body: "## Period\n\n## What worked?\n\n## What did not?\n\n## What did we learn?\n\n## Decisions\n\n## Next changes\n\n## Related records",
+      skeleton: "Retrospective" as const,
+      type: "General",
+    },
+    {
+      body: "## Release\n\n## Audience\n\n## Scope\n\n## Readiness\n\n## Communication\n\n## Launch steps\n\n## Risks\n\n## Observation plan\n\n## Related records",
+      skeleton: "Launch Plan" as const,
+      type: "Plan",
+    },
+  ])(
+    "creates $skeleton with only its contracted empty headings",
+    async ({ body, skeleton, type }) => {
+      const context = createContext(createDocumentsAccess(), {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      });
+      const client = createRouterClient(appRouter, { context });
+
+      expect(
+        await client.createDocument({
+          baseRevision: 0,
+          clientIdempotencyKey: `create-${skeleton}`,
+          projectId: "project-1",
+          skeleton,
+        }),
+      ).toMatchObject({
+        body,
+        projectId: "project-1",
+        revision: 1,
+        title: skeleton,
+        type,
+      });
+    },
+  );
+
   test("resolves a live Work block from its current source and hides an unavailable target", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockResolvedValue({
