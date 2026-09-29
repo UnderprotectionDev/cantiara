@@ -20,7 +20,7 @@ const highlightThemeCss = createThemeCss({
 });
 
 const previewPattern =
-  /(`{3,})([^\n]*)\n([\s\S]*?)\n\1`*|(`+)([^`\n]*?)\4|\$\$([\s\S]*?)\$\$/g;
+  /(?<fenceCharacter>`|~)(?<fenceTail>\k<fenceCharacter>{2,})(?<language>[^\n]*)\n(?<fenceBody>[\s\S]*?)\n\k<fenceCharacter>\k<fenceTail>\k<fenceCharacter>*|(`+)([^`\n]*?)\5|\$\$([\s\S]*?)\$\$/g;
 
 const inlineMathExtension: MarkdownExtension = {
   name: "document-inline-math",
@@ -167,10 +167,10 @@ export default function DocumentPreview({ source }: { source: string }) {
   }> = [];
   let cursor = 0;
   for (const match of source.matchAll(previewPattern)) {
-    if (match[4] !== undefined) {
+    if (match[5] !== undefined) {
       continue;
     }
-    if (match[1] !== undefined && match[2].trim() !== "mermaid") {
+    if (match[1] !== undefined && match[3].trim() !== "mermaid") {
       continue;
     }
     const position = match.index ?? 0;
@@ -178,9 +178,9 @@ export default function DocumentPreview({ source }: { source: string }) {
       parts.push({ kind: "markdown", value: source.slice(cursor, position) });
     }
     if (match[1] === undefined) {
-      parts.push({ kind: "math", value: match[6] ?? "" });
+      parts.push({ kind: "math", value: match[7] ?? "" });
     } else {
-      parts.push({ kind: "mermaid", value: match[3] ?? "" });
+      parts.push({ kind: "mermaid", value: match[4] ?? "" });
     }
     cursor = position + match[0].length;
   }

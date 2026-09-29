@@ -590,6 +590,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tabloyu sil | `Delete table` | Seçili tabloyu kaldırma |
 | Belge önizlemesi | `Document preview` | Belgenin Markdown, diyagram ve formül görünümü |
 | Belge seç | `Select a Document.` | Belge seçilmediğinde gösterilen boş durum |
+| Mermaid diyagramı | `Mermaid diagram` | Belge önizlemesinde işlenen diyagram için erişilebilir ad |
 | Belge kaydedilemedi | `Document could not be saved.` | Belge güncelleme isteği başarısız olduğunda gösterilen genel hata |
 | Belge oluşturulamadı | `Document could not be created.` | Yeni Belge oluşturma isteği başarısız olduğunda gösterilen genel hata |
 | Belgeler yüklenemedi | `Documents could not be loaded.` | Proje Belge listesi yüklenemediğinde gösterilen hata durumu |

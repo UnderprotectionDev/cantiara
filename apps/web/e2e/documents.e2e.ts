@@ -45,13 +45,13 @@ test("creates and edits a database-backed Document while preserving technical Ma
   ).toBeHidden();
   await editor.getByRole("tab", { name: "Markdown" }).click();
   const source =
-    "| A | B |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst n = 1;\n```\n\n```mermaid\ngraph TD; A-->B;\n````\n\n$$x^2$$\n\nHello $x$ world\n\nHello `code` world\n\n`$$y$$`\n\n````text\n$$z$$\n````";
+    "| A | B |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst n = 1;\n```\n\n```mermaid\ngraph TD; A-->B;\n````\n\n~~~mermaid\ngraph TD; C-->D;\n~~~~\n\n$$x^2$$\n\nHello $x$ world\n\nHello `code` world\n\n`$$y$$`\n\n````text\n$$z$$\n````";
   await editor.getByRole("textbox", { name: "Markdown source" }).fill(source);
   await editor.getByRole("tab", { name: "Preview" }).click();
   const preview = editor.getByLabel("Document preview");
   await expect(
     preview.getByRole("img", { name: "Mermaid diagram" }),
-  ).toBeVisible();
+  ).toHaveCount(2);
   await expect(preview.getByText("`", { exact: true })).toHaveCount(0);
   const inlineParagraph = editor
     .getByLabel("Document preview")
