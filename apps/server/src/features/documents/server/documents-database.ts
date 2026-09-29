@@ -41,7 +41,14 @@ function toDocument(row: typeof document.$inferSelect): Document {
 }
 
 function toDocumentVersionSummary(value: Document): DocumentVersionSummary {
-  return documentVersionSummarySchema.parse(value);
+  return documentVersionSummarySchema.parse({
+    id: value.id,
+    revision: value.revision,
+    title: value.title,
+    type: value.type,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  });
 }
 
 function documentVersionSummaryProjection(
