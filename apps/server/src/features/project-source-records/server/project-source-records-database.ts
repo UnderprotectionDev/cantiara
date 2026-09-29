@@ -1,11 +1,14 @@
+import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
 import type {
   MutationPayload,
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  assumptionRecordSchema,
   createProjectSourceRecordInputSchema,
   decisionRecordSchema,
   milestoneRecordSchema,
+  openQuestionRecordSchema,
   type ProjectSourceRecord,
   ProjectSourceRecordConflictError,
   type ProjectSourceRecordsAccess,
@@ -15,16 +18,22 @@ import {
   projectSourceRecordInputSchema,
   projectSourceRecordSchema,
   projectSourceRecordsProjectInputSchema,
+  riskRecordSchema,
   transitionProjectSourceRecordInputSchema,
   updateProjectSourceRecordInputSchema,
 } from "@cantiara/api/project-source-records";
 import type { Database } from "@cantiara/db";
+import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
+import { document } from "@cantiara/db/schema/document";
+import { openQuestion } from "@cantiara/db/schema/open-question";
 import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import { projectRelease } from "@cantiara/db/schema/project-release";
+import { usageLink } from "@cantiara/db/schema/relation";
+import { risk } from "@cantiara/db/schema/risk";
 import { and, asc, eq } from "drizzle-orm";
 
 import {
@@ -42,12 +51,39 @@ type DecisionRecord = typeof decision.$inferSelect;
 type MilestoneRecord = typeof projectMilestone.$inferSelect;
 type ReleaseRecord = typeof projectRelease.$inferSelect;
 type IncidentRecord = typeof productionIncident.$inferSelect;
+type RiskRecord = typeof risk.$inferSelect;
+type AssumptionRecord = typeof assumption.$inferSelect;
+type OpenQuestionRecord = typeof openQuestion.$inferSelect;
 
 type ProjectSourceMutationValue =
-  | { decision: ProjectSourceRecord | null }
-  | { milestone: ProjectSourceRecord | null }
-  | { projectRelease: ProjectSourceRecord | null }
-  | { productionIncident: ProjectSourceRecord | null };
+  | {
+      decision: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
+  | {
+      risk: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
+  | {
+      assumption: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
+  | {
+      openQuestion: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
+  | {
+      milestone: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
+  | {
+      projectRelease: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
+  | {
+      productionIncident: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    };
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported project source record: ${String(value)}`);
@@ -90,10 +126,55 @@ function toProductionIncident(record: IncidentRecord): ProjectSourceRecord {
   });
 }
 
+function toRisk(record: RiskRecord): ProjectSourceRecord {
+  return riskRecordSchema.parse({
+    ...record,
+    createdAt: record.createdAt.toISOString(),
+    sourceType: "Risk",
+    updatedAt: record.updatedAt.toISOString(),
+  });
+}
+
+function toAssumption(record: AssumptionRecord): ProjectSourceRecord {
+  return assumptionRecordSchema.parse({
+    ...record,
+    createdAt: record.createdAt.toISOString(),
+    sourceType: "Assumption",
+    updatedAt: record.updatedAt.toISOString(),
+  });
+}
+
+function toOpenQuestion(record: OpenQuestionRecord): ProjectSourceRecord {
+  return openQuestionRecordSchema.parse({
+    ...record,
+    createdAt: record.createdAt.toISOString(),
+    sourceType: "Open Question",
+    updatedAt: record.updatedAt.toISOString(),
+  });
+}
+
 function targetForRecord(
   record: ProjectSourceRecord,
 ): MutationTarget<ProjectSourceMutationValue> {
   switch (record.sourceType) {
+    case "Risk":
+      return {
+        id: record.id,
+        revision: record.revision,
+        value: { risk: record },
+      };
+    case "Assumption":
+      return {
+        id: record.id,
+        revision: record.revision,
+        value: { assumption: record },
+      };
+    case "Open Question":
+      return {
+        id: record.id,
+        revision: record.revision,
+        value: { openQuestion: record },
+      };
     case "Decision":
       return {
         id: record.id,
@@ -128,6 +209,12 @@ function emptyTarget(
   targetId: string,
 ): MutationTarget<ProjectSourceMutationValue> {
   switch (sourceType) {
+    case "Risk":
+      return { id: targetId, revision: 0, value: { risk: null } };
+    case "Assumption":
+      return { id: targetId, revision: 0, value: { assumption: null } };
+    case "Open Question":
+      return { id: targetId, revision: 0, value: { openQuestion: null } };
     case "Decision":
       return { id: targetId, revision: 0, value: { decision: null } };
     case "Milestone":
@@ -146,7 +233,25 @@ function emptyTarget(
 }
 
 function recordFromValue(value: ProjectSourceMutationValue) {
-  return Object.values(value)[0] ?? null;
+  if ("decision" in value) {
+    return value.decision;
+  }
+  if ("risk" in value) {
+    return value.risk;
+  }
+  if ("assumption" in value) {
+    return value.assumption;
+  }
+  if ("openQuestion" in value) {
+    return value.openQuestion;
+  }
+  if ("milestone" in value) {
+    return value.milestone;
+  }
+  if ("projectRelease" in value) {
+    return value.projectRelease;
+  }
+  return value.productionIncident;
 }
 
 function sourceTypeFromPayload(
@@ -157,6 +262,9 @@ function sourceTypeFromPayload(
   }
   const { sourceType } = payload as Record<string, unknown>;
   return sourceType === "Decision" ||
+    sourceType === "Risk" ||
+    sourceType === "Assumption" ||
+    sourceType === "Open Question" ||
     sourceType === "Milestone" ||
     sourceType === "Project Release" ||
     sourceType === "Production Incident"
@@ -201,6 +309,22 @@ async function findOwnedProject(
   return rows[0] ?? null;
 }
 
+async function targetFromQuery<TRecord>(
+  query: PromiseLike<TRecord[]> & {
+    for: (lock: "update") => PromiseLike<TRecord[]>;
+  },
+  lock: boolean,
+  sourceType: ProjectSourceType,
+  targetId: string,
+  toRecord: (record: TRecord) => ProjectSourceRecord,
+): Promise<MutationTarget<ProjectSourceMutationValue>> {
+  const rows = lock ? await query.for("update") : await query;
+  const [record] = rows;
+  return record
+    ? targetForRecord(toRecord(record))
+    : emptyTarget(sourceType, targetId);
+}
+
 async function findMutationTarget(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -220,67 +344,117 @@ async function findMutationTarget(
   }
 
   switch (sourceType) {
-    case "Decision": {
-      const query = executor
-        .select()
-        .from(decision)
-        .where(
-          and(eq(decision.id, targetId), eq(decision.projectId, projectId)),
-        )
-        .limit(1);
-      const [record] = lock ? await query.for("update") : await query;
-      return record
-        ? targetForRecord(toDecision(record))
-        : emptyTarget(sourceType, targetId);
-    }
-    case "Milestone": {
-      const query = executor
-        .select()
-        .from(projectMilestone)
-        .where(
-          and(
-            eq(projectMilestone.id, targetId),
-            eq(projectMilestone.projectId, projectId),
-          ),
-        )
-        .limit(1);
-      const [record] = lock ? await query.for("update") : await query;
-      return record
-        ? targetForRecord(toMilestone(record))
-        : emptyTarget(sourceType, targetId);
-    }
-    case "Project Release": {
-      const query = executor
-        .select()
-        .from(projectRelease)
-        .where(
-          and(
-            eq(projectRelease.id, targetId),
-            eq(projectRelease.projectId, projectId),
-          ),
-        )
-        .limit(1);
-      const [record] = lock ? await query.for("update") : await query;
-      return record
-        ? targetForRecord(toProjectRelease(record))
-        : emptyTarget(sourceType, targetId);
-    }
-    case "Production Incident": {
-      const query = executor
-        .select()
-        .from(productionIncident)
-        .where(
-          and(
-            eq(productionIncident.id, targetId),
-            eq(productionIncident.projectId, projectId),
-          ),
-        )
-        .limit(1);
-      const [record] = lock ? await query.for("update") : await query;
-      return record
-        ? targetForRecord(toProductionIncident(record))
-        : emptyTarget(sourceType, targetId);
-    }
+    case "Risk":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(risk)
+          .where(and(eq(risk.id, targetId), eq(risk.projectId, projectId)))
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toRisk,
+      );
+    case "Assumption":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(assumption)
+          .where(
+            and(
+              eq(assumption.id, targetId),
+              eq(assumption.projectId, projectId),
+            ),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toAssumption,
+      );
+    case "Open Question":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(openQuestion)
+          .where(
+            and(
+              eq(openQuestion.id, targetId),
+              eq(openQuestion.projectId, projectId),
+            ),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toOpenQuestion,
+      );
+    case "Decision":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(decision)
+          .where(
+            and(eq(decision.id, targetId), eq(decision.projectId, projectId)),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toDecision,
+      );
+    case "Milestone":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(projectMilestone)
+          .where(
+            and(
+              eq(projectMilestone.id, targetId),
+              eq(projectMilestone.projectId, projectId),
+            ),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toMilestone,
+      );
+    case "Project Release":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(projectRelease)
+          .where(
+            and(
+              eq(projectRelease.id, targetId),
+              eq(projectRelease.projectId, projectId),
+            ),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toProjectRelease,
+      );
+    case "Production Incident":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(productionIncident)
+          .where(
+            and(
+              eq(productionIncident.id, targetId),
+              eq(productionIncident.projectId, projectId),
+            ),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toProductionIncident,
+      );
     default:
       return assertNever(sourceType);
   }
@@ -292,6 +466,125 @@ interface WriteSourceRecordInput {
   expectedRevision: number;
   record: ProjectSourceRecord;
   targetId: string;
+}
+
+async function writeRiskRecord(
+  input: WriteSourceRecordInput & {
+    record: Extract<ProjectSourceRecord, { sourceType: "Risk" }>;
+  },
+) {
+  const { committedAt, expectedRevision, executor, record, targetId } = input;
+  const values = {
+    description: record.description,
+    impact: record.impact,
+    life: record.life,
+    probability: record.probability,
+    projectId: record.projectId,
+    rationale: record.rationale,
+    response: record.response,
+    revision: expectedRevision + 1,
+    title: record.title,
+    updatedAt: committedAt,
+  };
+  if (expectedRevision === 0) {
+    const [inserted] = await executor
+      .insert(risk)
+      .values({ ...values, createdAt: committedAt, id: record.id })
+      .onConflictDoNothing({ target: risk.id })
+      .returning();
+    return inserted ? targetForRecord(toRisk(inserted)) : null;
+  }
+  const [updated] = await executor
+    .update(risk)
+    .set(values)
+    .where(
+      and(
+        eq(risk.id, targetId),
+        eq(risk.projectId, record.projectId),
+        eq(risk.revision, expectedRevision),
+      ),
+    )
+    .returning();
+  return updated ? targetForRecord(toRisk(updated)) : null;
+}
+
+async function writeAssumptionRecord(
+  input: WriteSourceRecordInput & {
+    record: Extract<ProjectSourceRecord, { sourceType: "Assumption" }>;
+  },
+) {
+  const { committedAt, expectedRevision, executor, record, targetId } = input;
+  const values = {
+    life: record.life,
+    projectId: record.projectId,
+    rationale: record.rationale,
+    revision: expectedRevision + 1,
+    statement: record.statement,
+    title: record.title,
+    updatedAt: committedAt,
+  };
+  if (expectedRevision === 0) {
+    const [inserted] = await executor
+      .insert(assumption)
+      .values({ ...values, createdAt: committedAt, id: record.id })
+      .onConflictDoNothing({ target: assumption.id })
+      .returning();
+    return inserted ? targetForRecord(toAssumption(inserted)) : null;
+  }
+  const [updated] = await executor
+    .update(assumption)
+    .set(values)
+    .where(
+      and(
+        eq(assumption.id, targetId),
+        eq(assumption.projectId, record.projectId),
+        eq(assumption.revision, expectedRevision),
+      ),
+    )
+    .returning();
+  return updated ? targetForRecord(toAssumption(updated)) : null;
+}
+
+async function writeOpenQuestionRecord(
+  input: WriteSourceRecordInput & {
+    record: Extract<ProjectSourceRecord, { sourceType: "Open Question" }>;
+  },
+) {
+  const { committedAt, expectedRevision, executor, record, targetId } = input;
+  const values = {
+    context: record.context,
+    life: record.life,
+    projectId: record.projectId,
+    question: record.question,
+    revision: expectedRevision + 1,
+    title: record.title,
+    updatedAt: committedAt,
+  };
+  if (expectedRevision === 0) {
+    const [inserted] = await executor
+      .insert(openQuestion)
+      .values({
+        ...values,
+        answer: record.answer,
+        createdAt: committedAt,
+        id: record.id,
+      })
+      .onConflictDoNothing({ target: openQuestion.id })
+      .returning();
+    return inserted ? targetForRecord(toOpenQuestion(inserted)) : null;
+  }
+  const [updated] = await executor
+    .update(openQuestion)
+    .set({ ...values, answer: record.answer })
+    .where(
+      and(
+        eq(openQuestion.id, targetId),
+        eq(openQuestion.projectId, record.projectId),
+        eq(openQuestion.revision, expectedRevision),
+      ),
+    )
+    .returning();
+  return updated ? targetForRecord(toOpenQuestion(updated)) : null;
 }
 
 async function writeDecisionRecord(
@@ -448,6 +741,12 @@ async function writeProductionIncidentRecord(
 
 function writeProjectSourceRecord(input: WriteSourceRecordInput) {
   switch (input.record.sourceType) {
+    case "Risk":
+      return writeRiskRecord({ ...input, record: input.record });
+    case "Assumption":
+      return writeAssumptionRecord({ ...input, record: input.record });
+    case "Open Question":
+      return writeOpenQuestionRecord({ ...input, record: input.record });
     case "Decision":
       return writeDecisionRecord({ ...input, record: input.record });
     case "Milestone":
@@ -499,13 +798,70 @@ function projectSourceMutationTarget(
       if (!ownedProject || ownedProject.archivedAt !== null) {
         return null;
       }
-      return writeProjectSourceRecord({
+      const evidence = input.nextValue.documentEvidence;
+      if (evidence) {
+        const [sourceDocument] = await executor
+          .select({
+            body: document.body,
+            projectId: document.projectId,
+            revision: document.revision,
+          })
+          .from(document)
+          .innerJoin(project, eq(document.projectId, project.id))
+          .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(document.id, evidence.documentId),
+              eq(document.projectId, record.projectId),
+              eq(workspace.ownerAccountId, accountId),
+            ),
+          )
+          .for("update")
+          .limit(1);
+        if (
+          !sourceDocument ||
+          sourceDocument.revision !== evidence.documentRevision ||
+          sourceDocument.body.slice(
+            evidence.selectionStart,
+            evidence.selectionEnd,
+          ) !== evidence.selectedText
+        ) {
+          throw new MutationConflictError(input.targetId);
+        }
+      }
+      const written = await writeProjectSourceRecord({
         committedAt: input.committedAt,
         expectedRevision: input.expectedRevision,
         executor,
         record,
         targetId: input.targetId,
       });
+      if (written && evidence) {
+        await executor.insert(usageLink).values({
+          id: crypto.randomUUID(),
+          kind: "Pinned bind",
+          location: {
+            documentVersion: {
+              documentId: evidence.documentId,
+              revision: evidence.documentRevision,
+            },
+            end: evidence.selectionEnd,
+            excerpt: evidence.selectedText,
+            start: evidence.selectionStart,
+          },
+          revision: 1,
+          sourceRecordId: evidence.documentId,
+          sourceRecordType: "Document",
+          surfaceRecordId: record.id,
+          surfaceRecordType: record.sourceType,
+          workspaceId: ownedProject.workspaceId,
+        });
+        return {
+          ...written,
+          value: { ...written.value, documentEvidence: evidence },
+        };
+      }
+      return written;
     },
   };
 }
@@ -525,7 +881,7 @@ function currentRecord(value: ProjectSourceMutationValue) {
 }
 
 function statusOf(record: ProjectSourceRecord) {
-  return record.sourceType === "Decision" ? record.life : record.status;
+  return "life" in record ? record.life : record.status;
 }
 
 function allowsTransition(
@@ -549,7 +905,10 @@ function allowsTransition(
       next.sourceType === "Project Release"
     );
   }
-  return next.sourceType === "Production Incident";
+  if (record.sourceType === "Production Incident") {
+    return next.sourceType === "Production Incident";
+  }
+  return false;
 }
 
 export function createDatabaseProjectSourceRecords(
@@ -575,10 +934,39 @@ export function createDatabaseProjectSourceRecords(
               throw new MutationConflictError(input.id);
             }
             let initialValue: object;
+            let documentEvidence: DocumentEvidenceSelection | undefined;
             switch (fields.sourceType) {
-              case "Decision":
-                initialValue = { ...fields, life: "Valid" };
+              case "Decision": {
+                const { documentEvidence: evidence, ...decisionFields } =
+                  fields;
+                documentEvidence = evidence;
+                initialValue = { ...decisionFields, life: "Valid" };
                 break;
+              }
+              case "Risk": {
+                const { documentEvidence: evidence, ...riskFields } = fields;
+                documentEvidence = evidence;
+                initialValue = { ...riskFields, life: "Open" };
+                break;
+              }
+              case "Assumption": {
+                const { documentEvidence: evidence, ...assumptionFields } =
+                  fields;
+                documentEvidence = evidence;
+                initialValue = { ...assumptionFields, life: "Open" };
+                break;
+              }
+              case "Open Question": {
+                const { documentEvidence: evidence, ...questionFields } =
+                  fields;
+                documentEvidence = evidence;
+                initialValue = {
+                  ...questionFields,
+                  answer: null,
+                  life: "Open",
+                };
+                break;
+              }
               case "Milestone":
                 initialValue = { ...fields, status: "Planned" };
                 break;
@@ -597,7 +985,10 @@ export function createDatabaseProjectSourceRecords(
               revision: currentRevision + 1,
               updatedAt: committedAt,
             });
-            return targetForRecord(record).value;
+            return {
+              ...targetForRecord(record).value,
+              ...(documentEvidence ? { documentEvidence } : {}),
+            };
           },
         );
         return recordFromReceipt(receipt.nextValue);
@@ -803,12 +1194,35 @@ export function createDatabaseProjectSourceRecords(
       if (!ownedProject) {
         return null;
       }
-      const [decisions, milestones, releases, incidents] = await Promise.all([
+      const [
+        decisions,
+        risks,
+        assumptions,
+        openQuestions,
+        milestones,
+        releases,
+        incidents,
+      ] = await Promise.all([
         database
           .select()
           .from(decision)
           .where(eq(decision.projectId, input.projectId))
           .orderBy(asc(decision.createdAt), asc(decision.id)),
+        database
+          .select()
+          .from(risk)
+          .where(eq(risk.projectId, input.projectId))
+          .orderBy(asc(risk.createdAt), asc(risk.id)),
+        database
+          .select()
+          .from(assumption)
+          .where(eq(assumption.projectId, input.projectId))
+          .orderBy(asc(assumption.createdAt), asc(assumption.id)),
+        database
+          .select()
+          .from(openQuestion)
+          .where(eq(openQuestion.projectId, input.projectId))
+          .orderBy(asc(openQuestion.createdAt), asc(openQuestion.id)),
         database
           .select()
           .from(projectMilestone)
@@ -830,6 +1244,9 @@ export function createDatabaseProjectSourceRecords(
       ]);
       return [
         ...decisions.map(toDecision),
+        ...risks.map(toRisk),
+        ...assumptions.map(toAssumption),
+        ...openQuestions.map(toOpenQuestion),
         ...milestones.map(toMilestone),
         ...releases.map(toProjectRelease),
         ...incidents.map(toProductionIncident),
@@ -851,6 +1268,33 @@ async function readRecord(
 ): Promise<ProjectSourceRecord | null> {
   let record: ProjectSourceRecord | null = null;
   switch (sourceType) {
+    case "Risk": {
+      const [row] = await database
+        .select()
+        .from(risk)
+        .where(eq(risk.id, sourceId))
+        .limit(1);
+      record = row ? toRisk(row) : null;
+      break;
+    }
+    case "Assumption": {
+      const [row] = await database
+        .select()
+        .from(assumption)
+        .where(eq(assumption.id, sourceId))
+        .limit(1);
+      record = row ? toAssumption(row) : null;
+      break;
+    }
+    case "Open Question": {
+      const [row] = await database
+        .select()
+        .from(openQuestion)
+        .where(eq(openQuestion.id, sourceId))
+        .limit(1);
+      record = row ? toOpenQuestion(row) : null;
+      break;
+    }
     case "Decision": {
       const [row] = await database
         .select()

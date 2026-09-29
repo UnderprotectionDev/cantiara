@@ -1084,6 +1084,9 @@ export async function createWork(
     captureProvenance: input.captureProvenance ?? null,
     checklist: input.checklist ?? [],
     description: input.description ?? null,
+    ...(input.documentEvidence
+      ? { documentEvidence: input.documentEvidence }
+      : {}),
     ...(input.originPosition ? { originPosition: input.originPosition } : {}),
     effort: input.effort ?? null,
     plannedStartDate: input.plannedStartDate ?? null,
@@ -1173,6 +1176,9 @@ export async function createWork(
           updatedAt: timestamp,
         };
         return {
+          ...(mutationPayload.documentEvidence
+            ? { documentEvidence: mutationPayload.documentEvidence }
+            : {}),
           ...(mutationPayload.recreate
             ? { recreate: mutationPayload.recreate }
             : {}),

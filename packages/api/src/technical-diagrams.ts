@@ -60,6 +60,9 @@ export const mermaidConversionInputSchema = z
     documentRevision: z.number().int().nonnegative(),
     blockStart: z.number().int().nonnegative(),
     blockEnd: z.number().int().positive(),
+    originalBlock: z
+      .enum(["Keep independent", "Replace with live reference"])
+      .optional(),
     title: z.string().trim().min(1).max(255),
   })
   .strict();
@@ -138,7 +141,9 @@ export interface TechnicalDiagramsAccess {
     blockEnd: number;
     type: "Technical Architecture";
     authorityMode: "Imported Independent Copy";
-    originalBlock: "Keep independent";
+    originalBlock: "Keep independent" | "Replace with live reference";
+    canConvert: boolean;
     model: TechnicalDiagramSource["model"];
+    unparseableLines: Array<{ line: number; reason: string; text: string }>;
   } | null>;
 }

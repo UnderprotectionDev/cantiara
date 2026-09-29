@@ -1,3 +1,4 @@
+import { documentLiveDirectives } from "@cantiara/api/documents";
 import type {
   MermaidConversionInput,
   TechnicalDiagramSource,
@@ -8,6 +9,7 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
+import { usageLink } from "@cantiara/db/schema/relation";
 import {
   diagramDocumentOrigin,
   diagramView,
@@ -15,7 +17,7 @@ import {
 } from "@cantiara/db/schema/technical-diagram";
 import { and, eq } from "drizzle-orm";
 
-import { parseMermaidArchitecture } from "./mermaid-conversion";
+import { previewMermaidArchitecture } from "./mermaid-conversion";
 
 export class MermaidConversionConflictError extends Error {}
 
@@ -68,6 +70,7 @@ export function createDatabaseTechnicalDiagrams(
         "The selected Mermaid block is unavailable.",
       );
     }
+    const conversion = await previewMermaidArchitecture(source);
     return {
       title: input.title,
       projectId: row.document.projectId,
@@ -77,8 +80,10 @@ export function createDatabaseTechnicalDiagrams(
       blockEnd: input.blockEnd,
       type: "Technical Architecture" as const,
       authorityMode: "Imported Independent Copy" as const,
-      originalBlock: "Keep independent" as const,
-      model: await parseMermaidArchitecture(source),
+      originalBlock: input.originalBlock ?? ("Keep independent" as const),
+      canConvert: conversion.canConvert,
+      model: conversion.model,
+      unparseableLines: conversion.unparseableLines,
     };
   }
   async function get(
@@ -214,13 +219,23 @@ export function createDatabaseTechnicalDiagrams(
           .from(diagramDocumentOrigin)
           .where(eq(diagramDocumentOrigin.diagramId, diagramId))
           .limit(1);
+        const [documentAfter] = await database
+          .select({ body: document.body })
+          .from(document)
+          .where(eq(document.id, input.documentId))
+          .limit(1);
+        const reference = `:::live-diagram{diagramId="${diagramId}"}`;
+        const actualOutcome = documentAfter?.body.includes(reference)
+          ? "Replace with live reference"
+          : "Keep independent";
         if (
           !origin ||
           existing.title !== input.title ||
           origin.documentId !== input.documentId ||
           origin.documentRevision !== input.documentRevision ||
           origin.blockStart !== input.blockStart ||
-          origin.blockEnd !== input.blockEnd
+          origin.blockEnd !== input.blockEnd ||
+          actualOutcome !== (input.originalBlock ?? "Keep independent")
         ) {
           throw new MermaidConversionConflictError(
             "This confirmation key was used for another conversion.",
@@ -236,11 +251,28 @@ export function createDatabaseTechnicalDiagrams(
       if (!preview) {
         return null;
       }
+      if (!preview.canConvert) {
+        throw new MermaidConversionConflictError(
+          "The Mermaid block has no convertible diagram edges.",
+        );
+      }
       const inserted = await database.transaction(async (tx) => {
         const [saved] = await tx
-          .select({ revision: document.revision })
+          .select({
+            body: document.body,
+            projectId: document.projectId,
+            revision: document.revision,
+            workspaceId: workspace.id,
+          })
           .from(document)
-          .where(eq(document.id, input.documentId))
+          .innerJoin(project, eq(document.projectId, project.id))
+          .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(document.id, input.documentId),
+              eq(workspace.ownerAccountId, accountId),
+            ),
+          )
           .for("update")
           .limit(1);
         if (saved?.revision !== input.documentRevision) {
@@ -276,6 +308,54 @@ export function createDatabaseTechnicalDiagrams(
           name: "Default",
           selectedNodeIds: preview.model.nodes.map(({ id }) => id),
         });
+        if (
+          (input.originalBlock ?? "Keep independent") ===
+          "Replace with live reference"
+        ) {
+          const liveReference = `:::live-diagram{diagramId="${diagramId}"}`;
+          const nextBody =
+            saved.body.slice(0, input.blockStart) +
+            liveReference +
+            saved.body.slice(input.blockEnd);
+          const [updatedDocument] = await tx
+            .update(document)
+            .set({
+              body: nextBody,
+              revision: input.documentRevision + 1,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(document.id, input.documentId),
+                eq(document.revision, input.documentRevision),
+              ),
+            )
+            .returning({ id: document.id });
+          if (!updatedDocument) {
+            throw new MermaidConversionConflictError(
+              "The Document changed after preview.",
+            );
+          }
+          const ordinal = documentLiveDirectives(nextBody).findIndex(
+            ({ id, kind }) => id === diagramId && kind === "Technical Diagram",
+          );
+          if (ordinal < 0) {
+            throw new MermaidConversionConflictError(
+              "The live Technical Diagram reference could not be written.",
+            );
+          }
+          await tx.insert(usageLink).values({
+            id: crypto.randomUUID(),
+            kind: "Live block",
+            location: { documentLiveOrdinal: ordinal },
+            revision: 1,
+            sourceRecordId: diagramId,
+            sourceRecordType: "Technical Diagram",
+            surfaceRecordId: input.documentId,
+            surfaceRecordType: "Document",
+            workspaceId: saved.workspaceId,
+          });
+        }
         return true;
       });
       if (!inserted) {

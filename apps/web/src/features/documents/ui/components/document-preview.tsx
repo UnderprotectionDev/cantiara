@@ -1,4 +1,6 @@
 import {
+  type DocumentLiveSectionSource,
+  type DocumentRecordReferenceView,
   documentLiveDirectives,
   type LiveWorkSource,
 } from "@cantiara/api/documents";
@@ -23,7 +25,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { workRecordHref } from "../../../project-shell/lib/project-shell-navigation";
+import {
+  documentRecordHash,
+  projectSourceRecordHash,
+  workRecordHref,
+} from "../../../project-shell/lib/project-shell-navigation";
 
 mermaid.initialize({ securityLevel: "strict", startOnLoad: false });
 
@@ -41,6 +47,7 @@ const livePartKind = {
   Work: "live-work",
   "Smart Collection": "live-collection",
   "Technical Diagram": "live-diagram",
+  "Document section": "live-section",
 } as const;
 
 const inlineMathExtension: MarkdownExtension = {
@@ -81,6 +88,83 @@ const inlineMathExtension: MarkdownExtension = {
     });
   },
 };
+
+const inlineRecordReferenceExtension: MarkdownExtension = {
+  name: "document-record-reference",
+  transformInline(nodes) {
+    return nodes.flatMap((node) => {
+      if (node.type !== "text") {
+        return [node];
+      }
+      const pieces: typeof nodes = [];
+      const pattern =
+        /\[\[record:([A-Za-z ]{1,40}):([^|\]\n]{1,255})\|([^\]\n]{1,255})\]\]/g;
+      let cursor = 0;
+      for (const match of node.value.matchAll(pattern)) {
+        const [matchedText, recordType, recordId, label] = match;
+        const position = match.index ?? 0;
+        if (!(matchedText && recordType && recordId && label)) {
+          continue;
+        }
+        if (position > cursor) {
+          pieces.push({
+            type: "text",
+            value: node.value.slice(cursor, position),
+          });
+        }
+        pieces.push({
+          type: "inlineComponent",
+          name: "DocumentRecordReference",
+          tagName: "document-record-reference",
+          attributes: { recordId, recordType, label },
+          properties: { recordId, recordType, label },
+          children: [],
+        });
+        cursor = position + matchedText.length;
+      }
+      if (cursor === 0) {
+        return [node];
+      }
+      if (cursor < node.value.length) {
+        pieces.push({ type: "text", value: node.value.slice(cursor) });
+      }
+      return pieces;
+    });
+  },
+};
+
+function recordReferenceHref(
+  projectId: string,
+  recordType: string,
+  recordId: string,
+) {
+  if (recordType === "Work") {
+    return workRecordHref(projectId, recordId);
+  }
+  if (
+    recordType === "Decision" ||
+    recordType === "Risk" ||
+    recordType === "Assumption" ||
+    recordType === "Open Question" ||
+    recordType === "Milestone" ||
+    recordType === "Project Release" ||
+    recordType === "Production Incident"
+  ) {
+    return `/projects/${encodeURIComponent(projectId)}#${projectSourceRecordHash(
+      recordType,
+      recordId,
+    )}`;
+  }
+  if (recordType === "Technical Diagram") {
+    return `/projects/${encodeURIComponent(projectId)}#technical-diagram-${encodeURIComponent(recordId)}`;
+  }
+  if (recordType === "Document") {
+    return `/projects/${encodeURIComponent(projectId)}#${documentRecordHash(
+      recordId,
+    )}`;
+  }
+  return null;
+}
 
 function MermaidPreview({ source }: { source: string }) {
   const id = useId().replaceAll(/[^a-zA-Z0-9]/g, "");
@@ -188,9 +272,55 @@ interface LiveWorkBlock {
 
 interface LiveOtherBlock {
   id: string;
-  kind: "Work" | "Smart Collection" | "Technical Diagram";
-  source: SmartCollectionViewSource | TechnicalDiagramSource | null;
+  kind: "Work" | "Smart Collection" | "Technical Diagram" | "Document section";
+  sectionId?: string | null;
+  source:
+    | SmartCollectionViewSource
+    | TechnicalDiagramSource
+    | DocumentLiveSectionSource
+    | null;
   viewId: string | null;
+}
+
+function LiveSectionCard({
+  block,
+  loading,
+}: {
+  block?: LiveOtherBlock;
+  loading: boolean;
+}) {
+  const source = block?.source;
+  if (!(source && "sectionId" in source)) {
+    return (
+      <section
+        aria-label="Read-only live section"
+        className="rounded-lg border p-4"
+      >
+        <p className="text-xs">Read-only live section</p>
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section
+      aria-label="Read-only live section"
+      className="space-y-2 rounded-lg border p-4"
+    >
+      <p className="text-xs">Read-only live section</p>
+      <h3 className="font-medium">
+        {source.title} · {source.heading}
+      </h3>
+      <Markdown extensions={[inlineMathExtension]}>{source.text}</Markdown>
+      <a
+        className="underline"
+        href={`/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`}
+      >
+        Open source record
+      </a>
+    </section>
+  );
 }
 
 function LiveOtherCard({
@@ -203,16 +333,18 @@ function LiveOtherCard({
   loading: boolean;
 }) {
   const source = block?.source;
-  if (!source) {
-    return (
-      <section aria-label={kind} className="rounded-lg border p-4">
-        <p role="status">
-          {loading ? "Loading source record…" : "Source record is unavailable."}
-        </p>
-      </section>
-    );
-  }
-  if ("works" in source) {
+  if (kind === "Smart Collection") {
+    if (!(source && "works" in source)) {
+      return (
+        <section aria-label={kind} className="rounded-lg border p-4">
+          <p role="status">
+            {loading
+              ? "Loading source record…"
+              : "Source record is unavailable."}
+          </p>
+        </section>
+      );
+    }
     return (
       <section
         aria-label="Smart Collection"
@@ -262,30 +394,59 @@ function LiveOtherCard({
       </section>
     );
   }
+  const diagram = source && "model" in source ? source : null;
+  if (!diagram) {
+    return (
+      <section aria-label={kind} className="rounded-lg border p-4">
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      </section>
+    );
+  }
   const selected =
-    source.view?.selectedNodeIds ?? source.model.nodes.map(({ id }) => id);
+    diagram.view?.selectedNodeIds ?? diagram.model.nodes.map(({ id }) => id);
+  const selectedNodes = diagram.model.nodes.filter(({ id }) =>
+    selected.includes(id),
+  );
+  const nodesById = new Map(diagram.model.nodes.map((node) => [node.id, node]));
+  const selectedLinks = diagram.model.links.filter(
+    ({ from, to }) => selected.includes(from) && selected.includes(to),
+  );
   return (
     <section
       aria-label="Technical Diagram"
       className="space-y-2 rounded-lg border p-4"
     >
       <p className="text-xs">
-        Technical Diagram · {source.view?.name ?? "Default"}
+        Technical Diagram · {diagram.view?.name ?? "Default"}
       </p>
-      <h3 className="font-medium">{source.title}</h3>
+      <h3 className="font-medium">{diagram.title}</h3>
       <p className="text-muted-foreground text-sm">
-        {source.type} · {source.authorityMode}
+        {diagram.type} · {diagram.authorityMode}
       </p>
-      <ul className="list-inside list-disc">
-        {source.model.nodes
-          .filter(({ id }) => selected.includes(id))
-          .map((node) => (
-            <li key={node.id}>{node.label}</li>
-          ))}
+      <ul aria-label="Diagram elements" className="list-inside list-disc">
+        {selectedNodes.map((node) => (
+          <li key={node.id}>{node.label}</li>
+        ))}
       </ul>
+      {selectedLinks.length > 0 ? (
+        <ul aria-label="Diagram links" className="space-y-1 text-sm">
+          {selectedLinks.map((link) => {
+            const from = nodesById.get(link.from);
+            const to = nodesById.get(link.to);
+            return (
+              <li key={JSON.stringify([link.from, link.to, link.label])}>
+                {from?.label ?? link.from} → {to?.label ?? link.to}
+                {link.label ? ` · ${link.label}` : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       <a
         className="underline"
-        href={`/projects/${source.projectId}#technical-diagram-${encodeURIComponent(source.id)}`}
+        href={`/projects/${diagram.projectId}#technical-diagram-${encodeURIComponent(diagram.id)}`}
       >
         Open source record
       </a>
@@ -381,18 +542,26 @@ function LiveWorkCard({
 }
 
 export default function DocumentPreview({
+  documentReferences,
   liveOtherBlocks,
   liveWorkBlocks,
   onMermaidConvert,
   onLiveWorkAction,
   source,
 }: {
+  documentReferences?: readonly DocumentRecordReferenceView[];
   liveOtherBlocks?: readonly LiveOtherBlock[];
   liveWorkBlocks?: readonly LiveWorkBlock[];
   onMermaidConvert?: (blockStart: number, blockEnd: number) => void;
   onLiveWorkAction?: (workId: string, action: "status" | "close") => void;
   source: string;
 }) {
+  const referencesByIdentity = new Map(
+    (documentReferences ?? []).map((reference) => [
+      `${reference.recordType}:${reference.recordId}`,
+      reference,
+    ]),
+  );
   const parts: Array<{
     kind:
       | "markdown"
@@ -400,11 +569,13 @@ export default function DocumentPreview({
       | "math"
       | "live-work"
       | "live-collection"
-      | "live-diagram";
+      | "live-diagram"
+      | "live-section";
     value: string;
     start?: number;
     end?: number;
     viewId?: string;
+    sectionId?: string;
   }> = [];
   const directives = documentLiveDirectives(source);
   function appendMarkdown(value: string, offset: number) {
@@ -423,6 +594,7 @@ export default function DocumentPreview({
       parts.push({
         kind: livePartKind[directive.kind],
         value: directive.id,
+        sectionId: directive.sectionId,
         viewId: directive.viewId,
       });
       last = directive.end - offset;
@@ -507,6 +679,21 @@ export default function DocumentPreview({
             />
           );
         }
+        if (part.kind === "live-section") {
+          const block = liveOtherBlocks?.find(
+            (candidate) =>
+              candidate.id === part.value &&
+              candidate.kind === "Document section" &&
+              candidate.sectionId === (part.sectionId ?? null),
+          );
+          return (
+            <LiveSectionCard
+              block={block}
+              key={key}
+              loading={!liveOtherBlocks}
+            />
+          );
+        }
         if (part.kind === "live-collection" || part.kind === "live-diagram") {
           const kind =
             part.kind === "live-collection"
@@ -529,12 +716,45 @@ export default function DocumentPreview({
         }
         return (
           <Markdown
-            components={{ "document-inline-math": InlineMath }}
-            extensions={[inlineMathExtension]}
+            components={{
+              "document-inline-math": InlineMath,
+              "document-record-reference": (properties: {
+                label?: string;
+                recordId?: string;
+                recordType?: string;
+              }) => {
+                const reference = referencesByIdentity.get(
+                  `${properties.recordType}:${properties.recordId}`,
+                );
+                if (!reference?.source) {
+                  return (
+                    <span className="text-muted-foreground" role="status">
+                      Source record is unavailable.
+                    </span>
+                  );
+                }
+                const href = recordReferenceHref(
+                  reference.source.projectId,
+                  reference.recordType,
+                  reference.recordId,
+                );
+                return href ? (
+                  <a className="underline" href={href}>
+                    {reference.source.title}
+                  </a>
+                ) : (
+                  <span>{reference.source.title}</span>
+                );
+              },
+            }}
+            extensions={[inlineMathExtension, inlineRecordReferenceExtension]}
             highlighter={codeHighlighter}
             key={key}
           >
-            {part.value}
+            {part.value.replace(
+              /^(#{1,6}[ \t]+.+?)\s+\{#[A-Za-z0-9][A-Za-z0-9_-]{0,254}\}[ \t]*$/gm,
+              "$1",
+            )}
           </Markdown>
         );
       })}

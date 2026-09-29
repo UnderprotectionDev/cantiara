@@ -44,6 +44,7 @@ Risk Proje ana kaydıdır; başlık, açıklama, etki, olasılık, yanıt/azaltm
 - **Seam (one).** Risks — record and signal-production interface. Center UI is out.
 - **Prior art.** Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari): related records’ status does not change implicitly.
 - **Required counterparts.** Accept is not a publish gate; Occur does not close Work; not Bug/Test Gap/Incident; no auto priority; signal negatives (time, Mitigating, high probability).
+- **Document conversion.** Selected-text conversion creates a Risk in `Open` with the excerpt as its description and an exact version-pinned Document evidence link; it does not infer impact, probability, response, or related-record changes.
 
 ## Out of Scope
 

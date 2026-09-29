@@ -37,6 +37,7 @@ import {
   DAILY_ACTIONS,
   type DailyAction,
   dailyActionFromHash,
+  documentRecordFromHash,
   isWorkRecordHash,
   isWorkRelationsHash,
   isWorkSurfaceHash,
@@ -157,6 +158,7 @@ export default function ProjectShellSurface({
     );
   const dailyAction = dailyActionFromHash(activeHash);
   const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
+  const documentRoute = documentRecordFromHash(activeHash);
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
@@ -267,14 +269,17 @@ export default function ProjectShellSurface({
     }
 
     if (
-      activeHash === "documents" &&
+      (activeHash === "documents" || documentRoute !== null) &&
       configuration.enabledAreas.includes("Documents") &&
       !configuration.hiddenAreas.includes("Documents")
     ) {
       return (
         <div className="space-y-8">
           <Suspense fallback={<p>Loading Documents…</p>}>
-            <ProjectDocumentsSurface projectId={projectId} />
+            <ProjectDocumentsSurface
+              projectId={projectId}
+              selectedDocumentId={documentRoute?.documentId}
+            />
           </Suspense>
           <FileAttachmentsSurface projectId={projectId} />
         </div>
