@@ -15,6 +15,7 @@ import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { and, desc, eq } from "drizzle-orm";
 
@@ -253,6 +254,34 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
 
   return {
     get,
+    async versions(accountId, documentId) {
+      const current = await get(accountId, documentId);
+      if (!current) {
+        return null;
+      }
+      const history = await database
+        .select({
+          previousValue: mutationHistory.previousValue,
+          nextValue: mutationHistory.nextValue,
+        })
+        .from(mutationHistory)
+        .where(eq(mutationHistory.targetId, documentId))
+        .orderBy(desc(mutationHistory.revision));
+      const versions = new Map<number, Document>([[current.revision, current]]);
+      for (const entry of history) {
+        for (const value of [entry.nextValue, entry.previousValue]) {
+          const parsed = documentSchema.safeParse(
+            value && typeof value === "object" && "document" in value
+              ? value.document
+              : null,
+          );
+          if (parsed.success && parsed.data.id === documentId) {
+            versions.set(parsed.data.revision, parsed.data);
+          }
+        }
+      }
+      return [...versions.values()].sort((a, b) => b.revision - a.revision);
+    },
     async list(accountId, projectId) {
       const ownedProject = await findOwnedProject(
         database,

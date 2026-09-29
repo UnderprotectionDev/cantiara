@@ -56,6 +56,7 @@ function createDocumentsAccess(): DocumentsAccess {
   return {
     get: vi.fn().mockResolvedValue(initialDocument),
     list: vi.fn().mockResolvedValue([initialDocument]),
+    versions: vi.fn().mockResolvedValue([initialDocument]),
   };
 }
 
@@ -112,6 +113,40 @@ function createFailingMutationContract(error: unknown) {
 }
 
 describe("Documents RPC", () => {
+  test("lists product versions and restores the selected body as a new revision", async () => {
+    const documents = createDocumentsAccess();
+    const update = createMutationContract(initialDocument);
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => update.contract,
+      }),
+    });
+
+    expect(
+      await client.documentVersions({ documentId: initialDocument.id }),
+    ).toEqual([initialDocument]);
+    const restored = await client.restoreDocumentVersion({
+      baseRevision: initialDocument.revision,
+      clientIdempotencyKey: "restore-document-1",
+      documentId: initialDocument.id,
+      revision: 1,
+    });
+    expect(restored).toMatchObject({ body: initialDocument.body, revision: 2 });
+    expect(update.commands[0]).toMatchObject({
+      baseRevision: 1,
+      payload: { body: initialDocument.body, documentId: initialDocument.id },
+      targetId: initialDocument.id,
+    });
+    await expect(
+      client.restoreDocumentVersion({
+        baseRevision: 1,
+        clientIdempotencyKey: "restore-missing",
+        documentId: initialDocument.id,
+        revision: 99,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
   test("routes create through the idempotent mutation contract", async () => {
     const documents = createDocumentsAccess();
     const creation = createMutationContract(null);

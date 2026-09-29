@@ -15,6 +15,7 @@ export const documentTypeSchema = z.enum([
 ]);
 
 export const documentIdSchema = z.string().trim().min(1).max(255);
+export const documentRevisionSchema = z.number().int().positive();
 export const projectIdSchema = z.string().trim().min(1).max(255);
 export const documentTitleSchema = z.string().trim().min(1).max(255);
 export const documentBodySchema = z.string().max(1_000_000);
@@ -63,6 +64,14 @@ export const updateDocumentMutationInputSchema = updateDocumentFieldsSchema
   .strict()
   .refine(hasDocumentFieldChange, "At least one Document field must change.");
 
+export const restoreDocumentVersionInputSchema = z
+  .object({
+    documentId: documentIdSchema,
+    revision: documentRevisionSchema,
+  })
+  .extend(humanMutationEnvelopeSchema.shape)
+  .strict();
+
 export const documentSchema = createDocumentInputSchema.extend({
   id: documentIdSchema,
   revision: z.number().int().nonnegative(),
@@ -86,6 +95,10 @@ export interface DocumentMutationContracts {
 export interface DocumentsAccess {
   get: (accountId: string, documentId: string) => Promise<Document | null>;
   list: (accountId: string, projectId: string) => Promise<Document[]>;
+  versions: (
+    accountId: string,
+    documentId: string,
+  ) => Promise<Document[] | null>;
 }
 
 export class DocumentUnavailableError extends Error {

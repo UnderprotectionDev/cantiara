@@ -70,6 +70,7 @@ import {
   documentIdSchema,
   documentSchema,
   projectIdSchema,
+  restoreDocumentVersionInputSchema,
   updateDocumentInputSchema,
   updateDocumentMutationInputSchema,
 } from "../documents";
@@ -2164,6 +2165,77 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return result;
+    }),
+  documentVersions: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const versions = await context.documents.versions(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!versions) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return versions;
+    }),
+  restoreDocumentVersion: protectedProcedure
+    .input(restoreDocumentVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const versions = await context.documents.versions(
+        context.session.user.id,
+        input.documentId,
+      );
+      const selected = versions?.find(
+        (version) => version.revision === input.revision,
+      );
+      if (!selected) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      const mutation = requireDocumentMutationContracts(context).update(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            kind: "human",
+            payload: {
+              documentId: input.documentId,
+              title: selected.title,
+              body: selected.body,
+              type: selected.type,
+            },
+            targetId: input.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) =>
+            ({
+              document: currentValue.document
+                ? documentSchema.parse({
+                    ...currentValue.document,
+                    title: selected.title,
+                    body: selected.body,
+                    type: selected.type,
+                    revision: currentRevision + 1,
+                    updatedAt: committedAt,
+                  })
+                : null,
+            }) satisfies DocumentMutationValue,
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.documentId);
+      }
     }),
   createDocument: protectedProcedure
     .input(createDocumentMutationInputSchema)

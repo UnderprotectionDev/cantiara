@@ -29,6 +29,7 @@ import { TableKit } from "@tiptap/extension-table";
 import { Markdown as TiptapMarkdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { diffLines } from "diff";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState } from "react";
 
@@ -54,6 +55,34 @@ function comparableMarkdown(source: string) {
   return source.replaceAll("\r\n", "\n");
 }
 
+function diffClass(part: { added?: boolean; removed?: boolean }) {
+  if (part.added) {
+    return "bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-100";
+  }
+  if (part.removed) {
+    return "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-100";
+  }
+}
+
+function diffPrefix(part: { added?: boolean; removed?: boolean }) {
+  if (part.added) {
+    return "+ ";
+  }
+  if (part.removed) {
+    return "- ";
+  }
+  return "  ";
+}
+
+function formattedDiff(part: {
+  value: string;
+  added?: boolean;
+  removed?: boolean;
+}) {
+  const prefix = diffPrefix(part);
+  return part.value.replace(/^(.+)/gm, `${prefix}$1`);
+}
+
 function DocumentEditor({
   record,
   onSaved,
@@ -65,6 +94,19 @@ function DocumentEditor({
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<DocumentView>("write");
   const [conversionWarning, setConversionWarning] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const pendingRestore = useRef<{
+    sourceRevision: number;
+    baseRevision: number;
+    clientIdempotencyKey: string;
+  } | null>(null);
+  const versionOptions = orpc.documentVersions.queryOptions({
+    input: { documentId: record.id },
+  });
+  const versions = useQuery(versionOptions);
+  const selectedSnapshot = versions.data?.find(
+    (item) => item.revision === selectedVersion,
+  );
   const allowRichUpdates = useRef(false);
   const pendingSave = useRef<{
     baseRevision: number;
@@ -120,6 +162,42 @@ function DocumentEditor({
         failure instanceof Error
           ? failure.message
           : "Document could not be saved.",
+      ),
+  });
+  const restore = useMutation({
+    mutationFn: (sourceRevision: number) => {
+      if (
+        pendingRestore.current?.sourceRevision !== sourceRevision ||
+        pendingRestore.current.baseRevision !== revision
+      ) {
+        pendingRestore.current = {
+          sourceRevision,
+          baseRevision: revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+        };
+      }
+      const command = pendingRestore.current;
+      return runOnlineOnlyWrite(() =>
+        client.restoreDocumentVersion({
+          documentId: record.id,
+          revision: sourceRevision,
+          baseRevision: command.baseRevision,
+          clientIdempotencyKey: command.clientIdempotencyKey,
+        }),
+      );
+    },
+    onSuccess: async (restored) => {
+      pendingRestore.current = null;
+      setRevision(restored.revision);
+      setSelectedVersion(null);
+      setError(null);
+      await onSaved();
+    },
+    onError: (failure) =>
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Document could not be restored.",
       ),
   });
   const form = useForm({
@@ -326,6 +404,71 @@ function DocumentEditor({
             </form.Subscribe>
           </TabsContent>
         </Tabs>
+        <section
+          aria-label="Versions"
+          className="space-y-3 border-border border-t pt-5"
+        >
+          <h3 className="font-semibold">Versions</h3>
+          {versions.isError ? (
+            <p role="alert">Versions could not be loaded.</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {versions.data?.map((version) => (
+              <Button
+                aria-pressed={selectedVersion === version.revision}
+                key={version.revision}
+                onClick={() => setSelectedVersion(version.revision)}
+                type="button"
+                variant={
+                  selectedVersion === version.revision ? "secondary" : "outline"
+                }
+              >
+                Version {version.revision}
+              </Button>
+            ))}
+          </div>
+          {selectedSnapshot ? (
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <h4 className="font-medium">Compare</h4>
+              <p>
+                Version {selectedSnapshot.revision} → Version {revision}
+              </p>
+              <p>
+                {selectedSnapshot.title} → {record.title}
+              </p>
+              <p>
+                {selectedSnapshot.type} → {record.type}
+              </p>
+              <section aria-label="Compare">
+                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-sm">
+                  {diffLines(selectedSnapshot.body, record.body).map(
+                    (part, index) => (
+                      <span
+                        className={diffClass(part)}
+                        // biome-ignore lint/suspicious/noArrayIndexKey: Diff chunks have no stable identity and are read-only.
+                        key={index}
+                      >
+                        {formattedDiff(part)}
+                      </span>
+                    ),
+                  )}
+                </pre>
+              </section>
+              {selectedSnapshot.revision === revision ? null : (
+                <Button
+                  disabled={restore.isPending || form.state.isDirty}
+                  onClick={() => restore.mutate(selectedSnapshot.revision)}
+                  type="button"
+                >
+                  Restore
+                </Button>
+              )}
+              {form.state.isDirty ? (
+                <p>Save your current changes before restoring a version.</p>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
         {error ? (
           <p className="text-destructive" role="alert">
             {error}
@@ -537,10 +680,17 @@ export default function ProjectDocumentsSurface({
         </nav>
         {selected ? (
           <DocumentEditor
-            key={selected.id}
-            onSaved={() =>
-              queryClient.invalidateQueries({ queryKey: options.queryKey })
-            }
+            key={`${selected.id}-${selected.revision}`}
+            onSaved={async () => {
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: options.queryKey }),
+                queryClient.invalidateQueries({
+                  queryKey: orpc.documentVersions.queryOptions({
+                    input: { documentId: selected.id },
+                  }).queryKey,
+                }),
+              ]);
+            }}
             record={selected}
           />
         ) : (

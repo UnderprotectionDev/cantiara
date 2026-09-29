@@ -172,4 +172,66 @@ describeDatabase("Documents database boundary", () => {
     expect(stillReadable).toEqual(updated);
     expect(await documents.documents({ projectId })).toEqual([updated]);
   });
+
+  it("compares product versions and restores a prior version as a new head", async () => {
+    const documents = client();
+    const created = await documents.createDocument({
+      baseRevision: 0,
+      body: "# First\nOriginal text",
+      clientIdempotencyKey: "version-create",
+      projectId,
+      title: "Architecture",
+      type: "Spec",
+    });
+    const changed = await documents.updateDocument({
+      baseRevision: created.revision,
+      body: "# Second\nChanged text",
+      clientIdempotencyKey: "version-update",
+      documentId: created.id,
+      title: "Revised architecture",
+    });
+
+    expect(
+      await documents.documentVersions({ documentId: created.id }),
+    ).toMatchObject([
+      { revision: 2, body: changed.body, title: changed.title },
+      { revision: 1, body: created.body, title: created.title },
+    ]);
+    const restored = await documents.restoreDocumentVersion({
+      baseRevision: changed.revision,
+      clientIdempotencyKey: "version-restore",
+      documentId: created.id,
+      revision: created.revision,
+    });
+    expect(
+      await documents.restoreDocumentVersion({
+        baseRevision: changed.revision,
+        clientIdempotencyKey: "version-restore",
+        documentId: created.id,
+        revision: created.revision,
+      }),
+    ).toEqual(restored);
+    expect(restored).toMatchObject({
+      id: created.id,
+      revision: 3,
+      body: created.body,
+      title: created.title,
+      type: created.type,
+    });
+    expect(
+      await documents.documentVersions({ documentId: created.id }),
+    ).toMatchObject([
+      { revision: 3, body: created.body },
+      { revision: 2, body: changed.body },
+      { revision: 1, body: created.body },
+    ]);
+    await expect(
+      documents.restoreDocumentVersion({
+        baseRevision: changed.revision,
+        clientIdempotencyKey: "version-stale",
+        documentId: created.id,
+        revision: 1,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
 });
