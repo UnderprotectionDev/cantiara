@@ -44,6 +44,7 @@ Varsayım ve Açık Soru ayrı Proje ana kayıtlarıdır. Varsayım `Open`, `Con
 - **Seam (one).** Uncertainty Records — both types behind one product interface used by Project Discovery/Decisions area.
 - **Prior art.** Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). 19-class: Refuted Assumption Review absent.
 - **Required counterparts.** One type cannot be both; result does not auto-spawn Work/Risk/Decision; related Decision stays Valid; Based on relation absent; Confirmed/Refuted/Answered missing evidence is visible; `No longer applicable` on Assumption and on Open Question does not strip existing evidence or the record text.
+- **Document conversion.** Selected-text conversion creates exactly one `Open` Assumption with the excerpt as its statement or one `Open` Open Question with the excerpt as its question, plus an exact version-pinned Document evidence link; no result status or related record is inferred.
 
 ## Out of Scope
 

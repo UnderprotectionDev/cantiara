@@ -4,6 +4,9 @@ import {
   type MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
 import {
+  type CreateDocumentWorkBatchInput,
+  type CreateDocumentWorkBatchPayload,
+  createDocumentWorkBatchInputSchema,
   featureHealthUpdateSchema,
   type WorkLifecycleAccess,
   type WorkLifecycleMutationContracts,
@@ -21,12 +24,14 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
 import {
   project,
   work,
   workKeyAllocation,
   workRetiredIdentity,
 } from "@cantiara/db/schema/index";
+import { usageLink } from "@cantiara/db/schema/relation";
 import type { SQL } from "drizzle-orm";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type {
@@ -67,6 +72,10 @@ export interface WorkCreationFinalizationOptions {
 }
 
 export interface DatabaseWorkLifecycleAccess extends WorkLifecycleAccess {
+  createDocumentWorkBatch: (
+    accountId: string,
+    input: CreateDocumentWorkBatchInput,
+  ) => Promise<WorkProfile[]>;
   createWithCustomFieldValues?: (
     accountId: string,
     input: Parameters<WorkLifecycleAccess["create"]>[1],
@@ -259,6 +268,193 @@ function emptyWorkTarget(
   };
 }
 
+interface WorkDocumentBatchMutationValue {
+  batch: CreateDocumentWorkBatchPayload | null;
+  works: WorkProfile[];
+}
+
+function emptyWorkDocumentBatchTarget(
+  targetId: string,
+): MutationTarget<WorkDocumentBatchMutationValue> {
+  return { id: targetId, revision: 0, value: { batch: null, works: [] } };
+}
+
+function createWorkDocumentBatchMutationTarget(
+  accountId: string,
+): MutationDatabaseTargetAdapter<WorkDocumentBatchMutationValue> {
+  return {
+    find: async (_executor, targetId) => emptyWorkDocumentBatchTarget(targetId),
+    async update(executor, input) {
+      const { batch } = input.nextValue;
+      if (!batch || batch.items.length === 0) {
+        return null;
+      }
+
+      const ownedProject = await findOwnedProject(
+        executor,
+        accountId,
+        batch.projectId,
+        true,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const [sourceDocument] = await executor
+        .select({ body: document.body, revision: document.revision })
+        .from(document)
+        .where(
+          and(
+            eq(document.id, batch.documentId),
+            eq(document.projectId, batch.projectId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (
+        !sourceDocument ||
+        sourceDocument.revision !== batch.documentRevision ||
+        batch.items.some(
+          ({ selectedText, selectionEnd, selectionStart }) =>
+            selectionEnd > sourceDocument.body.length ||
+            sourceDocument.body.slice(selectionStart, selectionEnd) !==
+              selectedText,
+        )
+      ) {
+        throw new WorkCreationConflictError();
+      }
+
+      const { committedAt } = input;
+      const [updatedProject] = await executor
+        .update(project)
+        .set({
+          revision: ownedProject.record.revision + 1,
+          updatedAt: committedAt,
+          workCount: ownedProject.record.workCount + batch.items.length,
+        })
+        .where(
+          and(
+            eq(project.id, batch.projectId),
+            eq(project.revision, ownedProject.record.revision),
+          ),
+        )
+        .returning({ shortCode: project.shortCode });
+      if (!updatedProject) {
+        throw new WorkCreationConflictError();
+      }
+
+      const workPlans = await Promise.all(
+        batch.items.map(async (item, index) => {
+          const number = ownedProject.record.workCount + index + 1;
+          const id = crypto.randomUUID();
+          const key = `${updatedProject.shortCode}-${number}`;
+          const allocationKey = `${input.idempotencyKey.key}:${index + 1}`;
+          const payloadFingerprint = await fingerprintMutationPayload({
+            batchKey: input.idempotencyKey.key,
+            documentId: batch.documentId,
+            documentRevision: batch.documentRevision,
+            item,
+            projectId: batch.projectId,
+          });
+          return { allocationKey, id, item, key, number, payloadFingerprint };
+        }),
+      );
+      const createdWorks: WorkProfile[] = [];
+      for (const {
+        allocationKey,
+        id,
+        item,
+        key,
+        number,
+        payloadFingerprint,
+      } of workPlans) {
+        // biome-ignore lint/performance/noAwaitInLoops: keep key allocation, Work, and evidence bind ordered in this atomic mutation.
+        const [allocation] = await executor
+          .insert(workKeyAllocation)
+          .values({
+            clientIdempotencyKey: allocationKey,
+            id: crypto.randomUUID(),
+            key,
+            number,
+            payloadFingerprint,
+            projectId: batch.projectId,
+            reservedAt: committedAt,
+            shortCode: updatedProject.shortCode,
+            workId: id,
+          })
+          .onConflictDoNothing()
+          .returning({ id: workKeyAllocation.id });
+        if (!allocation) {
+          throw new WorkCreationConflictError();
+        }
+
+        const [created] = await executor
+          .insert(work)
+          .values({
+            archivedAt: null,
+            captureProvenance: null,
+            checklist: [],
+            closureReason: null,
+            closureResult: null,
+            createdAt: committedAt,
+            description: item.selectedText,
+            effort: null,
+            featureHealthHistory: [],
+            id,
+            key,
+            number,
+            plannedStartDate: null,
+            primaryFeatureId: null,
+            primarySpecId: null,
+            problemOpportunity: null,
+            projectId: batch.projectId,
+            recreatedFromWorkId: null,
+            recreatedFromWorkKey: null,
+            reappearDate: null,
+            revision: 1,
+            roadmapHorizon: null,
+            status: "Not Started",
+            statusChangedAt: committedAt,
+            targetDate: null,
+            title: item.title,
+            type: "Task",
+            updatedAt: committedAt,
+          })
+          .onConflictDoNothing()
+          .returning();
+        if (!created) {
+          throw new WorkCreationConflictError();
+        }
+        await executor.insert(usageLink).values({
+          id: crypto.randomUUID(),
+          kind: "Pinned bind",
+          location: {
+            documentVersion: {
+              documentId: batch.documentId,
+              revision: batch.documentRevision,
+            },
+            end: item.selectionEnd,
+            excerpt: item.selectedText,
+            start: item.selectionStart,
+          },
+          revision: 1,
+          sourceRecordId: batch.documentId,
+          sourceRecordType: "Document",
+          surfaceRecordId: id,
+          surfaceRecordType: "Work",
+          workspaceId: ownedProject.workspaceId,
+        });
+        createdWorks.push(toWorkProfile(created));
+      }
+
+      return {
+        id: input.targetId,
+        revision: input.expectedRevision + 1,
+        value: { batch: null, works: createdWorks },
+      };
+    },
+  };
+}
+
 function featureIdFromMutationPayload(payload: MutationPayload | undefined) {
   if (
     typeof payload !== "object" ||
@@ -418,6 +614,56 @@ function createWorkMutationTarget(
         .onConflictDoNothing()
         .returning();
       if (created) {
+        const evidence = input.nextValue.documentEvidence;
+        if (evidence) {
+          const [sourceDocument] = await executor
+            .select({
+              body: document.body,
+              projectId: document.projectId,
+              revision: document.revision,
+            })
+            .from(document)
+            .innerJoin(project, eq(document.projectId, project.id))
+            .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+            .where(
+              and(
+                eq(document.id, evidence.documentId),
+                eq(document.projectId, created.projectId),
+                eq(workspace.ownerAccountId, accountId),
+              ),
+            )
+            .for("update")
+            .limit(1);
+          if (
+            !sourceDocument ||
+            sourceDocument.revision !== evidence.documentRevision ||
+            sourceDocument.body.slice(
+              evidence.selectionStart,
+              evidence.selectionEnd,
+            ) !== evidence.selectedText
+          ) {
+            throw new WorkCreationConflictError();
+          }
+          await executor.insert(usageLink).values({
+            id: crypto.randomUUID(),
+            kind: "Pinned bind",
+            location: {
+              documentVersion: {
+                documentId: evidence.documentId,
+                revision: evidence.documentRevision,
+              },
+              end: evidence.selectionEnd,
+              excerpt: evidence.selectedText,
+              start: evidence.selectionStart,
+            },
+            revision: 1,
+            sourceRecordId: evidence.documentId,
+            sourceRecordType: "Document",
+            surfaceRecordId: created.id,
+            surfaceRecordType: "Work",
+            workspaceId: ownedProject.workspaceId,
+          });
+        }
         if (recreate && recreateSelection.sourceWork) {
           await relations.persistRecreatedRelations(
             executor,
@@ -1535,6 +1781,48 @@ export function createDatabaseWorkLifecycle(
     store,
   });
 
+  async function createDocumentWorkBatch(
+    accountId: string,
+    rawInput: CreateDocumentWorkBatchInput,
+  ) {
+    const input = createDocumentWorkBatchInputSchema.parse(rawInput);
+    const batch: CreateDocumentWorkBatchPayload = {
+      documentId: input.documentId,
+      documentRevision: input.documentRevision,
+      items: input.items,
+      projectId: input.projectId,
+    };
+    const clientIdempotencyKey = await fingerprintMutationPayload({
+      clientIdempotencyKey: input.clientIdempotencyKey,
+      operation: "document-work-batch",
+      projectId: input.projectId,
+    });
+    const mutation =
+      createDatabaseMutationContract<WorkDocumentBatchMutationValue>(database, {
+        target: createWorkDocumentBatchMutationTarget(accountId),
+      });
+    const receipt = await mutation.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey,
+        kind: "human",
+        payload: batch,
+        targetId: `work:document-batch:${accountId}:${input.projectId}:${clientIdempotencyKey}`,
+      },
+      ({ currentRevision, payload }) => {
+        if (currentRevision !== 0) {
+          throw new WorkCreationConflictError();
+        }
+        return {
+          batch: payload as CreateDocumentWorkBatchPayload,
+          works: [],
+        };
+      },
+    );
+    return receipt.nextValue.works;
+  }
+
   async function findCreatedByIdempotencyKey(
     accountId: string,
     projectId: string,
@@ -1557,12 +1845,17 @@ export function createDatabaseWorkLifecycle(
     return existing.work;
   }
 
+  const databaseLifecycle = {
+    ...lifecycle,
+    createDocumentWorkBatch,
+  };
+
   if (!customFieldValueWriter) {
-    return { ...lifecycle, findCreatedByIdempotencyKey };
+    return { ...databaseLifecycle, findCreatedByIdempotencyKey };
   }
 
   return {
-    ...lifecycle,
+    ...databaseLifecycle,
     findCreatedByIdempotencyKey,
     createWithCustomFieldValues(
       accountId: string,

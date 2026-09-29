@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  ALWAYS_REACHABLE_SURFACES,
   BACKLOG_HASH,
   CONFIGURATION_HOSTS,
   configurationHostId,
   isWorkRecordHash,
   isWorkSurfaceHash,
+  navigationHash,
   navigationSurfaceFromHash,
   projectSourceRecordFromHash,
   projectSourceRecordHash,
@@ -16,6 +18,21 @@ import {
 } from "./project-shell-navigation";
 
 describe("Project Shell Work navigation", () => {
+  test("exposes Smart Collection and the enabled Technical Diagrams area", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Smart Collection");
+    expect(navigationHash("Smart Collection")).toBe("smart-collections");
+    expect(navigationSurfaceFromHash("smart-collections", [], [], [])).toBe(
+      "Smart Collection",
+    );
+    expect(
+      navigationSurfaceFromHash(
+        "technical-diagrams",
+        ["Technical Diagrams"],
+        [],
+        [],
+      ),
+    ).toBe("Technical Diagrams");
+  });
   test("exposes Record Action as a Project configuration host", () => {
     expect(CONFIGURATION_HOSTS.map((host) => host.label)).toContain(
       "Record Action",

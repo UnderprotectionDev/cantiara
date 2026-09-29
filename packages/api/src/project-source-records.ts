@@ -1,10 +1,12 @@
 import { z } from "zod";
-
+import { documentEvidenceSelectionSchema } from "./documents";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
 const identifier = z.string().trim().min(1).max(255);
 const text255 = z.string().trim().min(1).max(255);
 const optionalText = z.string().trim().max(20_000).nullable();
+const longText = z.string().trim().min(1).max(100_000);
+const optionalLongText = z.string().trim().max(100_000).nullable();
 const revision = z.number().int().nonnegative().safe();
 const timestamp = z.iso.datetime({ offset: true });
 
@@ -40,6 +42,30 @@ export const PRODUCTION_INCIDENT_STATUS_OPTIONS = [
 export const productionIncidentStatusSchema = z.enum(
   PRODUCTION_INCIDENT_STATUS_OPTIONS,
 );
+
+export const RISK_LIFE_OPTIONS = [
+  "Open",
+  "Mitigating",
+  "Occurred",
+  "Resolved",
+  "Accepted",
+] as const;
+export const riskLifeSchema = z.enum(RISK_LIFE_OPTIONS);
+
+export const ASSUMPTION_LIFE_OPTIONS = [
+  "Open",
+  "Confirmed",
+  "Refuted",
+  "No longer applicable",
+] as const;
+export const assumptionLifeSchema = z.enum(ASSUMPTION_LIFE_OPTIONS);
+
+export const OPEN_QUESTION_LIFE_OPTIONS = [
+  "Open",
+  "Answered",
+  "No longer applicable",
+] as const;
+export const openQuestionLifeSchema = z.enum(OPEN_QUESTION_LIFE_OPTIONS);
 
 const sourceRecordIdentity = {
   createdAt: timestamp,
@@ -98,11 +124,51 @@ export const productionIncidentRecordSchema = z
   })
   .strict();
 
+export const riskRecordSchema = z
+  .object({
+    ...sourceRecordIdentity,
+    description: optionalLongText,
+    impact: optionalLongText,
+    life: riskLifeSchema,
+    probability: optionalLongText,
+    rationale: optionalLongText,
+    response: optionalLongText,
+    sourceType: z.literal("Risk"),
+    title: text255,
+  })
+  .strict();
+
+export const assumptionRecordSchema = z
+  .object({
+    ...sourceRecordIdentity,
+    life: assumptionLifeSchema,
+    rationale: optionalLongText,
+    sourceType: z.literal("Assumption"),
+    statement: longText,
+    title: text255,
+  })
+  .strict();
+
+export const openQuestionRecordSchema = z
+  .object({
+    ...sourceRecordIdentity,
+    answer: optionalLongText,
+    context: optionalLongText,
+    life: openQuestionLifeSchema,
+    question: longText,
+    sourceType: z.literal("Open Question"),
+    title: text255,
+  })
+  .strict();
+
 export const projectSourceRecordSchema = z.discriminatedUnion("sourceType", [
+  assumptionRecordSchema,
   decisionRecordSchema,
   milestoneRecordSchema,
+  openQuestionRecordSchema,
   projectReleaseRecordSchema,
   productionIncidentRecordSchema,
+  riskRecordSchema,
 ]);
 export type ProjectSourceRecord = z.infer<typeof projectSourceRecordSchema>;
 export type ProjectSourceType = ProjectSourceRecord["sourceType"];
@@ -110,6 +176,7 @@ export type ProjectSourceType = ProjectSourceRecord["sourceType"];
 const createDecisionInputSchema = humanMutationEnvelopeSchema
   .extend({
     decision: z.string().trim().min(1).max(20_000),
+    documentEvidence: documentEvidenceSelectionSchema.optional(),
     id: identifier,
     projectId: identifier,
     rationale: optionalText,
@@ -155,11 +222,52 @@ const createProductionIncidentInputSchema = humanMutationEnvelopeSchema
   })
   .strict();
 
+const createRiskInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    description: optionalLongText,
+    documentEvidence: documentEvidenceSelectionSchema.optional(),
+    id: identifier,
+    impact: optionalLongText,
+    projectId: identifier,
+    probability: optionalLongText,
+    response: optionalLongText,
+    sourceType: z.literal("Risk"),
+    title: text255,
+  })
+  .strict();
+
+const createAssumptionInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    documentEvidence: documentEvidenceSelectionSchema.optional(),
+    id: identifier,
+    projectId: identifier,
+    rationale: optionalLongText,
+    sourceType: z.literal("Assumption"),
+    statement: longText,
+    title: text255,
+  })
+  .strict();
+
+const createOpenQuestionInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    context: optionalLongText,
+    documentEvidence: documentEvidenceSelectionSchema.optional(),
+    id: identifier,
+    projectId: identifier,
+    question: longText,
+    sourceType: z.literal("Open Question"),
+    title: text255,
+  })
+  .strict();
+
 const createProjectSourceRecordInputBaseSchema = z.discriminatedUnion(
   "sourceType",
   [
     createDecisionInputSchema,
     createMilestoneInputSchema,
+    createRiskInputSchema,
+    createAssumptionInputSchema,
+    createOpenQuestionInputSchema,
     createProjectReleaseInputSchema,
     createProductionIncidentInputSchema,
   ],
@@ -261,6 +369,9 @@ export const projectSourceRecordInputSchema = z
     sourceId: identifier,
     sourceType: z.enum([
       "Decision",
+      "Risk",
+      "Assumption",
+      "Open Question",
       "Milestone",
       "Project Release",
       "Production Incident",

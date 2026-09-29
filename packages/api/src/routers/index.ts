@@ -66,10 +66,16 @@ import {
   createDocumentInputSchema,
   createDocumentMutationInputSchema,
   type DocumentMutationValue,
+  DocumentSectionCycleError,
   DocumentUnavailableError,
+  documentBodySchema,
   documentIdSchema,
+  documentLiveDirectives,
+  documentLiveWorkIds,
   documentSchema,
   documentVersionInputSchema,
+  documentRecordReferences as parseDocumentRecordReferences,
+  pinDocumentEvidenceInputSchema,
   projectIdSchema,
   restoreDocumentVersionInputSchema,
   updateDocumentInputSchema,
@@ -177,6 +183,7 @@ import {
 import {
   createProjectSourceRecordInputSchema,
   ProjectSourceRecordConflictError,
+  type ProjectSourceType,
   projectSourceRecordInputSchema,
   projectSourceRecordsProjectInputSchema,
   transitionProjectSourceRecordInputSchema,
@@ -219,6 +226,11 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  createSmartCollectionInputSchema,
+  SmartCollectionConflictError,
+  SmartCollectionUnavailableError,
+} from "../smart-collections";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -229,6 +241,11 @@ import {
   tagsInputSchema,
   undoTagRenameInputSchema,
 } from "../tags";
+import {
+  confirmMermaidConversionInputSchema,
+  createDiagramViewInputSchema,
+  mermaidConversionInputSchema,
+} from "../technical-diagrams";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   previewWorkContextLayout,
@@ -246,6 +263,7 @@ import {
 import {
   closeWorkInputSchema,
   convertWorkChecklistItemInputSchema,
+  createDocumentWorkBatchInputSchema,
   createWorkRpcMutationInputSchema,
   detachFeatureHealthHistoryInputSchema,
   detachIncludedWorkInputSchema,
@@ -796,6 +814,137 @@ function requireFileAttachments(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.fileAttachments;
+}
+
+type DocumentReference = ReturnType<
+  typeof parseDocumentRecordReferences
+>[number];
+type DocumentLiveDirective = ReturnType<typeof documentLiveDirectives>[number];
+type PinnedEvidenceRecordType = z.infer<
+  typeof pinDocumentEvidenceInputSchema
+>["targetRecordType"];
+
+async function pinnedEvidenceTargetProjectId(
+  context: Context,
+  accountId: string,
+  recordType: PinnedEvidenceRecordType,
+  recordId: string,
+) {
+  switch (recordType) {
+    case "Work":
+      return (
+        (await context.workLifecycle?.find(accountId, recordId))?.projectId ??
+        null
+      );
+    case "Document":
+      return (
+        (await context.documents?.get(accountId, recordId))?.projectId ?? null
+      );
+    case "Technical Diagram":
+      return (
+        (await context.technicalDiagrams?.get(accountId, recordId))
+          ?.projectId ?? null
+      );
+    default:
+      return (
+        (
+          await context.projectSourceRecords?.find(
+            accountId,
+            recordType as ProjectSourceType,
+            recordId,
+          )
+        )?.projectId ?? null
+      );
+  }
+}
+
+async function documentReferenceSource(
+  context: Context,
+  accountId: string,
+  reference: DocumentReference,
+) {
+  switch (reference.recordType) {
+    case "Work": {
+      const record = await context.workLifecycle?.find(
+        accountId,
+        reference.recordId,
+      );
+      return record
+        ? {
+            id: record.id,
+            projectId: record.projectId,
+            title: `${record.key} · ${record.title}`,
+          }
+        : null;
+    }
+    case "Document": {
+      const record = await context.documents?.get(
+        accountId,
+        reference.recordId,
+      );
+      return record
+        ? { id: record.id, projectId: record.projectId, title: record.title }
+        : null;
+    }
+    case "Technical Diagram": {
+      const record = await context.technicalDiagrams?.get(
+        accountId,
+        reference.recordId,
+      );
+      return record
+        ? { id: record.id, projectId: record.projectId, title: record.title }
+        : null;
+    }
+    default: {
+      const record = await context.projectSourceRecords?.find(
+        accountId,
+        reference.recordType as ProjectSourceType,
+        reference.recordId,
+      );
+      if (!record) {
+        return null;
+      }
+      return {
+        id: record.id,
+        projectId: record.projectId,
+        title: "name" in record ? record.name : record.title,
+      };
+    }
+  }
+}
+
+async function liveDocumentBlockSource(
+  context: Context,
+  accountId: string,
+  directive: DocumentLiveDirective,
+) {
+  if (directive.kind === "Work") {
+    return null;
+  }
+  if (directive.kind === "Document section") {
+    if (!directive.sectionId) {
+      return null;
+    }
+    return (
+      (await context.documents?.getLiveSection?.(
+        accountId,
+        directive.id,
+        directive.sectionId,
+      )) ?? null
+    );
+  }
+  if (directive.kind === "Smart Collection") {
+    return (
+      (await context.smartCollections?.getView(accountId, directive.id)) ?? null
+    );
+  }
+  return (
+    (await context.technicalDiagrams?.get(
+      accountId,
+      directive.id,
+      directive.viewId,
+    )) ?? null
+  );
 }
 
 function rethrowFileAttachmentError(error: unknown): never {
@@ -2075,6 +2224,12 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentSectionCycleError) {
+    throw new ORPCError("CONFLICT", {
+      defined: true,
+      message: error.message,
+    });
+  }
   if (!isRecord(error)) {
     throw error;
   }
@@ -2177,6 +2332,365 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return result;
+    }),
+  documentLiveWorkBlocks: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          body: documentBodySchema.optional(),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.documents) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { documents } = context;
+      const record = await documents.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!record) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return Promise.all(
+        documentLiveWorkIds(input.body ?? record.body).map(async (workId) => {
+          const work = await documents.getLiveWork(
+            context.session.user.id,
+            workId,
+          );
+          return {
+            workId,
+            source: work ?? null,
+          };
+        }),
+      );
+    }),
+  pinDocumentEvidence: protectedProcedure
+    .input(pinDocumentEvidenceInputSchema)
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const documentRecord = await context.documents?.get(
+        accountId,
+        input.documentId,
+      );
+      if (!documentRecord) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      if (
+        documentRecord.revision !== input.documentRevision ||
+        input.selectionEnd > documentRecord.body.length ||
+        documentRecord.body.slice(input.selectionStart, input.selectionEnd) !==
+          input.selectedText
+      ) {
+        throw new ORPCError("CONFLICT", {
+          defined: true,
+          message: "The Document changed after the text was selected.",
+        });
+      }
+      const targetProjectId = await pinnedEvidenceTargetProjectId(
+        context,
+        accountId,
+        input.targetRecordType,
+        input.targetRecordId,
+      );
+      if (targetProjectId !== documentRecord.projectId) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The evidence target is unavailable.",
+        });
+      }
+      if (
+        input.targetRecordType === "Document" &&
+        input.targetRecordId === documentRecord.id
+      ) {
+        throw new ORPCError("BAD_REQUEST", {
+          defined: true,
+          message: "A Document cannot pin evidence to itself.",
+        });
+      }
+      const mutation =
+        requireUsageLinkMutationContracts(context).create(accountId);
+      const { baseRevision, clientIdempotencyKey } = input;
+      const payload = usageLinkPayloadSchema.parse({
+        kind: "Pinned bind",
+        location: {
+          documentVersion: {
+            documentId: documentRecord.id,
+            revision: documentRecord.revision,
+          },
+          end: input.selectionEnd,
+          excerpt: input.selectedText,
+          start: input.selectionStart,
+        },
+        source: { recordId: documentRecord.id, recordType: "Document" },
+        surface: {
+          recordId: input.targetRecordId,
+          recordType: input.targetRecordType,
+        },
+      });
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ committedAt, currentRevision, payload: mutationPayload }) => ({
+            usageLink: usageLinkSchema.parse({
+              ...mutationPayload,
+              createdAt: committedAt,
+              id: crypto.randomUUID(),
+              revision: currentRevision + 1,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.usageLink) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.usageLink;
+      } catch (error) {
+        rethrowUsageLinkMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  documentLiveOtherBlocks: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          body: documentBodySchema.optional(),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (
+        !(
+          context.documents &&
+          context.smartCollections &&
+          context.technicalDiagrams
+        )
+      ) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const record = await context.documents.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!record) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return Promise.all(
+        documentLiveDirectives(input.body ?? record.body)
+          .filter(({ kind }) => kind !== "Work")
+          .map(async (directive) => ({
+            id: directive.id,
+            kind: directive.kind,
+            sectionId: directive.sectionId ?? null,
+            viewId: directive.viewId ?? null,
+            source: await liveDocumentBlockSource(
+              context,
+              context.session.user.id,
+              directive,
+            ),
+          })),
+      );
+    }),
+  documentRecordReferences: protectedProcedure
+    .input(
+      z
+        .object({
+          body: documentBodySchema.optional(),
+          documentId: documentIdSchema,
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const documentRecord = await context.documents?.get(
+        accountId,
+        input.documentId,
+      );
+      if (!documentRecord) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return Promise.all(
+        parseDocumentRecordReferences(input.body ?? documentRecord.body).map(
+          async (reference) => ({
+            ...reference,
+            source: await documentReferenceSource(
+              context,
+              accountId,
+              reference,
+            ),
+          }),
+        ),
+      );
+    }),
+  createSmartCollection: protectedProcedure
+    .input(createSmartCollectionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.smartCollections.create(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof SmartCollectionUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        if (error instanceof SmartCollectionConflictError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  smartCollectionViews: protectedProcedure
+    .input(z.object({ projectId: projectIdSchema }).strict())
+    .handler(({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return context.smartCollections.listViews(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  smartCollectionView: protectedProcedure
+    .input(z.object({ viewId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const view = await context.smartCollections.getView(
+        context.session.user.id,
+        input.viewId,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return view;
+    }),
+  technicalDiagrams: protectedProcedure
+    .input(z.object({ projectId: projectIdSchema }).strict())
+    .handler(({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return context.technicalDiagrams.list(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  technicalDiagram: protectedProcedure
+    .input(
+      z
+        .object({
+          diagramId: z.string().min(1),
+          viewId: z.string().min(1).optional(),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const diagram = await context.technicalDiagrams.get(
+        context.session.user.id,
+        input.diagramId,
+        input.viewId,
+      );
+      if (!diagram) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return diagram;
+    }),
+  createDiagramView: protectedProcedure
+    .input(createDiagramViewInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const view = await context.technicalDiagrams.createView(
+          context.session.user.id,
+          input,
+        );
+        if (!view) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return view;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  technicalDiagramViews: protectedProcedure
+    .input(z.object({ diagramId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const views = await context.technicalDiagrams.listViews(
+        context.session.user.id,
+        input.diagramId,
+      );
+      if (!views) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return views;
+    }),
+  previewMermaidConversion: protectedProcedure
+    .input(mermaidConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const preview = await context.technicalDiagrams.previewConversion(
+          context.session.user.id,
+          input,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return preview;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("BAD_REQUEST", { cause: error });
+      }
+    }),
+  convertMermaidToTechnicalDiagram: protectedProcedure
+    .input(confirmMermaidConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.convert(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
     }),
   documentVersions: protectedProcedure
     .input(z.object({ documentId: documentIdSchema }).strict())
@@ -4748,6 +5262,17 @@ export const appRouter = {
         requireWorkLifecycle(context).create(context.session.user.id, input),
       ),
     ),
+  createDocumentWorkBatch: protectedProcedure
+    .input(createDocumentWorkBatchInputSchema)
+    .handler(({ context, input }) => {
+      const createBatch = requireWorkLifecycle(context).createDocumentWorkBatch;
+      if (!createBatch) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return runWorkLifecycleOperation(() =>
+        createBatch(context.session.user.id, input),
+      );
+    }),
   createProject: protectedProcedure
     .input(createProjectMutationInputSchema)
     .handler(async ({ context, input }) => {

@@ -6,6 +6,10 @@ import {
   captureTemplateSchema,
   captureUrlSchema,
 } from "./capture-triage";
+import {
+  type DocumentEvidenceSelection,
+  documentEvidenceSelectionSchema,
+} from "./documents";
 import { fileAttachmentLocationSchema } from "./file-attachments";
 import {
   humanMutationEnvelopeSchema,
@@ -89,6 +93,58 @@ export const workOriginPositionSchema = z
   .strict();
 
 export type WorkOriginPosition = z.infer<typeof workOriginPositionSchema>;
+
+export const workDocumentEvidenceSchema = documentEvidenceSelectionSchema;
+export type WorkDocumentEvidence = DocumentEvidenceSelection;
+
+export const createDocumentWorkBatchInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    documentId: identifierSchema,
+    documentRevision: z.number().int().nonnegative().safe(),
+    items: z
+      .array(
+        z
+          .object({
+            selectedText: z
+              .string()
+              .min(1)
+              .max(100_000)
+              .refine((value) => value.trim().length > 0),
+            selectionEnd: z.number().int().positive().safe(),
+            selectionStart: z.number().int().nonnegative().safe(),
+            title: z.string().trim().min(1).max(255),
+          })
+          .strict()
+          .refine(
+            ({ selectionEnd, selectionStart }) => selectionEnd > selectionStart,
+          ),
+      )
+      .min(1)
+      .max(100),
+    projectId: identifierSchema,
+  })
+  .strict()
+  .superRefine(({ items }, context) => {
+    let previousEnd = -1;
+    for (const [index, item] of items.entries()) {
+      if (item.selectionStart < previousEnd) {
+        context.addIssue({
+          code: "custom",
+          message: "Bulk selections must be ordered and non-overlapping.",
+          path: ["items", index, "selectionStart"],
+        });
+      }
+      previousEnd = item.selectionEnd;
+    }
+  });
+
+export type CreateDocumentWorkBatchInput = z.input<
+  typeof createDocumentWorkBatchInputSchema
+>;
+export type CreateDocumentWorkBatchPayload = Pick<
+  CreateDocumentWorkBatchInput,
+  "documentId" | "documentRevision" | "items" | "projectId"
+>;
 
 export const workTitleSchema = z
   .string()
@@ -252,6 +308,7 @@ const createWorkInputObjectSchema = z
   .object({
     captureProvenance: workCaptureProvenanceSchema.nullable().optional(),
     checklist: workChecklistSchema.optional(),
+    documentEvidence: workDocumentEvidenceSchema.optional(),
     description: workDescriptionSchema.optional(),
     originPosition: workOriginPositionSchema.optional(),
     effort: workEffortSchema,
@@ -808,6 +865,7 @@ export interface WorkMergeMutation {
 
 export interface WorkLifecycleMutationValue {
   checklistConversion?: WorkChecklistConversionMutation;
+  documentEvidence?: WorkDocumentEvidence;
   merge?: WorkMergeMutation;
   recreate?: {
     selectedRelationIds: string[];
@@ -895,6 +953,10 @@ export interface WorkLifecycleAccess {
     accountId: string,
     input: CreateWorkMutationInput,
   ) => Promise<WorkProfile>;
+  createDocumentWorkBatch?: (
+    accountId: string,
+    input: CreateDocumentWorkBatchInput,
+  ) => Promise<WorkProfile[]>;
   detachFeatureHealthHistory: (
     accountId: string,
     input: DetachFeatureHealthHistoryInput,

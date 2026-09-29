@@ -1,3 +1,12 @@
+import {
+  type DocumentLiveSectionSource,
+  type DocumentRecordReferenceView,
+  documentLiveDirectives,
+  type LiveWorkSource,
+} from "@cantiara/api/documents";
+import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
+import { Button } from "@cantiara/ui/components/button";
 import { defaultHighlighter } from "@tanstack/highlight";
 import { createTanStackMarkdownHighlighter } from "@tanstack/highlight/markdown";
 import { createThemeCss } from "@tanstack/highlight/theme";
@@ -8,7 +17,19 @@ import { Markdown } from "@tanstack/markdown/react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import {
+  documentRecordHash,
+  projectSourceRecordHash,
+  workRecordHref,
+} from "../../../project-shell/lib/project-shell-navigation";
 
 mermaid.initialize({ securityLevel: "strict", startOnLoad: false });
 
@@ -21,6 +42,13 @@ const highlightThemeCss = createThemeCss({
 
 const previewPattern =
   /^[ ]{0,3}(?<fenceCharacter>`|~)(?<fenceTail>\k<fenceCharacter>{2,})(?<language>[^\n]*)\n(?<fenceBody>[\s\S]*?)\n[ ]{0,3}\k<fenceCharacter>\k<fenceTail>\k<fenceCharacter>*[ \t]*(?=\r?\n|$)|(`+)([^`\n]*?)\5|\$\$([\s\S]*?)\$\$/gm;
+
+const livePartKind = {
+  Work: "live-work",
+  "Smart Collection": "live-collection",
+  "Technical Diagram": "live-diagram",
+  "Document section": "live-section",
+} as const;
 
 const inlineMathExtension: MarkdownExtension = {
   name: "document-inline-math",
@@ -60,6 +88,83 @@ const inlineMathExtension: MarkdownExtension = {
     });
   },
 };
+
+const inlineRecordReferenceExtension: MarkdownExtension = {
+  name: "document-record-reference",
+  transformInline(nodes) {
+    return nodes.flatMap((node) => {
+      if (node.type !== "text") {
+        return [node];
+      }
+      const pieces: typeof nodes = [];
+      const pattern =
+        /\[\[record:([A-Za-z ]{1,40}):([^|\]\n]{1,255})\|([^\]\n]{1,255})\]\]/g;
+      let cursor = 0;
+      for (const match of node.value.matchAll(pattern)) {
+        const [matchedText, recordType, recordId, label] = match;
+        const position = match.index ?? 0;
+        if (!(matchedText && recordType && recordId && label)) {
+          continue;
+        }
+        if (position > cursor) {
+          pieces.push({
+            type: "text",
+            value: node.value.slice(cursor, position),
+          });
+        }
+        pieces.push({
+          type: "inlineComponent",
+          name: "DocumentRecordReference",
+          tagName: "document-record-reference",
+          attributes: { recordId, recordType, label },
+          properties: { recordId, recordType, label },
+          children: [],
+        });
+        cursor = position + matchedText.length;
+      }
+      if (cursor === 0) {
+        return [node];
+      }
+      if (cursor < node.value.length) {
+        pieces.push({ type: "text", value: node.value.slice(cursor) });
+      }
+      return pieces;
+    });
+  },
+};
+
+function recordReferenceHref(
+  projectId: string,
+  recordType: string,
+  recordId: string,
+) {
+  if (recordType === "Work") {
+    return workRecordHref(projectId, recordId);
+  }
+  if (
+    recordType === "Decision" ||
+    recordType === "Risk" ||
+    recordType === "Assumption" ||
+    recordType === "Open Question" ||
+    recordType === "Milestone" ||
+    recordType === "Project Release" ||
+    recordType === "Production Incident"
+  ) {
+    return `/projects/${encodeURIComponent(projectId)}#${projectSourceRecordHash(
+      recordType,
+      recordId,
+    )}`;
+  }
+  if (recordType === "Technical Diagram") {
+    return `/projects/${encodeURIComponent(projectId)}#technical-diagram-${encodeURIComponent(recordId)}`;
+  }
+  if (recordType === "Document") {
+    return `/projects/${encodeURIComponent(projectId)}#${documentRecordHash(
+      recordId,
+    )}`;
+  }
+  return null;
+}
 
 function MermaidPreview({ source }: { source: string }) {
   const id = useId().replaceAll(/[^a-zA-Z0-9]/g, "");
@@ -160,11 +265,344 @@ function InlineMath({ latex }: { latex: string }) {
   );
 }
 
-export default function DocumentPreview({ source }: { source: string }) {
+interface LiveWorkBlock {
+  source: LiveWorkSource | null;
+  workId: string;
+}
+
+interface LiveOtherBlock {
+  id: string;
+  kind: "Work" | "Smart Collection" | "Technical Diagram" | "Document section";
+  sectionId?: string | null;
+  source:
+    | SmartCollectionViewSource
+    | TechnicalDiagramSource
+    | DocumentLiveSectionSource
+    | null;
+  viewId: string | null;
+}
+
+function LiveSectionCard({
+  block,
+  loading,
+}: {
+  block?: LiveOtherBlock;
+  loading: boolean;
+}) {
+  const source = block?.source;
+  if (!(source && "sectionId" in source)) {
+    return (
+      <section
+        aria-label="Read-only live section"
+        className="rounded-lg border p-4"
+      >
+        <p className="text-xs">Read-only live section</p>
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section
+      aria-label="Read-only live section"
+      className="space-y-2 rounded-lg border p-4"
+    >
+      <p className="text-xs">Read-only live section</p>
+      <h3 className="font-medium">
+        {source.title} · {source.heading}
+      </h3>
+      <Markdown extensions={[inlineMathExtension]}>{source.text}</Markdown>
+      <a
+        className="underline"
+        href={`/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`}
+      >
+        Open source record
+      </a>
+    </section>
+  );
+}
+
+function LiveOtherCard({
+  block,
+  kind,
+  loading,
+}: {
+  block?: LiveOtherBlock;
+  kind: "Smart Collection" | "Technical Diagram";
+  loading: boolean;
+}) {
+  const source = block?.source;
+  if (kind === "Smart Collection") {
+    if (!(source && "works" in source)) {
+      return (
+        <section aria-label={kind} className="rounded-lg border p-4">
+          <p role="status">
+            {loading
+              ? "Loading source record…"
+              : "Source record is unavailable."}
+          </p>
+        </section>
+      );
+    }
+    return (
+      <section
+        aria-label="Smart Collection"
+        className="space-y-2 rounded-lg border p-4"
+      >
+        <p className="text-xs">Smart Collection · Named view</p>
+        <h3 className="font-medium">
+          {source.collectionName} · {source.name}
+        </h3>
+        <p className="text-muted-foreground text-sm">{source.presentation}</p>
+        {source.presentation === "Table" ? (
+          <table className="w-full text-left">
+            <thead>
+              <tr>
+                <th>Work</th>
+                <th>Status</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {source.works.map((work) => (
+                <tr key={work.id}>
+                  <td>
+                    {work.key} · {work.title}
+                  </td>
+                  <td>{work.status}</td>
+                  <td>{work.type}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <ul className="list-inside list-disc">
+            {source.works.map((work) => (
+              <li key={work.id}>
+                {work.key} · {work.title} · {work.status}
+              </li>
+            ))}
+          </ul>
+        )}
+        <a
+          className="underline"
+          href={`/projects/${source.projectId}#smart-collection-view-${encodeURIComponent(source.id)}`}
+        >
+          Open source record
+        </a>
+      </section>
+    );
+  }
+  const diagram = source && "model" in source ? source : null;
+  if (!diagram) {
+    return (
+      <section aria-label={kind} className="rounded-lg border p-4">
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      </section>
+    );
+  }
+  const selected =
+    diagram.view?.selectedNodeIds ?? diagram.model.nodes.map(({ id }) => id);
+  const selectedNodes = diagram.model.nodes.filter(({ id }) =>
+    selected.includes(id),
+  );
+  const nodesById = new Map(diagram.model.nodes.map((node) => [node.id, node]));
+  const selectedLinks = diagram.model.links.filter(
+    ({ from, to }) => selected.includes(from) && selected.includes(to),
+  );
+  return (
+    <section
+      aria-label="Technical Diagram"
+      className="space-y-2 rounded-lg border p-4"
+    >
+      <p className="text-xs">
+        Technical Diagram · {diagram.view?.name ?? "Default"}
+      </p>
+      <h3 className="font-medium">{diagram.title}</h3>
+      <p className="text-muted-foreground text-sm">
+        {diagram.type} · {diagram.authorityMode}
+      </p>
+      <ul aria-label="Diagram elements" className="list-inside list-disc">
+        {selectedNodes.map((node) => (
+          <li key={node.id}>{node.label}</li>
+        ))}
+      </ul>
+      {selectedLinks.length > 0 ? (
+        <ul aria-label="Diagram links" className="space-y-1 text-sm">
+          {selectedLinks.map((link) => {
+            const from = nodesById.get(link.from);
+            const to = nodesById.get(link.to);
+            return (
+              <li key={JSON.stringify([link.from, link.to, link.label])}>
+                {from?.label ?? link.from} → {to?.label ?? link.to}
+                {link.label ? ` · ${link.label}` : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      <a
+        className="underline"
+        href={`/projects/${diagram.projectId}#technical-diagram-${encodeURIComponent(diagram.id)}`}
+      >
+        Open source record
+      </a>
+    </section>
+  );
+}
+
+function LiveWorkCard({
+  block,
+  loading,
+  onAction,
+}: {
+  block?: LiveWorkBlock;
+  loading: boolean;
+  onAction?: (workId: string, action: "status" | "close") => void;
+}) {
+  const record = block?.source;
+  const handleAction = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const { action } = event.currentTarget.dataset;
+      if (record && (action === "status" || action === "close")) {
+        onAction?.(record.id, action);
+      }
+    },
+    [onAction, record],
+  );
+  return (
+    <section aria-label="Live Work block" className="rounded-lg border p-4">
+      <p className="text-muted-foreground text-xs">Live Work block</p>
+      {record ? (
+        <>
+          <p className="font-medium">
+            {record.key} · {record.title}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {[
+              record.type,
+              record.status,
+              record.plannedStartDate,
+              record.targetDate,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            Priority metrics:{" "}
+            {record.priority.length > 0
+              ? record.priority
+                  .map(({ name, rank }) => `${name}: ${rank}`)
+                  .join(" · ")
+              : "—"}
+          </p>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {onAction ? (
+              <>
+                <Button
+                  data-action="status"
+                  onClick={handleAction}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Change status
+                </Button>
+                {record.status === "Closed" ? null : (
+                  <Button
+                    data-action="close"
+                    onClick={handleAction}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Close
+                  </Button>
+                )}
+              </>
+            ) : null}
+            <a
+              className="self-center underline-offset-4 hover:underline"
+              href={workRecordHref(record.projectId, record.id)}
+            >
+              Open source record
+            </a>
+          </div>
+        </>
+      ) : (
+        <p role="status">
+          {loading ? "Loading source record…" : "Source record is unavailable."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+export default function DocumentPreview({
+  documentReferences,
+  liveOtherBlocks,
+  liveWorkBlocks,
+  onMermaidConvert,
+  onLiveWorkAction,
+  source,
+}: {
+  documentReferences?: readonly DocumentRecordReferenceView[];
+  liveOtherBlocks?: readonly LiveOtherBlock[];
+  liveWorkBlocks?: readonly LiveWorkBlock[];
+  onMermaidConvert?: (blockStart: number, blockEnd: number) => void;
+  onLiveWorkAction?: (workId: string, action: "status" | "close") => void;
+  source: string;
+}) {
+  const referencesByIdentity = new Map(
+    (documentReferences ?? []).map((reference) => [
+      `${reference.recordType}:${reference.recordId}`,
+      reference,
+    ]),
+  );
   const parts: Array<{
-    kind: "markdown" | "mermaid" | "math";
+    kind:
+      | "markdown"
+      | "mermaid"
+      | "math"
+      | "live-work"
+      | "live-collection"
+      | "live-diagram"
+      | "live-section";
     value: string;
+    start?: number;
+    end?: number;
+    viewId?: string;
+    sectionId?: string;
   }> = [];
+  const directives = documentLiveDirectives(source);
+  function appendMarkdown(value: string, offset: number) {
+    let last = 0;
+    for (const directive of directives) {
+      if (directive.start < offset || directive.end > offset + value.length) {
+        continue;
+      }
+      const relativeStart = directive.start - offset;
+      if (relativeStart > last) {
+        parts.push({
+          kind: "markdown",
+          value: value.slice(last, relativeStart),
+        });
+      }
+      parts.push({
+        kind: livePartKind[directive.kind],
+        value: directive.id,
+        sectionId: directive.sectionId,
+        viewId: directive.viewId,
+      });
+      last = directive.end - offset;
+    }
+    if (last < value.length) {
+      parts.push({ kind: "markdown", value: value.slice(last) });
+    }
+  }
   let cursor = 0;
   for (const match of source.matchAll(previewPattern)) {
     if (match[5] !== undefined) {
@@ -175,17 +613,22 @@ export default function DocumentPreview({ source }: { source: string }) {
     }
     const position = match.index ?? 0;
     if (position > cursor) {
-      parts.push({ kind: "markdown", value: source.slice(cursor, position) });
+      appendMarkdown(source.slice(cursor, position), cursor);
     }
     if (match[1] === undefined) {
       parts.push({ kind: "math", value: match[7] ?? "" });
     } else {
-      parts.push({ kind: "mermaid", value: match[4] ?? "" });
+      parts.push({
+        kind: "mermaid",
+        value: match[4] ?? "",
+        start: position,
+        end: position + match[0].length,
+      });
     }
     cursor = position + match[0].length;
   }
   if (cursor < source.length) {
-    parts.push({ kind: "markdown", value: source.slice(cursor) });
+    appendMarkdown(source.slice(cursor), cursor);
   }
   if (parts.length === 0) {
     parts.push({ kind: "markdown", value: source });
@@ -200,19 +643,118 @@ export default function DocumentPreview({ source }: { source: string }) {
       {parts.map((part, index) => {
         const key = `${index}-${part.kind}`;
         if (part.kind === "mermaid") {
-          return <MermaidPreview key={key} source={part.value} />;
+          return (
+            <div key={key}>
+              <MermaidPreview source={part.value} />
+              {onMermaidConvert &&
+              part.start !== undefined &&
+              part.end !== undefined ? (
+                <Button
+                  // biome-ignore lint/performance/noJsxPropsBind: The selected Mermaid offsets belong to this rendered block.
+                  onClick={() =>
+                    onMermaidConvert(part.start as number, part.end as number)
+                  }
+                  type="button"
+                  variant="outline"
+                >
+                  Convert to Technical Diagram
+                </Button>
+              ) : null}
+            </div>
+          );
         }
         if (part.kind === "math") {
           return <MathPreview key={key} source={part.value} />;
         }
+        if (part.kind === "live-work") {
+          const block = liveWorkBlocks?.find(
+            ({ workId }) => workId === part.value,
+          );
+          return (
+            <LiveWorkCard
+              block={block}
+              key={key}
+              loading={!liveWorkBlocks}
+              onAction={onLiveWorkAction}
+            />
+          );
+        }
+        if (part.kind === "live-section") {
+          const block = liveOtherBlocks?.find(
+            (candidate) =>
+              candidate.id === part.value &&
+              candidate.kind === "Document section" &&
+              candidate.sectionId === (part.sectionId ?? null),
+          );
+          return (
+            <LiveSectionCard
+              block={block}
+              key={key}
+              loading={!liveOtherBlocks}
+            />
+          );
+        }
+        if (part.kind === "live-collection" || part.kind === "live-diagram") {
+          const kind =
+            part.kind === "live-collection"
+              ? "Smart Collection"
+              : "Technical Diagram";
+          const block = liveOtherBlocks?.find(
+            (candidate) =>
+              candidate.id === part.value &&
+              candidate.kind === kind &&
+              candidate.viewId === (part.viewId ?? null),
+          );
+          return (
+            <LiveOtherCard
+              block={block}
+              key={key}
+              kind={kind}
+              loading={!liveOtherBlocks}
+            />
+          );
+        }
         return (
           <Markdown
-            components={{ "document-inline-math": InlineMath }}
-            extensions={[inlineMathExtension]}
+            components={{
+              "document-inline-math": InlineMath,
+              "document-record-reference": (properties: {
+                label?: string;
+                recordId?: string;
+                recordType?: string;
+              }) => {
+                const reference = referencesByIdentity.get(
+                  `${properties.recordType}:${properties.recordId}`,
+                );
+                if (!reference?.source) {
+                  return (
+                    <span className="text-muted-foreground" role="status">
+                      Source record is unavailable.
+                    </span>
+                  );
+                }
+                const href = recordReferenceHref(
+                  reference.source.projectId,
+                  reference.recordType,
+                  reference.recordId,
+                );
+                return href ? (
+                  <a className="underline" href={href}>
+                    {reference.source.title}
+                  </a>
+                ) : (
+                  <span>{reference.source.title}</span>
+                );
+              },
+            }}
+            extensions={[inlineMathExtension, inlineRecordReferenceExtension]}
             highlighter={codeHighlighter}
             key={key}
           >
-            {part.value}
+            {part.value.replace(
+              /^(#{1,6}[ \t]+.+?)\s+\{#[A-Za-z0-9][A-Za-z0-9_-]{0,254}\}[ \t]*$/gm,
+              "$1",
+            )}
           </Markdown>
         );
       })}

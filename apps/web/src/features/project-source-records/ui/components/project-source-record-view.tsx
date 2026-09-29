@@ -74,11 +74,30 @@ function recordTitle(record: ProjectSourceRecord) {
 }
 
 function recordStatus(record: ProjectSourceRecord) {
-  return record.sourceType === "Decision" ? record.life : record.status;
+  return "life" in record ? record.life : record.status;
 }
 
 function recordFields(record: ProjectSourceRecord): [string, string][] {
   switch (record.sourceType) {
+    case "Risk":
+      return [
+        ["Description", record.description ?? ""],
+        ["Impact", record.impact ?? ""],
+        ["Probability", record.probability ?? ""],
+        ["Response/mitigation", record.response ?? ""],
+        ["Rationale", record.rationale ?? ""],
+      ];
+    case "Assumption":
+      return [
+        ["Statement", record.statement],
+        ["Rationale", record.rationale ?? ""],
+      ];
+    case "Open Question":
+      return [
+        ["Question", record.question],
+        ["Context", record.context ?? ""],
+        ["Answer", record.answer ?? ""],
+      ];
     case "Decision":
       return [
         ["Decision text", record.decision],

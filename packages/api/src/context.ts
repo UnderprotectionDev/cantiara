@@ -44,7 +44,9 @@ import type {
   UsageLinksAccess,
 } from "./relations";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
+import type { SmartCollectionsAccess } from "./smart-collections";
 import type { TagMutationContracts, TagsAccess } from "./tags";
+import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
@@ -173,8 +175,10 @@ export interface Context {
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
+  smartCollections?: SmartCollectionsAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
+  technicalDiagrams?: TechnicalDiagramsAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;

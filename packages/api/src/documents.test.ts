@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDocumentInputSchema,
   createDocumentMutationInputSchema,
+  documentLiveDirectives,
   documentTypeSchema,
   updateDocumentInputSchema,
   updateDocumentMutationInputSchema,
@@ -91,5 +92,16 @@ describe("Documents", () => {
         body: "Updated",
       }).success,
     ).toBe(false);
+  });
+
+  it("keeps live source identity and ignores directives inside fenced code", () => {
+    expect(
+      documentLiveDirectives(
+        ':::live-collection{viewId="view-1"}\n:::live-diagram{diagramId="diagram-1" viewId="view-2"}\n```md\n:::live-collection{viewId="example"}\n```',
+      ),
+    ).toMatchObject([
+      { id: "view-1", kind: "Smart Collection" },
+      { id: "diagram-1", kind: "Technical Diagram", viewId: "view-2" },
+    ]);
   });
 });

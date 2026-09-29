@@ -8,6 +8,7 @@ import { projectAreaNavigationHash } from "./project-area-navigation";
 export const ALWAYS_REACHABLE_SURFACES = [
   "Overview",
   "Tags",
+  "Smart Collection",
   "All Tools",
 ] as const;
 export const ALL_PROJECT_AREAS = PROJECT_AREA_OPTIONS;
@@ -108,11 +109,15 @@ export const BACKLOG_HASH = "backlog";
 export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
 const WORK_RECORD_HASH_PREFIX = "work-";
+const DOCUMENT_RECORD_HASH_PREFIX = "document-";
 const PROJECT_SOURCE_RECORD_HASH_PREFIXES = {
+  Assumption: "source-assumption-",
   Decision: "source-decision-",
+  "Open Question": "source-open-question-",
   Milestone: "source-milestone-",
   "Project Release": "source-project-release-",
   "Production Incident": "source-production-incident-",
+  Risk: "source-risk-",
 } as const;
 
 export type ProjectSourceRecordType =
@@ -143,6 +148,24 @@ export function projectSourceRecordFromHash(hash: string) {
 
 export function workRecordHash(workId: string) {
   return `${WORK_RECORD_HASH_PREFIX}${encodeURIComponent(workId)}`;
+}
+
+export function documentRecordHash(documentId: string) {
+  return `${DOCUMENT_RECORD_HASH_PREFIX}${encodeURIComponent(documentId)}`;
+}
+
+export function documentRecordFromHash(hash: string) {
+  if (!hash.startsWith(DOCUMENT_RECORD_HASH_PREFIX)) {
+    return null;
+  }
+  try {
+    const documentId = decodeURIComponent(
+      hash.slice(DOCUMENT_RECORD_HASH_PREFIX.length),
+    );
+    return documentId ? { documentId } : null;
+  } catch {
+    return null;
+  }
 }
 
 export function workRecordHref(projectId: string, workId: string) {
@@ -180,6 +203,19 @@ export function navigationSurfaceFromHash(
     return "Tags";
   }
   if (
+    hash === "smart-collections" ||
+    hash.startsWith("smart-collection-view-")
+  ) {
+    return "Smart Collection";
+  }
+  if (
+    (hash === "technical-diagrams" || hash.startsWith("technical-diagram-")) &&
+    enabledAreas.includes("Technical Diagrams") &&
+    !hiddenAreas.includes("Technical Diagrams")
+  ) {
+    return "Technical Diagrams";
+  }
+  if (
     isWorkSurfaceHash(hash) &&
     enabledAreas.includes("Work") &&
     !hiddenAreas.includes("Work")
@@ -188,6 +224,13 @@ export function navigationSurfaceFromHash(
   }
   if (
     hash === "documents" &&
+    enabledAreas.includes("Documents") &&
+    !hiddenAreas.includes("Documents")
+  ) {
+    return "Documents";
+  }
+  if (
+    hash.startsWith(DOCUMENT_RECORD_HASH_PREFIX) &&
     enabledAreas.includes("Documents") &&
     !hiddenAreas.includes("Documents")
   ) {
@@ -235,6 +278,9 @@ export function navigationHash(surface: NavigationSurface) {
   }
   if (surface === "Tags") {
     return "tags";
+  }
+  if (surface === "Smart Collection") {
+    return "smart-collections";
   }
   return projectAreaNavigationHash(surface);
 }

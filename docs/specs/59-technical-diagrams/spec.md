@@ -56,6 +56,7 @@ Kurucu Proje ana kaydı Teknik Diyagramı üç türde oluşturur. Her kimlik tam
 ## Testing Decisions
 
 - **What a good test is.** Public Technical Diagrams commands: create three types, refuse Repository-derived mint, refuse in-place mode change, view vs version pin, restore writes a new live revision, live card does not copy, Mermaid convert atomicity/retry, viewport restore and Fit view. Golden structural models, not screenshot pixels.
+- **Mermaid source outcome.** Preview reports each unsupported or lossy source line before confirmation. Confirmation either keeps the Mermaid block independent or atomically replaces it with a live Technical Diagram reference; replacement increments the Document revision and persists the usage link with the new diagram.
 - **Seam (one).** Technical Diagrams. Playwright journeys: Mermaid convert; structured outline / view / version.
 - **Required counterparts.** Round-trip sync absent; SQL not emitted; Wireframe object language not reused as architecture semantics; four-mode matrix including invalid first-product create; Sequence is not User Flow, Work-status, log/trace, or incident timeline.
 

@@ -80,10 +80,12 @@ import {
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
+import { createDatabaseSmartCollections } from "./features/smart-collections/server/smart-collections-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
 } from "./features/tags/server/tags-database";
+import { createDatabaseTechnicalDiagrams } from "./features/technical-diagrams/server/technical-diagrams-database";
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
@@ -92,6 +94,8 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
+export const smartCollections = createDatabaseSmartCollections(db);
+export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
 export const dailyFocus = createDatabaseDailyFocus(db);

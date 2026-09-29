@@ -8,8 +8,12 @@ import type {
 } from "@cantiara/api/documents";
 import {
   createDocumentInputSchema,
+  DocumentSectionCycleError,
   DocumentUnavailableError,
+  documentLiveDirectives,
+  documentRecordReferences,
   documentSchema,
+  documentSectionById,
   documentVersionSummarySchema,
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
@@ -18,8 +22,23 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
+import {
+  priorityMetricDefinition,
+  workPriorityMetricValue,
+} from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { usageLink } from "@cantiara/db/schema/relation";
+import { work } from "@cantiara/db/schema/work";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -98,6 +117,279 @@ async function findWorkspaceId(
     .where(eq(workspace.ownerAccountId, accountId))
     .limit(1);
   return record?.id ?? null;
+}
+
+type DocumentLiveDirective = ReturnType<typeof documentLiveDirectives>[number];
+type DocumentLiveUsageKind = "Live block" | "Section reference";
+
+function liveUsageKind(
+  directive: DocumentLiveDirective,
+): DocumentLiveUsageKind {
+  return directive.kind === "Document section"
+    ? "Section reference"
+    : "Live block";
+}
+
+function liveUsageSourceType(directive: DocumentLiveDirective) {
+  if (directive.kind === "Document section") {
+    return "Document";
+  }
+  if (directive.kind === "Smart Collection") {
+    return "Smart Collection View";
+  }
+  return directive.kind;
+}
+
+function liveUsageLocation(
+  kind: DocumentLiveUsageKind,
+  ordinal: number,
+  sectionId?: string,
+  viewId?: string,
+) {
+  const location: Record<string, unknown> = {};
+  if (kind === "Live block") {
+    location.documentLiveOrdinal = ordinal;
+  } else {
+    location.documentSectionOrdinal = ordinal;
+    if (sectionId) {
+      location.sectionId = sectionId;
+    }
+  }
+  if (viewId) {
+    location.viewId = viewId;
+  }
+  return location;
+}
+
+async function syncDocumentLiveUsageLinks(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  documentId: string,
+  body: string,
+) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    throw new DocumentUnavailableError();
+  }
+  const existing = await executor
+    .select({
+      id: usageLink.id,
+      kind: usageLink.kind,
+      location: usageLink.location,
+      sourceRecordId: usageLink.sourceRecordId,
+      sourceRecordType: usageLink.sourceRecordType,
+    })
+    .from(usageLink)
+    .where(
+      and(
+        eq(usageLink.workspaceId, workspaceId),
+        eq(usageLink.surfaceRecordType, "Document"),
+        eq(usageLink.surfaceRecordId, documentId),
+        inArray(usageLink.kind, ["Live block", "Section reference"]),
+      ),
+    );
+  const available = existing.filter(
+    ({ location }) =>
+      !!location &&
+      typeof location === "object" &&
+      ("documentLiveWorkOrdinal" in location ||
+        "documentLiveOrdinal" in location ||
+        "documentSectionOrdinal" in location),
+  );
+  const directives = documentLiveDirectives(body);
+  const newLinks: (typeof usageLink.$inferInsert)[] = [];
+  const locationUpdates: {
+    id: string;
+    kind: "Live block" | "Section reference";
+    ordinal: number;
+    sectionId?: string;
+    viewId?: string;
+  }[] = [];
+  let sectionOrdinal = 0;
+  for (const [index, directive] of directives.entries()) {
+    const kind = liveUsageKind(directive);
+    const ordinal = kind === "Section reference" ? sectionOrdinal : index;
+    if (kind === "Section reference") {
+      sectionOrdinal += 1;
+    }
+    const sourceRecordType = liveUsageSourceType(directive);
+    const previousIndex = available.findIndex(
+      (candidate) =>
+        candidate.kind === kind &&
+        candidate.sourceRecordId === directive.id &&
+        candidate.sourceRecordType === sourceRecordType,
+    );
+    if (previousIndex !== -1) {
+      const [previous] = available.splice(previousIndex, 1);
+      if (previous) {
+        locationUpdates.push({
+          id: previous.id,
+          kind,
+          ordinal,
+          sectionId: directive.sectionId,
+          viewId: directive.viewId,
+        });
+      }
+      continue;
+    }
+    newLinks.push({
+      id: crypto.randomUUID(),
+      kind,
+      location: liveUsageLocation(
+        kind,
+        ordinal,
+        directive.sectionId,
+        directive.viewId,
+      ),
+      revision: 1,
+      sourceRecordId: directive.id,
+      sourceRecordType,
+      surfaceRecordId: documentId,
+      surfaceRecordType: "Document",
+      workspaceId,
+    });
+  }
+  if (available.length > 0) {
+    await executor.delete(usageLink).where(
+      inArray(
+        usageLink.id,
+        available.map(({ id }) => id),
+      ),
+    );
+  }
+  await Promise.all(
+    locationUpdates.map(({ id, kind, ordinal, sectionId, viewId }) =>
+      executor
+        .update(usageLink)
+        .set({ location: liveUsageLocation(kind, ordinal, sectionId, viewId) })
+        .where(eq(usageLink.id, id)),
+    ),
+  );
+  if (newLinks.length > 0) {
+    await executor.insert(usageLink).values(newLinks);
+  }
+}
+
+async function syncDocumentInlineUsageLinks(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  documentId: string,
+  body: string,
+) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    throw new DocumentUnavailableError();
+  }
+  const existing = await executor
+    .select({
+      id: usageLink.id,
+      sourceRecordId: usageLink.sourceRecordId,
+      sourceRecordType: usageLink.sourceRecordType,
+    })
+    .from(usageLink)
+    .where(
+      and(
+        eq(usageLink.workspaceId, workspaceId),
+        eq(usageLink.surfaceRecordType, "Document"),
+        eq(usageLink.surfaceRecordId, documentId),
+        eq(usageLink.kind, "Inline reference"),
+      ),
+    );
+  const available = [...existing];
+  const additions: (typeof usageLink.$inferInsert)[] = [];
+  const updates: Array<{ id: string; location: Record<string, unknown> }> = [];
+  for (const [ordinal, reference] of documentRecordReferences(body).entries()) {
+    const previousIndex = available.findIndex(
+      (candidate) =>
+        candidate.sourceRecordId === reference.recordId &&
+        candidate.sourceRecordType === reference.recordType,
+    );
+    const location = {
+      documentReferenceOrdinal: ordinal,
+      end: reference.end,
+      label: reference.label,
+      start: reference.start,
+    };
+    if (previousIndex !== -1) {
+      const [previous] = available.splice(previousIndex, 1);
+      if (previous) {
+        updates.push({ id: previous.id, location });
+      }
+      continue;
+    }
+    additions.push({
+      id: crypto.randomUUID(),
+      kind: "Inline reference",
+      location,
+      revision: 1,
+      sourceRecordId: reference.recordId,
+      sourceRecordType: reference.recordType,
+      surfaceRecordId: documentId,
+      surfaceRecordType: "Document",
+      workspaceId,
+    });
+  }
+  if (available.length > 0) {
+    await executor.delete(usageLink).where(
+      inArray(
+        usageLink.id,
+        available.map(({ id }) => id),
+      ),
+    );
+  }
+  await Promise.all(
+    updates.map(({ id, location }) =>
+      executor.update(usageLink).set({ location }).where(eq(usageLink.id, id)),
+    ),
+  );
+  if (additions.length > 0) {
+    await executor.insert(usageLink).values(additions);
+  }
+}
+
+async function assertDocumentSectionAcyclic(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  documentId: string,
+  body: string,
+) {
+  const rows = await executor
+    .select({ body: document.body, id: document.id })
+    .from(document)
+    .innerJoin(project, eq(document.projectId, project.id))
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(eq(workspace.ownerAccountId, accountId));
+  const bodies = new Map(rows.map((row) => [row.id, row.body]));
+  bodies.set(documentId, body);
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+
+  function visit(currentId: string): boolean {
+    if (visiting.has(currentId)) {
+      return true;
+    }
+    if (visited.has(currentId)) {
+      return false;
+    }
+    visiting.add(currentId);
+    const currentBody = bodies.get(currentId) ?? "";
+    for (const directive of documentLiveDirectives(currentBody)) {
+      if (
+        directive.kind === "Document section" &&
+        bodies.has(directive.id) &&
+        visit(directive.id)
+      ) {
+        return true;
+      }
+    }
+    visiting.delete(currentId);
+    visited.add(currentId);
+    return false;
+  }
+
+  if ([...bodies.keys()].some(visit)) {
+    throw new DocumentSectionCycleError();
+  }
 }
 
 async function findOwnedProject(
@@ -198,6 +490,12 @@ function createDocumentTarget(
       if (!createDocumentInputSchema.safeParse(payload).success) {
         return null;
       }
+      await assertDocumentSectionAcyclic(
+        executor,
+        accountId,
+        nextDocument.id,
+        nextDocument.body,
+      );
       const [created] = await executor
         .insert(document)
         .values({
@@ -211,6 +509,20 @@ function createDocumentTarget(
           updatedAt: input.committedAt,
         })
         .returning();
+      if (created) {
+        await syncDocumentLiveUsageLinks(
+          executor,
+          accountId,
+          created.id,
+          created.body,
+        );
+        await syncDocumentInlineUsageLinks(
+          executor,
+          accountId,
+          created.id,
+          created.body,
+        );
+      }
       return created
         ? {
             id: input.targetId,
@@ -245,6 +557,12 @@ function updateDocumentTarget(
       if (!nextDocument || nextDocument.id !== input.targetId) {
         return null;
       }
+      await assertDocumentSectionAcyclic(
+        executor,
+        accountId,
+        nextDocument.id,
+        nextDocument.body,
+      );
       const [updated] = await executor
         .update(document)
         .set({
@@ -261,6 +579,20 @@ function updateDocumentTarget(
           ),
         )
         .returning();
+      if (updated) {
+        await syncDocumentLiveUsageLinks(
+          executor,
+          accountId,
+          updated.id,
+          updated.body,
+        );
+        await syncDocumentInlineUsageLinks(
+          executor,
+          accountId,
+          updated.id,
+          updated.body,
+        );
+      }
       return updated ? toTarget(updated) : null;
     },
   };
@@ -283,8 +615,80 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
     return row ? toDocument(row.document) : null;
   }
 
+  async function getLiveSection(
+    accountId: string,
+    documentId: string,
+    sectionId: string,
+  ) {
+    const source = await get(accountId, documentId);
+    const section = source ? documentSectionById(source.body, sectionId) : null;
+    return source && section
+      ? {
+          documentId: source.id,
+          heading: section.heading,
+          projectId: source.projectId,
+          sectionId,
+          title: source.title,
+          text: section.content,
+        }
+      : null;
+  }
+
   return {
     get,
+    getLiveSection,
+    async getLiveWork(accountId, workId) {
+      const [source] = await database
+        .select({
+          id: work.id,
+          key: work.key,
+          plannedStartDate: work.plannedStartDate,
+          projectId: work.projectId,
+          status: work.status,
+          targetDate: work.targetDate,
+          title: work.title,
+          type: work.type,
+        })
+        .from(work)
+        .innerJoin(project, eq(work.projectId, project.id))
+        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+        .where(
+          and(
+            eq(work.id, workId),
+            eq(workspace.ownerAccountId, accountId),
+            isNull(work.trashedAt),
+          ),
+        )
+        .limit(1);
+      if (!source) {
+        return null;
+      }
+      const priorityRows = await database
+        .select({
+          name: priorityMetricDefinition.name,
+          rank: workPriorityMetricValue.rank,
+        })
+        .from(workPriorityMetricValue)
+        .innerJoin(
+          priorityMetricDefinition,
+          eq(workPriorityMetricValue.metricId, priorityMetricDefinition.id),
+        )
+        .where(
+          and(
+            eq(workPriorityMetricValue.workId, workId),
+            eq(priorityMetricDefinition.enabled, true),
+            isNull(priorityMetricDefinition.trashedAt),
+            isNotNull(workPriorityMetricValue.rank),
+          ),
+        )
+        .orderBy(asc(priorityMetricDefinition.createdAt));
+      return {
+        ...source,
+        priority: priorityRows.flatMap(({ name, rank }) =>
+          rank ? [{ name, rank }] : [],
+        ),
+      };
+    },
     async getVersion(accountId, documentId, revision) {
       const current = await get(accountId, documentId);
       if (!current) {
