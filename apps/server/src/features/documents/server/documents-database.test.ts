@@ -25,7 +25,10 @@ import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDatabaseUsageLinks } from "../../relations/server/usage-links-database";
+import {
+  createDatabaseUsageLinkMutationContracts,
+  createDatabaseUsageLinks,
+} from "../../relations/server/usage-links-database";
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseTags } from "../../tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
@@ -64,6 +67,8 @@ describeDatabase("Documents database boundary", () => {
       documentMutationContracts:
         createDatabaseDocumentMutationContracts(database),
       documents: createDatabaseDocuments(database),
+      usageLinkMutationContracts:
+        createDatabaseUsageLinkMutationContracts(database),
       smartCollections: createDatabaseSmartCollections(database),
       technicalDiagrams: createDatabaseTechnicalDiagrams(database),
       githubAvailability: { getStatus: () => "available" },
@@ -111,6 +116,172 @@ describeDatabase("Documents database boundary", () => {
 
   afterAll(async () => {
     await database?.$client.end();
+  });
+
+  it("Personal Wiki persists through Documents without any Project and stays Account-private", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.delete(project).where(eq(project.id, projectId));
+    const documents = client();
+    const created = await documents.createDocument({
+      projectId: null,
+      title: "PostgreSQL troubleshooting",
+      body: "# Recovering a connection",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-create",
+    });
+    expect(created.projectId).toBeNull();
+    expect(await documents.documents({ projectId: null })).toEqual([created]);
+    const updated = await documents.updateDocument({
+      documentId: created.id,
+      body: "# Recovering a connection\n\nRetry after reconnecting.",
+      baseRevision: created.revision,
+      clientIdempotencyKey: "wiki-edit",
+    });
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      updated,
+    );
+    expect(
+      await documents.documentVersion({
+        documentId: created.id,
+        revision: created.revision,
+      }),
+    ).toEqual(created);
+    const restored = await documents.restoreDocumentVersion({
+      documentId: created.id,
+      revision: created.revision,
+      baseRevision: updated.revision,
+      clientIdempotencyKey: "wiki-restore",
+    });
+    expect(restored).toMatchObject({ projectId: null, body: created.body });
+    const target = await documents.createDocument({
+      projectId: null,
+      title: "Connection checklist",
+      body: "Review recovery steps.",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-evidence-target",
+    });
+    const evidence = await documents.pinDocumentEvidence({
+      documentId: created.id,
+      documentRevision: restored.revision,
+      selectionStart: 0,
+      selectionEnd: 12,
+      selectedText: "# Recovering",
+      targetRecordId: target.id,
+      targetRecordType: "Document",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-evidence-pin",
+    });
+    expect(evidence).toMatchObject({
+      kind: "Pinned bind",
+      source: { recordId: created.id, recordType: "Document" },
+      surface: { recordId: target.id, recordType: "Document" },
+    });
+    expect(
+      await createDatabaseDocuments(database).get(
+        "another-account",
+        created.id,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseDocuments(database).getVersion(
+        "another-account",
+        created.id,
+        created.revision,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseDocuments(database).versions(
+        "another-account",
+        created.id,
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps inline tags, hierarchy, and archive in Personal Wiki scope", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const tagId = crypto.randomUUID();
+    await database.insert(workspaceTag).values({
+      id: tagId,
+      workspaceId,
+      name: "wiki-tag",
+      nameKey: "wiki-tag",
+    });
+    const api = client();
+    const root = await api.createDocument({
+      baseRevision: 0,
+      body: "#wiki-tag",
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Wiki root",
+      type: "General",
+    });
+    const child = await api.createDocument({
+      baseRevision: 0,
+      body: "Child notes",
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Wiki child",
+      type: "General",
+    });
+
+    expect(root.inlineTags).toEqual([
+      { name: "wiki-tag", start: 0, end: 9, tagId },
+    ]);
+    expect(
+      (await api.documents({ projectId: null })).find(
+        ({ id }) => id === root.id,
+      )?.inlineTags,
+    ).toEqual(root.inlineTags);
+
+    await api.organizeDocument({
+      action: "hierarchy",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: child.id,
+      folder: "Notes",
+      parentDocumentId: root.id,
+    });
+    const preview = await api.previewDocumentOrganization({
+      action: "archive",
+      archived: true,
+      documentId: root.id,
+    });
+    expect(preview).toMatchObject({
+      allowed: true,
+      descendants: [{ id: child.id, title: "Wiki child", archivedAt: null }],
+    });
+
+    const archived = await api.organizeDocument({
+      action: "archive",
+      archived: true,
+      baseRevision: root.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: root.id,
+    });
+    expect(archived).toMatchObject({
+      id: root.id,
+      projectId: null,
+      archivedAt: expect.any(String),
+    });
+    expect(
+      (await api.documents({ projectId: null })).map(({ id }) => id),
+    ).toEqual([child.id]);
+    expect(
+      (await api.documents({ archived: true, projectId: null })).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([root.id]);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      folder: "Notes",
+      parentDocumentId: root.id,
+      archivedAt: null,
+    });
   });
 
   it("requires a selected skeleton in an owned, writable Project", async () => {

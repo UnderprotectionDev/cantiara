@@ -11,7 +11,6 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-
 import { workspace } from "./auth";
 import { project } from "./project";
 

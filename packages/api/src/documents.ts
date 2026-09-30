@@ -511,7 +511,7 @@ export interface DocumentRecordReference {
 }
 
 export interface DocumentRecordReferenceView extends DocumentRecordReference {
-  source: { id: string; projectId: string; title: string } | null;
+  source: { id: string; projectId: string | null; title: string } | null;
 }
 
 function isInsideMarkdownCodeSpan(line: string, position: number) {
@@ -709,7 +709,7 @@ export function documentLiveWorkIds(body: string): string[] {
 
 export const createDocumentInputSchema = z
   .object({
-    projectId: projectIdSchema,
+    projectId: projectIdSchema.nullable(),
     title: documentTitleSchema,
     body: documentBodySchema,
     type: documentTypeSchema,
@@ -919,7 +919,7 @@ export interface LiveWorkSource {
 export interface DocumentLiveSectionSource {
   documentId: string;
   heading: string;
-  projectId: string;
+  projectId: string | null;
   sectionId: string;
   text: string;
   title: string;
@@ -943,7 +943,7 @@ export interface DocumentsAccess {
   ) => Promise<Document | null>;
   list: (
     accountId: string,
-    projectId: string,
+    projectId: string | null,
     archived?: boolean,
   ) => Promise<Document[]>;
   previewOrganization?: (
