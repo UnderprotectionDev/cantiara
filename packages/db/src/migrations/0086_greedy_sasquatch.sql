@@ -1,0 +1,1 @@
+ALTER TABLE "document" ADD COLUMN "origin_conflict_draft_id" text;

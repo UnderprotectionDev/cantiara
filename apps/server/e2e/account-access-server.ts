@@ -42,6 +42,7 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseDocumentTagRenameWriter } from "../src/features/documents/server/document-tag-rename-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -128,8 +129,14 @@ const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(database);
 const priorityMetricMutationContracts =
   createDatabasePriorityMetricMutationContracts(database);
-const tags = createDatabaseTags(database);
-const tagMutationContracts = createDatabaseTagMutationContracts(database);
+const documentTagRename = {
+  inlineRename: createDatabaseDocumentTagRenameWriter(),
+};
+const tags = createDatabaseTags(database, documentTagRename);
+const tagMutationContracts = createDatabaseTagMutationContracts(
+  database,
+  documentTagRename,
+);
 const customFields = createDatabaseCustomFields(database);
 const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(database);

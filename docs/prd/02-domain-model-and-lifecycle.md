@@ -23,6 +23,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | PDF | `PDF` | Tek belge dışa aktarma biçimi |
 | Dış yüzeyi iptal et | `Cancel External Surface` | Taşımadan önce etkin Dış yüzeyi iptal etme onayı |
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
+| Belge düzenleme | `Organize Document` | Aynı Projede klasör ve üst Belgeyi önizlemeyle düzenleme; kapsam taşıması değildir |
+| Üst Belgeyi kaldır | `No Parent Document` | Belgeyi aynı kapsamda kök seviyeye alma; çocuk bağları korunur |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
 | Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |
 | Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
@@ -145,7 +147,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başlangıç snapshot’ında | `In start snapshot` | Kapanış karşılaştırmasında başlangıç kapsamında bulunan İş |
 | Sonradan eklenen | `Added later` | Başlangıçtan sonra kapanış kapsamına giren İş |
 | Kapsamdan çıkan | `Removed` | Başlangıç kapsamındayken kapanışta bulunmayan İş |
-| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılar ve salt okunur tarihsel kayıtlarla karşılaştırma; kaynak bağlantısı güncel İşi açar |
+| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılarla karşılaştırma |
 | Dönem değerlendirmesi | `Period evaluation` | Kapanışta atlanabilir öğrenim metni |
 | Değerlendirmeyi kaydet | `Save evaluation` | İsteğe bağlı dönem öğrenim metinlerini kaydetme |
 | Atla | `Skip` | Dönem değerlendirmesini atlama |

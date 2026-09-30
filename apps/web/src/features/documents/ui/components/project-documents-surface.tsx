@@ -46,6 +46,8 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
+import DocumentNavigation from "./document-navigation";
+import DocumentOrganizationControls from "./document-organization-controls";
 import DocumentPreview from "./document-preview";
 import DocumentVersionCompare from "./document-version-compare";
 
@@ -178,9 +180,11 @@ function uniqueDocumentSections(source: string) {
 function DocumentEditor({
   record,
   onSaved,
+  documents,
 }: {
   record: Document;
   onSaved: () => Promise<void>;
+  documents: Document[];
 }) {
   const queryClient = useQueryClient();
   const [revision, setRevision] = useState(record.revision);
@@ -838,6 +842,53 @@ function DocumentEditor({
               )}
             </form.Subscribe>
           </div>
+          <form.Subscribe selector={(state) => state.values}>
+            {(values) => (
+              <DocumentOrganizationControls
+                disabled={
+                  save.isPending ||
+                  values.body !== savedBody ||
+                  values.title !== record.title ||
+                  values.type !== record.type
+                }
+                documents={documents}
+                onCommitted={async (saved) => {
+                  setRevision(saved.revision);
+                  await queryClient.invalidateQueries({
+                    queryKey: versionOptions.queryKey,
+                  });
+                  await onSaved();
+                }}
+                record={{ ...record, revision }}
+              />
+            )}
+          </form.Subscribe>
+          {record.inlineTags?.length ? (
+            <fieldset aria-label="Tags" className="flex flex-wrap gap-2">
+              {record.inlineTags.map((tag) => (
+                <Button
+                  data-tag-id={tag.tagId}
+                  disabled={previewBody !== savedBody}
+                  key={`${tag.tagId}:${tag.start}`}
+                  onClick={() => {
+                    setView("markdown");
+                    window.requestAnimationFrame(() => {
+                      const source =
+                        document.getElementById("document-markdown");
+                      if (source instanceof HTMLTextAreaElement) {
+                        source.focus();
+                        source.setSelectionRange(tag.start, tag.end);
+                      }
+                    });
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  #{tag.name}
+                </Button>
+              ))}
+            </fieldset>
+          ) : null}
           {convertedDiagram ? (
             <div
               className="rounded-md border border-border bg-muted/50 p-3 text-sm"
@@ -1286,7 +1337,7 @@ function DocumentEditor({
         ) : null}
       </form>
       <Dialog
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setRecordConversionOpen(open);
           if (!open) {
             recordConversionKey.current = null;
@@ -1744,12 +1795,19 @@ export default function ProjectDocumentsSurface({
   starterSkeletons: readonly StarterSkeletonSelection[];
 }) {
   const queryClient = useQueryClient();
-  const options = orpc.documents.queryOptions({ input: { projectId } });
+  const [archived, setArchived] = useState(false);
+  const options = orpc.documents.queryOptions({
+    input: { projectId, archived },
+  });
   const documents = useQuery(options);
   const documentStarterSkeletons = starterSkeletons.filter(
     (selection): selection is DocumentStarterSkeletonSelection =>
       selection.surface === "Document",
   );
+  const counterpart = useQuery(
+    orpc.documents.queryOptions({ input: { projectId, archived: !archived } }),
+  );
+  const allDocuments = [...(documents.data ?? []), ...(counterpart.data ?? [])];
   const [selectedId, setSelectedId] = useState<string | null>(
     selectedDocumentId ?? null,
   );
@@ -1817,8 +1875,9 @@ export default function ProjectDocumentsSurface({
       setError(null);
       form.reset();
       setCreateOpen(false);
+      setArchived(false);
       setSelectedId(created.id);
-      await queryClient.invalidateQueries({ queryKey: options.queryKey });
+      await queryClient.invalidateQueries({ queryKey: orpc.documents.key() });
     },
     onError: (failure) =>
       setError(
@@ -1843,7 +1902,11 @@ export default function ProjectDocumentsSurface({
       });
     },
   });
-  const selected = documents.data?.find((item) => item.id === selectedId);
+  const selected =
+    documents.data?.find((item) => item.id === selectedId) ??
+    (selectedId === selectedDocumentId
+      ? counterpart.data?.find((item) => item.id === selectedId)
+      : undefined);
 
   useEffect(() => {
     if (
@@ -1870,6 +1933,17 @@ export default function ProjectDocumentsSurface({
     <section aria-label="Documents" className="space-y-6">
       <header className="flex items-center justify-between gap-4">
         <h2 className="font-semibold text-2xl">Documents</h2>
+        <Label className="flex items-center gap-2" htmlFor="documents-archived">
+          <Checkbox
+            checked={archived}
+            id="documents-archived"
+            onCheckedChange={(checked) => {
+              setArchived(Boolean(checked));
+              setSelectedId(null);
+            }}
+          />
+          Archived
+        </Label>
         <Button onClick={() => setCreateOpen(true)} type="button">
           Create Document
         </Button>
@@ -2017,24 +2091,17 @@ export default function ProjectDocumentsSurface({
         <p role="alert">Documents could not be loaded.</p>
       ) : null}
       <div className="space-y-5">
-        <nav aria-label="Documents" className="flex flex-wrap gap-2">
-          {documents.data?.map((item) => (
-            <Button
-              className="max-w-full justify-start"
-              id={documentRecordHash(item.id)}
-              key={item.id}
-              onClick={() => setSelectedId(item.id)}
-              variant={item.id === selectedId ? "secondary" : "ghost"}
-            >
-              {item.title}
-            </Button>
-          ))}
-        </nav>
+        <DocumentNavigation
+          documents={documents.data ?? []}
+          onSelect={setSelectedId}
+          selectedId={selectedId}
+        />
         {selected ? (
           <DocumentEditor
+            documents={allDocuments}
             key={selected.id}
             onSaved={() =>
-              queryClient.invalidateQueries({ queryKey: options.queryKey })
+              queryClient.invalidateQueries({ queryKey: orpc.documents.key() })
             }
             record={selected}
           />

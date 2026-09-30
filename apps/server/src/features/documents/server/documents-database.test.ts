@@ -4,6 +4,7 @@ import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { document, documentConflictDraft } from "@cantiara/db/schema/document";
 import {
   mutationHistory,
   mutationReceipt,
@@ -14,6 +15,7 @@ import {
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
+import { workspaceTag } from "@cantiara/db/schema/tags";
 import {
   diagramDocumentOrigin,
   diagramView,
@@ -25,7 +27,9 @@ import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDatabaseUsageLinks } from "../../relations/server/usage-links-database";
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
+import { createDatabaseTags } from "../../tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
+import { createDatabaseDocumentTagRenameWriter } from "./document-tag-rename-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -107,6 +111,86 @@ describeDatabase("Documents database boundary", () => {
 
   afterAll(async () => {
     await database?.$client.end();
+  });
+
+  it("persists Conflict Drafts in the linked Document's Project or Workspace scope", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const projectDocumentId = `project-document-${crypto.randomUUID()}`;
+    const workspaceDocumentId = `workspace-document-${crypto.randomUUID()}`;
+    const projectDraftId = `project-draft-${crypto.randomUUID()}`;
+    const workspaceDraftId = `workspace-draft-${crypto.randomUUID()}`;
+
+    await database.insert(document).values([
+      {
+        id: projectDocumentId,
+        projectId,
+        title: "Project Document",
+        body: "Current Project content.",
+      },
+      {
+        id: workspaceDocumentId,
+        workspaceId,
+        title: "Workspace Document",
+        body: "Current Workspace content.",
+      },
+    ]);
+    await database.insert(documentConflictDraft).values([
+      {
+        id: projectDraftId,
+        documentId: projectDocumentId,
+        projectId,
+        workspaceId: null,
+        baseRevision: 1,
+        title: "Project edit",
+        body: "Rejected Project edit.",
+        type: "General",
+        clientIdempotencyKey: "project-conflict-draft",
+        payloadFingerprint: "project-conflict-fingerprint",
+      },
+      {
+        id: workspaceDraftId,
+        documentId: workspaceDocumentId,
+        projectId: null,
+        workspaceId,
+        baseRevision: 1,
+        title: "Workspace edit",
+        body: "Rejected Workspace edit.",
+        type: "General",
+        clientIdempotencyKey: "workspace-conflict-draft",
+        payloadFingerprint: "workspace-conflict-fingerprint",
+      },
+    ]);
+
+    const [savedWorkspaceDraft] = await database
+      .select({
+        documentId: documentConflictDraft.documentId,
+        projectId: documentConflictDraft.projectId,
+        workspaceId: documentConflictDraft.workspaceId,
+      })
+      .from(documentConflictDraft)
+      .where(eq(documentConflictDraft.id, workspaceDraftId));
+    expect(savedWorkspaceDraft).toEqual({
+      documentId: workspaceDocumentId,
+      projectId: null,
+      workspaceId,
+    });
+
+    await expect(
+      database.insert(documentConflictDraft).values({
+        id: `mismatched-draft-${crypto.randomUUID()}`,
+        documentId: workspaceDocumentId,
+        projectId,
+        workspaceId: null,
+        baseRevision: 1,
+        title: "Mismatched edit",
+        body: "Wrong-scope edit.",
+        type: "General",
+        clientIdempotencyKey: "mismatched-conflict-draft",
+        payloadFingerprint: "mismatched-conflict-fingerprint",
+      }),
+    ).rejects.toThrow();
   });
 
   it("requires a selected skeleton in an owned, writable Project", async () => {
@@ -238,6 +322,163 @@ describeDatabase("Documents database boundary", () => {
       ).toEqual(created);
     },
   );
+  it("binds in-document tokens to existing Workspace tags without creating unknown tags", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.insert(workspaceTag).values({
+      id: "document-release-tag",
+      workspaceId,
+      name: "release",
+      nameKey: "release",
+    });
+    const api = client();
+    const legacyId = crypto.randomUUID();
+    await database.insert(document).values({
+      id: legacyId,
+      projectId,
+      title: "Existing prose",
+      type: "General",
+      revision: 1,
+      body: "#release `#release`",
+    });
+    expect((await api.document({ documentId: legacyId })).inlineTags).toEqual([
+      { name: "release", start: 0, end: 8, tagId: "document-release-tag" },
+    ]);
+    const created = await api.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: "document-with-tags",
+      projectId,
+      title: "Release notes",
+      type: "General",
+      body: "#release #unknown `#release`",
+    });
+    expect(created.inlineTags).toEqual([
+      { name: "release", start: 0, end: 8, tagId: "document-release-tag" },
+    ]);
+    expect((await api.document({ documentId: created.id })).inlineTags).toEqual(
+      created.inlineTags,
+    );
+    const tags = createDatabaseTags(database, {
+      inlineRename: createDatabaseDocumentTagRenameWriter(),
+    });
+    await tags.rename(accountId, {
+      tagId: "document-release-tag",
+      name: "Release planning",
+    });
+    const renamed = await api.document({ documentId: created.id });
+    expect((await api.document({ documentId: legacyId })).body).toBe(
+      "#[Release planning] `#release`",
+    );
+    expect(renamed.body).toBe("#[Release planning] #unknown `#release`");
+    expect(renamed.inlineTags?.[0]?.tagId).toBe("document-release-tag");
+    expect(
+      (await api.documentVersion({ documentId: created.id, revision: 1 })).body,
+    ).toBe(created.body);
+    const restored = await api.restoreDocumentVersion({
+      documentId: created.id,
+      revision: created.revision,
+      baseRevision: renamed.revision,
+      clientIdempotencyKey: "restore-tag-identity",
+    });
+    expect(restored.body).toBe(created.body);
+    expect(restored.inlineTags).toEqual(created.inlineTags);
+    await tags.rename(accountId, {
+      tagId: "document-release-tag",
+      name: "release",
+    });
+    expect((await api.document({ documentId: created.id })).body).toBe(
+      created.body,
+    );
+  });
+
+  it("previews and revalidates depth, preserves children on archive, and restores normal navigation", async () => {
+    const api = client();
+    const create = (title: string) =>
+      api.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId,
+        title,
+        type: "General",
+        body: `# ${title}`,
+      });
+    const root = await create("Root");
+    const child = await create("Child");
+    const grandchild = await create("Grandchild");
+    const other = await create("Other");
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: root.id,
+      folder: "Planning",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: grandchild.id,
+      parentDocumentId: child.id,
+      folder: null,
+      baseRevision: grandchild.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const move = {
+      action: "hierarchy" as const,
+      documentId: root.id,
+      parentDocumentId: other.id,
+      folder: null,
+    };
+    expect(await api.previewDocumentOrganization(move)).toMatchObject({
+      allowed: false,
+      reason: "Document hierarchy is limited to three levels.",
+    });
+    await expect(
+      api.organizeDocument({
+        ...move,
+        baseRevision: root.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const archived = await api.organizeDocument({
+      action: "archive",
+      archived: true,
+      documentId: root.id,
+      baseRevision: root.revision,
+      clientIdempotencyKey: "archive-root",
+    });
+    expect(archived).toMatchObject({
+      id: root.id,
+      body: root.body,
+      projectId,
+      parentDocumentId: null,
+    });
+    expect(
+      (await api.documents({ projectId })).map(({ id }) => id),
+    ).not.toContain(root.id);
+    expect(
+      (await api.documents({ projectId, archived: true })).map(({ id }) => id),
+    ).toEqual([root.id]);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      parentDocumentId: root.id,
+      folder: "Planning",
+      archivedAt: null,
+    });
+    expect(
+      await api.documentVersion({ documentId: root.id, revision: 1 }),
+    ).toMatchObject({ body: root.body });
+    const restored = await api.organizeDocument({
+      action: "archive",
+      archived: false,
+      documentId: root.id,
+      baseRevision: archived.revision,
+      clientIdempotencyKey: "unarchive-root",
+    });
+    expect(restored.archivedAt).toBeNull();
+    expect((await api.documents({ projectId })).map(({ id }) => id)).toContain(
+      root.id,
+    );
+  });
 
   it("persists Markdown edits, replays retries, and blocks writes after Project archive", async () => {
     if (!database) {

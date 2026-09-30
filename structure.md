@@ -630,6 +630,8 @@ Tags source ownership is split across the API contract (`packages/api/src/tags.t
 
 Documents source ownership is split across the API contract (`packages/api/src/documents.ts`), the empty-heading starter skeleton catalog shared with Project Shell (`packages/api/src/document-skeletons.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/document.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`).
 
+Documents owns the dictionary-rename counterpart in `apps/server/src/features/documents/server/document-tag-rename-database.ts`; Tags calls it in the same transaction without owning Markdown parsing. Folder/parent navigation and previewed organization/Archive controls live in `document-navigation.tsx` and `document-organization-controls.tsx` beside the Project Documents surface.
+
 Smart Collections source ownership is split across the API contract (`packages/api/src/smart-collections.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/smart-collection.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/smart-collections/server/`), and the Project Smart Collections surface (`apps/web/src/features/smart-collections/`).
 
 Technical Diagrams source ownership is split across the API contract (`packages/api/src/technical-diagrams.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/technical-diagram.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/technical-diagrams/server/`), and the Project Technical Diagrams surface (`apps/web/src/features/technical-diagrams/`).
