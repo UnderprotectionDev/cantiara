@@ -2811,6 +2811,8 @@ export const appRouter = {
     .handler(async ({ context, input }) => {
       const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
       const payload = documentCreationInputSchema.parse(payloadInput);
+      const { conflictDraftId, ...documentFields } =
+        documentCreationFields(payload);
       const mutation = requireDocumentMutationContracts(context).create(
         context.session.user.id,
       );
@@ -2827,15 +2829,13 @@ export const appRouter = {
           ({ committedAt, currentRevision }) =>
             ({
               document: documentSchema.parse({
-                ...documentCreationFields(payload),
+                ...documentFields,
                 createdAt: committedAt,
                 id: crypto.randomUUID(),
                 revision: currentRevision + 1,
                 updatedAt: committedAt,
               }),
-              ...("conflictDraftId" in payload && payload.conflictDraftId
-                ? { conflictDraftId: payload.conflictDraftId }
-                : {}),
+              ...(conflictDraftId ? { conflictDraftId } : {}),
             }) satisfies DocumentMutationValue,
         );
         if (!receipt.nextValue.document) {
