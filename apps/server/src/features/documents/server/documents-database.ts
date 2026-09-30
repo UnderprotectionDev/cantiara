@@ -4,6 +4,7 @@ import type {
   DocumentConflictDraft,
   DocumentMutationContracts,
   DocumentMutationValue,
+  DocumentScope,
   DocumentsAccess,
   DocumentVersionSummary,
 } from "@cantiara/api/documents";
@@ -43,6 +44,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  or,
   sql,
 } from "drizzle-orm";
 
@@ -56,6 +58,7 @@ function toDocument(row: typeof document.$inferSelect): Document {
   return documentSchema.parse({
     id: row.id,
     projectId: row.projectId,
+    workspaceId: row.workspaceId,
     title: row.title,
     body: row.body,
     type: row.type,
@@ -134,16 +137,26 @@ function toConflictDraft(
 async function requireConflictDraft(
   executor: MutationDatabaseExecutor,
   draftId: string,
-  projectId: string,
+  scope: DocumentScope,
   documentId?: string,
 ) {
+  const scopeCondition =
+    scope.workspaceId === undefined
+      ? and(
+          eq(documentConflictDraft.projectId, scope.projectId),
+          isNull(documentConflictDraft.workspaceId),
+        )
+      : and(
+          isNull(documentConflictDraft.projectId),
+          eq(documentConflictDraft.workspaceId, scope.workspaceId),
+        );
   const [draft] = await executor
     .select()
     .from(documentConflictDraft)
     .where(
       and(
         eq(documentConflictDraft.id, draftId),
-        eq(documentConflictDraft.projectId, projectId),
+        scopeCondition,
         isNull(documentConflictDraft.resolvedAt),
         ...(documentId
           ? [eq(documentConflictDraft.documentId, documentId)]
@@ -156,6 +169,52 @@ async function requireConflictDraft(
     throw new DocumentConflictDraftError();
   }
   return draft;
+}
+
+function documentScopeFromRecord(record: {
+  projectId: string | null;
+  workspaceId: string | null;
+}): DocumentScope | null {
+  if (record.projectId !== null && record.workspaceId === null) {
+    return { projectId: record.projectId };
+  }
+  if (record.projectId === null && record.workspaceId !== null) {
+    return { workspaceId: record.workspaceId };
+  }
+  return null;
+}
+
+function documentScopeFromCreateInput(
+  input: Pick<CreateDocumentInput, "projectId" | "workspaceId">,
+): DocumentScope | null {
+  if (input.projectId && !input.workspaceId) {
+    return { projectId: input.projectId };
+  }
+  if (!input.projectId && input.workspaceId) {
+    return { workspaceId: input.workspaceId };
+  }
+  return null;
+}
+
+function documentScopeCondition(scope: DocumentScope) {
+  return scope.workspaceId === undefined
+    ? and(eq(document.projectId, scope.projectId), isNull(document.workspaceId))
+    : and(
+        isNull(document.projectId),
+        eq(document.workspaceId, scope.workspaceId),
+      );
+}
+
+function conflictDraftScopeCondition(scope: DocumentScope) {
+  return scope.workspaceId === undefined
+    ? and(
+        eq(documentConflictDraft.projectId, scope.projectId),
+        isNull(documentConflictDraft.workspaceId),
+      )
+    : and(
+        isNull(documentConflictDraft.projectId),
+        eq(documentConflictDraft.workspaceId, scope.workspaceId),
+      );
 }
 
 async function resolveConflictDraft(
@@ -415,12 +474,20 @@ async function assertDocumentSectionAcyclic(
   documentId: string,
   body: string,
 ) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  if (!workspaceId) {
+    throw new DocumentUnavailableError();
+  }
   const rows = await executor
     .select({ body: document.body, id: document.id })
     .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-    .where(eq(workspace.ownerAccountId, accountId));
+    .leftJoin(project, eq(document.projectId, project.id))
+    .where(
+      or(
+        eq(document.workspaceId, workspaceId),
+        eq(project.workspaceId, workspaceId),
+      ),
+    );
   const bodies = new Map(rows.map((row) => [row.id, row.body]));
   bodies.set(documentId, body);
   const visited = new Set<string>();
@@ -474,47 +541,70 @@ async function findOwnedProject(
   return record ?? null;
 }
 
+async function findOwnedDocumentScope(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  scope: DocumentScope,
+  lock: boolean,
+  allowArchivedProject = false,
+): Promise<DocumentScope | null> {
+  if (scope.projectId) {
+    const ownedProject = await findOwnedProject(
+      executor,
+      accountId,
+      scope.projectId,
+      lock,
+    );
+    return ownedProject &&
+      (allowArchivedProject || ownedProject.archivedAt === null)
+      ? { projectId: scope.projectId }
+      : null;
+  }
+
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  return workspaceId && workspaceId === scope.workspaceId
+    ? { workspaceId }
+    : null;
+}
+
 async function findOwnedDocument(
   executor: MutationDatabaseExecutor,
   accountId: string,
   documentId: string,
   lock: boolean,
+  allowArchivedProject = false,
 ) {
-  const [ownership] = await executor
-    .select({ projectId: document.projectId })
+  const [record] = await executor
+    .select({
+      projectId: document.projectId,
+      workspaceId: document.workspaceId,
+    })
     .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-    .where(
-      and(eq(document.id, documentId), eq(workspace.ownerAccountId, accountId)),
-    )
+    .where(eq(document.id, documentId))
     .limit(1);
-  if (!ownership?.projectId) {
-    return null;
-  }
-
-  const ownedProject = await findOwnedProject(
-    executor,
-    accountId,
-    ownership.projectId,
-    lock,
-  );
-  if (!ownedProject || ownedProject.archivedAt !== null) {
+  const scope = record ? documentScopeFromRecord(record) : null;
+  if (
+    !(
+      scope &&
+      (await findOwnedDocumentScope(
+        executor,
+        accountId,
+        scope,
+        lock,
+        allowArchivedProject,
+      ))
+    )
+  ) {
     return null;
   }
 
   const query = executor
     .select()
     .from(document)
-    .where(
-      and(
-        eq(document.id, documentId),
-        eq(document.projectId, ownership.projectId),
-      ),
-    )
+    .where(and(eq(document.id, documentId), documentScopeCondition(scope)))
     .limit(1);
-  const [record] = lock ? await query.for("update") : await query;
-  return record?.projectId ? { ...record, projectId: record.projectId } : null;
+  const [current] = lock ? await query.for("update") : await query;
+  return current ?? null;
 }
 
 function createDocumentTarget(
@@ -527,20 +617,20 @@ function createDocumentTarget(
       if (!payload.success) {
         return null;
       }
-      const ownedProject = await findOwnedProject(
-        executor,
-        accountId,
-        payload.data.projectId,
-        lock,
-      );
-      if (!ownedProject || ownedProject.archivedAt !== null) {
+      const scope = documentScopeFromCreateInput(payload.data);
+      if (
+        !(
+          scope &&
+          (await findOwnedDocumentScope(executor, accountId, scope, lock))
+        )
+      ) {
         return null;
       }
       if (payload.data.conflictDraftId) {
         await requireConflictDraft(
           executor,
           payload.data.conflictDraftId,
-          payload.data.projectId,
+          scope,
         );
       }
       return emptyTarget(targetId);
@@ -551,9 +641,13 @@ function createDocumentTarget(
       if (!nextDocument || input.expectedRevision !== 0) {
         return null;
       }
+      const scope = documentScopeFromRecord(nextDocument);
+      if (!scope) {
+        return null;
+      }
       const payload: CreateDocumentInput = {
+        ...scope,
         body: nextDocument.body,
-        projectId: nextDocument.projectId,
         title: nextDocument.title,
         type: nextDocument.type,
       };
@@ -568,7 +662,7 @@ function createDocumentTarget(
       );
       const draftId = input.nextValue.conflictDraftId;
       const draft = draftId
-        ? await requireConflictDraft(executor, draftId, nextDocument.projectId)
+        ? await requireConflictDraft(executor, draftId, scope)
         : null;
       const [created] = await executor
         .insert(document)
@@ -577,6 +671,7 @@ function createDocumentTarget(
           createdAt: input.committedAt,
           id: nextDocument.id,
           projectId: nextDocument.projectId,
+          workspaceId: nextDocument.workspaceId,
           revision: 1,
           title: nextDocument.title,
           type: nextDocument.type,
@@ -630,10 +725,14 @@ function updateDocumentTarget(
         lock,
       );
       if (record && payload.data.conflictDraftId) {
+        const scope = documentScopeFromRecord(record);
+        if (!scope) {
+          return null;
+        }
         await requireConflictDraft(
           executor,
           payload.data.conflictDraftId,
-          record.projectId,
+          scope,
           record.id,
         );
       }
@@ -692,19 +791,14 @@ function updateDocumentTarget(
 
 export function createDatabaseDocuments(database: Database): DocumentsAccess {
   async function get(accountId: string, documentId: string) {
-    const [row] = await database
-      .select({ document })
-      .from(document)
-      .innerJoin(project, eq(document.projectId, project.id))
-      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-      .where(
-        and(
-          eq(document.id, documentId),
-          eq(workspace.ownerAccountId, accountId),
-        ),
-      )
-      .limit(1);
-    return row ? toDocument(row.document) : null;
+    const row = await findOwnedDocument(
+      database,
+      accountId,
+      documentId,
+      false,
+      true,
+    );
+    return row ? toDocument(row) : null;
   }
 
   async function getLiveSection(
@@ -719,6 +813,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
           documentId: source.id,
           heading: section.heading,
           projectId: source.projectId,
+          workspaceId: source.workspaceId,
           sectionId,
           title: source.title,
           text: section.content,
@@ -774,6 +869,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
             id: crypto.randomUUID(),
             documentId: current.id,
             projectId: current.projectId,
+            workspaceId: current.workspaceId,
             baseRevision: input.baseRevision,
             title: input.title ?? base.title,
             body: input.body ?? base.body,
@@ -815,6 +911,10 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
         if (!current) {
           throw new DocumentUnavailableError();
         }
+        const scope = documentScopeFromRecord(current);
+        if (!scope) {
+          throw new DocumentUnavailableError();
+        }
         const [draft] = await executor
           .select()
           .from(documentConflictDraft)
@@ -822,7 +922,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
             and(
               eq(documentConflictDraft.id, draftId),
               eq(documentConflictDraft.documentId, documentId),
-              eq(documentConflictDraft.projectId, current.projectId),
+              conflictDraftScopeCondition(scope),
             ),
           )
           .limit(1)
@@ -951,27 +1051,21 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
       }
       return [...versions.values()].sort((a, b) => b.revision - a.revision);
     },
-    async list(accountId, projectId) {
-      const ownedProject = await findOwnedProject(
+    async list(accountId, scope) {
+      const ownedScope = await findOwnedDocumentScope(
         database,
         accountId,
-        projectId,
+        scope,
         false,
+        true,
       );
-      if (!ownedProject) {
+      if (!ownedScope) {
         throw new DocumentUnavailableError();
       }
       const rows = await database
         .select({ document })
         .from(document)
-        .innerJoin(project, eq(document.projectId, project.id))
-        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-        .where(
-          and(
-            eq(document.projectId, projectId),
-            eq(workspace.ownerAccountId, accountId),
-          ),
-        )
+        .where(documentScopeCondition(ownedScope))
         .orderBy(desc(document.updatedAt));
       return rows.map(({ document: row }) => toDocument(row));
     },

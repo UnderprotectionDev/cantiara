@@ -1,4 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Document controls close over the selected record and current editor state.
+
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import {
   type Document,
   type DocumentEvidenceTargetType,
@@ -39,7 +41,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-
+import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
   defaultClientShell,
@@ -168,9 +170,13 @@ function uniqueDocumentSections(source: string) {
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this editor coordinates one saved Document session across its dependent dialogs.
 function DocumentEditor({
+  accountFormattingPreferences,
+  projectId,
   record,
   onSaved,
 }: {
+  accountFormattingPreferences: AccountPreferences;
+  projectId: string;
   record: Document;
   onSaved: () => Promise<void>;
 }) {
@@ -273,19 +279,19 @@ function DocumentEditor({
   });
   const collectionViews = useQuery({
     ...orpc.smartCollectionViews.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId },
     }),
     enabled: view === "markdown",
   });
   const documentsForSections = useQuery({
     ...orpc.documents.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId },
     }),
     enabled: view === "markdown",
   });
   const sourceRecords = useQuery({
     ...orpc.projectSourceRecords.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId },
     }),
     enabled: view === "markdown",
   });
@@ -297,7 +303,7 @@ function DocumentEditor({
     : [];
   const diagrams = useQuery({
     ...orpc.technicalDiagrams.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId },
     }),
     enabled: view === "markdown",
   });
@@ -360,7 +366,7 @@ function DocumentEditor({
   });
   const works = useQuery({
     ...orpc.projectWorks.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId },
     }),
     enabled: view === "markdown",
   });
@@ -559,7 +565,7 @@ function DocumentEditor({
             documentEvidence,
             effort: null,
             plannedStartDate: null,
-            projectId: record.projectId,
+            projectId,
             targetDate: null,
             title: recordConversionTitle,
             type: "Task",
@@ -571,7 +577,7 @@ function DocumentEditor({
         clientIdempotencyKey: recordConversionKey.current as string,
         documentEvidence,
         id: recordConversionId.current as string,
-        projectId: record.projectId,
+        projectId,
         title: recordConversionTitle,
       };
       switch (recordConversionType) {
@@ -649,7 +655,7 @@ function DocumentEditor({
             selectionStart: row.start,
             title: titleFromSelectedText(row.text),
           })),
-          projectId: record.projectId,
+          projectId,
         }),
       );
     },
@@ -780,6 +786,15 @@ function DocumentEditor({
     }
   }
 
+  const recoveryPayload = JSON.stringify(
+    {
+      title: editing.buffer.title,
+      type: editing.buffer.type,
+      body: editing.buffer.body,
+    },
+    null,
+    2,
+  );
   let recoveryStatus = editing.error;
   if (editing.offline) {
     recoveryStatus = "Offline";
@@ -809,17 +824,28 @@ function DocumentEditor({
           <p>{recoveryStatus}</p>
           <p>
             Last successful save:{" "}
-            <time dateTime={editing.lastSavedAt}>{editing.lastSavedAt}</time>
+            <time dateTime={editing.lastSavedAt}>
+              {formatAccountDateTime(
+                editing.lastSavedAt,
+                accountFormattingPreferences,
+              )}
+            </time>
           </p>
-          <p>
-            {editing.dirty
-              ? "Unwritten changes are at risk. This memory buffer is not retained if you close the app or change Documents."
-              : "The Document has no unwritten changes."}
-          </p>
+          {editing.dirty ? (
+            <>
+              <p>Unsaved changes may be lost</p>
+              <p>
+                This memory buffer is not retained if you close the app or
+                change Documents.
+              </p>
+            </>
+          ) : (
+            <p>The Document has no unwritten changes.</p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() =>
-                writeTextToClipboard(editing.buffer.body).catch(
+                writeTextToClipboard(recoveryPayload).catch(
                   (failure: unknown) =>
                     setError(
                       failure instanceof Error
@@ -836,13 +862,13 @@ function DocumentEditor({
             <Button
               onClick={() => {
                 const url = URL.createObjectURL(
-                  new Blob([editing.buffer.body], {
-                    type: "text/markdown;charset=utf-8",
+                  new Blob([recoveryPayload], {
+                    type: "application/json;charset=utf-8",
                   }),
                 );
                 const anchor = document.createElement("a");
                 anchor.href = url;
-                anchor.download = "document-recovery.md";
+                anchor.download = "document-recovery.json";
                 anchor.click();
                 setTimeout(() => URL.revokeObjectURL(url), 0);
               }}
@@ -939,7 +965,7 @@ function DocumentEditor({
               <p>Technical Diagram: {convertedDiagram.title}</p>
               <a
                 className="underline"
-                href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
+                href={`/projects/${encodeURIComponent(projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
               >
                 Open source record
               </a>
@@ -1091,7 +1117,7 @@ function DocumentEditor({
                       </NativeSelect>
                       <a
                         className="text-sm underline"
-                        href={`/projects/${record.projectId}#smart-collections`}
+                        href={`/projects/${projectId}#smart-collections`}
                       >
                         Smart Collection
                       </a>
@@ -1116,7 +1142,7 @@ function DocumentEditor({
                       </NativeSelect>
                       <a
                         className="text-sm underline"
-                        href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
+                        href={`/projects/${encodeURIComponent(projectId)}#technical-diagrams`}
                       >
                         Technical Diagrams
                       </a>
@@ -1435,7 +1461,7 @@ function DocumentEditor({
               value={recordConversionTitle}
             />
             <div className="rounded-md border p-3 text-sm">
-              <p>Project: {record.projectId}</p>
+              <p>Project: {projectId}</p>
               <p>
                 Document: {record.title} · Version {revision}
               </p>
@@ -1495,7 +1521,7 @@ function DocumentEditor({
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
-            <p>Project: {record.projectId}</p>
+            <p>Project: {projectId}</p>
             <p>
               Document: {record.title} · Version {revision}
             </p>
@@ -1828,9 +1854,11 @@ function DocumentEditor({
 }
 
 export default function ProjectDocumentsSurface({
+  accountFormattingPreferences,
   projectId,
   selectedDocumentId,
 }: {
+  accountFormattingPreferences: AccountPreferences;
   projectId: string;
   selectedDocumentId?: string;
 }) {
@@ -2054,10 +2082,12 @@ export default function ProjectDocumentsSurface({
         </nav>
         {selected ? (
           <DocumentEditor
+            accountFormattingPreferences={accountFormattingPreferences}
             key={selected.id}
             onSaved={() =>
               queryClient.invalidateQueries({ queryKey: options.queryKey })
             }
+            projectId={projectId}
             record={selected}
           />
         ) : (

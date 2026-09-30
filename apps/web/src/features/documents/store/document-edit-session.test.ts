@@ -7,6 +7,7 @@ import { createDocumentEditSession } from "./document-edit-session";
 const source: Document = {
   id: "document-1",
   projectId: "project-1",
+  workspaceId: null,
   title: "Architecture",
   type: "General",
   body: "Saved",
@@ -22,6 +23,7 @@ describe("Documents disconnected edit session", () => {
       id: "draft-1",
       documentId: source.id,
       projectId: source.projectId,
+      workspaceId: null,
       baseRevision: 2,
       title: source.title,
       type: source.type,

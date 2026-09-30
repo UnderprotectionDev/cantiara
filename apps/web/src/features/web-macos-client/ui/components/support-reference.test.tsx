@@ -17,6 +17,17 @@ const supportError = {
   message: "token=secret-token private Workspace body",
 };
 
+const conflictDraft = {
+  id: "draft-1",
+  documentId: "document-1",
+  projectId: "project-1",
+  baseRevision: 1,
+  title: "Private Document title",
+  body: "Private rejected Document text",
+  type: "General",
+  createdAt: "2026-09-30T08:00:00.000Z",
+};
+
 describe("Client Shell Support reference notice", () => {
   test("shows a bounded Retry for an unwritten failure", () => {
     const failure = buildSupportReferenceFailure(supportError, {
@@ -115,6 +126,84 @@ describe("Client Shell Support reference notice", () => {
     );
 
     expect(failure.reason).toBe("This page is out of date.");
+  });
+
+  test("explains preserved Document text and its safe conflict resolution", () => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: {
+          ...supportError.data,
+          code: "STALE_BASE_REVISION",
+          targetId: "document-1",
+          conflictDraft,
+          retryPolicy: "never",
+        },
+      },
+      { kind: "mutation" },
+    );
+    const html = renderToStaticMarkup(
+      <SupportReferenceNotice failure={failure} />,
+    );
+
+    expect(failure.reason).toBe("Conflict Draft");
+    expect(html).toContain(
+      "Your changes were kept in a Conflict Draft. Choose Compare in the Document to resolve it.",
+    );
+    expect(failure.canRetry).toBe(false);
+    expect(failure.retryBound).toBe("Do not retry.");
+    expect(failure.duration).toBe(Number.POSITIVE_INFINITY);
+    expect(html).toContain("Data was not written.");
+    expect(html).toContain(supportError.data.supportReference);
+    expect(html).not.toContain(conflictDraft.title);
+    expect(html).not.toContain(conflictDraft.body);
+  });
+
+  test.each([
+    { ...conflictDraft, body: undefined },
+    { ...conflictDraft, documentId: "other-document" },
+  ])("does not claim text recovery for an invalid draft %j", (draft) => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: {
+          ...supportError.data,
+          code: "STALE_BASE_REVISION",
+          targetId: "document-1",
+          conflictDraft: draft,
+          retryPolicy: "never",
+        },
+      },
+      { kind: "mutation" },
+    );
+    const html = renderToStaticMarkup(
+      <SupportReferenceNotice failure={failure} />,
+    );
+
+    expect(failure.reason).toBe("This page is out of date.");
+    expect(html).not.toContain("Your changes were kept");
+    expect(failure.canRetry).toBe(false);
+  });
+
+  test("does not classify a query failure as a resolved Document save", () => {
+    const failure = buildSupportReferenceFailure(
+      {
+        ...supportError,
+        data: {
+          ...supportError.data,
+          code: "STALE_BASE_REVISION",
+          targetId: "document-1",
+          conflictDraft,
+        },
+      },
+      { kind: "query" },
+    );
+    const html = renderToStaticMarkup(
+      <SupportReferenceNotice failure={failure} />,
+    );
+
+    expect(failure.reason).toBe("This action could not be completed.");
+    expect(html).not.toContain("Your changes were kept");
   });
 
   test("auto-dismisses a query failure and keeps the Support reference safe", () => {

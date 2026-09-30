@@ -39,6 +39,7 @@ export function SupportReferenceNotice({
 }) {
   return (
     <div aria-live="polite" className="space-y-1 text-sm" role="alert">
+      {failure.recoveryHint ? <p>{failure.recoveryHint}</p> : null}
       <p>{failure.writeOutcomeLabel}</p>
       <p>{failure.retryBound}</p>
       <p>

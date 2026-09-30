@@ -17,6 +17,23 @@ export const documentTypeSchema = z.enum([
 export const documentIdSchema = z.string().trim().min(1).max(255);
 export const documentRevisionSchema = z.number().int().positive();
 export const projectIdSchema = z.string().trim().min(1).max(255);
+const projectDocumentScopeSchema = z
+  .object({
+    projectId: projectIdSchema,
+    workspaceId: z.undefined().optional(),
+  })
+  .strict();
+const personalWikiDocumentScopeSchema = z
+  .object({
+    projectId: z.undefined().optional(),
+    workspaceId: documentIdSchema,
+  })
+  .strict();
+export const documentScopeSchema = z.union([
+  projectDocumentScopeSchema,
+  personalWikiDocumentScopeSchema,
+]);
+export type DocumentScope = z.infer<typeof documentScopeSchema>;
 export const documentTitleSchema = z.string().trim().min(1).max(255);
 export const documentBodySchema = z.string().max(1_000_000);
 const markdownLinesPattern = /\n/;
@@ -106,7 +123,12 @@ export interface DocumentRecordReference {
 }
 
 export interface DocumentRecordReferenceView extends DocumentRecordReference {
-  source: { id: string; projectId: string; title: string } | null;
+  source: {
+    id: string;
+    projectId: string | null;
+    workspaceId?: string | null;
+    title: string;
+  } | null;
 }
 
 function isInsideMarkdownCodeSpan(line: string, position: number) {
@@ -302,15 +324,33 @@ export function documentLiveWorkIds(body: string): string[] {
   return documentLiveWorkDirectives(body).map(({ id }) => id);
 }
 
-export const createDocumentInputSchema = z
+const createDocumentFields = {
+  title: documentTitleSchema,
+  body: documentBodySchema,
+  type: documentTypeSchema,
+  conflictDraftId: documentIdSchema.optional(),
+};
+
+const projectDocumentCreateInputSchema = z
   .object({
+    ...createDocumentFields,
     projectId: projectIdSchema,
-    title: documentTitleSchema,
-    body: documentBodySchema,
-    type: documentTypeSchema,
-    conflictDraftId: documentIdSchema.optional(),
+    workspaceId: z.undefined().optional(),
   })
   .strict();
+
+const personalWikiDocumentCreateInputSchema = z
+  .object({
+    ...createDocumentFields,
+    projectId: z.undefined().optional(),
+    workspaceId: documentIdSchema,
+  })
+  .strict();
+
+export const createDocumentInputSchema = z.union([
+  projectDocumentCreateInputSchema,
+  personalWikiDocumentCreateInputSchema,
+]);
 
 const updateDocumentFieldsSchema = z
   .object({
@@ -339,9 +379,14 @@ export const updateDocumentInputSchema = updateDocumentFieldsSchema.refine(
   "At least one Document field must change.",
 );
 
-export const createDocumentMutationInputSchema = createDocumentInputSchema
-  .extend(humanMutationEnvelopeSchema.shape)
-  .strict();
+export const createDocumentMutationInputSchema = z.union([
+  projectDocumentCreateInputSchema
+    .extend(humanMutationEnvelopeSchema.shape)
+    .strict(),
+  personalWikiDocumentCreateInputSchema
+    .extend(humanMutationEnvelopeSchema.shape)
+    .strict(),
+]);
 
 export const updateDocumentMutationInputSchema = updateDocumentFieldsSchema
   .extend(humanMutationEnvelopeSchema.shape)
@@ -405,27 +450,31 @@ export const restoreDocumentVersionInputSchema = z
   .extend(humanMutationEnvelopeSchema.shape)
   .strict();
 
-export const documentSchema = createDocumentInputSchema
-  .omit({ conflictDraftId: true })
-  .extend({
-    id: documentIdSchema,
-    revision: z.number().int().nonnegative(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-    origin: z
-      .object({
-        documentId: documentIdSchema,
-        revision: documentRevisionSchema,
-        conflictDraftId: z.string().optional(),
-      })
-      .nullable()
-      .optional(),
-  });
+export const documentSchema = z.object({
+  id: documentIdSchema,
+  projectId: projectIdSchema.nullable(),
+  workspaceId: documentIdSchema.nullable().default(null),
+  title: documentTitleSchema,
+  body: documentBodySchema,
+  type: documentTypeSchema,
+  revision: z.number().int().nonnegative(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  origin: z
+    .object({
+      documentId: documentIdSchema,
+      revision: documentRevisionSchema,
+      conflictDraftId: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+});
 
 export const documentConflictDraftSchema = z.object({
   id: documentIdSchema,
   documentId: documentIdSchema,
-  projectId: projectIdSchema,
+  projectId: projectIdSchema.nullable(),
+  workspaceId: documentIdSchema.nullable().default(null),
   baseRevision: documentRevisionSchema,
   title: documentTitleSchema,
   body: documentBodySchema,
@@ -490,10 +539,11 @@ export interface LiveWorkSource {
 export interface DocumentLiveSectionSource {
   documentId: string;
   heading: string;
-  projectId: string;
+  projectId: string | null;
   sectionId: string;
   text: string;
   title: string;
+  workspaceId: string | null;
 }
 
 export interface DocumentsAccess {
@@ -525,7 +575,7 @@ export interface DocumentsAccess {
     documentId: string,
     revision: number,
   ) => Promise<Document | null>;
-  list: (accountId: string, projectId: string) => Promise<Document[]>;
+  list: (accountId: string, scope: DocumentScope) => Promise<Document[]>;
   versions: (
     accountId: string,
     documentId: string,

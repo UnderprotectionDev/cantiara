@@ -17,16 +17,17 @@ import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
-const initialDocument: Document = {
+const initialDocument = {
   body: "# Architecture",
   createdAt: "2026-09-29T12:00:00.000Z",
   id: "document-1",
   projectId: "project-1",
+  workspaceId: null,
   revision: 1,
   title: "Architecture",
   type: "Spec",
   updatedAt: "2026-09-29T12:00:00.000Z",
-};
+} satisfies Document;
 
 const initialDocumentVersionSummary: DocumentVersionSummary = {
   createdAt: initialDocument.createdAt,

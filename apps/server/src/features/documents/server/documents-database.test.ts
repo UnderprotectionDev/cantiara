@@ -215,6 +215,159 @@ describeDatabase("Documents database boundary", () => {
     expect(await documents.documents({ projectId })).toEqual([updated]);
   });
 
+  it("supports Personal Wiki CRUD and same-scope Conflict Draft resolution", async () => {
+    const documents = client();
+    const created = await documents.createDocument({
+      baseRevision: 0,
+      body: "Wiki original",
+      clientIdempotencyKey: "wiki-document-create",
+      title: "Wiki notes",
+      type: "General",
+      workspaceId,
+    });
+
+    expect(created).toMatchObject({
+      body: "Wiki original",
+      projectId: null,
+      workspaceId,
+    });
+    expect(await documents.documents({ workspaceId })).toEqual([created]);
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      created,
+    );
+    await expect(
+      client("another-account").document({ documentId: created.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client("another-account").documents({ workspaceId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const current = await documents.updateDocument({
+      baseRevision: created.revision,
+      body: "Wiki current",
+      clientIdempotencyKey: "wiki-document-current",
+      documentId: created.id,
+    });
+    await expect(
+      documents.updateDocument({
+        baseRevision: created.revision,
+        body: "Wiki rejected",
+        clientIdempotencyKey: "wiki-document-stale",
+        documentId: created.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        conflictDraft: {
+          body: "Wiki rejected",
+          documentId: created.id,
+          projectId: null,
+          workspaceId,
+        },
+      },
+    });
+
+    const [draft] = await documents.documentConflictDrafts({
+      documentId: created.id,
+    });
+    if (!draft) {
+      throw new Error("A Personal Wiki Conflict Draft is required.");
+    }
+    expect(draft).toMatchObject({
+      projectId: null,
+      workspaceId,
+    });
+
+    const resolved = await documents.updateDocument({
+      baseRevision: current.revision,
+      body: "Wiki reconciled",
+      clientIdempotencyKey: "wiki-document-resolve",
+      conflictDraftId: draft.id,
+      documentId: created.id,
+    });
+    expect(resolved.body).toBe("Wiki reconciled");
+    expect(
+      await documents.documentConflictDrafts({ documentId: created.id }),
+    ).toEqual([]);
+
+    await expect(
+      documents.updateDocument({
+        baseRevision: current.revision,
+        body: "Wiki independent text",
+        clientIdempotencyKey: "wiki-document-independent-draft",
+        documentId: created.id,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const [independentDraft] = await documents.documentConflictDrafts({
+      documentId: created.id,
+    });
+    if (!independentDraft) {
+      throw new Error("A Wiki Conflict Draft is required.");
+    }
+    await expect(
+      documents.createDocument({
+        projectId,
+        body: independentDraft.body,
+        title: "Wrong scope",
+        type: independentDraft.type,
+        conflictDraftId: independentDraft.id,
+        baseRevision: 0,
+        clientIdempotencyKey: "wiki-document-wrong-scope",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const independent = await documents.createDocument({
+      workspaceId,
+      body: independentDraft.body,
+      title: "Independent Wiki notes",
+      type: independentDraft.type,
+      conflictDraftId: independentDraft.id,
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-document-independent-create",
+    });
+    expect(independent).toMatchObject({
+      projectId: null,
+      workspaceId,
+      title: "Independent Wiki notes",
+      body: "Wiki independent text",
+      origin: {
+        documentId: created.id,
+        revision: independentDraft.baseRevision,
+        conflictDraftId: independentDraft.id,
+      },
+    });
+    expect(
+      await documents.documentConflictDrafts({ documentId: created.id }),
+    ).toEqual([]);
+
+    await expect(
+      documents.updateDocument({
+        baseRevision: independent.revision,
+        body: "Wiki draft to delete",
+        clientIdempotencyKey: "wiki-document-delete-draft",
+        documentId: independent.id,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const [deleteDraft] = await documents.documentConflictDrafts({
+      documentId: independent.id,
+    });
+    if (!deleteDraft) {
+      throw new Error("A Wiki Conflict Draft is required for deletion.");
+    }
+    await expect(
+      client("another-account").discardDocumentConflictDraft({
+        documentId: independent.id,
+        conflictDraftId: deleteDraft.id,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await documents.discardDocumentConflictDraft({
+      documentId: independent.id,
+      conflictDraftId: deleteDraft.id,
+    });
+    expect(
+      await documents.documentConflictDrafts({ documentId: independent.id }),
+    ).toEqual([]);
+  });
+
   it("resolves Conflict Drafts atomically by applying parts, creating an independent Document, or deleting", async () => {
     const documents = client();
     const created = await documents.createDocument({

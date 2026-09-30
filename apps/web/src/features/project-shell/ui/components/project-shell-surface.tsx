@@ -277,6 +277,7 @@ export default function ProjectShellSurface({
         <div className="space-y-8">
           <Suspense fallback={<p>Loading Documents…</p>}>
             <ProjectDocumentsSurface
+              accountFormattingPreferences={accountFormattingPreferences}
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
             />

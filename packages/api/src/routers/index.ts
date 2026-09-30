@@ -75,6 +75,7 @@ import {
   documentLiveDirectives,
   documentLiveWorkIds,
   documentSchema,
+  documentScopeSchema,
   documentVersionInputSchema,
   documentRecordReferences as parseDocumentRecordReferences,
   pinDocumentEvidenceInputSchema,
@@ -124,6 +125,7 @@ import {
   type MutationCommand,
   type MutationPayload,
   type MutationReceipt,
+  mutationPayloadSchema,
 } from "../mutation-and-undo";
 import {
   cancelWorkReviewLaterInputSchema,
@@ -885,7 +887,12 @@ async function documentReferenceSource(
         reference.recordId,
       );
       return record
-        ? { id: record.id, projectId: record.projectId, title: record.title }
+        ? {
+            id: record.id,
+            projectId: record.projectId,
+            workspaceId: record.workspaceId,
+            title: record.title,
+          }
         : null;
     }
     case "Technical Diagram": {
@@ -2309,16 +2316,13 @@ function nullableProjectValue(value: string | null | undefined) {
 
 export const appRouter = {
   documents: protectedProcedure
-    .input(z.object({ projectId: projectIdSchema }).strict())
+    .input(documentScopeSchema)
     .handler(async ({ context, input }) => {
       if (!context.documents) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
       try {
-        return await context.documents.list(
-          context.session.user.id,
-          input.projectId,
-        );
+        return await context.documents.list(context.session.user.id, input);
       } catch (error) {
         if (error instanceof DocumentUnavailableError) {
           throw new ORPCError("NOT_FOUND", { cause: error });
@@ -2818,6 +2822,7 @@ export const appRouter = {
     .handler(async ({ context, input }) => {
       const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
       const payload = createDocumentInputSchema.parse(payloadInput);
+      const mutationPayload = mutationPayloadSchema.parse(payload);
       const mutation = requireDocumentMutationContracts(context).create(
         context.session.user.id,
       );
@@ -2828,13 +2833,14 @@ export const appRouter = {
             baseRevision,
             clientIdempotencyKey,
             kind: "human",
-            payload,
+            payload: mutationPayload,
             targetId: clientIdempotencyKey,
           },
           ({ committedAt, currentRevision }) =>
             ({
               document: documentSchema.parse({
-                projectId: payload.projectId,
+                projectId: payload.projectId ?? null,
+                workspaceId: payload.workspaceId ?? null,
                 body: payload.body,
                 title: payload.title,
                 type: payload.type,

@@ -67,6 +67,8 @@ Belge Proje veya Kişisel Wiki kapsamında, yalnız veritabanında yaşayan sür
 
 ## Testing Decisions
 
+- **Conflict Draft recovery notice.** A stale save that returns its persisted Conflict Draft shows `Conflict Draft` with guidance to choose `Compare` in the Document; it must not leave the founder with only a generic out-of-date error. The Client Shell counterpart retains the Support reference and no-retry/write-outcome contract and does not display private draft content. The Documents browser seam observes the recovery notice and comparison panel together.
+
 Conflict and recovery labels extend the English UI labels above with `Apply parts`, `Delete`, `Cancel`, `Download`, `Offline`, and `Last successful save`; their PRD term table is in Belge sürüm geçmişi. They are exercised by Conflict Draft resolution and reconnection at the same Documents seam.
 
 - **Conflict Draft resolution and reconnection.** Through Documents, stale saves retain rejected text without changing current content or history; identical failed commands reuse one draft. Compare/apply rejects a changed comparison revision. Create uses a user title and chosen text in the same scope, persists origin, and does not inherit source history. Cancel leaves the draft unresolved; Delete removes it from the unresolved list without changing the Document. Cross-account/scope resolution is denied. A disconnected session freezes its one memory buffer, exposes last save and Copy/Download recovery, and reconnects once against its last saved base. Pending writes do not create a queue; unresolved drafts never auto-retry. Browser coverage exercises apply/create/delete persistence, cancel, rich editor synchronization, and reconnect after a competing write.

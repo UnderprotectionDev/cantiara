@@ -24,6 +24,7 @@ import {
   type ChangeEvent,
   type MouseEvent,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -39,6 +40,59 @@ interface DraftComparison {
   type: Document["type"];
 }
 
+function conflictDraftScope(draft: DocumentConflictDraft) {
+  if (draft.projectId) {
+    return { projectId: draft.projectId };
+  }
+  if (draft.workspaceId) {
+    return { workspaceId: draft.workspaceId };
+  }
+  return null;
+}
+
+async function resolveComparedDraft(
+  documentId: string,
+  action: "Apply parts" | "Create Document" | "Delete",
+  comparison: DraftComparison,
+  independent: Pick<Document, "title" | "body" | "type"> | null,
+  clientIdempotencyKey: string,
+) {
+  const { draft } = comparison;
+  if (action === "Apply parts") {
+    return client.updateDocument({
+      documentId,
+      conflictDraftId: draft.id,
+      baseRevision: comparison.current.revision,
+      clientIdempotencyKey,
+      title: comparison.title,
+      body: comparison.body,
+      type: comparison.type,
+    });
+  }
+  if (action === "Create Document") {
+    if (!independent) {
+      throw new Error("Choose the new Document title and content first.");
+    }
+    const scope = conflictDraftScope(draft);
+    if (!scope) {
+      throw new Error("The Conflict Draft has no valid ownership scope.");
+    }
+    await client.createDocument({
+      ...scope,
+      conflictDraftId: draft.id,
+      baseRevision: 0,
+      clientIdempotencyKey,
+      ...independent,
+    });
+  } else {
+    await client.discardDocumentConflictDraft({
+      documentId,
+      conflictDraftId: draft.id,
+    });
+  }
+  return client.document({ documentId });
+}
+
 export default function DocumentConflictDrafts({
   documentId,
   rejected,
@@ -51,10 +105,14 @@ export default function DocumentConflictDrafts({
   disabled: boolean;
 }) {
   const queryClient = useQueryClient();
-  const draftOptions = orpc.documentConflictDrafts.queryOptions({
-    input: { documentId },
-  });
-  const currentOptions = orpc.document.queryOptions({ input: { documentId } });
+  const draftOptions = useMemo(
+    () => orpc.documentConflictDrafts.queryOptions({ input: { documentId } }),
+    [documentId],
+  );
+  const currentOptions = useMemo(
+    () => orpc.document.queryOptions({ input: { documentId } }),
+    [documentId],
+  );
   const drafts = useQuery(draftOptions);
   const current = useQuery(currentOptions);
   const [comparison, setComparison] = useState<DraftComparison | null>(null);
@@ -65,8 +123,9 @@ export default function DocumentConflictDrafts({
   > | null>(null);
   const request = useRef<{ fingerprint: string; key: string } | null>(null);
 
+  const rejectedDraftId = rejected?.id ?? null;
   useEffect(() => {
-    if (rejected) {
+    if (rejectedDraftId) {
       queryClient
         .invalidateQueries({ queryKey: draftOptions.queryKey })
         .catch(() => undefined);
@@ -74,49 +133,30 @@ export default function DocumentConflictDrafts({
         .invalidateQueries({ queryKey: currentOptions.queryKey })
         .catch(() => undefined);
     }
-  }, [rejected, queryClient, draftOptions.queryKey, currentOptions.queryKey]);
+  }, [
+    rejectedDraftId,
+    queryClient,
+    draftOptions.queryKey,
+    currentOptions.queryKey,
+  ]);
 
   const resolve = useMutation({
     mutationFn: (action: "Apply parts" | "Create Document" | "Delete") =>
-      runOnlineOnlyWrite(async () => {
+      runOnlineOnlyWrite(() => {
         if (!comparison) {
           throw new Error("Compare a Conflict Draft first.");
         }
-        const { draft } = comparison;
         const fingerprint = JSON.stringify({ action, comparison, independent });
         if (request.current?.fingerprint !== fingerprint) {
           request.current = { fingerprint, key: crypto.randomUUID() };
         }
-        const clientIdempotencyKey = request.current.key;
-        if (action === "Apply parts") {
-          return client.updateDocument({
-            documentId,
-            conflictDraftId: draft.id,
-            baseRevision: comparison.current.revision,
-            clientIdempotencyKey,
-            title: comparison.title,
-            body: comparison.body,
-            type: comparison.type,
-          });
-        }
-        if (action === "Create Document") {
-          if (!independent) {
-            throw new Error("Choose the new Document title and content first.");
-          }
-          await client.createDocument({
-            projectId: draft.projectId,
-            conflictDraftId: draft.id,
-            baseRevision: 0,
-            clientIdempotencyKey,
-            ...independent,
-          });
-        } else {
-          await client.discardDocumentConflictDraft({
-            documentId,
-            conflictDraftId: draft.id,
-          });
-        }
-        return client.document({ documentId });
+        return resolveComparedDraft(
+          documentId,
+          action,
+          comparison,
+          independent,
+          request.current.key,
+        );
       }),
     onSuccess: async (document) => {
       request.current = null;
@@ -141,7 +181,10 @@ export default function DocumentConflictDrafts({
     },
   });
 
-  const available = drafts.data ?? (rejected ? [rejected] : []);
+  const available = [...(drafts.data ?? [])];
+  if (rejected && !available.some((draft) => draft.id === rejected.id)) {
+    available.push(rejected);
+  }
   function compareDraft(event: MouseEvent<HTMLButtonElement>) {
     const draft = available.find(
       (item) => item.id === event.currentTarget.dataset.draftId,
