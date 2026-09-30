@@ -14,6 +14,7 @@ export default function PersonalWikiSurface() {
       <DocumentsSurface
         projectId={null}
         selectedDocumentId={selected?.documentId}
+        starterSkeletons={[]}
       />
     </section>
   );

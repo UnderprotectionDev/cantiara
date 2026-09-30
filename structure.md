@@ -628,7 +628,7 @@
 
 Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).
 
-Documents source ownership is split across the API contract (`packages/api/src/documents.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/document.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`).
+Documents source ownership is split across the API contract (`packages/api/src/documents.ts`), the empty-heading starter skeleton catalog shared with Project Shell (`packages/api/src/document-skeletons.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/document.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`).
 
 Personal Wiki owns the authenticated ownership shell under `apps/web/src/features/personal-wiki/` and `apps/web/src/routes/_auth/personal-wiki.tsx`. It consumes the same Documents surface, contract, schema, server access, and mutations; Wiki Documents have Workspace ownership and no Project. Publishing remains a separate feature.
 

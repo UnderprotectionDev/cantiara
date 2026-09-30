@@ -33,6 +33,7 @@ test("creates and edits a database-backed Document while preserving technical Ma
   ).toBeVisible();
   await page.getByRole("button", { name: "Create Document" }).click();
   const createDialog = page.getByRole("dialog", { name: "Create Document" });
+  await expect(createDialog.getByLabel("Starter skeleton")).toHaveCount(0);
   await createDialog.getByLabel("Title").fill("Architecture Notes");
   await createDialog.getByRole("button", { name: "Create Document" }).click();
 
@@ -156,6 +157,109 @@ test("creates and edits a database-backed Document while preserving technical Ma
   await expect(
     editor.getByRole("textbox", { name: "Markdown source" }),
   ).toHaveValue(invalidDiagram);
+});
+
+test("creates selected Document starter skeletons from the Documents surface", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents-skeletons`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+  };
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#documents`);
+
+  const expectations = [
+    {
+      headings: [
+        "Context",
+        "Goals",
+        "Behaviors",
+        "Pain Points",
+        "Constraints",
+        "Evidence",
+        "Open Questions",
+      ],
+      skeleton: "Persona",
+      type: "Persona",
+    },
+    {
+      headings: [
+        "Period",
+        "What worked?",
+        "What did not?",
+        "What did we learn?",
+        "Decisions",
+        "Next changes",
+        "Related records",
+      ],
+      skeleton: "Retrospective",
+      type: "General",
+    },
+    {
+      headings: [
+        "Release",
+        "Audience",
+        "Scope",
+        "Readiness",
+        "Communication",
+        "Launch steps",
+        "Risks",
+        "Observation plan",
+        "Related records",
+      ],
+      skeleton: "Launch Plan",
+      type: "Plan",
+    },
+  ] as const;
+
+  for (const { headings, skeleton, type } of expectations) {
+    // biome-ignore lint/performance/noAwaitInLoops: Each created Document becomes the selected editor target before the next is created.
+    await page.getByRole("button", { name: "Create Document" }).click();
+    const createDialog = page.getByRole("dialog", { name: "Create Document" });
+    const skeletonSelect = createDialog.getByLabel("Starter skeleton");
+    await expect(skeletonSelect.locator("option")).toHaveText([
+      "No starter skeleton",
+      "Persona",
+      "Retrospective",
+      "Launch Plan",
+    ]);
+    await skeletonSelect.selectOption(skeleton);
+    await expect(createDialog.getByLabel("Title")).toBeHidden();
+    await expect(createDialog.getByLabel("Type")).toBeHidden();
+    await createDialog.getByRole("button", { name: "Create Document" }).click();
+
+    const editor = page.getByRole("region", { name: "Document", exact: true });
+    await expect(editor.getByLabel("Title")).toHaveValue(skeleton);
+    await expect(editor.getByLabel("Type")).toHaveValue(type);
+    await editor.getByRole("tab", { name: "Markdown" }).click();
+    await expect(
+      editor.getByRole("textbox", { name: "Markdown source" }),
+    ).toHaveValue(headings.map((heading) => `## ${heading}`).join("\n\n"));
+  }
+
+  await page.getByRole("button", { name: "Create Document" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Create Document" });
+  await createDialog.getByLabel("Starter skeleton").selectOption("");
+  await expect(createDialog.getByLabel("Title")).toBeVisible();
+  await expect(createDialog.getByLabel("Type")).toBeVisible();
+  await createDialog.getByLabel("Title").fill("Plain Document");
+  await createDialog.getByLabel("Type").selectOption("Research Note");
+  await createDialog.getByRole("button", { name: "Create Document" }).click();
+
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await expect(editor.getByLabel("Title")).toHaveValue("Plain Document");
+  await expect(editor.getByLabel("Type")).toHaveValue("Research Note");
+  await editor.getByRole("tab", { name: "Markdown" }).click();
+  await expect(
+    editor.getByRole("textbox", { name: "Markdown source" }),
+  ).toHaveValue("");
 });
 
 test("a live Work block follows the source and uses ordinary status actions", async ({

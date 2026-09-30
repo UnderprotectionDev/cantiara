@@ -63,6 +63,8 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 | `Retrospective` | `Document` | `Period`, `What worked?`, `What did not?`, `What did we learn?`, `Decisions`, `Next changes`, `Related records` |
 | `Launch Plan` | `Document` | `Release`, `Audience`, `Scope`, `Readiness`, `Communication`, `Launch steps`, `Risks`, `Observation plan`, `Related records` |
 
+- **Seçili Document iskeletleri `Documents` yüzeyindeki `Create Document` penceresinde `Starter skeleton` seçimi olarak sunulur.** Yalnız Proje yapılandırmasında seçilmiş Document iskeletleri listelenir; `No starter skeleton` olağan başlık/tür oluşturma akışını korur. `Blank Project` bu seçimi sunmaz.
+
 - **Başlangıç iskeleti özel kayıt türü veya kalıcı iskelet bağı oluşturmaz.** Teknik Diyagram şablonları ilk üründe bulunmaz ve yalnız [gerçek tekrar kanıtından sonraki ayrı yönde](18-future-directions.md#teknik-diyagram-sablonlari) değerlendirilebilir; şablon pazarı ya da içerikli Milanote Board şablonu modeli oluşturulmaz.
 
 - **İlk açılışta isteğe bağlı, kapatılabilir bağlamsal yönlendirme seçilen başlangıç yapılandırmasının hangi varsayımları neden getirdiğini ve bunların nereden değiştirilebileceğini açıklar.** Yönlendirme örnek içerik üretmez, kullanıcıyı zorunlu kurulum turuna sokmaz ve kapatıldıktan sonra günlük çalışma yüzeylerini işgal etmez.

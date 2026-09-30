@@ -279,6 +279,7 @@ export default function ProjectShellSurface({
             <ProjectDocumentsSurface
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
+              starterSkeletons={configuration.starterSkeletons}
             />
           </Suspense>
           <FileAttachmentsSurface projectId={projectId} />

@@ -31,6 +31,9 @@ test("Personal Wiki reuses Documents without entering a Project and exposes no p
     .click();
   const dialog = page.getByRole("dialog", { name: "Create Document" });
   await expect(dialog.getByLabel("Project", { exact: true })).toHaveCount(0);
+  await expect(
+    dialog.getByLabel("Starter skeleton", { exact: true }),
+  ).toHaveCount(0);
   await dialog
     .getByLabel("Title", { exact: true })
     .fill("PostgreSQL troubleshooting");

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import {
+  DOCUMENT_STARTER_SKELETON_OPTIONS,
+  DOCUMENT_STARTER_SKELETONS,
+} from "./document-skeletons";
+import {
   humanMutationEnvelopeSchema,
   type MutationContract,
 } from "./mutation-and-undo";
@@ -311,6 +315,46 @@ export const createDocumentInputSchema = z
   })
   .strict();
 
+export const createDocumentSkeletonInputSchema = z
+  .object({
+    projectId: projectIdSchema,
+    skeleton: z.enum(DOCUMENT_STARTER_SKELETON_OPTIONS),
+  })
+  .strict();
+
+export const documentCreationInputSchema = z.union([
+  createDocumentInputSchema,
+  createDocumentSkeletonInputSchema,
+]);
+
+export function documentCreationFields(
+  input: z.infer<typeof documentCreationInputSchema>,
+): CreateDocumentInput {
+  if (!("skeleton" in input)) {
+    return createDocumentInputSchema.parse(input);
+  }
+  const selection = DOCUMENT_STARTER_SKELETONS.find(
+    ({ skeleton, surface }) =>
+      skeleton === input.skeleton && surface === "Document",
+  );
+  if (!selection) {
+    throw new DocumentUnavailableError();
+  }
+  const documentTypeBySkeleton = {
+    Persona: "Persona",
+    Retrospective: "General",
+    "Launch Plan": "Plan",
+  } as const;
+  return createDocumentInputSchema.parse({
+    body: selection.emptyHeadings
+      .map((heading) => `## ${heading}`)
+      .join("\n\n"),
+    projectId: input.projectId,
+    title: input.skeleton,
+    type: documentTypeBySkeleton[input.skeleton],
+  });
+}
+
 const updateDocumentFieldsSchema = z
   .object({
     documentId: documentIdSchema,
@@ -337,9 +381,12 @@ export const updateDocumentInputSchema = updateDocumentFieldsSchema.refine(
   "At least one Document field must change.",
 );
 
-export const createDocumentMutationInputSchema = createDocumentInputSchema
-  .extend(humanMutationEnvelopeSchema.shape)
-  .strict();
+export const createDocumentMutationInputSchema = z.union([
+  createDocumentInputSchema.extend(humanMutationEnvelopeSchema.shape).strict(),
+  createDocumentSkeletonInputSchema
+    .extend(humanMutationEnvelopeSchema.shape)
+    .strict(),
+]);
 
 export const updateDocumentMutationInputSchema = updateDocumentFieldsSchema
   .extend(humanMutationEnvelopeSchema.shape)
