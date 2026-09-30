@@ -43,11 +43,24 @@ export const STARTER_SKELETON_SURFACE_OPTIONS = [
 export type StarterSkeletonSurface =
   (typeof STARTER_SKELETON_SURFACE_OPTIONS)[number];
 
-export interface StarterSkeletonSelection {
-  emptyHeadings: readonly string[];
-  skeleton: StarterSkeleton;
-  surface: StarterSkeletonSurface;
-}
+type DocumentStarterSkeleton =
+  (typeof DOCUMENT_STARTER_SKELETONS)[number]["skeleton"];
+type ProjectWallStarterSkeleton = Exclude<
+  StarterSkeleton,
+  DocumentStarterSkeleton
+>;
+
+export type StarterSkeletonSelection =
+  | {
+      emptyHeadings: readonly string[];
+      skeleton: DocumentStarterSkeleton;
+      surface: "Document";
+    }
+  | {
+      emptyHeadings: readonly string[];
+      skeleton: ProjectWallStarterSkeleton;
+      surface: "Project Wall";
+    };
 
 const STARTER_SKELETON_CATALOG = [
   {
@@ -77,11 +90,21 @@ const STARTER_SKELETON_CATALOG = [
 function cloneStarterSkeletons(
   skeletons: readonly StarterSkeletonSelection[],
 ): StarterSkeletonSelection[] {
-  return skeletons.map((selection) => ({
-    emptyHeadings: [...selection.emptyHeadings],
-    skeleton: selection.skeleton,
-    surface: selection.surface,
-  }));
+  return skeletons.map((selection) => {
+    const emptyHeadings = [...selection.emptyHeadings];
+    if (selection.surface === "Document") {
+      return {
+        emptyHeadings,
+        skeleton: selection.skeleton,
+        surface: "Document",
+      };
+    }
+    return {
+      emptyHeadings,
+      skeleton: selection.skeleton,
+      surface: "Project Wall",
+    };
+  });
 }
 
 export const PROJECT_AREA_OPTIONS = [
@@ -294,13 +317,29 @@ function cloneWorkStatusLabels(
 
 const starterSkeletonSchema = z.enum(STARTER_SKELETON_OPTIONS);
 const starterSkeletonSurfaceSchema = z.enum(STARTER_SKELETON_SURFACE_OPTIONS);
+function isStarterSkeletonSelection(selection: {
+  emptyHeadings: readonly string[];
+  skeleton: StarterSkeleton;
+  surface: StarterSkeletonSurface;
+}): selection is StarterSkeletonSelection {
+  return STARTER_SKELETON_CATALOG.some(
+    (catalogSelection) =>
+      catalogSelection.skeleton === selection.skeleton &&
+      catalogSelection.surface === selection.surface,
+  );
+}
+
 const starterSkeletonSelectionSchema = z
   .object({
     emptyHeadings: z.array(z.string().trim().min(1)),
     skeleton: starterSkeletonSchema,
     surface: starterSkeletonSurfaceSchema,
   })
-  .strict();
+  .strict()
+  .refine(
+    isStarterSkeletonSelection,
+    "Starter skeleton must match its surface.",
+  );
 
 function starterSkeletonsEqual(
   actual: readonly StarterSkeletonSelection[],

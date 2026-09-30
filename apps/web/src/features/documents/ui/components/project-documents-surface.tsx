@@ -5,6 +5,7 @@ import {
   documentSections,
   documentTypeSchema,
 } from "@cantiara/api/documents";
+import type { StarterSkeletonSelection } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -65,10 +66,17 @@ const DOCUMENT_CONVERSION_CONTENT_FIELDS = {
   Assumption: "Statement",
   "Open Question": "Question",
 } as const;
-interface DocumentCreateInput {
-  title: string;
-  type: Document["type"];
-}
+type DocumentStarterSkeleton = Extract<
+  StarterSkeletonSelection,
+  { surface: "Document" }
+>["skeleton"];
+type DocumentCreateInput =
+  | { skeleton: DocumentStarterSkeleton }
+  | { title: string; type: Document["type"] };
+type DocumentStarterSkeletonSelection = Extract<
+  StarterSkeletonSelection,
+  { surface: "Document" }
+>;
 
 interface DocumentSaveInput {
   body: string;
@@ -1729,13 +1737,19 @@ function DocumentEditor({
 export default function ProjectDocumentsSurface({
   projectId,
   selectedDocumentId,
+  starterSkeletons,
 }: {
   projectId: string;
   selectedDocumentId?: string;
+  starterSkeletons: readonly StarterSkeletonSelection[];
 }) {
   const queryClient = useQueryClient();
   const options = orpc.documents.queryOptions({ input: { projectId } });
   const documents = useQuery(options);
+  const documentStarterSkeletons = starterSkeletons.filter(
+    (selection): selection is DocumentStarterSkeletonSelection =>
+      selection.surface === "Document",
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     selectedDocumentId ?? null,
   );
@@ -1752,8 +1766,12 @@ export default function ProjectDocumentsSurface({
     if (
       pending &&
       pending.projectId === projectId &&
-      pending.value.title === value.title &&
-      pending.value.type === value.type
+      ("skeleton" in value
+        ? "skeleton" in pending.value &&
+          pending.value.skeleton === value.skeleton
+        : !("skeleton" in pending.value) &&
+          pending.value.title === value.title &&
+          pending.value.type === value.type)
     ) {
       return pending.clientIdempotencyKey;
     }
@@ -1771,15 +1789,24 @@ export default function ProjectDocumentsSurface({
       clientIdempotencyKey: string;
       value: DocumentCreateInput;
     }) =>
-      runOnlineOnlyWrite(() =>
-        client.createDocument({
+      runOnlineOnlyWrite(() => {
+        const mutationEnvelope = {
           projectId,
           baseRevision: 0,
           clientIdempotencyKey: command.clientIdempotencyKey,
+        };
+        if ("skeleton" in command.value) {
+          return client.createDocument({
+            ...mutationEnvelope,
+            skeleton: command.value.skeleton,
+          });
+        }
+        return client.createDocument({
+          ...mutationEnvelope,
           ...command.value,
           body: "",
-        }),
-      ),
+        });
+      }),
     onSuccess: async (created, command) => {
       if (
         pendingCreate.current?.clientIdempotencyKey ===
@@ -1801,11 +1828,18 @@ export default function ProjectDocumentsSurface({
       ),
   });
   const form = useForm({
-    defaultValues: { title: "", type: "General" as Document["type"] },
+    defaultValues: {
+      skeleton: "" as "" | DocumentStarterSkeleton,
+      title: "",
+      type: "General" as Document["type"],
+    },
     onSubmit: async ({ value }) => {
+      const createValue = value.skeleton
+        ? { skeleton: value.skeleton }
+        : { title: value.title, type: value.type };
       await create.mutateAsync({
-        clientIdempotencyKey: createIdempotencyKey(value),
-        value,
+        clientIdempotencyKey: createIdempotencyKey(createValue),
+        value: createValue,
       });
     },
   });
@@ -1854,7 +1888,9 @@ export default function ProjectDocumentsSurface({
           <DialogHeader>
             <DialogTitle className="text-lg">Create Document</DialogTitle>
             <DialogDescription>
-              Give this Document a title and choose its type.
+              {documentStarterSkeletons.length > 0
+                ? "Choose a starter skeleton, or give this Document a title and type."
+                : "Give this Document a title and choose its type."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1864,44 +1900,86 @@ export default function ProjectDocumentsSurface({
               form.handleSubmit().catch(() => undefined);
             }}
           >
-            <form.Field name="title">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-title">Title</Label>
-                  <Input
-                    autoFocus
-                    id="new-document-title"
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    required
-                    value={field.state.value}
-                  />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="type">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-type">Type</Label>
-                  <NativeSelect
-                    id="new-document-type"
-                    onBlur={field.handleBlur}
-                    onChange={(event) =>
-                      field.handleChange(
-                        documentTypeSchema.parse(event.target.value),
-                      )
-                    }
-                    value={field.state.value}
-                  >
-                    {documentTypeSchema.options.map((option) => (
-                      <NativeSelectOption key={option} value={option}>
-                        {option}
+            {documentStarterSkeletons.length > 0 ? (
+              <form.Field name="skeleton">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="new-document-starter-skeleton">
+                      Starter skeleton
+                    </Label>
+                    <NativeSelect
+                      id="new-document-starter-skeleton"
+                      onBlur={field.handleBlur}
+                      onChange={(event) =>
+                        field.handleChange(
+                          documentStarterSkeletons.find(
+                            ({ skeleton }) => skeleton === event.target.value,
+                          )?.skeleton ?? "",
+                        )
+                      }
+                      value={field.state.value}
+                    >
+                      <NativeSelectOption value="">
+                        No starter skeleton
                       </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-              )}
-            </form.Field>
+                      {documentStarterSkeletons.map(({ skeleton }) => (
+                        <NativeSelectOption key={skeleton} value={skeleton}>
+                          {skeleton}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                )}
+              </form.Field>
+            ) : null}
+            <form.Subscribe selector={(state) => state.values.skeleton}>
+              {(skeleton) =>
+                skeleton ? null : (
+                  <>
+                    <form.Field name="title">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor="new-document-title">Title</Label>
+                          <Input
+                            autoFocus
+                            id="new-document-title"
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            value={field.state.value}
+                          />
+                        </div>
+                      )}
+                    </form.Field>
+                    <form.Field name="type">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor="new-document-type">Type</Label>
+                          <NativeSelect
+                            id="new-document-type"
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(
+                                documentTypeSchema.parse(event.target.value),
+                              )
+                            }
+                            value={field.state.value}
+                          >
+                            {documentTypeSchema.options.map((option) => (
+                              <NativeSelectOption key={option} value={option}>
+                                {option}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </div>
+                      )}
+                    </form.Field>
+                  </>
+                )
+              }
+            </form.Subscribe>
             {error ? (
               <p className="text-destructive" role="alert">
                 {error}
@@ -1917,13 +1995,14 @@ export default function ProjectDocumentsSurface({
               </Button>
               <form.Subscribe
                 selector={(state) => ({
+                  skeleton: state.values.skeleton,
                   title: state.values.title,
                   isSubmitting: state.isSubmitting,
                 })}
               >
-                {({ title, isSubmitting }) => (
+                {({ skeleton, title, isSubmitting }) => (
                   <Button
-                    disabled={isSubmitting || !title.trim()}
+                    disabled={isSubmitting || !(skeleton || title.trim())}
                     type="submit"
                   >
                     Create Document
