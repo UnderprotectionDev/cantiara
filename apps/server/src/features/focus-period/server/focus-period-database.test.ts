@@ -482,6 +482,44 @@ describeDatabase("Focus Period working window", () => {
     });
   }, 30_000);
 
+  test("includes Work added and removed at the activation timestamp in the closing comparison", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-10-09T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Boundary comparison",
+      startDate: "2027-10-10",
+      endDate: "2027-10-16",
+    });
+
+    clock = new Date("2027-10-10T12:00:00.000Z");
+    expect((await periods.find(accountId, period.id))?.status).toBe("Active");
+    await periods.add(accountId, period.id, secondWorkId);
+    await periods.remove(accountId, period.id, secondWorkId);
+    await periods.close(accountId, period.id);
+
+    await database
+      .update(work)
+      .set({
+        status: "Closed",
+        closureResult: "Completed",
+        title: "Changed after close",
+      })
+      .where(eq(work.id, secondWorkId));
+
+    const closed = await periods.find(accountId, period.id);
+    const historicalWork = expect.objectContaining({
+      id: secondWorkId,
+      status: "In Progress",
+      title: "Second Work",
+    });
+    expect(closed?.closeSnapshot).toEqual([]);
+    expect(closed?.closeComparison?.addedLater).toEqual([historicalWork]);
+    expect(closed?.closeComparison?.removed).toEqual([historicalWork]);
+  }, 30_000);
+
   test("keeps a conflicting due period Planned and allows recovery operations", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

@@ -606,7 +606,7 @@ export function createDatabaseFocusPeriod(
               membershipHistory
                 .filter(
                   (item) =>
-                    period.startedAt && item.joinedAt > period.startedAt,
+                    period.startedAt && item.joinedAt >= period.startedAt,
                 )
                 .map((item) => item.workId),
             );
@@ -1159,7 +1159,7 @@ export function createDatabaseFocusPeriod(
               .filter(
                 ({ joinedAt, removedAt, workId }) =>
                   period.startedAt !== null &&
-                  joinedAt > period.startedAt &&
+                  joinedAt >= period.startedAt &&
                   removedAt !== null &&
                   !startIds.has(workId) &&
                   !currentMemberIds.has(workId),
