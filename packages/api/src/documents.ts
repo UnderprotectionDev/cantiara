@@ -1,9 +1,12 @@
 import { z } from "zod";
-
 import {
   DOCUMENT_STARTER_SKELETON_OPTIONS,
   DOCUMENT_STARTER_SKELETONS,
 } from "./document-skeletons";
+import type {
+  DocumentTemplateAccess,
+  DocumentTemplateMutationContracts,
+} from "./document-templates";
 import {
   humanMutationEnvelopeSchema,
   type MutationContract,
@@ -514,7 +517,7 @@ export interface DocumentRecordReferenceView extends DocumentRecordReference {
   source: { id: string; projectId: string | null; title: string } | null;
 }
 
-function isInsideMarkdownCodeSpan(line: string, position: number) {
+export function isInsideMarkdownCodeSpan(line: string, position: number) {
   const ticks = [...line.matchAll(/`+/g)];
   for (const [index, opening] of ticks.entries()) {
     const openingStart = opening.index ?? 0;
@@ -901,6 +904,7 @@ export interface DocumentMutationValue {
 export interface DocumentMutationContracts {
   create: (accountId: string) => MutationContract<DocumentMutationValue>;
   organize?: (accountId: string) => MutationContract<DocumentMutationValue>;
+  templates?: DocumentTemplateMutationContracts;
   update: (accountId: string) => MutationContract<DocumentMutationValue>;
 }
 
@@ -950,6 +954,7 @@ export interface DocumentsAccess {
     accountId: string,
     input: DocumentOrganizationInput,
   ) => Promise<DocumentHierarchyPreview>;
+  templates?: DocumentTemplateAccess;
   versions: (
     accountId: string,
     documentId: string,

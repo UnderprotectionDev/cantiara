@@ -6,7 +6,7 @@
     "build": "tsc -b ../../packages/api && tsdown",
     "check-types": "tsc -b ../../packages/api && tsc --noEmit",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
-    "dev": "bun run --hot src/index.ts",
+    "dev": "bun --env-file=.env.local ../../scripts/dev-server.ts",
     "start": "bun run dist/index.mjs",
     "test": "vitest run"
   },

@@ -483,6 +483,32 @@ describeDatabase("Focus Period working window", () => {
     ]);
   }, 30_000);
 
+  test("includes a Work added at the start instant in the close comparison after removal", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-03-02T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Boundary-time membership",
+      startDate: "2027-03-02",
+      endDate: "2027-03-08",
+    });
+
+    expect((await periods.find(accountId, period.id))?.status).toBe("Active");
+    await periods.add(accountId, period.id, followUpWorkId);
+    await periods.remove(accountId, period.id, followUpWorkId);
+    await periods.close(accountId, period.id);
+
+    const closed = await periods.find(accountId, period.id);
+    expect(closed?.closeSnapshot).toEqual([]);
+    expect(closed?.closeComparison).toMatchObject({
+      addedLater: [{ id: followUpWorkId }],
+      inStartSnapshot: [],
+      removed: [{ id: followUpWorkId }],
+    });
+  }, 30_000);
+
   test("derives read-only Dependencies only from relations inside period scope", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

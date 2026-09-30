@@ -1,3 +1,7 @@
+import {
+  documentTemplateInstantiationSchema,
+  personalReviewTemplate,
+} from "@cantiara/api/document-templates";
 import type {
   CreateDocumentInput,
   Document,
@@ -50,12 +54,22 @@ import {
   isNull,
   sql,
 } from "drizzle-orm";
-
+import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import {
+  findOwnedDocument,
+  findOwnedProject,
+  findWorkspaceId,
+} from "./document-ownership-database";
+import {
+  createDatabaseDocumentTemplateMutationContracts,
+  createDatabaseDocumentTemplates,
+  findOwnedDocumentTemplate,
+} from "./document-templates-database";
 
 function toDocument(row: typeof document.$inferSelect): Document {
   return documentSchema.parse({
@@ -120,20 +134,6 @@ function emptyTarget(targetId: string): MutationTarget<DocumentMutationValue> {
     revision: 0,
     value: { document: null },
   };
-}
-
-async function findWorkspaceId(
-  executor: MutationDatabaseExecutor,
-  accountId: string,
-  lock = false,
-) {
-  const query = executor
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(eq(workspace.ownerAccountId, accountId))
-    .limit(1);
-  const [record] = lock ? await query.for("update") : await query;
-  return record?.id ?? null;
 }
 
 async function resolveWorkspaceTags(
@@ -467,79 +467,81 @@ async function assertDocumentSectionAcyclic(
   }
 }
 
-async function findOwnedProject(
+async function validateDocumentTemplateInstantiation(
   executor: MutationDatabaseExecutor,
   accountId: string,
-  projectId: string,
+  input: ReturnType<typeof documentTemplateInstantiationSchema.parse>,
+  targetId: string,
   lock: boolean,
 ) {
-  const workspaceId = await findWorkspaceId(executor, accountId, lock);
-  if (!workspaceId) {
-    return null;
+  if (input.templateId === personalReviewTemplate.id) {
+    return true;
   }
-
-  const query = executor
-    .select()
-    .from(project)
-    .where(and(eq(project.id, projectId), eq(project.workspaceId, workspaceId)))
-    .limit(1);
-  const [record] = lock ? await query.for("update") : await query;
-  return record ?? null;
+  const template = await findOwnedDocumentTemplate(
+    executor,
+    accountId,
+    input.templateId,
+    lock,
+  );
+  if (!template || template.projectId !== input.projectId) {
+    return false;
+  }
+  if (template.revision !== input.templateRevision) {
+    throw new MutationStaleBaseRevisionError({
+      id: targetId,
+      revision: template.revision,
+      value: { document: null },
+    });
+  }
+  return true;
 }
 
-async function findOwnedDocument(
+async function resolveCreationScope(
   executor: MutationDatabaseExecutor,
   accountId: string,
-  documentId: string,
+  projectId: string | null,
   lock: boolean,
+): Promise<{
+  project: typeof project.$inferSelect | null;
+  scopeOwned: boolean;
+}> {
+  if (projectId === null) {
+    return {
+      project: null,
+      scopeOwned: (await findWorkspaceId(executor, accountId)) !== null,
+    };
+  }
+  const ownedProject = await findOwnedProject(
+    executor,
+    accountId,
+    projectId,
+    lock,
+  );
+  return {
+    project: ownedProject,
+    scopeOwned: ownedProject !== null && ownedProject.archivedAt === null,
+  };
+}
+
+function allowedDocumentSkeleton(
+  ownedProject: typeof project.$inferSelect,
+  payload:
+    | CreateDocumentInput
+    | ReturnType<typeof documentTemplateInstantiationSchema.parse>
+    | ReturnType<typeof documentCreationInputSchema.parse>,
 ) {
-  const [ownership] = await executor
-    .select({ projectId: document.projectId, workspaceId: workspace.id })
-    .from(document)
-    .leftJoin(project, eq(document.projectId, project.id))
-    .innerJoin(
-      workspace,
-      eq(
-        sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
-        workspace.id,
-      ),
-    )
-    .where(
-      and(eq(document.id, documentId), eq(workspace.ownerAccountId, accountId)),
-    )
-    .limit(1);
-  if (!ownership) {
-    return null;
+  if (!("skeleton" in payload)) {
+    return true;
   }
-
-  const ownedProject =
-    ownership.projectId === null
-      ? null
-      : await findOwnedProject(executor, accountId, ownership.projectId, lock);
-  if (
-    ownership.projectId !== null &&
-    (!ownedProject || ownedProject.archivedAt !== null)
-  ) {
-    return null;
-  }
-
-  const query = executor
-    .select()
-    .from(document)
-    .where(
-      and(
-        eq(document.id, documentId),
-        ownership.projectId === null
-          ? and(
-              isNull(document.projectId),
-              eq(document.workspaceId, ownership.workspaceId),
-            )
-          : eq(document.projectId, ownership.projectId),
-      ),
-    )
-    .limit(1);
-  const [record] = lock ? await query.for("update") : await query;
-  return record ? { ...record, projectId: ownership.projectId } : null;
+  const configuration = resolveProjectShellConfiguration(
+    ownedProject.configuration,
+    starterConfigurationSchema.parse(ownedProject.starterConfiguration),
+  );
+  return configuration.starterSkeletons.some(
+    (selection) =>
+      selection.surface === "Document" &&
+      selection.skeleton === payload.skeleton,
+  );
 }
 
 function createDocumentTarget(
@@ -548,39 +550,53 @@ function createDocumentTarget(
   return {
     committedValue: (target) => target.value,
     async find(executor, targetId, lock, context) {
-      const payload = documentCreationInputSchema.safeParse(context?.payload);
-      if (!payload.success) {
+      const templatePayload = documentTemplateInstantiationSchema.safeParse(
+        context?.payload,
+      );
+      let payloadData:
+        | ReturnType<typeof documentTemplateInstantiationSchema.parse>
+        | CreateDocumentInput
+        | ReturnType<typeof documentCreationInputSchema.parse>
+        | null = null;
+      if (templatePayload.success) {
+        payloadData = templatePayload.data;
+      } else {
+        const creationPayload = documentCreationInputSchema.safeParse(
+          context?.payload,
+        );
+        if (creationPayload.success) {
+          payloadData = creationPayload.data;
+        }
+      }
+      if (!payloadData) {
         return null;
       }
-      if (payload.data.projectId === null) {
-        return (await findWorkspaceId(executor, accountId))
-          ? emptyTarget(targetId)
-          : null;
-      }
-      const ownedProject = await findOwnedProject(
+      const owned = await resolveCreationScope(
         executor,
         accountId,
-        payload.data.projectId,
+        payloadData.projectId,
         lock,
       );
-      if (!ownedProject || ownedProject.archivedAt !== null) {
+      if (!owned.scopeOwned) {
         return null;
       }
-      if ("skeleton" in payload.data) {
-        const { skeleton } = payload.data;
-        const configuration = resolveProjectShellConfiguration(
-          ownedProject.configuration,
-          starterConfigurationSchema.parse(ownedProject.starterConfiguration),
-        );
-        if (
-          !configuration.starterSkeletons.some(
-            (selection) =>
-              selection.surface === "Document" &&
-              selection.skeleton === skeleton,
-          )
-        ) {
-          return null;
-        }
+      if (
+        templatePayload.success &&
+        !(await validateDocumentTemplateInstantiation(
+          executor,
+          accountId,
+          templatePayload.data,
+          targetId,
+          lock,
+        ))
+      ) {
+        return null;
+      }
+      if (
+        owned.project &&
+        !allowedDocumentSkeleton(owned.project, payloadData)
+      ) {
+        return null;
       }
       return emptyTarget(targetId);
     },
@@ -777,6 +793,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
   }
 
   return {
+    templates: createDatabaseDocumentTemplates(database),
     get,
     getLiveSection,
     async getLiveWork(accountId, workId) {
@@ -1057,6 +1074,7 @@ export function createDatabaseDocumentMutationContracts(
           },
         },
       }),
+    templates: createDatabaseDocumentTemplateMutationContracts(database),
     create: (accountId) =>
       createDatabaseMutationContract<DocumentMutationValue>(database, {
         target: createDocumentTarget(accountId),

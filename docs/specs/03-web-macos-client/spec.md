@@ -61,6 +61,7 @@ Web ve macOS Tauri aynı Hono/Bun backend'ini, Neon doğruluk kaynağını ve ü
 - **Modules under test.** Client Shell only. Account Access, operator backup, EU region, GitHub App, and visitor Dış yüzey are counterparts (“this control is absent / this write is unauthorized”), not in-suite features.
 - **Prior art.** Almost no Vitest/Playwright yet. First contract tests live at this seam. Evidence environment is [platform kabulü](../../prd/16-product-acceptance.md#platform-kabulu) plus the online-only empty state in that section. Cloud tests must not use production sessions, tokens, or private content.
 - **Required counterparts.** No local queue after disconnect; no second local DB; no Windows package; no EU region UI; no GitHub sign-in UI here; support reference has no secret; expired desktop API cannot write.
+- **Database error classification counterpart.** Client Shell treats PostgreSQL `42P01`/`42703` on an `Error.code` as schema drift even without SQLSTATE in the message. A permission error mentioning the `current_schema` function is not schema drift merely because that word occurs. `support-reference.test.ts` observes the same secret-free reason boundary; it does not apply migrations or change domain validation such as Focus Period membership. Development startup readiness is owned by the infrastructure Testing Decisions in `docs/tech-stack.md`.
 
 ## Out of Scope
 
