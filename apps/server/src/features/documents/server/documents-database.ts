@@ -132,6 +132,12 @@ type DocumentScope = Pick<
   "projectId" | "workspaceId"
 >;
 
+function conflictDraftIdFromCreationPayload(
+  payload: ReturnType<typeof documentCreationInputSchema.parse>,
+) {
+  return "conflictDraftId" in payload ? payload.conflictDraftId : undefined;
+}
+
 function conflictDraftScopeCondition(scope: DocumentScope) {
   return and(
     scope.projectId === null
@@ -600,8 +606,9 @@ function createDocumentTarget(
           }
         }
       }
-      if (payload.data.conflictDraftId) {
-        await requireConflictDraft(executor, payload.data.conflictDraftId, {
+      const conflictDraftId = conflictDraftIdFromCreationPayload(payload.data);
+      if (conflictDraftId) {
+        await requireConflictDraft(executor, conflictDraftId, {
           projectId,
           workspaceId,
         });

@@ -2833,7 +2833,7 @@ export const appRouter = {
                 revision: currentRevision + 1,
                 updatedAt: committedAt,
               }),
-              ...(payload.conflictDraftId
+              ...("conflictDraftId" in payload && payload.conflictDraftId
                 ? { conflictDraftId: payload.conflictDraftId }
                 : {}),
             }) satisfies DocumentMutationValue,
