@@ -125,6 +125,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Açık İş kararı bölgesi | `Still-open Work decisions` | Kapanıştan sonra açık İşlerin toplu kararını sunan erişilebilir bölüm |
 | Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
 | Odak Döneminde İş yok | `No Work in this Focus Period.` | Dönemde üyelik olmadığında boş durum |
+| Odak Döneminde bağımlılık yok | `No dependencies in this Focus Period.` | Dönem kapsamındaki mevcut ilişkilerden blokaj türetilemediğinde salt-okunur boş durum |
+| Bağımlılık döngüsünde | `Part of a dependency cycle` | Dönem kapsamında güvenle saptanan döngünün ilişkisi; çözülmüş kenar varsa tüm bekleyişlerin etkin olduğu anlamına gelmez |
 | Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
 | Başka etkin döneme taşı | `Move` | İşin mevcut etkin Odak Döneminden açıkça başka etkin döneme alınması |
 | Zaten etkin dönemde | `Work is already in an active Focus Period. Use Move.` | Örtük ikinci etkin üyelik reddi |
