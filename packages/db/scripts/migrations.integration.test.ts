@@ -49,6 +49,16 @@ function command(script: string, ...args: string[]) {
   });
 }
 
+// Fixture roles must authenticate the same way the fixture URL does: hosts
+// that require password auth (for example CI's scram-sha-256 postgres image)
+// reject passwordless roles before any permission check runs.
+function createFixtureRoleSql(name: string) {
+  const password = decodeURIComponent(new URL(databaseUrl ?? "").password);
+  return sql.raw(
+    `CREATE ROLE ${name} LOGIN PASSWORD '${password.replaceAll("'", "''")}'`,
+  );
+}
+
 describeDatabase(
   "Migration command and read-only development readiness",
   () => {
@@ -424,7 +434,7 @@ describeDatabase(
 
     test("reports read permission failures without suggesting a migration", async () => {
       await database.execute(
-        sql`CREATE ROLE cantiara_migration_test_denied LOGIN`,
+        createFixtureRoleSql("cantiara_migration_test_denied"),
       );
       try {
         const denied = new URL(databaseUrl ?? "");
@@ -442,7 +452,7 @@ describeDatabase(
 
     test("readiness succeeds with read-only privileges and leaves history unchanged", async () => {
       await database.execute(
-        sql`CREATE ROLE cantiara_migration_test_reader LOGIN`,
+        createFixtureRoleSql("cantiara_migration_test_reader"),
       );
       await database.execute(
         sql`GRANT USAGE ON SCHEMA public, drizzle TO cantiara_migration_test_reader`,
