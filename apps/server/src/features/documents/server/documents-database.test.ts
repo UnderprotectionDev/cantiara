@@ -23,7 +23,10 @@ import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDatabaseUsageLinks } from "../../relations/server/usage-links-database";
+import {
+  createDatabaseUsageLinkMutationContracts,
+  createDatabaseUsageLinks,
+} from "../../relations/server/usage-links-database";
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
 import {
@@ -60,6 +63,8 @@ describeDatabase("Documents database boundary", () => {
       documentMutationContracts:
         createDatabaseDocumentMutationContracts(database),
       documents: createDatabaseDocuments(database),
+      usageLinkMutationContracts:
+        createDatabaseUsageLinkMutationContracts(database),
       smartCollections: createDatabaseSmartCollections(database),
       technicalDiagrams: createDatabaseTechnicalDiagrams(database),
       githubAvailability: { getStatus: () => "available" },
@@ -107,6 +112,89 @@ describeDatabase("Documents database boundary", () => {
 
   afterAll(async () => {
     await database?.$client.end();
+  });
+
+  it("Personal Wiki persists through Documents without any Project and stays Account-private", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.delete(project).where(eq(project.id, projectId));
+    const documents = client();
+    const created = await documents.createDocument({
+      projectId: null,
+      title: "PostgreSQL troubleshooting",
+      body: "# Recovering a connection",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-create",
+    });
+    expect(created.projectId).toBeNull();
+    expect(await documents.documents({ projectId: null })).toEqual([created]);
+    const updated = await documents.updateDocument({
+      documentId: created.id,
+      body: "# Recovering a connection\n\nRetry after reconnecting.",
+      baseRevision: created.revision,
+      clientIdempotencyKey: "wiki-edit",
+    });
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      updated,
+    );
+    expect(
+      await documents.documentVersion({
+        documentId: created.id,
+        revision: created.revision,
+      }),
+    ).toEqual(created);
+    const restored = await documents.restoreDocumentVersion({
+      documentId: created.id,
+      revision: created.revision,
+      baseRevision: updated.revision,
+      clientIdempotencyKey: "wiki-restore",
+    });
+    expect(restored).toMatchObject({ projectId: null, body: created.body });
+    const target = await documents.createDocument({
+      projectId: null,
+      title: "Connection checklist",
+      body: "Review recovery steps.",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-evidence-target",
+    });
+    const evidence = await documents.pinDocumentEvidence({
+      documentId: created.id,
+      documentRevision: restored.revision,
+      selectionStart: 0,
+      selectionEnd: 12,
+      selectedText: "# Recovering",
+      targetRecordId: target.id,
+      targetRecordType: "Document",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-evidence-pin",
+    });
+    expect(evidence).toMatchObject({
+      kind: "Pinned bind",
+      source: { recordId: created.id, recordType: "Document" },
+      surface: { recordId: target.id, recordType: "Document" },
+    });
+    expect(
+      await createDatabaseDocuments(database).get(
+        "another-account",
+        created.id,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseDocuments(database).getVersion(
+        "another-account",
+        created.id,
+        created.revision,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseDocuments(database).versions(
+        "another-account",
+        created.id,
+      ),
+    ).toBeNull();
   });
 
   it("requires a selected skeleton in an owned, writable Project", async () => {
