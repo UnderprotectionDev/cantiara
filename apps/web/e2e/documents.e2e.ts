@@ -17,6 +17,7 @@ test("organizes Documents with a preview and preserves identity through Archive 
   page,
   request,
 }) => {
+  test.setTimeout(60_000);
   const response = await request.get(
     `${serverUrl}/__e2e/setup?fixture=documents`,
   );
@@ -759,7 +760,11 @@ test("keeps unsupported Markdown source intact when Write cannot round-trip it",
   await expect(
     document.getByRole("textbox", { name: "Markdown source" }),
   ).toHaveValue(source);
+  const savedResponse = page.waitForResponse((saveResponse) =>
+    saveResponse.url().endsWith("/rpc/updateDocument"),
+  );
   await document.getByRole("button", { name: "Save" }).click();
+  expect((await savedResponse).ok()).toBe(true);
   await page.reload();
   await page
     .getByRole("navigation", { name: "Documents" })

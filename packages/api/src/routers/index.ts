@@ -836,29 +836,21 @@ async function pinnedEvidenceTargetProjectId(
 ) {
   switch (recordType) {
     case "Work":
-      return (
-        (await context.workLifecycle?.find(accountId, recordId))?.projectId ??
-        null
-      );
+      return (await context.workLifecycle?.find(accountId, recordId))
+        ?.projectId;
     case "Document":
-      return (
-        (await context.documents?.get(accountId, recordId))?.projectId ?? null
-      );
+      return (await context.documents?.get(accountId, recordId))?.projectId;
     case "Technical Diagram":
-      return (
-        (await context.technicalDiagrams?.get(accountId, recordId))
-          ?.projectId ?? null
-      );
+      return (await context.technicalDiagrams?.get(accountId, recordId))
+        ?.projectId;
     default:
       return (
-        (
-          await context.projectSourceRecords?.find(
-            accountId,
-            recordType as ProjectSourceType,
-            recordId,
-          )
-        )?.projectId ?? null
-      );
+        await context.projectSourceRecords?.find(
+          accountId,
+          recordType as ProjectSourceType,
+          recordId,
+        )
+      )?.projectId;
   }
 }
 
@@ -2314,7 +2306,7 @@ export const appRouter = {
     .input(
       z
         .object({
-          projectId: projectIdSchema,
+          projectId: projectIdSchema.nullable(),
           archived: z.boolean().optional(),
         })
         .strict(),

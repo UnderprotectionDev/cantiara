@@ -145,6 +145,46 @@ describe("Documents", () => {
       "unknown",
     ]);
   });
+  it("keeps Markdown reference destinations unchanged when a tag is renamed", () => {
+    const body = [
+      "[docs]: #release",
+      "[guide]: <#release>",
+      "[continued]:",
+      "  #release",
+      "#release in prose",
+    ].join("\n");
+    const inlineTags = resolveDocumentInlineTags(body, [
+      { id: "release-tag", name: "release" },
+    ]);
+
+    expect(inlineTags).toEqual([
+      {
+        start: body.lastIndexOf("#release"),
+        end: body.lastIndexOf("#release") + "#release".length,
+        name: "release",
+        tagId: "release-tag",
+      },
+    ]);
+    expect(
+      renameDocumentInlineTag(
+        body,
+        inlineTags,
+        "release-tag",
+        "Release planning",
+      ).body,
+    ).toBe(
+      "[docs]: #release\n[guide]: <#release>\n[continued]:\n  #release\n#[Release planning] in prose",
+    );
+  });
+  it("scans malformed inline destinations without rescanning the remaining body", () => {
+    const body = `${"](".repeat(20_000)}#release`;
+    const startedAt = performance.now();
+
+    expect(documentInlineTagTokens(body)).toEqual([
+      { start: 40_000, end: 40_008, name: "release" },
+    ]);
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
   it("accepts one Markdown body containing a table, fenced code, Mermaid, and LaTeX", () => {
     const body = [
       "| Name | Value |",

@@ -162,14 +162,28 @@ async function resolveInlineTags(
   );
 }
 
-async function projectDocuments(
+function documentScopeFilter(
+  projectId: string | null,
+  workspaceId: string | null,
+) {
+  if (projectId !== null) {
+    return eq(document.projectId, projectId);
+  }
+  if (workspaceId === null) {
+    throw new DocumentUnavailableError();
+  }
+  return and(isNull(document.projectId), eq(document.workspaceId, workspaceId));
+}
+
+async function documentsInScope(
   executor: MutationDatabaseExecutor,
-  projectId: string,
+  projectId: string | null,
+  workspaceId: string | null,
 ) {
   const rows = await executor
     .select()
     .from(document)
-    .where(eq(document.projectId, projectId))
+    .where(documentScopeFilter(projectId, workspaceId))
     .orderBy(asc(document.id));
   return rows.map(toDocument);
 }
@@ -411,8 +425,14 @@ async function assertDocumentSectionAcyclic(
   const rows = await executor
     .select({ body: document.body, id: document.id })
     .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .leftJoin(project, eq(document.projectId, project.id))
+    .innerJoin(
+      workspace,
+      eq(
+        sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
+        workspace.id,
+      ),
+    )
     .where(eq(workspace.ownerAccountId, accountId));
   const bodies = new Map(rows.map((row) => [row.id, row.body]));
   bodies.set(documentId, body);
@@ -474,10 +494,16 @@ async function findOwnedDocument(
   lock: boolean,
 ) {
   const [ownership] = await executor
-    .select({ projectId: project.id })
+    .select({ projectId: document.projectId, workspaceId: workspace.id })
     .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .leftJoin(project, eq(document.projectId, project.id))
+    .innerJoin(
+      workspace,
+      eq(
+        sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
+        workspace.id,
+      ),
+    )
     .where(
       and(eq(document.id, documentId), eq(workspace.ownerAccountId, accountId)),
     )
@@ -486,13 +512,14 @@ async function findOwnedDocument(
     return null;
   }
 
-  const ownedProject = await findOwnedProject(
-    executor,
-    accountId,
-    ownership.projectId,
-    lock,
-  );
-  if (!ownedProject || ownedProject.archivedAt !== null) {
+  const ownedProject =
+    ownership.projectId === null
+      ? null
+      : await findOwnedProject(executor, accountId, ownership.projectId, lock);
+  if (
+    ownership.projectId !== null &&
+    (!ownedProject || ownedProject.archivedAt !== null)
+  ) {
     return null;
   }
 
@@ -502,7 +529,12 @@ async function findOwnedDocument(
     .where(
       and(
         eq(document.id, documentId),
-        eq(document.projectId, ownership.projectId),
+        ownership.projectId === null
+          ? and(
+              isNull(document.projectId),
+              eq(document.workspaceId, ownership.workspaceId),
+            )
+          : eq(document.projectId, ownership.projectId),
       ),
     )
     .limit(1);
@@ -519,6 +551,11 @@ function createDocumentTarget(
       const payload = documentCreationInputSchema.safeParse(context?.payload);
       if (!payload.success) {
         return null;
+      }
+      if (payload.data.projectId === null) {
+        return (await findWorkspaceId(executor, accountId))
+          ? emptyTarget(targetId)
+          : null;
       }
       const ownedProject = await findOwnedProject(
         executor,
@@ -580,6 +617,10 @@ function createDocumentTarget(
           createdAt: input.committedAt,
           id: nextDocument.id,
           projectId: nextDocument.projectId,
+          workspaceId:
+            nextDocument.projectId === null
+              ? await findWorkspaceId(executor, accountId)
+              : null,
           revision: 1,
           title: nextDocument.title,
           type: nextDocument.type,
@@ -687,8 +728,14 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
     const [row] = await database
       .select({ document })
       .from(document)
-      .innerJoin(project, eq(document.projectId, project.id))
-      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .leftJoin(project, eq(document.projectId, project.id))
+      .innerJoin(
+        workspace,
+        eq(
+          sql`coalesce(${document.workspaceId}, ${project.workspaceId})`,
+          workspace.id,
+        ),
+      )
       .where(
         and(
           eq(document.id, documentId),
@@ -858,7 +905,11 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
       if (!record) {
         throw new DocumentUnavailableError();
       }
-      const documents = await projectDocuments(database, record.projectId);
+      const documents = await documentsInScope(
+        database,
+        record.projectId,
+        record.workspaceId,
+      );
       const preview = previewDocumentHierarchy(
         documents,
         input.action === "hierarchy"
@@ -877,30 +928,50 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
       };
     },
     async list(accountId, projectId, archived = false) {
-      const ownedProject = await findOwnedProject(
-        database,
-        accountId,
-        projectId,
-        false,
-      );
-      if (!ownedProject) {
-        throw new DocumentUnavailableError();
+      const archiveFilter = archived
+        ? isNotNull(document.archivedAt)
+        : isNull(document.archivedAt);
+      let rows: Array<{ document: typeof document.$inferSelect }>;
+      if (projectId === null) {
+        const workspaceId = await findWorkspaceId(database, accountId);
+        if (!workspaceId) {
+          throw new DocumentUnavailableError();
+        }
+        rows = await database
+          .select({ document })
+          .from(document)
+          .where(
+            and(
+              isNull(document.projectId),
+              eq(document.workspaceId, workspaceId),
+              archiveFilter,
+            ),
+          )
+          .orderBy(desc(document.updatedAt));
+      } else {
+        const ownedProject = await findOwnedProject(
+          database,
+          accountId,
+          projectId,
+          false,
+        );
+        if (!ownedProject) {
+          throw new DocumentUnavailableError();
+        }
+        rows = await database
+          .select({ document })
+          .from(document)
+          .innerJoin(project, eq(document.projectId, project.id))
+          .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(document.projectId, projectId),
+              eq(workspace.ownerAccountId, accountId),
+              archiveFilter,
+            ),
+          )
+          .orderBy(desc(document.updatedAt));
       }
-      const rows = await database
-        .select({ document })
-        .from(document)
-        .innerJoin(project, eq(document.projectId, project.id))
-        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-        .where(
-          and(
-            eq(document.projectId, projectId),
-            eq(workspace.ownerAccountId, accountId),
-            archived
-              ? isNotNull(document.archivedAt)
-              : isNull(document.archivedAt),
-          ),
-        )
-        .orderBy(desc(document.updatedAt));
       const tags = await resolveWorkspaceTags(database, accountId);
       return rows.map(({ document: row }) => ({
         ...toDocument(row),
@@ -950,7 +1021,11 @@ export function createDatabaseDocumentMutationContracts(
               return null;
             }
             const preview = previewDocumentHierarchy(
-              await projectDocuments(executor, current.projectId),
+              await documentsInScope(
+                executor,
+                current.projectId,
+                current.workspaceId,
+              ),
               {
                 documentId: current.id,
                 parentDocumentId: next.parentDocumentId ?? null,

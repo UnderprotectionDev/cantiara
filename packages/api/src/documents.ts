@@ -19,7 +19,8 @@ export interface DocumentInlineTagToken {
 const documentIndentedCodePattern = /^(?: {4}|\t)/;
 const documentBackticksPattern = /`+/g;
 const documentUrlPattern = /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|<[^>\n]*>/g;
-const documentLinkDestinationPattern = /\]\(/g;
+const documentReferenceLinkDestinationPattern =
+  /^(?: {0,3}> ?)* {0,3}\[(?:\\.|[^\]\\\r\n])+\]:[ \t]*(?:\r?\n(?: {0,3}> ?)* {0,3})?(<[^>\r\n]*>|[^\s<>]+)/gm;
 const documentTagPattern =
   /(?<![\p{L}\p{N}_/#])#(?:\[((?:\\.|[^\]\\\r\n]){1,800})\]|([\p{L}\p{N}][\p{L}\p{N}_/-]{0,199})(?![\p{L}\p{N}_/-]))/gu;
 const documentTagInvalidEscapePattern = /\\[^\\\]nr]/;
@@ -132,34 +133,71 @@ function markdownInlineCodeRanges(
   return ranges;
 }
 
+function markdownTagInlineLinkDestinationRanges(body: string) {
+  const ranges: Array<{ start: number; end: number }> = [];
+  let openingIndex = -1;
+  let depth = 0;
+  let escaped = false;
+  for (let cursor = 0; cursor < body.length; cursor += 1) {
+    const character = body[cursor];
+    if (character === "\n") {
+      openingIndex = -1;
+      depth = 0;
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = !escaped;
+      continue;
+    }
+    const isEscaped = escaped;
+    escaped = false;
+    if (openingIndex < 0) {
+      if (character === "]" && body[cursor + 1] === "(" && !isEscaped) {
+        openingIndex = cursor;
+        depth = 1;
+        cursor += 1;
+      }
+      continue;
+    }
+    if (isEscaped) {
+      continue;
+    }
+    if (character === "(") {
+      depth += 1;
+    } else if (character === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        ranges.push({ start: openingIndex, end: cursor + 1 });
+        openingIndex = -1;
+      }
+    }
+  }
+  return ranges;
+}
+
+function markdownTagReferenceDestinationRanges(body: string) {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const match of body.matchAll(documentReferenceLinkDestinationPattern)) {
+    const [, destination] = match;
+    if (!destination) {
+      continue;
+    }
+    const start = match.index + match[0].lastIndexOf(destination);
+    ranges.push({ start, end: start + destination.length });
+  }
+  return ranges;
+}
+
 function markdownTagUrlRanges(body: string) {
   const ranges = [...body.matchAll(documentUrlPattern)].map((match) => ({
     start: match.index,
     end: match.index + match[0].length,
   }));
-  for (const opening of body.matchAll(documentLinkDestinationPattern)) {
-    const { index: openingIndex } = opening;
-    let depth = 1;
-    for (
-      let cursor = openingIndex + 2;
-      cursor < body.length && body[cursor] !== "\n";
-      cursor += 1
-    ) {
-      if (isEscapedMarkdownPosition(body, cursor)) {
-        continue;
-      }
-      if (body[cursor] === "(") {
-        depth += 1;
-      } else if (body[cursor] === ")") {
-        depth -= 1;
-      }
-      if (depth === 0) {
-        ranges.push({ start: openingIndex, end: cursor + 1 });
-        break;
-      }
-    }
-  }
-  return ranges;
+  return ranges.concat(
+    markdownTagInlineLinkDestinationRanges(body),
+    markdownTagReferenceDestinationRanges(body),
+  );
 }
 
 function inlineTagName(match: RegExpMatchArray) {
@@ -473,7 +511,7 @@ export interface DocumentRecordReference {
 }
 
 export interface DocumentRecordReferenceView extends DocumentRecordReference {
-  source: { id: string; projectId: string; title: string } | null;
+  source: { id: string; projectId: string | null; title: string } | null;
 }
 
 function isInsideMarkdownCodeSpan(line: string, position: number) {
@@ -671,7 +709,7 @@ export function documentLiveWorkIds(body: string): string[] {
 
 export const createDocumentInputSchema = z
   .object({
-    projectId: projectIdSchema,
+    projectId: projectIdSchema.nullable(),
     title: documentTitleSchema,
     body: documentBodySchema,
     type: documentTypeSchema,
@@ -881,7 +919,7 @@ export interface LiveWorkSource {
 export interface DocumentLiveSectionSource {
   documentId: string;
   heading: string;
-  projectId: string;
+  projectId: string | null;
   sectionId: string;
   text: string;
   title: string;
@@ -905,7 +943,7 @@ export interface DocumentsAccess {
   ) => Promise<Document | null>;
   list: (
     accountId: string,
-    projectId: string,
+    projectId: string | null,
     archived?: boolean,
   ) => Promise<Document[]>;
   previewOrganization?: (

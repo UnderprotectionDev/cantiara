@@ -132,6 +132,104 @@ function createFailingMutationContract(error: unknown) {
   return contract;
 }
 
+describe("Personal Wiki ownership boundary", () => {
+  test("Wiki evidence cannot use an unavailable target as Wiki ownership", async () => {
+    const documents = createDocumentsAccess();
+    vi.mocked(documents.get).mockImplementation(
+      async (_accountId, documentId) =>
+        documentId === "private-wiki"
+          ? {
+              ...initialDocument,
+              id: "private-wiki",
+              projectId: null,
+              body: "Private knowledge",
+            }
+          : null,
+    );
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    await expect(
+      client.pinDocumentEvidence({
+        documentId: "private-wiki",
+        documentRevision: 1,
+        selectionStart: 0,
+        selectionEnd: 7,
+        selectedText: "Private",
+        targetRecordId: "unavailable-document",
+        targetRecordType: "Document",
+        baseRevision: 0,
+        clientIdempotencyKey: "wiki-evidence",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  test("Personal Wiki creates a Document without a Project through the same commands", async () => {
+    const documents = createDocumentsAccess();
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => mutation.contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    const created = await client.createDocument({
+      projectId: null,
+      title: "PostgreSQL troubleshooting",
+      body: "# Connection recovery",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-create",
+    });
+    expect(created).toMatchObject({ projectId: null, type: "General" });
+    expect(created).not.toHaveProperty("visitorUrl");
+    expect(created).not.toHaveProperty("publicSlug");
+    await client.documents({ projectId: null });
+    expect(documents.list).toHaveBeenCalledWith("account-1", null, undefined);
+  });
+  test("rejects a second Wiki Document type", async () => {
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => mutation.contract,
+        update: () => mutation.contract,
+      }),
+    });
+    const input = {
+      projectId: null,
+      title: "Personal knowledge",
+      body: "Private text",
+      type: initialDocument.type,
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-type",
+    };
+    Reflect.set(input, "type", "Wiki");
+    await expect(client.createDocument(input)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mutation.commands).toHaveLength(0);
+  });
+  test("unauthenticated reads never reach live Wiki content", async () => {
+    const documents = createDocumentsAccess();
+    const context = createContext(documents, {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    context.session = null;
+    const client = createRouterClient(appRouter, { context });
+    await expect(client.documents({ projectId: null })).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.document({ documentId: "private-wiki" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(documents.list).not.toHaveBeenCalled();
+    expect(documents.get).not.toHaveBeenCalled();
+  });
+});
+
 describe("Documents RPC", () => {
   test("creates Persona with only its contracted empty headings", async () => {
     const context = createContext(createDocumentsAccess(), {

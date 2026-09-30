@@ -46,6 +46,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
+import DocumentInlineTags from "./document-inline-tags";
 import DocumentNavigation from "./document-navigation";
 import DocumentOrganizationControls from "./document-organization-controls";
 import DocumentPreview from "./document-preview";
@@ -277,9 +278,9 @@ function DocumentEditor({
   });
   const collectionViews = useQuery({
     ...orpc.smartCollectionViews.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const documentsForSections = useQuery({
     ...orpc.documents.queryOptions({
@@ -289,9 +290,9 @@ function DocumentEditor({
   });
   const sourceRecords = useQuery({
     ...orpc.projectSourceRecords.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const sectionSourceDocument = documentsForSections.data?.find(
     ({ id }) => id === sectionDocumentId,
@@ -301,9 +302,9 @@ function DocumentEditor({
     : [];
   const diagrams = useQuery({
     ...orpc.technicalDiagrams.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const diagramViews = useQuery({
     ...orpc.technicalDiagramViews.queryOptions({
@@ -370,9 +371,9 @@ function DocumentEditor({
   });
   const works = useQuery({
     ...orpc.projectWorks.queryOptions({
-      input: { projectId: record.projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const bulkRows = documentListRows(savedBody);
   const selectedBulkRows = bulkRows.filter(({ start, end }) =>
@@ -563,6 +564,10 @@ function DocumentEditor({
     WorkProfile | ProjectSourceRecord | null
   >({
     mutationFn: async () => {
+      const { projectId } = record;
+      if (projectId === null) {
+        throw new Error("A Project is required for record conversion.");
+      }
       const selection = selectedTextRange;
       const body = form.getFieldValue("body");
       if (
@@ -591,7 +596,7 @@ function DocumentEditor({
             documentEvidence,
             effort: null,
             plannedStartDate: null,
-            projectId: record.projectId,
+            projectId,
             targetDate: null,
             title: recordConversionTitle,
             type: "Task",
@@ -603,7 +608,7 @@ function DocumentEditor({
         clientIdempotencyKey: recordConversionKey.current as string,
         documentEvidence,
         id: recordConversionId.current as string,
-        projectId: record.projectId,
+        projectId,
         title: recordConversionTitle,
       };
       switch (recordConversionType) {
@@ -664,8 +669,13 @@ function DocumentEditor({
   });
   const convertListToWork = useMutation({
     mutationFn: () => {
+      const { projectId } = record;
       const body = form.getFieldValue("body");
-      if (body !== savedBody || selectedBulkRows.length === 0) {
+      if (
+        projectId === null ||
+        body !== savedBody ||
+        selectedBulkRows.length === 0
+      ) {
         throw new Error("Save the Document and choose list rows first.");
       }
       bulkConversionKey.current ??= crypto.randomUUID();
@@ -681,7 +691,7 @@ function DocumentEditor({
             selectionStart: row.start,
             title: titleFromSelectedText(row.text),
           })),
-          projectId: record.projectId,
+          projectId,
         }),
       );
     },
@@ -778,6 +788,11 @@ function DocumentEditor({
 
   return (
     <section aria-label="Document">
+      {record.projectId === null ? (
+        <p className="mb-3 w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
+          Personal Wiki
+        </p>
+      ) : null}
       <form
         className="space-y-5"
         onSubmit={(event) => {
@@ -864,13 +879,11 @@ function DocumentEditor({
             )}
           </form.Subscribe>
           {record.inlineTags?.length ? (
-            <fieldset aria-label="Tags" className="flex flex-wrap gap-2">
-              {record.inlineTags.map((tag) => (
-                <Button
-                  data-tag-id={tag.tagId}
-                  disabled={previewBody !== savedBody}
-                  key={`${tag.tagId}:${tag.start}`}
-                  onClick={() => {
+            <form.Subscribe selector={(state) => state.values.body}>
+              {(body) => (
+                <DocumentInlineTags
+                  body={body}
+                  onSelect={(tag) => {
                     setView("markdown");
                     window.requestAnimationFrame(() => {
                       const source =
@@ -881,15 +894,13 @@ function DocumentEditor({
                       }
                     });
                   }}
-                  type="button"
-                  variant="secondary"
-                >
-                  #{tag.name}
-                </Button>
-              ))}
-            </fieldset>
+                  savedBody={savedBody}
+                  tags={record.inlineTags ?? []}
+                />
+              )}
+            </form.Subscribe>
           ) : null}
-          {convertedDiagram ? (
+          {convertedDiagram && record.projectId !== null ? (
             <div
               className="rounded-md border border-border bg-muted/50 p-3 text-sm"
               role="status"
@@ -1047,12 +1058,14 @@ function DocumentEditor({
                           </NativeSelectOption>
                         ))}
                       </NativeSelect>
-                      <a
-                        className="text-sm underline"
-                        href={`/projects/${record.projectId}#smart-collections`}
-                      >
-                        Smart Collection
-                      </a>
+                      {record.projectId === null ? null : (
+                        <a
+                          className="text-sm underline"
+                          href={`/projects/${record.projectId}#smart-collections`}
+                        >
+                          Smart Collection
+                        </a>
+                      )}
                       <Label htmlFor="document-live-diagram">
                         Technical Diagram
                       </Label>
@@ -1072,12 +1085,14 @@ function DocumentEditor({
                           </NativeSelectOption>
                         ))}
                       </NativeSelect>
-                      <a
-                        className="text-sm underline"
-                        href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
-                      >
-                        Technical Diagrams
-                      </a>
+                      {record.projectId === null ? null : (
+                        <a
+                          className="text-sm underline"
+                          href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
+                        >
+                          Technical Diagrams
+                        </a>
+                      )}
                       {selectedDiagramId ? (
                         <>
                           <Label htmlFor="document-live-diagram-view">
@@ -1202,6 +1217,7 @@ function DocumentEditor({
                       </Button>
                       <Button
                         disabled={
+                          record.projectId === null ||
                           !selectedTextRange ||
                           selectedTextRange.end <= selectedTextRange.start ||
                           field.state.value !== savedBody
@@ -1229,6 +1245,7 @@ function DocumentEditor({
                       </Button>
                       <Button
                         disabled={
+                          record.projectId === null ||
                           bulkRows.length === 0 ||
                           field.state.value !== savedBody
                         }
@@ -1273,7 +1290,7 @@ function DocumentEditor({
                         })
                       }
                       onMermaidConvert={
-                        previewBody === savedBody
+                        record.projectId !== null && previewBody === savedBody
                           ? (start, end) => {
                               conversionKey.current = null;
                               setConversionTitle(record.title);
@@ -1785,12 +1802,12 @@ function DocumentEditor({
   );
 }
 
-export default function ProjectDocumentsSurface({
+export default function DocumentsSurface({
   projectId,
   selectedDocumentId,
   starterSkeletons,
 }: {
-  projectId: string;
+  projectId: string | null;
   selectedDocumentId?: string;
   starterSkeletons: readonly StarterSkeletonSelection[];
 }) {
@@ -1815,7 +1832,7 @@ export default function ProjectDocumentsSurface({
   const [createOpen, setCreateOpen] = useState(false);
   const pendingCreate = useRef<{
     clientIdempotencyKey: string;
-    projectId: string;
+    projectId: string | null;
     value: DocumentCreateInput;
   } | null>(null);
 
@@ -1854,8 +1871,12 @@ export default function ProjectDocumentsSurface({
           clientIdempotencyKey: command.clientIdempotencyKey,
         };
         if ("skeleton" in command.value) {
+          if (projectId === null) {
+            throw new Error("Starter skeletons require a Project.");
+          }
           return client.createDocument({
             ...mutationEnvelope,
+            projectId,
             skeleton: command.value.skeleton,
           });
         }

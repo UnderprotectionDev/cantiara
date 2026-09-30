@@ -11,7 +11,6 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-
 import { workspace } from "./auth";
 import { project } from "./project";
 
@@ -93,9 +92,12 @@ export const documentConflictDraft = pgTable(
   "document_conflict_draft",
   {
     id: text("id").primaryKey(),
-    documentId: text("document_id").notNull(),
-    projectId: text("project_id"),
-    workspaceId: text("workspace_id"),
+    documentId: text("document_id")
+      .notNull()
+      .references(() => document.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
     baseRevision: integer("base_revision").notNull(),
     title: text("title").notNull(),
     body: text("body").notNull(),
@@ -106,20 +108,6 @@ export const documentConflictDraft = pgTable(
     resolvedAt: timestamp("resolved_at"),
   },
   (table) => [
-    foreignKey({
-      name: "document_conflict_draft_project_scope_fk",
-      columns: [table.documentId, table.projectId],
-      foreignColumns: [document.id, document.projectId],
-    })
-      .onDelete("cascade")
-      .onUpdate("cascade"),
-    foreignKey({
-      name: "document_conflict_draft_workspace_scope_fk",
-      columns: [table.documentId, table.workspaceId],
-      foreignColumns: [document.id, document.workspaceId],
-    })
-      .onDelete("cascade")
-      .onUpdate("cascade"),
     uniqueIndex("document_conflict_draft_request_idx").on(
       table.documentId,
       table.clientIdempotencyKey,
@@ -127,10 +115,6 @@ export const documentConflictDraft = pgTable(
     index("document_conflict_draft_document_idx").on(
       table.documentId,
       table.resolvedAt,
-    ),
-    check(
-      "document_conflict_draft_scope_check",
-      sql`(${table.projectId} IS NOT NULL AND ${table.workspaceId} IS NULL) OR (${table.projectId} IS NULL AND ${table.workspaceId} IS NOT NULL)`,
     ),
     check(
       "document_conflict_draft_revision_check",
