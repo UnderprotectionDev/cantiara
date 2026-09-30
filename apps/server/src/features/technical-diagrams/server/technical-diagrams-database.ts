@@ -49,7 +49,7 @@ export function createDatabaseTechnicalDiagrams(
     input: MermaidConversionInput,
   ) {
     const [row] = await database
-      .select({ document })
+      .select({ document, projectId: project.id })
       .from(document)
       .innerJoin(project, eq(document.projectId, project.id))
       .innerJoin(workspace, eq(project.workspaceId, workspace.id))
@@ -73,7 +73,7 @@ export function createDatabaseTechnicalDiagrams(
     const conversion = await previewMermaidArchitecture(source);
     return {
       title: input.title,
-      projectId: row.document.projectId,
+      projectId: row.projectId,
       documentId: input.documentId,
       documentRevision: input.documentRevision,
       blockStart: input.blockStart,
@@ -260,7 +260,7 @@ export function createDatabaseTechnicalDiagrams(
         const [saved] = await tx
           .select({
             body: document.body,
-            projectId: document.projectId,
+            projectId: project.id,
             revision: document.revision,
             workspaceId: workspace.id,
           })

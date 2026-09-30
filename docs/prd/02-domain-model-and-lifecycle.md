@@ -23,6 +23,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | PDF | `PDF` | Tek belge dışa aktarma biçimi |
 | Dış yüzeyi iptal et | `Cancel External Surface` | Taşımadan önce etkin Dış yüzeyi iptal etme onayı |
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
+| Belge düzenleme | `Organize Document` | Aynı Projede klasör ve üst Belgeyi önizlemeyle düzenleme; kapsam taşıması değildir |
+| Üst Belgeyi kaldır | `No Parent Document` | Belgeyi aynı kapsamda kök seviyeye alma; çocuk bağları korunur |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
 | Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |
 | Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
