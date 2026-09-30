@@ -632,6 +632,8 @@ Documents source ownership is split across the API contract (`packages/api/src/d
 
 Personal Wiki owns the authenticated ownership shell under `apps/web/src/features/personal-wiki/` and `apps/web/src/routes/_auth/personal-wiki.tsx`. It consumes the same Documents surface, contract, schema, server access, and mutations; Wiki Documents have Workspace ownership and no Project. Publishing remains a separate feature.
 
+The Documents in-memory edit session lives in `apps/web/src/features/documents/store/`; its Conflict Draft comparison and resolution surface lives in `apps/web/src/features/documents/ui/components/document-conflict-drafts.tsx`. The session consumes Client Shell connection state without creating persistent storage or a write queue. Client Shell's server support-response boundary preserves the validated Documents conflict payload while retaining its no-retry policy.
+
 Smart Collections source ownership is split across the API contract (`packages/api/src/smart-collections.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/smart-collection.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/smart-collections/server/`), and the Project Smart Collections surface (`apps/web/src/features/smart-collections/`).
 
 Technical Diagrams source ownership is split across the API contract (`packages/api/src/technical-diagrams.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/technical-diagram.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/technical-diagrams/server/`), and the Project Technical Diagrams surface (`apps/web/src/features/technical-diagrams/`).

@@ -438,6 +438,7 @@ describe("Documents RPC", () => {
       baseRevision: 0,
       body: initialDocument.body,
       clientIdempotencyKey: "create-document-1",
+      conflictDraftId: "00000000-0000-4000-8000-000000000001",
       projectId: initialDocument.projectId,
       title: initialDocument.title,
       type: initialDocument.type,
@@ -450,12 +451,14 @@ describe("Documents RPC", () => {
       title: initialDocument.title,
       type: initialDocument.type,
     });
+    expect(created).not.toHaveProperty("conflictDraftId");
     expect(creation.commands[0]).toMatchObject({
       baseRevision: 0,
       clientIdempotencyKey: "create-document-1",
       kind: "human",
       payload: {
         body: initialDocument.body,
+        conflictDraftId: "00000000-0000-4000-8000-000000000001",
         projectId: initialDocument.projectId,
       },
       targetId: "create-document-1",
