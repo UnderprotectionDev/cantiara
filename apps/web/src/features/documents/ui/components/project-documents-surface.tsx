@@ -50,6 +50,7 @@ import DocumentInlineTags from "./document-inline-tags";
 import DocumentNavigation from "./document-navigation";
 import DocumentOrganizationControls from "./document-organization-controls";
 import DocumentPreview from "./document-preview";
+import DocumentTemplatesSurface from "./document-templates-surface";
 import DocumentVersionCompare from "./document-version-compare";
 
 const lowlight = createLowlight(common);
@@ -526,6 +527,22 @@ function DocumentEditor({
       });
     },
   });
+  const hasNewerVersion = record.revision > revision;
+  function reloadLatestVersion() {
+    if (save.isPending) {
+      return;
+    }
+    pendingSave.current = null;
+    setError(null);
+    setRevision(record.revision);
+    setPreviewBody(record.body);
+    setSavedBody(record.body);
+    form.reset({
+      title: record.title,
+      type: record.type,
+      body: record.body,
+    });
+  }
   const pinEvidence = useMutation({
     mutationFn: () => {
       const selection = selectedTextRange;
@@ -800,6 +817,19 @@ function DocumentEditor({
           form.handleSubmit().catch(() => undefined);
         }}
       >
+        {hasNewerVersion ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/50 p-3 text-sm">
+            <p role="status">A newer Document version is available.</p>
+            <Button
+              disabled={save.isPending}
+              onClick={reloadLatestVersion}
+              type="button"
+              variant="outline"
+            >
+              Reload latest version
+            </Button>
+          </div>
+        ) : null}
         <fieldset
           className="min-w-0 space-y-5 border-0 p-0"
           disabled={save.isPending}
@@ -851,7 +881,10 @@ function DocumentEditor({
               })}
             >
               {({ title, isSubmitting }) => (
-                <Button disabled={isSubmitting || !title.trim()} type="submit">
+                <Button
+                  disabled={hasNewerVersion || isSubmitting || !title.trim()}
+                  type="submit"
+                >
                   Save
                 </Button>
               )}
@@ -1898,6 +1931,9 @@ export default function DocumentsSurface({
       setCreateOpen(false);
       setArchived(false);
       setSelectedId(created.id);
+      if (projectId === null) {
+        window.location.hash = documentRecordHash(created.id);
+      }
       await queryClient.invalidateQueries({ queryKey: orpc.documents.key() });
     },
     onError: (failure) =>
@@ -1969,6 +2005,17 @@ export default function DocumentsSurface({
           Create Document
         </Button>
       </header>
+      <DocumentTemplatesSurface
+        onCreated={async (created) => {
+          setSelectedId(created.id);
+          if (projectId === null) {
+            window.location.hash = documentRecordHash(created.id);
+          }
+          await queryClient.invalidateQueries({ queryKey: options.queryKey });
+        }}
+        projectId={projectId}
+        source={selected}
+      />
       <Dialog
         onOpenChange={(open) => {
           setCreateOpen(open);
@@ -2124,7 +2171,7 @@ export default function DocumentsSurface({
             onSaved={() =>
               queryClient.invalidateQueries({ queryKey: orpc.documents.key() })
             }
-            record={selected}
+            record={{ ...selected, projectId: selected.projectId }}
           />
         ) : (
           <p>Select a Document.</p>

@@ -23,7 +23,7 @@ import {
 } from "@cantiara/db/schema/technical-diagram";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createDatabaseUsageLinkMutationContracts,
@@ -49,9 +49,21 @@ describeDatabase("Documents database boundary", () => {
   const workspaceId = `workspace-${crypto.randomUUID()}`;
   const projectId = `project-${crypto.randomUUID()}`;
 
-  function client() {
+  function client(
+    principalAccountId = accountId,
+    afterTemplateRead?: () => Promise<void>,
+  ) {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const access = createDatabaseDocuments(database);
+    if (afterTemplateRead && access.templates) {
+      const readTemplate = access.templates.get;
+      access.templates.get = async (...arguments_) => {
+        const template = await readTemplate(...arguments_);
+        await afterTemplateRead();
+        return template;
+      };
     }
     const context: Context = {
       accountAccess: {
@@ -66,7 +78,7 @@ describeDatabase("Documents database boundary", () => {
       db: database,
       documentMutationContracts:
         createDatabaseDocumentMutationContracts(database),
-      documents: createDatabaseDocuments(database),
+      documents: access,
       usageLinkMutationContracts:
         createDatabaseUsageLinkMutationContracts(database),
       smartCollections: createDatabaseSmartCollections(database),
@@ -74,7 +86,7 @@ describeDatabase("Documents database boundary", () => {
       githubAvailability: { getStatus: () => "available" },
       session: {
         session: { id: "session-1" },
-        user: { id: accountId },
+        user: { id: principalAccountId },
       } as Context["session"],
     };
     return createRouterClient(appRouter, { context });
@@ -99,6 +111,269 @@ describeDatabase("Documents database boundary", () => {
       shortCode: `DOC-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
       starterConfiguration: "Blank Project",
     });
+  });
+
+  it("keeps existing Wiki Documents accessible when converting to templates", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documentId = crypto.randomUUID();
+    await database.execute(sql`
+      INSERT INTO document (id, workspace_id, title, body, type, revision)
+      VALUES (${documentId}, ${workspaceId}, 'Existing Wiki Document',
+        '## Period\n\n{{period}}\n', 'General', 1)
+    `);
+    const documents = client();
+    const original = await documents.document({ documentId });
+    expect(original).toMatchObject({
+      id: documentId,
+      projectId: null,
+      title: "Existing Wiki Document",
+    });
+    expect(await documents.documents({ projectId: null })).toEqual([original]);
+    const preview = await documents.previewDocumentTemplate({ documentId });
+    const template = await documents.createDocumentTemplate({
+      ...preview,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const created = await documents.createDocumentFromTemplate({
+      projectId: null,
+      templateId: template.id,
+      templateRevision: template.revision,
+      title: "Review instance",
+      values: { period: "September" },
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    expect(created.body).toBe("## Period\n\nSeptember\n");
+    expect(await documents.document({ documentId })).toEqual(original);
+    await expect(
+      client("another-account").document({ documentId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("revalidates the template Version at the Document commit boundary", async () => {
+    const documents = client();
+    const template = await documents.createDocumentTemplate({
+      projectId,
+      name: "Review",
+      type: "General",
+      body: "## Period\n",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const racingDocuments = client(accountId, async () => {
+      await documents.updateDocumentTemplate({
+        templateId: template.id,
+        name: "Review",
+        type: "General",
+        body: "## Changed\n",
+        baseRevision: template.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+    });
+    await expect(
+      racingDocuments.createDocumentFromTemplate({
+        projectId,
+        templateId: template.id,
+        templateRevision: template.revision,
+        title: "Review instance",
+        values: {},
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(await documents.documents({ projectId })).toEqual([]);
+  });
+
+  it.each(["Project", "Personal Wiki"] as const)(
+    "keeps converted templates and generated Documents independent in %s",
+    async (scope) => {
+      const documents = client();
+      const scopeProjectId = scope === "Project" ? projectId : null;
+      const source = await documents.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: scopeProjectId,
+        title: "Monthly review",
+        type: "General",
+        body: "## Period\n\n{{period}}\n\n## Decisions\n",
+      });
+      const preview = await documents.previewDocumentTemplate({
+        documentId: source.id,
+      });
+      const command = {
+        ...preview,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      const template = await documents.createDocumentTemplate(command);
+      expect(await documents.createDocumentTemplate(command)).toEqual(template);
+      expect(await documents.document({ documentId: source.id })).toEqual(
+        source,
+      );
+      const createCommand = {
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: scopeProjectId,
+        templateId: template.id,
+        templateRevision: template.revision,
+        title: "September review",
+        values: { period: "September" },
+      };
+      const created = await documents.createDocumentFromTemplate(createCommand);
+      expect(await documents.createDocumentFromTemplate(createCommand)).toEqual(
+        created,
+      );
+      expect(created.id).not.toBe(source.id);
+      expect(created.id).not.toBe(template.id);
+      expect(created.body).toBe("## Period\n\nSeptember\n\n## Decisions\n");
+      expect(created.revision).toBe(1);
+      expect(
+        await documents.documentVersions({ documentId: created.id }),
+      ).toHaveLength(1);
+      await documents.updateDocumentTemplate({
+        baseRevision: template.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        templateId: template.id,
+        name: template.name,
+        type: "Plan",
+        body: "## Changed template\n",
+      });
+      expect(await documents.document({ documentId: created.id })).toEqual(
+        created,
+      );
+      expect(await documents.document({ documentId: source.id })).toEqual(
+        source,
+      );
+      expect(await documents.createDocumentFromTemplate(createCommand)).toEqual(
+        created,
+      );
+      await expect(
+        documents.createDocumentFromTemplate({
+          ...createCommand,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      const edited = await documents.updateDocument({
+        documentId: created.id,
+        baseRevision: created.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        body: "",
+      });
+      expect(edited.body).toBe("");
+    },
+  );
+
+  it("does not require a template for ordinary Documents and does not persist the prepared Personal Review", async () => {
+    const documents = client();
+    const created = await documents.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Blank Document",
+      type: "General",
+      body: "",
+    });
+    expect(created.body).toBe("");
+    expect(await documents.documentTemplates({ projectId })).toEqual([]);
+    const review = await documents.createDocumentFromTemplate({
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Personal review",
+      templateId: "personal-review",
+      values: {},
+    });
+    expect(review.projectId).toBeNull();
+    expect(review.body).toBe(
+      "## Period\n\n## What changed?\n\n## What worked?\n\n## What was difficult?\n\n## Decisions and learnings\n\n## What will I change next?\n\n## Related records\n",
+    );
+    expect(await documents.documentTemplates({ projectId: null })).toEqual([]);
+  });
+
+  it("rejects foreign scopes, cross-scope conversion, stale previews, and stale template updates", async () => {
+    const documents = client();
+    const other = client("another-account");
+    await expect(other.documentTemplates({ projectId })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(
+      other.documentTemplates({ projectId: null }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const source = await documents.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Private review",
+      type: "General",
+      body: "Private",
+    });
+    const preview = await documents.previewDocumentTemplate({
+      documentId: source.id,
+    });
+    await expect(
+      other.previewDocumentTemplate({ documentId: source.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(other.documents({ projectId: null })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(
+      documents.createDocumentTemplate({
+        ...preview,
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await documents.updateDocument({
+      documentId: source.id,
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+      body: "Changed",
+    });
+    await expect(
+      documents.createDocumentTemplate({
+        ...preview,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const template = await documents.createDocumentTemplate({
+      projectId: null,
+      name: "Review",
+      type: "General",
+      body: "## Period\n",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await expect(
+      other.createDocumentFromTemplate({
+        projectId: null,
+        templateId: template.id,
+        templateRevision: 1,
+        title: "Stolen",
+        values: {},
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const update = {
+      templateId: template.id,
+      name: "Changed",
+      type: "General" as const,
+      body: "Changed",
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+    };
+    await documents.updateDocumentTemplate(update);
+    await expect(
+      documents.updateDocumentTemplate({
+        ...update,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 
   afterEach(async () => {
@@ -727,6 +1002,36 @@ describeDatabase("Documents database boundary", () => {
         surface: { recordId: created.id, recordType: "Document" },
       },
     ]);
+    const convertedPreview = await documents.previewDocumentTemplate({
+      documentId: created.id,
+    });
+    expect(convertedPreview.body).toBe("");
+    const template = await documents.createDocumentTemplate({
+      ...convertedPreview,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const independent = await documents.createDocumentFromTemplate({
+      projectId,
+      templateId: template.id,
+      templateRevision: template.revision,
+      title: "Independent notes",
+      values: {},
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    expect(
+      await documents.documentLiveWorkBlocks({ documentId: independent.id }),
+    ).toEqual([]);
+    expect(
+      await usages.listBySource(accountId, {
+        recordId: "work-source",
+        recordType: "Work",
+      }),
+    ).toEqual(initialLinks);
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      created,
+    );
     expect(
       await documents.documentLiveWorkBlocks({ documentId: created.id }),
     ).toMatchObject([

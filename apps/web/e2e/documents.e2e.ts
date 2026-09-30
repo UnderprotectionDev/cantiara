@@ -818,3 +818,449 @@ test("adds a highlighted code block and a formula from Write", async ({
     document.getByRole("textbox", { name: "Markdown source" }),
   ).toHaveValue(blockFormulaPattern);
 });
+
+const reviewBody =
+  "## Period\n\n## What changed?\n\n## What worked?\n\n## What was difficult?\n\n## Decisions and learnings\n\n## What will I change next?\n\n## Related records\n";
+
+for (const scope of ["Project", "Personal Wiki"]) {
+  test(`${scope} templates preserve the source and independent Documents`, async ({
+    context,
+    page,
+    request,
+  }) => {
+    const response = await request.get(
+      `${serverUrl}/__e2e/setup?fixture=documents`,
+    );
+    expect(response.ok()).toBe(true);
+    const setup = (await response.json()) as {
+      cookie: Parameters<typeof context.addCookies>[0][number];
+      projectId: string;
+    };
+    await context.addCookies([setup.cookie]);
+    await page.goto(
+      scope === "Project"
+        ? `/projects/${setup.projectId}#documents`
+        : "/personal-wiki",
+    );
+    const templates = page.getByRole("region", {
+      name: "Document Templates",
+      exact: true,
+    });
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    const preparedEditDialog = page.getByRole("dialog", {
+      name: "Edit Document Template",
+      exact: true,
+    });
+    await expect(
+      preparedEditDialog.getByLabel("Name", { exact: true }),
+    ).toHaveValue("Personal Review copy");
+    await preparedEditDialog.getByLabel("Skeleton").fill("## Custom review\n");
+    await preparedEditDialog
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    await expect(preparedEditDialog).not.toBeVisible();
+    await expect(templates.getByRole("status")).toHaveText(
+      "Document Template saved. Existing Documents are unchanged.",
+    );
+    await expect(
+      templates
+        .getByLabel("Document Template", { exact: true })
+        .locator("option:checked"),
+    ).toHaveText("Personal Review copy");
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await expect(preparedEditDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Custom review\n",
+    );
+    await preparedEditDialog
+      .getByLabel("Name", { exact: true })
+      .fill("Saved Review copy");
+    await preparedEditDialog.getByLabel("Skeleton").fill("## Edited copy\n");
+    await preparedEditDialog
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    await expect(preparedEditDialog).not.toBeVisible();
+    await page.reload();
+    await templates
+      .getByLabel("Document Template", { exact: true })
+      .selectOption({ label: "Saved Review copy" });
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await expect(preparedEditDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Edited copy\n",
+    );
+    await preparedEditDialog
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(templates.getByRole("status")).toHaveCount(0);
+    await templates
+      .getByLabel("Document Template", { exact: true })
+      .selectOption("personal-review");
+    await templates
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    const applyDialog = page.getByRole("dialog", {
+      name: "Create from template",
+      exact: true,
+    });
+    await expect(applyDialog.getByLabel("Skeleton")).toHaveValue(reviewBody);
+    await applyDialog
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole("navigation", { name: "Documents", exact: true })
+        .getByRole("button", { name: "Personal Review", exact: true }),
+    ).toHaveCount(0);
+    await templates
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    await applyDialog
+      .getByLabel("Title", { exact: true })
+      .fill("September Review");
+    await applyDialog
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    const editor = page.getByRole("region", { name: "Document", exact: true });
+    await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+      "September Review",
+    );
+    await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+    const source = editor.getByLabel("Markdown source", { exact: true });
+    await expect(source).toHaveValue(reviewBody);
+    await source.fill("## Period\n\nSeptember\n");
+    await Promise.all([
+      page.waitForResponse(
+        (savedResponse) =>
+          savedResponse.url().endsWith("/rpc/updateDocument") &&
+          savedResponse.ok(),
+      ),
+      editor.getByRole("button", { name: "Save", exact: true }).click(),
+    ]);
+    await templates
+      .getByRole("button", { name: "Convert to template", exact: true })
+      .click();
+    const conversion = page.getByRole("dialog", {
+      name: "Convert to template",
+      exact: true,
+    });
+    await expect(conversion.getByLabel("Skeleton")).toHaveValue(
+      "## Period\n\nSeptember\n",
+    );
+    await conversion
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(source).toHaveValue("## Period\n\nSeptember\n");
+    await templates
+      .getByRole("button", { name: "Convert to template", exact: true })
+      .click();
+    await conversion.getByLabel("Name", { exact: true }).fill("Monthly Notes");
+    await conversion.getByLabel("Skeleton").fill("## Period\n\n{{period}}\n");
+    await conversion.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(
+      templates
+        .getByLabel("Document Template", { exact: true })
+        .locator("option:checked"),
+    ).toHaveText("Monthly Notes");
+    await expect(source).toHaveValue("## Period\n\nSeptember\n");
+    await templates
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    await applyDialog
+      .getByLabel("Title", { exact: true })
+      .fill("October Review");
+    await applyDialog.getByLabel("period", { exact: true }).fill("October");
+    await applyDialog
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+      "October Review",
+    );
+    await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+    await expect(source).toHaveValue("## Period\n\nOctober\n");
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    const editDialog = page.getByRole("dialog", {
+      name: "Edit Document Template",
+      exact: true,
+    });
+    await editDialog.getByLabel("Skeleton").fill("## Changed template\n");
+    await editDialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(editDialog).not.toBeVisible();
+    await expect(templates.getByRole("status")).toHaveText(
+      "Document Template saved. Existing Documents are unchanged.",
+    );
+    await expect(source).toHaveValue("## Period\n\nOctober\n");
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await expect(editDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Changed template\n",
+    );
+    await editDialog.getByLabel("Name", { exact: true }).fill("Updated Notes");
+    await editDialog.getByLabel("Type", { exact: true }).selectOption("Plan");
+    await editDialog.getByLabel("Skeleton").fill("## Saved changes\n");
+    await editDialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(editDialog).not.toBeVisible();
+    await expect(
+      templates
+        .getByLabel("Document Template", { exact: true })
+        .locator("option:checked"),
+    ).toHaveText("Updated Notes");
+    await page.reload();
+    await templates
+      .getByLabel("Document Template", { exact: true })
+      .selectOption({ label: "Updated Notes" });
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await expect(editDialog.getByLabel("Name", { exact: true })).toHaveValue(
+      "Updated Notes",
+    );
+    await expect(editDialog.getByLabel("Type", { exact: true })).toHaveValue(
+      "Plan",
+    );
+    await expect(editDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Saved changes\n",
+    );
+    await editDialog
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "Documents", exact: true })
+      .getByRole("button", { name: "October Review", exact: true })
+      .click();
+    await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+    await expect(source).toHaveValue("## Period\n\nOctober\n");
+    await templates
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    await expect(applyDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Saved changes\n",
+    );
+    await applyDialog
+      .getByLabel("Title", { exact: true })
+      .fill("Updated Template Instance");
+    await applyDialog
+      .getByRole("button", { name: "Create from template", exact: true })
+      .click();
+    await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+      "Updated Template Instance",
+    );
+    await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+    await expect(source).toHaveValue("## Saved changes\n");
+    if (scope === "Personal Wiki") {
+      await page.reload();
+      await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+        "Updated Template Instance",
+      );
+      await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+      await expect(source).toHaveValue("## Saved changes\n");
+      await templates.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: "../../.context/document-templates-wiki.png",
+        fullPage: true,
+      });
+    }
+  });
+}
+
+for (const scope of ["Project", "Personal Wiki"]) {
+  test(`${scope} template edits keep the revision opened by the form`, async ({
+    context,
+    page,
+    request,
+  }) => {
+    const response = await request.get(
+      `${serverUrl}/__e2e/setup?fixture=documents`,
+    );
+    expect(response.ok()).toBe(true);
+    const setup = (await response.json()) as {
+      cookie: Parameters<typeof context.addCookies>[0][number];
+      projectId: string;
+    };
+    await context.addCookies([setup.cookie]);
+    const path =
+      scope === "Project"
+        ? `/projects/${setup.projectId}#documents`
+        : "/personal-wiki";
+    await page.goto(path);
+    const templates = page.getByRole("region", {
+      name: "Document Templates",
+      exact: true,
+    });
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    const editDialog = page.getByRole("dialog", {
+      name: "Edit Document Template",
+      exact: true,
+    });
+    await editDialog.getByLabel("Skeleton").fill("## Initial copy\n");
+    await editDialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(editDialog).not.toBeVisible();
+
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await editDialog.getByLabel("Skeleton").fill("## Local draft\n");
+
+    const otherPage = await context.newPage();
+    await otherPage.goto(path);
+    const otherTemplates = otherPage.getByRole("region", {
+      name: "Document Templates",
+      exact: true,
+    });
+    await otherTemplates
+      .getByLabel("Document Template", { exact: true })
+      .selectOption({ label: "Personal Review copy" });
+    const otherDialog = otherPage.getByRole("dialog", {
+      name: "Edit Document Template",
+      exact: true,
+    });
+    await otherTemplates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await otherDialog.getByLabel("Name").fill("Remote Review copy");
+    await otherDialog.getByLabel("Skeleton").fill("## Remote update\n");
+    await otherDialog
+      .getByRole("button", { name: "Save", exact: true })
+      .click();
+    await expect(otherDialog).not.toBeVisible();
+    await otherPage.close();
+
+    const refreshedTemplates = page.waitForResponse(
+      (queryResponse) =>
+        new URL(queryResponse.url()).pathname.endsWith(
+          "/rpc/documentTemplates",
+        ) && queryResponse.ok(),
+    );
+    await page.bringToFront();
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("visibilitychange")),
+    );
+    await refreshedTemplates;
+    await expect(editDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Local draft\n",
+    );
+    await editDialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(editDialog.getByRole("alert")).toBeVisible();
+    await expect(editDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Local draft\n",
+    );
+    await editDialog
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+
+    await page.reload();
+    await templates
+      .getByLabel("Document Template", { exact: true })
+      .selectOption({ label: "Remote Review copy" });
+    await templates
+      .getByRole("button", { name: "Edit Document Template", exact: true })
+      .click();
+    await expect(editDialog.getByLabel("Name")).toHaveValue(
+      "Remote Review copy",
+    );
+    await expect(editDialog.getByLabel("Skeleton")).toHaveValue(
+      "## Remote update\n",
+    );
+  });
+}
+
+test("Personal Wiki preserves an edited Document across a new revision and scopes form labels", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = (await response.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    projectId: string;
+  };
+  await context.addCookies([setup.cookie]);
+  await page.goto("/personal-wiki");
+  await page
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const createDialog = page.getByRole("dialog", {
+    name: "Create Document",
+    exact: true,
+  });
+  await createDialog.getByLabel("Title").fill("Wiki concurrency check");
+  await createDialog
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await expect(editor.getByLabel("Title")).toHaveValue(
+    "Wiki concurrency check",
+  );
+  await editor.getByLabel("Title").fill("Local title draft");
+  await editor.getByLabel("Type").selectOption("Plan");
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await editor.getByLabel("Markdown source").fill("Local Wiki draft\n");
+
+  await page
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const createTitle = createDialog.locator("input").first();
+  await createDialog.locator("label", { hasText: "Title" }).click();
+  await expect(createTitle).toBeFocused();
+  await createDialog
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+
+  const fragment = await page.evaluate(() => window.location.hash);
+  const otherPage = await context.newPage();
+  await otherPage.goto(`/personal-wiki${fragment}`);
+  const otherEditor = otherPage.getByRole("region", {
+    name: "Document",
+    exact: true,
+  });
+  await otherEditor.getByLabel("Title").fill("Remote title");
+  await otherEditor.getByLabel("Type").selectOption("Spec");
+  await otherEditor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await otherEditor.getByLabel("Markdown source").fill("Remote Wiki version\n");
+  await Promise.all([
+    otherPage.waitForResponse(
+      (savedResponse) =>
+        savedResponse.url().endsWith("/rpc/updateDocument") &&
+        savedResponse.ok(),
+    ),
+    otherEditor.getByRole("button", { name: "Save", exact: true }).click(),
+  ]);
+  await otherPage.close();
+
+  await page.bringToFront();
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(
+    editor.getByText("A newer Document version is available.", { exact: true }),
+  ).toBeVisible();
+  await expect(editor.getByLabel("Title")).toHaveValue("Local title draft");
+  await expect(editor.getByLabel("Type")).toHaveValue("Plan");
+  await expect(editor.getByLabel("Markdown source")).toHaveValue(
+    "Local Wiki draft\n",
+  );
+  await expect(
+    editor.getByRole("button", { name: "Save", exact: true }),
+  ).toBeDisabled();
+  await editor
+    .getByRole("button", { name: "Reload latest version", exact: true })
+    .click();
+  await expect(editor.getByLabel("Title")).toHaveValue("Remote title");
+  await expect(editor.getByLabel("Type")).toHaveValue("Spec");
+  await expect(editor.getByLabel("Markdown source")).toHaveValue(
+    "Remote Wiki version\n",
+  );
+});

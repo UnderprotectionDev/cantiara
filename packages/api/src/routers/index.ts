@@ -1,6 +1,5 @@
 import { ORPCError, type RouterClient } from "@orpc/server";
 import { z } from "zod";
-
 import {
   type AccountPreferences,
   type AccountPreferencesSnapshot,
@@ -62,6 +61,17 @@ import {
   dailyFocusDayInputSchema,
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
+import {
+  createDocumentFromTemplateInputSchema,
+  createDocumentTemplateInputSchema,
+  documentTemplateDefinitionSchema,
+  documentTemplateSchema,
+  documentTemplateScopeSchema,
+  documentTemplateSkeleton,
+  personalReviewTemplate,
+  renderDocumentTemplate,
+  updateDocumentTemplateInputSchema,
+} from "../document-templates";
 import {
   createDocumentMutationInputSchema,
   DocumentHierarchyError,
@@ -2220,6 +2230,9 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentUnavailableError) {
+    throw new ORPCError("NOT_FOUND", { cause: error });
+  }
   if (error instanceof DocumentHierarchyError) {
     throw new ORPCError("BAD_REQUEST", {
       message: error.message,
@@ -2302,6 +2315,202 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  documentTemplates: protectedProcedure
+    .input(documentTemplateScopeSchema)
+    .handler(async ({ context, input }) => {
+      const templates = context.documents?.templates;
+      if (!templates) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await templates.list(context.session.user.id, input.projectId);
+      } catch (error) {
+        rethrowDocumentMutationError(error, "document-templates");
+      }
+    }),
+  previewDocumentTemplate: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      const source = await context.documents?.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!source) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return {
+        body: documentTemplateSkeleton(source.body),
+        name: source.title,
+        projectId: source.projectId,
+        sourceDocumentId: source.id,
+        sourceRevision: source.revision,
+        type: source.type,
+      };
+    }),
+  createDocumentTemplate: protectedProcedure
+    .input(createDocumentTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const contracts = context.documentMutationContracts?.templates;
+      if (!contracts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      try {
+        const receipt = await contracts.create(context.session.user.id).mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ committedAt }) => ({
+            template: documentTemplateSchema.parse({
+              ...documentTemplateDefinitionSchema.parse({
+                projectId: payload.projectId,
+                name: payload.name,
+                body: documentTemplateSkeleton(payload.body),
+                type: payload.type,
+              }),
+              id: crypto.randomUUID(),
+              revision: 1,
+              createdAt: committedAt,
+              updatedAt: committedAt,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.template) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.template;
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  updateDocumentTemplate: protectedProcedure
+    .input(updateDocumentTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const contracts = context.documentMutationContracts?.templates;
+      if (!contracts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      try {
+        const receipt = await contracts.update(context.session.user.id).mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.templateId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => ({
+            template: currentValue.template
+              ? documentTemplateSchema.parse({
+                  ...currentValue.template,
+                  name: payload.name,
+                  body: documentTemplateSkeleton(payload.body),
+                  type: payload.type,
+                  revision: currentRevision + 1,
+                  updatedAt: committedAt,
+                })
+              : null,
+          }),
+        );
+        if (!receipt.nextValue.template) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.template;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.templateId);
+      }
+    }),
+  createDocumentFromTemplate: protectedProcedure
+    .input(createDocumentFromTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const { baseRevision, clientIdempotencyKey, ...templatePayload } = input;
+      const contract =
+        requireDocumentMutationContracts(context).create(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human" as const,
+        payload: templatePayload,
+        targetId: clientIdempotencyKey,
+      };
+      try {
+        const replay = await contract.replay(command);
+        if (replay?.nextValue.document) {
+          return replay.nextValue.document;
+        }
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+      const template =
+        input.templateId === personalReviewTemplate.id
+          ? personalReviewTemplate
+          : await context.documents?.templates?.get(
+              accountId,
+              input.templateId,
+            );
+      if (
+        !template ||
+        ("projectId" in template && template.projectId !== input.projectId)
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      if (
+        "revision" in template &&
+        template.revision !== input.templateRevision
+      ) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          message:
+            "Document Template changed. Reload it before creating a Document.",
+        });
+      }
+      let body: string;
+      try {
+        body = renderDocumentTemplate(template.body, input.values);
+      } catch (error) {
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Document Template values are invalid.",
+        });
+      }
+      const payload = documentCreationInputSchema.parse({
+        projectId: input.projectId,
+        title: input.title,
+        type: template.type,
+        body,
+      });
+      try {
+        const receipt = await contract.mutate(
+          command,
+          ({ committedAt, currentRevision }) => ({
+            document: documentSchema.parse({
+              ...payload,
+              id: crypto.randomUUID(),
+              revision: currentRevision + 1,
+              createdAt: committedAt,
+              updatedAt: committedAt,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.clientIdempotencyKey);
+      }
+    }),
   documents: protectedProcedure
     .input(
       z

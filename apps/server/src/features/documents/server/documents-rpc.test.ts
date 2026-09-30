@@ -332,6 +332,31 @@ describe("Documents RPC", () => {
     await client.documents({ projectId: "project-1", archived: true });
     expect(documents.list).toHaveBeenCalledWith("account-1", "project-1", true);
   });
+
+  test("creates an independent Personal Review in Personal Wiki only when requested", async () => {
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => mutation.contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    const created = await client.createDocumentFromTemplate({
+      baseRevision: 0,
+      clientIdempotencyKey: "review-create",
+      projectId: null,
+      templateId: "personal-review",
+      title: "September review",
+      values: {},
+    });
+    expect(created.id).not.toBe("personal-review");
+    expect(created.projectId).toBeNull();
+    expect(created.body).toBe(
+      "## Period\n\n## What changed?\n\n## What worked?\n\n## What was difficult?\n\n## Decisions and learnings\n\n## What will I change next?\n\n## Related records\n",
+    );
+    expect(created.type).toBe("General");
+    expect(mutation.commands).toHaveLength(1);
+  });
   test("resolves a live Work block from its current source and hides an unavailable target", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockResolvedValue({
