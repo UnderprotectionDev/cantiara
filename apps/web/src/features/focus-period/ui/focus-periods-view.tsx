@@ -49,23 +49,11 @@ async function abandonSelectedWork(
     } else if (current.closureResult !== "Abandoned") {
       throw new Error("Work was already completed.");
     }
-    try {
-      await decide({
-        periodId,
-        workIds: [selectedWorkId],
-        destination: "Abandon",
-      });
-    } catch (decisionError) {
-      const savedPeriod = await client.focusPeriod({ periodId });
-      const savedDecision = savedPeriod?.leftoverDecisions.some(
-        (decision) =>
-          decision.workId === selectedWorkId &&
-          decision.destination === "Abandon",
-      );
-      if (!savedDecision) {
-        throw decisionError;
-      }
-    }
+    await decide({
+      periodId,
+      workIds: [selectedWorkId],
+      destination: "Abandon",
+    });
     afterEach(selectedWorkId);
   }
 }
@@ -122,7 +110,6 @@ export default function FocusPeriodsView() {
     mutationFn: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
     ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
-    onError: refresh,
     onSuccess: refresh,
   });
   const saveEvaluation = useMutation({
@@ -418,12 +405,16 @@ function PeriodDetail({
           setSelectedWorkIds((ids) => ids.filter((id) => id !== decidedWorkId)),
       );
     } else {
-      await decide.mutateAsync({
-        periodId: period.id,
-        workIds: selectedWorkIds,
-        destination,
-        ...(destination === "Another period" ? { targetPeriodId } : {}),
-      });
+      for (const selectedWorkId of selectedWorkIds) {
+        // biome-ignore lint/performance/noAwaitInLoops: Each selected Work is recorded independently for recoverable partial sends.
+        await decide.mutateAsync({
+          periodId: period.id,
+          workIds: [selectedWorkId],
+          destination,
+          ...(destination === "Another period" ? { targetPeriodId } : {}),
+        });
+        setSelectedWorkIds((ids) => ids.filter((id) => id !== selectedWorkId));
+      }
     }
     setSelectedWorkIds([]);
   }
@@ -784,43 +775,24 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
   if (!comparison) {
     return null;
   }
-  const groups = [
-    ["In start snapshot", comparison.inStartSnapshot],
-    ["Added later", comparison.addedLater],
-    ["Removed", comparison.removed],
-    ["Completed", comparison.completed],
-    ["Still-open Work", comparison.stillOpen],
+  const totals = [
+    ["In start snapshot", comparison.inStartSnapshot.length],
+    ["Added later", comparison.addedLater.length],
+    ["Removed", comparison.removed.length],
+    ["Completed", comparison.completed.length],
+    ["Still-open Work", comparison.stillOpen.length],
   ] as const;
   return (
     <section aria-label="Close comparison" className="space-y-3">
       <h3 className="font-semibold">Close comparison</h3>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {groups.map(([label, items]) => (
-          <fieldset aria-label={label} className="min-w-0" key={label}>
-            <dl>
-              <dt className="text-muted-foreground">{label}</dt>
-              <dd className="font-medium">{items.length}</dd>
-            </dl>
-            {items.length ? (
-              <ul className="mt-2 space-y-1">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      aria-label={`Open source record: ${item.key} ${item.title}`}
-                      className="underline-offset-2 hover:underline"
-                      hash={workRecordHash(item.id)}
-                      params={{ projectId: item.projectId }}
-                      to="/projects/$projectId"
-                    >
-                      {item.title} · {item.key} · {item.status}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </fieldset>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {totals.map(([label, count]) => (
+          <div key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-medium">{count}</dd>
+          </div>
         ))}
-      </div>
+      </dl>
     </section>
   );
 }
@@ -1060,7 +1032,7 @@ function FollowUpWorkSection({
                 type="button"
                 variant="outline"
               >
-                Cancel
+                Change
               </Button>
             </div>
           </section>
@@ -1082,9 +1054,6 @@ function FollowUpWorkSection({
                 </Link>
                 <p className="text-muted-foreground text-sm">
                   {item.learning}: {item.learningText}
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  Source Focus Period: {period.purpose}
                 </p>
               </li>
             ))}

@@ -37,10 +37,7 @@ export const focusPeriod = pgTable(
     startedAt: timestamp("started_at"),
     closedAt: timestamp("closed_at"),
     startSnapshot: jsonb("start_snapshot").$type<FocusPeriodSnapshotWork[]>(),
-    closeSnapshot:
-      jsonb("close_snapshot").$type<
-        (FocusPeriodSnapshotWork & { inCloseScope?: false })[]
-      >(),
+    closeSnapshot: jsonb("close_snapshot").$type<FocusPeriodSnapshotWork[]>(),
     evaluationKeep: text("evaluation_keep"),
     evaluationChange: text("evaluation_change"),
     evaluationTryNext: text("evaluation_try_next"),

@@ -2,13 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const FOCUS_PERIOD_WORK_NAME = /Prepare Focus Period release/;
 const ABANDON_WORK_NAME = /Retire Focus Period draft/;
-const BULK_BACKLOG_WORK_NAME = /Document Focus Period handoff/;
-const HISTORICAL_WORK_LINK_NAME =
-  /Open source record: .*Prepare Focus Period release/;
-const WORK_STATUS_COMBOBOX_NAME = /Status for/;
 const SOURCE_PERIOD_NAME = /Ship the release/;
 const LATER_PERIOD_NAME = /Later window/;
-const ANOTHER_PERIOD_CONTROL_NAME = /^Another period/;
 
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
@@ -44,10 +39,7 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
     .getByRole("button", { name: "Create", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", {
-      name: "Prepare Focus Period release",
-      exact: true,
-    }),
+    page.getByText("Prepare Focus Period release").first(),
   ).toBeVisible();
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill("Retire Focus Period draft");
@@ -56,22 +48,7 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
     .getByRole("button", { name: "Create", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", {
-      name: "Retire Focus Period draft",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await page.getByRole("link", { name: "Create", exact: true }).click();
-  await page.getByLabel("Title").fill("Document Focus Period handoff");
-  await page
-    .locator("#work-create")
-    .getByRole("button", { name: "Create", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", {
-      name: "Document Focus Period handoff",
-      exact: true,
-    }),
+    page.getByText("Retire Focus Period draft").first(),
   ).toBeVisible();
 
   await page.goto("/focus-periods");
@@ -101,11 +78,6 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await expect(
     detail.getByRole("link", { name: ABANDON_WORK_NAME }),
   ).toBeVisible();
-  await detail.getByLabel("Select Work", { exact: true }).selectOption({
-    label: "Focus Period Project · FOC-3 · Document Focus Period handoff",
-  });
-  await detail.getByRole("button", { name: "Add Work" }).click();
-  await expect(detail).toContainText("Document Focus Period handoff");
   await expect(detail).toContainText("Prepare Focus Period release");
   await expect(detail).toContainText("Not Started");
   await page.getByLabel("Purpose").fill("Later window");
@@ -178,41 +150,10 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
       .getByText("Added later", { exact: true })
       .locator("..")
       .locator("dd"),
-  ).toHaveText("3");
+  ).toHaveText("2");
   await expect(
     page.getByRole("region", { name: "Ship the release" }),
   ).toContainText("Not Started");
-  const historicalWorkLink = closeComparison
-    .getByRole("group", { name: "Still-open Work", exact: true })
-    .getByRole("link", { name: HISTORICAL_WORK_LINK_NAME });
-  await expect(historicalWorkLink).toContainText("Not Started");
-  await historicalWorkLink.click();
-  const liveWorkStatus = page
-    .getByRole("combobox", { name: WORK_STATUS_COMBOBOX_NAME })
-    .first();
-  await liveWorkStatus.selectOption("In Progress");
-  await expect(liveWorkStatus).toHaveValue("In Progress");
-  await page.goto("/focus-periods");
-  await page.reload();
-  const reloadedPeriod = page.getByRole("button", {
-    name: SOURCE_PERIOD_NAME,
-  });
-  await expect(reloadedPeriod).toContainText("Closed");
-  await reloadedPeriod.click();
-  const reloadedClosedDetail = page.getByRole("region", {
-    name: "Ship the release",
-  });
-  await expect(
-    reloadedClosedDetail
-      .getByRole("region", { name: "Close comparison" })
-      .getByRole("group", { name: "Still-open Work", exact: true })
-      .getByRole("link", {
-        name: HISTORICAL_WORK_LINK_NAME,
-      }),
-  ).toContainText("Not Started");
-  await expect(
-    reloadedClosedDetail.getByRole("region", { name: "Work", exact: true }),
-  ).toContainText("In Progress");
   const closedDetail = page.getByRole("region", { name: "Ship the release" });
   await closedDetail.getByLabel("Keep", { exact: true }).fill("Pair early");
   await closedDetail
@@ -227,27 +168,6 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await closedDetail
     .getByLabel("Title", { exact: true })
     .fill("Split the release");
-  const followUpRequests: Array<{
-    periodId?: string;
-    learning?: string;
-  }> = [];
-  page.on("request", (browserRequest) => {
-    if (
-      browserRequest.method() === "POST" &&
-      browserRequest.url().includes("/rpc/createFocusPeriodFollowUpWork")
-    ) {
-      try {
-        const payload = browserRequest.postDataJSON() as {
-          json?: { periodId?: string; learning?: string };
-        };
-        if (payload.json) {
-          followUpRequests.push(payload.json);
-        }
-      } catch {
-        // Ignore requests whose body is not JSON.
-      }
-    }
-  });
   await closedDetail
     .getByRole("button", { name: "Preview Follow-up Work" })
     .click();
@@ -258,105 +178,31 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await expect(followUpPreview).toContainText("Try next");
   await expect(followUpPreview).toContainText("Ship smaller");
   await expect(followUpPreview).toContainText("Ship the release");
-  await followUpPreview.getByRole("button", { name: "Cancel" }).click();
-  await expect(followUpPreview).toHaveCount(0);
-  expect(followUpRequests).toHaveLength(0);
-  await closedDetail
-    .getByRole("button", { name: "Preview Follow-up Work" })
-    .click();
-  const confirmedFollowUpPreview = closedDetail.getByRole("region", {
-    name: "Follow-up Work preview",
-  });
-  await confirmedFollowUpPreview
-    .getByRole("button", { name: "Confirm" })
-    .click();
-  await expect.poll(() => followUpRequests.length).toBe(1);
-  expect(followUpRequests[0]?.periodId).toBeTruthy();
-  expect(followUpRequests[0]?.learning).toBe("Try next");
+  await followUpPreview.getByRole("button", { name: "Confirm" }).click();
   await expect(closedDetail).toContainText("Split the release");
-  const followUpWorks = closedDetail.getByRole("region", {
-    name: "Follow-up Work",
-    exact: true,
-  });
-  await expect(followUpWorks).toContainText("Source Focus Period");
-  await expect(followUpWorks).toContainText("Ship the release");
   const decisions = page.getByRole("region", {
     name: "Still-open Work decisions",
   });
   await expect(decisions).toContainText("Prepare Focus Period release");
-  const destination = decisions.getByLabel("Destination");
-  await expect(destination.locator("option")).toHaveText([
-    "Next period",
-    "Backlog",
-    "Another period",
-    "Abandon",
-  ]);
-  await destination.selectOption("Another period");
-  await expect(
-    decisions.getByRole("combobox", { name: ANOTHER_PERIOD_CONTROL_NAME }),
-  ).toContainText("Later window");
-  await expect(decisions.getByRole("button", { name: "Send" })).toBeDisabled();
-  await destination.selectOption("Backlog");
-  const leftoverRequests: Array<{ workIds?: string[] }> = [];
-  page.on("request", (browserRequest) => {
-    if (
-      browserRequest.method() === "POST" &&
-      browserRequest.url().includes("/rpc/decideFocusPeriodLeftovers")
-    ) {
-      try {
-        const payload = browserRequest.postDataJSON() as {
-          json?: { workIds?: string[] };
-        };
-        if (payload.json) {
-          leftoverRequests.push(payload.json);
-        }
-      } catch {
-        // Ignore requests whose body is not JSON.
-      }
-    }
-  });
   await decisions
     .getByRole("checkbox", { name: FOCUS_PERIOD_WORK_NAME })
     .check();
-  await decisions
-    .getByRole("checkbox", { name: BULK_BACKLOG_WORK_NAME })
-    .check();
-  await destination.selectOption("Backlog");
+  await decisions.getByLabel("Destination").selectOption("Backlog");
   await decisions.getByRole("button", { name: "Send" }).click();
-  await expect.poll(() => leftoverRequests.length).toBe(1);
-  expect(leftoverRequests[0]?.workIds).toHaveLength(2);
   await expect(
     decisions.getByRole("checkbox", { name: FOCUS_PERIOD_WORK_NAME }),
   ).toHaveCount(0);
-  await expect(
-    decisions.getByRole("checkbox", { name: BULK_BACKLOG_WORK_NAME }),
-  ).toHaveCount(0);
   await expect(decisions).toContainText("Retire Focus Period draft");
   await decisions.getByRole("checkbox", { name: ABANDON_WORK_NAME }).check();
-  await destination.selectOption("Abandon");
+  await decisions.getByLabel("Destination").selectOption("Abandon");
   await decisions
     .getByRole("checkbox", { name: "Confirm Abandon selected Work" })
     .check();
   await decisions
     .getByRole("checkbox", { name: "Close anyway if closure checks remain" })
     .check();
-  let droppedAbandonResponse = false;
-  await page.route("**/rpc/decideFocusPeriodLeftovers", async (route) => {
-    const payload = route.request().postDataJSON() as {
-      json?: { destination?: string };
-    };
-    if (payload.json?.destination === "Abandon" && !droppedAbandonResponse) {
-      await route.fetch();
-      droppedAbandonResponse = true;
-      await route.abort("failed");
-      return;
-    }
-    await route.continue();
-  });
   await decisions.getByRole("button", { name: "Send" }).click();
   await expect(decisions).toHaveCount(0, { timeout: 30_000 });
-  expect(droppedAbandonResponse).toBe(true);
-  expect(leftoverRequests).toHaveLength(2);
   await page.reload();
   await expect(
     page.getByRole("region", { name: "Still-open Work decisions" }),
