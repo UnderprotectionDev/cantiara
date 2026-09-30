@@ -481,6 +481,13 @@ function DocumentEditor({
     return () => subscription.unsubscribe();
   }, [editSession, form]);
   useEffect(() => {
+    if (editing.dirty || record.revision <= editing.baseRevision) {
+      return;
+    }
+    editSession.accept(record);
+    setRevision(record.revision);
+  }, [editSession, editing.baseRevision, editing.dirty, record]);
+  useEffect(() => {
     if (editing.dirty || editing.baseRevision === revision) {
       return;
     }
@@ -842,6 +849,17 @@ function DocumentEditor({
 
   return (
     <section aria-label="Document">
+      {record.origin ? (
+        <p className="mb-4 text-sm">
+          Conflict Draft origin · Version {record.origin.revision} ·{" "}
+          <a
+            className="underline"
+            href={`#document-${record.origin.documentId}`}
+          >
+            Open source record
+          </a>
+        </p>
+      ) : null}
       {editing.offline || editing.conflictDraft || editing.error ? (
         <div
           className="mb-5 space-y-3 rounded-lg border border-destructive p-4"
