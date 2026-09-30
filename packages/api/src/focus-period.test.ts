@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   createFocusPeriodInputSchema,
+  focusPeriodDecisionInputSchema,
   focusPeriodEvaluationInputSchema,
   focusPeriodFollowUpWorkInputSchema,
 } from "./focus-period";
@@ -70,6 +71,23 @@ describe("Focus Period", () => {
         title: " ",
         type: "Task",
         clientIdempotencyKey: "follow-up-key",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("accepts a bulk leftover decision for selected Work", () => {
+    expect(
+      focusPeriodDecisionInputSchema.safeParse({
+        periodId: "period-1",
+        workIds: ["work-1", "work-2"],
+        destination: "Backlog",
+      }).success,
+    ).toBe(true);
+    expect(
+      focusPeriodDecisionInputSchema.safeParse({
+        periodId: "period-1",
+        workIds: ["work-1", "work-1"],
+        destination: "Backlog",
       }).success,
     ).toBe(false);
   });

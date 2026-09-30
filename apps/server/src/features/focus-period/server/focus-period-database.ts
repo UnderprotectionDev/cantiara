@@ -38,6 +38,23 @@ type FocusPeriodMutationExecutor = Pick<
   "execute" | "insert" | "select" | "update"
 >;
 
+type StoredCloseSnapshotWork = FocusPeriodSnapshotWork & {
+  inCloseScope?: false;
+};
+type StoredCloseSnapshot = StoredCloseSnapshotWork[];
+
+function readStoredCloseSnapshot(
+  snapshot: FocusPeriodSnapshotWork[] | null,
+): StoredCloseSnapshot | null {
+  return snapshot as StoredCloseSnapshot | null;
+}
+
+function publicCloseSnapshot(
+  snapshot: StoredCloseSnapshot | null,
+): FocusPeriodSnapshotWork[] | null {
+  return snapshot?.filter((item) => item.inCloseScope !== false) ?? null;
+}
+
 export function createDatabaseFocusPeriod(
   database: Database,
   now: () => Date = () => new Date(),
@@ -165,15 +182,25 @@ export function createDatabaseFocusPeriod(
     }
   }
 
+  async function lockWorkAdvisory(
+    executor: FocusPeriodMutationExecutor,
+    workIds: readonly string[],
+  ) {
+    for (const workId of [...new Set(workIds)].sort()) {
+      // biome-ignore lint/performance/noAwaitInLoops: Advisory locks must be acquired in a stable order on one transaction connection.
+      await executor.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${workId}))`,
+      );
+    }
+  }
+
   async function lockMovePeriods(
     executor: FocusPeriodMutationExecutor,
     workspaceId: string,
     targetPeriodId: string,
     workId: string,
   ) {
-    await executor.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${workId}))`,
-    );
+    await lockWorkAdvisory(executor, [workId]);
     const [activeMembership] = await executor
       .select({ periodId: focusPeriodActiveWork.periodId })
       .from(focusPeriodActiveWork)
@@ -561,23 +588,25 @@ export function createDatabaseFocusPeriod(
           .from(focusPeriodMembership)
           .where(eq(focusPeriodMembership.periodId, periodId))
       : [];
+    const storedCloseSnapshot = readStoredCloseSnapshot(period.closeSnapshot);
+    const closeSnapshot = publicCloseSnapshot(storedCloseSnapshot);
+    const transientCloseSnapshot =
+      storedCloseSnapshot?.filter((item) => item.inCloseScope === false) ?? [];
     const closeComparison =
       period.status === "Closed" &&
       period.startSnapshot &&
-      period.closeSnapshot &&
+      closeSnapshot &&
       period.closedAt
         ? (() => {
             const startIds = new Set(
               period.startSnapshot?.map((item) => item.id),
             );
-            const closeIds = new Set(
-              period.closeSnapshot?.map((item) => item.id),
-            );
+            const closeIds = new Set(closeSnapshot.map((item) => item.id));
             const addedIds = new Set(
               membershipHistory
                 .filter(
                   (item) =>
-                    period.startedAt && item.joinedAt > period.startedAt,
+                    period.startedAt && item.joinedAt >= period.startedAt,
                 )
                 .map((item) => item.workId),
             );
@@ -598,18 +627,31 @@ export function createDatabaseFocusPeriod(
               title: item.title,
             });
             const memberForId = (id: string) => {
-              const closed = period.closeSnapshot?.find(
+              const transient = transientCloseSnapshot.find(
+                (item) => item.id === id,
+              );
+              const closed = closeSnapshot.find((item) => item.id === id);
+              const started = period.startSnapshot?.find(
                 (item) => item.id === id,
               );
               const current = historicalWorkById.get(id);
-              return closed ? toWork(closed) : current;
+              if (closed) {
+                return toWork(closed);
+              }
+              if (transient) {
+                return toWork(transient);
+              }
+              if (started) {
+                return toWork(started);
+              }
+              return current;
             };
             return {
               addedLater: [...addedIds]
                 .filter((id) => !startIds.has(id))
                 .map(memberForId)
                 .filter((item): item is NonNullable<typeof item> => !!item),
-              completed: period.closeSnapshot
+              completed: closeSnapshot
                 .filter(
                   (item) =>
                     item.closureResult === "Completed" &&
@@ -621,7 +663,7 @@ export function createDatabaseFocusPeriod(
               removed: [...removedIds]
                 .map(memberForId)
                 .filter((item): item is NonNullable<typeof item> => !!item),
-              stillOpen: period.closeSnapshot
+              stillOpen: closeSnapshot
                 .filter((item) => item.status !== "Closed")
                 .map(toWork),
             };
@@ -646,7 +688,7 @@ export function createDatabaseFocusPeriod(
       leftoverDecisions: decisions as FocusPeriodRecord["leftoverDecisions"],
       available: availableWorks.filter((item) => !selected.has(item.id)),
       startSnapshot: period.startSnapshot ?? null,
-      closeSnapshot: period.closeSnapshot ?? null,
+      closeSnapshot,
       closeComparison,
       dependencies,
       evaluation:
@@ -669,12 +711,13 @@ export function createDatabaseFocusPeriod(
   }
 
   async function decisionTargetId(
+    executor: FocusPeriodReadExecutor,
     workspaceId: string,
     source: typeof focusPeriod.$inferSelect,
     input: FocusPeriodDecisionInput,
   ): Promise<string | null> {
     if (input.destination === "Next period") {
-      const [next] = await database
+      const [next] = await executor
         .select({ id: focusPeriod.id })
         .from(focusPeriod)
         .where(
@@ -698,7 +741,19 @@ export function createDatabaseFocusPeriod(
       if (!input.targetPeriodId) {
         throw new FocusPeriodConflictError("Select another Focus Period.");
       }
-      const target = await ownedPeriod(workspaceId, input.targetPeriodId);
+      const [target] = await executor
+        .select()
+        .from(focusPeriod)
+        .where(
+          and(
+            eq(focusPeriod.id, input.targetPeriodId),
+            eq(focusPeriod.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      if (!target) {
+        throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
+      }
       if (target.status !== "Planned" && target.status !== "Active") {
         throw new FocusPeriodConflictError("Focus Period is no longer open.");
       }
@@ -713,11 +768,12 @@ export function createDatabaseFocusPeriod(
   }
 
   async function validateDecisionWork(
+    executor: FocusPeriodReadExecutor,
     workspaceId: string,
     input: FocusPeriodDecisionInput,
     workId: string,
   ) {
-    const existing = await database
+    const existing = await executor
       .select({ workId: focusPeriodLeftoverDecision.workId })
       .from(focusPeriodLeftoverDecision)
       .where(
@@ -730,12 +786,21 @@ export function createDatabaseFocusPeriod(
     if (existing.length) {
       throw new FocusPeriodConflictError("Work already has a close decision.");
     }
-    const [current] = await database
-      .select({ status: work.status, closureResult: work.closureResult })
+    const [current] = await executor
+      .select({
+        archivedAt: work.archivedAt,
+        closureResult: work.closureResult,
+        status: work.status,
+        trashedAt: work.trashedAt,
+      })
       .from(work)
       .innerJoin(project, eq(work.projectId, project.id))
       .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
+      .for("update", { of: work })
       .limit(1);
+    if (!current || current.archivedAt || current.trashedAt) {
+      throw new FocusPeriodUnavailableError("Work is unavailable.");
+    }
     const matches =
       input.destination === "Abandon"
         ? current?.status === "Closed" && current.closureResult === "Abandoned"
@@ -747,41 +812,82 @@ export function createDatabaseFocusPeriod(
     }
   }
 
+  function assertClosedPeriod(
+    source: typeof focusPeriod.$inferSelect,
+  ): FocusPeriodSnapshotWork[] {
+    const closeSnapshot = publicCloseSnapshot(
+      readStoredCloseSnapshot(source.closeSnapshot),
+    );
+    if (source.status !== "Closed" || !closeSnapshot) {
+      throw new FocusPeriodConflictError("Close the Focus Period first.");
+    }
+    return closeSnapshot;
+  }
+
+  function assertSelectedOpenAtClose(
+    closeSnapshot: FocusPeriodSnapshotWork[],
+    input: FocusPeriodDecisionInput,
+  ) {
+    const openAtClose = new Set(
+      closeSnapshot
+        .filter((item) => item.status !== "Closed")
+        .map((item) => item.id),
+    );
+    if (
+      new Set(input.workIds).size !== input.workIds.length ||
+      input.workIds.some((id) => !openAtClose.has(id))
+    ) {
+      throw new FocusPeriodConflictError(
+        "Selected Work was not open at close.",
+      );
+    }
+  }
+
   return {
     async decide(accountId, input: FocusPeriodDecisionInput) {
       const { workspaceId, today } = await scope(accountId);
       await sync(workspaceId, today);
-      const source = await ownedPeriod(workspaceId, input.periodId);
-      if (source.status !== "Closed" || !source.closeSnapshot) {
-        throw new FocusPeriodConflictError("Close the Focus Period first.");
-      }
-      const openAtClose = new Set(
-        source.closeSnapshot
-          .filter((item) => item.status !== "Closed")
-          .map((item) => item.id),
-      );
-      if (
-        new Set(input.workIds).size !== input.workIds.length ||
-        input.workIds.some((id) => !openAtClose.has(id))
-      ) {
-        throw new FocusPeriodConflictError(
-          "Selected Work was not open at close.",
-        );
-      }
-      const targetPeriodId = await decisionTargetId(workspaceId, source, input);
-      for (const workId of input.workIds) {
-        // biome-ignore lint/performance/noAwaitInLoops: Decisions are recorded sequentially so each Work is validated before its destination changes.
-        await validateDecisionWork(workspaceId, input, workId);
-        if (targetPeriodId) {
-          await this.add(accountId, targetPeriodId, workId);
+      await database.transaction(async (tx) => {
+        await lockWorkAdvisory(tx, input.workIds);
+        const [source] = await tx
+          .select()
+          .from(focusPeriod)
+          .where(
+            and(
+              eq(focusPeriod.id, input.periodId),
+              eq(focusPeriod.workspaceId, workspaceId),
+            ),
+          )
+          .for("update")
+          .limit(1);
+        if (!source) {
+          throw new FocusPeriodUnavailableError("Focus Period is unavailable.");
         }
-        await database.insert(focusPeriodLeftoverDecision).values({
-          periodId: input.periodId,
-          workId,
-          destination: input.destination,
-          targetPeriodId,
-        });
-      }
+        const closeSnapshot = assertClosedPeriod(source);
+        assertSelectedOpenAtClose(closeSnapshot, input);
+        const targetPeriodId = await decisionTargetId(
+          tx,
+          workspaceId,
+          source,
+          input,
+        );
+        for (const workId of input.workIds) {
+          // biome-ignore lint/performance/noAwaitInLoops: Validate every selected Work on the transaction connection before any destination write.
+          await validateDecisionWork(tx, workspaceId, input, workId);
+        }
+        for (const workId of input.workIds) {
+          if (targetPeriodId) {
+            // biome-ignore lint/performance/noAwaitInLoops: Destination membership writes stay ordered inside one transaction.
+            await addMembership(tx, workspaceId, targetPeriodId, workId);
+          }
+          await tx.insert(focusPeriodLeftoverDecision).values({
+            periodId: input.periodId,
+            workId,
+            destination: input.destination,
+            targetPeriodId,
+          });
+        }
+      });
     },
     async list(accountId) {
       const { workspaceId, today } = await scope(accountId);
@@ -901,9 +1007,7 @@ export function createDatabaseFocusPeriod(
         throw new FocusPeriodUnavailableError("Work is unavailable.");
       }
       await database.transaction(async (tx) => {
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtext(${workId}))`,
-        );
+        await lockWorkAdvisory(tx, [workId]);
         await addMembership(tx, workspaceId, periodId, workId);
       });
     },
@@ -1035,19 +1139,45 @@ export function createDatabaseFocusPeriod(
           );
         }
         const memberships = await tx
-          .select({ workId: focusPeriodMembership.workId })
+          .select({
+            joinedAt: focusPeriodMembership.joinedAt,
+            removedAt: focusPeriodMembership.removedAt,
+            workId: focusPeriodMembership.workId,
+          })
           .from(focusPeriodMembership)
-          .where(
-            and(
-              eq(focusPeriodMembership.periodId, periodId),
-              isNull(focusPeriodMembership.removedAt),
-            ),
-          );
-        const ids = memberships.map(({ workId }) => workId);
+          .where(eq(focusPeriodMembership.periodId, periodId));
+        const ids = memberships
+          .filter(({ removedAt }) => removedAt === null)
+          .map(({ workId }) => workId);
+        const currentMemberIds = new Set(ids);
+        const startIds = new Set(
+          period.startSnapshot?.map((item) => item.id) ?? [],
+        );
+        const transientIds = [
+          ...new Set(
+            memberships
+              .filter(
+                ({ joinedAt, removedAt, workId }) =>
+                  period.startedAt !== null &&
+                  joinedAt >= period.startedAt &&
+                  removedAt !== null &&
+                  !startIds.has(workId) &&
+                  !currentMemberIds.has(workId),
+              )
+              .map(({ workId }) => workId),
+          ),
+        ];
         const snapshot = await snapshotWorks(tx, workspaceId, ids);
+        const transientSnapshot = (
+          await snapshotWorks(tx, workspaceId, transientIds)
+        ).map((item) => ({ ...item, inCloseScope: false as const }));
         await tx
           .update(focusPeriod)
-          .set({ status: "Closed", closedAt: now(), closeSnapshot: snapshot })
+          .set({
+            status: "Closed",
+            closedAt: now(),
+            closeSnapshot: [...snapshot, ...transientSnapshot],
+          })
           .where(eq(focusPeriod.id, periodId));
         await tx
           .delete(focusPeriodActiveWork)
