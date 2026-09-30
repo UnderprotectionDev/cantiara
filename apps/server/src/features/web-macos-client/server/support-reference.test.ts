@@ -24,6 +24,21 @@ interface FailureResponseBody {
 }
 
 describe("Client Shell Support reference", () => {
+  test("classifies PostgreSQL SQLSTATE carried by an Error instance", () => {
+    const error = Object.assign(new Error("Failed database operation"), {
+      code: "42703",
+    });
+    expect(classifySupportReason(error)).toBe("schema-drift");
+  });
+
+  test("does not classify a current_schema permission error as drift", () => {
+    expect(
+      classifySupportReason(
+        new Error("permission denied for function current_schema"),
+      ),
+    ).not.toBe("schema-drift");
+  });
+
   test("derives the Support reference from a safe server tracking id", () => {
     const failure = createSupportReferenceFailure({
       requestId: "123e4567-e89b-12d3-a456-426614174000",

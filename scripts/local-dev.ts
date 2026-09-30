@@ -1,23 +1,14 @@
 import { developmentDatabaseMode } from "./dev-database-mode";
+import { developmentCommand } from "./local-dev-command";
 
-const task = process.argv[2] ?? "dev";
-const commands: Record<string, string[]> = {
-  dev: [
-    "./node_modules/.bin/turbo",
-    "run",
-    "dev",
-    "--ui=tui",
-    "--filter=fumadocs",
-    "--filter=server",
-    "--filter=web",
-    "--filter=extension",
-    "--filter=@cantiara/api",
-  ],
-  server: ["bun", "run", "dev:server"],
-};
-const command = commands[task];
-if (!command) {
-  throw new Error("Expected dev or server task");
+const { command, requiresDatabase } = developmentCommand(process.argv.slice(2));
+if (!requiresDatabase) {
+  const help = Bun.spawn(command, {
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  process.exit(await help.exited);
 }
 const { startLocalProxy } = developmentDatabaseMode(process.env);
 
@@ -35,20 +26,38 @@ if (proxy) {
   }
 }
 
-const development = Bun.spawn(command, {
-  env: process.env,
-  stdin: "inherit",
-  stdout: "inherit",
-  stderr: "inherit",
-});
+let development: ReturnType<typeof Bun.spawn> | undefined;
+let doctor: ReturnType<typeof Bun.spawn> | undefined;
+let stopped = false;
 const stop = () => {
-  development.kill();
+  stopped = true;
+  doctor?.kill();
+  development?.kill();
   proxy?.kill();
 };
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 try {
-  process.exitCode = await development.exited;
+  doctor = Bun.spawn(["bun", "packages/db/scripts/doctor.ts"], {
+    env: process.env,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const status = await doctor.exited;
+  doctor = undefined;
+  if (stopped) {
+    process.exitCode = 130;
+  } else if (status === 0) {
+    development = Bun.spawn(command, {
+      env: process.env,
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    process.exitCode = await development.exited;
+  } else {
+    process.exitCode = status;
+  }
 } finally {
   stop();
   if (proxy) {
