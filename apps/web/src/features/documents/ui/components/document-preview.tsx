@@ -318,21 +318,16 @@ function LiveSectionCard({
         {source.title} · {source.heading}
       </h3>
       <Markdown extensions={[inlineMathExtension]}>{source.text}</Markdown>
-      {source.projectId === null ? (
-        <a
-          className="underline"
-          href={`/personal-wiki#${documentRecordHash(source.documentId)}`}
-        >
-          Open source record
-        </a>
-      ) : (
-        <a
-          className="underline"
-          href={`/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`}
-        >
-          Open source record
-        </a>
-      )}
+      <a
+        className="underline"
+        href={
+          source.projectId === null
+            ? `/personal-wiki#${documentRecordHash(source.documentId)}`
+            : `/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`
+        }
+      >
+        Open source record
+      </a>
     </section>
   );
 }

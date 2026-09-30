@@ -45,6 +45,7 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -177,8 +178,14 @@ export const relations = createDatabaseRelations(db);
 export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
   createDatabaseUsageLinkMutationContracts(db);
-export const tags = createDatabaseTags(db);
-export const tagMutationContracts = createDatabaseTagMutationContracts(db);
+const documentTagRename = {
+  inlineRename: createDatabaseDocumentTagRenameWriter(),
+};
+export const tags = createDatabaseTags(db, documentTagRename);
+export const tagMutationContracts = createDatabaseTagMutationContracts(
+  db,
+  documentTagRename,
+);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

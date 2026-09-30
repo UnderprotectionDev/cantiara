@@ -1,12 +1,14 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Document controls close over the selected record and current editor state.
 
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   type Document,
   type DocumentEvidenceTargetType,
   documentSections,
   documentTypeSchema,
 } from "@cantiara/api/documents";
+import type { StarterSkeletonSelection } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -53,7 +55,11 @@ import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import { createDocumentEditSession } from "../../store/document-edit-session";
 import DocumentConflictDrafts from "./document-conflict-drafts";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
+import DocumentInlineTags from "./document-inline-tags";
+import DocumentNavigation from "./document-navigation";
+import DocumentOrganizationControls from "./document-organization-controls";
 import DocumentPreview from "./document-preview";
+import DocumentTemplatesSurface from "./document-templates-surface";
 import DocumentVersionCompare from "./document-version-compare";
 
 const lowlight = createLowlight(common);
@@ -73,10 +79,17 @@ const DOCUMENT_CONVERSION_CONTENT_FIELDS = {
   Assumption: "Statement",
   "Open Question": "Question",
 } as const;
-interface DocumentCreateInput {
-  title: string;
-  type: Document["type"];
-}
+type DocumentStarterSkeleton = Extract<
+  StarterSkeletonSelection,
+  { surface: "Document" }
+>["skeleton"];
+type DocumentCreateInput =
+  | { skeleton: DocumentStarterSkeleton }
+  | { title: string; type: Document["type"] };
+type DocumentStarterSkeletonSelection = Extract<
+  StarterSkeletonSelection,
+  { surface: "Document" }
+>;
 
 function comparableMarkdown(source: string) {
   return source.replaceAll("\r\n", "\n");
@@ -171,14 +184,14 @@ function uniqueDocumentSections(source: string) {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this editor coordinates one saved Document session across its dependent dialogs.
 function DocumentEditor({
   accountFormattingPreferences,
-  projectId,
   record,
   onSaved,
+  documents,
 }: {
   accountFormattingPreferences: AccountPreferences;
-  projectId: string;
   record: Document;
   onSaved: () => Promise<void>;
+  documents: Document[];
 }) {
   const queryClient = useQueryClient();
   const [editSession] = useState(() =>
@@ -279,21 +292,21 @@ function DocumentEditor({
   });
   const collectionViews = useQuery({
     ...orpc.smartCollectionViews.queryOptions({
-      input: { projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const documentsForSections = useQuery({
     ...orpc.documents.queryOptions({
-      input: { projectId },
+      input: { projectId: record.projectId },
     }),
     enabled: view === "markdown",
   });
   const sourceRecords = useQuery({
     ...orpc.projectSourceRecords.queryOptions({
-      input: { projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const sectionSourceDocument = documentsForSections.data?.find(
     ({ id }) => id === sectionDocumentId,
@@ -303,9 +316,9 @@ function DocumentEditor({
     : [];
   const diagrams = useQuery({
     ...orpc.technicalDiagrams.queryOptions({
-      input: { projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const diagramViews = useQuery({
     ...orpc.technicalDiagramViews.queryOptions({
@@ -366,9 +379,9 @@ function DocumentEditor({
   });
   const works = useQuery({
     ...orpc.projectWorks.queryOptions({
-      input: { projectId },
+      input: { projectId: record.projectId ?? "" },
     }),
-    enabled: view === "markdown",
+    enabled: view === "markdown" && record.projectId !== null,
   });
   const bulkRows = documentListRows(savedBody);
   const selectedBulkRows = bulkRows.filter(({ start, end }) =>
@@ -499,6 +512,22 @@ function DocumentEditor({
     versionOptions.queryKey,
     onSaved,
   ]);
+  const hasNewerVersion = record.revision > revision;
+  function reloadLatestVersion() {
+    if (save.isPending) {
+      return;
+    }
+    editSession.accept(record);
+    setError(null);
+    setRevision(record.revision);
+    setPreviewBody(record.body);
+    setSavedBody(record.body);
+    form.reset({
+      title: record.title,
+      type: record.type,
+      body: record.body,
+    });
+  }
   const pinEvidence = useMutation({
     mutationFn: () => {
       const selection = selectedTextRange;
@@ -537,6 +566,10 @@ function DocumentEditor({
     WorkProfile | ProjectSourceRecord | null
   >({
     mutationFn: async () => {
+      const { projectId } = record;
+      if (projectId === null) {
+        throw new Error("A Project is required for record conversion.");
+      }
       const selection = selectedTextRange;
       const body = form.getFieldValue("body");
       if (
@@ -638,8 +671,13 @@ function DocumentEditor({
   });
   const convertListToWork = useMutation({
     mutationFn: () => {
+      const { projectId } = record;
       const body = form.getFieldValue("body");
-      if (body !== savedBody || selectedBulkRows.length === 0) {
+      if (
+        projectId === null ||
+        body !== savedBody ||
+        selectedBulkRows.length === 0
+      ) {
         throw new Error("Save the Document and choose list rows first.");
       }
       bulkConversionKey.current ??= crypto.randomUUID();
@@ -804,18 +842,6 @@ function DocumentEditor({
 
   return (
     <section aria-label="Document">
-      {record.origin ? (
-        <p className="mb-4 text-sm">
-          Conflict Draft origin · Version {record.origin.revision} ·{" "}
-          {record.origin.conflictDraftId}
-          <a
-            className="underline"
-            href={`#document-${record.origin.documentId}`}
-          >
-            Open source record
-          </a>
-        </p>
-      ) : null}
       {editing.offline || editing.conflictDraft || editing.error ? (
         <div
           className="mb-5 space-y-3 rounded-lg border border-destructive p-4"
@@ -893,6 +919,11 @@ function DocumentEditor({
         }}
         rejected={editing.conflictDraft}
       />
+      {record.projectId === null ? (
+        <p className="mb-3 w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
+          Personal Wiki
+        </p>
+      ) : null}
       <form
         className="space-y-5"
         onSubmit={(event) => {
@@ -900,6 +931,19 @@ function DocumentEditor({
           form.handleSubmit().catch(() => undefined);
         }}
       >
+        {hasNewerVersion ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/50 p-3 text-sm">
+            <p role="status">A newer Document version is available.</p>
+            <Button
+              disabled={save.isPending}
+              onClick={reloadLatestVersion}
+              type="button"
+              variant="outline"
+            >
+              Reload latest version
+            </Button>
+          </div>
+        ) : null}
         <fieldset
           className="min-w-0 space-y-5 border-0 p-0"
           disabled={!editing.editable}
@@ -951,13 +995,59 @@ function DocumentEditor({
               })}
             >
               {({ title, isSubmitting }) => (
-                <Button disabled={isSubmitting || !title.trim()} type="submit">
+                <Button
+                  disabled={hasNewerVersion || isSubmitting || !title.trim()}
+                  type="submit"
+                >
                   Save
                 </Button>
               )}
             </form.Subscribe>
           </div>
-          {convertedDiagram ? (
+          <form.Subscribe selector={(state) => state.values}>
+            {(values) => (
+              <DocumentOrganizationControls
+                disabled={
+                  save.isPending ||
+                  values.body !== savedBody ||
+                  values.title !== record.title ||
+                  values.type !== record.type
+                }
+                documents={documents}
+                onCommitted={async (saved) => {
+                  setRevision(saved.revision);
+                  await queryClient.invalidateQueries({
+                    queryKey: versionOptions.queryKey,
+                  });
+                  await onSaved();
+                }}
+                record={{ ...record, revision }}
+              />
+            )}
+          </form.Subscribe>
+          {record.inlineTags?.length ? (
+            <form.Subscribe selector={(state) => state.values.body}>
+              {(body) => (
+                <DocumentInlineTags
+                  body={body}
+                  onSelect={(tag) => {
+                    setView("markdown");
+                    window.requestAnimationFrame(() => {
+                      const source =
+                        document.getElementById("document-markdown");
+                      if (source instanceof HTMLTextAreaElement) {
+                        source.focus();
+                        source.setSelectionRange(tag.start, tag.end);
+                      }
+                    });
+                  }}
+                  savedBody={savedBody}
+                  tags={record.inlineTags ?? []}
+                />
+              )}
+            </form.Subscribe>
+          ) : null}
+          {convertedDiagram && record.projectId !== null ? (
             <div
               className="rounded-md border border-border bg-muted/50 p-3 text-sm"
               role="status"
@@ -965,7 +1055,7 @@ function DocumentEditor({
               <p>Technical Diagram: {convertedDiagram.title}</p>
               <a
                 className="underline"
-                href={`/projects/${encodeURIComponent(projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
+                href={`/projects/${encodeURIComponent(record.projectId ?? "")}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
               >
                 Open source record
               </a>
@@ -1115,12 +1205,14 @@ function DocumentEditor({
                           </NativeSelectOption>
                         ))}
                       </NativeSelect>
-                      <a
-                        className="text-sm underline"
-                        href={`/projects/${projectId}#smart-collections`}
-                      >
-                        Smart Collection
-                      </a>
+                      {record.projectId === null ? null : (
+                        <a
+                          className="text-sm underline"
+                          href={`/projects/${record.projectId}#smart-collections`}
+                        >
+                          Smart Collection
+                        </a>
+                      )}
                       <Label htmlFor="document-live-diagram">
                         Technical Diagram
                       </Label>
@@ -1140,12 +1232,14 @@ function DocumentEditor({
                           </NativeSelectOption>
                         ))}
                       </NativeSelect>
-                      <a
-                        className="text-sm underline"
-                        href={`/projects/${encodeURIComponent(projectId)}#technical-diagrams`}
-                      >
-                        Technical Diagrams
-                      </a>
+                      {record.projectId === null ? null : (
+                        <a
+                          className="text-sm underline"
+                          href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagrams`}
+                        >
+                          Technical Diagrams
+                        </a>
+                      )}
                       {selectedDiagramId ? (
                         <>
                           <Label htmlFor="document-live-diagram-view">
@@ -1270,6 +1364,7 @@ function DocumentEditor({
                       </Button>
                       <Button
                         disabled={
+                          record.projectId === null ||
                           !selectedTextRange ||
                           selectedTextRange.end <= selectedTextRange.start ||
                           field.state.value !== savedBody
@@ -1297,6 +1392,7 @@ function DocumentEditor({
                       </Button>
                       <Button
                         disabled={
+                          record.projectId === null ||
                           bulkRows.length === 0 ||
                           field.state.value !== savedBody
                         }
@@ -1341,7 +1437,7 @@ function DocumentEditor({
                         })
                       }
                       onMermaidConvert={
-                        previewBody === savedBody
+                        record.projectId !== null && previewBody === savedBody
                           ? (start, end) => {
                               conversionKey.current = null;
                               setConversionTitle(record.title);
@@ -1405,7 +1501,7 @@ function DocumentEditor({
         ) : null}
       </form>
       <Dialog
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setRecordConversionOpen(open);
           if (!open) {
             recordConversionKey.current = null;
@@ -1461,7 +1557,7 @@ function DocumentEditor({
               value={recordConversionTitle}
             />
             <div className="rounded-md border p-3 text-sm">
-              <p>Project: {projectId}</p>
+              <p>Project: {record.projectId}</p>
               <p>
                 Document: {record.title} · Version {revision}
               </p>
@@ -1521,7 +1617,7 @@ function DocumentEditor({
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border p-3 text-sm">
-            <p>Project: {projectId}</p>
+            <p>Project: {record.projectId}</p>
             <p>
               Document: {record.title} · Version {revision}
             </p>
@@ -1853,18 +1949,31 @@ function DocumentEditor({
   );
 }
 
-export default function ProjectDocumentsSurface({
-  accountFormattingPreferences,
+export default function DocumentsSurface({
+  accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   projectId,
   selectedDocumentId,
+  starterSkeletons,
 }: {
-  accountFormattingPreferences: AccountPreferences;
-  projectId: string;
+  accountFormattingPreferences?: AccountPreferences;
+  projectId: string | null;
   selectedDocumentId?: string;
+  starterSkeletons: readonly StarterSkeletonSelection[];
 }) {
   const queryClient = useQueryClient();
-  const options = orpc.documents.queryOptions({ input: { projectId } });
+  const [archived, setArchived] = useState(false);
+  const options = orpc.documents.queryOptions({
+    input: { projectId, archived },
+  });
   const documents = useQuery(options);
+  const documentStarterSkeletons = starterSkeletons.filter(
+    (selection): selection is DocumentStarterSkeletonSelection =>
+      selection.surface === "Document",
+  );
+  const counterpart = useQuery(
+    orpc.documents.queryOptions({ input: { projectId, archived: !archived } }),
+  );
+  const allDocuments = [...(documents.data ?? []), ...(counterpart.data ?? [])];
   const [selectedId, setSelectedId] = useState<string | null>(
     selectedDocumentId ?? null,
   );
@@ -1872,7 +1981,7 @@ export default function ProjectDocumentsSurface({
   const [createOpen, setCreateOpen] = useState(false);
   const pendingCreate = useRef<{
     clientIdempotencyKey: string;
-    projectId: string;
+    projectId: string | null;
     value: DocumentCreateInput;
   } | null>(null);
 
@@ -1881,8 +1990,12 @@ export default function ProjectDocumentsSurface({
     if (
       pending &&
       pending.projectId === projectId &&
-      pending.value.title === value.title &&
-      pending.value.type === value.type
+      ("skeleton" in value
+        ? "skeleton" in pending.value &&
+          pending.value.skeleton === value.skeleton
+        : !("skeleton" in pending.value) &&
+          pending.value.title === value.title &&
+          pending.value.type === value.type)
     ) {
       return pending.clientIdempotencyKey;
     }
@@ -1900,15 +2013,28 @@ export default function ProjectDocumentsSurface({
       clientIdempotencyKey: string;
       value: DocumentCreateInput;
     }) =>
-      runOnlineOnlyWrite(() =>
-        client.createDocument({
+      runOnlineOnlyWrite(() => {
+        const mutationEnvelope = {
           projectId,
           baseRevision: 0,
           clientIdempotencyKey: command.clientIdempotencyKey,
+        };
+        if ("skeleton" in command.value) {
+          if (projectId === null) {
+            throw new Error("Starter skeletons require a Project.");
+          }
+          return client.createDocument({
+            ...mutationEnvelope,
+            projectId,
+            skeleton: command.value.skeleton,
+          });
+        }
+        return client.createDocument({
+          ...mutationEnvelope,
           ...command.value,
           body: "",
-        }),
-      ),
+        });
+      }),
     onSuccess: async (created, command) => {
       if (
         pendingCreate.current?.clientIdempotencyKey ===
@@ -1919,8 +2045,12 @@ export default function ProjectDocumentsSurface({
       setError(null);
       form.reset();
       setCreateOpen(false);
+      setArchived(false);
       setSelectedId(created.id);
-      await queryClient.invalidateQueries({ queryKey: options.queryKey });
+      if (projectId === null) {
+        window.location.hash = documentRecordHash(created.id);
+      }
+      await queryClient.invalidateQueries({ queryKey: orpc.documents.key() });
     },
     onError: (failure) =>
       setError(
@@ -1930,15 +2060,26 @@ export default function ProjectDocumentsSurface({
       ),
   });
   const form = useForm({
-    defaultValues: { title: "", type: "General" as Document["type"] },
+    defaultValues: {
+      skeleton: "" as "" | DocumentStarterSkeleton,
+      title: "",
+      type: "General" as Document["type"],
+    },
     onSubmit: async ({ value }) => {
+      const createValue = value.skeleton
+        ? { skeleton: value.skeleton }
+        : { title: value.title, type: value.type };
       await create.mutateAsync({
-        clientIdempotencyKey: createIdempotencyKey(value),
-        value,
+        clientIdempotencyKey: createIdempotencyKey(createValue),
+        value: createValue,
       });
     },
   });
-  const selected = documents.data?.find((item) => item.id === selectedId);
+  const selected =
+    documents.data?.find((item) => item.id === selectedId) ??
+    (selectedId === selectedDocumentId
+      ? counterpart.data?.find((item) => item.id === selectedId)
+      : undefined);
 
   useEffect(() => {
     if (
@@ -1965,10 +2106,32 @@ export default function ProjectDocumentsSurface({
     <section aria-label="Documents" className="space-y-6">
       <header className="flex items-center justify-between gap-4">
         <h2 className="font-semibold text-2xl">Documents</h2>
+        <Label className="flex items-center gap-2" htmlFor="documents-archived">
+          <Checkbox
+            checked={archived}
+            id="documents-archived"
+            onCheckedChange={(checked) => {
+              setArchived(Boolean(checked));
+              setSelectedId(null);
+            }}
+          />
+          Archived
+        </Label>
         <Button onClick={() => setCreateOpen(true)} type="button">
           Create Document
         </Button>
       </header>
+      <DocumentTemplatesSurface
+        onCreated={async (created) => {
+          setSelectedId(created.id);
+          if (projectId === null) {
+            window.location.hash = documentRecordHash(created.id);
+          }
+          await queryClient.invalidateQueries({ queryKey: options.queryKey });
+        }}
+        projectId={projectId}
+        source={selected}
+      />
       <Dialog
         onOpenChange={(open) => {
           setCreateOpen(open);
@@ -1983,7 +2146,9 @@ export default function ProjectDocumentsSurface({
           <DialogHeader>
             <DialogTitle className="text-lg">Create Document</DialogTitle>
             <DialogDescription>
-              Give this Document a title and choose its type.
+              {documentStarterSkeletons.length > 0
+                ? "Choose a starter skeleton, or give this Document a title and type."
+                : "Give this Document a title and choose its type."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -1993,44 +2158,86 @@ export default function ProjectDocumentsSurface({
               form.handleSubmit().catch(() => undefined);
             }}
           >
-            <form.Field name="title">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-title">Title</Label>
-                  <Input
-                    autoFocus
-                    id="new-document-title"
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    required
-                    value={field.state.value}
-                  />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="type">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="new-document-type">Type</Label>
-                  <NativeSelect
-                    id="new-document-type"
-                    onBlur={field.handleBlur}
-                    onChange={(event) =>
-                      field.handleChange(
-                        documentTypeSchema.parse(event.target.value),
-                      )
-                    }
-                    value={field.state.value}
-                  >
-                    {documentTypeSchema.options.map((option) => (
-                      <NativeSelectOption key={option} value={option}>
-                        {option}
+            {documentStarterSkeletons.length > 0 ? (
+              <form.Field name="skeleton">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="new-document-starter-skeleton">
+                      Starter skeleton
+                    </Label>
+                    <NativeSelect
+                      id="new-document-starter-skeleton"
+                      onBlur={field.handleBlur}
+                      onChange={(event) =>
+                        field.handleChange(
+                          documentStarterSkeletons.find(
+                            ({ skeleton }) => skeleton === event.target.value,
+                          )?.skeleton ?? "",
+                        )
+                      }
+                      value={field.state.value}
+                    >
+                      <NativeSelectOption value="">
+                        No starter skeleton
                       </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </div>
-              )}
-            </form.Field>
+                      {documentStarterSkeletons.map(({ skeleton }) => (
+                        <NativeSelectOption key={skeleton} value={skeleton}>
+                          {skeleton}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                )}
+              </form.Field>
+            ) : null}
+            <form.Subscribe selector={(state) => state.values.skeleton}>
+              {(skeleton) =>
+                skeleton ? null : (
+                  <>
+                    <form.Field name="title">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor="new-document-title">Title</Label>
+                          <Input
+                            autoFocus
+                            id="new-document-title"
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            value={field.state.value}
+                          />
+                        </div>
+                      )}
+                    </form.Field>
+                    <form.Field name="type">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor="new-document-type">Type</Label>
+                          <NativeSelect
+                            id="new-document-type"
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(
+                                documentTypeSchema.parse(event.target.value),
+                              )
+                            }
+                            value={field.state.value}
+                          >
+                            {documentTypeSchema.options.map((option) => (
+                              <NativeSelectOption key={option} value={option}>
+                                {option}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </div>
+                      )}
+                    </form.Field>
+                  </>
+                )
+              }
+            </form.Subscribe>
             {error ? (
               <p className="text-destructive" role="alert">
                 {error}
@@ -2046,13 +2253,14 @@ export default function ProjectDocumentsSurface({
               </Button>
               <form.Subscribe
                 selector={(state) => ({
+                  skeleton: state.values.skeleton,
                   title: state.values.title,
                   isSubmitting: state.isSubmitting,
                 })}
               >
-                {({ title, isSubmitting }) => (
+                {({ skeleton, title, isSubmitting }) => (
                   <Button
-                    disabled={isSubmitting || !title.trim()}
+                    disabled={isSubmitting || !(skeleton || title.trim())}
                     type="submit"
                   >
                     Create Document
@@ -2067,27 +2275,19 @@ export default function ProjectDocumentsSurface({
         <p role="alert">Documents could not be loaded.</p>
       ) : null}
       <div className="space-y-5">
-        <nav aria-label="Documents" className="flex flex-wrap gap-2">
-          {documents.data?.map((item) => (
-            <Button
-              className="max-w-full justify-start"
-              id={documentRecordHash(item.id)}
-              key={item.id}
-              onClick={() => setSelectedId(item.id)}
-              variant={item.id === selectedId ? "secondary" : "ghost"}
-            >
-              {item.title}
-            </Button>
-          ))}
-        </nav>
+        <DocumentNavigation
+          documents={documents.data ?? []}
+          onSelect={setSelectedId}
+          selectedId={selectedId}
+        />
         {selected ? (
           <DocumentEditor
             accountFormattingPreferences={accountFormattingPreferences}
+            documents={allDocuments}
             key={selected.id}
             onSaved={() =>
-              queryClient.invalidateQueries({ queryKey: options.queryKey })
+              queryClient.invalidateQueries({ queryKey: orpc.documents.key() })
             }
-            projectId={projectId}
             record={selected}
           />
         ) : (

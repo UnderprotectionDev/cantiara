@@ -577,7 +577,7 @@ export function createDatabaseFocusPeriod(
               membershipHistory
                 .filter(
                   (item) =>
-                    period.startedAt && item.joinedAt > period.startedAt,
+                    period.startedAt && item.joinedAt >= period.startedAt,
                 )
                 .map((item) => item.workId),
             );

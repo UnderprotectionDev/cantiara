@@ -280,6 +280,7 @@ export default function ProjectShellSurface({
               accountFormattingPreferences={accountFormattingPreferences}
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
+              starterSkeletons={configuration.starterSkeletons}
             />
           </Suspense>
           <FileAttachmentsSurface projectId={projectId} />

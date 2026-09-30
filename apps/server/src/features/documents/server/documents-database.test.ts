@@ -1,8 +1,10 @@
 import type { Context } from "@cantiara/api/context";
 import type { Document } from "@cantiara/api/documents";
+import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
 import {
   mutationHistory,
   mutationReceipt,
@@ -13,6 +15,7 @@ import {
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
+import { workspaceTag } from "@cantiara/db/schema/tags";
 import {
   diagramDocumentOrigin,
   diagramView,
@@ -20,11 +23,16 @@ import {
 } from "@cantiara/db/schema/technical-diagram";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createDatabaseUsageLinks } from "../../relations/server/usage-links-database";
+import {
+  createDatabaseUsageLinkMutationContracts,
+  createDatabaseUsageLinks,
+} from "../../relations/server/usage-links-database";
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
+import { createDatabaseTags } from "../../tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
+import { createDatabaseDocumentTagRenameWriter } from "./document-tag-rename-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -41,9 +49,21 @@ describeDatabase("Documents database boundary", () => {
   const workspaceId = `workspace-${crypto.randomUUID()}`;
   const projectId = `project-${crypto.randomUUID()}`;
 
-  function client(actorId = accountId) {
+  function client(
+    principalAccountId = accountId,
+    afterTemplateRead?: () => Promise<void>,
+  ) {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const access = createDatabaseDocuments(database);
+    if (afterTemplateRead && access.templates) {
+      const readTemplate = access.templates.get;
+      access.templates.get = async (...arguments_) => {
+        const template = await readTemplate(...arguments_);
+        await afterTemplateRead();
+        return template;
+      };
     }
     const context: Context = {
       accountAccess: {
@@ -58,13 +78,15 @@ describeDatabase("Documents database boundary", () => {
       db: database,
       documentMutationContracts:
         createDatabaseDocumentMutationContracts(database),
-      documents: createDatabaseDocuments(database),
+      documents: access,
+      usageLinkMutationContracts:
+        createDatabaseUsageLinkMutationContracts(database),
       smartCollections: createDatabaseSmartCollections(database),
       technicalDiagrams: createDatabaseTechnicalDiagrams(database),
       githubAvailability: { getStatus: () => "available" },
       session: {
         session: { id: "session-1" },
-        user: { id: actorId },
+        user: { id: principalAccountId },
       } as Context["session"],
     };
     return createRouterClient(appRouter, { context });
@@ -91,6 +113,269 @@ describeDatabase("Documents database boundary", () => {
     });
   });
 
+  it("keeps existing Wiki Documents accessible when converting to templates", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documentId = crypto.randomUUID();
+    await database.execute(sql`
+      INSERT INTO document (id, workspace_id, title, body, type, revision)
+      VALUES (${documentId}, ${workspaceId}, 'Existing Wiki Document',
+        '## Period\n\n{{period}}\n', 'General', 1)
+    `);
+    const documents = client();
+    const original = await documents.document({ documentId });
+    expect(original).toMatchObject({
+      id: documentId,
+      projectId: null,
+      title: "Existing Wiki Document",
+    });
+    expect(await documents.documents({ projectId: null })).toEqual([original]);
+    const preview = await documents.previewDocumentTemplate({ documentId });
+    const template = await documents.createDocumentTemplate({
+      ...preview,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const created = await documents.createDocumentFromTemplate({
+      projectId: null,
+      templateId: template.id,
+      templateRevision: template.revision,
+      title: "Review instance",
+      values: { period: "September" },
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    expect(created.body).toBe("## Period\n\nSeptember\n");
+    expect(await documents.document({ documentId })).toEqual(original);
+    await expect(
+      client("another-account").document({ documentId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("revalidates the template Version at the Document commit boundary", async () => {
+    const documents = client();
+    const template = await documents.createDocumentTemplate({
+      projectId,
+      name: "Review",
+      type: "General",
+      body: "## Period\n",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const racingDocuments = client(accountId, async () => {
+      await documents.updateDocumentTemplate({
+        templateId: template.id,
+        name: "Review",
+        type: "General",
+        body: "## Changed\n",
+        baseRevision: template.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+    });
+    await expect(
+      racingDocuments.createDocumentFromTemplate({
+        projectId,
+        templateId: template.id,
+        templateRevision: template.revision,
+        title: "Review instance",
+        values: {},
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    expect(await documents.documents({ projectId })).toEqual([]);
+  });
+
+  it.each(["Project", "Personal Wiki"] as const)(
+    "keeps converted templates and generated Documents independent in %s",
+    async (scope) => {
+      const documents = client();
+      const scopeProjectId = scope === "Project" ? projectId : null;
+      const source = await documents.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: scopeProjectId,
+        title: "Monthly review",
+        type: "General",
+        body: "## Period\n\n{{period}}\n\n## Decisions\n",
+      });
+      const preview = await documents.previewDocumentTemplate({
+        documentId: source.id,
+      });
+      const command = {
+        ...preview,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      const template = await documents.createDocumentTemplate(command);
+      expect(await documents.createDocumentTemplate(command)).toEqual(template);
+      expect(await documents.document({ documentId: source.id })).toEqual(
+        source,
+      );
+      const createCommand = {
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: scopeProjectId,
+        templateId: template.id,
+        templateRevision: template.revision,
+        title: "September review",
+        values: { period: "September" },
+      };
+      const created = await documents.createDocumentFromTemplate(createCommand);
+      expect(await documents.createDocumentFromTemplate(createCommand)).toEqual(
+        created,
+      );
+      expect(created.id).not.toBe(source.id);
+      expect(created.id).not.toBe(template.id);
+      expect(created.body).toBe("## Period\n\nSeptember\n\n## Decisions\n");
+      expect(created.revision).toBe(1);
+      expect(
+        await documents.documentVersions({ documentId: created.id }),
+      ).toHaveLength(1);
+      await documents.updateDocumentTemplate({
+        baseRevision: template.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        templateId: template.id,
+        name: template.name,
+        type: "Plan",
+        body: "## Changed template\n",
+      });
+      expect(await documents.document({ documentId: created.id })).toEqual(
+        created,
+      );
+      expect(await documents.document({ documentId: source.id })).toEqual(
+        source,
+      );
+      expect(await documents.createDocumentFromTemplate(createCommand)).toEqual(
+        created,
+      );
+      await expect(
+        documents.createDocumentFromTemplate({
+          ...createCommand,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+      const edited = await documents.updateDocument({
+        documentId: created.id,
+        baseRevision: created.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        body: "",
+      });
+      expect(edited.body).toBe("");
+    },
+  );
+
+  it("does not require a template for ordinary Documents and does not persist the prepared Personal Review", async () => {
+    const documents = client();
+    const created = await documents.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Blank Document",
+      type: "General",
+      body: "",
+    });
+    expect(created.body).toBe("");
+    expect(await documents.documentTemplates({ projectId })).toEqual([]);
+    const review = await documents.createDocumentFromTemplate({
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Personal review",
+      templateId: "personal-review",
+      values: {},
+    });
+    expect(review.projectId).toBeNull();
+    expect(review.body).toBe(
+      "## Period\n\n## What changed?\n\n## What worked?\n\n## What was difficult?\n\n## Decisions and learnings\n\n## What will I change next?\n\n## Related records\n",
+    );
+    expect(await documents.documentTemplates({ projectId: null })).toEqual([]);
+  });
+
+  it("rejects foreign scopes, cross-scope conversion, stale previews, and stale template updates", async () => {
+    const documents = client();
+    const other = client("another-account");
+    await expect(other.documentTemplates({ projectId })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(
+      other.documentTemplates({ projectId: null }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const source = await documents.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Private review",
+      type: "General",
+      body: "Private",
+    });
+    const preview = await documents.previewDocumentTemplate({
+      documentId: source.id,
+    });
+    await expect(
+      other.previewDocumentTemplate({ documentId: source.id }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(other.documents({ projectId: null })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(
+      documents.createDocumentTemplate({
+        ...preview,
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await documents.updateDocument({
+      documentId: source.id,
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+      body: "Changed",
+    });
+    await expect(
+      documents.createDocumentTemplate({
+        ...preview,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const template = await documents.createDocumentTemplate({
+      projectId: null,
+      name: "Review",
+      type: "General",
+      body: "## Period\n",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await expect(
+      other.createDocumentFromTemplate({
+        projectId: null,
+        templateId: template.id,
+        templateRevision: 1,
+        title: "Stolen",
+        values: {},
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const update = {
+      templateId: template.id,
+      name: "Changed",
+      type: "General" as const,
+      body: "Changed",
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+    };
+    await documents.updateDocumentTemplate(update);
+    await expect(
+      documents.updateDocumentTemplate({
+        ...update,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+
   afterEach(async () => {
     await database
       ?.delete(mutationHistory)
@@ -106,6 +391,483 @@ describeDatabase("Documents database boundary", () => {
 
   afterAll(async () => {
     await database?.$client.end();
+  });
+
+  it("Personal Wiki persists through Documents without any Project and stays Account-private", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.delete(project).where(eq(project.id, projectId));
+    const documents = client();
+    const created = await documents.createDocument({
+      projectId: null,
+      title: "PostgreSQL troubleshooting",
+      body: "# Recovering a connection",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-create",
+    });
+    expect(created.projectId).toBeNull();
+    expect(await documents.documents({ projectId: null })).toEqual([created]);
+    const updated = await documents.updateDocument({
+      documentId: created.id,
+      body: "# Recovering a connection\n\nRetry after reconnecting.",
+      baseRevision: created.revision,
+      clientIdempotencyKey: "wiki-edit",
+    });
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      updated,
+    );
+    expect(
+      await documents.documentVersion({
+        documentId: created.id,
+        revision: created.revision,
+      }),
+    ).toEqual(created);
+    const restored = await documents.restoreDocumentVersion({
+      documentId: created.id,
+      revision: created.revision,
+      baseRevision: updated.revision,
+      clientIdempotencyKey: "wiki-restore",
+    });
+    expect(restored).toMatchObject({ projectId: null, body: created.body });
+    const target = await documents.createDocument({
+      projectId: null,
+      title: "Connection checklist",
+      body: "Review recovery steps.",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-evidence-target",
+    });
+    const evidence = await documents.pinDocumentEvidence({
+      documentId: created.id,
+      documentRevision: restored.revision,
+      selectionStart: 0,
+      selectionEnd: 12,
+      selectedText: "# Recovering",
+      targetRecordId: target.id,
+      targetRecordType: "Document",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-evidence-pin",
+    });
+    expect(evidence).toMatchObject({
+      kind: "Pinned bind",
+      source: { recordId: created.id, recordType: "Document" },
+      surface: { recordId: target.id, recordType: "Document" },
+    });
+    expect(
+      await createDatabaseDocuments(database).get(
+        "another-account",
+        created.id,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseDocuments(database).getVersion(
+        "another-account",
+        created.id,
+        created.revision,
+      ),
+    ).toBeNull();
+    expect(
+      await createDatabaseDocuments(database).versions(
+        "another-account",
+        created.id,
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps inline tags, hierarchy, and archive in Personal Wiki scope", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const tagId = crypto.randomUUID();
+    await database.insert(workspaceTag).values({
+      id: tagId,
+      workspaceId,
+      name: "wiki-tag",
+      nameKey: "wiki-tag",
+    });
+    const api = client();
+    const root = await api.createDocument({
+      baseRevision: 0,
+      body: "#wiki-tag",
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Wiki root",
+      type: "General",
+    });
+    const child = await api.createDocument({
+      baseRevision: 0,
+      body: "Child notes",
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Wiki child",
+      type: "General",
+    });
+
+    expect(root.inlineTags).toEqual([
+      { name: "wiki-tag", start: 0, end: 9, tagId },
+    ]);
+    expect(
+      (await api.documents({ projectId: null })).find(
+        ({ id }) => id === root.id,
+      )?.inlineTags,
+    ).toEqual(root.inlineTags);
+
+    await api.organizeDocument({
+      action: "hierarchy",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: child.id,
+      folder: "Notes",
+      parentDocumentId: root.id,
+    });
+    const preview = await api.previewDocumentOrganization({
+      action: "archive",
+      archived: true,
+      documentId: root.id,
+    });
+    expect(preview).toMatchObject({
+      allowed: true,
+      descendants: [{ id: child.id, title: "Wiki child", archivedAt: null }],
+    });
+
+    const archived = await api.organizeDocument({
+      action: "archive",
+      archived: true,
+      baseRevision: root.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: root.id,
+    });
+    expect(archived).toMatchObject({
+      id: root.id,
+      projectId: null,
+      archivedAt: expect.any(String),
+    });
+    expect(
+      (await api.documents({ projectId: null })).map(({ id }) => id),
+    ).toEqual([child.id]);
+    expect(
+      (await api.documents({ archived: true, projectId: null })).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([root.id]);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      folder: "Notes",
+      parentDocumentId: root.id,
+      archivedAt: null,
+    });
+  });
+
+  it("requires a selected skeleton in an owned, writable Project", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documents = client();
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "create-selected-persona",
+      projectId,
+      skeleton: "Persona" as const,
+    };
+
+    await expect(documents.createDocument(input)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(await documents.documents({ projectId })).toEqual([]);
+
+    await database
+      .update(project)
+      .set({
+        configuration: getProjectShellConfiguration("Solo SaaS"),
+        starterConfiguration: "Solo SaaS",
+      })
+      .where(eq(project.id, projectId));
+    expect(await documents.documents({ projectId })).toEqual([]);
+
+    await expect(
+      documents.createDocument({ ...input, projectId: "unavailable-project" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await database
+      .update(project)
+      .set({ archivedAt: new Date() })
+      .where(eq(project.id, projectId));
+    await expect(documents.createDocument(input)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(await documents.documents({ projectId })).toEqual([]);
+  });
+
+  it.each([
+    {
+      body: "## Context\n\n## Goals\n\n## Behaviors\n\n## Pain Points\n\n## Constraints\n\n## Evidence\n\n## Open Questions",
+      skeleton: "Persona" as const,
+      type: "Persona",
+    },
+    {
+      body: "## Period\n\n## What worked?\n\n## What did not?\n\n## What did we learn?\n\n## Decisions\n\n## Next changes\n\n## Related records",
+      skeleton: "Retrospective" as const,
+      type: "General",
+    },
+    {
+      body: "## Release\n\n## Audience\n\n## Scope\n\n## Readiness\n\n## Communication\n\n## Launch steps\n\n## Risks\n\n## Observation plan\n\n## Related records",
+      skeleton: "Launch Plan" as const,
+      type: "Plan",
+    },
+  ])(
+    "persists $skeleton as an independent, editable Document and replays creation",
+    async ({ body, skeleton, type }) => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      await database
+        .update(project)
+        .set({
+          configuration: getProjectShellConfiguration("Solo SaaS"),
+          starterConfiguration: "Solo SaaS",
+        })
+        .where(eq(project.id, projectId));
+      const documents = client();
+      const input = {
+        baseRevision: 0,
+        clientIdempotencyKey: "create-selected-skeleton",
+        projectId,
+        skeleton,
+      };
+      const created = await documents.createDocument(input);
+
+      expect(created).toMatchObject({
+        body,
+        projectId,
+        revision: 1,
+        title: skeleton,
+        type,
+      });
+      expect(await documents.createDocument(input)).toEqual(created);
+      expect(await documents.documents({ projectId })).toEqual([created]);
+      expect(await documents.document({ documentId: created.id })).toEqual(
+        created,
+      );
+      await expect(
+        documents.createDocument({
+          ...input,
+          skeleton: skeleton === "Persona" ? "Retrospective" : "Persona",
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+
+      await database
+        .update(project)
+        .set({
+          configuration: getProjectShellConfiguration("Blank Project"),
+          starterConfiguration: "Blank Project",
+        })
+        .where(eq(project.id, projectId));
+      const updated = await documents.updateDocument({
+        baseRevision: created.revision,
+        body: `${body}\n\nFounder notes.`,
+        clientIdempotencyKey: "edit-skeleton-document",
+        documentId: created.id,
+        title: "Founder notes",
+        type: "Research Note",
+      });
+      expect(updated).toMatchObject({
+        body: `${body}\n\nFounder notes.`,
+        id: created.id,
+        revision: 2,
+        title: "Founder notes",
+        type: "Research Note",
+      });
+      expect(await documents.document({ documentId: created.id })).toEqual(
+        updated,
+      );
+      expect(
+        await documents.documentVersion({
+          documentId: created.id,
+          revision: 1,
+        }),
+      ).toEqual(created);
+    },
+  );
+  it("binds in-document tokens to existing Workspace tags without creating unknown tags", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.insert(workspaceTag).values({
+      id: "document-release-tag",
+      workspaceId,
+      name: "release",
+      nameKey: "release",
+    });
+    const wikiDocumentId = crypto.randomUUID();
+    await database.insert(document).values({
+      id: wikiDocumentId,
+      workspaceId,
+      title: "Wiki release notes",
+      type: "General",
+      revision: 1,
+      body: "#release",
+    });
+    const api = client();
+    const legacyId = crypto.randomUUID();
+    await database.insert(document).values({
+      id: legacyId,
+      projectId,
+      title: "Existing prose",
+      type: "General",
+      revision: 1,
+      body: "#release `#release`",
+    });
+    expect((await api.document({ documentId: legacyId })).inlineTags).toEqual([
+      { name: "release", start: 0, end: 8, tagId: "document-release-tag" },
+    ]);
+    const created = await api.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: "document-with-tags",
+      projectId,
+      title: "Release notes",
+      type: "General",
+      body: "#release #unknown `#release`",
+    });
+    expect(created.inlineTags).toEqual([
+      { name: "release", start: 0, end: 8, tagId: "document-release-tag" },
+    ]);
+    expect((await api.document({ documentId: created.id })).inlineTags).toEqual(
+      created.inlineTags,
+    );
+    const tags = createDatabaseTags(database, {
+      inlineRename: createDatabaseDocumentTagRenameWriter(),
+    });
+    await tags.rename(accountId, {
+      tagId: "document-release-tag",
+      name: "Release planning",
+    });
+    const renamed = await api.document({ documentId: created.id });
+    expect((await api.document({ documentId: legacyId })).body).toBe(
+      "#[Release planning] `#release`",
+    );
+    expect(renamed.body).toBe("#[Release planning] #unknown `#release`");
+    expect(renamed.inlineTags?.[0]?.tagId).toBe("document-release-tag");
+    const [renamedWikiDocument] = await database
+      .select({ body: document.body, inlineTags: document.inlineTags })
+      .from(document)
+      .where(eq(document.id, wikiDocumentId));
+    expect(renamedWikiDocument).toEqual({
+      body: "#[Release planning]",
+      inlineTags: [
+        {
+          tagId: "document-release-tag",
+          name: "Release planning",
+          start: 0,
+          end: 19,
+        },
+      ],
+    });
+    expect(
+      (await api.documentVersion({ documentId: created.id, revision: 1 })).body,
+    ).toBe(created.body);
+    const restored = await api.restoreDocumentVersion({
+      documentId: created.id,
+      revision: created.revision,
+      baseRevision: renamed.revision,
+      clientIdempotencyKey: "restore-tag-identity",
+    });
+    expect(restored.body).toBe(created.body);
+    expect(restored.inlineTags).toEqual(created.inlineTags);
+    await tags.rename(accountId, {
+      tagId: "document-release-tag",
+      name: "release",
+    });
+    expect((await api.document({ documentId: created.id })).body).toBe(
+      created.body,
+    );
+  });
+
+  it("previews and revalidates depth, preserves children on archive, and restores normal navigation", async () => {
+    const api = client();
+    const create = (title: string) =>
+      api.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId,
+        title,
+        type: "General",
+        body: `# ${title}`,
+      });
+    const root = await create("Root");
+    const child = await create("Child");
+    const grandchild = await create("Grandchild");
+    const other = await create("Other");
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: root.id,
+      folder: "Planning",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: grandchild.id,
+      parentDocumentId: child.id,
+      folder: null,
+      baseRevision: grandchild.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const move = {
+      action: "hierarchy" as const,
+      documentId: root.id,
+      parentDocumentId: other.id,
+      folder: null,
+    };
+    expect(await api.previewDocumentOrganization(move)).toMatchObject({
+      allowed: false,
+      reason: "Document hierarchy is limited to three levels.",
+    });
+    await expect(
+      api.organizeDocument({
+        ...move,
+        baseRevision: root.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const archived = await api.organizeDocument({
+      action: "archive",
+      archived: true,
+      documentId: root.id,
+      baseRevision: root.revision,
+      clientIdempotencyKey: "archive-root",
+    });
+    expect(archived).toMatchObject({
+      id: root.id,
+      body: root.body,
+      projectId,
+      parentDocumentId: null,
+    });
+    expect(
+      (await api.documents({ projectId })).map(({ id }) => id),
+    ).not.toContain(root.id);
+    expect(
+      (await api.documents({ projectId, archived: true })).map(({ id }) => id),
+    ).toEqual([root.id]);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      parentDocumentId: root.id,
+      folder: "Planning",
+      archivedAt: null,
+    });
+    expect(
+      await api.documentVersion({ documentId: root.id, revision: 1 }),
+    ).toMatchObject({ body: root.body });
+    const restored = await api.organizeDocument({
+      action: "archive",
+      archived: false,
+      documentId: root.id,
+      baseRevision: archived.revision,
+      clientIdempotencyKey: "unarchive-root",
+    });
+    expect(restored.archivedAt).toBeNull();
+    expect((await api.documents({ projectId })).map(({ id }) => id)).toContain(
+      root.id,
+    );
   });
 
   it("persists Markdown edits, replays retries, and blocks writes after Project archive", async () => {
@@ -221,17 +983,16 @@ describeDatabase("Documents database boundary", () => {
       baseRevision: 0,
       body: "Wiki original",
       clientIdempotencyKey: "wiki-document-create",
+      projectId: null,
       title: "Wiki notes",
       type: "General",
-      workspaceId,
     });
 
     expect(created).toMatchObject({
       body: "Wiki original",
       projectId: null,
-      workspaceId,
     });
-    expect(await documents.documents({ workspaceId })).toEqual([created]);
+    expect(await documents.documents({ projectId: null })).toEqual([created]);
     expect(await documents.document({ documentId: created.id })).toEqual(
       created,
     );
@@ -239,7 +1000,7 @@ describeDatabase("Documents database boundary", () => {
       client("another-account").document({ documentId: created.id }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(
-      client("another-account").documents({ workspaceId }),
+      client("another-account").documents({ projectId: null }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     const current = await documents.updateDocument({
@@ -314,9 +1075,9 @@ describeDatabase("Documents database boundary", () => {
         baseRevision: 0,
         clientIdempotencyKey: "wiki-document-wrong-scope",
       }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    ).rejects.toMatchObject({ code: "CONFLICT" });
     const independent = await documents.createDocument({
-      workspaceId,
+      projectId: null,
       body: independentDraft.body,
       title: "Independent Wiki notes",
       type: independentDraft.type,
@@ -326,7 +1087,6 @@ describeDatabase("Documents database boundary", () => {
     });
     expect(independent).toMatchObject({
       projectId: null,
-      workspaceId,
       title: "Independent Wiki notes",
       body: "Wiki independent text",
       origin: {
@@ -339,9 +1099,15 @@ describeDatabase("Documents database boundary", () => {
       await documents.documentConflictDrafts({ documentId: created.id }),
     ).toEqual([]);
 
+    const bump = await documents.updateDocument({
+      documentId: independent.id,
+      body: "Wiki independent text",
+      baseRevision: independent.revision,
+      clientIdempotencyKey: "wiki-document-independent-bump",
+    });
     await expect(
       documents.updateDocument({
-        baseRevision: independent.revision,
+        baseRevision: bump.revision - 1,
         body: "Wiki draft to delete",
         clientIdempotencyKey: "wiki-document-delete-draft",
         documentId: independent.id,
@@ -599,6 +1365,36 @@ describeDatabase("Documents database boundary", () => {
         surface: { recordId: created.id, recordType: "Document" },
       },
     ]);
+    const convertedPreview = await documents.previewDocumentTemplate({
+      documentId: created.id,
+    });
+    expect(convertedPreview.body).toBe("");
+    const template = await documents.createDocumentTemplate({
+      ...convertedPreview,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const independent = await documents.createDocumentFromTemplate({
+      projectId,
+      templateId: template.id,
+      templateRevision: template.revision,
+      title: "Independent notes",
+      values: {},
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    expect(
+      await documents.documentLiveWorkBlocks({ documentId: independent.id }),
+    ).toEqual([]);
+    expect(
+      await usages.listBySource(accountId, {
+        recordId: "work-source",
+        recordType: "Work",
+      }),
+    ).toEqual(initialLinks);
+    expect(await documents.document({ documentId: created.id })).toEqual(
+      created,
+    );
     expect(
       await documents.documentLiveWorkBlocks({ documentId: created.id }),
     ).toMatchObject([

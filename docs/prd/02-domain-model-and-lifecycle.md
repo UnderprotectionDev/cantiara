@@ -23,6 +23,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | PDF | `PDF` | Tek belge dışa aktarma biçimi |
 | Dış yüzeyi iptal et | `Cancel External Surface` | Taşımadan önce etkin Dış yüzeyi iptal etme onayı |
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
+| Belge düzenleme | `Organize Document` | Aynı Projede klasör ve üst Belgeyi önizlemeyle düzenleme; kapsam taşıması değildir |
+| Üst Belgeyi kaldır | `No Parent Document` | Belgeyi aynı kapsamda kök seviyeye alma; çocuk bağları korunur |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
 | Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |
 | Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
@@ -125,6 +127,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Açık İş kararı bölgesi | `Still-open Work decisions` | Kapanıştan sonra açık İşlerin toplu kararını sunan erişilebilir bölüm |
 | Odak Dönemi yok | `No Focus Period yet.` | Henüz dönem açılmamış boş durum |
 | Odak Döneminde İş yok | `No Work in this Focus Period.` | Dönemde üyelik olmadığında boş durum |
+| Odak Döneminde bağımlılık yok | `No dependencies in this Focus Period.` | Dönem kapsamındaki mevcut ilişkilerden blokaj türetilemediğinde salt-okunur boş durum |
+| Bağımlılık döngüsünde | `Part of a dependency cycle` | Dönem kapsamında güvenle saptanan döngünün ilişkisi; çözülmüş kenar varsa tüm bekleyişlerin etkin olduğu anlamına gelmez |
 | Odak Dönemi penceresi | `Focus Period must be 1–8 weeks.` | 1–8 hafta dışı oluşturma reddi |
 | Başka etkin döneme taşı | `Move` | İşin mevcut etkin Odak Döneminden açıkça başka etkin döneme alınması |
 | Zaten etkin dönemde | `Work is already in an active Focus Period. Use Move.` | Örtük ikinci etkin üyelik reddi |
@@ -281,6 +285,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Şablona dönüştür | `Convert to template` | Mevcut Belgeden iskelet çıkarma; kaynak Belgeyi taşımaz, arşivlemez veya değiştirmez |
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız kimlikli Belge açma; sonraki şablon düzeni eski örnekleri güncellemez |
 | Belge şablonu ekle | `Add Document Template` | Proje veya Kişisel Wiki kapsamında yeni Belge şablonu oluşturma |
+| Belge şablonunu düzenle | `Edit Document Template` | İskeletin ve yer tutucuların sonraki Belgeler için değiştirilmesi; hazır Personal Review düzenlemesi bağımsız kullanıcı şablonu oluşturur |
 | İskelet | `Skeleton` | Belge şablonunun başlangıç gövdesi; canlı bağ veya örnek kayıt değildir |
 | Yer tutucular | `Placeholders` | Şablon iskeletindeki `{{field_name}}` alanları |
 | Personal Review | `Personal Review` | İsteğe bağlı hazır Belge şablonu; toplantı türü veya zorunlu kullanım sıklığı değildir |
@@ -541,7 +546,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Belgeler yükleniyor | `Loading Documents…` | Proje Belgeleri alanı yüklenirken gösterilen ilerleme durumu |
 | Belge oluştur | `Create Document` | Projede yeni Belge kaydı oluşturma eylemi |
-| Belge oluşturma açıklaması | `Give this Document a title and choose its type.` | Oluşturma penceresindeki kısa yönlendirme |
+| Başlangıç iskeleti seç | `Starter skeleton` | Proje yapılandırmasında seçili bir Belge başlangıç iskeletini oluşturma seçeneği |
+| Başlangıç iskeleti olmadan oluştur | `No starter skeleton` | Başlangıç iskeleti yerine olağan başlık/tür akışını kullanma seçeneği |
+| Belge oluşturma açıklaması | `Choose a starter skeleton, or give this Document a title and type.`; iskelet seçimi yoksa `Give this Document a title and choose its type.` | Oluşturma penceresindeki yapılandırmaya bağlı kısa yönlendirme |
 | İptal | `Cancel` | Belge oluşturma penceresini kayıt oluşturmadan kapatma |
 | Belge düzenleyici | `Document editor` | Belgenin zengin metin düzenleme alanı |
 | Belge görünümü | `Document view` | Aynı Belgenin yazma, Markdown ve önizleme sekmeleri |

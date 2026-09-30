@@ -40,16 +40,6 @@ interface DraftComparison {
   type: Document["type"];
 }
 
-function conflictDraftScope(draft: DocumentConflictDraft) {
-  if (draft.projectId) {
-    return { projectId: draft.projectId };
-  }
-  if (draft.workspaceId) {
-    return { workspaceId: draft.workspaceId };
-  }
-  return null;
-}
-
 async function resolveComparedDraft(
   documentId: string,
   action: "Apply parts" | "Create Document" | "Delete",
@@ -73,12 +63,8 @@ async function resolveComparedDraft(
     if (!independent) {
       throw new Error("Choose the new Document title and content first.");
     }
-    const scope = conflictDraftScope(draft);
-    if (!scope) {
-      throw new Error("The Conflict Draft has no valid ownership scope.");
-    }
     await client.createDocument({
-      ...scope,
+      projectId: draft.projectId,
       conflictDraftId: draft.id,
       baseRevision: 0,
       clientIdempotencyKey,

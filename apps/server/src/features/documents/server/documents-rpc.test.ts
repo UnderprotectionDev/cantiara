@@ -22,7 +22,6 @@ const initialDocument = {
   createdAt: "2026-09-29T12:00:00.000Z",
   id: "document-1",
   projectId: "project-1",
-  workspaceId: null,
   revision: 1,
   title: "Architecture",
   type: "Spec",
@@ -133,7 +132,231 @@ function createFailingMutationContract(error: unknown) {
   return contract;
 }
 
+describe("Personal Wiki ownership boundary", () => {
+  test("Wiki evidence cannot use an unavailable target as Wiki ownership", async () => {
+    const documents = createDocumentsAccess();
+    vi.mocked(documents.get).mockImplementation(
+      async (_accountId, documentId) =>
+        documentId === "private-wiki"
+          ? {
+              ...initialDocument,
+              id: "private-wiki",
+              projectId: null,
+              body: "Private knowledge",
+            }
+          : null,
+    );
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    await expect(
+      client.pinDocumentEvidence({
+        documentId: "private-wiki",
+        documentRevision: 1,
+        selectionStart: 0,
+        selectionEnd: 7,
+        selectedText: "Private",
+        targetRecordId: "unavailable-document",
+        targetRecordType: "Document",
+        baseRevision: 0,
+        clientIdempotencyKey: "wiki-evidence",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+  test("Personal Wiki creates a Document without a Project through the same commands", async () => {
+    const documents = createDocumentsAccess();
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => mutation.contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    const created = await client.createDocument({
+      projectId: null,
+      title: "PostgreSQL troubleshooting",
+      body: "# Connection recovery",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-create",
+    });
+    expect(created).toMatchObject({ projectId: null, type: "General" });
+    expect(created).not.toHaveProperty("visitorUrl");
+    expect(created).not.toHaveProperty("publicSlug");
+    await client.documents({ projectId: null });
+    expect(documents.list).toHaveBeenCalledWith("account-1", null, undefined);
+  });
+  test("rejects a second Wiki Document type", async () => {
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => mutation.contract,
+        update: () => mutation.contract,
+      }),
+    });
+    const input = {
+      projectId: null,
+      title: "Personal knowledge",
+      body: "Private text",
+      type: initialDocument.type,
+      baseRevision: 0,
+      clientIdempotencyKey: "wiki-type",
+    };
+    Reflect.set(input, "type", "Wiki");
+    await expect(client.createDocument(input)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mutation.commands).toHaveLength(0);
+  });
+  test("unauthenticated reads never reach live Wiki content", async () => {
+    const documents = createDocumentsAccess();
+    const context = createContext(documents, {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    context.session = null;
+    const client = createRouterClient(appRouter, { context });
+    await expect(client.documents({ projectId: null })).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.document({ documentId: "private-wiki" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(documents.list).not.toHaveBeenCalled();
+    expect(documents.get).not.toHaveBeenCalled();
+  });
+});
+
 describe("Documents RPC", () => {
+  test("creates Persona with only its contracted empty headings", async () => {
+    const context = createContext(createDocumentsAccess(), {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    const client = createRouterClient(appRouter, { context });
+
+    expect(
+      await client.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: "create-persona",
+        projectId: "project-1",
+        skeleton: "Persona",
+      }),
+    ).toMatchObject({
+      body: "## Context\n\n## Goals\n\n## Behaviors\n\n## Pain Points\n\n## Constraints\n\n## Evidence\n\n## Open Questions",
+      projectId: "project-1",
+      revision: 1,
+      title: "Persona",
+      type: "Persona",
+    });
+  });
+
+  test.each([
+    {
+      body: "## Period\n\n## What worked?\n\n## What did not?\n\n## What did we learn?\n\n## Decisions\n\n## Next changes\n\n## Related records",
+      skeleton: "Retrospective" as const,
+      type: "General",
+    },
+    {
+      body: "## Release\n\n## Audience\n\n## Scope\n\n## Readiness\n\n## Communication\n\n## Launch steps\n\n## Risks\n\n## Observation plan\n\n## Related records",
+      skeleton: "Launch Plan" as const,
+      type: "Plan",
+    },
+  ])(
+    "creates $skeleton with only its contracted empty headings",
+    async ({ body, skeleton, type }) => {
+      const context = createContext(createDocumentsAccess(), {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      });
+      const client = createRouterClient(appRouter, { context });
+
+      expect(
+        await client.createDocument({
+          baseRevision: 0,
+          clientIdempotencyKey: `create-${skeleton}`,
+          projectId: "project-1",
+          skeleton,
+        }),
+      ).toMatchObject({
+        body,
+        projectId: "project-1",
+        revision: 1,
+        title: skeleton,
+        type,
+      });
+    },
+  );
+
+  test("archives a Document without changing identity, content, scope, or child links", async () => {
+    const record = {
+      ...initialDocument,
+      parentDocumentId: "parent-1",
+      folder: "Planning",
+    };
+    const mutation = createMutationContract(record);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => createMutationContract(null).contract,
+        update: () => mutation.contract,
+        organize: () => mutation.contract,
+      }),
+    });
+    const archived = await client.organizeDocument({
+      action: "archive",
+      archived: true,
+      documentId: record.id,
+      baseRevision: 1,
+      clientIdempotencyKey: "archive-document-1",
+    });
+    expect(archived).toMatchObject({
+      id: record.id,
+      projectId: record.projectId,
+      body: record.body,
+      parentDocumentId: "parent-1",
+      folder: "Planning",
+      archivedAt: "2026-09-29T12:01:00.000Z",
+    });
+  });
+  test("passes the Archive filter to the Documents seam", async () => {
+    const documents = createDocumentsAccess();
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    await client.documents({ projectId: "project-1", archived: true });
+    expect(documents.list).toHaveBeenCalledWith("account-1", "project-1", true);
+  });
+
+  test("creates an independent Personal Review in Personal Wiki only when requested", async () => {
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => mutation.contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    const created = await client.createDocumentFromTemplate({
+      baseRevision: 0,
+      clientIdempotencyKey: "review-create",
+      projectId: null,
+      templateId: "personal-review",
+      title: "September review",
+      values: {},
+    });
+    expect(created.id).not.toBe("personal-review");
+    expect(created.projectId).toBeNull();
+    expect(created.body).toBe(
+      "## Period\n\n## What changed?\n\n## What worked?\n\n## What was difficult?\n\n## Decisions and learnings\n\n## What will I change next?\n\n## Related records\n",
+    );
+    expect(created.type).toBe("General");
+    expect(mutation.commands).toHaveLength(1);
+  });
   test("resolves a live Work block from its current source and hides an unavailable target", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockResolvedValue({

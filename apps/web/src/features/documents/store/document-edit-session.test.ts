@@ -7,7 +7,6 @@ import { createDocumentEditSession } from "./document-edit-session";
 const source: Document = {
   id: "document-1",
   projectId: "project-1",
-  workspaceId: null,
   title: "Architecture",
   type: "General",
   body: "Saved",

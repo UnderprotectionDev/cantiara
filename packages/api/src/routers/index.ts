@@ -1,6 +1,5 @@
 import { ORPCError, type RouterClient } from "@orpc/server";
 import { z } from "zod";
-
 import {
   type AccountPreferences,
   type AccountPreferencesSnapshot,
@@ -63,20 +62,34 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
-  createDocumentInputSchema,
+  createDocumentFromTemplateInputSchema,
+  createDocumentTemplateInputSchema,
+  documentTemplateDefinitionSchema,
+  documentTemplateSchema,
+  documentTemplateScopeSchema,
+  documentTemplateSkeleton,
+  personalReviewTemplate,
+  renderDocumentTemplate,
+  updateDocumentTemplateInputSchema,
+} from "../document-templates";
+import {
   createDocumentMutationInputSchema,
   DocumentConflictDraftError,
+  DocumentHierarchyError,
   type DocumentMutationValue,
   DocumentSectionCycleError,
   DocumentUnavailableError,
   discardDocumentConflictDraftInputSchema,
   documentBodySchema,
+  documentCreationFields,
+  documentCreationInputSchema,
   documentIdSchema,
   documentLiveDirectives,
   documentLiveWorkIds,
+  documentOrganizationInputSchema,
   documentSchema,
-  documentScopeSchema,
   documentVersionInputSchema,
+  organizeDocumentMutationInputSchema,
   documentRecordReferences as parseDocumentRecordReferences,
   pinDocumentEvidenceInputSchema,
   projectIdSchema,
@@ -125,7 +138,6 @@ import {
   type MutationCommand,
   type MutationPayload,
   type MutationReceipt,
-  mutationPayloadSchema,
 } from "../mutation-and-undo";
 import {
   cancelWorkReviewLaterInputSchema,
@@ -836,29 +848,21 @@ async function pinnedEvidenceTargetProjectId(
 ) {
   switch (recordType) {
     case "Work":
-      return (
-        (await context.workLifecycle?.find(accountId, recordId))?.projectId ??
-        null
-      );
+      return (await context.workLifecycle?.find(accountId, recordId))
+        ?.projectId;
     case "Document":
-      return (
-        (await context.documents?.get(accountId, recordId))?.projectId ?? null
-      );
+      return (await context.documents?.get(accountId, recordId))?.projectId;
     case "Technical Diagram":
-      return (
-        (await context.technicalDiagrams?.get(accountId, recordId))
-          ?.projectId ?? null
-      );
+      return (await context.technicalDiagrams?.get(accountId, recordId))
+        ?.projectId;
     default:
       return (
-        (
-          await context.projectSourceRecords?.find(
-            accountId,
-            recordType as ProjectSourceType,
-            recordId,
-          )
-        )?.projectId ?? null
-      );
+        await context.projectSourceRecords?.find(
+          accountId,
+          recordType as ProjectSourceType,
+          recordId,
+        )
+      )?.projectId;
   }
 }
 
@@ -890,7 +894,6 @@ async function documentReferenceSource(
         ? {
             id: record.id,
             projectId: record.projectId,
-            workspaceId: record.workspaceId,
             title: record.title,
           }
         : null;
@@ -2237,7 +2240,13 @@ function rethrowDocumentMutationError(error: unknown, targetId: string): never {
     throw new ORPCError("CONFLICT", { defined: true, message: error.message });
   }
   if (error instanceof DocumentUnavailableError) {
-    throw new ORPCError("NOT_FOUND", { defined: true, message: error.message });
+    throw new ORPCError("NOT_FOUND", { cause: error });
+  }
+  if (error instanceof DocumentHierarchyError) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: error.message,
+      cause: error,
+    });
   }
   if (error instanceof DocumentSectionCycleError) {
     throw new ORPCError("CONFLICT", {
@@ -2315,14 +2324,221 @@ function nullableProjectValue(value: string | null | undefined) {
 }
 
 export const appRouter = {
+  documentTemplates: protectedProcedure
+    .input(documentTemplateScopeSchema)
+    .handler(async ({ context, input }) => {
+      const templates = context.documents?.templates;
+      if (!templates) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await templates.list(context.session.user.id, input.projectId);
+      } catch (error) {
+        rethrowDocumentMutationError(error, "document-templates");
+      }
+    }),
+  previewDocumentTemplate: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      const source = await context.documents?.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!source) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return {
+        body: documentTemplateSkeleton(source.body),
+        name: source.title,
+        projectId: source.projectId,
+        sourceDocumentId: source.id,
+        sourceRevision: source.revision,
+        type: source.type,
+      };
+    }),
+  createDocumentTemplate: protectedProcedure
+    .input(createDocumentTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const contracts = context.documentMutationContracts?.templates;
+      if (!contracts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      try {
+        const receipt = await contracts.create(context.session.user.id).mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ committedAt }) => ({
+            template: documentTemplateSchema.parse({
+              ...documentTemplateDefinitionSchema.parse({
+                projectId: payload.projectId,
+                name: payload.name,
+                body: documentTemplateSkeleton(payload.body),
+                type: payload.type,
+              }),
+              id: crypto.randomUUID(),
+              revision: 1,
+              createdAt: committedAt,
+              updatedAt: committedAt,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.template) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.template;
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  updateDocumentTemplate: protectedProcedure
+    .input(updateDocumentTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const contracts = context.documentMutationContracts?.templates;
+      if (!contracts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      try {
+        const receipt = await contracts.update(context.session.user.id).mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.templateId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => ({
+            template: currentValue.template
+              ? documentTemplateSchema.parse({
+                  ...currentValue.template,
+                  name: payload.name,
+                  body: documentTemplateSkeleton(payload.body),
+                  type: payload.type,
+                  revision: currentRevision + 1,
+                  updatedAt: committedAt,
+                })
+              : null,
+          }),
+        );
+        if (!receipt.nextValue.template) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.template;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.templateId);
+      }
+    }),
+  createDocumentFromTemplate: protectedProcedure
+    .input(createDocumentFromTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const { baseRevision, clientIdempotencyKey, ...templatePayload } = input;
+      const contract =
+        requireDocumentMutationContracts(context).create(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human" as const,
+        payload: templatePayload,
+        targetId: clientIdempotencyKey,
+      };
+      try {
+        const replay = await contract.replay(command);
+        if (replay?.nextValue.document) {
+          return replay.nextValue.document;
+        }
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+      const template =
+        input.templateId === personalReviewTemplate.id
+          ? personalReviewTemplate
+          : await context.documents?.templates?.get(
+              accountId,
+              input.templateId,
+            );
+      if (
+        !template ||
+        ("projectId" in template && template.projectId !== input.projectId)
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      if (
+        "revision" in template &&
+        template.revision !== input.templateRevision
+      ) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          message:
+            "Document Template changed. Reload it before creating a Document.",
+        });
+      }
+      let body: string;
+      try {
+        body = renderDocumentTemplate(template.body, input.values);
+      } catch (error) {
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Document Template values are invalid.",
+        });
+      }
+      const payload = documentCreationInputSchema.parse({
+        projectId: input.projectId,
+        title: input.title,
+        type: template.type,
+        body,
+      });
+      try {
+        const receipt = await contract.mutate(
+          command,
+          ({ committedAt, currentRevision }) => ({
+            document: documentSchema.parse({
+              ...payload,
+              id: crypto.randomUUID(),
+              revision: currentRevision + 1,
+              createdAt: committedAt,
+              updatedAt: committedAt,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.clientIdempotencyKey);
+      }
+    }),
   documents: protectedProcedure
-    .input(documentScopeSchema)
+    .input(
+      z
+        .object({
+          projectId: projectIdSchema.nullable(),
+          archived: z.boolean().optional(),
+        })
+        .strict(),
+    )
     .handler(async ({ context, input }) => {
       if (!context.documents) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
       try {
-        return await context.documents.list(context.session.user.id, input);
+        return await context.documents.list(
+          context.session.user.id,
+          input.projectId,
+          input.archived,
+        );
       } catch (error) {
         if (error instanceof DocumentUnavailableError) {
           throw new ORPCError("NOT_FOUND", { cause: error });
@@ -2802,6 +3018,7 @@ export const appRouter = {
                     ...currentValue.document,
                     title: selected.title,
                     body: selected.body,
+                    inlineTags: selected.inlineTags,
                     type: selected.type,
                     revision: currentRevision + 1,
                     updatedAt: committedAt,
@@ -2817,12 +3034,81 @@ export const appRouter = {
         rethrowDocumentMutationError(error, input.documentId);
       }
     }),
+  previewDocumentOrganization: protectedProcedure
+    .input(documentOrganizationInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents?.previewOrganization) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.previewOrganization(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  organizeDocument: protectedProcedure
+    .input(organizeDocumentMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = documentOrganizationInputSchema.parse(payloadInput);
+      const mutation = requireDocumentMutationContracts(context).organize?.(
+        context.session.user.id,
+      );
+      if (!mutation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => {
+            const current = currentValue.document;
+            return {
+              document: current
+                ? documentSchema.parse({
+                    ...current,
+                    ...(payload.action === "archive"
+                      ? { archivedAt: payload.archived ? committedAt : null }
+                      : {
+                          folder: payload.folder,
+                          parentDocumentId: payload.parentDocumentId,
+                        }),
+                    revision: currentRevision + 1,
+                    updatedAt: committedAt,
+                  })
+                : null,
+            } satisfies DocumentMutationValue;
+          },
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.documentId);
+      }
+    }),
   createDocument: protectedProcedure
     .input(createDocumentMutationInputSchema)
     .handler(async ({ context, input }) => {
       const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
-      const payload = createDocumentInputSchema.parse(payloadInput);
-      const mutationPayload = mutationPayloadSchema.parse(payload);
+      const payloadSource: Record<string, unknown> = payloadInput;
+      const { conflictDraftId, ...creationSource } = payloadSource;
+      const payload = documentCreationInputSchema.parse(creationSource);
+      const conflictDraftOwnerId =
+        typeof conflictDraftId === "string" ? conflictDraftId : undefined;
       const mutation = requireDocumentMutationContracts(context).create(
         context.session.user.id,
       );
@@ -2833,24 +3119,20 @@ export const appRouter = {
             baseRevision,
             clientIdempotencyKey,
             kind: "human",
-            payload: mutationPayload,
+            payload,
             targetId: clientIdempotencyKey,
           },
           ({ committedAt, currentRevision }) =>
             ({
               document: documentSchema.parse({
-                projectId: payload.projectId ?? null,
-                workspaceId: payload.workspaceId ?? null,
-                body: payload.body,
-                title: payload.title,
-                type: payload.type,
+                ...documentCreationFields(payload),
                 createdAt: committedAt,
                 id: crypto.randomUUID(),
                 revision: currentRevision + 1,
                 updatedAt: committedAt,
               }),
-              ...(payload.conflictDraftId
-                ? { conflictDraftId: payload.conflictDraftId }
+              ...(conflictDraftOwnerId
+                ? { conflictDraftId: conflictDraftOwnerId }
                 : {}),
             }) satisfies DocumentMutationValue,
         );

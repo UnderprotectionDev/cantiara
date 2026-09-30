@@ -1,9 +1,320 @@
 import { z } from "zod";
-
+import {
+  DOCUMENT_STARTER_SKELETON_OPTIONS,
+  DOCUMENT_STARTER_SKELETONS,
+} from "./document-skeletons";
+import type {
+  DocumentTemplateAccess,
+  DocumentTemplateMutationContracts,
+} from "./document-templates";
 import {
   humanMutationEnvelopeSchema,
   type MutationContract,
 } from "./mutation-and-undo";
+import { tagNameKey } from "./tags";
+
+export interface DocumentInlineTagToken {
+  end: number;
+  name: string;
+  start: number;
+}
+
+const documentIndentedCodePattern = /^(?: {4}|\t)/;
+const documentBackticksPattern = /`+/g;
+const documentUrlPattern = /(?:https?:\/\/|mailto:|www\.)[^\s<>]+|<[^>\n]*>/g;
+const documentReferenceLinkDestinationPattern =
+  /^(?: {0,3}> ?)* {0,3}\[(?:\\.|[^\]\\\r\n])+\]:[ \t]*(?:\r?\n(?: {0,3}> ?)* {0,3})?(<[^>\r\n]*>|[^\s<>]+)/gm;
+const documentTagPattern =
+  /(?<![\p{L}\p{N}_/#])#(?:\[((?:\\.|[^\]\\\r\n]){1,800})\]|([\p{L}\p{N}][\p{L}\p{N}_/-]{0,199})(?![\p{L}\p{N}_/-]))/gu;
+const documentTagInvalidEscapePattern = /\\[^\\\]nr]/;
+const documentTagEscapePattern = /\\([\\\]nr])/g;
+const documentBareTagPattern = /^[\p{L}\p{N}][\p{L}\p{N}_/-]{0,199}$/u;
+const documentQuotePrefixPattern = /^ {0,3}(?:> ?)+/;
+
+function isEscapedMarkdownPosition(body: string, position: number) {
+  let escapes = 0;
+  for (
+    let cursor = position - 1;
+    cursor >= 0 && body[cursor] === "\\";
+    cursor -= 1
+  ) {
+    escapes += 1;
+  }
+  return escapes % 2 === 1;
+}
+
+function markdownTagCodeRanges(body: string) {
+  const excluded: Array<{ start: number; end: number }> = [];
+  let fence: { marker: string; length: number } | null = null;
+  let offset = 0;
+  for (const rawLine of body.split("\n")) {
+    const line = rawLine
+      .replaceAll("\r", "")
+      .replace(documentQuotePrefixPattern, "");
+    const marker = markdownFencePattern.exec(line)?.[1];
+    if (fence || marker || documentIndentedCodePattern.test(line)) {
+      const previous = excluded.at(-1);
+      if (previous && previous.end + 1 === offset) {
+        previous.end = offset + rawLine.length;
+      } else {
+        excluded.push({ start: offset, end: offset + rawLine.length });
+      }
+    }
+    if (fence) {
+      const closing = markdownFenceClosePattern.exec(line)?.[1];
+      if (closing?.[0] === fence.marker && closing.length >= fence.length) {
+        fence = null;
+      }
+    } else if (marker) {
+      fence = { marker: marker[0] ?? "", length: marker.length };
+    }
+    offset += rawLine.length + 1;
+  }
+  return excluded;
+}
+
+function isExcludedPosition(
+  ranges: readonly { start: number; end: number }[],
+  position: number,
+) {
+  let start = 0;
+  let end = ranges.length - 1;
+  while (start <= end) {
+    const middle = Math.floor((start + end) / 2);
+    const range = ranges[middle];
+    if (!range) {
+      return false;
+    }
+    if (position < range.start) {
+      end = middle - 1;
+    } else if (position >= range.end) {
+      start = middle + 1;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+function markdownInlineCodeRanges(
+  body: string,
+  excluded: readonly { start: number; end: number }[],
+) {
+  const ticks = [...body.matchAll(documentBackticksPattern)].filter(
+    (match) =>
+      !(
+        isExcludedPosition(excluded, match.index) ||
+        isEscapedMarkdownPosition(body, match.index)
+      ),
+  );
+  const nextByLength = new Map<number, number>();
+  const closings = new Map<number, number>();
+  for (let index = ticks.length - 1; index >= 0; index -= 1) {
+    const length = ticks[index]?.[0].length ?? 0;
+    const closing = nextByLength.get(length);
+    if (closing !== undefined) {
+      closings.set(index, closing);
+    }
+    nextByLength.set(length, index);
+  }
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let index = 0; index < ticks.length; index += 1) {
+    const opening = ticks[index];
+    const closingIndex = closings.get(index);
+    if (!opening || closingIndex === undefined) {
+      continue;
+    }
+    const closing = ticks[closingIndex];
+    if (closing) {
+      ranges.push({
+        start: opening.index,
+        end: closing.index + closing[0].length,
+      });
+      index = closingIndex;
+    }
+  }
+  return ranges;
+}
+
+function markdownTagInlineLinkDestinationRanges(body: string) {
+  const ranges: Array<{ start: number; end: number }> = [];
+  let openingIndex = -1;
+  let depth = 0;
+  let escaped = false;
+  for (let cursor = 0; cursor < body.length; cursor += 1) {
+    const character = body[cursor];
+    if (character === "\n") {
+      openingIndex = -1;
+      depth = 0;
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = !escaped;
+      continue;
+    }
+    const isEscaped = escaped;
+    escaped = false;
+    if (openingIndex < 0) {
+      if (character === "]" && body[cursor + 1] === "(" && !isEscaped) {
+        openingIndex = cursor;
+        depth = 1;
+        cursor += 1;
+      }
+      continue;
+    }
+    if (isEscaped) {
+      continue;
+    }
+    if (character === "(") {
+      depth += 1;
+    } else if (character === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        ranges.push({ start: openingIndex, end: cursor + 1 });
+        openingIndex = -1;
+      }
+    }
+  }
+  return ranges;
+}
+
+function markdownTagReferenceDestinationRanges(body: string) {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const match of body.matchAll(documentReferenceLinkDestinationPattern)) {
+    const [, destination] = match;
+    if (!destination) {
+      continue;
+    }
+    const start = match.index + match[0].lastIndexOf(destination);
+    ranges.push({ start, end: start + destination.length });
+  }
+  return ranges;
+}
+
+function markdownTagUrlRanges(body: string) {
+  const ranges = [...body.matchAll(documentUrlPattern)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
+  return ranges.concat(
+    markdownTagInlineLinkDestinationRanges(body),
+    markdownTagReferenceDestinationRanges(body),
+  );
+}
+
+function inlineTagName(match: RegExpMatchArray) {
+  const [, encodedName, bareName] = match;
+  if (encodedName && documentTagInvalidEscapePattern.test(encodedName)) {
+    return "";
+  }
+  return encodedName
+    ? encodedName.replace(
+        documentTagEscapePattern,
+        (_match, escaped: string) => {
+          if (escaped === "n") {
+            return "\n";
+          }
+          return escaped === "r" ? "\r" : escaped;
+        },
+      )
+    : (bareName ?? "");
+}
+
+export function documentInlineTagTokens(
+  body: string,
+): DocumentInlineTagToken[] {
+  const codeRanges = markdownTagCodeRanges(body);
+  const excluded = [
+    ...codeRanges,
+    ...markdownInlineCodeRanges(body, codeRanges),
+    ...markdownTagUrlRanges(body),
+  ].sort((left, right) => left.start - right.start);
+  const merged: Array<{ start: number; end: number }> = [];
+  for (const range of excluded) {
+    const previous = merged.at(-1);
+    if (previous && range.start <= previous.end) {
+      previous.end = Math.max(previous.end, range.end);
+    } else {
+      merged.push({ ...range });
+    }
+  }
+  const tokens: DocumentInlineTagToken[] = [];
+  for (const match of body.matchAll(documentTagPattern)) {
+    const { index: start } = match;
+    const end = start + match[0].length;
+    if (
+      isEscapedMarkdownPosition(body, start) ||
+      isExcludedPosition(merged, start) ||
+      isExcludedPosition(merged, end - 1)
+    ) {
+      continue;
+    }
+    const name = inlineTagName(match);
+    if (name.length <= 200 && name.trim()) {
+      tokens.push({ start, end, name });
+    }
+  }
+  return tokens;
+}
+
+export interface DocumentInlineTag extends DocumentInlineTagToken {
+  tagId: string;
+}
+
+export function renameDocumentInlineTag(
+  body: string,
+  inlineTags: readonly DocumentInlineTag[],
+  tagId: string,
+  name: string,
+) {
+  const token = documentBareTagPattern.test(name)
+    ? `#${name}`
+    : `#[${name.replaceAll("\\", "\\\\").replaceAll("]", "\\]").replaceAll("\n", "\\n").replaceAll("\r", "\\r")}]`;
+  let nextBody = "";
+  let cursor = 0;
+  const nextTags: DocumentInlineTag[] = [];
+  for (const current of [...inlineTags].sort(
+    (left, right) => left.start - right.start,
+  )) {
+    nextBody += body.slice(cursor, current.start);
+    const start = nextBody.length;
+    const replacement =
+      current.tagId === tagId ? token : body.slice(current.start, current.end);
+    nextBody += replacement;
+    nextTags.push({
+      ...current,
+      start,
+      end: nextBody.length,
+      name: current.tagId === tagId ? name : current.name,
+    });
+    cursor = current.end;
+  }
+  return { body: nextBody + body.slice(cursor), inlineTags: nextTags };
+}
+
+export function resolveDocumentInlineTags(
+  body: string,
+  tags: readonly { id: string; name: string }[],
+  existingBindings: readonly DocumentInlineTag[] = [],
+): DocumentInlineTag[] {
+  const byName = new Map(tags.map((tag) => [tagNameKey(tag.name), tag.id]));
+  const availableIds = new Set(tags.map(({ id }) => id));
+  const byPosition = new Map(
+    existingBindings.map((binding) => [binding.start, binding]),
+  );
+  return documentInlineTagTokens(body).flatMap((token) => {
+    const existing = byPosition.get(token.start);
+    const tagId =
+      existing &&
+      existing.end === token.end &&
+      existing.name === token.name &&
+      availableIds.has(existing.tagId)
+        ? existing.tagId
+        : byName.get(tagNameKey(token.name));
+    return tagId ? [{ ...token, tagId }] : [];
+  });
+}
 
 export const documentTypeSchema = z.enum([
   "General",
@@ -17,25 +328,105 @@ export const documentTypeSchema = z.enum([
 export const documentIdSchema = z.string().trim().min(1).max(255);
 export const documentRevisionSchema = z.number().int().positive();
 export const projectIdSchema = z.string().trim().min(1).max(255);
-const projectDocumentScopeSchema = z
-  .object({
-    projectId: projectIdSchema,
-    workspaceId: z.undefined().optional(),
-  })
-  .strict();
-const personalWikiDocumentScopeSchema = z
-  .object({
-    projectId: z.undefined().optional(),
-    workspaceId: documentIdSchema,
-  })
-  .strict();
-export const documentScopeSchema = z.union([
-  projectDocumentScopeSchema,
-  personalWikiDocumentScopeSchema,
-]);
-export type DocumentScope = z.infer<typeof documentScopeSchema>;
 export const documentTitleSchema = z.string().trim().min(1).max(255);
 export const documentBodySchema = z.string().max(1_000_000);
+export const documentHierarchyInputSchema = z
+  .object({
+    documentId: documentIdSchema,
+    folder: z.string().trim().min(1).max(255).nullable(),
+    parentDocumentId: documentIdSchema.nullable(),
+  })
+  .strict();
+export const documentOrganizationInputSchema = z.discriminatedUnion("action", [
+  documentHierarchyInputSchema.extend({ action: z.literal("hierarchy") }),
+  z
+    .object({
+      action: z.literal("archive"),
+      documentId: documentIdSchema,
+      archived: z.boolean(),
+    })
+    .strict(),
+]);
+export const organizeDocumentMutationInputSchema = z.discriminatedUnion(
+  "action",
+  [
+    documentOrganizationInputSchema.options[0].extend(
+      humanMutationEnvelopeSchema.shape,
+    ),
+    documentOrganizationInputSchema.options[1].extend(
+      humanMutationEnvelopeSchema.shape,
+    ),
+  ],
+);
+export type DocumentHierarchyInput = z.infer<
+  typeof documentHierarchyInputSchema
+>;
+export type DocumentOrganizationInput = z.infer<
+  typeof documentOrganizationInputSchema
+>;
+export interface DocumentHierarchyPreview {
+  allowed: boolean;
+  depth: number;
+  descendantIds: string[];
+  descendants?: Array<{
+    id: string;
+    title: string;
+    archivedAt?: string | null;
+  }>;
+  reason: string | null;
+}
+
+export function previewDocumentHierarchy(
+  documents: readonly Pick<Document, "id" | "projectId" | "parentDocumentId">[],
+  input: DocumentHierarchyInput,
+): DocumentHierarchyPreview {
+  const record = documents.find(({ id }) => id === input.documentId);
+  const byId = new Map(documents.map((item) => [item.id, item]));
+  const descendantIds: string[] = [];
+  const visited = new Set([input.documentId]);
+  let frontier = [input.documentId];
+  let height = 1;
+  while (frontier.length) {
+    const next = documents
+      .filter(
+        (item) =>
+          item.parentDocumentId &&
+          frontier.includes(item.parentDocumentId) &&
+          !visited.has(item.id),
+      )
+      .map(({ id }) => id);
+    for (const id of next) {
+      visited.add(id);
+      descendantIds.push(id);
+    }
+    if (next.length) {
+      height += 1;
+    }
+    frontier = next;
+  }
+  let depth = 1;
+  let parentId = input.parentDocumentId;
+  const ancestors = new Set<string>();
+  let reason: string | null = record ? null : "Document is unavailable.";
+  while (parentId && !reason) {
+    if (visited.has(parentId) || ancestors.has(parentId)) {
+      reason = "Document hierarchy cannot contain a cycle.";
+      break;
+    }
+    ancestors.add(parentId);
+    const parent = byId.get(parentId);
+    if (!parent || parent.projectId !== record?.projectId) {
+      reason = "Parent Document must belong to the same scope.";
+      break;
+    }
+    depth += 1;
+    parentId = parent.parentDocumentId ?? null;
+  }
+  if (!reason && depth + height - 1 > 3) {
+    reason = "Document hierarchy is limited to three levels.";
+  }
+  return { allowed: reason === null, reason, depth, descendantIds };
+}
 const markdownLinesPattern = /\n/;
 const markdownFencePattern = /^ {0,3}(`{3,}|~{3,})/;
 const markdownFenceClosePattern = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
@@ -123,15 +514,10 @@ export interface DocumentRecordReference {
 }
 
 export interface DocumentRecordReferenceView extends DocumentRecordReference {
-  source: {
-    id: string;
-    projectId: string | null;
-    workspaceId?: string | null;
-    title: string;
-  } | null;
+  source: { id: string; projectId: string | null; title: string } | null;
 }
 
-function isInsideMarkdownCodeSpan(line: string, position: number) {
+export function isInsideMarkdownCodeSpan(line: string, position: number) {
   const ticks = [...line.matchAll(/`+/g)];
   for (const [index, opening] of ticks.entries()) {
     const openingStart = opening.index ?? 0;
@@ -324,33 +710,54 @@ export function documentLiveWorkIds(body: string): string[] {
   return documentLiveWorkDirectives(body).map(({ id }) => id);
 }
 
-const createDocumentFields = {
-  title: documentTitleSchema,
-  body: documentBodySchema,
-  type: documentTypeSchema,
-  conflictDraftId: documentIdSchema.optional(),
-};
-
-const projectDocumentCreateInputSchema = z
+export const createDocumentInputSchema = z
   .object({
-    ...createDocumentFields,
+    projectId: projectIdSchema.nullable(),
+    title: documentTitleSchema,
+    body: documentBodySchema,
+    type: documentTypeSchema,
+  })
+  .strict();
+
+export const createDocumentSkeletonInputSchema = z
+  .object({
     projectId: projectIdSchema,
-    workspaceId: z.undefined().optional(),
+    skeleton: z.enum(DOCUMENT_STARTER_SKELETON_OPTIONS),
   })
   .strict();
 
-const personalWikiDocumentCreateInputSchema = z
-  .object({
-    ...createDocumentFields,
-    projectId: z.undefined().optional(),
-    workspaceId: documentIdSchema,
-  })
-  .strict();
-
-export const createDocumentInputSchema = z.union([
-  projectDocumentCreateInputSchema,
-  personalWikiDocumentCreateInputSchema,
+export const documentCreationInputSchema = z.union([
+  createDocumentInputSchema,
+  createDocumentSkeletonInputSchema,
 ]);
+
+export function documentCreationFields(
+  input: z.infer<typeof documentCreationInputSchema>,
+): CreateDocumentInput {
+  if (!("skeleton" in input)) {
+    return createDocumentInputSchema.parse(input);
+  }
+  const selection = DOCUMENT_STARTER_SKELETONS.find(
+    ({ skeleton, surface }) =>
+      skeleton === input.skeleton && surface === "Document",
+  );
+  if (!selection) {
+    throw new DocumentUnavailableError();
+  }
+  const documentTypeBySkeleton = {
+    Persona: "Persona",
+    Retrospective: "General",
+    "Launch Plan": "Plan",
+  } as const;
+  return createDocumentInputSchema.parse({
+    body: selection.emptyHeadings
+      .map((heading) => `## ${heading}`)
+      .join("\n\n"),
+    projectId: input.projectId,
+    title: input.skeleton,
+    type: documentTypeBySkeleton[input.skeleton],
+  });
+}
 
 const updateDocumentFieldsSchema = z
   .object({
@@ -380,10 +787,13 @@ export const updateDocumentInputSchema = updateDocumentFieldsSchema.refine(
 );
 
 export const createDocumentMutationInputSchema = z.union([
-  projectDocumentCreateInputSchema
-    .extend(humanMutationEnvelopeSchema.shape)
+  createDocumentInputSchema
+    .extend({
+      ...humanMutationEnvelopeSchema.shape,
+      conflictDraftId: documentIdSchema.optional(),
+    })
     .strict(),
-  personalWikiDocumentCreateInputSchema
+  createDocumentSkeletonInputSchema
     .extend(humanMutationEnvelopeSchema.shape)
     .strict(),
 ]);
@@ -450,13 +860,21 @@ export const restoreDocumentVersionInputSchema = z
   .extend(humanMutationEnvelopeSchema.shape)
   .strict();
 
-export const documentSchema = z.object({
+export const documentSchema = createDocumentInputSchema.extend({
+  archivedAt: z.string().nullable().optional(),
+  folder: z.string().nullable().optional(),
+  parentDocumentId: documentIdSchema.nullable().optional(),
+  inlineTags: z
+    .array(
+      z.object({
+        tagId: documentIdSchema,
+        name: z.string(),
+        start: z.number().int().nonnegative(),
+        end: z.number().int().positive(),
+      }),
+    )
+    .optional(),
   id: documentIdSchema,
-  projectId: projectIdSchema.nullable(),
-  workspaceId: documentIdSchema.nullable().default(null),
-  title: documentTitleSchema,
-  body: documentBodySchema,
-  type: documentTypeSchema,
   revision: z.number().int().nonnegative(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -466,7 +884,6 @@ export const documentSchema = z.object({
       revision: documentRevisionSchema,
       conflictDraftId: z.string().optional(),
     })
-    .nullable()
     .optional(),
 });
 
@@ -521,6 +938,8 @@ export interface DocumentMutationValue {
 
 export interface DocumentMutationContracts {
   create: (accountId: string) => MutationContract<DocumentMutationValue>;
+  organize?: (accountId: string) => MutationContract<DocumentMutationValue>;
+  templates?: DocumentTemplateMutationContracts;
   update: (accountId: string) => MutationContract<DocumentMutationValue>;
 }
 
@@ -543,7 +962,6 @@ export interface DocumentLiveSectionSource {
   sectionId: string;
   text: string;
   title: string;
-  workspaceId: string | null;
 }
 
 export interface DocumentsAccess {
@@ -575,7 +993,16 @@ export interface DocumentsAccess {
     documentId: string,
     revision: number,
   ) => Promise<Document | null>;
-  list: (accountId: string, scope: DocumentScope) => Promise<Document[]>;
+  list: (
+    accountId: string,
+    projectId: string | null,
+    archived?: boolean,
+  ) => Promise<Document[]>;
+  previewOrganization?: (
+    accountId: string,
+    input: DocumentOrganizationInput,
+  ) => Promise<DocumentHierarchyPreview>;
+  templates?: DocumentTemplateAccess;
   versions: (
     accountId: string,
     documentId: string,
@@ -600,5 +1027,12 @@ export class DocumentSectionCycleError extends Error {
   constructor() {
     super("Live Document sections cannot contain a cycle.");
     this.name = "DocumentSectionCycleError";
+  }
+}
+
+export class DocumentHierarchyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DocumentHierarchyError";
   }
 }

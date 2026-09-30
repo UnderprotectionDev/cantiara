@@ -66,6 +66,14 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 ### Belge şablonları
 
+Şablon kaydetme yüzeyinin İngilizce UI metinleri:
+
+| UI metni | Anlam |
+| --- | --- |
+| `Personal Review copy` | Hazır şablon düzenlenirken kullanıcıya ait kopyanın değiştirilebilir başlangıç adı; hazır `Personal Review` değişmez. |
+| `Saving…` | Kaydetme sürerken devre dışı onay düğmesinin metni. |
+| `Document Template saved. Existing Documents are unchanged.` | Başarılı şablon kaydı sonrası erişilebilir onay; mevcut Belgelerin değişmediğini açıklar. |
+
 - **Kullanıcı proje veya Kişisel Wiki kapsamında sıfırdan yeniden kullanılabilir belge şablonu oluşturabilir ya da mevcut belge üzerinde açık `Şablona dönüştür` eylemini başlatabilir.** Dönüşüm önizlemesi şablona alınacak içerik iskeletini ve basit metin yer tutucularını gösterir; kaynak belgeyi taşımaz, arşivlemez veya değiştirmez. Yer tutucular şablondan belge oluşturulurken kullanıcıdan değer ister, ancak özel alan, form şeması, formül veya canlı bağlantı oluşturmaz.
 
 - **Şablondan üretilen belge yeni iç kimlikli bağımsız ana kayıttır; yalnız şablon içeriğini, yer tutucular için girilen değerleri ve açıkça desteklenen başlangıç sunumunu alır.** Kaynak belgenin ve şablonun geçmişi, ilişkileri, yayın/paylaşım durumu, arşiv durumu ve proje kapsamı yeni belgeye taşınmaz. Şablonda daha sonra yapılan değişiklikler daha önce üretilmiş belgeleri güncellemez.
@@ -216,7 +224,16 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 ### Kişisel Wiki
 
+Wiki Belge düzenleyicisinin İngilizce UI metinleri:
+
+| UI metni | Anlam |
+| --- | --- |
+| `A newer Document version is available.` | Başka bir yerde daha yeni sürüm kaydedildiğinde yerel taslağı koruyan uyarı. |
+| `Reload latest version` | Yerel taslağı açıkça en yeni Belge sürümüyle değiştiren eylem. |
+
 - **Kişisel Wiki, herhangi bir projeye ait olmak zorunda olmayan kontrol listeleri, geliştirme kalıpları, yaklaşımlar, hata çözümleri, araştırmalar ve kalıcı öğrenimler için tam bir belge alanıdır.** Proje belgeleriyle aynı editörü, ana belge modelini, sürüm geçmişini, referans ve geri bağlantıları, belge hiyerarşisini, klasörleri, şablonları, arşivi, aramayı ve dışa aktarma davranışını kullanır; ikinci bir belge türü veya ayrı doğruluk kaynağı oluşturmaz.
+
+- **Wiki Belgesi düzenleyicisi açıkken başka bir yerde daha yeni sürüm kaydedilirse, yerel başlık, tür ve gövde taslağı korunur; `A newer Document version is available.` uyarısı gösterilir ve `Save` devre dışı kalır.** Kullanıcı `Reload latest version` eylemini seçtiğinde yerel taslak açıkça en yeni sürümle değiştirilir.
 
 - **Wiki kişisel erişim kabuğunda birinci sınıf hedef olarak bulunur ve proje seçmeden belge oluşturmayı destekler.** Çalışma alanı genelindeki `Tüm Belgeler` dizini ve Evrensel Arama kapsam rozetleriyle proje belgeleri ile Wiki belgelerini birlikte bulabilir; geçici görünüm bunları aynı yere aitmiş gibi göstermez.
 

@@ -6,6 +6,14 @@ Final user message after `/implement` — Turkish, three sections in order.
 
 Run after work is committed, `/code-review` has finished, and tests have run.
 
+### DB-backed readiness gate
+
+DB kullanan işte kapanıştan önce [migration hazırlığı sözleşmesini](../tech-stack.md#migration-hazırlığı--testing-decisions) uygula: `bun run db:check`, doğru geliştirme hedefinde `bun run db:doctor` ve owning spec'in etkilenen DB seam testi başarılı olmalıdır. Şema değiştiyse sürümlü migration aynı işte bulunmalı, incelenmiş SQL kanonik komutla uygulanmalı ve `bun run db:doctor -- --deep` geçmelidir. Şema değişmeyen iş için migration üretme.
+
+Bu kanıt olmadan “manuel teste hazır” yazma. `ahead` veya `history-mismatch` durumunda uygulanmış kanonik geçmişi sahip kodla birlikte uzlaştır; SQL veya başarı kaydı uydurma. Bağlantı/yetki hatasını migration eksiği gibi sunma. Testler yalnız atılabilir DB'de geçtiyse bunu belirt; canlı hedef hazır demek değildir.
+
+Kontrol sonucunu, gerçekten çalıştırılan testleri, atlanan kontrolleri ve kalan engeli **İnceleme** altında yaz. Ortam engelliyse **Nasıl test edilir** bölümünün başında bunu açıkça belirt; kullanıcıyı çalışmayan ortamda `Save` deneyerek sorunu keşfetmeye yönlendirme. Yalnız altyapı değişikliklerinde o bölüm `Not applicable` olarak kalır.
+
 ## 1. Ne eklendi
 
 Spec veya ticket'tan ne çıktı — `/implement`'in yaptığı işin özeti:
