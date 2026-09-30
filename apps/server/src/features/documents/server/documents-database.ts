@@ -1,6 +1,7 @@
 import type {
   CreateDocumentInput,
   Document,
+  DocumentInlineTag,
   DocumentMutationContracts,
   DocumentMutationValue,
   DocumentsAccess,
@@ -8,14 +9,18 @@ import type {
 } from "@cantiara/api/documents";
 import {
   createDocumentInputSchema,
+  DocumentHierarchyError,
   DocumentSectionCycleError,
   DocumentUnavailableError,
   documentCreationInputSchema,
   documentLiveDirectives,
+  documentOrganizationInputSchema,
   documentRecordReferences,
   documentSchema,
   documentSectionById,
   documentVersionSummarySchema,
+  previewDocumentHierarchy,
+  resolveDocumentInlineTags,
   updateDocumentInputSchema,
 } from "@cantiara/api/documents";
 import type { MutationTarget } from "@cantiara/api/mutation-and-undo";
@@ -33,6 +38,7 @@ import {
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
 import { usageLink } from "@cantiara/db/schema/relation";
+import { workspaceTag } from "@cantiara/db/schema/tags";
 import { work } from "@cantiara/db/schema/work";
 import {
   and,
@@ -58,6 +64,10 @@ function toDocument(row: typeof document.$inferSelect): Document {
     title: row.title,
     body: row.body,
     type: row.type,
+    archivedAt: row.archivedAt?.toISOString() ?? null,
+    folder: row.folder,
+    parentDocumentId: row.parentDocumentId,
+    inlineTags: row.inlineTags,
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -115,13 +125,67 @@ function emptyTarget(targetId: string): MutationTarget<DocumentMutationValue> {
 async function findWorkspaceId(
   executor: MutationDatabaseExecutor,
   accountId: string,
+  lock = false,
 ) {
-  const [record] = await executor
+  const query = executor
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.ownerAccountId, accountId))
     .limit(1);
+  const [record] = lock ? await query.for("update") : await query;
   return record?.id ?? null;
+}
+
+async function resolveWorkspaceTags(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+) {
+  const workspaceId = await findWorkspaceId(executor, accountId);
+  return workspaceId
+    ? await executor
+        .select({ id: workspaceTag.id, name: workspaceTag.name })
+        .from(workspaceTag)
+        .where(eq(workspaceTag.workspaceId, workspaceId))
+    : [];
+}
+
+async function resolveInlineTags(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  body: string,
+  existingBindings: readonly DocumentInlineTag[] = [],
+) {
+  return resolveDocumentInlineTags(
+    body,
+    await resolveWorkspaceTags(executor, accountId),
+    existingBindings,
+  );
+}
+
+function documentScopeFilter(
+  projectId: string | null,
+  workspaceId: string | null,
+) {
+  if (projectId !== null) {
+    return eq(document.projectId, projectId);
+  }
+  if (workspaceId === null) {
+    throw new DocumentUnavailableError();
+  }
+  return and(isNull(document.projectId), eq(document.workspaceId, workspaceId));
+}
+
+async function documentsInScope(
+  executor: MutationDatabaseExecutor,
+  projectId: string | null,
+  workspaceId: string | null,
+) {
+  const rows = await executor
+    .select()
+    .from(document)
+    .where(documentScopeFilter(projectId, workspaceId))
+    .orderBy(asc(document.id));
+  return rows.map(toDocument);
 }
 
 type DocumentLiveDirective = ReturnType<typeof documentLiveDirectives>[number];
@@ -409,7 +473,7 @@ async function findOwnedProject(
   projectId: string,
   lock: boolean,
 ) {
-  const workspaceId = await findWorkspaceId(executor, accountId);
+  const workspaceId = await findWorkspaceId(executor, accountId, lock);
   if (!workspaceId) {
     return null;
   }
@@ -475,13 +539,14 @@ async function findOwnedDocument(
     )
     .limit(1);
   const [record] = lock ? await query.for("update") : await query;
-  return record ?? null;
+  return record ? { ...record, projectId: ownership.projectId } : null;
 }
 
 function createDocumentTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<DocumentMutationValue> {
   return {
+    committedValue: (target) => target.value,
     async find(executor, targetId, lock, context) {
       const payload = documentCreationInputSchema.safeParse(context?.payload);
       if (!payload.success) {
@@ -543,6 +608,11 @@ function createDocumentTarget(
       const [created] = await executor
         .insert(document)
         .values({
+          inlineTags: await resolveInlineTags(
+            executor,
+            accountId,
+            nextDocument.body,
+          ),
           body: nextDocument.body,
           createdAt: input.committedAt,
           id: nextDocument.id,
@@ -586,6 +656,7 @@ function updateDocumentTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<DocumentMutationValue> {
   return {
+    committedValue: (target) => target.value,
     async find(executor, targetId, lock, context) {
       const payload = updateDocumentInputSchema.safeParse(context?.payload);
       if (!(payload.success && payload.data.documentId === targetId)) {
@@ -614,6 +685,12 @@ function updateDocumentTarget(
       const [updated] = await executor
         .update(document)
         .set({
+          inlineTags: await resolveInlineTags(
+            executor,
+            accountId,
+            nextDocument.body,
+            nextDocument.inlineTags,
+          ),
           body: nextDocument.body,
           revision: input.expectedRevision + 1,
           title: nextDocument.title,
@@ -666,7 +743,18 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
         ),
       )
       .limit(1);
-    return row ? toDocument(row.document) : null;
+    if (!row) {
+      return null;
+    }
+    return {
+      ...toDocument(row.document),
+      inlineTags: await resolveInlineTags(
+        database,
+        accountId,
+        row.document.body,
+        row.document.inlineTags,
+      ),
+    };
   }
 
   async function getLiveSection(
@@ -807,46 +895,88 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
       }
       return [...versions.values()].sort((a, b) => b.revision - a.revision);
     },
-    async list(accountId, projectId) {
+    async previewOrganization(accountId, input) {
+      const record = await findOwnedDocument(
+        database,
+        accountId,
+        input.documentId,
+        false,
+      );
+      if (!record) {
+        throw new DocumentUnavailableError();
+      }
+      const documents = await documentsInScope(
+        database,
+        record.projectId,
+        record.workspaceId,
+      );
+      const preview = previewDocumentHierarchy(
+        documents,
+        input.action === "hierarchy"
+          ? input
+          : {
+              documentId: record.id,
+              parentDocumentId: record.parentDocumentId,
+              folder: record.folder,
+            },
+      );
+      return {
+        ...preview,
+        descendants: documents
+          .filter(({ id }) => preview.descendantIds.includes(id))
+          .map(({ id, title, archivedAt }) => ({ id, title, archivedAt })),
+      };
+    },
+    async list(accountId, projectId, archived = false) {
+      const archiveFilter = archived
+        ? isNotNull(document.archivedAt)
+        : isNull(document.archivedAt);
+      let rows: Array<{ document: typeof document.$inferSelect }>;
       if (projectId === null) {
         const workspaceId = await findWorkspaceId(database, accountId);
         if (!workspaceId) {
           throw new DocumentUnavailableError();
         }
-        const rows = await database
-          .select()
+        rows = await database
+          .select({ document })
           .from(document)
           .where(
             and(
               isNull(document.projectId),
               eq(document.workspaceId, workspaceId),
+              archiveFilter,
             ),
           )
           .orderBy(desc(document.updatedAt));
-        return rows.map(toDocument);
+      } else {
+        const ownedProject = await findOwnedProject(
+          database,
+          accountId,
+          projectId,
+          false,
+        );
+        if (!ownedProject) {
+          throw new DocumentUnavailableError();
+        }
+        rows = await database
+          .select({ document })
+          .from(document)
+          .innerJoin(project, eq(document.projectId, project.id))
+          .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+          .where(
+            and(
+              eq(document.projectId, projectId),
+              eq(workspace.ownerAccountId, accountId),
+              archiveFilter,
+            ),
+          )
+          .orderBy(desc(document.updatedAt));
       }
-      const ownedProject = await findOwnedProject(
-        database,
-        accountId,
-        projectId,
-        false,
-      );
-      if (!ownedProject) {
-        throw new DocumentUnavailableError();
-      }
-      const rows = await database
-        .select({ document })
-        .from(document)
-        .innerJoin(project, eq(document.projectId, project.id))
-        .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-        .where(
-          and(
-            eq(document.projectId, projectId),
-            eq(workspace.ownerAccountId, accountId),
-          ),
-        )
-        .orderBy(desc(document.updatedAt));
-      return rows.map(({ document: row }) => toDocument(row));
+      const tags = await resolveWorkspaceTags(database, accountId);
+      return rows.map(({ document: row }) => ({
+        ...toDocument(row),
+        inlineTags: resolveDocumentInlineTags(row.body, tags, row.inlineTags),
+      }));
     },
   };
 }
@@ -855,6 +985,78 @@ export function createDatabaseDocumentMutationContracts(
   database: Database,
 ): DocumentMutationContracts {
   return {
+    organize: (accountId) =>
+      createDatabaseMutationContract<DocumentMutationValue>(database, {
+        target: {
+          committedValue: (target) => target.value,
+          async find(executor, targetId, lock, context) {
+            const payload = documentOrganizationInputSchema.safeParse(
+              context?.payload,
+            );
+            if (!payload.success || payload.data.documentId !== targetId) {
+              return null;
+            }
+            const record = await findOwnedDocument(
+              executor,
+              accountId,
+              targetId,
+              lock,
+            );
+            return record ? toTarget(record) : null;
+          },
+          async update(executor, input) {
+            const next = input.nextValue.document;
+            const current = await findOwnedDocument(
+              executor,
+              accountId,
+              input.targetId,
+              true,
+            );
+            if (
+              !(next && current) ||
+              current.revision !== input.expectedRevision ||
+              next.id !== current.id ||
+              next.projectId !== current.projectId
+            ) {
+              return null;
+            }
+            const preview = previewDocumentHierarchy(
+              await documentsInScope(
+                executor,
+                current.projectId,
+                current.workspaceId,
+              ),
+              {
+                documentId: current.id,
+                parentDocumentId: next.parentDocumentId ?? null,
+                folder: next.folder ?? null,
+              },
+            );
+            if (!preview.allowed) {
+              throw new DocumentHierarchyError(
+                preview.reason ?? "Document hierarchy is unavailable.",
+              );
+            }
+            const [updated] = await executor
+              .update(document)
+              .set({
+                archivedAt: next.archivedAt ? new Date(next.archivedAt) : null,
+                folder: next.folder ?? null,
+                parentDocumentId: next.parentDocumentId ?? null,
+                revision: input.expectedRevision + 1,
+                updatedAt: input.committedAt,
+              })
+              .where(
+                and(
+                  eq(document.id, current.id),
+                  eq(document.revision, input.expectedRevision),
+                ),
+              )
+              .returning();
+            return updated ? toTarget(updated) : null;
+          },
+        },
+      }),
     create: (accountId) =>
       createDatabaseMutationContract<DocumentMutationValue>(database, {
         target: createDocumentTarget(accountId),

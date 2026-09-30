@@ -4,6 +4,7 @@ import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
 import {
   mutationHistory,
   mutationReceipt,
@@ -14,6 +15,7 @@ import {
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
+import { workspaceTag } from "@cantiara/db/schema/tags";
 import {
   diagramDocumentOrigin,
   diagramView,
@@ -28,7 +30,9 @@ import {
   createDatabaseUsageLinks,
 } from "../../relations/server/usage-links-database";
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
+import { createDatabaseTags } from "../../tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
+import { createDatabaseDocumentTagRenameWriter } from "./document-tag-rename-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -197,6 +201,89 @@ describeDatabase("Documents database boundary", () => {
     ).toBeNull();
   });
 
+  it("keeps inline tags, hierarchy, and archive in Personal Wiki scope", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const tagId = crypto.randomUUID();
+    await database.insert(workspaceTag).values({
+      id: tagId,
+      workspaceId,
+      name: "wiki-tag",
+      nameKey: "wiki-tag",
+    });
+    const api = client();
+    const root = await api.createDocument({
+      baseRevision: 0,
+      body: "#wiki-tag",
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Wiki root",
+      type: "General",
+    });
+    const child = await api.createDocument({
+      baseRevision: 0,
+      body: "Child notes",
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId: null,
+      title: "Wiki child",
+      type: "General",
+    });
+
+    expect(root.inlineTags).toEqual([
+      { name: "wiki-tag", start: 0, end: 9, tagId },
+    ]);
+    expect(
+      (await api.documents({ projectId: null })).find(
+        ({ id }) => id === root.id,
+      )?.inlineTags,
+    ).toEqual(root.inlineTags);
+
+    await api.organizeDocument({
+      action: "hierarchy",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: child.id,
+      folder: "Notes",
+      parentDocumentId: root.id,
+    });
+    const preview = await api.previewDocumentOrganization({
+      action: "archive",
+      archived: true,
+      documentId: root.id,
+    });
+    expect(preview).toMatchObject({
+      allowed: true,
+      descendants: [{ id: child.id, title: "Wiki child", archivedAt: null }],
+    });
+
+    const archived = await api.organizeDocument({
+      action: "archive",
+      archived: true,
+      baseRevision: root.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: root.id,
+    });
+    expect(archived).toMatchObject({
+      id: root.id,
+      projectId: null,
+      archivedAt: expect.any(String),
+    });
+    expect(
+      (await api.documents({ projectId: null })).map(({ id }) => id),
+    ).toEqual([child.id]);
+    expect(
+      (await api.documents({ archived: true, projectId: null })).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([root.id]);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      folder: "Notes",
+      parentDocumentId: root.id,
+      archivedAt: null,
+    });
+  });
+
   it("requires a selected skeleton in an owned, writable Project", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -326,6 +413,187 @@ describeDatabase("Documents database boundary", () => {
       ).toEqual(created);
     },
   );
+  it("binds in-document tokens to existing Workspace tags without creating unknown tags", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.insert(workspaceTag).values({
+      id: "document-release-tag",
+      workspaceId,
+      name: "release",
+      nameKey: "release",
+    });
+    const wikiDocumentId = crypto.randomUUID();
+    await database.insert(document).values({
+      id: wikiDocumentId,
+      workspaceId,
+      title: "Wiki release notes",
+      type: "General",
+      revision: 1,
+      body: "#release",
+    });
+    const api = client();
+    const legacyId = crypto.randomUUID();
+    await database.insert(document).values({
+      id: legacyId,
+      projectId,
+      title: "Existing prose",
+      type: "General",
+      revision: 1,
+      body: "#release `#release`",
+    });
+    expect((await api.document({ documentId: legacyId })).inlineTags).toEqual([
+      { name: "release", start: 0, end: 8, tagId: "document-release-tag" },
+    ]);
+    const created = await api.createDocument({
+      baseRevision: 0,
+      clientIdempotencyKey: "document-with-tags",
+      projectId,
+      title: "Release notes",
+      type: "General",
+      body: "#release #unknown `#release`",
+    });
+    expect(created.inlineTags).toEqual([
+      { name: "release", start: 0, end: 8, tagId: "document-release-tag" },
+    ]);
+    expect((await api.document({ documentId: created.id })).inlineTags).toEqual(
+      created.inlineTags,
+    );
+    const tags = createDatabaseTags(database, {
+      inlineRename: createDatabaseDocumentTagRenameWriter(),
+    });
+    await tags.rename(accountId, {
+      tagId: "document-release-tag",
+      name: "Release planning",
+    });
+    const renamed = await api.document({ documentId: created.id });
+    expect((await api.document({ documentId: legacyId })).body).toBe(
+      "#[Release planning] `#release`",
+    );
+    expect(renamed.body).toBe("#[Release planning] #unknown `#release`");
+    expect(renamed.inlineTags?.[0]?.tagId).toBe("document-release-tag");
+    const [renamedWikiDocument] = await database
+      .select({ body: document.body, inlineTags: document.inlineTags })
+      .from(document)
+      .where(eq(document.id, wikiDocumentId));
+    expect(renamedWikiDocument).toEqual({
+      body: "#[Release planning]",
+      inlineTags: [
+        {
+          tagId: "document-release-tag",
+          name: "Release planning",
+          start: 0,
+          end: 19,
+        },
+      ],
+    });
+    expect(
+      (await api.documentVersion({ documentId: created.id, revision: 1 })).body,
+    ).toBe(created.body);
+    const restored = await api.restoreDocumentVersion({
+      documentId: created.id,
+      revision: created.revision,
+      baseRevision: renamed.revision,
+      clientIdempotencyKey: "restore-tag-identity",
+    });
+    expect(restored.body).toBe(created.body);
+    expect(restored.inlineTags).toEqual(created.inlineTags);
+    await tags.rename(accountId, {
+      tagId: "document-release-tag",
+      name: "release",
+    });
+    expect((await api.document({ documentId: created.id })).body).toBe(
+      created.body,
+    );
+  });
+
+  it("previews and revalidates depth, preserves children on archive, and restores normal navigation", async () => {
+    const api = client();
+    const create = (title: string) =>
+      api.createDocument({
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId,
+        title,
+        type: "General",
+        body: `# ${title}`,
+      });
+    const root = await create("Root");
+    const child = await create("Child");
+    const grandchild = await create("Grandchild");
+    const other = await create("Other");
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: root.id,
+      folder: "Planning",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: grandchild.id,
+      parentDocumentId: child.id,
+      folder: null,
+      baseRevision: grandchild.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const move = {
+      action: "hierarchy" as const,
+      documentId: root.id,
+      parentDocumentId: other.id,
+      folder: null,
+    };
+    expect(await api.previewDocumentOrganization(move)).toMatchObject({
+      allowed: false,
+      reason: "Document hierarchy is limited to three levels.",
+    });
+    await expect(
+      api.organizeDocument({
+        ...move,
+        baseRevision: root.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const archived = await api.organizeDocument({
+      action: "archive",
+      archived: true,
+      documentId: root.id,
+      baseRevision: root.revision,
+      clientIdempotencyKey: "archive-root",
+    });
+    expect(archived).toMatchObject({
+      id: root.id,
+      body: root.body,
+      projectId,
+      parentDocumentId: null,
+    });
+    expect(
+      (await api.documents({ projectId })).map(({ id }) => id),
+    ).not.toContain(root.id);
+    expect(
+      (await api.documents({ projectId, archived: true })).map(({ id }) => id),
+    ).toEqual([root.id]);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      parentDocumentId: root.id,
+      folder: "Planning",
+      archivedAt: null,
+    });
+    expect(
+      await api.documentVersion({ documentId: root.id, revision: 1 }),
+    ).toMatchObject({ body: root.body });
+    const restored = await api.organizeDocument({
+      action: "archive",
+      archived: false,
+      documentId: root.id,
+      baseRevision: archived.revision,
+      clientIdempotencyKey: "unarchive-root",
+    });
+    expect(restored.archivedAt).toBeNull();
+    expect((await api.documents({ projectId })).map(({ id }) => id)).toContain(
+      root.id,
+    );
+  });
 
   it("persists Markdown edits, replays retries, and blocks writes after Project archive", async () => {
     if (!database) {

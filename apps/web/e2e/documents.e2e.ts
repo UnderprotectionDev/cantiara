@@ -12,6 +12,193 @@ const blockFormulaPattern = /\$\$[\s\S]*x\^2/;
 const technicalDiagramHrefPattern = /#technical-diagram-/;
 const technicalDiagramsHrefPattern = /#technical-diagrams$/;
 
+test("organizes Documents with a preview and preserves identity through Archive and Unarchive", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000);
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#documents`);
+  const surface = page.getByRole("region", { name: "Documents", exact: true });
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  async function createDocument(title: string) {
+    await surface
+      .getByRole("button", { name: "Create Document", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "Create Document" });
+    await dialog.getByLabel("Title").fill(title);
+    await dialog.getByRole("button", { name: "Create Document" }).click();
+    await expect(editor.getByLabel("Title")).toHaveValue(title);
+  }
+  await createDocument("Planning root");
+  await createDocument("Release child");
+  await editor.getByRole("button", { name: "Organize Document" }).click();
+  const organize = page.getByRole("dialog", { name: "Organize Document" });
+  await organize.getByLabel("Folder", { exact: true }).fill("Planning");
+  await organize
+    .getByLabel("Parent Document", { exact: true })
+    .selectOption({ label: "Planning root" });
+  await organize.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(organize).toContainText("Document level: 2");
+  await organize.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(editor).not.toContainText("Folder: Planning");
+  await editor.getByRole("button", { name: "Organize Document" }).click();
+  await organize.getByLabel("Folder", { exact: true }).fill("Planning");
+  await organize
+    .getByLabel("Parent Document", { exact: true })
+    .selectOption({ label: "Planning root" });
+  await organize.getByRole("button", { name: "Preview", exact: true }).click();
+  await organize.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(organize).toBeHidden();
+  await expect(editor).toContainText("Folder: Planning");
+  await editor.getByRole("button", { name: "Archive", exact: true }).click();
+  const archive = page.getByRole("dialog", { name: "Archive", exact: true });
+  await archive.getByRole("button", { name: "Preview", exact: true }).click();
+  await archive.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    surface
+      .getByRole("navigation", { name: "Documents" })
+      .getByRole("button", { name: "Release child", exact: true }),
+  ).toHaveCount(0);
+  await surface
+    .getByRole("checkbox", { name: "Archived", exact: true })
+    .check();
+  await surface
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Release child", exact: true })
+    .click();
+  await expect(editor).toContainText("Folder: Planning");
+  await editor.getByRole("button", { name: "Unarchive", exact: true }).click();
+  const unarchive = page.getByRole("dialog", {
+    name: "Unarchive",
+    exact: true,
+  });
+  await unarchive.getByRole("button", { name: "Preview", exact: true }).click();
+  await unarchive.getByRole("button", { name: "Apply", exact: true }).click();
+  await surface
+    .getByRole("checkbox", { name: "Archived", exact: true })
+    .uncheck();
+  await page.reload();
+  await surface
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Release child", exact: true })
+    .click();
+  await expect(editor).toContainText("Folder: Planning");
+  await expect(editor).toContainText("Parent Document: Planning root");
+  await page.screenshot({
+    path: "../../.context/documents-organization.png",
+    fullPage: true,
+  });
+  await surface
+    .getByRole("checkbox", { name: "Archived", exact: true })
+    .check();
+  await createDocument("New active Document");
+  await expect(
+    surface.getByRole("checkbox", { name: "Archived", exact: true }),
+  ).not.toBeChecked();
+  await createDocument("Release detail");
+  await editor.getByRole("button", { name: "Organize Document" }).click();
+  await organize
+    .getByLabel("Parent Document", { exact: true })
+    .selectOption({ label: "Release child" });
+  await organize.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(organize).toContainText("Document level: 3");
+  await organize.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(organize).toBeHidden();
+  await createDocument("Fourth level");
+  await editor.getByRole("button", { name: "Organize Document" }).click();
+  await organize
+    .getByLabel("Parent Document", { exact: true })
+    .selectOption({ label: "Release detail" });
+  await organize.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(organize).toContainText(
+    "Document hierarchy is limited to three levels.",
+  );
+  await expect(
+    organize.getByRole("button", { name: "Apply", exact: true }),
+  ).toBeDisabled();
+  await organize.getByRole("button", { name: "Cancel", exact: true }).click();
+  await surface
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Planning root", exact: true })
+    .click();
+  await editor.getByRole("button", { name: "Archive", exact: true }).click();
+  await archive.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(archive).toContainText("Release child");
+  await expect(archive).toContainText("Release detail");
+  await archive.getByRole("button", { name: "Apply", exact: true }).click();
+  await surface
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Release child", exact: true })
+    .click();
+  await expect(editor).toContainText("Parent Document: Planning root");
+});
+
+test("keeps Workspace tag identity in Document prose across dictionary rename", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#tags`);
+  await page.getByLabel("Name", { exact: true }).fill("release/test");
+  await page.getByRole("button", { name: "Create tag" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Tag to rename" }),
+  ).toContainText("release/test");
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  const surface = page.getByRole("region", { name: "Documents", exact: true });
+  await surface
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const create = page.getByRole("dialog", { name: "Create Document" });
+  await create.getByLabel("Title").fill("Tagged release notes");
+  await create.getByRole("button", { name: "Create Document" }).click();
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await editor
+    .getByRole("textbox", { name: "Markdown source" })
+    .fill("#release/test #unknown `#release/test`");
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  const token = editor.getByRole("button", {
+    name: "#release/test",
+    exact: true,
+  });
+  await expect(token).toBeVisible();
+  const tagId = await token.getAttribute("data-tag-id");
+  expect(tagId).toBeTruthy();
+  await page.getByRole("link", { name: "Tags", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Tag to rename" })
+    .selectOption({ label: "release/test" });
+  await page.getByLabel("New name").fill("Release planning");
+  await page.getByRole("button", { name: "Rename Tag" }).click();
+  await expect(page.getByText("Tag renamed.")).toBeVisible();
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  await surface
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Tagged release notes", exact: true })
+    .click();
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await expect(
+    editor.getByRole("textbox", { name: "Markdown source" }),
+  ).toHaveValue("#[Release planning] #unknown `#release/test`");
+  await expect(
+    editor.getByRole("button", { name: "#Release planning", exact: true }),
+  ).toHaveAttribute("data-tag-id", tagId ?? "");
+});
+
 test("creates and edits a database-backed Document while preserving technical Markdown source", async ({
   context,
   page,
@@ -573,7 +760,11 @@ test("keeps unsupported Markdown source intact when Write cannot round-trip it",
   await expect(
     document.getByRole("textbox", { name: "Markdown source" }),
   ).toHaveValue(source);
+  const savedResponse = page.waitForResponse((saveResponse) =>
+    saveResponse.url().endsWith("/rpc/updateDocument"),
+  );
   await document.getByRole("button", { name: "Save" }).click();
+  expect((await savedResponse).ok()).toBe(true);
   await page.reload();
   await page
     .getByRole("navigation", { name: "Documents" })

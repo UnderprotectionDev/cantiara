@@ -187,7 +187,7 @@ describe("Personal Wiki ownership boundary", () => {
     expect(created).not.toHaveProperty("visitorUrl");
     expect(created).not.toHaveProperty("publicSlug");
     await client.documents({ projectId: null });
-    expect(documents.list).toHaveBeenCalledWith("account-1", null);
+    expect(documents.list).toHaveBeenCalledWith("account-1", null, undefined);
   });
   test("rejects a second Wiki Document type", async () => {
     const mutation = createMutationContract(null);
@@ -291,6 +291,47 @@ describe("Documents RPC", () => {
     },
   );
 
+  test("archives a Document without changing identity, content, scope, or child links", async () => {
+    const record = {
+      ...initialDocument,
+      parentDocumentId: "parent-1",
+      folder: "Planning",
+    };
+    const mutation = createMutationContract(record);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => createMutationContract(null).contract,
+        update: () => mutation.contract,
+        organize: () => mutation.contract,
+      }),
+    });
+    const archived = await client.organizeDocument({
+      action: "archive",
+      archived: true,
+      documentId: record.id,
+      baseRevision: 1,
+      clientIdempotencyKey: "archive-document-1",
+    });
+    expect(archived).toMatchObject({
+      id: record.id,
+      projectId: record.projectId,
+      body: record.body,
+      parentDocumentId: "parent-1",
+      folder: "Planning",
+      archivedAt: "2026-09-29T12:01:00.000Z",
+    });
+  });
+  test("passes the Archive filter to the Documents seam", async () => {
+    const documents = createDocumentsAccess();
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    await client.documents({ projectId: "project-1", archived: true });
+    expect(documents.list).toHaveBeenCalledWith("account-1", "project-1", true);
+  });
   test("resolves a live Work block from its current source and hides an unavailable target", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockResolvedValue({

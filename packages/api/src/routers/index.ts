@@ -64,6 +64,7 @@ import {
 } from "../daily-focus";
 import {
   createDocumentMutationInputSchema,
+  DocumentHierarchyError,
   type DocumentMutationValue,
   DocumentSectionCycleError,
   DocumentUnavailableError,
@@ -73,8 +74,10 @@ import {
   documentIdSchema,
   documentLiveDirectives,
   documentLiveWorkIds,
+  documentOrganizationInputSchema,
   documentSchema,
   documentVersionInputSchema,
+  organizeDocumentMutationInputSchema,
   documentRecordReferences as parseDocumentRecordReferences,
   pinDocumentEvidenceInputSchema,
   projectIdSchema,
@@ -2217,6 +2220,12 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentHierarchyError) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: error.message,
+      cause: error,
+    });
+  }
   if (error instanceof DocumentSectionCycleError) {
     throw new ORPCError("CONFLICT", {
       defined: true,
@@ -2294,7 +2303,14 @@ function nullableProjectValue(value: string | null | undefined) {
 
 export const appRouter = {
   documents: protectedProcedure
-    .input(z.object({ projectId: projectIdSchema.nullable() }).strict())
+    .input(
+      z
+        .object({
+          projectId: projectIdSchema.nullable(),
+          archived: z.boolean().optional(),
+        })
+        .strict(),
+    )
     .handler(async ({ context, input }) => {
       if (!context.documents) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -2303,6 +2319,7 @@ export const appRouter = {
         return await context.documents.list(
           context.session.user.id,
           input.projectId,
+          input.archived,
         );
       } catch (error) {
         if (error instanceof DocumentUnavailableError) {
@@ -2755,6 +2772,7 @@ export const appRouter = {
                     ...currentValue.document,
                     title: selected.title,
                     body: selected.body,
+                    inlineTags: selected.inlineTags,
                     type: selected.type,
                     revision: currentRevision + 1,
                     updatedAt: committedAt,
@@ -2768,6 +2786,72 @@ export const appRouter = {
         return receipt.nextValue.document;
       } catch (error) {
         rethrowDocumentMutationError(error, input.documentId);
+      }
+    }),
+  previewDocumentOrganization: protectedProcedure
+    .input(documentOrganizationInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents?.previewOrganization) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.previewOrganization(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  organizeDocument: protectedProcedure
+    .input(organizeDocumentMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = documentOrganizationInputSchema.parse(payloadInput);
+      const mutation = requireDocumentMutationContracts(context).organize?.(
+        context.session.user.id,
+      );
+      if (!mutation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => {
+            const current = currentValue.document;
+            return {
+              document: current
+                ? documentSchema.parse({
+                    ...current,
+                    ...(payload.action === "archive"
+                      ? { archivedAt: payload.archived ? committedAt : null }
+                      : {
+                          folder: payload.folder,
+                          parentDocumentId: payload.parentDocumentId,
+                        }),
+                    revision: currentRevision + 1,
+                    updatedAt: committedAt,
+                  })
+                : null,
+            } satisfies DocumentMutationValue;
+          },
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.documentId);
       }
     }),
   createDocument: protectedProcedure
