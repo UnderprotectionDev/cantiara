@@ -581,6 +581,9 @@ describeDatabase("Focus Period working window", () => {
     const activeRelationId = `focus-relation-${crypto.randomUUID()}`;
     const resolvedRelationId = `focus-relation-${crypto.randomUUID()}`;
     const outsideRelationId = `focus-relation-${crypto.randomUUID()}`;
+    const crossingRelationId = `focus-relation-${crypto.randomUUID()}`;
+    const deletedRelationId = `focus-relation-${crypto.randomUUID()}`;
+    const relatedRelationId = `focus-relation-${crypto.randomUUID()}`;
     await database.insert(workRelation).values([
       {
         id: activeRelationId,
@@ -615,6 +618,39 @@ describeDatabase("Focus Period working window", () => {
         targetProjectId: secondProjectId,
         blockingStatus: "Active",
       },
+      {
+        id: crossingRelationId,
+        kind: "Blocks",
+        sourceRecordType: "Work",
+        sourceWorkId: firstWorkId,
+        targetRecordType: "Work",
+        targetRecordId: thirdWorkId,
+        targetLabel: "Third Work",
+        targetProjectId: firstProjectId,
+        blockingStatus: "Active",
+      },
+      {
+        id: deletedRelationId,
+        kind: "Blocks",
+        sourceRecordType: "Work",
+        sourceWorkId: firstWorkId,
+        targetRecordType: "Work",
+        targetRecordId: secondWorkId,
+        targetLabel: "Second Work",
+        targetProjectId: secondProjectId,
+        blockingStatus: "Active",
+        deletedAt: clock,
+      },
+      {
+        id: relatedRelationId,
+        kind: "Related",
+        sourceRecordType: "Work",
+        sourceWorkId: firstWorkId,
+        targetRecordType: "Work",
+        targetRecordId: secondWorkId,
+        targetLabel: "Second Work",
+        targetProjectId: secondProjectId,
+      },
     ]);
     clock = new Date("2027-04-01T12:00:00.000Z");
     const periods = createDatabaseFocusPeriod(database, () => clock);
@@ -625,6 +661,26 @@ describeDatabase("Focus Period working window", () => {
     });
     await periods.add(accountId, period.id, firstWorkId);
     await periods.add(accountId, period.id, secondWorkId);
+
+    const fixtureWorkIds = [
+      firstWorkId,
+      secondWorkId,
+      thirdWorkId,
+      followUpWorkId,
+    ];
+    const relationsBefore = await database
+      .select()
+      .from(workRelation)
+      .where(inArray(workRelation.sourceWorkId, fixtureWorkIds));
+    const workBefore = await database
+      .select()
+      .from(work)
+      .where(inArray(work.projectId, [firstProjectId, secondProjectId]));
+    const projectsBefore = await database
+      .select()
+      .from(project)
+      .where(eq(project.workspaceId, workspaceId));
+    const periodBefore = await periods.find(accountId, period.id);
 
     const dependencies = (await periods.find(accountId, period.id))
       ?.dependencies;
@@ -649,6 +705,28 @@ describeDatabase("Focus Period working window", () => {
       dependencies?.edges.map(({ relationId }) => relationId),
     ).not.toContain(outsideRelationId);
     expect(dependencies?.cycles).toHaveLength(1);
+    expect(dependencies?.nodes.map(({ recordId }) => recordId).sort()).toEqual(
+      [firstWorkId, secondWorkId].sort(),
+    );
+    expect(await periods.find(accountId, period.id)).toEqual(periodBefore);
+    expect(
+      await database
+        .select()
+        .from(workRelation)
+        .where(inArray(workRelation.sourceWorkId, fixtureWorkIds)),
+    ).toEqual(relationsBefore);
+    expect(
+      await database
+        .select()
+        .from(work)
+        .where(inArray(work.projectId, [firstProjectId, secondProjectId])),
+    ).toEqual(workBefore);
+    expect(
+      await database
+        .select()
+        .from(project)
+        .where(eq(project.workspaceId, workspaceId)),
+    ).toEqual(projectsBefore);
     await periods.cancel(accountId, period.id);
   }, 30_000);
 

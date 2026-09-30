@@ -10,6 +10,36 @@ import {
 } from "./documents";
 
 describe("Documents", () => {
+  it("rejects wall skeletons and client-supplied skeleton content", () => {
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "create-skeleton",
+      projectId: "project-1",
+      skeleton: "Persona",
+    };
+
+    expect(createDocumentMutationInputSchema.safeParse(input).success).toBe(
+      true,
+    );
+    for (const skeleton of ["Sitemap", "Customer Journey", "Personal Review"]) {
+      expect(
+        createDocumentMutationInputSchema.safeParse({ ...input, skeleton })
+          .success,
+      ).toBe(false);
+    }
+    for (const fields of [
+      { body: "Sample persona" },
+      { title: "Sample persona" },
+      { type: "General" },
+      { body: "Sample persona", title: "Sample persona", type: "Persona" },
+    ]) {
+      expect(
+        createDocumentMutationInputSchema.safeParse({ ...input, ...fields })
+          .success,
+      ).toBe(false);
+    }
+  });
+
   it("accepts one Markdown body containing a table, fenced code, Mermaid, and LaTeX", () => {
     const body = [
       "| Name | Value |",

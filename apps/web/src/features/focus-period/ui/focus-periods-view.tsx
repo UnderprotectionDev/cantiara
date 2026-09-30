@@ -15,6 +15,7 @@ import { type FormEvent, useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { FocusPeriodDependencies } from "./focus-period-dependencies";
 
 async function abandonSelectedWork(
   periodId: string,
@@ -631,7 +632,7 @@ function PeriodDetail({
           />
         </>
       ) : null}
-      <DependenciesSection period={period} />
+      <FocusPeriodDependencies dependencies={period.dependencies} />
     </section>
   );
 }
@@ -1095,63 +1096,5 @@ function FollowUpWorkSection({
         )}
       </section>
     </>
-  );
-}
-
-function DependenciesSection({ period }: { period: FocusPeriodRecord }) {
-  return (
-    <section aria-label="Dependencies" className="space-y-3">
-      <h3 className="font-semibold">Dependencies</h3>
-      {period.dependencies.edges.length ? (
-        <ul className="space-y-2">
-          {period.dependencies.edges.map((edge) => {
-            const inCycle = period.dependencies.cycles.some((cycle) =>
-              cycle.edges.some(
-                ({ relationId }) => relationId === edge.relationId,
-              ),
-            );
-            const blocker = period.members.find(
-              (item) => item.id === edge.blocker.recordId,
-            );
-            const blocked = period.members.find(
-              (item) => item.id === edge.blocked.recordId,
-            );
-            return (
-              <li className="rounded-md border px-3 py-2" key={edge.relationId}>
-                {blocker ? (
-                  <Link
-                    aria-label={`Open source record: ${blocker.key} ${blocker.title}`}
-                    hash={workRecordHash(blocker.id)}
-                    params={{ projectId: blocker.projectId }}
-                    to="/projects/$projectId"
-                  >
-                    {blocker.title} · {blocker.key}
-                  </Link>
-                ) : null}
-                {" blocks "}
-                {blocked ? (
-                  <Link
-                    aria-label={`Open source record: ${blocked.key} ${blocked.title}`}
-                    hash={workRecordHash(blocked.id)}
-                    params={{ projectId: blocked.projectId }}
-                    to="/projects/$projectId"
-                  >
-                    {blocked.title} · {blocked.key}
-                  </Link>
-                ) : null}
-                <p className="text-muted-foreground text-sm">
-                  {edge.status}
-                  {inCycle ? " · Part of a dependency cycle" : ""}
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          No dependencies in this Focus Period.
-        </p>
-      )}
-    </section>
   );
 }

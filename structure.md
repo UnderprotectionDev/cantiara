@@ -628,7 +628,7 @@
 
 Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).
 
-Documents source ownership is split across the API contract (`packages/api/src/documents.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/document.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`).
+Documents source ownership is split across the API contract (`packages/api/src/documents.ts`), the empty-heading starter skeleton catalog shared with Project Shell (`packages/api/src/document-skeletons.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/document.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`).
 
 Smart Collections source ownership is split across the API contract (`packages/api/src/smart-collections.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/smart-collection.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/smart-collections/server/`), and the Project Smart Collections surface (`apps/web/src/features/smart-collections/`).
 

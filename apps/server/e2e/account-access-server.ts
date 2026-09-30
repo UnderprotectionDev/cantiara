@@ -539,21 +539,26 @@ async function createE2EFixture(fixtureKey: string) {
 }
 
 async function createDocumentsFixture(fixtureKey: string, accountId: string) {
-  if (fixtureKey !== "documents") {
+  const usesDocumentSkeletons = fixtureKey === "documents-skeletons";
+  if (fixtureKey !== "documents" && !usesDocumentSkeletons) {
     return null;
   }
   const documentsProject = await projectShell.create(accountId, {
-    name: "Documents Project",
-    shortCode: "DOCS",
-    starterConfiguration: "Blank Project",
+    name: usesDocumentSkeletons
+      ? "Document Skeletons Project"
+      : "Documents Project",
+    shortCode: usesDocumentSkeletons ? "DSKL" : "DOCS",
+    starterConfiguration: usesDocumentSkeletons ? "Solo SaaS" : "Blank Project",
   });
-  await workLifecycle.create(accountId, {
-    baseRevision: 0,
-    clientIdempotencyKey: "documents-live-work-source",
-    projectId: documentsProject.id,
-    title: "Live Work source",
-    type: "Task",
-  });
+  if (!usesDocumentSkeletons) {
+    await workLifecycle.create(accountId, {
+      baseRevision: 0,
+      clientIdempotencyKey: "documents-live-work-source",
+      projectId: documentsProject.id,
+      title: "Live Work source",
+      type: "Task",
+    });
+  }
   return documentsProject;
 }
 
