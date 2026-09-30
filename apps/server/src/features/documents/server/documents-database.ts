@@ -162,22 +162,28 @@ async function resolveInlineTags(
   );
 }
 
+function documentScopeFilter(
+  projectId: string | null,
+  workspaceId: string | null,
+) {
+  if (projectId !== null) {
+    return eq(document.projectId, projectId);
+  }
+  if (workspaceId === null) {
+    throw new DocumentUnavailableError();
+  }
+  return and(isNull(document.projectId), eq(document.workspaceId, workspaceId));
+}
+
 async function documentsInScope(
   executor: MutationDatabaseExecutor,
   projectId: string | null,
   workspaceId: string | null,
 ) {
-  if (projectId === null && workspaceId === null) {
-    throw new DocumentUnavailableError();
-  }
   const rows = await executor
     .select()
     .from(document)
-    .where(
-      projectId === null
-        ? and(isNull(document.projectId), eq(document.workspaceId, workspaceId))
-        : eq(document.projectId, projectId),
-    )
+    .where(documentScopeFilter(projectId, workspaceId))
     .orderBy(asc(document.id));
   return rows.map(toDocument);
 }

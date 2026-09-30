@@ -187,7 +187,7 @@ describe("Personal Wiki ownership boundary", () => {
     expect(created).not.toHaveProperty("visitorUrl");
     expect(created).not.toHaveProperty("publicSlug");
     await client.documents({ projectId: null });
-    expect(documents.list).toHaveBeenCalledWith("account-1", null);
+    expect(documents.list).toHaveBeenCalledWith("account-1", null, undefined);
   });
   test("rejects a second Wiki Document type", async () => {
     const mutation = createMutationContract(null);
