@@ -95,9 +95,12 @@ export const documentConflictDraft = pgTable(
     documentId: text("document_id")
       .notNull()
       .references(() => document.id, { onDelete: "cascade" }),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => project.id, {
+      onDelete: "cascade",
+    }),
+    workspaceId: text("workspace_id").references(() => workspace.id, {
+      onDelete: "cascade",
+    }),
     baseRevision: integer("base_revision").notNull(),
     title: text("title").notNull(),
     body: text("body").notNull(),
@@ -115,6 +118,10 @@ export const documentConflictDraft = pgTable(
     index("document_conflict_draft_document_idx").on(
       table.documentId,
       table.resolvedAt,
+    ),
+    check(
+      "document_conflict_draft_ownership_check",
+      sql`(${table.projectId} IS NOT NULL AND ${table.workspaceId} IS NULL) OR (${table.projectId} IS NULL AND ${table.workspaceId} IS NOT NULL)`,
     ),
     check(
       "document_conflict_draft_revision_check",

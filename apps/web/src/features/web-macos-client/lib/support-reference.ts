@@ -1,3 +1,4 @@
+import { documentConflictDraftSchema } from "@cantiara/api/documents";
 import {
   isSupportFailureReasonCode,
   isSupportReference,
@@ -24,6 +25,7 @@ export interface SupportReferenceFailure {
   duration: number;
   reason: string;
   reasonCode: SupportFailureReasonCode;
+  recoveryHint: string | null;
   retryBound: string;
   retryPolicy: SupportRetryPolicy;
   supportReference: string | null;
@@ -140,6 +142,20 @@ function failureMessage(
   return supportFailureMessage(reasonCode);
 }
 
+function documentConflictRecoveryHint(
+  data: Record<string, unknown> | undefined,
+  kind: SupportReferenceFailureKind,
+) {
+  if (kind !== "mutation" || data?.code !== "STALE_BASE_REVISION") {
+    return null;
+  }
+  const draft = documentConflictDraftSchema.safeParse(data.conflictDraft);
+  if (!draft.success || draft.data.documentId !== data.targetId) {
+    return null;
+  }
+  return "Your changes were kept in a Conflict Draft. Choose Compare in the Document to resolve it.";
+}
+
 function resolveWriteOutcome(
   requestedWriteOutcome: SupportWriteOutcome | undefined,
   data: Record<string, unknown> | undefined,
@@ -165,6 +181,7 @@ export function buildSupportReferenceFailure(
   }: BuildSupportReferenceFailureOptions,
 ): SupportReferenceFailure {
   const data = errorData(error);
+  const recoveryHint = documentConflictRecoveryHint(data, kind);
   const reasonCode = readReasonCode(error, data);
   const supportReference = isSupportReference(data?.supportReference)
     ? data.supportReference
@@ -189,8 +206,11 @@ export function buildSupportReferenceFailure(
   return {
     canRetry,
     duration: staysUntilDismissed ? Number.POSITIVE_INFINITY : 6000,
-    reason: failureMessage(error, reasonCode, kind),
+    reason: recoveryHint
+      ? "Conflict Draft"
+      : failureMessage(error, reasonCode, kind),
     reasonCode,
+    recoveryHint,
     retryBound: supportRetryBound(canRetry),
     retryPolicy,
     supportReference,

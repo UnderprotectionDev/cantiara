@@ -765,6 +765,7 @@ const updateDocumentFieldsSchema = z
     title: documentTitleSchema.optional(),
     body: documentBodySchema.optional(),
     type: documentTypeSchema.optional(),
+    conflictDraftId: documentIdSchema.optional(),
   })
   .strict();
 
@@ -786,7 +787,12 @@ export const updateDocumentInputSchema = updateDocumentFieldsSchema.refine(
 );
 
 export const createDocumentMutationInputSchema = z.union([
-  createDocumentInputSchema.extend(humanMutationEnvelopeSchema.shape).strict(),
+  createDocumentInputSchema
+    .extend({
+      ...humanMutationEnvelopeSchema.shape,
+      conflictDraftId: documentIdSchema.optional(),
+    })
+    .strict(),
   createDocumentSkeletonInputSchema
     .extend(humanMutationEnvelopeSchema.shape)
     .strict(),
@@ -872,7 +878,35 @@ export const documentSchema = createDocumentInputSchema.extend({
   revision: z.number().int().nonnegative(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  origin: z
+    .object({
+      documentId: documentIdSchema,
+      revision: documentRevisionSchema,
+      conflictDraftId: z.string().optional(),
+    })
+    .optional(),
 });
+
+export const documentConflictDraftSchema = z.object({
+  id: documentIdSchema,
+  documentId: documentIdSchema,
+  projectId: projectIdSchema.nullable(),
+  workspaceId: documentIdSchema.nullable().default(null),
+  baseRevision: documentRevisionSchema,
+  title: documentTitleSchema,
+  body: documentBodySchema,
+  type: documentTypeSchema,
+  createdAt: z.string(),
+});
+
+export type DocumentConflictDraft = z.infer<typeof documentConflictDraftSchema>;
+
+export const discardDocumentConflictDraftInputSchema = z
+  .object({
+    documentId: documentIdSchema,
+    conflictDraftId: documentIdSchema,
+  })
+  .strict();
 
 export const documentVersionSummarySchema = documentSchema.pick({
   id: true,
@@ -898,6 +932,7 @@ export type CreateDocumentInput = z.infer<typeof createDocumentInputSchema>;
 export type UpdateDocumentInput = z.infer<typeof updateDocumentInputSchema>;
 
 export interface DocumentMutationValue {
+  conflictDraftId?: string;
   document: Document | null;
 }
 
@@ -930,6 +965,19 @@ export interface DocumentLiveSectionSource {
 }
 
 export interface DocumentsAccess {
+  captureConflictDraft?: (
+    accountId: string,
+    input: z.infer<typeof updateDocumentMutationInputSchema>,
+  ) => Promise<DocumentConflictDraft>;
+  conflictDrafts?: (
+    accountId: string,
+    documentId: string,
+  ) => Promise<DocumentConflictDraft[] | null>;
+  discardConflictDraft?: (
+    accountId: string,
+    documentId: string,
+    conflictDraftId: string,
+  ) => Promise<void>;
   get: (accountId: string, documentId: string) => Promise<Document | null>;
   getLiveSection?: (
     accountId: string,
@@ -965,6 +1013,13 @@ export class DocumentUnavailableError extends Error {
   constructor() {
     super("Document or Project is unavailable.");
     this.name = "DocumentUnavailableError";
+  }
+}
+
+export class DocumentConflictDraftError extends Error {
+  constructor() {
+    super("Conflict Draft is unavailable or has already been resolved.");
+    this.name = "DocumentConflictDraftError";
   }
 }
 

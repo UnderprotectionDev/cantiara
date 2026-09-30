@@ -1,4 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Document controls close over the selected record and current editor state.
+
+import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import {
   type Document,
   type DocumentEvidenceTargetType,
@@ -39,12 +42,18 @@ import { Markdown as TiptapMarkdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
-import { useEffect, useRef, useState } from "react";
-
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
-import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import {
+  defaultClientShell,
+  runOnlineOnlyWrite,
+} from "@/features/web-macos-client/store/client-shell";
+import { writeTextToClipboard } from "@/lib/clipboard";
 import { client, orpc } from "@/utils/orpc";
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
+import { createDocumentEditSession } from "../../store/document-edit-session";
+import DocumentConflictDrafts from "./document-conflict-drafts";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentInlineTags from "./document-inline-tags";
 import DocumentNavigation from "./document-navigation";
@@ -81,12 +90,6 @@ type DocumentStarterSkeletonSelection = Extract<
   StarterSkeletonSelection,
   { surface: "Document" }
 >;
-
-interface DocumentSaveInput {
-  body: string;
-  title: string;
-  type: Document["type"];
-}
 
 function comparableMarkdown(source: string) {
   return source.replaceAll("\r\n", "\n");
@@ -180,15 +183,25 @@ function uniqueDocumentSections(source: string) {
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this editor coordinates one saved Document session across its dependent dialogs.
 function DocumentEditor({
+  accountFormattingPreferences,
   record,
   onSaved,
   documents,
 }: {
+  accountFormattingPreferences: AccountPreferences;
   record: Document;
   onSaved: () => Promise<void>;
   documents: Document[];
 }) {
   const queryClient = useQueryClient();
+  const [editSession] = useState(() =>
+    createDocumentEditSession({
+      record,
+      shell: defaultClientShell,
+      write: (input) => client.updateDocument(input),
+    }),
+  );
+  const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
   const [revision, setRevision] = useState(record.revision);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<DocumentView>("write");
@@ -349,16 +362,10 @@ function DocumentEditor({
         originalBlockOutcome === "Replace with live reference" &&
         conversionSelection
       ) {
-        const body = form.getFieldValue("body");
-        const reference = `:::live-diagram{diagramId="${created.id}"}`;
-        const nextBody =
-          body.slice(0, conversionSelection.start) +
-          reference +
-          body.slice(conversionSelection.end);
-        form.setFieldValue("body", nextBody);
-        setPreviewBody(nextBody);
-        setSavedBody(nextBody);
-        setRevision((current) => current + 1);
+        const committed = await client.document({ documentId: record.id });
+        editSession.accept(committed);
+        form.setFieldValue("body", committed.body);
+        setPreviewBody(committed.body);
       }
       setConversionSelection(null);
       conversionKey.current = null;
@@ -410,67 +417,8 @@ function DocumentEditor({
     refetchOnMount: "always",
   });
   const allowRichUpdates = useRef(false);
-  const pendingSave = useRef<{
-    baseRevision: number;
-    clientIdempotencyKey: string;
-    value: DocumentSaveInput;
-  } | null>(null);
-
-  function saveIdempotencyKey(value: DocumentSaveInput) {
-    const pending = pendingSave.current;
-    if (
-      pending?.baseRevision === revision &&
-      pending.value.title === value.title &&
-      pending.value.type === value.type &&
-      pending.value.body === value.body
-    ) {
-      return pending.clientIdempotencyKey;
-    }
-    const clientIdempotencyKey = crypto.randomUUID();
-    pendingSave.current = {
-      baseRevision: revision,
-      clientIdempotencyKey,
-      value: { ...value },
-    };
-    return clientIdempotencyKey;
-  }
-
   const save = useMutation({
-    mutationFn: (command: {
-      clientIdempotencyKey: string;
-      value: DocumentSaveInput;
-    }) =>
-      runOnlineOnlyWrite(() =>
-        client.updateDocument({
-          documentId: record.id,
-          baseRevision: revision,
-          clientIdempotencyKey: command.clientIdempotencyKey,
-          ...command.value,
-        }),
-      ),
-    onSuccess: async (saved, command) => {
-      if (
-        pendingSave.current?.clientIdempotencyKey ===
-        command.clientIdempotencyKey
-      ) {
-        pendingSave.current = null;
-      }
-      if (command.value.body !== savedBody) {
-        setBulkSelectionKeys([]);
-        bulkConversionKey.current = null;
-        setSelectedTextRange(null);
-      }
-      pinEvidenceKey.current = null;
-      recordConversionKey.current = null;
-      recordConversionId.current = null;
-      setRevision(saved.revision);
-      setSavedBody(command.value.body);
-      setError(null);
-      await queryClient.invalidateQueries({
-        queryKey: liveWorkOptions.queryKey,
-      });
-      await onSaved();
-    },
+    mutationFn: () => editSession.save(),
     onError: (failure) =>
       setError(
         failure instanceof Error
@@ -502,7 +450,7 @@ function DocumentEditor({
     },
     onSuccess: async (restored) => {
       pendingRestore.current = null;
-      setRevision(restored.revision);
+      editSession.accept(restored);
       setSelectedVersion(null);
       setError(null);
       await onSaved();
@@ -521,18 +469,62 @@ function DocumentEditor({
       body: record.body,
     },
     onSubmit: async ({ value }) => {
-      await save.mutateAsync({
-        clientIdempotencyKey: saveIdempotencyKey(value),
-        value,
-      });
+      editSession.edit(value);
+      await save.mutateAsync();
     },
   });
+  useEffect(() => editSession.connect(), [editSession]);
+  useEffect(() => {
+    const subscription = form.store.subscribe(() =>
+      editSession.edit(form.state.values),
+    );
+    return () => subscription.unsubscribe();
+  }, [editSession, form]);
+  useEffect(() => {
+    if (editing.dirty || record.revision <= editing.baseRevision) {
+      return;
+    }
+    editSession.accept(record);
+    setRevision(record.revision);
+  }, [editSession, editing.baseRevision, editing.dirty, record]);
+  useEffect(() => {
+    if (editing.dirty || editing.baseRevision === revision) {
+      return;
+    }
+    setRevision(editing.baseRevision);
+    setSavedBody(editing.buffer.body);
+    form.setFieldValue("title", editing.buffer.title);
+    form.setFieldValue("type", editing.buffer.type);
+    form.setFieldValue("body", editing.buffer.body);
+    setBulkSelectionKeys([]);
+    bulkConversionKey.current = null;
+    setSelectedTextRange(null);
+    pinEvidenceKey.current = null;
+    recordConversionKey.current = null;
+    recordConversionId.current = null;
+    setError(null);
+    queryClient
+      .invalidateQueries({ queryKey: liveWorkOptions.queryKey })
+      .catch(() => undefined);
+    queryClient
+      .invalidateQueries({ queryKey: versionOptions.queryKey })
+      .catch(() => undefined);
+    onSaved().catch(() => undefined);
+  }, [
+    editing,
+    form,
+    revision,
+    queryClient,
+    liveWorkOptions.queryKey,
+    versionOptions.queryKey,
+    onSaved,
+  ]);
   const hasNewerVersion = record.revision > revision;
   function reloadLatestVersion() {
     if (save.isPending) {
       return;
     }
-    pendingSave.current = null;
+    editSession.accept(record);
     setError(null);
     setRevision(record.revision);
     setPreviewBody(record.body);
@@ -722,6 +714,10 @@ function DocumentEditor({
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
     },
   });
+  function richUpdatesAllowed(): boolean {
+    return allowRichUpdates.current;
+  }
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false, underline: false }),
@@ -740,8 +736,10 @@ function DocumentEditor({
       },
     },
     onUpdate: ({ editor: current }) => {
-      // biome-ignore lint/suspicious/noUnnecessaryConditions: this mutable ref changes across editor write-mode transitions.
-      if (allowRichUpdates.current) {
+      if (
+        richUpdatesAllowed() &&
+        editSession.edit({ ...form.state.values, body: current.getMarkdown() })
+      ) {
         form.setFieldValue("body", current.getMarkdown());
       }
     },
@@ -755,7 +753,6 @@ function DocumentEditor({
       comparableMarkdown(editor.getMarkdown()) ===
       comparableMarkdown(record.body);
     if (safe) {
-      editor.setEditable(true);
       allowRichUpdates.current = true;
     }
     if (!safe) {
@@ -763,6 +760,37 @@ function DocumentEditor({
       setConversionWarning(true);
     }
   }, [editor, record.body]);
+
+  useEffect(() => {
+    if (!editor || editing.dirty || editing.pending) {
+      return;
+    }
+    allowRichUpdates.current = false;
+    editor.commands.setContent(editing.buffer.body, {
+      contentType: "markdown",
+      emitUpdate: false,
+    });
+    const safe =
+      comparableMarkdown(editor.getMarkdown()) ===
+      comparableMarkdown(editing.buffer.body);
+    if (!safe) {
+      setView((current) => (current === "write" ? "markdown" : current));
+      setConversionWarning(true);
+    }
+    allowRichUpdates.current = safe && editing.editable && view === "write";
+  }, [
+    editor,
+    editing.buffer.body,
+    editing.dirty,
+    editing.pending,
+    editing.editable,
+    view,
+  ]);
+
+  useEffect(() => {
+    editor?.setEditable(editing.editable && view === "write");
+    allowRichUpdates.current = editing.editable && view === "write";
+  }, [editor, editing.editable, view]);
 
   function changeView(next: string) {
     if (next !== "write") {
@@ -793,8 +821,8 @@ function DocumentEditor({
         contentType: "markdown",
         emitUpdate: false,
       });
-      editor.setEditable(true);
-      allowRichUpdates.current = true;
+      editor.setEditable(editing.editable);
+      allowRichUpdates.current = editing.editable;
       setConversionWarning(false);
       setView("write");
     } catch {
@@ -803,8 +831,112 @@ function DocumentEditor({
     }
   }
 
+  const recoveryPayload = JSON.stringify(
+    {
+      title: editing.buffer.title,
+      type: editing.buffer.type,
+      body: editing.buffer.body,
+    },
+    null,
+    2,
+  );
+  let recoveryStatus = editing.error;
+  if (editing.offline) {
+    recoveryStatus = "Offline";
+  } else if (editing.conflictDraft) {
+    recoveryStatus = "Conflict Draft";
+  }
+
   return (
     <section aria-label="Document">
+      {record.origin ? (
+        <p className="mb-4 text-sm">
+          Conflict Draft origin · Version {record.origin.revision} ·{" "}
+          <a
+            className="underline"
+            href={`#document-${record.origin.documentId}`}
+          >
+            Open source record
+          </a>
+        </p>
+      ) : null}
+      {editing.offline || editing.conflictDraft || editing.error ? (
+        <div
+          className="mb-5 space-y-3 rounded-lg border border-destructive p-4"
+          role="alert"
+        >
+          <p>{recoveryStatus}</p>
+          <p>
+            Last successful save:{" "}
+            <time dateTime={editing.lastSavedAt}>
+              {formatAccountDateTime(
+                editing.lastSavedAt,
+                accountFormattingPreferences,
+              )}
+            </time>
+          </p>
+          {editing.dirty ? (
+            <>
+              <p>Unsaved changes may be lost</p>
+              <p>
+                This memory buffer is not retained if you close the app or
+                change Documents.
+              </p>
+            </>
+          ) : (
+            <p>The Document has no unwritten changes.</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() =>
+                writeTextToClipboard(recoveryPayload).catch(
+                  (failure: unknown) =>
+                    setError(
+                      failure instanceof Error
+                        ? failure.message
+                        : "Copy failed.",
+                    ),
+                )
+              }
+              type="button"
+              variant="outline"
+            >
+              Copy
+            </Button>
+            <Button
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob([recoveryPayload], {
+                    type: "application/json;charset=utf-8",
+                  }),
+                );
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = "document-recovery.json";
+                anchor.click();
+                setTimeout(() => URL.revokeObjectURL(url), 0);
+              }}
+              type="button"
+              variant="outline"
+            >
+              Download
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <DocumentConflictDrafts
+        disabled={editing.offline || defaultClientShell.get().updateRequired}
+        documentId={record.id}
+        onResolved={(current) => {
+          editSession.accept(current);
+          form.setFieldValue("title", current.title);
+          form.setFieldValue("type", current.type);
+          form.setFieldValue("body", current.body);
+          setError(null);
+          onSaved().catch(() => undefined);
+        }}
+        rejected={editing.conflictDraft}
+      />
       {record.projectId === null ? (
         <p className="mb-3 w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
           Personal Wiki
@@ -832,7 +964,7 @@ function DocumentEditor({
         ) : null}
         <fieldset
           className="min-w-0 space-y-5 border-0 p-0"
-          disabled={save.isPending}
+          disabled={!editing.editable}
         >
           <div className="flex flex-wrap items-end gap-4 border-border border-b pb-4">
             <form.Field name="title">
@@ -941,7 +1073,7 @@ function DocumentEditor({
               <p>Technical Diagram: {convertedDiagram.title}</p>
               <a
                 className="underline"
-                href={`/projects/${encodeURIComponent(record.projectId)}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
+                href={`/projects/${encodeURIComponent(record.projectId ?? "")}#technical-diagram-${encodeURIComponent(convertedDiagram.id)}`}
               >
                 Open source record
               </a>
@@ -1836,10 +1968,12 @@ function DocumentEditor({
 }
 
 export default function DocumentsSurface({
+  accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   projectId,
   selectedDocumentId,
   starterSkeletons,
 }: {
+  accountFormattingPreferences?: AccountPreferences;
   projectId: string | null;
   selectedDocumentId?: string;
   starterSkeletons: readonly StarterSkeletonSelection[];
@@ -2166,12 +2300,13 @@ export default function DocumentsSurface({
         />
         {selected ? (
           <DocumentEditor
+            accountFormattingPreferences={accountFormattingPreferences}
             documents={allDocuments}
             key={selected.id}
             onSaved={() =>
               queryClient.invalidateQueries({ queryKey: orpc.documents.key() })
             }
-            record={{ ...selected, projectId: selected.projectId }}
+            record={selected}
           />
         ) : (
           <p>Select a Document.</p>

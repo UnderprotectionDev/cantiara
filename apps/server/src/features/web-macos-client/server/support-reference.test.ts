@@ -24,6 +24,71 @@ interface FailureResponseBody {
 }
 
 describe("Client Shell Support reference", () => {
+  test("preserves validated Document Conflict Drafts across the support response boundary", async () => {
+    const conflictDraft = {
+      id: "draft-1",
+      documentId: "document-1",
+      projectId: "project-1",
+      baseRevision: 1,
+      title: "Rejected title",
+      body: "Rejected text",
+      type: "General",
+      createdAt: "2026-09-29T10:00:00.000Z",
+    };
+    const response = await decorateSupportFailureResponse(
+      Response.json(
+        {
+          code: "PRECONDITION_FAILED",
+          defined: true,
+          message: "Conflict Draft",
+          data: {
+            code: "STALE_BASE_REVISION",
+            conflictDraft,
+            currentRevision: 2,
+            currentValue: { document: { body: "Current" } },
+            targetId: "document-1",
+          },
+        },
+        { status: 412 },
+      ),
+    );
+    expect(await response.json()).toMatchObject({
+      message: "Conflict Draft",
+      data: {
+        conflictDraft,
+        currentRevision: 2,
+        retryPolicy: "never",
+        writeOutcome: "not-written",
+      },
+    });
+  });
+
+  test("does not preserve malformed or mismatched Conflict Draft payloads", async () => {
+    const response = await decorateSupportFailureResponse(
+      Response.json(
+        {
+          code: "PRECONDITION_FAILED",
+          defined: true,
+          data: {
+            code: "STALE_BASE_REVISION",
+            conflictDraft: {
+              documentId: "another-document",
+              body: "Do not expose",
+              unexpected: "secret",
+            },
+            currentRevision: 2,
+            currentValue: {},
+            targetId: "document-1",
+          },
+        },
+        { status: 412 },
+      ),
+    );
+    const body = await response.json();
+    expect(body).toMatchObject({ message: "Current value" });
+    expect(body).not.toHaveProperty("data.conflictDraft");
+  });
+
   test("classifies PostgreSQL SQLSTATE carried by an Error instance", () => {
     const error = Object.assign(new Error("Failed database operation"), {
       code: "42703",
