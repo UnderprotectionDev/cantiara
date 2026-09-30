@@ -46,6 +46,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
+import DocumentInlineTags from "./document-inline-tags";
 import DocumentNavigation from "./document-navigation";
 import DocumentOrganizationControls from "./document-organization-controls";
 import DocumentPreview from "./document-preview";
@@ -864,13 +865,11 @@ function DocumentEditor({
             )}
           </form.Subscribe>
           {record.inlineTags?.length ? (
-            <fieldset aria-label="Tags" className="flex flex-wrap gap-2">
-              {record.inlineTags.map((tag) => (
-                <Button
-                  data-tag-id={tag.tagId}
-                  disabled={previewBody !== savedBody}
-                  key={`${tag.tagId}:${tag.start}`}
-                  onClick={() => {
+            <form.Subscribe selector={(state) => state.values.body}>
+              {(body) => (
+                <DocumentInlineTags
+                  body={body}
+                  onSelect={(tag) => {
                     setView("markdown");
                     window.requestAnimationFrame(() => {
                       const source =
@@ -881,13 +880,11 @@ function DocumentEditor({
                       }
                     });
                   }}
-                  type="button"
-                  variant="secondary"
-                >
-                  #{tag.name}
-                </Button>
-              ))}
-            </fieldset>
+                  savedBody={savedBody}
+                  tags={record.inlineTags ?? []}
+                />
+              )}
+            </form.Subscribe>
           ) : null}
           {convertedDiagram ? (
             <div

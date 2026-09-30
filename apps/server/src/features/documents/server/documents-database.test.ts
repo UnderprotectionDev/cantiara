@@ -252,6 +252,15 @@ describeDatabase("Documents database boundary", () => {
       name: "release",
       nameKey: "release",
     });
+    const wikiDocumentId = crypto.randomUUID();
+    await database.insert(document).values({
+      id: wikiDocumentId,
+      workspaceId,
+      title: "Wiki release notes",
+      type: "General",
+      revision: 1,
+      body: "#release",
+    });
     const api = client();
     const legacyId = crypto.randomUUID();
     await database.insert(document).values({
@@ -292,6 +301,21 @@ describeDatabase("Documents database boundary", () => {
     );
     expect(renamed.body).toBe("#[Release planning] #unknown `#release`");
     expect(renamed.inlineTags?.[0]?.tagId).toBe("document-release-tag");
+    const [renamedWikiDocument] = await database
+      .select({ body: document.body, inlineTags: document.inlineTags })
+      .from(document)
+      .where(eq(document.id, wikiDocumentId));
+    expect(renamedWikiDocument).toEqual({
+      body: "#[Release planning]",
+      inlineTags: [
+        {
+          tagId: "document-release-tag",
+          name: "Release planning",
+          start: 0,
+          end: 19,
+        },
+      ],
+    });
     expect(
       (await api.documentVersion({ documentId: created.id, revision: 1 })).body,
     ).toBe(created.body);

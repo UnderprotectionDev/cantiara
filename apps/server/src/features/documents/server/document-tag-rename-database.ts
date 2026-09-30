@@ -11,7 +11,7 @@ import { document } from "@cantiara/db/schema/document";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { workspaceTag } from "@cantiara/db/schema/tags";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, or } from "drizzle-orm";
 
 type DocumentTagExecutor = Pick<
   Database,
@@ -31,8 +31,14 @@ export function createDatabaseDocumentTagRenameWriter(): TagInlineRenameWriter<D
       const rows = await executor
         .select({ document, accountId: workspace.ownerAccountId })
         .from(document)
-        .innerJoin(project, eq(project.id, document.projectId))
-        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .leftJoin(project, eq(project.id, document.projectId))
+        .innerJoin(
+          workspace,
+          or(
+            eq(workspace.id, project.workspaceId),
+            eq(workspace.id, document.workspaceId),
+          ),
+        )
         .where(eq(workspace.id, input.workspaceId))
         .orderBy(asc(document.id))
         .for("update", { of: document });
