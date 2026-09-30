@@ -543,7 +543,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belgeler | `Documents` | Belge kayıtlarını toplayan Proje alanı |
 | Belgeler yükleniyor | `Loading Documents…` | Proje Belgeleri alanı yüklenirken gösterilen ilerleme durumu |
 | Belge oluştur | `Create Document` | Projede yeni Belge kaydı oluşturma eylemi |
-| Belge oluşturma açıklaması | `Give this Document a title and choose its type.` | Oluşturma penceresindeki kısa yönlendirme |
+| Başlangıç iskeleti seç | `Starter skeleton` | Proje yapılandırmasında seçili bir Belge başlangıç iskeletini oluşturma seçeneği |
+| Başlangıç iskeleti olmadan oluştur | `No starter skeleton` | Başlangıç iskeleti yerine olağan başlık/tür akışını kullanma seçeneği |
+| Belge oluşturma açıklaması | `Choose a starter skeleton, or give this Document a title and type.`; iskelet seçimi yoksa `Give this Document a title and choose its type.` | Oluşturma penceresindeki yapılandırmaya bağlı kısa yönlendirme |
 | İptal | `Cancel` | Belge oluşturma penceresini kayıt oluşturmadan kapatma |
 | Belge düzenleyici | `Document editor` | Belgenin zengin metin düzenleme alanı |
 | Belge görünümü | `Document view` | Aynı Belgenin yazma, Markdown ve önizleme sekmeleri |
