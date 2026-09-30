@@ -167,19 +167,19 @@ async function requireConflictDraft(
   const [draft] = await executor
     .select()
     .from(documentConflictDraft)
-    .where(
-      and(
-        eq(documentConflictDraft.id, draftId),
-        conflictDraftScopeCondition(scope),
-        isNull(documentConflictDraft.resolvedAt),
-        ...(documentId
-          ? [eq(documentConflictDraft.documentId, documentId)]
-          : []),
-      ),
-    )
+    .where(eq(documentConflictDraft.id, draftId))
     .limit(1)
     .for("update");
   if (!draft) {
+    throw new DocumentConflictDraftError();
+  }
+  if (
+    draft.projectId !== scope.projectId ||
+    draft.workspaceId !== scope.workspaceId
+  ) {
+    throw new DocumentUnavailableError();
+  }
+  if (draft.resolvedAt || (documentId && draft.documentId !== documentId)) {
     throw new DocumentConflictDraftError();
   }
   return draft;
