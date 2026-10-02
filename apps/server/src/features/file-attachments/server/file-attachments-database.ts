@@ -137,6 +137,7 @@ function toAttachment(
     lifecycleStatus: record.lifecycleStatus,
     name: record.name,
     revision: record.revision,
+    ownerDocumentId: record.ownerDocumentId,
     scope: scopeFromColumns(record),
     updatedAt: record.updatedAt.toISOString(),
   });

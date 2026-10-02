@@ -78,7 +78,7 @@ import {
   findOwnedDocumentTemplate,
 } from "./document-templates-database";
 
-function toDocument(row: typeof document.$inferSelect): Document {
+export function toDocument(row: typeof document.$inferSelect): Document {
   return documentSchema.parse({
     id: row.id,
     projectId: row.projectId,

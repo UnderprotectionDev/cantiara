@@ -45,7 +45,9 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
+import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -113,6 +115,11 @@ const securityEventDb =
       });
 const priorityMetricPermanentDeleteEvents =
   createDatabasePriorityMetricPermanentDeleteEvents(securityEventDb);
+export const documentTransfers = createDatabaseDocumentTransfers(
+  db,
+  documents,
+  createDatabaseDocumentSurfaceCancellations(securityEventDb),
+);
 const priorityMetricTrashMaintenance =
   createDatabasePriorityMetricTrashMaintenance(
     db,
@@ -343,6 +350,7 @@ export function replaySecurityRevocations() {
       accountSessionAccess.replaySessionRevocations(),
       webCapture.replayRevocations(),
       priorityMetricTrashMaintenance.replayPermanentDeletes(),
+      documentTransfers.replayCancellations(),
     ])
       .then(() => undefined)
       .catch((error) => {
