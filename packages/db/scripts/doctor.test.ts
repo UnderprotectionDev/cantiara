@@ -2,7 +2,18 @@ import { expect, test } from "vitest";
 import { diagnoseDatabase } from "./doctor";
 import { resolveMigrationTarget } from "./migration-target";
 
-test("deployment requires its explicit gate rather than a branch name", () => {
+test("development diagnosis resolves the configured Neon target", () => {
+  const target = resolveMigrationTarget({
+    DATABASE_URL:
+      "postgres://app:secret@ep-development-pooler.neon.tech/cantiara",
+  });
+  expect(target.databaseUrl).toBe(
+    "postgres://app:secret@ep-development.neon.tech/cantiara",
+  );
+  expect(target.local).toBe(false);
+});
+
+test("deployment migration requires its explicit command", () => {
   expect(() =>
     resolveMigrationTarget(
       {
@@ -19,9 +30,8 @@ test("security-event diagnosis keeps its separate configured target", () => {
       DATABASE_URL: "postgres://app:secret@ep-primary.neon.tech/cantiara",
       SECURITY_EVENT_DATABASE_URL:
         "postgres://security:secret@ep-security-pooler.neon.tech/events",
-      CANTIARA_DEPLOY_MIGRATION: "true",
     },
-    { securityEvents: true, deployment: true },
+    { securityEvents: true },
   );
   expect(target.databaseUrl).toBe(
     "postgres://security:secret@ep-security.neon.tech/events",

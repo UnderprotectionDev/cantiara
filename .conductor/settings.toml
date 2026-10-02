@@ -141,7 +141,6 @@ After creation or update, respond to the user in Turkish with the pull request t
 
 [scripts]
 setup = "bun install"
-archive = "bun run db:workspace:archive"
 run_mode = "nonconcurrent"
 
 [scripts.run.dev]

@@ -29,6 +29,5 @@ Bu dizin yalnız değiştirilmesi maliyetli, koddan tek başına anlaşılmayaca
 | [0021](0021-icerigi-yalniz-veritabaninda-tut.md) | İçeriğin yalnız veritabanında yaşaması | Tanıdık harici editörler ile tek doğruluk kaynağının bütünlüğü |
 | [0022](0022-wireframe-motorunu-kendimiz-yaz.md) | Wireframe motorunu kendimiz yazmak | Hazır kütüphane hızı ile öğe semantiği ve sürüm değişmezliği |
 | [0023](0023-sifreli-calisma-alani-cikis-paketini-restore-olmadan-sun.md) | Şifreli Çalışma Alanı çıkış paketi | Çıkış garantisi ile ürün içi restore ve yedek ürünü açmamak |
-| [0024](0024-neon-gelistirme-veritabanlarini-git-tabanli-yalit.md) | Git tabanlı Neon geliştirme yalıtımı | Bağımsız workspace'ler ile çift DB ve değişmez taban işletimi |
 
 Yeni bir ADR ancak bu dizindeki üç ölçütü birlikte karşılayan bir karar için eklenir. Mevcut ürün sözleşmesini tekrar eden açıklamalar ADR oluşturmaz.

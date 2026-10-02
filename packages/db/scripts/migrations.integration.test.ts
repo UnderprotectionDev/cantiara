@@ -12,9 +12,7 @@ import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { migrationBaseline } from "../../../scripts/migration-baseline";
 import { acquireDevelopmentLease } from "./development-lease";
-import { acquireDevelopmentPromotionLease } from "./development-promotion-lease";
 import { diagnoseDatabase } from "./doctor";
 import { assertLocalPostgresTarget } from "./migration-connection";
 import { readMigrationRepository } from "./migration-repository";
@@ -22,7 +20,6 @@ import {
   connectMigrationTarget,
   resolveMigrationTarget,
 } from "./migration-target";
-import { verifyBaselineDatabase } from "./workspace-baseline";
 
 const databaseUrl = process.env.MIGRATION_TEST_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -142,78 +139,6 @@ describeDatabase(
         sql`SELECT count(*) AS total FROM drizzle.__drizzle_migrations`,
       );
       expect(Number(history.rows[0]?.total)).toBe(repository.entries.length);
-    });
-
-    test("verifies the Git baseline read-only and rejects drift without repairing it", async () => {
-      const baseline = migrationBaseline(root, undefined, false);
-      const before = await database.execute(
-        sql`SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at`,
-      );
-      await verifyBaselineDatabase(environment, baseline.files);
-      expect(
-        (
-          await database.execute(
-            sql`SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at`,
-          )
-        ).rows,
-      ).toEqual(before.rows);
-      await database.execute(
-        sql`ALTER TABLE "user" RENAME COLUMN name TO test_baseline_name`,
-      );
-      try {
-        await expect(
-          verifyBaselineDatabase(environment, baseline.files),
-        ).rejects.toThrow("schema differs");
-        const columns = await database.execute(
-          sql`SELECT column_name FROM information_schema.columns WHERE table_name = 'user' AND column_name = 'test_baseline_name'`,
-        );
-        expect(columns.rows).toHaveLength(1);
-      } finally {
-        await database.execute(
-          sql`ALTER TABLE "user" RENAME COLUMN test_baseline_name TO name`,
-        );
-      }
-    });
-
-    test("serializes canonical promotion and releases its lock without blocking ordinary readiness", async () => {
-      const lease = await acquireDevelopmentPromotionLease(environment);
-      try {
-        await lease.verify();
-        await expect(
-          acquireDevelopmentPromotionLease(environment),
-        ).rejects.toThrow("Another canonical");
-        expect((await diagnoseDatabase(environment)).reason).toBe("ready");
-      } finally {
-        await lease.close();
-      }
-      const next = await acquireDevelopmentPromotionLease(environment);
-      await next.close();
-    });
-
-    test("aborts canonical promotion when its locking connection is terminated", async () => {
-      const lease = await acquireDevelopmentPromotionLease(environment);
-      try {
-        await database.execute(sql`
-          SELECT pg_terminate_backend(locks.pid) FROM pg_locks AS locks
-          WHERE locks.locktype = 'advisory' AND locks.mode = 'ExclusiveLock'
-            AND locks.classid = 1128351316 AND locks.objid = 1296648019
-            AND locks.database = (SELECT oid FROM pg_database WHERE datname = current_database())
-            AND locks.pid <> pg_backend_pid()
-        `);
-        await expect(lease.verify()).rejects.toThrow();
-        await new Promise<void>((resolve) => {
-          if (lease.signal.aborted) {
-            resolve();
-          } else {
-            lease.signal.addEventListener("abort", () => resolve(), {
-              once: true,
-            });
-          }
-        });
-        expect(lease.signal.aborted).toBe(true);
-      } finally {
-        await lease.close();
-      }
     });
 
     test("blocks a compatibility repair that skips unapplied canonical history", () => {

@@ -18,9 +18,6 @@
       "cache": false,
       "persistent": true,
       "passThroughEnv": [
-        "CONDUCTOR_ROOT_PATH",
-        "CONDUCTOR_WORKSPACE_ID",
-        "CONDUCTOR_WORKSPACE_PATH",
         "DATABASE_URL_UNPOOLED",
         "SECURITY_EVENT_DATABASE_URL_UNPOOLED"
       ]

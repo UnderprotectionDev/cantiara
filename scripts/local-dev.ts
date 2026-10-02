@@ -1,21 +1,18 @@
+import { applicationEnvironment } from "./application-environment";
 import { developmentDatabaseMode } from "./dev-database-mode";
 import { developmentCommand } from "./local-dev-command";
-import {
-  applicationEnvironment,
-  loadWorkspaceEnvironment,
-} from "./workspace-database";
 
 const { command, requiresDatabase } = developmentCommand(process.argv.slice(2));
+const environment = applicationEnvironment(process.env);
 if (!requiresDatabase) {
   const help = Bun.spawn(command, {
-    env: applicationEnvironment(process.env),
+    env: environment,
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
   });
   process.exit(await help.exited);
 }
-const environment = loadWorkspaceEnvironment(process.env);
 const { startLocalProxy } = developmentDatabaseMode(environment);
 
 const proxy = startLocalProxy
