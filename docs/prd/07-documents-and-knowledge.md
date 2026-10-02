@@ -58,6 +58,19 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 ### Belge kapsamı, taşıma ve kopyalama
 
+Bu paketin İngilizce UI metinleri:
+
+| UI metni | Anlam |
+| --- | --- |
+| `Move Document`, `Copy Document`, `Export Document` | Tek Belge işleminin önizleme penceresi. |
+| `Target scope` | Kullanıcının açıkça seçtiği etkin Proje veya `Personal Wiki`; kopya kaynak kapsamını kendiliğinden devralmaz. |
+| `Child Documents` | Taşınacak çocukların tek tek seçildiği alan; seçilmeyen grafik taşınmaz. |
+| `File Attachments`, `Assign File Attachments` | Aynı Projenin Dosya Eklerini bir Belgeye açıkça sahiplik bağlama; başka Belgenin eki sessizce devralınmaz. |
+| `Format`, `Download` | Önizlenen tarihli statik çıktının biçimi ve indirme eylemi. |
+| `Cancel External Surface` | Taşıma öncesinde açık yüzey iptali; tarihsel kapsam ve snapshot zinciri korunur. |
+
+Dosya Eki sahipliği `File Attachments` düğmesinin açtığı `Assign File Attachments` penceresinde `Preview` ve `Apply` ile onaylanır. Yükleme ve Proje kapsamlı Dosya Eki kaydı mevcut ek yüzeyine aittir; bu seçim yeni bir global dosya havuzu oluşturmaz.
+
 - **Her Belge tam olarak bir ana kapsamda yaşar:** bir Proje veya Kişisel Wiki. `Taşı` yalnız kaynak Proje etkin durumdayken başlatılabilir. Kullanıcı kök Belgeyi, açıkça seçtiği çocuk Belgeleri ve yalnız bu kaynakların sahip olduğu Dosya Eklerini aynı iç kimlik, sürüm geçmişi ve arşiv durumuyla hedef kapsama taşır. Seçilmeyen çocuklar, başka kapsamın sahip olduğu ekler ve ilişki grafiğindeki diğer kayıtlar sürüklenmez; ilişkiler korunabiliyorsa kapsamlar arası ilişki olarak kalır, aksi durumda etki önizlemesinde çözüm ister.
 
 - **İşlemden önce hedef kapsam, seçimin tamamı, görünürlük, çözülemeyecek referanslar ve dış yayın etkisi gösterilir.** Etkin bir Dış yüzeyi bulunan Belge taşınmadan önce yüzey açıkça iptal edilmelidir. İptal edilen eski yüzey ve revizyon zinciri özgün kapsamda tarihsel kalır; hedef kapsamda paylaşım/yayın yeni Dış yüzey, URL, token ve revizyon zinciri oluşturur. Taşıma hiçbir içeriği kendiliğinden herkese açık yapmaz.

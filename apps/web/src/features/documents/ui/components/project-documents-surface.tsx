@@ -60,6 +60,7 @@ import DocumentNavigation from "./document-navigation";
 import DocumentOrganizationControls from "./document-organization-controls";
 import DocumentPreview from "./document-preview";
 import DocumentTemplatesSurface from "./document-templates-surface";
+import DocumentTransferControls from "./document-transfer-controls";
 import DocumentVersionCompare from "./document-version-compare";
 
 const lowlight = createLowlight(common);
@@ -1024,23 +1025,47 @@ function DocumentEditor({
           </div>
           <form.Subscribe selector={(state) => state.values}>
             {(values) => (
-              <DocumentOrganizationControls
-                disabled={
-                  save.isPending ||
-                  values.body !== savedBody ||
-                  values.title !== record.title ||
-                  values.type !== record.type
-                }
-                documents={documents}
-                onCommitted={async (saved) => {
-                  setRevision(saved.revision);
-                  await queryClient.invalidateQueries({
-                    queryKey: versionOptions.queryKey,
-                  });
-                  await onSaved();
-                }}
-                record={{ ...record, revision }}
-              />
+              <div className="space-y-3">
+                <DocumentTransferControls
+                  disabled={
+                    save.isPending ||
+                    values.body !== savedBody ||
+                    values.title !== record.title ||
+                    values.type !== record.type
+                  }
+                  documents={documents}
+                  onCommitted={async (saved) => {
+                    if (saved.id === record.id) {
+                      setRevision(saved.revision);
+                    }
+                    await queryClient.invalidateQueries({
+                      queryKey: orpc.documentVersions.key(),
+                    });
+                    await queryClient.invalidateQueries({
+                      queryKey: orpc.documents.key(),
+                    });
+                    await onSaved();
+                  }}
+                  record={{ ...record, revision }}
+                />
+                <DocumentOrganizationControls
+                  disabled={
+                    save.isPending ||
+                    values.body !== savedBody ||
+                    values.title !== record.title ||
+                    values.type !== record.type
+                  }
+                  documents={documents}
+                  onCommitted={async (saved) => {
+                    setRevision(saved.revision);
+                    await queryClient.invalidateQueries({
+                      queryKey: versionOptions.queryKey,
+                    });
+                    await onSaved();
+                  }}
+                  record={{ ...record, revision }}
+                />
+              </div>
             )}
           </form.Subscribe>
           {record.inlineTags?.length ? (

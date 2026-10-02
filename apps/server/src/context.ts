@@ -23,6 +23,7 @@ import type {
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
+import type { DocumentTransfersAccess } from "@cantiara/api/document-transfer";
 import type {
   DocumentMutationContracts,
   DocumentsAccess,
@@ -94,6 +95,7 @@ export interface CreateContextOptions {
   database: Database;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
+  documentTransfers?: DocumentTransfersAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
@@ -144,6 +146,7 @@ export async function createContext({
   dailyFocus,
   documentMutationContracts,
   documents,
+  documentTransfers,
   smartCollections,
   technicalDiagrams,
   focusPeriod,
@@ -206,6 +209,7 @@ export async function createContext({
     dailyFocus,
     documentMutationContracts,
     documents,
+    documentTransfers,
     smartCollections,
     technicalDiagrams,
     focusPeriod,

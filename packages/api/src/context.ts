@@ -18,6 +18,7 @@ import type {
   CustomFieldsAccess,
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
+import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
 import type { FileAttachmentAccess } from "./file-attachments";
@@ -156,6 +157,7 @@ export interface Context {
   desktopApiContract?: string;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
+  documentTransfers?: DocumentTransfersAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;

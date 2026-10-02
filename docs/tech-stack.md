@@ -193,6 +193,12 @@ Başlangıç denetimi `REPEATABLE READ READ ONLY` transaction ve ortak danışma
 - **Servisler:** Sentry, e-posta sağlayıcısı
 - **Better-T-Stack preset ve add-on'ları:** Native frontend, örnek proje, web/server deployment preset'leri, `skills`, `mcp`
 
+## Tek Belge PDF çalışma zamanı
+
+Documents tek-Belge export'u mevcut TanStack Markdown HTML renderer'ını (`@tanstack/markdown/html`) ve Playwright Chromium'u kullanır. Uygulama örneği `apps/server/src/features/documents/server/document-pdf.ts`; oRPC/Zod, atomik Drizzle mutation ve React/TanStack Query seçim örnekleri sırasıyla `packages/api/src/document-transfer.ts`, `document-transfers-database.ts` ve `document-transfer-controls.tsx` dosyalarıdır. Yeni veri teknolojisi yoktur.
+
+Server bağımlılıkları kurulduktan sonra PDF çalışan her geliştirme/deployment imajında `bunx playwright install --with-deps chromium` çalıştırılmalıdır; Chromium cache'i runtime kullanıcısının okuyabildiği konumda kalmalıdır. Server TypeScript/Bun build'i tarayıcı binary'sini gömmez. Integration CI, gerçek PDF seam testinden önce aynı browser sürümünü kurar. Renderer dış HTTP/asset erişimini ve script çalıştırmayı kapatır; PDF dış resimleri yüklemez, özgün Markdown indirme alternatifi korunur. Tagged PDF/WCAG uyumu taahhüt edilmez. Operasyon sınırları ve test bağı `docs/specs/31-documents/spec.md` içindeki Snapshot renderer kararına aittir.
+
 ## Daha sonra eklenecekler
 
 | Teknoloji | Amaç |
