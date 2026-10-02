@@ -3072,8 +3072,9 @@ export const appRouter = {
           references: await Promise.all(
             preview.references.map(async (reference) => {
               let source: { projectId: string | null } | null = null;
+              let title: string | null = null;
               if (reference.directive?.kind === "Work") {
-                source = await documentReferenceSource(
+                const resolved = await documentReferenceSource(
                   context,
                   context.session.user.id,
                   {
@@ -3084,23 +3085,33 @@ export const appRouter = {
                     end: reference.directive.end,
                   },
                 );
+                source = resolved;
+                title = resolved?.title ?? null;
               } else if (reference.directive) {
-                source = await liveDocumentBlockSource(
+                const block = await liveDocumentBlockSource(
                   context,
                   context.session.user.id,
                   reference.directive,
                 );
+                source = block;
+                title =
+                  block && "title" in block
+                    ? block.title
+                    : (block?.name ?? null);
               } else if (reference.reference) {
-                source = await documentReferenceSource(
+                const resolved = await documentReferenceSource(
                   context,
                   context.session.user.id,
                   reference.reference,
                 );
+                source = resolved;
+                title = resolved?.title ?? null;
               }
               return {
                 ...reference,
                 available: source !== null,
                 projectId: source?.projectId ?? null,
+                title: title ?? reference.title,
               };
             }),
           ),

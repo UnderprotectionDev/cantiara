@@ -372,6 +372,7 @@ describeDatabase("Documents database boundary", () => {
       expect.objectContaining({
         recordType: "Work",
         id: workId,
+        title: "DOC-1 · Referenced task",
         available: true,
         projectId,
       }),
@@ -627,6 +628,39 @@ describeDatabase("Documents database boundary", () => {
       body: "New child knowledge",
     });
     expect(await api.documents({ projectId: null })).toEqual([]);
+  });
+
+  it("rejects a stale source revision with the preview reason without creating a Copy", async () => {
+    const api = client();
+    const source = await createKnowledge("Stale copy source");
+    const input = {
+      action: "copy" as const,
+      documentId: source.id,
+      documentRevision: source.revision,
+      sourceRevision: source.revision,
+      targetProjectId: null,
+      copyDocumentId: crypto.randomUUID(),
+    };
+    const preview = await api.previewDocumentTransfer(input);
+    await api.updateDocument({
+      documentId: source.id,
+      body: "# Stale copy source\n\nUpdated after Preview.",
+      baseRevision: source.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await expect(
+      api.transferDocument({
+        ...input,
+        previewFingerprint: preview.fingerprint,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow("A newer Document version is available. Preview again.");
+    expect(await api.documents({ projectId: null })).toEqual([]);
+    expect(await client().document({ documentId: source.id })).toMatchObject({
+      projectId,
+      revision: source.revision + 1,
+    });
   });
 
   it("copies Wiki knowledge into an explicitly selected Project without moving the Wiki source", async () => {

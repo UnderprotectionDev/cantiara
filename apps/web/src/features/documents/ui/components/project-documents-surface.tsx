@@ -870,7 +870,7 @@ function DocumentEditor({
               Open source record
             </a>
           ) : (
-            "Source record is unavailable."
+            !originDocument.isPending && "Source record is unavailable."
           )}
         </p>
       ) : null}
