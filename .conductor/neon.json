@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "primary": {
+    "projectId": "royal-water-08607823",
+    "productionBranchId": "br-hidden-rice-b2zk5jv2",
+    "developmentBranchId": "br-weathered-moon-b2n7ygif",
+    "databaseName": "cantiara_development",
+    "roleName": "neondb_owner"
+  },
+  "security": {
+    "projectId": "nameless-smoke-67537690",
+    "productionBranchId": "br-cold-sky-b1hlj7qw",
+    "developmentBranchId": "br-rapid-rain-b1z0v8st",
+    "databaseName": "cantiara_development",
+    "roleName": "security_event_owner"
+  }
+}

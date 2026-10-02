@@ -1,20 +1,26 @@
 import { developmentDatabaseMode } from "./dev-database-mode";
 import { developmentCommand } from "./local-dev-command";
+import {
+  applicationEnvironment,
+  loadWorkspaceEnvironment,
+} from "./workspace-database";
 
 const { command, requiresDatabase } = developmentCommand(process.argv.slice(2));
 if (!requiresDatabase) {
   const help = Bun.spawn(command, {
+    env: applicationEnvironment(process.env),
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
   });
   process.exit(await help.exited);
 }
-const { startLocalProxy } = developmentDatabaseMode(process.env);
+const environment = loadWorkspaceEnvironment(process.env);
+const { startLocalProxy } = developmentDatabaseMode(environment);
 
 const proxy = startLocalProxy
   ? Bun.spawn(["bun", "scripts/neon-local-proxy.ts"], {
-      env: process.env,
+      env: environment,
       stdout: "inherit",
       stderr: "inherit",
     })
@@ -39,7 +45,7 @@ process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 try {
   doctor = Bun.spawn(["bun", "packages/db/scripts/doctor.ts"], {
-    env: process.env,
+    env: environment,
     stdout: "inherit",
     stderr: "inherit",
   });
@@ -49,7 +55,7 @@ try {
     process.exitCode = 130;
   } else if (status === 0) {
     development = Bun.spawn(command, {
-      env: process.env,
+      env: environment,
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
