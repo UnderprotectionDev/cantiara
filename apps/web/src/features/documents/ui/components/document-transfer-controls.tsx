@@ -41,6 +41,36 @@ export function DocumentTransferPreviewPanel({
           </li>
         ))}
       </ul>
+      {preview.detachedChildren?.length ? (
+        <ul className="list-inside list-disc">
+          {preview.detachedChildren.map((child) => (
+            <li key={child.id}>{child.title}</li>
+          ))}
+        </ul>
+      ) : null}
+      {preview.references?.length ? (
+        <>
+          <p>
+            Record references retain their source scope and access requirements:
+          </p>
+          <p>
+            Unavailable references remain broken. Availability can change after
+            Preview.
+          </p>
+          <ul className="list-inside list-disc">
+            {preview.references.map((reference) => (
+              <li
+                key={`${reference.recordType}-${reference.id}-${reference.title}`}
+              >
+                {reference.recordType}: {reference.title} ·{" "}
+                {reference.available
+                  ? `Available · ${reference.projectId ? `Project: ${reference.projectId}` : "Personal Wiki"}`
+                  : "Unavailable"}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       <p>File Attachments</p>
       <ul className="list-inside list-disc">
         {preview.attachments.map((item) => (
@@ -96,6 +126,9 @@ export default function DocumentTransferControls({
     ReturnType<typeof client.exportDocument>
   > | null>(null);
   const pending = useRef<{ key: string; newDocumentId: string } | null>(null);
+  const confirmed = useRef<
+    Parameters<typeof client.transferDocument>[0] | null
+  >(null);
   const projects = useQuery({
     ...orpc.projects.queryOptions(),
     enabled: action === "Move" || action === "Copy",
@@ -110,23 +143,25 @@ export default function DocumentTransferControls({
     }),
     enabled: action === "Assign File Attachments" && !!record.projectId,
   });
-  const childOptions = documents.filter((item) => {
-    if (item.id === record.id) {
-      return false;
-    }
-    try {
-      return selectDocumentMove(
-        documents.map((candidate) => ({
-          id: candidate.id,
-          parentDocumentId: candidate.parentDocumentId ?? null,
-        })),
-        record.id,
-        [item.id],
-      ).includes(item.id);
-    } catch {
-      return false;
-    }
-  });
+  const childOptions =
+    preview?.descendants ??
+    documents.filter((item) => {
+      if (item.id === record.id) {
+        return false;
+      }
+      try {
+        return selectDocumentMove(
+          documents.map((candidate) => ({
+            id: candidate.id,
+            parentDocumentId: candidate.parentDocumentId ?? null,
+          })),
+          record.id,
+          [item.id],
+        ).includes(item.id);
+      } catch {
+        return false;
+      }
+    });
   function command(
     nextAction: DocumentTransferInput["action"],
   ): DocumentTransferInput {
@@ -162,7 +197,11 @@ export default function DocumentTransferControls({
         return;
       }
       if (action) {
-        setPreview(await client.previewDocumentTransfer(command(action)));
+        const result = await client.previewDocumentTransfer(command(action));
+        if (!("externalSurfaceIds" in result)) {
+          throw new Error("Document transfer preview is unavailable.");
+        }
+        setPreview(result);
       }
     },
     onError: (failure) => setError(failure.message),
@@ -176,24 +215,29 @@ export default function DocumentTransferControls({
           key: crypto.randomUUID(),
           newDocumentId: crypto.randomUUID(),
         };
-        currentPreview = await client.previewDocumentTransfer(selection);
+        const result = await client.previewDocumentTransfer(selection);
+        if (!("externalSurfaceIds" in result)) {
+          throw new Error("Document transfer preview is unavailable.");
+        }
+        currentPreview = result;
       }
       if (!(currentPreview && pending.current)) {
         throw new Error("Preview before Apply.");
       }
-      return runOnlineOnlyWrite(() =>
-        client.transferDocument({
-          ...selection,
-          previewFingerprint: currentPreview.fingerprint,
-          baseRevision: nextAction === "Copy" ? 0 : record.revision,
-          clientIdempotencyKey: pending.current?.key ?? "",
-        }),
-      );
+      confirmed.current ??= {
+        ...selection,
+        previewFingerprint: currentPreview.fingerprint,
+        baseRevision: nextAction === "Copy" ? 0 : record.revision,
+        clientIdempotencyKey: pending.current.key,
+      };
+      const confirmedInput = confirmed.current;
+      return runOnlineOnlyWrite(() => client.transferDocument(confirmedInput));
     },
     onSuccess: async (saved, nextAction) => {
       await onCommitted(saved);
       setPreview(null);
       pending.current = null;
+      confirmed.current = null;
       setError(null);
       if (nextAction !== "Cancel External Surface") {
         setAction(null);
@@ -233,6 +277,7 @@ export default function DocumentTransferControls({
     onError: (failure) => setError(failure.message),
   });
   function resetPreview() {
+    confirmed.current = null;
     setPreview(null);
     setExportPreview(null);
     pending.current = null;

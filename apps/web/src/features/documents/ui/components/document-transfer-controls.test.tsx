@@ -23,3 +23,44 @@ test("shows selection, target, owned File Attachments, broken references and pub
   expect(html).toContain("Cancel External Surface before Move.");
   expect(html).toContain("No content becomes public.");
 });
+
+test("retains available reference scopes and detached children in the unified transfer preview", () => {
+  const preview = {
+    allowed: true,
+    reason: null,
+    fingerprint: "preview",
+    targetLabel: "Personal Wiki",
+    documents: [{ id: "root", title: "Architecture", revision: 2 }],
+    attachments: [],
+    externalSurfaceIds: [],
+    brokenReferences: [],
+    detachedChildren: [
+      { id: "child", title: "Project-only child", revision: 1 },
+    ],
+    references: [
+      {
+        recordType: "Document",
+        id: "source",
+        title: "Project knowledge",
+        available: true,
+        projectId: "project",
+      },
+      {
+        recordType: "Document section",
+        id: "missing",
+        title: "Missing section",
+        available: false,
+        projectId: null,
+      },
+    ],
+  };
+  const html = renderToStaticMarkup(
+    <DocumentTransferPreviewPanel preview={preview} />,
+  );
+  expect(html).toContain("Project-only child");
+  expect(html).toContain("Project knowledge");
+  expect(html).toContain("Available");
+  expect(html).toContain("Project: project");
+  expect(html).toContain("Missing section");
+  expect(html).toContain("Unavailable");
+});

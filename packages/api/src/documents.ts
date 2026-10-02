@@ -7,6 +7,10 @@ import type {
   DocumentTemplateAccess,
   DocumentTemplateMutationContracts,
 } from "./document-templates";
+import type {
+  DocumentTransferInput,
+  DocumentTransferPreview,
+} from "./document-transfers";
 import {
   humanMutationEnvelopeSchema,
   type MutationContract,
@@ -934,12 +938,18 @@ export type UpdateDocumentInput = z.infer<typeof updateDocumentInputSchema>;
 export interface DocumentMutationValue {
   conflictDraftId?: string;
   document: Document | null;
+  sourceDocument?: Document;
 }
 
 export interface DocumentMutationContracts {
   create: (accountId: string) => MutationContract<DocumentMutationValue>;
   organize?: (accountId: string) => MutationContract<DocumentMutationValue>;
   templates?: DocumentTemplateMutationContracts;
+  transfer?: (
+    accountId: string,
+    input: DocumentTransferInput,
+    previewFingerprint: string,
+  ) => MutationContract<DocumentMutationValue>;
   update: (accountId: string) => MutationContract<DocumentMutationValue>;
 }
 
@@ -1003,6 +1013,10 @@ export interface DocumentsAccess {
     accountId: string,
     input: DocumentOrganizationInput,
   ) => Promise<DocumentHierarchyPreview>;
+  previewTransfer?: (
+    accountId: string,
+    input: DocumentTransferInput,
+  ) => Promise<DocumentTransferPreview>;
   templates?: DocumentTemplateAccess;
   versions: (
     accountId: string,

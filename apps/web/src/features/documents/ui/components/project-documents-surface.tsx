@@ -195,6 +195,12 @@ function DocumentEditor({
   documents: Document[];
 }) {
   const queryClient = useQueryClient();
+  const originDocument = useQuery({
+    ...orpc.document.queryOptions({
+      input: { documentId: record.origin?.documentId ?? record.id },
+    }),
+    enabled: Boolean(record.origin),
+  });
   const [editSession] = useState(() =>
     createDocumentEditSession({
       record,
@@ -852,13 +858,20 @@ function DocumentEditor({
     <section aria-label="Document">
       {record.origin ? (
         <p className="mb-4 text-sm">
-          Conflict Draft origin · Version {record.origin.revision} ·{" "}
-          <a
-            className="underline"
-            href={`#document-${record.origin.documentId}`}
-          >
-            Open source record
-          </a>
+          {record.origin.conflictDraftId
+            ? "Conflict Draft origin"
+            : "Copy origin"}{" "}
+          · Version {record.origin.revision} ·{" "}
+          {originDocument.data ? (
+            <a
+              className="underline"
+              href={`${originDocument.data.projectId === null ? "/personal-wiki" : `/projects/${encodeURIComponent(originDocument.data.projectId)}`}#${documentRecordHash(record.origin.documentId)}`}
+            >
+              Open source record
+            </a>
+          ) : (
+            !originDocument.isPending && "Source record is unavailable."
+          )}
         </p>
       ) : null}
       {editing.offline || editing.conflictDraft || editing.error ? (
@@ -1028,6 +1041,7 @@ function DocumentEditor({
               <div className="space-y-3">
                 <DocumentTransferControls
                   disabled={
+                    hasNewerVersion ||
                     save.isPending ||
                     values.body !== savedBody ||
                     values.title !== record.title ||
@@ -1050,6 +1064,7 @@ function DocumentEditor({
                 />
                 <DocumentOrganizationControls
                   disabled={
+                    hasNewerVersion ||
                     save.isPending ||
                     values.body !== savedBody ||
                     values.title !== record.title ||

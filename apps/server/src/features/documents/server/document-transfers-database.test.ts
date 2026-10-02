@@ -109,6 +109,32 @@ describeDatabase("Documents transfer database seam", () => {
     );
   }
 
+  it("rejects Copy when its new identity would create a live section cycle", async () => {
+    const newDocumentId = crypto.randomUUID();
+    await edit(
+      rootId,
+      `:::live-section{documentId="${newDocumentId}" sectionId="intro"}\n:::`,
+    );
+    const source = await access.get(accountId, rootId);
+    if (!source) {
+      throw new Error("Document is unavailable.");
+    }
+    await expect(
+      apply(
+        {
+          action: "Copy",
+          documentId: source.id,
+          sourceRevision: source.revision,
+          targetProjectId: null,
+          childDocumentIds: [],
+          newDocumentId,
+        },
+        0,
+      ),
+    ).rejects.toThrow("Live Document sections cannot contain a cycle.");
+    expect(await access.get(accountId, newDocumentId)).toBeNull();
+  });
+
   async function edit(documentId: string, body: string) {
     const current = await access.get(accountId, documentId);
     if (!current) {

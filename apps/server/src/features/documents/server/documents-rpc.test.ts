@@ -140,6 +140,52 @@ function createFailingMutationContract(error: unknown) {
 }
 
 describe("Personal Wiki ownership boundary", () => {
+  test("requires a founder session for transfer previews and confirmations", async () => {
+    const context = createContext(createDocumentsAccess(), {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    context.session = null;
+    const client = createRouterClient(appRouter, { context });
+    const input = {
+      action: "move" as const,
+      documentId: initialDocument.id,
+      documentRevision: 1,
+      targetProjectId: null,
+      children: [],
+    };
+    await expect(client.previewDocumentTransfer(input)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.transferDocument({
+        ...input,
+        baseRevision: 1,
+        previewFingerprint: "0".repeat(64),
+        clientIdempotencyKey: "wiki-transfer",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    const savedVersionInput = {
+      action: "Move" as const,
+      documentId: initialDocument.id,
+      sourceRevision: 1,
+      targetProjectId: null,
+      childDocumentIds: [],
+    };
+    await expect(
+      client.previewDocumentTransfer(savedVersionInput),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.transferDocument({
+        ...savedVersionInput,
+        baseRevision: 1,
+        previewFingerprint: "0".repeat(64),
+        clientIdempotencyKey: "saved-version-transfer",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
   test("Wiki evidence cannot use an unavailable target as Wiki ownership", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockImplementation(

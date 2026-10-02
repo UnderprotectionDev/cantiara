@@ -1,10 +1,16 @@
 import type { Context } from "@cantiara/api/context";
+import type { DocumentTransferInput } from "@cantiara/api/document-transfers";
 import type { Document } from "@cantiara/api/documents";
 import { getProjectShellConfiguration } from "@cantiara/api/project-shell";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
+import { externalSurface } from "@cantiara/db/schema/external-surface";
+import {
+  fileAttachment,
+  fileAttachmentVersion,
+} from "@cantiara/db/schema/file-attachments";
 import {
   mutationHistory,
   mutationReceipt,
@@ -25,6 +31,7 @@ import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createDatabaseFileAttachments } from "../../file-attachments/server/file-attachments-database";
 import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
@@ -32,7 +39,9 @@ import {
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseTags } from "../../tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
+import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseDocumentTagRenameWriter } from "./document-tag-rename-database";
+import { createDatabaseDocumentTransfers } from "./document-transfers-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -79,10 +88,12 @@ describeDatabase("Documents database boundary", () => {
       documentMutationContracts:
         createDatabaseDocumentMutationContracts(database),
       documents: access,
+      documentTransfers: createDatabaseDocumentTransfers(database, access),
       usageLinkMutationContracts:
         createDatabaseUsageLinkMutationContracts(database),
       smartCollections: createDatabaseSmartCollections(database),
       technicalDiagrams: createDatabaseTechnicalDiagrams(database),
+      workLifecycle: createDatabaseWorkLifecycle(database),
       githubAvailability: { getStatus: () => "available" },
       session: {
         session: { id: "session-1" },
@@ -240,6 +251,689 @@ describeDatabase("Documents database boundary", () => {
     expect(
       (await documents.discoverDocuments({ ...input, archived: true }))[0],
     ).toMatchObject({ projectArchivedAt: expect.any(String) });
+  });
+
+  async function transfer(input: DocumentTransferInput) {
+    const api = client();
+    const preview = await api.previewDocumentTransfer(input);
+    return await api.transferDocument({
+      ...input,
+      previewFingerprint: preview.fingerprint,
+      baseRevision: input.action === "copy" ? 0 : input.documentRevision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+  }
+
+  async function createKnowledge(
+    title: string,
+    scope: string | null = projectId,
+  ) {
+    return await client().createDocument({
+      projectId: scope,
+      title,
+      body: `# ${title}`,
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+  }
+
+  it("moves only selected Document-owned attachments and rejects changed attachment previews", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const source = await createKnowledge("Attachment owner");
+    const child = await createKnowledge("Unselected attachment owner");
+    await client().organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: source.id,
+      folder: null,
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const attachmentId = crypto.randomUUID();
+    const childAttachmentId = crypto.randomUUID();
+    const projectAttachmentId = crypto.randomUUID();
+    await database.insert(fileAttachment).values([
+      {
+        id: attachmentId,
+        ownerDocumentId: source.id,
+        workspaceId,
+        projectId,
+        scopeType: "Project",
+        name: "Owned attachment",
+      },
+      {
+        id: childAttachmentId,
+        ownerDocumentId: child.id,
+        workspaceId,
+        projectId,
+        scopeType: "Project",
+        name: "Child attachment",
+      },
+      {
+        id: projectAttachmentId,
+        workspaceId,
+        projectId,
+        scopeType: "Project",
+        name: "Project attachment",
+      },
+    ]);
+    const input = {
+      action: "move" as const,
+      documentId: source.id,
+      documentRevision: source.revision,
+      targetProjectId: null,
+      children: [],
+    };
+    const api = client();
+    await transfer({
+      action: "copy",
+      documentId: source.id,
+      documentRevision: source.revision,
+      sourceRevision: source.revision,
+      targetProjectId: null,
+      copyDocumentId: crypto.randomUUID(),
+    });
+    expect(
+      await database
+        .select()
+        .from(fileAttachment)
+        .where(eq(fileAttachment.workspaceId, workspaceId)),
+    ).toHaveLength(3);
+    const preview = await api.previewDocumentTransfer(input);
+    expect(preview).toMatchObject({
+      attachments: [{ id: attachmentId, ownerDocumentId: source.id }],
+    });
+    await database
+      .update(fileAttachment)
+      .set({ revision: 1 })
+      .where(eq(fileAttachment.id, attachmentId));
+    await expect(
+      api.transferDocument({
+        ...input,
+        previewFingerprint: preview.fingerprint,
+        baseRevision: source.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow("preview changed");
+    await transfer(input);
+    const records = await database
+      .select()
+      .from(fileAttachment)
+      .where(eq(fileAttachment.workspaceId, workspaceId));
+    expect(records.find(({ id }) => id === attachmentId)).toMatchObject({
+      scopeType: "Personal Wiki",
+      personalWikiId: accountId,
+      projectId: null,
+      ownerDocumentId: source.id,
+      revision: 2,
+    });
+    expect(records.find(({ id }) => id === childAttachmentId)).toMatchObject({
+      projectId,
+      scopeType: "Project",
+      revision: 0,
+    });
+    expect(records.find(({ id }) => id === projectAttachmentId)).toMatchObject({
+      projectId,
+      scopeType: "Project",
+      revision: 0,
+    });
+    await database.insert(fileAttachmentVersion).values({
+      attachmentId,
+      id: crypto.randomUUID(),
+      byteSize: 10,
+      contentHash: "a".repeat(64),
+      detectedMimeType: "image/jpeg",
+      extension: ".jpg",
+      fileName: "owned.jpg",
+      mimeType: "image/jpeg",
+      objectKey: `file-attachments/${workspaceId}/${attachmentId}/version-1`,
+      version: 1,
+    });
+    expect(
+      await createDatabaseFileAttachments(database).list(accountId, {
+        kind: "personalWiki",
+        personalWikiId: accountId,
+      }),
+    ).toMatchObject([
+      {
+        id: attachmentId,
+        ownerDocumentId: source.id,
+        scope: { kind: "personalWiki", personalWikiId: accountId },
+      },
+    ]);
+    const movedSource = await api.document({ documentId: source.id });
+    expect(
+      await api.previewDocumentTransfer({
+        action: "copy",
+        documentId: source.id,
+        documentRevision: movedSource.revision,
+        sourceRevision: movedSource.revision,
+        copyDocumentId: crypto.randomUUID(),
+        targetProjectId: projectId,
+      }),
+    ).toMatchObject({
+      attachments: [{ id: attachmentId, ownerDocumentId: source.id }],
+    });
+  });
+
+  it("blocks Move while a Document has an active External Surface", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const source = await createKnowledge("Published source");
+    await database.insert(externalSurface).values({
+      id: crypto.randomUUID(),
+      workspaceId,
+      projectId,
+      documentId: source.id,
+    });
+    expect(
+      await client().previewDocumentTransfer({
+        action: "move",
+        documentId: source.id,
+        documentRevision: source.revision,
+        targetProjectId: null,
+        children: [],
+      }),
+    ).toMatchObject({
+      allowed: false,
+      reason: "Cancel External Surface before Move.",
+    });
+  });
+
+  it("rejects Copy when its new identity would create a live section cycle", async () => {
+    const copyDocumentId = crypto.randomUUID();
+    const source = await client().createDocument({
+      projectId,
+      title: "Future live section",
+      body: `:::live-section{documentId="${copyDocumentId}" sectionId="intro"}\n:::`,
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await expect(
+      transfer({
+        action: "copy",
+        documentId: source.id,
+        documentRevision: source.revision,
+        sourceRevision: source.revision,
+        copyDocumentId,
+        targetProjectId: null,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      client().document({ documentId: copyDocumentId }),
+    ).rejects.toThrow();
+  });
+
+  it("resolves live Work references without moving their Project ownership", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const workId = crypto.randomUUID();
+    await database.insert(work).values({
+      id: workId,
+      key: "DOC-1",
+      number: 1,
+      projectId,
+      title: "Referenced task",
+      type: "Task",
+    });
+    const source = await client().createDocument({
+      projectId,
+      title: "Work reference",
+      body: `:::live-work{workId="${workId}"}`,
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const input = {
+      action: "move" as const,
+      documentId: source.id,
+      documentRevision: source.revision,
+      targetProjectId: null,
+      children: [],
+    };
+    const preview = await client().previewDocumentTransfer(input);
+    if (!("references" in preview)) {
+      throw new Error("Wiki transfer preview is required.");
+    }
+    expect(preview.references).toContainEqual(
+      expect.objectContaining({
+        recordType: "Work",
+        id: workId,
+        title: "DOC-1 · Referenced task",
+        available: true,
+        projectId,
+      }),
+    );
+    await transfer(input);
+    expect(
+      await database.select().from(work).where(eq(work.id, workId)),
+    ).toMatchObject([{ id: workId, projectId }]);
+  });
+
+  it("moves a Project Document into Personal Wiki without dragging unselected children", async () => {
+    const api = client();
+    const root = await api.createDocument({
+      projectId,
+      title: "Durable knowledge",
+      body: "# Knowledge",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const child = await api.createDocument({
+      projectId,
+      title: "Project notes",
+      body: "Project-only notes",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: root.id,
+      folder: "Notes",
+      baseRevision: child.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const input = {
+      action: "move" as const,
+      documentId: root.id,
+      documentRevision: root.revision,
+      targetProjectId: null,
+      children: [],
+    };
+    const preview = await api.previewDocumentTransfer(input);
+    expect(preview).toMatchObject({
+      allowed: true,
+      detachedChildren: [{ id: child.id, title: "Project notes" }],
+    });
+    const command = {
+      ...input,
+      previewFingerprint: preview.fingerprint,
+      baseRevision: root.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    };
+    const moved = await api.transferDocument(command);
+    expect(moved).toMatchObject({
+      id: root.id,
+      projectId: null,
+      body: root.body,
+    });
+    expect(await api.transferDocument(command)).toEqual(moved);
+    expect(await api.documents({ projectId: null })).toContainEqual(moved);
+    expect(await api.documents({ projectId })).toMatchObject([
+      { id: child.id, parentDocumentId: null, folder: "Notes" },
+    ]);
+    expect(
+      await api.documentVersion({ documentId: root.id, revision: 1 }),
+    ).toMatchObject({ body: root.body });
+  });
+
+  it("copies a selected version into Wiki with new identity, origin and independent content", async () => {
+    const api = client();
+    const source = await api.createDocument({
+      projectId,
+      title: "Knowledge",
+      body: "Original knowledge",
+      type: "Spec",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const updated = await api.updateDocument({
+      documentId: source.id,
+      body: "Project knowledge",
+      baseRevision: source.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const input = {
+      action: "copy" as const,
+      documentId: source.id,
+      documentRevision: updated.revision,
+      sourceRevision: 1,
+      copyDocumentId: crypto.randomUUID(),
+      targetProjectId: null,
+    };
+    const preview = await api.previewDocumentTransfer(input);
+    const command = {
+      ...input,
+      previewFingerprint: preview.fingerprint,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    };
+    const copy = await api.transferDocument(command);
+    expect(copy).toMatchObject({
+      id: input.copyDocumentId,
+      projectId: null,
+      body: "Original knowledge",
+      revision: 1,
+      origin: { documentId: source.id, revision: 1 },
+      parentDocumentId: null,
+      folder: null,
+      archivedAt: null,
+    });
+    expect(await api.transferDocument(command)).toEqual(copy);
+    expect(await api.documentVersions({ documentId: copy.id })).toHaveLength(1);
+    await api.updateDocument({
+      documentId: copy.id,
+      body: "Wiki knowledge",
+      baseRevision: copy.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    expect(await api.document({ documentId: source.id })).toMatchObject({
+      body: "Project knowledge",
+      revision: updated.revision,
+    });
+  });
+
+  it("moves only explicitly selected descendants and keeps their archive state and versions", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const api = client();
+    const root = await createKnowledge("Knowledge root");
+    const child = await createKnowledge("Selected child");
+    const grandchild = await createKnowledge("Unselected grandchild");
+    const organized = await api.organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: root.id,
+      folder: "Notes",
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await api.organizeDocument({
+      action: "hierarchy",
+      documentId: grandchild.id,
+      parentDocumentId: child.id,
+      folder: null,
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const archived = await api.organizeDocument({
+      action: "archive",
+      documentId: child.id,
+      archived: true,
+      baseRevision: organized.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const attachmentId = crypto.randomUUID();
+    await database.insert(fileAttachment).values({
+      id: attachmentId,
+      workspaceId,
+      projectId,
+      scopeType: "Project",
+      ownerDocumentId: child.id,
+      name: "Selected child attachment",
+    });
+    await transfer({
+      action: "move",
+      documentId: root.id,
+      documentRevision: root.revision,
+      targetProjectId: null,
+      children: [{ id: child.id, revision: archived.revision }],
+    });
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      projectId: null,
+      parentDocumentId: root.id,
+      archivedAt: archived.archivedAt,
+      body: child.body,
+    });
+    expect(
+      await api.documentVersion({
+        documentId: child.id,
+        revision: archived.revision,
+      }),
+    ).toMatchObject({ body: child.body, archivedAt: archived.archivedAt });
+    expect(await api.document({ documentId: grandchild.id })).toMatchObject({
+      projectId,
+      parentDocumentId: null,
+    });
+    expect(
+      await database
+        .select()
+        .from(fileAttachment)
+        .where(eq(fileAttachment.id, attachmentId)),
+    ).toMatchObject([
+      {
+        id: attachmentId,
+        ownerDocumentId: child.id,
+        scopeType: "Personal Wiki",
+        personalWikiId: accountId,
+        projectId: null,
+        revision: 1,
+      },
+    ]);
+    expect(
+      await api.restoreDocumentVersion({
+        documentId: root.id,
+        revision: 1,
+        baseRevision: 2,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).toMatchObject({ projectId: null, body: root.body });
+  });
+
+  it("rejects a changed transfer preview atomically without moving or detaching Documents", async () => {
+    const api = client();
+    const root = await createKnowledge("Stable root");
+    const child = await createKnowledge("Changed child");
+    const organized = await api.organizeDocument({
+      action: "hierarchy",
+      documentId: child.id,
+      parentDocumentId: root.id,
+      folder: null,
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const input = {
+      action: "move" as const,
+      documentId: root.id,
+      documentRevision: 1,
+      targetProjectId: null,
+      children: [],
+    };
+    const preview = await api.previewDocumentTransfer(input);
+    await api.updateDocument({
+      documentId: child.id,
+      body: "New child knowledge",
+      baseRevision: organized.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await expect(
+      api.transferDocument({
+        ...input,
+        previewFingerprint: preview.fingerprint,
+        baseRevision: 1,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(await api.document({ documentId: root.id })).toEqual(root);
+    expect(await api.document({ documentId: child.id })).toMatchObject({
+      projectId,
+      parentDocumentId: root.id,
+      body: "New child knowledge",
+    });
+    expect(await api.documents({ projectId: null })).toEqual([]);
+  });
+
+  it("rejects a stale source revision with the preview reason without creating a Copy", async () => {
+    const api = client();
+    const source = await createKnowledge("Stale copy source");
+    const input = {
+      action: "copy" as const,
+      documentId: source.id,
+      documentRevision: source.revision,
+      sourceRevision: source.revision,
+      targetProjectId: null,
+      copyDocumentId: crypto.randomUUID(),
+    };
+    const preview = await api.previewDocumentTransfer(input);
+    await api.updateDocument({
+      documentId: source.id,
+      body: "# Stale copy source\n\nUpdated after Preview.",
+      baseRevision: source.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    await expect(
+      api.transferDocument({
+        ...input,
+        previewFingerprint: preview.fingerprint,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toThrow("A newer Document version is available. Preview again.");
+    expect(await api.documents({ projectId: null })).toEqual([]);
+    expect(await client().document({ documentId: source.id })).toMatchObject({
+      projectId,
+      revision: source.revision + 1,
+    });
+  });
+
+  it("copies Wiki knowledge into an explicitly selected Project without moving the Wiki source", async () => {
+    const source = await createKnowledge("Personal knowledge", null);
+    const copy = await transfer({
+      action: "copy",
+      documentId: source.id,
+      documentRevision: 1,
+      sourceRevision: 1,
+      targetProjectId: projectId,
+      copyDocumentId: crypto.randomUUID(),
+    });
+    expect(copy).toMatchObject({
+      projectId,
+      body: source.body,
+      origin: { documentId: source.id, revision: 1 },
+    });
+    expect(await client().document({ documentId: source.id })).toEqual(source);
+  });
+
+  it("denies foreign ownership and blocks Move from Wiki or a non-Active Project", async () => {
+    const source = await createKnowledge("Private Project knowledge");
+    const input = {
+      action: "move" as const,
+      documentId: source.id,
+      documentRevision: 1,
+      targetProjectId: null,
+      children: [],
+    };
+    await expect(
+      client("other-account").previewDocumentTransfer(input),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const preview = await client().previewDocumentTransfer(input);
+    await expect(
+      client("other-account").transferDocument({
+        ...input,
+        previewFingerprint: preview.fingerprint,
+        baseRevision: 1,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client().previewDocumentTransfer({
+        ...input,
+        targetProjectId: "other-project",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const wiki = await createKnowledge("Private Wiki knowledge", null);
+    expect(
+      await client().previewDocumentTransfer({
+        ...input,
+        documentId: wiki.id,
+        targetProjectId: projectId,
+      }),
+    ).toMatchObject({ allowed: false });
+    await database
+      ?.update(project)
+      .set({ status: "Pending" })
+      .where(eq(project.id, projectId));
+    expect(await client().previewDocumentTransfer(input)).toMatchObject({
+      allowed: false,
+    });
+    expect(await client().document({ documentId: source.id })).toEqual(source);
+  });
+
+  it("does not drag referenced Documents or copy their backlinks into Wiki", async () => {
+    const api = client();
+    const reference = await createKnowledge("Independent Project context");
+    const source = await api.createDocument({
+      projectId,
+      title: "Linked knowledge",
+      body: `[[record:Document:${reference.id}|Independent Project context]]\n\n:::live-section{documentId="${reference.id}" sectionId="missing-section"}\n`,
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const preview = await api.previewDocumentTransfer({
+      action: "move",
+      documentId: source.id,
+      documentRevision: 1,
+      targetProjectId: null,
+      children: [],
+    });
+    if (!("references" in preview)) {
+      throw new Error("Wiki transfer preview is required.");
+    }
+    expect(preview.references).toContainEqual(
+      expect.objectContaining({
+        recordType: "Document section",
+        id: reference.id,
+        title: "missing-section",
+        available: false,
+      }),
+    );
+    expect(preview.references).toContainEqual(
+      expect.objectContaining({
+        recordType: "Document",
+        id: reference.id,
+        available: true,
+        projectId,
+      }),
+    );
+    const unifiedPreview = await api.previewDocumentTransfer({
+      action: "Move",
+      documentId: source.id,
+      sourceRevision: source.revision,
+      targetProjectId: null,
+      childDocumentIds: [],
+    });
+    expect(unifiedPreview).toMatchObject({ references: preview.references });
+    const copy = await transfer({
+      action: "copy",
+      documentId: source.id,
+      documentRevision: 1,
+      sourceRevision: 1,
+      targetProjectId: null,
+      copyDocumentId: crypto.randomUUID(),
+    });
+    await transfer({
+      action: "move",
+      documentId: source.id,
+      documentRevision: 1,
+      targetProjectId: null,
+      children: [],
+    });
+    expect(await api.document({ documentId: reference.id })).toEqual(reference);
+    expect(
+      await api.documentRecordReferences({ documentId: source.id }),
+    ).toMatchObject([{ source: { id: reference.id, projectId } }]);
+    expect(copy).toMatchObject({ body: source.body });
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const links = await createDatabaseUsageLinks(database).listBySource(
+      accountId,
+      { recordType: "Document", recordId: reference.id },
+    );
+    expect(new Set(links.map(({ surface }) => surface.recordId))).toEqual(
+      new Set([source.id]),
+    );
   });
 
   it("keeps existing Wiki Documents accessible when converting to templates", async () => {

@@ -29,14 +29,15 @@ import {
 import { createDatabaseProjectSourceRecords } from "../../project-source-records/server/project-source-records-database";
 import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseTechnicalDiagrams } from "../../technical-diagrams/server/technical-diagrams-database";
+import { assertDocumentSectionAcyclic } from "./document-live-section-database";
 import {
   findOwnedDocument,
   findOwnedProject,
   findWorkspaceId,
 } from "./document-ownership-database";
 import { renderDocumentPdf } from "./document-pdf";
+import { toDocument } from "./document-row";
 import type { DocumentSurfaceCancellations } from "./document-surface-cancellations";
-import { toDocument } from "./documents-database";
 
 export function createDatabaseDocumentTransfers(
   database: Database,
@@ -410,6 +411,12 @@ export function createDatabaseDocumentTransfers(
               ) {
                 throw new DocumentUnavailableError();
               }
+              await assertDocumentSectionAcyclic(
+                executor,
+                accountId,
+                command.newDocumentId,
+                source.body,
+              );
               const [created] = await executor
                 .insert(document)
                 .values({

@@ -77,10 +77,13 @@ export interface DocumentTransferPreview {
   allowed: boolean;
   attachments: Array<{ id: string; name: string; revision: number }>;
   brokenReferences: Array<{ recordId: string; label: string }>;
+  descendants?: import("./document-transfers").DocumentTransferPreview["descendants"];
+  detachedChildren?: import("./document-transfers").DocumentTransferPreview["detachedChildren"];
   documents: Array<{ id: string; title: string; revision: number }>;
   externalSurfaceIds: string[];
   fingerprint: string;
   reason: string | null;
+  references?: import("./document-transfers").DocumentTransferPreview["references"];
   targetLabel: string;
 }
 export interface DocumentTransferValue {

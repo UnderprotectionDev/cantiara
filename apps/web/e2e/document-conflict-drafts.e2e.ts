@@ -233,13 +233,19 @@ test("freezes disconnected edits and recovers a stale reconnect without silently
   await expect(lastSaved).toHaveText(
     formatAccountDateTime(lastSavedAt, DEFAULT_ACCOUNT_PREFERENCES),
   );
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const recoveryNotice = editor
     .getByRole("alert")
     .filter({ hasText: "Last successful save:" });
-  await recoveryNotice
-    .getByRole("button", { name: "Copy", exact: true })
-    .click();
+  await expect(
+    editor.getByRole("button", { name: "Copy", exact: true }),
+  ).toHaveCount(2);
+  const recoveryCopy = recoveryNotice.getByRole("button", {
+    name: "Copy",
+    exact: true,
+  });
+  await expect(recoveryCopy).toBeEnabled();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await recoveryCopy.click();
   await expect
     .poll(async () => {
       const contents = await page.evaluate(() =>
