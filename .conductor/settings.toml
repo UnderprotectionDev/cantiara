@@ -140,7 +140,8 @@ After creation or update, respond to the user in Turkish with the pull request t
 '''
 
 [scripts]
-setup = "bun install"
+setup = "bun install && if [ \"$CONDUCTOR_IS_LOCAL\" = \"1\" ]; then bun run db:workspace:setup; fi"
+archive = "bun run db:workspace:archive"
 run_mode = "nonconcurrent"
 
 [scripts.run.dev]

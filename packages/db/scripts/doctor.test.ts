@@ -19,8 +19,9 @@ test("security-event diagnosis keeps its separate configured target", () => {
       DATABASE_URL: "postgres://app:secret@ep-primary.neon.tech/cantiara",
       SECURITY_EVENT_DATABASE_URL:
         "postgres://security:secret@ep-security-pooler.neon.tech/events",
+      CANTIARA_DEPLOY_MIGRATION: "true",
     },
-    { securityEvents: true },
+    { securityEvents: true, deployment: true },
   );
   expect(target.databaseUrl).toBe(
     "postgres://security:secret@ep-security.neon.tech/events",
