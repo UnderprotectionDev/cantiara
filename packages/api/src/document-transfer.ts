@@ -148,14 +148,18 @@ export async function freezeDocumentLiveBlocks(
 ): Promise<string> {
   budget.characters -= body.length;
   if (budget.characters < 0) {
-    throw new Error("Document snapshot exceeds the export size limit.");
+    throw new DocumentTransferError(
+      "Document snapshot exceeds the export size limit.",
+    );
   }
   let cursor = 0;
   let output = "";
   for (const directive of documentLiveDirectives(body)) {
     budget.remaining -= 1;
     if (budget.remaining < 0) {
-      throw new Error("Document snapshot exceeds the live block limit.");
+      throw new DocumentTransferError(
+        "Document snapshot exceeds the live block limit.",
+      );
     }
     output += body.slice(cursor, directive.start);
     const identity = `${directive.kind}:${directive.id}:${directive.sectionId ?? directive.viewId ?? ""}`;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DocumentTransferError,
   freezeDocumentLiveBlocks,
   selectDocumentMove,
 } from "./document-transfer";
@@ -48,14 +49,24 @@ describe("Documents move and export seam", () => {
       () => Promise.resolve({ label: "Source / Summary", text: block }),
     );
     expect(cycle).toContain("Source unavailable.");
+    const overLimit = freezeDocumentLiveBlocks(
+      Array.from({ length: 201 }, () => ':::live-work{workId="source"}').join(
+        "\n",
+      ),
+      "2026-10-02T12:00:00.000Z",
+      () => Promise.resolve({ label: "Source", text: "Static" }),
+    );
+    await expect(overLimit).rejects.toBeInstanceOf(DocumentTransferError);
+    await expect(overLimit).rejects.toThrow("live block limit");
+  });
+
+  it("rejects oversized exports with a typed transfer error", async () => {
     await expect(
       freezeDocumentLiveBlocks(
-        Array.from({ length: 201 }, () => ':::live-work{workId="source"}').join(
-          "\n",
-        ),
+        "a".repeat(1_000_001),
         "2026-10-02T12:00:00.000Z",
-        () => Promise.resolve({ label: "Source", text: "Static" }),
+        () => Promise.resolve(null),
       ),
-    ).rejects.toThrow("live block limit");
+    ).rejects.toBeInstanceOf(DocumentTransferError);
   });
 });
