@@ -113,6 +113,135 @@ describeDatabase("Documents database boundary", () => {
     });
   });
 
+  it("discovers Wiki and Project Documents without moving ownership or leaking another Account", async () => {
+    const documents = client();
+    const wiki = await documents.createDocument({
+      projectId: null,
+      title: "Connection recovery",
+      body: "Reconnect PostgreSQL safely.",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const projectDocument = await documents.createDocument({
+      projectId,
+      title: "Connection recovery",
+      body: "Reconnect PostgreSQL safely.",
+      type: "General",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    const mixed = await documents.discoverDocuments({ query: "PostgreSQL" });
+    expect(mixed.map((result) => result.document.id).sort()).toEqual(
+      [wiki.id, projectDocument.id].sort(),
+    );
+    expect(
+      mixed.find((result) => result.document.id === wiki.id),
+    ).toMatchObject({
+      document: { projectId: null },
+      projectName: null,
+      matchCount: 1,
+    });
+    expect(
+      mixed.find((result) => result.document.id === projectDocument.id),
+    ).toMatchObject({
+      document: { projectId },
+      projectName: "Documents test",
+    });
+    expect(
+      (await documents.discoverDocuments({ scope: { kind: "wiki" } })).map(
+        (result) => result.document.id,
+      ),
+    ).toEqual([wiki.id]);
+    expect(
+      (
+        await documents.discoverDocuments({
+          scope: { kind: "project", projectId },
+        })
+      ).map((result) => result.document.id),
+    ).toEqual([projectDocument.id]);
+    expect(
+      await client("another-account").discoverDocuments({
+        query: "PostgreSQL",
+      }),
+    ).toEqual([]);
+    expect(
+      await client("another-account").discoverDocuments({
+        scope: { kind: "project", projectId },
+      }),
+    ).toEqual([]);
+    expect(await documents.document({ documentId: wiki.id })).toMatchObject({
+      projectId: null,
+    });
+    expect(
+      await documents.document({ documentId: projectDocument.id }),
+    ).toMatchObject({ projectId });
+  });
+
+  it("orders Document hits deterministically and keeps Archive, type and Folder filters temporary", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documents = client();
+    await database.execute(sql`
+      INSERT INTO document (id, workspace_id, title, body, type, revision, folder, archived_at, updated_at)
+      VALUES ('discovery-wiki-title', ${workspaceId}, 'PostgreSQL recovery', '', 'General', 1, 'Troubleshooting', null, '2026-01-01'),
+        ('discovery-wiki-body', ${workspaceId}, 'Connection recovery', 'PostgreSQL PostgreSQL', 'Spec', 1, null, null, '2026-09-01'),
+        ('discovery-wiki-archived', ${workspaceId}, 'PostgreSQL archive', '', 'General', 1, null, '2026-09-01', '2026-09-01')
+    `);
+    await database.execute(sql`
+      INSERT INTO document (id, project_id, title, body, type, revision, updated_at)
+      VALUES ('discovery-project-title', ${projectId}, 'PostgreSQL recovery', '', 'General', 1, '2026-01-01')
+    `);
+    const input = { query: "PostgreSQL", currentProjectId: projectId };
+    const results = await documents.discoverDocuments(input);
+    expect(results.map((result) => result.document.id)).toEqual([
+      "discovery-project-title",
+      "discovery-wiki-title",
+      "discovery-wiki-body",
+    ]);
+    expect(await documents.discoverDocuments(input)).toEqual(results);
+    expect(results[2]).toMatchObject({
+      matchCount: 2,
+      snippet: "Connection recovery\nPostgreSQL PostgreSQL",
+    });
+    expect(
+      (
+        await documents.discoverDocuments({
+          query: "PostgreSQL",
+          archived: true,
+        })
+      ).map((result) => result.document.id),
+    ).toEqual(["discovery-wiki-archived"]);
+    expect(
+      (await documents.discoverDocuments({ type: "Spec" })).map(
+        (result) => result.document.id,
+      ),
+    ).toEqual(["discovery-wiki-body"]);
+    expect(
+      (await documents.discoverDocuments({ folder: "Troubleshooting" })).map(
+        (result) => result.document.id,
+      ),
+    ).toEqual(["discovery-wiki-title"]);
+    await database
+      .update(project)
+      .set({ archivedAt: new Date() })
+      .where(eq(project.id, projectId));
+    expect(
+      (await documents.discoverDocuments(input)).map(
+        (result) => result.document.id,
+      ),
+    ).not.toContain("discovery-project-title");
+    expect(
+      (await documents.discoverDocuments({ ...input, archived: true })).map(
+        (result) => result.document.id,
+      ),
+    ).toEqual(["discovery-project-title", "discovery-wiki-archived"]);
+    expect(
+      (await documents.discoverDocuments({ ...input, archived: true }))[0],
+    ).toMatchObject({ projectArchivedAt: expect.any(String) });
+  });
+
   it("keeps existing Wiki Documents accessible when converting to templates", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

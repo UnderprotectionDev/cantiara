@@ -217,6 +217,7 @@ import {
   updateRecordActionInputSchema,
   updateRecordActionMutationInputSchema,
 } from "../record-actions";
+import { documentDiscoveryInputSchema } from "../record-discovery";
 import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
@@ -2519,6 +2520,15 @@ export const appRouter = {
       } catch (error) {
         rethrowDocumentMutationError(error, input.clientIdempotencyKey);
       }
+    }),
+  discoverDocuments: protectedProcedure
+    .input(documentDiscoveryInputSchema)
+    .handler(({ context, input }) => {
+      const discovery = context.documents?.discovery;
+      if (!discovery) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return discovery.discover(context.session.user.id, input);
     }),
   documents: protectedProcedure
     .input(

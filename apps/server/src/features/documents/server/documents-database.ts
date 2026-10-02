@@ -66,6 +66,7 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+import { createDatabaseDocumentDiscovery } from "../../record-discovery/server/document-discovery-database";
 import {
   findOwnedDocument,
   findOwnedProject,
@@ -939,6 +940,7 @@ export function createDatabaseDocuments(database: Database): DocumentsAccess {
 
   return {
     templates: createDatabaseDocumentTemplates(database),
+    discovery: createDatabaseDocumentDiscovery(database, toDocument),
     get,
     getLiveSection,
     async captureConflictDraft(accountId, input) {

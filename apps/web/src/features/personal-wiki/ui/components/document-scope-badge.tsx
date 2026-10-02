@@ -5,12 +5,18 @@ import { documentScopeLabel } from "../../document-scope";
 
 export default function DocumentScopeBadge({
   document,
+  projectName,
+  idPrefix = "document-scope",
 }: {
   document: Pick<Document, "id" | "projectId">;
+  projectName?: string | null;
+  idPrefix?: string;
 }) {
   return (
-    <Badge id={`document-scope-${document.id}`} variant="outline">
-      {documentScopeLabel(document.projectId)}
+    <Badge id={`${idPrefix}-${document.id}`} variant="outline">
+      {document.projectId !== null && projectName
+        ? `Project: ${projectName}`
+        : documentScopeLabel(document.projectId)}
     </Badge>
   );
 }
