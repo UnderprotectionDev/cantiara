@@ -1,26 +1,67 @@
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
-import type { MouseEvent } from "react";
+import { type MouseEvent, useCallback } from "react";
 
+import {
+  type DocumentScopeFilter,
+  documentScopeLabel,
+  documentsInScope,
+} from "@/features/personal-wiki/document-scope";
+import DocumentScopeBadge from "@/features/personal-wiki/ui/components/document-scope-badge";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 
-export default function DocumentNavigation({
+interface DocumentNavigationProps {
+  documents: Document[];
+  onSelect: (id: string) => void;
+  scope?: DocumentScopeFilter;
+  selectedId: string | null;
+}
+
+export default function DocumentNavigation(props: DocumentNavigationProps) {
+  const homes = new Map<string | null, Document[]>();
+  for (const record of documentsInScope(
+    props.documents,
+    props.scope ?? { kind: "all" },
+  )) {
+    const records = homes.get(record.projectId) ?? [];
+    records.push(record);
+    homes.set(record.projectId, records);
+  }
+  return (
+    <nav aria-label="Documents" className="space-y-3">
+      {[...homes].map(([projectId, documents]) => (
+        <section
+          aria-label={documentScopeLabel(projectId)}
+          className="space-y-3"
+          key={projectId === null ? "wiki" : `project:${projectId}`}
+        >
+          <DocumentHomeNavigation
+            documents={documents}
+            onSelect={props.onSelect}
+            selectedId={props.selectedId}
+          />
+        </section>
+      ))}
+    </nav>
+  );
+}
+
+function DocumentHomeNavigation({
   documents,
   selectedId,
   onSelect,
-}: {
-  documents: Document[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-}) {
+}: DocumentNavigationProps) {
   const byId = new Map(documents.map((record) => [record.id, record]));
   const folders = [...new Set(documents.map((record) => record.folder ?? ""))];
-  function selectDocument(event: MouseEvent<HTMLButtonElement>) {
-    const id = event.currentTarget.dataset.documentId;
-    if (id) {
-      onSelect(id);
-    }
-  }
+  const selectDocument = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const id = event.currentTarget.dataset.documentId;
+      if (id) {
+        onSelect(id);
+      }
+    },
+    [onSelect],
+  );
   function depth(record: Document) {
     let level = 1;
     let parentId = record.parentDocumentId;
@@ -58,7 +99,7 @@ export default function DocumentNavigation({
     return result;
   }
   return (
-    <nav aria-label="Documents" className="space-y-3">
+    <>
       {folders.map((folder) => (
         <div className="space-y-1" key={folder}>
           {folder ? (
@@ -69,12 +110,14 @@ export default function DocumentNavigation({
           <ul className="space-y-1">
             {ordered(folder).map((record) => (
               <li
+                className="flex flex-wrap items-center gap-2"
                 data-depth={depth(record)}
                 key={record.id}
                 style={{ paddingLeft: `${(depth(record) - 1) * 16}px` }}
               >
                 <Button
                   aria-current={record.id === selectedId ? "page" : undefined}
+                  aria-describedby={`document-scope-${record.id}`}
                   className="max-w-full justify-start"
                   data-document-id={record.id}
                   id={documentRecordHash(record.id)}
@@ -84,11 +127,12 @@ export default function DocumentNavigation({
                 >
                   {record.title}
                 </Button>
+                <DocumentScopeBadge document={record} />
               </li>
             ))}
           </ul>
         </div>
       ))}
-    </nav>
+    </>
   );
 }

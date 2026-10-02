@@ -2296,6 +2296,11 @@ export default function DocumentsSurface({
         <DocumentNavigation
           documents={documents.data ?? []}
           onSelect={setSelectedId}
+          scope={
+            projectId === null
+              ? { kind: "wiki" }
+              : { kind: "project", projectId }
+          }
           selectedId={selectedId}
         />
         {selected ? (
