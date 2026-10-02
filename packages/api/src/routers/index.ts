@@ -73,6 +73,10 @@ import {
   updateDocumentTemplateInputSchema,
 } from "../document-templates";
 import {
+  documentTransferInputSchema,
+  transferDocumentMutationInputSchema,
+} from "../document-transfers";
+import {
   createDocumentMutationInputSchema,
   DocumentConflictDraftError,
   DocumentHierarchyError,
@@ -3050,6 +3054,138 @@ export const appRouter = {
           throw new ORPCError("NOT_FOUND", { cause: error });
         }
         throw error;
+      }
+    }),
+  previewDocumentTransfer: protectedProcedure
+    .input(documentTransferInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents?.previewTransfer) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const preview = await context.documents.previewTransfer(
+          context.session.user.id,
+          input,
+        );
+        return {
+          ...preview,
+          references: await Promise.all(
+            preview.references.map(async (reference) => {
+              let source: { projectId: string | null } | null = null;
+              if (reference.directive?.kind === "Work") {
+                source = await documentReferenceSource(
+                  context,
+                  context.session.user.id,
+                  {
+                    recordType: "Work",
+                    recordId: reference.directive.id,
+                    label: reference.title,
+                    start: reference.directive.start,
+                    end: reference.directive.end,
+                  },
+                );
+              } else if (reference.directive) {
+                source = await liveDocumentBlockSource(
+                  context,
+                  context.session.user.id,
+                  reference.directive,
+                );
+              } else if (reference.reference) {
+                source = await documentReferenceSource(
+                  context,
+                  context.session.user.id,
+                  reference.reference,
+                );
+              }
+              return {
+                ...reference,
+                available: source !== null,
+                projectId: source?.projectId ?? null,
+              };
+            }),
+          ),
+        };
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.documentId);
+      }
+    }),
+  transferDocument: protectedProcedure
+    .input(transferDocumentMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const {
+        baseRevision,
+        clientIdempotencyKey,
+        previewFingerprint,
+        ...fields
+      } = input;
+      const payload = documentTransferInputSchema.parse(fields);
+      if (
+        baseRevision !==
+        (payload.action === "copy" ? 0 : payload.documentRevision)
+      ) {
+        throw new ORPCError("BAD_REQUEST");
+      }
+      const mutation = requireDocumentMutationContracts(context).transfer?.(
+        context.session.user.id,
+        payload,
+        previewFingerprint,
+      );
+      if (!mutation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: { ...payload, previewFingerprint },
+            targetId:
+              payload.action === "copy"
+                ? payload.copyDocumentId
+                : payload.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => {
+            const source =
+              payload.action === "copy"
+                ? currentValue.sourceDocument
+                : currentValue.document;
+            if (!source) {
+              throw new DocumentUnavailableError();
+            }
+            return {
+              document: documentSchema.parse({
+                ...source,
+                id:
+                  payload.action === "copy"
+                    ? payload.copyDocumentId
+                    : source.id,
+                projectId: payload.targetProjectId,
+                parentDocumentId: null,
+                folder: null,
+                ...(payload.action === "copy"
+                  ? {
+                      archivedAt: null,
+                      createdAt: committedAt,
+                      origin: {
+                        documentId: source.id,
+                        revision: source.revision,
+                      },
+                    }
+                  : {}),
+                revision: currentRevision + 1,
+                updatedAt: committedAt,
+              }),
+            } satisfies DocumentMutationValue;
+          },
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.documentId);
       }
     }),
   organizeDocument: protectedProcedure

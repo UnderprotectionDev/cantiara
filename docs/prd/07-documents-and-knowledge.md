@@ -64,6 +64,21 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 - **`Kopyala` ayrı ve açık bir eylemdir.** Yeni iç kimliğe sahip bağımsız bir belge üretir, kaynak belgeyi köken olarak kaydeder ve başlangıç içeriğini kopyalama anındaki seçili sürümden alır. Sonraki düzenlemeler iki belge arasında eşzamanlanmaz; sürüm geçmişi, ilişkiler, geri bağlantılar, paylaşım/yayın durumu ve proje kapsamı yeni belgeye kopyalanmaz.
 
+Taşıma ve kopyalama arayüzü aynı Belge kimliği sözleşmesini kullanır:
+
+| Terim | English UI label |
+| --- | --- |
+| Belgeyi taşı | `Move` |
+| Bağımsız Belge kopyası oluştur | `Copy` |
+| Hedef kapsam | `Target scope` |
+| Açıkça seçilebilen çocuk Belgeler | `Child Documents` |
+| Kopyanın kaynak kökeni | `Copy origin` |
+| Çözümlenebilir kayıt referansı | `Available` |
+| Kırık veya erişilemez kayıt referansı | `Unavailable` |
+| Etkiyi önizle | `Preview` |
+| Önizlenen işlemi uygula | `Apply` |
+| Yazmadan iptal et | `Cancel` |
+
 ### Belge şablonları
 
 Şablon kaydetme yüzeyinin İngilizce UI metinleri:
