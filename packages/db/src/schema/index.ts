@@ -10,6 +10,7 @@ export * from "./daily-focus";
 export * from "./decision";
 export * from "./document";
 export * from "./document-template";
+export * from "./external-surface";
 export * from "./file-attachments";
 export * from "./focus-period";
 export * from "./open-question";

@@ -5,6 +5,7 @@ export const primarySchemaFiles = [
   "./src/schema/completion-effects.ts",
   "./src/schema/daily-focus.ts",
   "./src/schema/document.ts",
+  "./src/schema/external-surface.ts",
   "./src/schema/document-template.ts",
   "./src/schema/smart-collection.ts",
   "./src/schema/technical-diagram.ts",

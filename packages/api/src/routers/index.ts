@@ -73,6 +73,11 @@ import {
   updateDocumentTemplateInputSchema,
 } from "../document-templates";
 import {
+  DocumentTransferError,
+  documentTransferInputSchema,
+  documentTransferMutationInputSchema,
+} from "../document-transfer";
+import {
   createDocumentMutationInputSchema,
   DocumentConflictDraftError,
   DocumentHierarchyError,
@@ -2236,6 +2241,12 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentTransferError) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: error.message,
+      cause: error,
+    });
+  }
   if (error instanceof DocumentConflictDraftError) {
     throw new ORPCError("CONFLICT", { defined: true, message: error.message });
   }
@@ -3032,6 +3043,103 @@ export const appRouter = {
         return receipt.nextValue.document;
       } catch (error) {
         rethrowDocumentMutationError(error, input.documentId);
+      }
+    }),
+  previewDocumentTransfer: protectedProcedure
+    .input(documentTransferInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documentTransfers.preview(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Document selection is unavailable.",
+        });
+      }
+    }),
+  transferDocument: protectedProcedure
+    .input(documentTransferMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...command } = input;
+      try {
+        const receipt = await context.documentTransfers
+          .mutation(context.session.user.id)
+          .mutate(
+            {
+              actor: { actorId: context.session.user.id, type: "User" },
+              kind: "human",
+              clientIdempotencyKey,
+              baseRevision,
+              targetId:
+                command.action === "Copy"
+                  ? (command.newDocumentId ?? "")
+                  : command.documentId,
+              payload: command,
+            },
+            ({ currentValue }) => ({ ...currentValue, command }),
+          );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, command.documentId);
+      }
+    }),
+  exportDocument: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          revision: z.number().int().positive(),
+          format: z.enum(["Markdown", "PDF"]),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const snapshot = await context.documentTransfers.snapshot(
+          context.session.user.id,
+          input.documentId,
+          input.revision,
+        );
+        return {
+          ...snapshot,
+          format: input.format,
+          content:
+            input.format === "PDF"
+              ? await context.documentTransfers.pdf(snapshot)
+              : snapshot.markdown,
+        };
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        if (error instanceof DocumentTransferError) {
+          throw new ORPCError("BAD_REQUEST", {
+            message: error.message,
+            cause: error,
+          });
+        }
+        throw error;
       }
     }),
   previewDocumentOrganization: protectedProcedure

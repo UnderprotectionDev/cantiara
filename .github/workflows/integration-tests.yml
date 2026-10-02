@@ -58,6 +58,7 @@ jobs:
       - name: Run type checks and unit tests
         run: |
           set -euo pipefail
+          bunx playwright install --with-deps chromium
           bun scripts/neon-local-proxy.ts &
           proxy_pid=$!
           trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
