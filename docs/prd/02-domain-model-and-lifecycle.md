@@ -1108,6 +1108,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili kayıt ara | `Type to search authorized records.` | Boş sorgu yönlendirmesi |
 | Eşleşen kayıt yok | `No matching records.` | Süzgecin yetkili sonuç döndürmediği durum |
 | Arama kullanılamıyor | `Search is unavailable.` | Arama yüzeyinin yüklenemediği durum |
+| Keşif görünümü | `Discovery view` | Aynı geçici keşif yüzeyinde Search ile hazır tür dizini arasında seçim |
+| Bütün sahiplik kapsamları | `All scopes` | Yetkili Proje ve Kişisel Wiki kayıtlarının kapsamlarını değiştirmeden birlikte gösterilmesi |
+| Bütün Belge türleri | `All types` | Belge keşfindeki geçici tür filtresini kaldırır |
+| Bütün Belge klasörleri | `All folders` | Belge keşfindeki geçici klasör filtresini kaldırır; yeni sahiplik oluşturmaz |
+| Belge araması açıklaması | `Find Documents in their Project or Personal Wiki scope.` | Search içindeki teslim edilmiş Belge türü karşılığını açıklar |
+| Kayıt eşleşme sayısı | `<count> matches` | Yetkili Belge başlık/gövdesindeki eşleşen terimlerin toplam sayısı |
 | Tam sayfa aç | `Open full page` | Derin çalışma için kaynağı tam sayfada açma; geçici önizleme paneli veya kalıcı yerleşim değildir |
 | Yakalama Gelen Kutusu öğesi | `Capture Inbox item` | Henüz ana kayda dönüşmemiş geçici girdi; Evrensel Arama sonucu değildir |
 | GitHub dış kaydı | `GitHub external record` | GitHub kaynak kimliğini taşıyan salt okunur Proje ana kaydı; Evrensel Arama sonucu değildir |

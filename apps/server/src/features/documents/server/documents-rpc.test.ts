@@ -196,6 +196,28 @@ describe("Personal Wiki ownership boundary", () => {
     await client.documents({ projectId: null });
     expect(documents.list).toHaveBeenCalledWith("account-1", null, undefined);
   });
+  test("discovery uses the authenticated Account and rejects unauthenticated requests before reading results", async () => {
+    const documents = createDocumentsAccess();
+    const discover = vi.fn().mockResolvedValue([]);
+    documents.discovery = { discover };
+    const mutation = createMutationContract(null);
+    const context = createContext(documents, {
+      create: () => mutation.contract,
+      update: () => mutation.contract,
+    });
+    const client = createRouterClient(appRouter, { context });
+    await client.discoverDocuments({ query: "PostgreSQL" });
+    expect(discover).toHaveBeenCalledWith("account-1", {
+      query: "PostgreSQL",
+      scope: { kind: "all" },
+      archived: false,
+    });
+    context.session = null;
+    await expect(
+      client.discoverDocuments({ query: "PostgreSQL" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(discover).toHaveBeenCalledTimes(1);
+  });
   test("rejects a second Wiki Document type", async () => {
     const mutation = createMutationContract(null);
     const client = createRouterClient(appRouter, {

@@ -3,13 +3,14 @@ import {
   CommandPaletteQuickActions,
   CommandPaletteTrigger,
 } from "@/features/command-palette/ui/components/command-palette";
+import DocumentDiscovery from "@/features/record-discovery/ui/components/document-discovery";
 
 import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";
 
 export default function Header() {
   const isFounderContext = useMatches().some(
-    (match) => match.routeId === "/_auth",
+    (match) => match.routeId === "/_auth" && match.status === "success",
   );
 
   if (!isFounderContext) {
@@ -63,6 +64,7 @@ export default function Header() {
               <CommandPaletteQuickActions />
             </div>
             <CommandPaletteTrigger />
+            <DocumentDiscovery />
             <ModeToggle />
             <UserMenu />
           </div>
