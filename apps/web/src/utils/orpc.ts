@@ -1,7 +1,9 @@
+import type { documentDiscoveryInputSchema } from "@cantiara/api/record-discovery";
 import type { AppRouterClient } from "@cantiara/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import type { z } from "zod";
 import { env } from "../env";
 import { createTauriBearerHeaders } from "../features/account-access/lib/tauri-session";
 import { createClientShellQueryClient } from "../features/web-macos-client/lib/client-shell";
@@ -46,6 +48,18 @@ export const link = new RPCLink({
 export const client: AppRouterClient = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);
+
+export function documentDiscoveryQueryOptions(
+  accountId: string | undefined,
+  input: z.input<typeof documentDiscoveryInputSchema>,
+) {
+  const options = orpc.discoverDocuments.queryOptions({ input });
+  return {
+    ...options,
+    enabled: Boolean(accountId),
+    queryKey: [...options.queryKey, accountId ?? "anonymous"] as const,
+  };
+}
 
 const accountPreferencesQueryPrefix =
   orpc.accountPreferences.queryOptions().queryKey;

@@ -41,6 +41,36 @@ export function DocumentTransferPreviewPanel({
           </li>
         ))}
       </ul>
+      {preview.detachedChildren?.length ? (
+        <ul className="list-inside list-disc">
+          {preview.detachedChildren.map((child) => (
+            <li key={child.id}>{child.title}</li>
+          ))}
+        </ul>
+      ) : null}
+      {preview.references?.length ? (
+        <>
+          <p>
+            Record references retain their source scope and access requirements:
+          </p>
+          <p>
+            Unavailable references remain broken. Availability can change after
+            Preview.
+          </p>
+          <ul className="list-inside list-disc">
+            {preview.references.map((reference) => (
+              <li
+                key={`${reference.recordType}-${reference.id}-${reference.title}`}
+              >
+                {reference.recordType}: {reference.title} ·{" "}
+                {reference.available
+                  ? `Available · ${reference.projectId ? `Project: ${reference.projectId}` : "Personal Wiki"}`
+                  : "Unavailable"}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       <p>File Attachments</p>
       <ul className="list-inside list-disc">
         {preview.attachments.map((item) => (
@@ -113,23 +143,25 @@ export default function DocumentTransferControls({
     }),
     enabled: action === "Assign File Attachments" && !!record.projectId,
   });
-  const childOptions = documents.filter((item) => {
-    if (item.id === record.id) {
-      return false;
-    }
-    try {
-      return selectDocumentMove(
-        documents.map((candidate) => ({
-          id: candidate.id,
-          parentDocumentId: candidate.parentDocumentId ?? null,
-        })),
-        record.id,
-        [item.id],
-      ).includes(item.id);
-    } catch {
-      return false;
-    }
-  });
+  const childOptions =
+    preview?.descendants ??
+    documents.filter((item) => {
+      if (item.id === record.id) {
+        return false;
+      }
+      try {
+        return selectDocumentMove(
+          documents.map((candidate) => ({
+            id: candidate.id,
+            parentDocumentId: candidate.parentDocumentId ?? null,
+          })),
+          record.id,
+          [item.id],
+        ).includes(item.id);
+      } catch {
+        return false;
+      }
+    });
   function command(
     nextAction: DocumentTransferInput["action"],
   ): DocumentTransferInput {

@@ -988,6 +988,7 @@ export interface DocumentsAccess {
     documentId: string,
     conflictDraftId: string,
   ) => Promise<void>;
+  discovery?: import("./record-discovery").DocumentDiscoveryAccess;
   get: (accountId: string, documentId: string) => Promise<Document | null>;
   getLiveSection?: (
     accountId: string,

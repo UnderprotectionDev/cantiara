@@ -354,10 +354,11 @@ test("shares Completion Effects preferences with an authenticated Tauri client",
 
   await page.reload();
   await expect(page.getByRole("switch", { name: "Enable" })).not.toBeChecked();
-  await expect(page.getByRole("button", { name: "Arc" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(
+    page
+      .getByRole("group", { name: "Theme", exact: true })
+      .getByRole("button", { name: "Arc" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Halo" })).toHaveAttribute(
     "aria-pressed",
     "true",

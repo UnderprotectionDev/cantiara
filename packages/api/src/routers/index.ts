@@ -227,6 +227,7 @@ import {
   updateRecordActionInputSchema,
   updateRecordActionMutationInputSchema,
 } from "../record-actions";
+import { documentDiscoveryInputSchema } from "../record-discovery";
 import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
@@ -2668,6 +2669,15 @@ export const appRouter = {
         rethrowDocumentMutationError(error, input.clientIdempotencyKey);
       }
     }),
+  discoverDocuments: protectedProcedure
+    .input(documentDiscoveryInputSchema)
+    .handler(({ context, input }) => {
+      const discovery = context.documents?.discovery;
+      if (!discovery) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return discovery.discover(context.session.user.id, input);
+    }),
   documents: protectedProcedure
     .input(
       z
@@ -3198,10 +3208,56 @@ export const appRouter = {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
       try {
-        return await context.documentTransfers.preview(
+        const preview = await context.documentTransfers.preview(
           context.session.user.id,
           input,
         );
+        if (
+          context.documents?.previewTransfer &&
+          (input.action === "Move" || input.action === "Copy")
+        ) {
+          const source = await context.documents.get(
+            context.session.user.id,
+            input.documentId,
+          );
+          if (!source) {
+            throw new DocumentUnavailableError();
+          }
+          if (input.action === "Copy" && !input.newDocumentId) {
+            throw new ORPCError("BAD_REQUEST");
+          }
+          const selection: WikiDocumentTransferInput =
+            input.action === "Move"
+              ? {
+                  action: "move",
+                  documentId: input.documentId,
+                  documentRevision: input.sourceRevision,
+                  targetProjectId: input.targetProjectId,
+                  children: preview.documents
+                    .filter((item) => item.id !== input.documentId)
+                    .map(({ id, revision }) => ({ id, revision })),
+                }
+              : {
+                  action: "copy",
+                  documentId: input.documentId,
+                  documentRevision: source.revision,
+                  targetProjectId: input.targetProjectId,
+                  sourceRevision: input.sourceRevision,
+                  copyDocumentId: input.newDocumentId ?? "",
+                };
+          const scopePreview = await previewWikiDocumentTransfer(
+            context,
+            context.session.user.id,
+            selection,
+          );
+          return {
+            ...preview,
+            descendants: scopePreview.descendants,
+            detachedChildren: scopePreview.detachedChildren,
+            references: scopePreview.references,
+          };
+        }
+        return preview;
       } catch (error) {
         if (error instanceof DocumentUnavailableError) {
           throw new ORPCError("NOT_FOUND", { cause: error });
