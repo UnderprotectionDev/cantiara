@@ -234,7 +234,9 @@ test("freezes disconnected edits and recovers a stale reconnect without silently
     formatAccountDateTime(lastSavedAt, DEFAULT_ACCOUNT_PREFERENCES),
   );
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const recoveryNotice = editor.getByRole("alert");
+  const recoveryNotice = editor
+    .getByRole("alert")
+    .filter({ hasText: "Last successful save:" });
   await recoveryNotice
     .getByRole("button", { name: "Copy", exact: true })
     .click();

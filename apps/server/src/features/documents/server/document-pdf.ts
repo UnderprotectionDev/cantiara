@@ -1,4 +1,7 @@
-import type { DocumentSnapshot } from "@cantiara/api/document-transfer";
+import {
+  type DocumentSnapshot,
+  DocumentTransferError,
+} from "@cantiara/api/document-transfer";
 import { renderHtml } from "@tanstack/markdown/html";
 import { chromium } from "playwright";
 
@@ -8,10 +11,12 @@ export async function renderDocumentPdf(
   snapshot: DocumentSnapshot,
 ): Promise<string> {
   if (snapshot.markdown.length > 1_100_000) {
-    throw new Error("Document snapshot exceeds the PDF size limit.");
+    throw new DocumentTransferError(
+      "Document snapshot exceeds the PDF size limit.",
+    );
   }
   if (activeExports >= 2) {
-    throw new Error("PDF export is busy. Try again shortly.");
+    throw new DocumentTransferError("PDF export is busy. Try again shortly.");
   }
   activeExports += 1;
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
@@ -39,7 +44,7 @@ export async function renderDocumentPdf(
         }),
         new Promise<never>((_resolve, reject) => {
           timeout = setTimeout(
-            () => reject(new Error("PDF export timed out.")),
+            () => reject(new DocumentTransferError("PDF export timed out.")),
             15_000,
           );
         }),

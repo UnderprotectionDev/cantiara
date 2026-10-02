@@ -3143,6 +3143,12 @@ export const appRouter = {
         if (error instanceof DocumentUnavailableError) {
           throw new ORPCError("NOT_FOUND", { cause: error });
         }
+        if (error instanceof DocumentTransferError) {
+          throw new ORPCError("BAD_REQUEST", {
+            message: error.message,
+            cause: error,
+          });
+        }
         throw error;
       }
     }),
