@@ -17,6 +17,7 @@ import {
   parseWorkspaceState,
   readDatabaseConfig,
   readWorkspaceState,
+  resolveWorkspaceIdentity,
   type WorkspaceRecord,
   workspaceEnvironment,
   workspaceRoot,
@@ -75,16 +76,14 @@ async function verifyRecord(
 }
 
 async function setup() {
-  const workspaceId = process.env.CONDUCTOR_WORKSPACE_ID;
-  if (!workspaceId) {
-    throw new Error("CONDUCTOR_WORKSPACE_ID is required");
-  }
   if (process.env.NEON_LOCAL === "true") {
     console.log(
       "Disposable local database mode; no Neon resources provisioned",
     );
     return;
   }
+  const existingState = readWorkspaceState();
+  const identity = resolveWorkspaceIdentity(process.env, existingState);
   const config = readDatabaseConfig();
   if (databaseKinds.some((kind) => !config[kind].developmentBranchId)) {
     throw new Error(
@@ -92,12 +91,8 @@ async function setup() {
     );
   }
   const clients = managementClients(config);
-  const state = readWorkspaceState() ?? baselineState(workspaceId);
-  if (state.workspaceId !== workspaceId) {
-    throw new Error(
-      "Copied database state belongs to a different Conductor workspace",
-    );
-  }
+  const state = existingState ?? baselineState(identity.workspaceId);
+  state.workspaceLocation = identity.workspaceLocation;
   const save = async () => writePrivateJson(workspaceStatePath(), state);
   await save();
   await provisionWorkspace({
@@ -396,9 +391,7 @@ async function archive(discard: boolean) {
     console.log("No active workspace databases to archive");
     return;
   }
-  if (state.workspaceId !== process.env.CONDUCTOR_WORKSPACE_ID) {
-    throw new Error("Workspace ownership mismatch");
-  }
+  resolveWorkspaceIdentity(process.env, state);
   const config = readDatabaseConfig();
   const clients = managementClients(config);
   if (!discard) {

@@ -1,8 +1,9 @@
-import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, realpathSync, statSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { git } from "./migration-baseline";
 import { readJson, redactedFailure } from "./workspace-storage";
 
 export const workspaceRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -10,6 +11,8 @@ export const databaseKinds = ["primary", "security"] as const;
 export type DatabaseKind = (typeof databaseKinds)[number];
 export type Environment = Record<string, string | undefined>;
 const fingerprintPattern = /^[a-f0-9]{64}$/;
+const workspaceIdPattern = /^[A-Za-z0-9-]{1,80}$/;
+const workspaceLocationPattern = /^path-[a-f0-9]{40}$/;
 
 export async function forEachDatabase(
   action: (kind: DatabaseKind) => Promise<void>,
@@ -54,7 +57,8 @@ const recordSchema = z.object({
 });
 const stateSchema = z.object({
   version: z.literal(1),
-  workspaceId: z.string().regex(/^[A-Za-z0-9-]{1,80}$/),
+  workspaceId: z.string().regex(workspaceIdPattern),
+  workspaceLocation: z.string().regex(workspaceLocationPattern).optional(),
   ownerNonce: z.string().regex(/^[a-f0-9]{24}$/),
   baselineCommit: z.string().regex(/^[a-f0-9]{40}$/),
   baselineFingerprints: z.object({
@@ -67,6 +71,118 @@ const stateSchema = z.object({
 });
 export type WorkspaceState = z.infer<typeof stateSchema>;
 export type WorkspaceRecord = z.infer<typeof recordSchema>;
+
+function resolveWorkspaceLocation(environment: Environment, root: string) {
+  const repositoryPath = environment.CONDUCTOR_ROOT_PATH;
+  const workspacePath = environment.CONDUCTOR_WORKSPACE_PATH;
+  if (!(repositoryPath || workspacePath)) {
+    return;
+  }
+  if (
+    !(
+      repositoryPath &&
+      workspacePath &&
+      isAbsolute(repositoryPath) &&
+      isAbsolute(workspacePath)
+    )
+  ) {
+    throw new Error(
+      "CONDUCTOR_ROOT_PATH and CONDUCTOR_WORKSPACE_PATH must identify this Git worktree",
+    );
+  }
+  try {
+    const repository = realpathSync(repositoryPath);
+    const workspace = realpathSync(workspacePath);
+    const commonDirectory = realpathSync(
+      git(
+        repository,
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-common-dir",
+      ),
+    );
+    if (
+      workspace !== realpathSync(root) ||
+      workspace === repository ||
+      realpathSync(git(workspace, "rev-parse", "--show-toplevel")) !==
+        workspace ||
+      realpathSync(git(repository, "rev-parse", "--show-toplevel")) !==
+        repository ||
+      realpathSync(
+        git(
+          workspace,
+          "rev-parse",
+          "--path-format=absolute",
+          "--git-common-dir",
+        ),
+      ) !== commonDirectory
+    ) {
+      throw new Error(
+        "Workspace paths do not identify an isolated worktree of this repository",
+      );
+    }
+    const worktreeDirectory = realpathSync(
+      git(workspace, "rev-parse", "--absolute-git-dir"),
+    );
+    const incarnation = statSync(worktreeDirectory);
+    return `path-${createHash("sha256")
+      .update("cantiara-workspace-location-v1\0")
+      .update(
+        JSON.stringify([
+          commonDirectory,
+          workspace,
+          worktreeDirectory,
+          incarnation.dev,
+          incarnation.ino,
+          incarnation.birthtimeMs,
+        ]),
+      )
+      .digest("hex")
+      .slice(0, 40)}`;
+  } catch (error) {
+    throw redactedFailure(
+      "Invalid Conductor workspace paths; use this workspace's Setup environment",
+      error,
+    );
+  }
+}
+
+export function resolveWorkspaceIdentity(
+  environment: Environment,
+  state?: WorkspaceState,
+  root = workspaceRoot,
+) {
+  const workspaceLocation = resolveWorkspaceLocation(environment, root);
+  const nativeId = environment.CONDUCTOR_WORKSPACE_ID;
+  if (state?.workspaceLocation) {
+    if (!workspaceLocation) {
+      throw new Error(
+        "Conductor workspace paths are required to verify location-bound database state; provide CONDUCTOR_ROOT_PATH and CONDUCTOR_WORKSPACE_PATH",
+      );
+    }
+    if (state.workspaceLocation !== workspaceLocation) {
+      throw new Error(
+        "Copied database state belongs to a different Conductor workspace",
+      );
+    }
+    return { workspaceId: state.workspaceId, workspaceLocation };
+  }
+  const workspaceId =
+    state && nativeId === state.workspaceId
+      ? nativeId
+      : (workspaceLocation ?? nativeId);
+  if (!(workspaceId && workspaceIdPattern.test(workspaceId))) {
+    throw new Error(
+      "Conductor workspace identity is required; provide CONDUCTOR_ROOT_PATH and CONDUCTOR_WORKSPACE_PATH, or use explicit disposable local mode",
+    );
+  }
+  if (state && state.workspaceId !== workspaceId) {
+    throw new Error(
+      "Copied database state belongs to a different Conductor workspace; legacy state requires its original CONDUCTOR_WORKSPACE_ID for one Setup run",
+    );
+  }
+  return { workspaceId, workspaceLocation };
+}
 
 export function parseDatabaseConfig(value: unknown): DatabaseConfig {
   const parsed = configSchema.safeParse(value);
@@ -184,20 +300,17 @@ export function workspaceEnvironment(
   environment: Environment,
   state: WorkspaceState | undefined,
   config?: DatabaseConfig,
+  root = workspaceRoot,
 ): Environment {
   if (environment.NEON_LOCAL === "true") {
     return applicationEnvironment(environment);
   }
-  if (
-    !(state && environment.CONDUCTOR_WORKSPACE_ID) ||
-    state.archived ||
-    state.workspaceId !== environment.CONDUCTOR_WORKSPACE_ID ||
-    !config
-  ) {
+  if (!state || state.archived || !config) {
     throw new Error(
       "Run bun run db:workspace:setup for this Conductor workspace",
     );
   }
+  const identity = resolveWorkspaceIdentity(environment, state, root);
   const connections: string[] = [];
   for (const kind of databaseKinds) {
     const record = assertWorkspaceRecord(state, kind, config[kind]);
@@ -212,6 +325,7 @@ export function workspaceEnvironment(
   const [primary, security] = connections;
   return {
     ...applicationEnvironment(environment),
+    CONDUCTOR_WORKSPACE_ID: identity.workspaceId,
     DATABASE_URL: primary,
     DATABASE_URL_UNPOOLED: primary,
     SECURITY_EVENT_DATABASE_URL: security,
@@ -226,16 +340,8 @@ export function loadWorkspaceEnvironment(environment: Environment) {
   if (environment.NEON_LOCAL === "true") {
     return applicationEnvironment(environment);
   }
-  if (!environment.CONDUCTOR_WORKSPACE_ID) {
-    throw new Error(
-      "CONDUCTOR_WORKSPACE_ID is required for owned Neon development; use db:workspace:setup or explicit disposable local mode",
-    );
-  }
-  return workspaceEnvironment(
-    environment,
-    readWorkspaceState(),
-    readDatabaseConfig(),
-  );
+  const state = readWorkspaceState();
+  return workspaceEnvironment(environment, state, readDatabaseConfig());
 }
 
 export function workspaceStatePath(root = workspaceRoot) {
