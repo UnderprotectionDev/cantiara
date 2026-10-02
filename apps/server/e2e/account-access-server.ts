@@ -42,7 +42,9 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseDocumentSurfaceCancellations } from "../src/features/documents/server/document-surface-cancellations";
 import { createDatabaseDocumentTagRenameWriter } from "../src/features/documents/server/document-tag-rename-database";
+import { createDatabaseDocumentTransfers } from "../src/features/documents/server/document-transfers-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -260,6 +262,11 @@ const app = createApp({
   database,
   documentMutationContracts,
   documents,
+  documentTransfers: createDatabaseDocumentTransfers(
+    database,
+    documents,
+    createDatabaseDocumentSurfaceCancellations(securityEventDatabase),
+  ),
   smartCollections,
   technicalDiagrams,
   // Keep integration coverage inside the API window regardless of CI date.

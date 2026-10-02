@@ -12,6 +12,126 @@ const blockFormulaPattern = /\$\$[\s\S]*x\^2/;
 const technicalDiagramHrefPattern = /#technical-diagram-/;
 const technicalDiagramsHrefPattern = /#technical-diagrams$/;
 
+test("copies independently, downloads frozen Markdown and PDF, and moves to Personal Wiki", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#documents`);
+  const surface = page.getByRole("region", { name: "Documents", exact: true });
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await surface
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const create = page.getByRole("dialog", { name: "Create Document" });
+  await create.getByLabel("Title").fill("Transfer note");
+  await create
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await editor
+    .getByRole("textbox", { name: "Markdown source" })
+    .fill('# Transfer note\n\n:::live-work{workId="missing-source"}');
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    editor.getByRole("button", { name: "Copy", exact: true }),
+  ).toBeEnabled();
+  await editor.getByRole("button", { name: "Copy", exact: true }).click();
+  const copy = page.getByRole("dialog", { name: "Copy Document", exact: true });
+  await copy
+    .getByLabel("Target scope")
+    .selectOption({ label: "Documents Project" });
+  await copy.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(copy).toContainText("Copy creates a new identity");
+  await copy.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(copy).toBeHidden();
+  const navigation = surface.getByRole("navigation", {
+    name: "Documents",
+    exact: true,
+  });
+  await expect(
+    navigation.getByRole("button", { name: "Transfer note", exact: true }),
+  ).toHaveCount(2);
+  await navigation
+    .getByRole("button", { name: "Transfer note", exact: true })
+    .first()
+    .click();
+  await editor.getByLabel("Title", { exact: true }).fill("Independent copy");
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    navigation.getByRole("button", { name: "Independent copy", exact: true }),
+  ).toBeVisible();
+  await navigation
+    .getByRole("button", { name: "Transfer note", exact: true })
+    .click();
+  await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+    "Transfer note",
+  );
+  await editor.getByRole("button", { name: "Export", exact: true }).click();
+  const exportDialog = page.getByRole("dialog", {
+    name: "Export Document",
+    exact: true,
+  });
+  await exportDialog
+    .getByRole("button", { name: "Preview", exact: true })
+    .click();
+  await expect(exportDialog).toContainText("Snapshot — Work: missing-source");
+  await expect(exportDialog).toContainText("Source unavailable.");
+  await exportDialog.screenshot({
+    path: "../../.context/document-export-preview.png",
+  });
+  const markdownDownload = page.waitForEvent("download");
+  await exportDialog
+    .getByRole("button", { name: "Download", exact: true })
+    .click();
+  expect((await markdownDownload).suggestedFilename()).toBe("Transfer-note.md");
+  await editor.getByRole("button", { name: "Export", exact: true }).click();
+  await exportDialog.getByLabel("Format").selectOption("PDF");
+  await exportDialog
+    .getByRole("button", { name: "Preview", exact: true })
+    .click();
+  await expect(
+    exportDialog.getByRole("button", { name: "Download", exact: true }),
+  ).toBeEnabled();
+  const pdfDownload = page.waitForEvent("download");
+  await exportDialog
+    .getByRole("button", { name: "Download", exact: true })
+    .click();
+  expect((await pdfDownload).suggestedFilename()).toBe("Transfer-note.pdf");
+  await editor.getByRole("button", { name: "Move", exact: true }).click();
+  const move = page.getByRole("dialog", { name: "Move Document", exact: true });
+  await move.getByRole("button", { name: "Preview", exact: true }).click();
+  await move.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    navigation.getByRole("button", { name: "Transfer note", exact: true }),
+  ).toBeVisible();
+  await editor.getByRole("button", { name: "Move", exact: true }).click();
+  await move.getByRole("button", { name: "Preview", exact: true }).click();
+  await move.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    navigation.getByRole("button", { name: "Transfer note", exact: true }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(
+    navigation.getByRole("button", { name: "Independent copy", exact: true }),
+  ).toBeVisible();
+  await page.goto("/personal-wiki");
+  await surface
+    .getByRole("navigation", { name: "Documents", exact: true })
+    .getByRole("button", { name: "Transfer note", exact: true })
+    .click();
+  await expect(editor.getByLabel("Title", { exact: true })).toHaveValue(
+    "Transfer note",
+  );
+});
+
 test("organizes Documents with a preview and preserves identity through Archive and Unarchive", async ({
   context,
   page,

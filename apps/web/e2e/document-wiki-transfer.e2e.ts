@@ -61,7 +61,7 @@ test("previews Project transfers, copies independently and moves only selected D
   await expect(organize).toBeHidden();
   await rootButton.click();
   await editor.getByRole("button", { name: "Move", exact: true }).click();
-  const move = page.getByRole("dialog", { name: "Move", exact: true });
+  const move = page.getByRole("dialog", { name: "Move Document", exact: true });
   await expect(
     move.getByRole("button", { name: "Apply", exact: true }),
   ).toBeDisabled();
@@ -70,7 +70,7 @@ test("previews Project transfers, copies independently and moves only selected D
   await move.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(rootButton).toBeVisible();
   await editor.getByRole("button", { name: "Copy", exact: true }).click();
-  const copy = page.getByRole("dialog", { name: "Copy", exact: true });
+  const copy = page.getByRole("dialog", { name: "Copy Document", exact: true });
   await copy.getByRole("button", { name: "Preview", exact: true }).click();
   async function loseFirstTransferResponse() {
     const commands: string[] = [];

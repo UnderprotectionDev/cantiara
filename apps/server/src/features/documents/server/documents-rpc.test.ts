@@ -1,4 +1,9 @@
 import type { Context } from "@cantiara/api/context";
+import {
+  type DocumentSnapshot,
+  DocumentTransferError,
+  type DocumentTransfersAccess,
+} from "@cantiara/api/document-transfer";
 import type {
   Document,
   DocumentMutationContracts,
@@ -40,6 +45,7 @@ const initialDocumentVersionSummary: DocumentVersionSummary = {
 function createContext(
   documents: DocumentsAccess,
   documentMutationContracts: DocumentMutationContracts,
+  documentTransfers?: DocumentTransfersAccess,
 ): Context {
   return {
     accountAccess: {
@@ -54,6 +60,7 @@ function createContext(
     db: {} as Context["db"],
     documentMutationContracts,
     documents,
+    documentTransfers,
     githubAvailability: { getStatus: () => "available" },
     session: {
       session: { id: "session-1" },
@@ -156,6 +163,26 @@ describe("Personal Wiki ownership boundary", () => {
         baseRevision: 1,
         previewFingerprint: "0".repeat(64),
         clientIdempotencyKey: "wiki-transfer",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    const savedVersionInput = {
+      action: "Move" as const,
+      documentId: initialDocument.id,
+      sourceRevision: 1,
+      targetProjectId: null,
+      childDocumentIds: [],
+    };
+    await expect(
+      client.previewDocumentTransfer(savedVersionInput),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.transferDocument({
+        ...savedVersionInput,
+        baseRevision: 1,
+        previewFingerprint: "0".repeat(64),
+        clientIdempotencyKey: "saved-version-transfer",
       }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
@@ -637,5 +664,127 @@ describe("Documents RPC", () => {
       code: "CONFLICT",
       data: { code: "CONFLICT", targetId: "create-document-used" },
     });
+  });
+});
+
+describe("Documents export error mapping", () => {
+  const exportSnapshot: DocumentSnapshot = {
+    capturedAt: "2026-10-02T12:00:00.000Z",
+    documentId: initialDocument.id,
+    markdown: "# Architecture",
+    revision: initialDocument.revision,
+    title: initialDocument.title,
+  };
+
+  function createTransfers(
+    overrides: Partial<DocumentTransfersAccess>,
+  ): DocumentTransfersAccess {
+    return {
+      mutation: () => {
+        throw new Error("Not part of this test.");
+      },
+      pdf: async () => "cGRmLW1vY2s=",
+      preview: () => Promise.reject(new Error("Not part of this test.")),
+      replayCancellations: async () => undefined,
+      snapshot: async () => exportSnapshot,
+      ...overrides,
+    };
+  }
+
+  test("export size limits reach the client as BAD_REQUEST for both formats", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createDocumentsAccess(),
+        {
+          create: () => createMutationContract(null).contract,
+          update: () => createMutationContract(initialDocument).contract,
+        },
+        createTransfers({
+          snapshot: () =>
+            Promise.reject(
+              new DocumentTransferError(
+                "Document snapshot exceeds the export size limit.",
+              ),
+            ),
+        }),
+      ),
+    });
+    await expect(
+      client.exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "Markdown",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Document snapshot exceeds the export size limit.",
+    });
+    await expect(
+      client.exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "PDF",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Document snapshot exceeds the export size limit.",
+    });
+  });
+
+  test("a busy PDF renderer reaches the client as BAD_REQUEST", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createDocumentsAccess(),
+        {
+          create: () => createMutationContract(null).contract,
+          update: () => createMutationContract(initialDocument).contract,
+        },
+        createTransfers({
+          pdf: () =>
+            Promise.reject(
+              new DocumentTransferError(
+                "PDF export is busy. Try again shortly.",
+              ),
+            ),
+        }),
+      ),
+    });
+    await expect(
+      client.exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "PDF",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "PDF export is busy. Try again shortly.",
+    });
+  });
+
+  test("renderer faults stay unclassified raw errors", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createDocumentsAccess(),
+        {
+          create: () => createMutationContract(null).contract,
+          update: () => createMutationContract(initialDocument).contract,
+        },
+        createTransfers({
+          pdf: () => Promise.reject(new Error("Chromium failed to launch.")),
+        }),
+      ),
+    });
+    const failure = await client
+      .exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "PDF",
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe("Chromium failed to launch.");
   });
 });

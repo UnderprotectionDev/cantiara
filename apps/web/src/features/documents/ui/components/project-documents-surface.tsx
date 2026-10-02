@@ -1038,7 +1038,7 @@ function DocumentEditor({
           </div>
           <form.Subscribe selector={(state) => state.values}>
             {(values) => (
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-3">
                 <DocumentTransferControls
                   disabled={
                     hasNewerVersion ||
@@ -1047,11 +1047,24 @@ function DocumentEditor({
                     values.title !== record.title ||
                     values.type !== record.type
                   }
-                  onCommitted={onSaved}
+                  documents={documents}
+                  onCommitted={async (saved) => {
+                    if (saved.id === record.id) {
+                      setRevision(saved.revision);
+                    }
+                    await queryClient.invalidateQueries({
+                      queryKey: orpc.documentVersions.key(),
+                    });
+                    await queryClient.invalidateQueries({
+                      queryKey: orpc.documents.key(),
+                    });
+                    await onSaved();
+                  }}
                   record={{ ...record, revision }}
                 />
                 <DocumentOrganizationControls
                   disabled={
+                    hasNewerVersion ||
                     save.isPending ||
                     values.body !== savedBody ||
                     values.title !== record.title ||

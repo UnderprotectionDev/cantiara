@@ -156,6 +156,7 @@ export interface AppDependencies {
   desktopOrigins: readonly string[];
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
+  documentTransfers?: import("@cantiara/api/document-transfer").DocumentTransfersAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: Pick<
@@ -1152,6 +1153,7 @@ export function createApp(dependencies: AppDependencies) {
       dailyFocus: dependencies.dailyFocus,
       documentMutationContracts: dependencies.documentMutationContracts,
       documents: dependencies.documents,
+      documentTransfers: dependencies.documentTransfers,
       smartCollections: dependencies.smartCollections,
       technicalDiagrams: dependencies.technicalDiagrams,
       focusPeriod: dependencies.focusPeriod,

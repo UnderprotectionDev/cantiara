@@ -73,8 +73,14 @@ import {
   updateDocumentTemplateInputSchema,
 } from "../document-templates";
 import {
+  DocumentTransferError,
   documentTransferInputSchema,
+  documentTransferMutationInputSchema,
+} from "../document-transfer";
+import {
   transferDocumentMutationInputSchema,
+  type DocumentTransferInput as WikiDocumentTransferInput,
+  documentTransferInputSchema as wikiDocumentTransferInputSchema,
 } from "../document-transfers";
 import {
   createDocumentMutationInputSchema,
@@ -2240,6 +2246,12 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentTransferError) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: error.message,
+      cause: error,
+    });
+  }
   if (error instanceof DocumentConflictDraftError) {
     throw new ORPCError("CONFLICT", { defined: true, message: error.message });
   }
@@ -2325,6 +2337,138 @@ function tagUnavailableMessage(code: unknown) {
 function nullableProjectValue(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
   return normalized.length > 0 ? normalized : null;
+}
+
+async function previewWikiDocumentTransfer(
+  context: Context,
+  accountId: string,
+  input: WikiDocumentTransferInput,
+) {
+  if (!context.documents?.previewTransfer) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  try {
+    const preview = await context.documents.previewTransfer(accountId, input);
+    return {
+      ...preview,
+      references: await Promise.all(
+        preview.references.map(async (reference) => {
+          let source: { projectId: string | null } | null = null;
+          let title: string | null = null;
+          if (reference.directive?.kind === "Work") {
+            const resolved = await documentReferenceSource(context, accountId, {
+              recordType: "Work",
+              recordId: reference.directive.id,
+              label: reference.title,
+              start: reference.directive.start,
+              end: reference.directive.end,
+            });
+            source = resolved;
+            title = resolved?.title ?? null;
+          } else if (reference.directive) {
+            const block = await liveDocumentBlockSource(
+              context,
+              accountId,
+              reference.directive,
+            );
+            source = block;
+            title =
+              block && "title" in block ? block.title : (block?.name ?? null);
+          } else if (reference.reference) {
+            const resolved = await documentReferenceSource(
+              context,
+              accountId,
+              reference.reference,
+            );
+            source = resolved;
+            title = resolved?.title ?? null;
+          }
+          return {
+            ...reference,
+            available: source !== null,
+            projectId: source?.projectId ?? null,
+            title: title ?? reference.title,
+          };
+        }),
+      ),
+    };
+  } catch (error) {
+    rethrowDocumentMutationError(error, input.documentId);
+  }
+}
+
+async function transferWikiDocument(
+  context: Context,
+  accountId: string,
+  input: z.infer<typeof transferDocumentMutationInputSchema>,
+) {
+  const { baseRevision, clientIdempotencyKey, previewFingerprint, ...fields } =
+    input;
+  const payload = wikiDocumentTransferInputSchema.parse(fields);
+  if (
+    baseRevision !== (payload.action === "copy" ? 0 : payload.documentRevision)
+  ) {
+    throw new ORPCError("BAD_REQUEST");
+  }
+  const mutation = requireDocumentMutationContracts(context).transfer?.(
+    accountId,
+    payload,
+    previewFingerprint,
+  );
+  if (!mutation) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  try {
+    const receipt = await mutation.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human",
+        payload: { ...payload, previewFingerprint },
+        targetId:
+          payload.action === "copy"
+            ? payload.copyDocumentId
+            : payload.documentId,
+      },
+      ({ committedAt, currentRevision, currentValue }) => {
+        const source =
+          payload.action === "copy"
+            ? currentValue.sourceDocument
+            : currentValue.document;
+        if (!source) {
+          throw new DocumentUnavailableError();
+        }
+        return {
+          document: documentSchema.parse({
+            ...source,
+            id: payload.action === "copy" ? payload.copyDocumentId : source.id,
+            projectId: payload.targetProjectId,
+            parentDocumentId: null,
+            folder: null,
+            ...(payload.action === "copy"
+              ? {
+                  archivedAt: null,
+                  createdAt: committedAt,
+                  origin: {
+                    documentId: source.id,
+                    revision: source.revision,
+                  },
+                }
+              : {}),
+            revision: currentRevision + 1,
+            updatedAt: committedAt,
+          }),
+        } satisfies DocumentMutationValue;
+      },
+    );
+    if (!receipt.nextValue.document) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return receipt.nextValue.document;
+  } catch (error) {
+    rethrowDocumentMutationError(error, input.documentId);
+  }
 }
 
 export const appRouter = {
@@ -3038,6 +3182,120 @@ export const appRouter = {
         rethrowDocumentMutationError(error, input.documentId);
       }
     }),
+  previewDocumentTransfer: protectedProcedure
+    .input(
+      z.union([documentTransferInputSchema, wikiDocumentTransferInputSchema]),
+    )
+    .handler(async ({ context, input }) => {
+      if (input.action === "move" || input.action === "copy") {
+        return previewWikiDocumentTransfer(
+          context,
+          context.session.user.id,
+          input,
+        );
+      }
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documentTransfers.preview(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Document selection is unavailable.",
+        });
+      }
+    }),
+  transferDocument: protectedProcedure
+    .input(
+      z.union([
+        documentTransferMutationInputSchema,
+        transferDocumentMutationInputSchema,
+      ]),
+    )
+    .handler(async ({ context, input }) => {
+      if (input.action === "move" || input.action === "copy") {
+        return transferWikiDocument(context, context.session.user.id, input);
+      }
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...command } = input;
+      try {
+        const receipt = await context.documentTransfers
+          .mutation(context.session.user.id)
+          .mutate(
+            {
+              actor: { actorId: context.session.user.id, type: "User" },
+              kind: "human",
+              clientIdempotencyKey,
+              baseRevision,
+              targetId:
+                command.action === "Copy"
+                  ? (command.newDocumentId ?? "")
+                  : command.documentId,
+              payload: command,
+            },
+            ({ currentValue }) => ({ ...currentValue, command }),
+          );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, command.documentId);
+      }
+    }),
+  exportDocument: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          revision: z.number().int().positive(),
+          format: z.enum(["Markdown", "PDF"]),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const snapshot = await context.documentTransfers.snapshot(
+          context.session.user.id,
+          input.documentId,
+          input.revision,
+        );
+        return {
+          ...snapshot,
+          format: input.format,
+          content:
+            input.format === "PDF"
+              ? await context.documentTransfers.pdf(snapshot)
+              : snapshot.markdown,
+        };
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        if (error instanceof DocumentTransferError) {
+          throw new ORPCError("BAD_REQUEST", {
+            message: error.message,
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    }),
   previewDocumentOrganization: protectedProcedure
     .input(documentOrganizationInputSchema)
     .handler(async ({ context, input }) => {
@@ -3054,149 +3312,6 @@ export const appRouter = {
           throw new ORPCError("NOT_FOUND", { cause: error });
         }
         throw error;
-      }
-    }),
-  previewDocumentTransfer: protectedProcedure
-    .input(documentTransferInputSchema)
-    .handler(async ({ context, input }) => {
-      if (!context.documents?.previewTransfer) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR");
-      }
-      try {
-        const preview = await context.documents.previewTransfer(
-          context.session.user.id,
-          input,
-        );
-        return {
-          ...preview,
-          references: await Promise.all(
-            preview.references.map(async (reference) => {
-              let source: { projectId: string | null } | null = null;
-              let title: string | null = null;
-              if (reference.directive?.kind === "Work") {
-                const resolved = await documentReferenceSource(
-                  context,
-                  context.session.user.id,
-                  {
-                    recordType: "Work",
-                    recordId: reference.directive.id,
-                    label: reference.title,
-                    start: reference.directive.start,
-                    end: reference.directive.end,
-                  },
-                );
-                source = resolved;
-                title = resolved?.title ?? null;
-              } else if (reference.directive) {
-                const block = await liveDocumentBlockSource(
-                  context,
-                  context.session.user.id,
-                  reference.directive,
-                );
-                source = block;
-                title =
-                  block && "title" in block
-                    ? block.title
-                    : (block?.name ?? null);
-              } else if (reference.reference) {
-                const resolved = await documentReferenceSource(
-                  context,
-                  context.session.user.id,
-                  reference.reference,
-                );
-                source = resolved;
-                title = resolved?.title ?? null;
-              }
-              return {
-                ...reference,
-                available: source !== null,
-                projectId: source?.projectId ?? null,
-                title: title ?? reference.title,
-              };
-            }),
-          ),
-        };
-      } catch (error) {
-        rethrowDocumentMutationError(error, input.documentId);
-      }
-    }),
-  transferDocument: protectedProcedure
-    .input(transferDocumentMutationInputSchema)
-    .handler(async ({ context, input }) => {
-      const {
-        baseRevision,
-        clientIdempotencyKey,
-        previewFingerprint,
-        ...fields
-      } = input;
-      const payload = documentTransferInputSchema.parse(fields);
-      if (
-        baseRevision !==
-        (payload.action === "copy" ? 0 : payload.documentRevision)
-      ) {
-        throw new ORPCError("BAD_REQUEST");
-      }
-      const mutation = requireDocumentMutationContracts(context).transfer?.(
-        context.session.user.id,
-        payload,
-        previewFingerprint,
-      );
-      if (!mutation) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR");
-      }
-      try {
-        const receipt = await mutation.mutate(
-          {
-            actor: { actorId: context.session.user.id, type: "User" },
-            baseRevision,
-            clientIdempotencyKey,
-            kind: "human",
-            payload: { ...payload, previewFingerprint },
-            targetId:
-              payload.action === "copy"
-                ? payload.copyDocumentId
-                : payload.documentId,
-          },
-          ({ committedAt, currentRevision, currentValue }) => {
-            const source =
-              payload.action === "copy"
-                ? currentValue.sourceDocument
-                : currentValue.document;
-            if (!source) {
-              throw new DocumentUnavailableError();
-            }
-            return {
-              document: documentSchema.parse({
-                ...source,
-                id:
-                  payload.action === "copy"
-                    ? payload.copyDocumentId
-                    : source.id,
-                projectId: payload.targetProjectId,
-                parentDocumentId: null,
-                folder: null,
-                ...(payload.action === "copy"
-                  ? {
-                      archivedAt: null,
-                      createdAt: committedAt,
-                      origin: {
-                        documentId: source.id,
-                        revision: source.revision,
-                      },
-                    }
-                  : {}),
-                revision: currentRevision + 1,
-                updatedAt: committedAt,
-              }),
-            } satisfies DocumentMutationValue;
-          },
-        );
-        if (!receipt.nextValue.document) {
-          throw new ORPCError("NOT_FOUND");
-        }
-        return receipt.nextValue.document;
-      } catch (error) {
-        rethrowDocumentMutationError(error, input.documentId);
       }
     }),
   organizeDocument: protectedProcedure

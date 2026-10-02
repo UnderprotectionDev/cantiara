@@ -366,9 +366,11 @@ describeDatabase("Documents database boundary", () => {
       targetProjectId: null,
       children: [],
     };
-    expect(
-      (await client().previewDocumentTransfer(input)).references,
-    ).toContainEqual(
+    const preview = await client().previewDocumentTransfer(input);
+    if (!("references" in preview)) {
+      throw new Error("Wiki transfer preview is required.");
+    }
+    expect(preview.references).toContainEqual(
       expect.objectContaining({
         recordType: "Work",
         id: workId,
@@ -744,6 +746,9 @@ describeDatabase("Documents database boundary", () => {
       targetProjectId: null,
       children: [],
     });
+    if (!("references" in preview)) {
+      throw new Error("Wiki transfer preview is required.");
+    }
     expect(preview.references).toContainEqual(
       expect.objectContaining({
         recordType: "Document section",
