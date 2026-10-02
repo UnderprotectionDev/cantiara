@@ -10,7 +10,7 @@ import UserMenu from "./user-menu";
 
 export default function Header() {
   const isFounderContext = useMatches().some(
-    (match) => match.routeId === "/_auth",
+    (match) => match.routeId === "/_auth" && match.status === "success",
   );
 
   if (!isFounderContext) {

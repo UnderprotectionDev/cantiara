@@ -234,7 +234,10 @@ test("freezes disconnected edits and recovers a stale reconnect without silently
     formatAccountDateTime(lastSavedAt, DEFAULT_ACCOUNT_PREFERENCES),
   );
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await editor.getByRole("button", { name: "Copy", exact: true }).click();
+  const recoveryNotice = editor.getByRole("alert");
+  await recoveryNotice
+    .getByRole("button", { name: "Copy", exact: true })
+    .click();
   await expect
     .poll(async () => {
       const contents = await page.evaluate(() =>
@@ -252,7 +255,9 @@ test("freezes disconnected edits and recovers a stale reconnect without silently
       type: "General",
     });
   const downloaded = page.waitForEvent("download");
-  await editor.getByRole("button", { name: "Download", exact: true }).click();
+  await recoveryNotice
+    .getByRole("button", { name: "Download", exact: true })
+    .click();
   const recovery = await downloaded;
   expect(recovery.suggestedFilename()).toBe("document-recovery.json");
   const recoveryPath = await recovery.path();
