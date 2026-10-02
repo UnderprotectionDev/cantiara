@@ -1,6 +1,5 @@
 import { Client, Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
-import { loadWorkspaceEnvironment } from "../../../scripts/workspace-database";
 import { resolveSecurityEventDatabaseUrl } from "../src/security-event-database-url";
 import {
   assertLocalPostgresTarget,
@@ -12,20 +11,17 @@ export function resolveMigrationTarget(
   environment: Record<string, string | undefined>,
   { securityEvents = false, deployment = false } = {},
 ) {
-  const resolvedEnvironment = deployment
-    ? environment
-    : loadWorkspaceEnvironment(environment);
-  if (deployment && resolvedEnvironment.CANTIARA_DEPLOY_MIGRATION !== "true") {
+  if (deployment && environment.CANTIARA_DEPLOY_MIGRATION !== "true") {
     throw new Error(
       "Deployment migration requires its explicit deployment command",
     );
   }
   const local =
-    resolvedEnvironment.NEON_LOCAL === "true" ||
-    (securityEvents && resolvedEnvironment.SECURITY_EVENT_LOCAL === "true");
+    environment.NEON_LOCAL === "true" ||
+    (securityEvents && environment.SECURITY_EVENT_LOCAL === "true");
   const applicationUrl = securityEvents
-    ? resolveSecurityEventDatabaseUrl(resolvedEnvironment)
-    : resolvedEnvironment.DATABASE_URL;
+    ? resolveSecurityEventDatabaseUrl(environment)
+    : environment.DATABASE_URL;
   if (local) {
     assertLocalPostgresTarget(applicationUrl);
   } else if (!deployment) {
@@ -34,8 +30,8 @@ export function resolveMigrationTarget(
   const databaseUrl = migrationConnectionString(
     applicationUrl,
     securityEvents
-      ? resolvedEnvironment.SECURITY_EVENT_DATABASE_URL_UNPOOLED
-      : resolvedEnvironment.DATABASE_URL_UNPOOLED,
+      ? environment.SECURITY_EVENT_DATABASE_URL_UNPOOLED
+      : environment.DATABASE_URL_UNPOOLED,
     { useLocalPostgres: local },
   );
   if (!databaseUrl) {

@@ -552,16 +552,28 @@
 │   │   └── tsconfig.base.json
 │   ├── db/
 │   │   ├── scripts/
+│   │   │   ├── check-migrations.test.ts
+│   │   │   ├── check-migrations.ts
+│   │   │   ├── development-lease.ts
+│   │   │   ├── doctor.test.ts
+│   │   │   ├── doctor.ts
+│   │   │   ├── migrate.ts
 │   │   │   ├── migration-connection.test.ts
-│   │   │   ├── development-promotion-lease.ts
-│   │   │   ├── workspace-baseline.ts
 │   │   │   ├── migration-connection.ts
 │   │   │   ├── migration-history.test.ts
 │   │   │   ├── migration-history.ts
+│   │   │   ├── migration-repository.test.ts
+│   │   │   ├── migration-repository.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
-│   │   │   ├── migrate.ts
-│   │   │   └── push-local.ts
+│   │   │   ├── migration-target.ts
+│   │   │   ├── migrations.integration.test.ts
+│   │   │   ├── prepare.integration.test.ts
+│   │   │   ├── prepare.test.ts
+│   │   │   ├── prepare.ts
+│   │   │   ├── push-local.ts
+│   │   │   ├── schema-inspection.test.ts
+│   │   │   └── schema-inspection.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
 │   │   │   │   └── security-events/
@@ -614,23 +626,18 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
-│   ├── conductor-workspace.ts
 │   ├── dev-database-mode.test.ts
 │   ├── dev-database-mode.ts
+│   ├── dev-server.ts
+│   ├── development-session.test.ts
+│   ├── development-session.ts
 │   ├── install-hooks.ts
+│   ├── local-dev-command.test.ts
+│   ├── local-dev-command.ts
+│   ├── local-dev.test.ts
 │   ├── local-dev.ts
-│   ├── migration-baseline.test.ts
-│   ├── migration-baseline.ts
-│   ├── neon-api.test.ts
-│   ├── neon-api.ts
 │   ├── neon-local-proxy.ts
-│   ├── tsconfig.json
-│   ├── workspace-command.ts
-│   ├── workspace-database.test.ts
-│   ├── workspace-database.ts
-│   ├── workspace-lifecycle.test.ts
-│   ├── workspace-lifecycle.ts
-│   └── workspace-storage.ts
+│   └── tsconfig.json
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock
@@ -646,9 +653,7 @@ Documents source ownership is split across the API contracts (`packages/api/src/
 
 Documents owns the dictionary-rename counterpart in `apps/server/src/features/documents/server/document-tag-rename-database.ts`; Tags calls it in the same transaction without owning Markdown parsing. Folder/parent navigation and previewed organization/Archive controls live in `document-navigation.tsx` and `document-organization-controls.tsx` beside the Project Documents surface.
 
-Migration infrastructure is owned by `packages/db/scripts/`: `migration-repository.ts` validates canonical metadata, `check-migrations.ts` compares configured source schemas, `migration-target.ts` resolves and connects the application-aligned target, `migration-history.ts` verifies applied history, `schema-inspection.ts` reads physical catalog shape, `doctor.ts` exposes read-only readiness, `development-lease.ts` holds and monitors shared runtime migration locks, and `migrate.ts` is the controlled write boundary. `packages/db/schema-files.ts` is the schema-file manifest shared by both Drizzle configs and source checks. Script type checking lives in `packages/db/tsconfig.scripts.json`; command integration tests use disposable databases in `packages/db/scripts/migrations.integration.test.ts`. `scripts/local-dev.ts` owns readiness-gated Conductor/root development startup; `scripts/local-dev-command.ts` owns task/help forwarding. The direct server `dev` command uses `scripts/dev-server.ts` to acquire the lease and `scripts/development-session.ts` to supervise and stop the API when verification fails. The contract and testing decisions live in `docs/tech-stack.md`, not a product feature spec.
-
-Conductor database isolation is owned by `scripts/conductor-workspace.ts` (Setup, bootstrap, promotion, Archive), `scripts/workspace-lifecycle.ts` (injected lifecycle boundary), `scripts/neon-api.ts` (management HTTP), `scripts/workspace-database.ts` (ownership and application environment), `scripts/workspace-storage.ts` (private state and local lock), and `scripts/migration-baseline.ts` (Git migration fingerprints). `scripts/workspace-command.ts` shares the owned target with Generate and Studio. `.conductor/neon.json` owns non-secret target configuration and `.conductor/settings.toml` owns lifecycle wiring. `.github/workflows/development-database-promotion.yml` owns successful-main promotion, not production deployment. `packages/db/scripts/workspace-baseline.ts` verifies copied baselines read-only; `packages/db/scripts/development-promotion-lease.ts` serializes canonical development promotion. Root script type checking lives in `scripts/tsconfig.json`; lifecycle unit tests live next to the owning root scripts and real database evidence lives at the migration integration seam.
+Migration infrastructure is owned by `packages/db/scripts/`: `migration-repository.ts` validates canonical metadata, `check-migrations.ts` compares configured source schemas, `migration-target.ts` resolves and connects the application-aligned target, `migration-history.ts` verifies applied history, `schema-inspection.ts` reads physical catalog shape, `doctor.ts` exposes read-only readiness, `development-lease.ts` holds and monitors shared runtime migration locks, and `migrate.ts` is the controlled write boundary. `prepare.ts` orchestrates issue database readiness through source checks, deep checks of both targets, and sequential canonical migrations; `prepare.test.ts` owns its orchestration and CLI seam. `packages/db/schema-files.ts` is the schema-file manifest shared by both Drizzle configs and source checks. Script type checking lives in `packages/db/tsconfig.scripts.json`; command integration tests use disposable databases in `packages/db/scripts/migrations.integration.test.ts` and `packages/db/scripts/prepare.integration.test.ts`. `scripts/local-dev.ts` owns readiness-gated Conductor/root development startup; `scripts/local-dev-command.ts` owns task/help forwarding. The direct server `dev` command uses `scripts/dev-server.ts` to acquire the lease and `scripts/development-session.ts` to supervise and stop the API when verification fails. The contract and testing decisions live in `docs/tech-stack.md`, not a product feature spec.
 
 Personal Wiki owns the authenticated ownership shell under `apps/web/src/features/personal-wiki/` and `apps/web/src/routes/_auth/personal-wiki.tsx`. It consumes the same Documents surface, contract, schema, server access, and mutations; Wiki Documents have Workspace ownership and no Project. Publishing remains a separate feature.
 
