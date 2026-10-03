@@ -65,11 +65,12 @@ initLogger({
 });
 
 await replaySecurityRevocations();
-await startFileAttachmentPreviewWorker();
-await startBacklogReappearSignalWorker();
-await startPersonalReminderWorker();
+await Promise.all([
+  startFileAttachmentPreviewWorker(),
+  startBacklogReappearSignalWorker(),
+  startPersonalReminderWorker(),
+]);
 await sweepExpiredFileAttachmentUploads();
-await sweepExpiredPriorityMetrics();
 setInterval(
   () => {
     sweepExpiredFileAttachmentUploads().catch(() => undefined);

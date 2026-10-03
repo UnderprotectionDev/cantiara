@@ -349,7 +349,9 @@ export function replaySecurityRevocations() {
     securityReplay = Promise.all([
       accountSessionAccess.replaySessionRevocations(),
       webCapture.replayRevocations(),
-      priorityMetricTrashMaintenance.replayPermanentDeletes(),
+      // Retention maintenance replays permanent deletes before sweeping. Include
+      // it in the startup barrier so the same event history is not replayed twice.
+      priorityMetricTrashMaintenance.sweepExpired(),
       documentTransfers.replayCancellations(),
     ])
       .then(() => undefined)
