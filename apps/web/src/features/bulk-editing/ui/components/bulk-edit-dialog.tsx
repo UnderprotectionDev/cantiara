@@ -242,6 +242,9 @@ async function refreshBulkEditQueries(
         input: { projectId },
       }).queryKey,
     }),
+    queryClient.invalidateQueries({
+      queryKey: orpc.smartCollectionViews.key(),
+    }),
     ...records.map(({ work }) =>
       queryClient.invalidateQueries({
         queryKey: orpc.work.queryOptions({

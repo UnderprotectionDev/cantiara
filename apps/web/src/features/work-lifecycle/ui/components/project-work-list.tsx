@@ -623,6 +623,9 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: workQueryKey }),
         queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.smartCollectionViews.key(),
+        }),
       ]);
     },
   });

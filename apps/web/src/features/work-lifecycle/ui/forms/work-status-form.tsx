@@ -121,6 +121,9 @@ export default function WorkStatusForm({
       queryClient.invalidateQueries({ queryKey: worksQueryKey }),
       queryClient.invalidateQueries({ queryKey: workQueryKey }),
       queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      }),
     ]);
   }
 
