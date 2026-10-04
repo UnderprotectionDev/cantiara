@@ -1,6 +1,13 @@
+import type { PersonalReminderSourceType } from "@cantiara/api/personal-reminders";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
+import { document } from "@cantiara/db/schema/document";
+import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
+import { projectMilestone } from "@cantiara/db/schema/project-milestone";
+import { projectRelease } from "@cantiara/db/schema/project-release";
+import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -118,6 +125,229 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
     await expect(
       reminders.cancelWorkReviewLater(accountId, created?.id ?? ""),
     ).resolves.toEqual(cancelled);
+  });
+
+  test("reminds on every owned permanent record without writing its life", async () => {
+    const db = database;
+    if (!db) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const sourceDatabase = db;
+
+    const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 10);
+    const documentId = `review-later-document-${suffix}`;
+    const decisionId = `review-later-decision-${suffix}`;
+    const riskId = `review-later-risk-${suffix}`;
+    const milestoneId = `review-later-milestone-${suffix}`;
+    const releaseId = `review-later-release-${suffix}`;
+    const incidentId = `review-later-incident-${suffix}`;
+
+    await database.insert(document).values({
+      body: "Return to this Document.",
+      id: documentId,
+      projectId,
+      title: "Reminder contract Document",
+    });
+    await database.insert(decision).values({
+      decision: "Keep the current scope.",
+      id: decisionId,
+      projectId,
+      title: "Current scope",
+    });
+    await database.insert(risk).values({
+      id: riskId,
+      projectId,
+      title: "Scope risk",
+    });
+    await database.insert(projectMilestone).values({
+      id: milestoneId,
+      projectId,
+      targetDate: "2026-10-20",
+      title: "First milestone",
+    });
+    await database.insert(projectRelease).values({
+      id: releaseId,
+      name: "First release",
+      projectId,
+    });
+    await database.insert(productionIncident).values({
+      id: incidentId,
+      occurredAt: now,
+      projectId,
+      title: "Queue delay",
+    });
+
+    const sources: Array<{
+      sourceRecordId: string;
+      sourceRecordType: PersonalReminderSourceType;
+    }> = [
+      { sourceRecordId: projectId, sourceRecordType: "Project" },
+      { sourceRecordId: documentId, sourceRecordType: "Document" },
+      { sourceRecordId: workId, sourceRecordType: "Work" },
+      { sourceRecordId: decisionId, sourceRecordType: "Decision" },
+      { sourceRecordId: riskId, sourceRecordType: "Risk" },
+      { sourceRecordId: milestoneId, sourceRecordType: "Milestone" },
+      { sourceRecordId: releaseId, sourceRecordType: "Project Release" },
+      {
+        sourceRecordId: incidentId,
+        sourceRecordType: "Production Incident",
+      },
+    ];
+
+    async function sourceLife() {
+      const [
+        projects,
+        documents,
+        works,
+        decisions,
+        risks,
+        milestones,
+        releases,
+        incidents,
+      ] = await Promise.all([
+        sourceDatabase
+          .select({
+            archivedAt: project.archivedAt,
+            status: project.status,
+            targetDate: project.targetDate,
+            updatedAt: project.updatedAt,
+          })
+          .from(project)
+          .where(eq(project.id, projectId)),
+        sourceDatabase
+          .select({
+            archivedAt: document.archivedAt,
+            projectId: document.projectId,
+            revision: document.revision,
+            title: document.title,
+            updatedAt: document.updatedAt,
+          })
+          .from(document)
+          .where(eq(document.id, documentId)),
+        sourceDatabase
+          .select({
+            archivedAt: work.archivedAt,
+            closureResult: work.closureResult,
+            plannedStartDate: work.plannedStartDate,
+            reappearDate: work.reappearDate,
+            roadmapHorizon: work.roadmapHorizon,
+            status: work.status,
+            targetDate: work.targetDate,
+            trashedAt: work.trashedAt,
+            updatedAt: work.updatedAt,
+          })
+          .from(work)
+          .where(eq(work.id, workId)),
+        sourceDatabase
+          .select({
+            life: decision.life,
+            revision: decision.revision,
+            title: decision.title,
+            updatedAt: decision.updatedAt,
+          })
+          .from(decision)
+          .where(eq(decision.id, decisionId)),
+        sourceDatabase
+          .select({
+            life: risk.life,
+            revision: risk.revision,
+            title: risk.title,
+            updatedAt: risk.updatedAt,
+          })
+          .from(risk)
+          .where(eq(risk.id, riskId)),
+        sourceDatabase
+          .select({
+            status: projectMilestone.status,
+            targetDate: projectMilestone.targetDate,
+            title: projectMilestone.title,
+            updatedAt: projectMilestone.updatedAt,
+          })
+          .from(projectMilestone)
+          .where(eq(projectMilestone.id, milestoneId)),
+        sourceDatabase
+          .select({
+            name: projectRelease.name,
+            status: projectRelease.status,
+            updatedAt: projectRelease.updatedAt,
+            versionLabel: projectRelease.versionLabel,
+          })
+          .from(projectRelease)
+          .where(eq(projectRelease.id, releaseId)),
+        sourceDatabase
+          .select({
+            occurredAt: productionIncident.occurredAt,
+            status: productionIncident.status,
+            title: productionIncident.title,
+            updatedAt: productionIncident.updatedAt,
+          })
+          .from(productionIncident)
+          .where(eq(productionIncident.id, incidentId)),
+      ]);
+
+      return {
+        decisions,
+        documents,
+        incidents,
+        milestones,
+        projects,
+        releases,
+        risks,
+        works,
+      };
+    }
+
+    const before = await sourceLife();
+    const reminders = createDatabasePersonalReminders(database, {
+      newId: () => `contract-reminder-all-${crypto.randomUUID()}`,
+      now: () => now,
+    });
+
+    await Promise.all(
+      sources.map(async (source) => {
+        const key = source.sourceRecordType.toLowerCase().replaceAll(" ", "-");
+        const input = {
+          action: "Remind me" as const,
+          clientIdempotencyKey: `reminder-all-${key}-${suffix}`,
+          fireAt: "2026-09-28T11:00:00.000Z",
+          ...source,
+        };
+        const created = await reminders.create(accountId, input);
+        expect(created).toMatchObject({
+          action: "Remind me",
+          sourceProjectId: projectId,
+          sourceRecordId: source.sourceRecordId,
+          sourceRecordType: source.sourceRecordType,
+          status: "Planned",
+        });
+        if (!created) {
+          throw new Error(
+            `Expected ${source.sourceRecordType} reminder to be created.`,
+          );
+        }
+
+        await expect(reminders.list(accountId, source)).resolves.toMatchObject([
+          { id: created.id, status: "Planned" },
+        ]);
+        await expect(
+          reminders.create("another-account", input),
+        ).resolves.toBeNull();
+        await expect(
+          reminders.list("another-account", source),
+        ).resolves.toBeNull();
+        await expect(
+          reminders.cancel("another-account", created.id),
+        ).resolves.toBeNull();
+        await expect(
+          reminders.cancel(accountId, created.id),
+        ).resolves.toMatchObject({
+          action: "Remind me",
+          status: "Cancelled",
+        });
+      }),
+    );
+
+    await expect(sourceLife()).resolves.toEqual(before);
   });
 
   test("fires exactly one source-linked signal without changing Work planning", async () => {

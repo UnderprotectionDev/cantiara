@@ -44,6 +44,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
+import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
   defaultClientShell,
@@ -951,11 +952,19 @@ function DocumentEditor({
         }}
         rejected={editing.conflictDraft}
       />
-      {record.projectId === null ? (
-        <p className="mb-3 w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
-          Personal Wiki
-        </p>
-      ) : null}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {record.projectId === null ? (
+          <p className="w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
+            Personal Wiki
+          </p>
+        ) : null}
+        <PersonalReminderControl
+          compact
+          sourceRecordId={record.id}
+          sourceRecordType="Document"
+          sourceTitle={record.title}
+        />
+      </div>
       <form
         className="space-y-5"
         onSubmit={(event) => {
