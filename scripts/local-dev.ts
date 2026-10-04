@@ -41,11 +41,14 @@ const stop = () => {
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 try {
-  doctor = Bun.spawn(["bun", "packages/db/scripts/doctor.ts"], {
-    env: environment,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
+  doctor = Bun.spawn(
+    ["bun", "packages/db/scripts/doctor.ts", "--development"],
+    {
+      env: environment,
+      stdout: "inherit",
+      stderr: "inherit",
+    },
+  );
   const status = await doctor.exited;
   doctor = undefined;
   if (stopped) {
