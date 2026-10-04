@@ -121,6 +121,9 @@ function renderOverview(
   overviewSources: ProjectOverviewSources = sources,
   accountPreferences: Partial<AccountPreferences> = {},
 ) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
+  });
   const router = createRouter({
     history: createMemoryHistory({
       initialEntries: ["/projects/project-1"],
@@ -129,16 +132,18 @@ function renderOverview(
   });
 
   return renderToStaticMarkup(
-    <RouterContextProvider router={router}>
-      <ProjectOverviewView
-        accountFormattingPreferences={{
-          ...DEFAULT_ACCOUNT_PREFERENCES,
-          ...accountPreferences,
-        }}
-        project={{ ...project, ...overrides }}
-        sources={overviewSources}
-      />
-    </RouterContextProvider>,
+    <QueryClientProvider client={queryClient}>
+      <RouterContextProvider router={router}>
+        <ProjectOverviewView
+          accountFormattingPreferences={{
+            ...DEFAULT_ACCOUNT_PREFERENCES,
+            ...accountPreferences,
+          }}
+          project={{ ...project, ...overrides }}
+          sources={overviewSources}
+        />
+      </RouterContextProvider>
+    </QueryClientProvider>,
   );
 }
 

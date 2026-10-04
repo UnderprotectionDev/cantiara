@@ -150,8 +150,11 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  cancelPersonalReminderInputSchema,
   cancelWorkReviewLaterInputSchema,
+  createPersonalReminderInputSchema,
   createWorkReviewLaterInputSchema,
+  personalRemindersInputSchema,
   workReviewLaterInputSchema,
 } from "../personal-reminders";
 import {
@@ -1686,20 +1689,26 @@ async function runPersonalReminderOperation<T>(operation: () => Promise<T>) {
     return await operation();
   } catch (error) {
     if (isRecord(error)) {
-      if (error.code === "WORK_REVIEW_LATER_FIRE_AT_MUST_BE_FUTURE") {
+      if (
+        error.code === "PERSONAL_REMINDER_FIRE_AT_MUST_BE_FUTURE" ||
+        error.code === "WORK_REVIEW_LATER_FIRE_AT_MUST_BE_FUTURE"
+      ) {
         throw new ORPCError("BAD_REQUEST", {
           cause: error,
           data: { code: error.code },
           defined: true,
-          message: "Review Later must be scheduled for a future time.",
+          message: "Reminder must be scheduled for a future time.",
         });
       }
-      if (error.code === "WORK_REVIEW_LATER_IDEMPOTENCY_CONFLICT") {
+      if (
+        error.code === "PERSONAL_REMINDER_IDEMPOTENCY_CONFLICT" ||
+        error.code === "WORK_REVIEW_LATER_IDEMPOTENCY_CONFLICT"
+      ) {
         throw new ORPCError("CONFLICT", {
           cause: error,
           data: { code: error.code },
           defined: true,
-          message: "This Review Later request key was already used.",
+          message: "This reminder request key was already used.",
         });
       }
     }
@@ -5007,27 +5016,81 @@ export const appRouter = {
       }
       return blockers;
     }),
+  personalReminders: protectedProcedure
+    .input(personalRemindersInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminders = await requirePersonalReminders(context).list(
+        context.session.user.id,
+        input,
+      );
+      if (!reminders) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Reminders are unavailable for this source.",
+        });
+      }
+      return reminders;
+    }),
+  createPersonalReminder: protectedProcedure
+    .input(createPersonalReminderInputSchema)
+    .handler(({ context, input }) =>
+      runPersonalReminderOperation(async () => {
+        const reminder = await requirePersonalReminders(context).create(
+          context.session.user.id,
+          input,
+        );
+        if (!reminder) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Reminder is unavailable for this source.",
+          });
+        }
+        return reminder;
+      }),
+    ),
+  cancelPersonalReminder: protectedProcedure
+    .input(cancelPersonalReminderInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminder = await requirePersonalReminders(context).cancel(
+        context.session.user.id,
+        input.reminderId,
+      );
+      if (!reminder) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Planned reminder is unavailable.",
+        });
+      }
+      return reminder;
+    }),
   workReviewLater: protectedProcedure
     .input(workReviewLaterInputSchema)
     .handler(async ({ context, input }) => {
-      const reminders = await requirePersonalReminders(
-        context,
-      ).listWorkReviewLater(context.session.user.id, input.workId);
+      const reminders = await requirePersonalReminders(context).list(
+        context.session.user.id,
+        { sourceRecordId: input.workId, sourceRecordType: "Work" },
+      );
       if (!reminders) {
         throw new ORPCError("NOT_FOUND", {
           defined: true,
           message: "Work reminders are unavailable.",
         });
       }
-      return reminders;
+      return reminders.filter((reminder) => reminder.action === "Review Later");
     }),
   createWorkReviewLater: protectedProcedure
     .input(createWorkReviewLaterInputSchema)
     .handler(({ context, input }) =>
       runPersonalReminderOperation(async () => {
-        const reminder = await requirePersonalReminders(
-          context,
-        ).createWorkReviewLater(context.session.user.id, input);
+        const reminder = await requirePersonalReminders(context).create(
+          context.session.user.id,
+          {
+            action: "Review Later",
+            ...input,
+            sourceRecordId: input.workId,
+            sourceRecordType: "Work",
+          },
+        );
         if (!reminder) {
           throw new ORPCError("NOT_FOUND", {
             defined: true,
@@ -5040,9 +5103,11 @@ export const appRouter = {
   cancelWorkReviewLater: protectedProcedure
     .input(cancelWorkReviewLaterInputSchema)
     .handler(async ({ context, input }) => {
-      const reminder = await requirePersonalReminders(
-        context,
-      ).cancelWorkReviewLater(context.session.user.id, input.reminderId);
+      const reminder = await requirePersonalReminders(context).cancel(
+        context.session.user.id,
+        input.reminderId,
+        { action: "Review Later", sourceRecordType: "Work" },
+      );
       if (!reminder) {
         throw new ORPCError("NOT_FOUND", {
           defined: true,

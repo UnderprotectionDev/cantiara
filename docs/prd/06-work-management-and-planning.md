@@ -319,7 +319,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Kişisel hatırlatmalar
 
-- **Kullanıcı yaklaşan hedef tarihleri ve daha sonra ele almak istediği İşler için kişisel hatırlatma oluşturabilir.** Ayrıca Proje, Belge, İş, Karar, Risk, Tasarım, Kaynak, Kilometre Taşı, Proje Sürümü, Üretim Olayı ve Test Açığı kayıtlarında ortak `Yeniden bak` eylemiyle belirli bir zamanda aynı kaynağa dönmek üzere kişisel hatırlatma kurabilir.
+- **Kullanıcı yaklaşan hedef tarihleri ve daha sonra ele almak istediği İşler için kişisel hatırlatma oluşturabilir.** Aynı Hesap kapsamındaki Hatırlatma Proje, Belge, İş, Karar, Risk, Kilometre Taşı, Proje Sürümü ve Üretim Olayı kayıtlarında `Remind me` veya `Review Later` eylemiyle kurulabilir. Tasarım, Kaynak ve Test Açığı kalıcı ana kayıt modelleri olmadığından Hatırlatma kaynağı olarak kabul edilmez.
 
 - **Belge için oluşturulan `Yeniden bak`, isteğe bağlı olarak belgenin belirli bir Markdown başlık bölümünü hedefleyebilir.** Hedef keyfî paragraf veya değişken metin aralığı değil, kararlı bölüm kimliği taşıyan başlıktır. Başlık yeniden adlandırıldığında veya belge içinde taşındığında bağ aynı bölüm kimliğini izler. Bölüm silinir ya da güvenle çözümlenemezse hatırlatma belgeyi açar, kayıp bölüm hedefini açıkça gösterir ve sessizce başka başlığa yönelmez.
 

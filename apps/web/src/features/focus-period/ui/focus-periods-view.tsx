@@ -370,6 +370,7 @@ function PeriodDetail({
     conflictMessage?: string,
   ) => Promise<void>;
 }) {
+  const queryClient = useQueryClient();
   const [showCloseReview, setShowCloseReview] = useState(false);
   const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
   const [destination, setDestination] = useState<
@@ -404,6 +405,9 @@ function PeriodDetail({
         (decidedWorkId) =>
           setSelectedWorkIds((ids) => ids.filter((id) => id !== decidedWorkId)),
       );
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
     } else {
       for (const selectedWorkId of selectedWorkIds) {
         // biome-ignore lint/performance/noAwaitInLoops: Each selected Work is recorded independently for recoverable partial sends.

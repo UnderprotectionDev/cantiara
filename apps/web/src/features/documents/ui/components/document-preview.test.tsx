@@ -65,6 +65,12 @@ test("renders named collection and Diagram View blocks from their resolved sourc
             name: "Current list",
             presentation: "List",
             projectId: "project-1",
+            conditions: {},
+            sourceType: "Work",
+            scope: { projectIds: ["project-1"] },
+            workspaceId: "workspace-1",
+            documents: [],
+            projectSourceRecords: [],
             works: [
               {
                 id: "work-1",
@@ -72,6 +78,8 @@ test("renders named collection and Diagram View blocks from their resolved sourc
                 title: "Current Work",
                 status: "In Progress",
                 type: "Task",
+                projectId: "project-1",
+                membershipReasons: ["Project: Product project"],
               },
             ],
           },
@@ -100,7 +108,92 @@ test("renders named collection and Diagram View blocks from their resolved sourc
     />,
   );
   expect(markup).toContain("Current Work");
+  expect(markup).toContain("Membership reason:");
+  expect(markup).toContain("Project: Product project");
   expect(markup).toContain("Services");
   expect(markup).toContain("API");
   expect(markup).toContain("Open source record");
+});
+
+test("renders Document and Project source members with live membership reasons", () => {
+  const markup = renderToStaticMarkup(
+    <DocumentPreview
+      liveOtherBlocks={[
+        {
+          id: "document-view",
+          kind: "Smart Collection",
+          viewId: null,
+          source: {
+            id: "document-view",
+            collectionId: "document-collection",
+            collectionName: "Launch documents",
+            name: "Specs",
+            presentation: "Table",
+            projectId: "project-1",
+            conditions: { documentType: "Spec", tag: "launch" },
+            sourceType: "Document",
+            scope: { projectIds: ["project-1"] },
+            workspaceId: "workspace-1",
+            works: [],
+            projectSourceRecords: [],
+            documents: [
+              {
+                id: "document-1",
+                title: "Launch specification",
+                type: "Spec",
+                projectId: "project-1",
+                workspaceId: null,
+                membershipReasons: [
+                  "Project: Product project",
+                  "Document type: Spec",
+                  "Tag: launch",
+                ],
+              },
+            ],
+          },
+        },
+        {
+          id: "risk-view",
+          kind: "Smart Collection",
+          viewId: null,
+          source: {
+            id: "risk-view",
+            collectionId: "risk-collection",
+            collectionName: "Open risks",
+            name: "Mitigating",
+            presentation: "List",
+            projectId: "project-1",
+            conditions: { status: "Mitigating" },
+            sourceType: "Risk",
+            scope: { projectIds: ["project-1"] },
+            workspaceId: "workspace-1",
+            works: [],
+            documents: [],
+            projectSourceRecords: [
+              {
+                id: "risk-1",
+                title: "Partner API delay",
+                status: "Mitigating",
+                projectId: "project-1",
+                sourceType: "Risk",
+                membershipReasons: [
+                  "Project: Product project",
+                  "Status: Mitigating",
+                ],
+              },
+            ],
+          },
+        },
+      ]}
+      source={
+        ':::live-collection{viewId="document-view"}\n\n:::live-collection{viewId="risk-view"}'
+      }
+    />,
+  );
+
+  expect(markup).toContain("Launch specification");
+  expect(markup).toContain("Document type: Spec");
+  expect(markup).toContain("Tag: launch");
+  expect(markup).toContain("Partner API delay");
+  expect(markup).toContain("Status: Mitigating");
 });

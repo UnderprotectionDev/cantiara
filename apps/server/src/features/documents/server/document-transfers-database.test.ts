@@ -501,6 +501,7 @@ describeDatabase("Documents transfer database seam", () => {
         clientIdempotencyKey: crypto.randomUUID(),
         projectId: sourceProjectId,
         name: "Tasks",
+        sourceType: "Work",
         viewName: "Planning",
         conditions: {},
         presentation: "Table",

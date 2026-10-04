@@ -298,7 +298,14 @@ function MilestoneCard({
           status,
         }),
       ),
-    onSuccess: () => invalidateMilestones(queryClient, projectId),
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateMilestones(queryClient, projectId),
+        queryClient.invalidateQueries({
+          queryKey: orpc.smartCollectionViews.key(),
+        }),
+      ]);
+    },
   });
   const relationPreviewMutation = useMutation({
     mutationFn: () =>

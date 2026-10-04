@@ -1,8 +1,10 @@
+import type { PersonalReminderSourceType } from "@cantiara/api/personal-reminders";
 import type {
   ProjectSourceRecord,
   ProjectSourceType,
 } from "@cantiara/api/project-source-records";
 import { useQuery } from "@tanstack/react-query";
+import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { orpc } from "@/utils/orpc";
 
 export default function ProjectSourceRecordView({
@@ -42,6 +44,8 @@ export default function ProjectSourceRecordView({
     );
   }
 
+  const reminderType = reminderSourceType(source.data.sourceType);
+
   return (
     <section aria-label={source.data.sourceType} className="space-y-5">
       <header className="surface-header">
@@ -54,6 +58,16 @@ export default function ProjectSourceRecordView({
         <p className="mt-2 text-muted-foreground text-sm">
           {recordStatus(source.data)}
         </p>
+        {reminderType ? (
+          <div className="mt-4">
+            <PersonalReminderControl
+              compact
+              sourceRecordId={source.data.id}
+              sourceRecordType={reminderType}
+              sourceTitle={recordTitle(source.data)}
+            />
+          </div>
+        ) : null}
       </header>
       <dl className="grid gap-5 rounded-lg border border-border/70 bg-card/35 p-5">
         {recordFields(source.data).map(([label, value]) => (
@@ -67,6 +81,21 @@ export default function ProjectSourceRecordView({
       </dl>
     </section>
   );
+}
+
+function reminderSourceType(
+  sourceType: ProjectSourceType,
+): PersonalReminderSourceType | null {
+  switch (sourceType) {
+    case "Decision":
+    case "Risk":
+    case "Milestone":
+    case "Project Release":
+    case "Production Incident":
+      return sourceType;
+    default:
+      return null;
+  }
 }
 
 function recordTitle(record: ProjectSourceRecord) {

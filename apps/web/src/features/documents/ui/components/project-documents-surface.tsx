@@ -44,6 +44,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
+import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
   defaultClientShell,
@@ -426,6 +427,11 @@ function DocumentEditor({
   const allowRichUpdates = useRef(false);
   const save = useMutation({
     mutationFn: () => editSession.save(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
+    },
     onError: (failure) =>
       setError(
         failure instanceof Error
@@ -460,6 +466,9 @@ function DocumentEditor({
       editSession.accept(restored);
       setSelectedVersion(null);
       setError(null);
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
       await onSaved();
     },
     onError: (failure) =>
@@ -678,6 +687,9 @@ function DocumentEditor({
         queryKey: orpc.projectWorks.key(),
       });
       await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
+      await queryClient.invalidateQueries({
         queryKey: orpc.projectSourceRecords.key(),
       });
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
@@ -717,6 +729,9 @@ function DocumentEditor({
       bulkConversionKey.current = null;
       await queryClient.invalidateQueries({
         queryKey: orpc.projectWorks.key(),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
       });
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
     },
@@ -951,11 +966,19 @@ function DocumentEditor({
         }}
         rejected={editing.conflictDraft}
       />
-      {record.projectId === null ? (
-        <p className="mb-3 w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
-          Personal Wiki
-        </p>
-      ) : null}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {record.projectId === null ? (
+          <p className="w-fit rounded-md bg-muted px-2 py-1 text-muted-foreground text-xs">
+            Personal Wiki
+          </p>
+        ) : null}
+        <PersonalReminderControl
+          compact
+          sourceRecordId={record.id}
+          sourceRecordType="Document"
+          sourceTitle={record.title}
+        />
+      </div>
       <form
         className="space-y-5"
         onSubmit={(event) => {
@@ -2108,7 +2131,12 @@ export default function DocumentsSurface({
       if (projectId === null) {
         window.location.hash = documentRecordHash(created.id);
       }
-      await queryClient.invalidateQueries({ queryKey: orpc.documents.key() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.smartCollectionViews.key(),
+        }),
+      ]);
     },
     onError: (failure) =>
       setError(

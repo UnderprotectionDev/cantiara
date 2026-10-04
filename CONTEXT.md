@@ -479,7 +479,7 @@ Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:
-Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Planned`, `Triggered`, `Cancelled`, `When`, `Cancel`, `Dismiss`, `In any case`, `Only if still open`, `Section`.
+Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Set reminder`, `Planned`, `Triggered`, `Cancelled`, `When`, `Cancel`, `Dismiss`, `History`, `No reminders.`, `In any case`, `Only if still open`, `Section`.
 _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for Later kuyruğu
 
 **Açık kalma koşulu**:
@@ -493,6 +493,10 @@ _Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 **Akıllı Koleksiyon**:
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
+
+**Üyelik nedeni**:
+Kaydın Akıllı Koleksiyona kapsamı ve eşleşen filtre koşulları nedeniyle neden girdiğini, canlı üyelik sonucundan türetilen metinle açıklar. UI: `Membership reason`.
+_Avoid_: manuel üyelik açıklaması, sabit açıklama
 
 **Hafif İçgörüler**:
 İş koleksiyonunun mevcut filtre sonucundan türetilen sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir ([Hafif İçgörüler](docs/prd/08-search-relations-and-evidence.md#hafif-içgörüler)). UI: `Insights`.
