@@ -350,6 +350,39 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
     await expect(sourceLife()).resolves.toEqual(before);
   });
 
+  test("rejects conditional reminders outside the closed seam contract", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const reminders = createDatabasePersonalReminders(database, {
+      newId: () => `contract-reminder-guard-${crypto.randomUUID()}`,
+      now: () => now,
+    });
+    const baseInput = {
+      clientIdempotencyKey: `reminder-guard-${crypto.randomUUID()}`,
+      fireAt: "2026-09-28T11:00:00.000Z",
+    };
+
+    await expect(
+      reminders.create(accountId, {
+        ...baseInput,
+        action: "Remind me",
+        condition: "Only if still open",
+        sourceRecordId: workId,
+        sourceRecordType: "Work",
+      }),
+    ).rejects.toThrow("Only Review Later can be conditional.");
+    await expect(
+      reminders.create(accountId, {
+        ...baseInput,
+        action: "Review Later",
+        condition: "Only if still open",
+        sourceRecordId: projectId,
+        sourceRecordType: "Document",
+      }),
+    ).rejects.toThrow("This source has no open and resolved life condition.");
+  });
+
   test("fires exactly one source-linked signal without changing Work planning", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

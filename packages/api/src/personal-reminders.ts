@@ -187,9 +187,4 @@ export const workReviewLaterSchema = personalReminderSchema
 
 export type WorkReviewLater = z.infer<typeof workReviewLaterSchema>;
 
-export type WorkReviewLaterSignal = PersonalReminderSignal & {
-  signalType: "review-later";
-  sourceRecordType: "Work";
-};
-
 export type WorkReviewLaterFireResult = PersonalReminderFireResult;
