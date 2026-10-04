@@ -34,7 +34,12 @@ import type {
 import WorkCompletionFeedback from "@/features/completion-effects/ui/components/work-completion-feedback";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 function mutationErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -121,9 +126,7 @@ export default function WorkStatusForm({
       queryClient.invalidateQueries({ queryKey: worksQueryKey }),
       queryClient.invalidateQueries({ queryKey: workQueryKey }),
       queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
-      queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      }),
+      ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
 

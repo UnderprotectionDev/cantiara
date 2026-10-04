@@ -57,7 +57,12 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import {
   activeDraftCustomFieldValues,
   formatDraftCustomFieldDate,
@@ -804,6 +809,7 @@ export default function WorkDraftForm({
         queryClient.invalidateQueries({
           queryKey: customFieldProjectValuesQueryKey,
         }),
+        ...invalidateSmartCollectionMembership(queryClient),
         ...(work.projectId === projectId
           ? []
           : [

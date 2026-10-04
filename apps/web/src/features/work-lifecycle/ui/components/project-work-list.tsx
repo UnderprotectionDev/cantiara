@@ -54,6 +54,7 @@ import { mutationErrorMessage } from "@/lib/mutation-messages";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
+  invalidateSmartCollectionMembership,
   orpc,
   projectWorksQueryPrefix,
 } from "@/utils/orpc";
@@ -623,9 +624,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: workQueryKey }),
         queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.smartCollectionViews.key(),
-        }),
+        ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
   });

@@ -17,6 +17,7 @@ import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
+  invalidateSmartCollectionMembership,
   orpc,
   projectsQueryOptions,
   projectWorksQueryPrefix,
@@ -131,6 +132,7 @@ export default function WorkRecreateForm({ work }: { work: WorkProfile }) {
           queryClient.invalidateQueries({
             queryKey: projectsQueryOptions().queryKey,
           }),
+          ...invalidateSmartCollectionMembership(queryClient),
         ]);
       } catch (submitError) {
         setError(recreateErrorMessage(submitError));

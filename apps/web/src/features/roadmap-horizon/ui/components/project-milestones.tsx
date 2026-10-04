@@ -21,7 +21,12 @@ import { CalendarDays } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 interface MilestoneDraft {
   description: string;
@@ -301,9 +306,7 @@ function MilestoneCard({
     onSuccess: async () => {
       await Promise.all([
         invalidateMilestones(queryClient, projectId),
-        queryClient.invalidateQueries({
-          queryKey: orpc.smartCollectionViews.key(),
-        }),
+        ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
   });
