@@ -780,12 +780,18 @@ async function searchAttachmentRecords({
     fileAttachment.name,
     fileAttachmentVersion.fileName,
   ]);
+  const searchableAttachmentTitle = sql<string>`
+    regexp_replace(${attachmentTitle}, '[^[:alnum:]_]+', ' ', 'g')
+  `;
   const attachmentMetadata = textContent([
     fileAttachmentVersion.extension,
     fileAttachmentVersion.mimeType,
     fileAttachmentVersion.detectedMimeType,
   ]);
-  const attachmentText = textContent([attachmentTitle, attachmentMetadata]);
+  const attachmentText = textContent([
+    searchableAttachmentTitle,
+    attachmentMetadata,
+  ]);
   const attachmentRows = await database
     .select({
       id: fileAttachment.id,
@@ -798,7 +804,7 @@ async function searchAttachmentRecords({
       scopeType: fileAttachment.scopeType,
       text: attachmentMetadata,
       titleKeyMatch: query
-        ? matches(query, attachmentTitle)
+        ? matches(query, searchableAttachmentTitle)
         : sql<boolean>`false`,
       updatedAt: fileAttachment.updatedAt,
       ownerDocumentArchivedAt: document.archivedAt,

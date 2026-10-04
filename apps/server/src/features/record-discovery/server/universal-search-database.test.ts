@@ -521,6 +521,9 @@ describeDatabase("Record Discovery universal search boundary", () => {
       snippet: expect.stringContaining("Recovery attachment"),
     });
     expect(
+      results.find(({ id }) => id === recordId("attachment-current"))?.snippet,
+    ).toContain("PostgreSQL-current.txt");
+    expect(
       (await client().searchRecords({ query: "Recovery" })).find(
         ({ id }) => id === recordId("attachment-current"),
       ),
