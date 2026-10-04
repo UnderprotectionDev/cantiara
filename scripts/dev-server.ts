@@ -1,5 +1,4 @@
 import { acquireDevelopmentLease } from "../packages/db/scripts/development-lease";
-import { diagnoseDatabase } from "../packages/db/scripts/doctor";
 import { superviseDevelopmentProcess } from "./development-session";
 
 try {
@@ -14,23 +13,6 @@ try {
   console.error(
     "Development API could not start safely. No migration was applied.",
   );
-  const diagnoses = await Promise.all(
-    [false, true].map(async (securityEvents) => ({
-      securityEvents,
-      result: await diagnoseDatabase(process.env, {
-        securityEvents,
-        development: true,
-      }),
-    })),
-  );
-  for (const { securityEvents, result } of diagnoses) {
-    console.error(
-      `${securityEvents ? "Security events" : "Primary"}: ${result.reason}`,
-    );
-    for (const detail of result.details) {
-      console.error(`  ${detail}`);
-    }
-    console.error(result.nextStep);
-  }
+  console.error("Run bun run db:doctor for a database diagnosis.");
   process.exitCode = 1;
 }
