@@ -1,23 +1,25 @@
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 import type { Context } from "./context";
-import type {
-  PersonalRemindersAccess,
-  WorkReviewLater,
+import {
+  createPersonalReminderInputSchema,
+  PERSONAL_REMINDER_SOURCE_TYPES,
+  type PersonalReminder,
+  type PersonalRemindersAccess,
 } from "./personal-reminders";
 import { appRouter } from "./routers/index";
 
-const workReviewLater: WorkReviewLater = {
-  action: "Review Later",
+const personalReminder: PersonalReminder = {
+  action: "Remind me",
   cancelledAt: null,
-  condition: "Only if still open",
+  condition: "In any case",
   createdAt: "2026-09-28T10:00:00.000Z",
   fireAt: "2026-09-28T11:00:00.000Z",
   fireNote: null,
   id: "reminder-1",
   sourceProjectId: "project-1",
-  sourceRecordId: "work-1",
-  sourceRecordType: "Work",
+  sourceRecordId: "project-1",
+  sourceRecordType: "Project",
   status: "Planned",
   triggeredAt: null,
 };
@@ -53,48 +55,93 @@ function createContext(personalReminders: PersonalRemindersAccess): Context {
 }
 
 describe("Personal Reminders RPC", () => {
-  test("creates, lists, and cancels Work Review Later as the signed-in Account", async () => {
+  test("creates, lists, and cancels a supported source reminder as the signed-in Account", async () => {
     const cancelled = {
-      ...workReviewLater,
+      ...personalReminder,
       cancelledAt: "2026-09-28T10:30:00.000Z",
       status: "Cancelled" as const,
     };
     const access: PersonalRemindersAccess = {
-      cancelWorkReviewLater: vi.fn().mockResolvedValue(cancelled),
-      createWorkReviewLater: vi.fn().mockResolvedValue(workReviewLater),
-      listWorkReviewLater: vi.fn().mockResolvedValue([workReviewLater]),
+      cancel: vi.fn().mockResolvedValue(cancelled),
+      create: vi.fn().mockResolvedValue(personalReminder),
+      list: vi.fn().mockResolvedValue([personalReminder]),
     };
     const client = createRouterClient(appRouter, {
       context: createContext(access),
     });
     const input = {
-      clientIdempotencyKey: "review-later-rpc-1",
-      condition: "Only if still open" as const,
+      action: "Remind me" as const,
+      clientIdempotencyKey: "personal-reminder-rpc-1",
+      condition: "In any case" as const,
       fireAt: "2026-09-28T11:00:00.000Z",
-      workId: "work-1",
+      sourceRecordId: "project-1",
+      sourceRecordType: "Project" as const,
+    };
+    const source = {
+      sourceRecordId: "project-1",
+      sourceRecordType: "Project" as const,
     };
 
-    await expect(client.createWorkReviewLater(input)).resolves.toEqual(
-      workReviewLater,
+    await expect(client.createPersonalReminder(input)).resolves.toEqual(
+      personalReminder,
     );
-    await expect(client.workReviewLater({ workId: "work-1" })).resolves.toEqual(
-      [workReviewLater],
-    );
+    await expect(client.personalReminders(source)).resolves.toEqual([
+      personalReminder,
+    ]);
     await expect(
-      client.cancelWorkReviewLater({ reminderId: workReviewLater.id }),
+      client.cancelPersonalReminder({ reminderId: personalReminder.id }),
     ).resolves.toEqual(cancelled);
 
-    expect(access.createWorkReviewLater).toHaveBeenCalledExactlyOnceWith(
+    expect(access.create).toHaveBeenCalledExactlyOnceWith("account-1", input);
+    expect(access.list).toHaveBeenCalledExactlyOnceWith("account-1", source);
+    expect(access.cancel).toHaveBeenCalledExactlyOnceWith(
       "account-1",
-      input,
+      personalReminder.id,
     );
-    expect(access.listWorkReviewLater).toHaveBeenCalledExactlyOnceWith(
-      "account-1",
-      "work-1",
-    );
-    expect(access.cancelWorkReviewLater).toHaveBeenCalledExactlyOnceWith(
-      "account-1",
-      workReviewLater.id,
-    );
+  });
+
+  test("requires a source and keeps the list closed to permanent record models", () => {
+    expect(PERSONAL_REMINDER_SOURCE_TYPES).toEqual([
+      "Project",
+      "Document",
+      "Work",
+      "Decision",
+      "Risk",
+      "Milestone",
+      "Project Release",
+      "Production Incident",
+    ]);
+
+    const reminder = {
+      action: "Remind me" as const,
+      clientIdempotencyKey: "unsupported-reminder-source",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      sourceRecordId: "project-1",
+    };
+
+    for (const sourceRecordType of ["Design", "Source", "Test Gap"] as const) {
+      expect(
+        createPersonalReminderInputSchema.safeParse({
+          ...reminder,
+          sourceRecordType,
+        }).success,
+      ).toBe(false);
+    }
+
+    expect(
+      createPersonalReminderInputSchema.safeParse({
+        action: "Review Later",
+        clientIdempotencyKey: "standalone-reminder",
+        fireAt: "2026-09-28T11:00:00.000Z",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      createPersonalReminderInputSchema.safeParse({
+        ...reminder,
+        sourceRecordType: "Project",
+        targetDate: "2026-10-15",
+      }).success,
+    ).toBe(false);
   });
 });

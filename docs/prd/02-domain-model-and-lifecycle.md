@@ -349,6 +349,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
 | Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
+| Üyelik nedeni | `Membership reason` | Kaydın Akıllı Koleksiyona kapsam ve eşleşen filtre koşullarıyla neden girdiğini açıklayan, canlı üyelik sonucundan türetilen metin |
+| Koleksiyon kaydını sürükle | `Drag {record name}` | Üyeyi başka bir Akıllı Koleksiyon görünümüne sürüklemek için erişilebilir eylem adı |
+| Alan değişikliği önizlemesi | `Field change preview` | Doğrudan eşitlik koşulunu karşılamak için gereken alan değerini sürükleme sırasında gösteren, yazma yapmayan önizleme |
+| Önizleme üyelik yazmaz | `No membership is written by this preview.` | Önizlemenin manuel üyelik veya pin oluşturmadığını açıklar |
+| Akıllı Koleksiyon kaynak türü | `Source type` | Koleksiyonun filtrelediği kayıt türü; yalnız kapalı tür matrisindeki kaynaklar seçilebilir |
+| İş türü | `Work type` | İş kaynaklı koleksiyonda üyeliği belirleyen doğrudan İş türü eşitliği |
+| Belge türü | `Document type` | Belge kaynaklı koleksiyonda yapılandırılmış Belge türü eşitliği |
+| Çalışma Alanı kapsamı | `Workspace scope` | Wiki Belgesi koleksiyonunun aynı Çalışma Alanındaki Belgelerle sınırlı canlı kapsamı |
+| Proje kapsamı kullanılamıyor | `Project scope is unavailable.` | Proje kapsamı seçimi yüklenemediğinde gösterilen hata durumu |
+| Görünümde eşleşen kayıt yok | `No {source type} matches this view.` | Canlı koşullar kaynak türünde kayıt bulamadığında gösterilen boş durum |
 | Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
 | Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
 | Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
@@ -695,13 +705,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine konmuş | `Replaced` | Önceki etkin `Not now` izini yeni bir iz ile kapatan geçmiş durumu |
 | Geçmiş | `History` | Önceki `Not now` izlerinin gerekçe, koşul, dayanak, yazar ve zaman kayıtları |
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
-| Yeniden bak hatırlatması yok | `No Review Later reminders.` | Work için henüz `Review Later` hatırlatması bulunmadığını bildiren boş durum |
+| Hatırlatma yok | `No reminders.` | Kaynak kayıtta henüz Hatırlatma bulunmadığını bildiren boş durum |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
 | Hatırlatma koşulu | `Condition` | Zamanı gelince açık/çözülmüş kaynak yaşamını değerlendirme seçimi |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
-| Yeniden bak oluştur | `Set Review Later` | İşe kaynak bağlantılı `Review Later` Hatırlatması kurma eylemi |
+| Hatırlatma oluştur | `Set reminder` | Desteklenen kayda kaynak bağlantılı Hatırlatma kurma eylemi |
 | Hatırlatmayı kapat | `Dismiss` | Tetiklenmiş Hatırlatma sinyalini kapatan açık eylem; İş veya kopya üretmez |
 | Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
 | Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |

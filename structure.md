@@ -673,9 +673,9 @@ Document scope transfer, attachment ownership selection, independent copies and 
 
 Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
 
-Personal Reminder lifecycle is owned by the account-scoped schema (`packages/db/src/schema/personal-reminders.ts`) and server boundary (`apps/server/src/features/personal-reminders/server/`). Roadmap Horizon calls its Work `Review Later` handling adapter in the same database transaction as replacing or reconsidering a `Not now` trail.
+Personal Reminder source ownership is split across the API contract (`packages/api/src/personal-reminders.ts`), the Account-scoped schema and versioned migrations (`packages/db/src/schema/personal-reminders.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/personal-reminders/server/`), and the shared record control (`apps/web/src/features/personal-reminders/ui/components/personal-reminder-control.tsx`). The control is consumed by Project, Document, Work, and Project source-record surfaces. Roadmap Horizon calls the Work `Review Later` adapter in the same database transaction as replacing or reconsidering a `Not now` trail.
 
-The Work `Review Later` surface lives at `apps/web/src/features/personal-reminders/ui/components/work-review-later-control.tsx`; it is consumed on Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
+The Work-specific `Review Later` adapter lives at `apps/web/src/features/personal-reminders/ui/components/work-review-later-control.tsx`; it is consumed on Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
 
 External Execution Handoff source ownership is split across the API contract (`packages/api/src/external-handoffs.ts`), the PostgreSQL schema and versioned migrations (`packages/db/src/schema/work-external-handoff.ts`, `packages/db/src/migrations/`), the Work-owned server boundary (`apps/server/src/features/external-handoffs/server/`), and the Work-list surface (`apps/web/src/features/external-handoffs/`).
 

@@ -4,6 +4,7 @@ import {
   type ProjectOverviewSources,
 } from "@cantiara/api/project-overview";
 import type { ProjectProfile } from "@cantiara/api/project-shell";
+import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 
 import {
   DEFAULT_OVERVIEW_FORMATTING_PREFERENCES,
@@ -51,6 +52,13 @@ export default function ProjectOverviewView({
           A neutral view of this Project’s source records. Empty sections stay
           empty until a source record exists.
         </p>
+        <div className="mt-4">
+          <PersonalReminderControl
+            sourceRecordId={project.id}
+            sourceRecordType="Project"
+            sourceTitle={project.name}
+          />
+        </div>
       </header>
 
       <div className="grid gap-x-8 sm:grid-cols-2">

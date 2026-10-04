@@ -159,11 +159,12 @@ export const startBacklogReappearSignalWorker =
 export const stopBacklogReappearSignalWorker = backlogReappearSignalWorker.stop;
 const personalReminderStore = createDatabasePersonalReminders(db);
 export const personalReminders = personalReminderStore;
-export const sweepDueWorkReviewLater = (now = new Date()) =>
-  personalReminderStore.fireDueWorkReviewLater(now);
+export const sweepDuePersonalReminders = (now = new Date()) =>
+  personalReminderStore.fireDuePersonalReminders(now);
+export const sweepDueWorkReviewLater = sweepDuePersonalReminders;
 const personalReminderWorker = createPersonalReminderWorker({
   connectionString: env.DATABASE_URL,
-  process: async () => (await sweepDueWorkReviewLater()).processedCount,
+  process: async () => (await sweepDuePersonalReminders()).processedCount,
 });
 export const startPersonalReminderWorker = personalReminderWorker.start;
 export const stopPersonalReminderWorker = personalReminderWorker.stop;

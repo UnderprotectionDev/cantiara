@@ -51,6 +51,7 @@ import {
 } from "../src/features/documents/server/documents-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
+import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "../src/features/prioritization-sessions/server/prioritization-sessions-database";
 import { createDatabasePrioritizationSessionMutationContracts } from "../src/features/prioritization-sessions/server/prioritization-sessions-mutation-database";
@@ -150,6 +151,7 @@ const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
 const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
 const roadmapHorizon = createDatabaseRoadmapHorizon(database);
+const personalReminders = createDatabasePersonalReminders(database);
 const workContext = createWorkContextAccess(workLifecycle, relations, {
   priorityValues: async (accountId, work) => {
     const values = await priorityMetrics.values(accountId, work.id);
@@ -277,6 +279,7 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
+  personalReminders,
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,
