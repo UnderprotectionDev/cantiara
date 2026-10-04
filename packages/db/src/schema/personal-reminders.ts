@@ -60,7 +60,7 @@ export const personalReminder = pgTable(
     ),
     check(
       "personal_reminder_source_type_check",
-      sql`${table.sourceRecordType} in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Design', 'Source', 'Milestone', 'Project Release', 'Production Incident', 'Test Gap')`,
+      sql`${table.sourceRecordType} in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Milestone', 'Project Release', 'Production Incident')`,
     ),
     check(
       "personal_reminder_section_check",

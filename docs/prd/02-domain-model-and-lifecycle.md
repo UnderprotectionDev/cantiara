@@ -705,13 +705,13 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine konmuş | `Replaced` | Önceki etkin `Not now` izini yeni bir iz ile kapatan geçmiş durumu |
 | Geçmiş | `History` | Önceki `Not now` izlerinin gerekçe, koşul, dayanak, yazar ve zaman kayıtları |
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
-| Yeniden bak hatırlatması yok | `No Review Later reminders.` | Work için henüz `Review Later` hatırlatması bulunmadığını bildiren boş durum |
+| Hatırlatma yok | `No reminders.` | Kaynak kayıtta henüz Hatırlatma bulunmadığını bildiren boş durum |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
 | Hatırlatma koşulu | `Condition` | Zamanı gelince açık/çözülmüş kaynak yaşamını değerlendirme seçimi |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
-| Yeniden bak oluştur | `Set Review Later` | İşe kaynak bağlantılı `Review Later` Hatırlatması kurma eylemi |
+| Hatırlatma oluştur | `Set reminder` | Desteklenen kayda kaynak bağlantılı Hatırlatma kurma eylemi |
 | Hatırlatmayı kapat | `Dismiss` | Tetiklenmiş Hatırlatma sinyalini kapatan açık eylem; İş veya kopya üretmez |
 | Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
 | Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |

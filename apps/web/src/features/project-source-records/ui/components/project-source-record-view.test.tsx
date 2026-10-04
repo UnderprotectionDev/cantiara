@@ -3,13 +3,26 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import ProjectSourceRecordView from "./project-source-record-view";
 
 const mocks = vi.hoisted(() => ({
+  reminderInput: vi.fn(),
   sourceInput: vi.fn(),
+  useMutation: vi.fn(() => ({ isPending: false, mutate: vi.fn() })),
   useQuery: vi.fn(),
+  useQueryClient: vi.fn(() => ({ invalidateQueries: vi.fn() })),
 }));
 
-vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery }));
+vi.mock("@tanstack/react-query", () => ({
+  useMutation: mocks.useMutation,
+  useQuery: mocks.useQuery,
+  useQueryClient: mocks.useQueryClient,
+}));
 vi.mock("@/utils/orpc", () => ({
   orpc: {
+    personalReminders: {
+      queryOptions: ({ input }: { input: unknown }) => {
+        mocks.reminderInput(input);
+        return { queryKey: ["personalReminders", input] };
+      },
+    },
     projectSourceRecord: {
       queryOptions: ({ input }: { input: unknown }) => {
         mocks.sourceInput(input);
@@ -38,12 +51,15 @@ const incident = {
 
 describe("Project source record detail", () => {
   afterEach(() => {
+    mocks.reminderInput.mockReset();
     mocks.sourceInput.mockReset();
     mocks.useQuery.mockReset();
   });
 
-  test("opens the selected typed source record as a read-only detail", () => {
-    mocks.useQuery.mockReturnValue({ data: incident, isError: false });
+  test("opens the selected typed source record with personal reminder actions", () => {
+    mocks.useQuery
+      .mockReturnValueOnce({ data: incident, isError: false })
+      .mockReturnValueOnce({ data: [], isError: false, isPending: false });
 
     const html = renderToStaticMarkup(
       <ProjectSourceRecordView
@@ -57,11 +73,16 @@ describe("Project source record detail", () => {
       sourceId: "incident/1",
       sourceType: "Production Incident",
     });
+    expect(mocks.reminderInput).toHaveBeenCalledWith({
+      sourceRecordId: "incident/1",
+      sourceRecordType: "Production Incident",
+    });
     expect(html).toContain("Queue delay");
     expect(html).toContain("Resolved");
     expect(html).toContain("Requests were delayed.");
     expect(html).toContain("A worker stopped acknowledging messages.");
-    expect(html).not.toContain("<button");
+    expect(html).toContain("Remind me");
+    expect(html).toContain("Review Later");
   });
 
   test("does not render a source record in a different Project route", () => {
