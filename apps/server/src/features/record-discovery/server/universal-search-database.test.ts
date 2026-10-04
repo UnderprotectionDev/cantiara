@@ -29,6 +29,7 @@ import { createDatabaseUniversalSearch } from "./universal-search-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
+const databaseTestTimeout = 15_000;
 
 describeDatabase("Record Discovery universal search boundary", () => {
   const database = databaseUrl
@@ -127,156 +128,162 @@ describeDatabase("Record Discovery universal search boundary", () => {
     await database?.$client.end();
   });
 
-  it("applies the closed ranking order and excludes Trash and other Accounts", async () => {
-    if (!database) {
-      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
-    }
-    await database.insert(work).values([
-      {
-        id: recordId("work-current-active"),
-        key: "CUR-1",
-        number: 1,
+  it(
+    "applies the closed ranking order and excludes Trash and other Accounts",
+    async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      await database.insert(work).values([
+        {
+          id: recordId("work-current-active"),
+          key: "CUR-1",
+          number: 1,
+          projectId,
+          title: "PostgreSQL active title",
+          type: "Task",
+          status: "In Progress",
+          updatedAt: new Date("2026-08-01T00:00:00Z"),
+        },
+        {
+          id: recordId("work-current-completed"),
+          key: "CUR-2",
+          number: 2,
+          projectId,
+          title: "PostgreSQL completed title",
+          type: "Task",
+          status: "Closed",
+          closureResult: "Completed",
+          updatedAt: new Date("2026-10-01T00:00:00Z"),
+        },
+        {
+          id: recordId("work-current-abandoned"),
+          key: "CUR-3",
+          number: 3,
+          projectId,
+          title: "PostgreSQL abandoned title",
+          type: "Task",
+          status: "Closed",
+          closureResult: "Abandoned",
+          updatedAt: new Date("2026-10-02T00:00:00Z"),
+        },
+        {
+          id: recordId("work-tie-b"),
+          key: "CUR-7",
+          number: 7,
+          projectId,
+          title: "PostgreSQL stable order",
+          type: "Task",
+          status: "In Progress",
+          updatedAt: new Date("2026-09-15T00:00:00Z"),
+        },
+        {
+          id: recordId("work-tie-a"),
+          key: "CUR-8",
+          number: 8,
+          projectId,
+          title: "PostgreSQL stable order",
+          type: "Task",
+          status: "In Progress",
+          updatedAt: new Date("2026-09-15T00:00:00Z"),
+        },
+        {
+          id: recordId("work-other-project"),
+          key: "OTH-1",
+          number: 1,
+          projectId: otherProjectId,
+          title: "PostgreSQL other project title",
+          type: "Task",
+          status: "In Progress",
+          updatedAt: new Date("2026-12-01T00:00:00Z"),
+        },
+        {
+          id: recordId("work-current-body"),
+          key: "CUR-4",
+          number: 4,
+          projectId,
+          title: "Recovery notes",
+          type: "Task",
+          status: "In Progress",
+          description: "PostgreSQL body match",
+          updatedAt: new Date("2026-12-02T00:00:00Z"),
+        },
+        {
+          archivedAt: new Date("2026-12-03T00:00:00Z"),
+          id: recordId("work-archived"),
+          key: "CUR-5",
+          number: 5,
+          projectId,
+          title: "PostgreSQL archived title",
+          type: "Task",
+          status: "Not Started",
+        },
+        {
+          id: recordId("work-trashed"),
+          key: "CUR-6",
+          number: 6,
+          projectId,
+          title: "PostgreSQL trashed title",
+          trashedAt: new Date("2026-12-04T00:00:00Z"),
+          type: "Task",
+        },
+        {
+          id: recordId("work-private"),
+          key: "PRV-1",
+          number: 1,
+          projectId: foreignProjectId,
+          title: "PostgreSQL private title",
+          type: "Task",
+        },
+      ]);
+      await database.insert(decision).values({
+        decision: "Prefer the supported recovery path.",
+        id: recordId("decision-current-title"),
         projectId,
-        title: "PostgreSQL active title",
-        type: "Task",
-        status: "In Progress",
-        updatedAt: new Date("2026-08-01T00:00:00Z"),
-      },
-      {
-        id: recordId("work-current-completed"),
-        key: "CUR-2",
-        number: 2,
-        projectId,
-        title: "PostgreSQL completed title",
-        type: "Task",
-        status: "Closed",
-        closureResult: "Completed",
-        updatedAt: new Date("2026-10-01T00:00:00Z"),
-      },
-      {
-        id: recordId("work-current-abandoned"),
-        key: "CUR-3",
-        number: 3,
-        projectId,
-        title: "PostgreSQL abandoned title",
-        type: "Task",
-        status: "Closed",
-        closureResult: "Abandoned",
-        updatedAt: new Date("2026-10-02T00:00:00Z"),
-      },
-      {
-        id: recordId("work-tie-b"),
-        key: "CUR-7",
-        number: 7,
-        projectId,
-        title: "PostgreSQL stable order",
-        type: "Task",
-        status: "In Progress",
-        updatedAt: new Date("2026-09-15T00:00:00Z"),
-      },
-      {
-        id: recordId("work-tie-a"),
-        key: "CUR-8",
-        number: 8,
-        projectId,
-        title: "PostgreSQL stable order",
-        type: "Task",
-        status: "In Progress",
-        updatedAt: new Date("2026-09-15T00:00:00Z"),
-      },
-      {
-        id: recordId("work-other-project"),
-        key: "OTH-1",
-        number: 1,
-        projectId: otherProjectId,
-        title: "PostgreSQL other project title",
-        type: "Task",
-        status: "In Progress",
-        updatedAt: new Date("2026-12-01T00:00:00Z"),
-      },
-      {
-        id: recordId("work-current-body"),
-        key: "CUR-4",
-        number: 4,
-        projectId,
-        title: "Recovery notes",
-        type: "Task",
-        status: "In Progress",
-        description: "PostgreSQL body match",
-        updatedAt: new Date("2026-12-02T00:00:00Z"),
-      },
-      {
-        archivedAt: new Date("2026-12-03T00:00:00Z"),
-        id: recordId("work-archived"),
-        key: "CUR-5",
-        number: 5,
-        projectId,
-        title: "PostgreSQL archived title",
-        type: "Task",
-        status: "Not Started",
-      },
-      {
-        id: recordId("work-trashed"),
-        key: "CUR-6",
-        number: 6,
-        projectId,
-        title: "PostgreSQL trashed title",
-        trashedAt: new Date("2026-12-04T00:00:00Z"),
-        type: "Task",
-      },
-      {
-        id: recordId("work-private"),
-        key: "PRV-1",
-        number: 1,
-        projectId: foreignProjectId,
-        title: "PostgreSQL private title",
-        type: "Task",
-      },
-    ]);
-    await database.insert(decision).values({
-      decision: "Prefer the supported recovery path.",
-      id: recordId("decision-current-title"),
-      projectId,
-      title: "PostgreSQL decision title",
-      updatedAt: new Date("2026-09-01T00:00:00Z"),
-    });
+        title: "PostgreSQL decision title",
+        updatedAt: new Date("2026-09-01T00:00:00Z"),
+      });
 
-    const input = { currentProjectId: projectId, query: "PostgreSQL" };
-    const results = await client().searchRecords(input);
-    expect(results.map(({ id }) => id)).toEqual([
-      recordId("work-tie-a"),
-      recordId("work-tie-b"),
-      recordId("decision-current-title"),
-      recordId("work-current-active"),
-      recordId("work-current-completed"),
-      recordId("work-current-abandoned"),
-      recordId("work-other-project"),
-      recordId("work-current-body"),
-    ]);
-    expect(await client().searchRecords(input)).toEqual(results);
-    expect(
-      results.find(({ id }) => id === recordId("work-current-active")),
-    ).toMatchObject({
-      category: "Task",
-      matchCount: 1,
-      recordType: "Work",
-      snippet: expect.stringContaining("PostgreSQL active title"),
-    });
-    expect(
-      (await client().searchRecords({ query: "private" })).map(({ id }) => id),
-    ).toEqual([]);
-    expect(
-      (await client(otherAccountId).searchRecords({ query: "private" })).map(
-        ({ id }) => id,
-      ),
-    ).toEqual([recordId("work-private")]);
-    expect(
-      (await client().searchRecords({ ...input, archived: true })).map(
-        ({ id }) => id,
-      ),
-    ).toEqual([recordId("work-archived")]);
-    expect(await client().searchRecords({ query: "   " })).toEqual([]);
-  });
+      const input = { currentProjectId: projectId, query: "PostgreSQL" };
+      const results = await client().searchRecords(input);
+      expect(results.map(({ id }) => id)).toEqual([
+        recordId("work-tie-a"),
+        recordId("work-tie-b"),
+        recordId("decision-current-title"),
+        recordId("work-current-active"),
+        recordId("work-current-completed"),
+        recordId("work-current-abandoned"),
+        recordId("work-other-project"),
+        recordId("work-current-body"),
+      ]);
+      expect(await client().searchRecords(input)).toEqual(results);
+      expect(
+        results.find(({ id }) => id === recordId("work-current-active")),
+      ).toMatchObject({
+        category: "Task",
+        matchCount: 1,
+        recordType: "Work",
+        snippet: expect.stringContaining("PostgreSQL active title"),
+      });
+      expect(
+        (await client().searchRecords({ query: "private" })).map(
+          ({ id }) => id,
+        ),
+      ).toEqual([]);
+      expect(
+        (await client(otherAccountId).searchRecords({ query: "private" })).map(
+          ({ id }) => id,
+        ),
+      ).toEqual([recordId("work-private")]);
+      expect(
+        (await client().searchRecords({ ...input, archived: true })).map(
+          ({ id }) => id,
+        ),
+      ).toEqual([recordId("work-archived")]);
+      expect(await client().searchRecords({ query: "   " })).toEqual([]);
+    },
+    databaseTestTimeout,
+  );
 
   it("ranks Work key matches ahead of body-only matches", async () => {
     if (!database) {
