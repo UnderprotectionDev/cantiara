@@ -39,6 +39,7 @@ export async function inspectReadiness(
   repository: Awaited<ReturnType<typeof checkMigrationSources>>,
   securityEvents: boolean,
   deep: boolean,
+  development = false,
 ): Promise<DatabaseDiagnosis> {
   const history = await verifyMigrationHistory(
     client,
@@ -50,6 +51,7 @@ export async function inspectReadiness(
         import.meta.url,
       ),
     ),
+    { allowAhead: development },
   );
   if (history.applied.length < history.expected.length) {
     const pending = repository.entries
@@ -61,19 +63,27 @@ export async function inspectReadiness(
       nextStep: `Review pending SQL, then run bun run ${securityEvents ? "db:security:migrate" : "db:migrate"} on the verified development target.`,
     };
   }
-  const issues = await inspectDatabaseSchema(client, repository.snapshot, deep);
+  const issues = await inspectDatabaseSchema(
+    client,
+    repository.snapshot,
+    deep || development,
+    development,
+  );
   if (issues.length > 0) {
     return {
       reason: "schema-drift",
       details: issues,
-      nextStep:
-        "History matches but schema differs. Diagnose the cause and prepare a versioned repair; do not use db:push or edit applied SQL.",
+      nextStep: development
+        ? "This branch's schema requirements are incompatible with the shared database. Reconcile the owning code and canonical migrations; do not bypass checks or use db:push."
+        : "History matches but schema differs. Diagnose the cause and prepare a versioned repair; do not use db:push or edit applied SQL.",
     };
   }
   return {
     reason: "ready",
     details: [
-      `${history.applied.length} migrations match; ${deep ? "deep" : "column"} schema checks passed`,
+      history.applied.length > history.expected.length
+        ? `Database is ${history.applied.length - history.expected.length} migrations ahead; matching prefix and development schema compatibility checks passed. Migration writes remain blocked until canonical history is integrated.`
+        : `${history.applied.length} migrations match; ${deep || development ? "deep" : "column"} schema checks passed`,
     ],
     nextStep: "Development target is ready.",
   };
@@ -81,7 +91,7 @@ export async function inspectReadiness(
 
 export async function diagnoseDatabase(
   environment: Record<string, string | undefined>,
-  { securityEvents = false, deep = false } = {},
+  { securityEvents = false, deep = false, development = false } = {},
 ): Promise<DatabaseDiagnosis> {
   let target: ReturnType<typeof resolveMigrationTarget>;
   try {
@@ -129,7 +139,13 @@ export async function diagnoseDatabase(
           nextStep: "Wait for it to finish, then run db:doctor again.",
         };
       }
-      return await inspectReadiness(client, repository, securityEvents, deep);
+      return await inspectReadiness(
+        client,
+        repository,
+        securityEvents,
+        deep,
+        development,
+      );
     } finally {
       try {
         await client.query("ROLLBACK");
@@ -174,6 +190,7 @@ if (import.meta.main) {
       diagnoseDatabase(process.env, {
         securityEvents,
         deep: process.argv.includes("--deep"),
+        development: process.argv.includes("--development"),
       }),
     ),
   );

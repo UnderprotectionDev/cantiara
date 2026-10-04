@@ -77,7 +77,7 @@ test("development startup checks configured databases before launching applicati
   expect(result.status, result.stderr).toBe(0);
   const calls = readFileSync(fixture.calls, "utf8").trim().split("\n");
   expect(calls).toHaveLength(2);
-  expect(calls[0]).toContain("packages/db/scripts/doctor.ts");
+  expect(calls[0]).toContain("packages/db/scripts/doctor.ts --development");
   expect(calls[1]).toContain("turbo run dev -F server --");
   for (const call of calls) {
     expect(call).toContain(fixture.environment.DATABASE_URL);
@@ -96,7 +96,7 @@ test("development startup stops before applications when database readiness fail
   expect(result.status, result.stderr).toBe(1);
   const calls = readFileSync(fixture.calls, "utf8").trim().split("\n");
   expect(calls).toHaveLength(1);
-  expect(calls[0]).toContain("packages/db/scripts/doctor.ts");
+  expect(calls[0]).toContain("packages/db/scripts/doctor.ts --development");
 });
 
 test("development help starts the tool without database configuration or readiness checks", () => {

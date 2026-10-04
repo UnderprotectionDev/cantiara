@@ -17,7 +17,7 @@ Direct override uygulama bağlantısıyla aynı endpoint, port, veritabanı ve r
 
 ## Conductor ve Run
 
-Setup yalnız `bun install` çalıştırır. Backend yapılandırılmış geliştirme bağlantılarını kullanır. Run `scripts/local-dev.ts` üzerinden salt okunur `db:doctor` denetimini geçirir; her iki hedef hazırsa uygulamaları başlatır. Migration hazırlığı issue teslim akışında tamamlanır. API oturumu `scripts/dev-server.ts` üzerinden hazırlığı ve mevcut danışma kilidini ayrıca doğrular. `--help`, `-h` ve `--version` DB bağlantısı istemez.
+Setup yalnız `bun install` çalıştırır. Backend yapılandırılmış geliştirme bağlantılarını kullanır. Run `scripts/local-dev.ts` üzerinden salt okunur `db:doctor --development` uyumluluk denetimini geçirir; iki hedef uyumluysa uygulamaları başlatır. Geçmişin eşleşen öneki ve derin fiziksel şema kontrolü geçen `ahead`, Run için engel değildir; migration yazması ve hazır issue teslimi için varsayılan doctor/prepare kuralları korunur. Migration hazırlığı issue teslim akışında tamamlanır. API oturumu `scripts/dev-server.ts` üzerinden aynı uyumluluğu ortak danışma kilidi altında ayrıca doğrular. Uyumlu dosya değişiminde güncel kaynakları yeniden denetleyip oturumu sürdürür. `--help`, `-h` ve `--version` DB bağlantısı istemez.
 
 Workspace açılışı ve Archive, ortak geliştirme veritabanlarının yaşam döngüsünü yönetmez.
 
@@ -34,12 +34,12 @@ Mac'teki repository kökünün `.conductor/settings.local.toml` dosyası shared 
 
 ## Implement sırasında DB engelleri
 
-DB hazırlığı backend çalıştırmanın, DB kullanan testlerin ve hazır teslimin koşuludur. İlk `db:doctor` başarısız olduğunda issue'nun bağımsız kodunu ve DB gerektirmeyen testlerini tamamlamaya devam et; DB'ye bağlı adımları neden çözülene kadar beklet. DB sorunu issue'nun kendisiyse ilgili kaynak kod teşhisini ve düzeltmesini sürdür. Bir engel, yalnız gerçekten bağlı olduğu adımı durdurur.
+Backend çalıştırma için `db:doctor --development` uyumluluğu, migration hazırlığı ve hazır teslim için varsayılan `db:doctor` ve `db:prepare` sözleşmesi geçerlidir. DB kullanan issue testleri hazır teslimden önce bu sözleşmeyi tamamlar. İlk `db:doctor` başarısız olduğunda issue'nun bağımsız kodunu ve DB gerektirmeyen testlerini tamamlamaya devam et; DB'ye bağlı adımları neden çözülene kadar beklet. DB sorunu issue'nun kendisiyse ilgili kaynak kod teşhisini ve düzeltmesini sürdür. Bir engel, yalnız gerçekten bağlı olduğu adımı durdurur.
 
 | Sonuç | Agent'ın yapacağı iş |
 | --- | --- |
 | `pending` | Bekleyen kanonik SQL'i incele. Geliştirme hedefi doğrulanmış, kaynak kontrolü başarılı ve hedefler kullanılmıyorsa `db:prepare` ile hazırlığı tamamla; migration işini kullanıcıya devretme. |
-| `ahead` | Eksik uygulanmış geçmişin güvenilir Git kaynağını belirle; gereken geçmişi sahip kodu ve şemasıyla birlikte bütünleştir. Kaynak veya kapsam belirsizse bunu kaydet ve bağımsız implementasyonla devam et. |
+| `ahead` | Backend gerekiyorsa `db:doctor --development` ile uyumluluğu denetle; başarılıysa çalıştırma sürdürülebilir. Migration yazması ve hazır teslim için eksik uygulanmış geçmişin güvenilir Git kaynağını belirle; gereken geçmişi sahip kodu ve şemasıyla birlikte bütünleştir. Kaynak veya kapsam belirsizse bunu kaydet ve bağımsız implementasyonla devam et. |
 | `history-mismatch`, `schema-drift`, `repository`, `target-mismatch` | Geçmiş, şema veya yapılandırma nedenini incele; doğrulanmış kaynakla uzlaştırılana kadar ortak DB'ye yazmayı beklet. Uygulanmış geçmişi değiştirme. |
 | `connection`, `permission` | Mevcut geliştirme bağlantısını ve erişimi kontrol et. Eksik erişimi bildirirken yapılabilecek bağımsız kod işini tamamla. |
 | `migration-running` veya çalışan API kilidi | Hedefin kullanım sırasını koordine et; başka workspace'in API'sini kendiliğinden kapatma. Beklerken bağımsız kod işini sürdür. |
