@@ -1,6 +1,6 @@
 {
-  "id": "8cbbd26f-fdcf-4223-8816-d6434b6762d6",
-  "prevId": "ebee941e-6991-42d7-9830-e2b464783844",
+  "id": "2dd9f9d2-8504-4c7d-bd9b-3201801b10ae",
+  "prevId": "8cbbd26f-fdcf-4223-8816-d6434b6762d6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5713,7 +5713,7 @@
         },
         "personal_reminder_source_type_check": {
           "name": "personal_reminder_source_type_check",
-          "value": "\"personal_reminder\".\"source_record_type\" in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Design', 'Source', 'Milestone', 'Project Release', 'Production Incident', 'Test Gap')"
+          "value": "\"personal_reminder\".\"source_record_type\" in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Milestone', 'Project Release', 'Production Incident')"
         },
         "personal_reminder_section_check": {
           "name": "personal_reminder_section_check",

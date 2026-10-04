@@ -84,6 +84,9 @@ export default function ProjectWorkKanban({
             input: { projectId },
           }).queryKey,
         }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.smartCollectionViews.key(),
+        }),
       ]);
     },
   });

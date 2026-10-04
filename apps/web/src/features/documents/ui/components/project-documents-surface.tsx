@@ -427,6 +427,11 @@ function DocumentEditor({
   const allowRichUpdates = useRef(false);
   const save = useMutation({
     mutationFn: () => editSession.save(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
+    },
     onError: (failure) =>
       setError(
         failure instanceof Error
@@ -461,6 +466,9 @@ function DocumentEditor({
       editSession.accept(restored);
       setSelectedVersion(null);
       setError(null);
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
       await onSaved();
     },
     onError: (failure) =>
@@ -679,6 +687,9 @@ function DocumentEditor({
         queryKey: orpc.projectWorks.key(),
       });
       await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
+      });
+      await queryClient.invalidateQueries({
         queryKey: orpc.projectSourceRecords.key(),
       });
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
@@ -718,6 +729,9 @@ function DocumentEditor({
       bulkConversionKey.current = null;
       await queryClient.invalidateQueries({
         queryKey: orpc.projectWorks.key(),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.smartCollectionViews.key(),
       });
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
     },
@@ -2117,7 +2131,12 @@ export default function DocumentsSurface({
       if (projectId === null) {
         window.location.hash = documentRecordHash(created.id);
       }
-      await queryClient.invalidateQueries({ queryKey: orpc.documents.key() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.smartCollectionViews.key(),
+        }),
+      ]);
     },
     onError: (failure) =>
       setError(
