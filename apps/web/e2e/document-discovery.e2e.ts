@@ -46,17 +46,39 @@ test("Search and All Documents keep mixed Wiki and Project hits in their origina
   await page.getByRole("button", { name: "Search", exact: true }).click();
   const discovery = page.getByRole("dialog", { name: "Search", exact: true });
   await expect(discovery).toContainText("Type to search authorized records.");
+  const searched = page.waitForResponse((result) =>
+    result.url().endsWith("/rpc/searchRecords"),
+  );
   await discovery
     .getByRole("textbox", { name: "Search", exact: true })
     .fill("PostgreSQL");
+  expect((await searched).ok()).toBe(true);
+  const searchResults = discovery.getByRole("list", {
+    name: "Search results",
+    exact: true,
+  });
+  await expect(searchResults.getByRole("listitem")).toHaveCount(2);
+  await expect(searchResults).toContainText("Personal Wiki");
+  await expect(searchResults).toContainText("Project:");
+  await expect(searchResults.locator("mark")).toHaveCount(2);
+  await searchResults
+    .getByRole("listitem")
+    .filter({ hasText: "Personal Wiki" })
+    .getByRole("link", { name: "Open Connection recovery", exact: true })
+    .click();
+  await expect(page).toHaveURL(wikiSourceUrlPattern);
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(
+    discovery.getByRole("textbox", { name: "Search", exact: true }),
+  ).toHaveValue("");
+  await discovery
+    .getByLabel("Discovery view", { exact: true })
+    .selectOption("All Documents");
   const results = discovery.getByRole("list", {
     name: "All Documents",
     exact: true,
   });
   await expect(results.getByRole("listitem")).toHaveCount(2);
-  await expect(results).toContainText("Personal Wiki");
-  await expect(results).toContainText("Project:");
-  await expect(results.locator("mark")).toHaveCount(2);
   await discovery.getByLabel("Scope", { exact: true }).selectOption("wiki");
   await expect(results.getByRole("listitem")).toHaveCount(1);
   await expect(results).not.toContainText("Project:");
@@ -87,12 +109,18 @@ test("Search and All Documents keep mixed Wiki and Project hits in their origina
       .getByLabel("Title", { exact: true }),
   ).toHaveValue("Connection recovery");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(discovery.getByLabel("Scope", { exact: true })).toHaveValue(
-    "all",
-  );
+  await expect(
+    discovery.getByLabel("Discovery view", { exact: true }),
+  ).toHaveValue("Search");
+  await expect(
+    discovery.getByRole("textbox", { name: "Search", exact: true }),
+  ).toHaveValue("");
   await discovery
     .getByLabel("Discovery view", { exact: true })
     .selectOption("All Documents");
+  await expect(discovery.getByLabel("Scope", { exact: true })).toHaveValue(
+    "all",
+  );
   await expect(results.getByRole("listitem")).toHaveCount(2);
   await page.keyboard.press("Escape");
   await expect(discovery).toBeHidden();
