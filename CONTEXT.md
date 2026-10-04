@@ -494,6 +494,10 @@ _Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
 
+**Üyelik nedeni**:
+Kaydın Akıllı Koleksiyona kapsamı ve eşleşen filtre koşulları nedeniyle neden girdiğini, canlı üyelik sonucundan türetilen metinle açıklar. UI: `Membership reason`.
+_Avoid_: manuel üyelik açıklaması, sabit açıklama
+
 **Hafif İçgörüler**:
 İş koleksiyonunun mevcut filtre sonucundan türetilen sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir ([Hafif İçgörüler](docs/prd/08-search-relations-and-evidence.md#hafif-içgörüler)). UI: `Insights`.
 _Avoid_: dashboard, kalite puanı, coverage, kapasite, cycle-time yönetimi

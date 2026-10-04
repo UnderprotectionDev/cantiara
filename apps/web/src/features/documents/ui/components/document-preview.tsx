@@ -332,6 +332,121 @@ function LiveSectionCard({
   );
 }
 
+function MembershipReasons({ reasons }: { reasons: string[] }) {
+  return (
+    <p className="text-muted-foreground text-xs">
+      <span className="font-medium">Membership reason: </span>
+      {reasons.join(" · ")}
+    </p>
+  );
+}
+
+interface SmartCollectionPreviewMember {
+  details: string[];
+  href: string;
+  id: string;
+  label: string;
+  membershipReasons: string[];
+}
+
+function SmartCollectionMembers({
+  source,
+}: {
+  source: SmartCollectionViewSource;
+}) {
+  let memberHeading: string;
+  let detailHeadings: string[];
+  let members: SmartCollectionPreviewMember[];
+
+  if (source.sourceType === "Work") {
+    memberHeading = "Work";
+    detailHeadings = ["Status", "Type"];
+    members = source.works.map((record) => ({
+      details: [record.status, record.type],
+      href: workRecordHref(record.projectId, record.id),
+      id: record.id,
+      label: `${record.key} · ${record.title}`,
+      membershipReasons: record.membershipReasons,
+    }));
+  } else if (
+    source.sourceType === "Document" ||
+    source.sourceType === "Wiki Document"
+  ) {
+    memberHeading = "Document";
+    detailHeadings = ["Type"];
+    members = source.documents.map((record) => ({
+      details: [record.type],
+      href:
+        record.projectId === null
+          ? `/personal-wiki#${documentRecordHash(record.id)}`
+          : `/projects/${encodeURIComponent(record.projectId)}#${documentRecordHash(record.id)}`,
+      id: record.id,
+      label: record.title,
+      membershipReasons: record.membershipReasons,
+    }));
+  } else {
+    memberHeading = source.sourceType;
+    detailHeadings = ["Status"];
+    members = source.projectSourceRecords.map((record) => ({
+      details: [record.status],
+      href: `/projects/${encodeURIComponent(record.projectId)}#${projectSourceRecordHash(record.sourceType, record.id)}`,
+      id: record.id,
+      label: record.title,
+      membershipReasons: record.membershipReasons,
+    }));
+  }
+
+  if (members.length === 0) {
+    return <p>No {source.sourceType} matches this view.</p>;
+  }
+
+  if (source.presentation === "Table") {
+    return (
+      <table className="w-full text-left">
+        <thead>
+          <tr>
+            <th>{memberHeading}</th>
+            {detailHeadings.map((heading) => (
+              <th key={heading}>{heading}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {members.map((member) => (
+            <tr key={member.id}>
+              <td>
+                <a className="underline" href={member.href}>
+                  {member.label}
+                </a>
+                <MembershipReasons reasons={member.membershipReasons} />
+              </td>
+              {member.details.map((detail, index) => (
+                <td key={detailHeadings[index] ?? index}>{detail}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <ul className="list-inside list-disc">
+      {members.map((member) => (
+        <li key={member.id}>
+          <a className="underline" href={member.href}>
+            {member.label}
+          </a>
+          {member.details.length > 0 ? (
+            <> · {member.details.join(" · ")}</>
+          ) : null}
+          <MembershipReasons reasons={member.membershipReasons} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function LiveOtherCard({
   block,
   kind,
@@ -364,36 +479,7 @@ function LiveOtherCard({
           {source.collectionName} · {source.name}
         </h3>
         <p className="text-muted-foreground text-sm">{source.presentation}</p>
-        {source.presentation === "Table" ? (
-          <table className="w-full text-left">
-            <thead>
-              <tr>
-                <th>Work</th>
-                <th>Status</th>
-                <th>Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {source.works.map((work) => (
-                <tr key={work.id}>
-                  <td>
-                    {work.key} · {work.title}
-                  </td>
-                  <td>{work.status}</td>
-                  <td>{work.type}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <ul className="list-inside list-disc">
-            {source.works.map((work) => (
-              <li key={work.id}>
-                {work.key} · {work.title} · {work.status}
-              </li>
-            ))}
-          </ul>
-        )}
+        <SmartCollectionMembers source={source} />
         <a
           className="underline"
           href={`/projects/${source.projectId}#smart-collection-view-${encodeURIComponent(source.id)}`}

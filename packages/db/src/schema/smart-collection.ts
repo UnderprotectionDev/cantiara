@@ -20,8 +20,17 @@ export const smartCollection = pgTable(
       .references(() => project.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     sourceType: text("source_type").notNull().default("Work"),
+    scope: jsonb("scope")
+      .$type<{ projectIds: string[] }>()
+      .notNull()
+      .default({ projectIds: [] }),
     conditions: jsonb("conditions")
-      .$type<{ status?: string; type?: string }>()
+      .$type<{
+        status?: string;
+        type?: string;
+        documentType?: string;
+        tag?: string;
+      }>()
       .notNull()
       .default({}),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -34,7 +43,7 @@ export const smartCollection = pgTable(
     ),
     check(
       "smart_collection_source_type_check",
-      sql`${table.sourceType} = 'Work'`,
+      sql`${table.sourceType} in ('Work', 'Document', 'Wiki Document', 'Decision', 'Risk', 'Assumption', 'Open Question', 'Milestone', 'Project Release', 'Production Incident')`,
     ),
   ],
 );

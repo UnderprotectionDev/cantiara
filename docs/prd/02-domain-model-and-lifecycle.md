@@ -349,6 +349,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
 | Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
+| Üyelik nedeni | `Membership reason` | Kaydın Akıllı Koleksiyona kapsam ve eşleşen filtre koşullarıyla neden girdiğini açıklayan, canlı üyelik sonucundan türetilen metin |
+| Koleksiyon kaydını sürükle | `Drag {record name}` | Üyeyi başka bir Akıllı Koleksiyon görünümüne sürüklemek için erişilebilir eylem adı |
+| Alan değişikliği önizlemesi | `Field change preview` | Doğrudan eşitlik koşulunu karşılamak için gereken alan değerini sürükleme sırasında gösteren, yazma yapmayan önizleme |
+| Önizleme üyelik yazmaz | `No membership is written by this preview.` | Önizlemenin manuel üyelik veya pin oluşturmadığını açıklar |
+| Akıllı Koleksiyon kaynak türü | `Source type` | Koleksiyonun filtrelediği kayıt türü; yalnız kapalı tür matrisindeki kaynaklar seçilebilir |
+| İş türü | `Work type` | İş kaynaklı koleksiyonda üyeliği belirleyen doğrudan İş türü eşitliği |
+| Belge türü | `Document type` | Belge kaynaklı koleksiyonda yapılandırılmış Belge türü eşitliği |
+| Çalışma Alanı kapsamı | `Workspace scope` | Wiki Belgesi koleksiyonunun aynı Çalışma Alanındaki Belgelerle sınırlı canlı kapsamı |
+| Proje kapsamı kullanılamıyor | `Project scope is unavailable.` | Proje kapsamı seçimi yüklenemediğinde gösterilen hata durumu |
+| Görünümde eşleşen kayıt yok | `No {source type} matches this view.` | Canlı koşullar kaynak türünde kayıt bulamadığında gösterilen boş durum |
 | Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
 | Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
 | Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
