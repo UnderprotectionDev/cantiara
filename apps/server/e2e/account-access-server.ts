@@ -60,6 +60,7 @@ import { createDatabasePriorityMetricMutationContracts } from "../src/features/p
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
+import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
@@ -90,6 +91,7 @@ if (!(databaseUrl && securityEventDatabaseUrl && secret)) {
 
 const database = createDb({ DATABASE_URL: databaseUrl });
 const documents = createDatabaseDocuments(database);
+const universalSearch = createDatabaseUniversalSearch(database);
 const smartCollections = createDatabaseSmartCollections(database);
 const technicalDiagrams = createDatabaseTechnicalDiagrams(database);
 const documentMutationContracts =
@@ -269,6 +271,7 @@ const app = createApp({
   ),
   smartCollections,
   technicalDiagrams,
+  universalSearch,
   // Keep integration coverage inside the API window regardless of CI date.
   desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
   desktopOrigins: [],
