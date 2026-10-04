@@ -17,13 +17,19 @@ try {
   const diagnoses = await Promise.all(
     [false, true].map(async (securityEvents) => ({
       securityEvents,
-      result: await diagnoseDatabase(process.env, { securityEvents }),
+      result: await diagnoseDatabase(process.env, {
+        securityEvents,
+        development: true,
+      }),
     })),
   );
   for (const { securityEvents, result } of diagnoses) {
     console.error(
       `${securityEvents ? "Security events" : "Primary"}: ${result.reason}`,
     );
+    for (const detail of result.details) {
+      console.error(`  ${detail}`);
+    }
     console.error(result.nextStep);
   }
   process.exitCode = 1;

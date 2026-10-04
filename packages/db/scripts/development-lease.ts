@@ -1,10 +1,13 @@
-import { statSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { type Client, Pool, type PoolClient } from "@neondatabase/serverless";
 import { primarySchemaFiles, securitySchemaFiles } from "../schema-files";
 import { checkMigrationSources } from "./check-migrations";
 import { inspectReadiness } from "./doctor";
 import { verifyMigrationHistory } from "./migration-history";
+import { readMigrationRepository } from "./migration-repository";
 import {
   connectMigrationTarget,
   resolveMigrationTarget,
@@ -14,7 +17,7 @@ async function acquireBoundary(
   environment: Record<string, string | undefined>,
   securityEvents: boolean,
 ) {
-  const repository = await checkMigrationSources(securityEvents);
+  let repository = await checkMigrationSources(securityEvents);
   const folder = fileURLToPath(
     new URL(
       securityEvents
@@ -32,12 +35,22 @@ async function acquireBoundary(
   ];
   const fingerprint = () =>
     JSON.stringify(
-      sources.map((path) => {
-        const state = statSync(path);
-        return [state.mtimeMs, state.size];
-      }),
+      [
+        ...sources,
+        ...readdirSync(folder)
+          .filter((name) => name.endsWith(".sql"))
+          .map((name) => `${folder}${name}`),
+        ...readdirSync(`${folder}meta`)
+          .filter((name) => name.endsWith(".json"))
+          .map((name) => `${folder}meta/${name}`),
+      ]
+        .sort()
+        .map((path) => {
+          const state = statSync(path);
+          return [path, state.mtimeMs, state.size];
+        }),
     );
-  const originalFingerprint = fingerprint();
+  let verifiedFingerprint = fingerprint();
   const database = await connectMigrationTarget(
     resolveMigrationTarget(environment, { securityEvents }),
     { queryTimeoutMs: 10_000 },
@@ -95,7 +108,8 @@ async function acquireBoundary(
         client,
         repository,
         securityEvents,
-        false,
+        true,
+        true,
       );
       if (diagnosis.reason !== "ready") {
         throw new Error("Development database is not ready");
@@ -109,13 +123,38 @@ async function acquireBoundary(
         if (disconnected) {
           throw new Error("Development database connection was lost");
         }
-        if (fingerprint() !== originalFingerprint) {
-          throw new Error(
-            "Development schema sources changed; restart after verification",
+        const currentFingerprint = fingerprint();
+        if (currentFingerprint !== verifiedFingerprint) {
+          // A fresh process reloads the entire schema import graph, including dependencies.
+          // Reusing imports here would silently validate the pre-edit schema.
+          await promisify(execFile)(
+            "bun",
+            [fileURLToPath(new URL("./check-migrations.ts", import.meta.url))],
+            {
+              env: environment,
+              timeout: 10_000,
+              maxBuffer: 65_536,
+            },
           );
+          repository = readMigrationRepository(folder);
+          const diagnosis = await inspectReadiness(
+            client,
+            repository,
+            securityEvents,
+            true,
+            true,
+          );
+          if (diagnosis.reason !== "ready") {
+            throw new Error(
+              "Development schema requirements changed; prepare migrations before restarting",
+            );
+          }
+          verifiedFingerprint = currentFingerprint;
         }
-        const history = await verifyMigrationHistory(client, folder);
-        if (history.applied.length !== history.expected.length) {
+        const history = await verifyMigrationHistory(client, folder, {
+          allowAhead: true,
+        });
+        if (history.applied.length < history.expected.length) {
           throw new Error("Development migration history changed");
         }
       },

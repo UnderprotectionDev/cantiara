@@ -10,6 +10,7 @@ import type {
   WorkReviewLaterFireResult,
 } from "@cantiara/api/personal-reminders";
 import {
+  createPersonalReminderInputSchema,
   personalReminderSchema,
   personalReminderSourceTypeSchema,
   workReviewLaterSchema,
@@ -607,6 +608,9 @@ export function createDatabasePersonalReminders(
     accountId: string,
     input: CreatePersonalReminderInput,
   ): Promise<PersonalReminder | null> {
+    // The seam re-runs the closed input contract so direct server-side callers
+    // cannot bypass the Review Later-only condition and its source-type list.
+    createPersonalReminderInputSchema.parse(input);
     const fireAt = new Date(input.fireAt);
     if (fireAt.valueOf() <= now().valueOf()) {
       throw new PersonalReminderFireAtMustBeFutureError();

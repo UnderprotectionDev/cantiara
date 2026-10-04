@@ -5086,7 +5086,9 @@ export const appRouter = {
           context.session.user.id,
           {
             action: "Review Later",
-            ...input,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            condition: input.condition,
+            fireAt: input.fireAt,
             sourceRecordId: input.workId,
             sourceRecordType: "Work",
           },

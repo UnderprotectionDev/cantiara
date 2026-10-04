@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -209,6 +211,9 @@ describeDatabase(
         expect((await diagnoseDatabase(environment)).reason).toBe(
           "history-mismatch",
         );
+        expect(
+          (await diagnoseDatabase(environment, { development: true })).reason,
+        ).toBe("history-mismatch");
         const result = command(
           "packages/db/scripts/migrate.ts",
           "--repair-prioritization-schema",
@@ -232,12 +237,92 @@ describeDatabase(
       );
       try {
         expect((await diagnoseDatabase(environment)).reason).toBe("ahead");
+        const runtime = await diagnoseDatabase(environment, {
+          development: true,
+        });
+        expect(runtime.reason, runtime.details.join("\n")).toBe("ready");
+        expect(runtime.details.join("\n")).toContain("ahead");
+        const lease = await acquireDevelopmentLease(environment);
+        try {
+          await lease.verify();
+        } finally {
+          await lease.close();
+        }
         const result = command("packages/db/scripts/migrate.ts");
         expect(result.status).toBe(1);
         expect(result.stderr).toContain("ahead of this Git branch");
+        await database.execute(
+          sql`ALTER TABLE "user" RENAME COLUMN name TO test_only_name`,
+        );
+        try {
+          const incompatible = await diagnoseDatabase(environment, {
+            development: true,
+          });
+          expect(incompatible.reason).toBe("schema-drift");
+          expect(incompatible.details).toContain(
+            "Missing column public.user.name",
+          );
+          await expect(acquireDevelopmentLease(environment)).rejects.toThrow();
+        } finally {
+          await database.execute(
+            sql`ALTER TABLE "user" RENAME COLUMN test_only_name TO name`,
+          );
+        }
       } finally {
         await database.execute(
           sql`DELETE FROM drizzle.__drizzle_migrations WHERE hash = 'test-only-ahead'`,
+        );
+      }
+    });
+
+    test("development accepts defaulted additions and widened text checks but blocks incompatible changes", async () => {
+      await database.execute(
+        sql`ALTER TABLE "smart_collection" ADD COLUMN test_only_scope jsonb NOT NULL DEFAULT '{}'::jsonb`,
+      );
+      await database.execute(
+        sql`ALTER TABLE account_preferences DROP CONSTRAINT account_preferences_appearance_check`,
+      );
+      await database.execute(
+        sql`ALTER TABLE account_preferences ADD CONSTRAINT account_preferences_appearance_check CHECK (appearance IN ('Light', 'Dark', 'System'))`,
+      );
+      try {
+        const result = await diagnoseDatabase(environment, {
+          development: true,
+        });
+        expect(result.reason, result.details.join("\n")).toBe("ready");
+        expect(
+          (await diagnoseDatabase(environment, { deep: true })).reason,
+        ).toBe("schema-drift");
+        await database.execute(
+          sql`ALTER TABLE "smart_collection" ALTER COLUMN test_only_scope DROP DEFAULT`,
+        );
+        expect(
+          (await diagnoseDatabase(environment, { development: true })).reason,
+        ).toBe("schema-drift");
+        await database.execute(
+          sql`ALTER TABLE "smart_collection" ALTER COLUMN test_only_scope DROP NOT NULL`,
+        );
+        expect(
+          (await diagnoseDatabase(environment, { development: true })).reason,
+        ).toBe("ready");
+        await database.execute(
+          sql`ALTER TABLE account_preferences DROP CONSTRAINT account_preferences_appearance_check`,
+        );
+        await database.execute(
+          sql`ALTER TABLE account_preferences ADD CONSTRAINT account_preferences_appearance_check CHECK (appearance IN ('Light', 'System'))`,
+        );
+        expect(
+          (await diagnoseDatabase(environment, { development: true })).reason,
+        ).toBe("schema-drift");
+      } finally {
+        await database.execute(
+          sql`ALTER TABLE "smart_collection" DROP COLUMN test_only_scope`,
+        );
+        await database.execute(
+          sql`ALTER TABLE account_preferences DROP CONSTRAINT account_preferences_appearance_check`,
+        );
+        await database.execute(
+          sql`ALTER TABLE account_preferences ADD CONSTRAINT account_preferences_appearance_check CHECK (appearance IN ('Light', 'Dark'))`,
         );
       }
     });
@@ -297,6 +382,49 @@ describeDatabase(
       expect(
         command("packages/db/scripts/migrate.ts", "--security-events").status,
       ).toBe(0);
+    });
+
+    test("schema edits are revalidated without stopping compatible sessions", () => {
+      const fixture = mkdtempSync(join(tmpdir(), "cantiara-schema-session-"));
+      const fixtureDb = join(fixture, "packages/db");
+      mkdirSync(fixtureDb, { recursive: true });
+      for (const entry of ["scripts", "src", "schema-files.ts"]) {
+        cpSync(join(root, "packages/db", entry), join(fixtureDb, entry), {
+          recursive: true,
+        });
+      }
+      symlinkSync(join(root, "node_modules"), join(fixture, "node_modules"));
+      symlinkSync(
+        join(root, "packages/db/node_modules"),
+        join(fixtureDb, "node_modules"),
+      );
+      try {
+        const result = command(
+          "--eval",
+          `
+          import { readFileSync, writeFileSync } from "node:fs";
+          const { acquireDevelopmentLease } = await import(${JSON.stringify(join(fixtureDb, "scripts/development-lease.ts"))});
+          const source = ${JSON.stringify(join(fixtureDb, "src/schema/auth.ts"))};
+          const original = readFileSync(source, "utf8");
+          const lease = await acquireDevelopmentLease(process.env);
+          try {
+            writeFileSync(source, original + "\\n// Compatible edit.\\n");
+            await lease.verify();
+            writeFileSync(source, original.replace('text("appearance")', 'text("test_only_missing_appearance")'));
+            let blocked = false;
+            try { await lease.verify(); } catch { blocked = true; }
+            if (!blocked) throw new Error("Changed schema was validated using stale imports");
+            console.log("compatible edit accepted; incompatible edit blocked");
+          } finally { await lease.close(); }
+        `,
+        );
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stdout).toContain(
+          "compatible edit accepted; incompatible edit blocked",
+        );
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
     });
 
     test("Bun releases a healthy development lease without hanging on shutdown", () => {

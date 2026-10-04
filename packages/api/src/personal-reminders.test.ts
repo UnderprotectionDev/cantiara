@@ -55,6 +55,50 @@ function createContext(personalReminders: PersonalRemindersAccess): Context {
 }
 
 describe("Personal Reminders RPC", () => {
+  test.each(["In any case", "Only if still open"] as const)(
+    "maps Work Review Later into the strict Personal Reminders input with %s",
+    async (condition) => {
+      const reminder: PersonalReminder = {
+        ...personalReminder,
+        action: "Review Later",
+        condition,
+        sourceRecordId: "work-1",
+        sourceRecordType: "Work",
+      };
+      const access: PersonalRemindersAccess = {
+        cancel: vi.fn(),
+        create: vi.fn<PersonalRemindersAccess["create"]>(
+          (_accountId, reminderInput) => {
+            createPersonalReminderInputSchema.parse(reminderInput);
+            return Promise.resolve(reminder);
+          },
+        ),
+        list: vi.fn(),
+      };
+      const client = createRouterClient(appRouter, {
+        context: createContext(access),
+      });
+      const input = {
+        clientIdempotencyKey: "work-review-later-rpc-1",
+        condition,
+        fireAt: "2026-09-28T11:00:00.000Z",
+        workId: "work-1",
+      };
+
+      await expect(client.createWorkReviewLater(input)).resolves.toEqual(
+        reminder,
+      );
+      expect(access.create).toHaveBeenCalledExactlyOnceWith("account-1", {
+        action: "Review Later",
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        condition,
+        fireAt: input.fireAt,
+        sourceRecordId: input.workId,
+        sourceRecordType: "Work",
+      });
+    },
+  );
+
   test("creates, lists, and cancels a supported source reminder as the signed-in Account", async () => {
     const cancelled = {
       ...personalReminder,

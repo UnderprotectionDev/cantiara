@@ -40,6 +40,7 @@ async function equivalentExpression(
   table: string,
   expected: string | undefined,
   actual: string | null,
+  allowTextCheckExpansion = false,
 ) {
   if (expected === undefined || actual === null) {
     return expected === undefined && actual === null;
@@ -59,15 +60,72 @@ async function equivalentExpression(
       if (!output) {
         throw new Error("Database expression could not be inspected");
       }
-      return JSON.stringify(output);
+      return output;
     }),
   );
-  return outputs[0] === outputs[1];
+  return (
+    JSON.stringify(outputs[0]) === JSON.stringify(outputs[1]) ||
+    (allowTextCheckExpansion && textCheckExpansion(outputs[0], outputs[1]))
+  );
+}
+
+// Only accept planner-normalized single-column text equality/membership.
+// More complex expressions remain strict; no constraint is executed on product rows.
+const textMembership =
+  /^\(([a-z_][a-z0-9_]*) = (?:'([A-Za-z0-9 _-]+)'::text|ANY \('\{([A-Za-z0-9 _",-]+)\}'::text\[\]\))\)$/;
+const simpleArrayLabel = /^(?:[A-Za-z0-9_-]+|"[A-Za-z0-9 _-]+")$/;
+
+function textCheckValues(output: string[] | undefined) {
+  if (output?.length !== 1) {
+    return null;
+  }
+  const match = textMembership.exec(output[0] ?? "");
+  if (!match) {
+    return null;
+  }
+  const values =
+    match[2] === undefined ? (match[3] ?? "").split(",") : [match[2]];
+  if (
+    match[2] === undefined &&
+    !values.every((value) => simpleArrayLabel.test(value))
+  ) {
+    return null;
+  }
+  return {
+    column: match[1],
+    values: values.map((value) => value.replaceAll('"', "")),
+  };
+}
+
+function textCheckExpansion(
+  expected: string[] | undefined,
+  actual: string[] | undefined,
+) {
+  const before = textCheckValues(expected);
+  const after = textCheckValues(actual);
+  return (
+    before !== null &&
+    after !== null &&
+    before.column === after.column &&
+    before.values.every((value) => after.values.includes(value))
+  );
+}
+
+const nonNullLiteralDefault =
+  /^(?:'(?:[^']|'')*'|[-+]?[0-9]+(?:\.[0-9]+)?|true|false)(?:::(?:text|jsonb?|boolean|integer|bigint|smallint|numeric|uuid|date|timestamp(?: with(?:out)? time zone)?))?$/;
+
+function compatibleAddedColumn(column: DatabaseColumn) {
+  return (
+    !column.not_null ||
+    (column.default_expression !== null &&
+      nonNullLiteralDefault.test(column.default_expression))
+  );
 }
 
 export function compareDatabaseColumns(
   snapshot: MigrationSnapshot,
   actual: DatabaseColumn[],
+  development = false,
 ) {
   const issues: string[] = [];
   for (const table of Object.values(snapshot.tables)) {
@@ -95,7 +153,12 @@ export function compareDatabaseColumns(
       }
     }
     for (const column of columns) {
-      if (!table.columns[column.column_name]) {
+      if (
+        !(
+          table.columns[column.column_name] ||
+          (development && compatibleAddedColumn(column))
+        )
+      ) {
         issues.push(`Unexpected column ${name}.${column.column_name}`);
       }
     }
@@ -146,6 +209,7 @@ export async function inspectDatabaseSchema(
   client: Pick<Pool, "query">,
   snapshot: MigrationSnapshot,
   deep = false,
+  development = false,
 ) {
   const columns = await client.query<DatabaseColumn>(`
     SELECT n.nspname AS schema_name, t.relname AS table_name, a.attname AS column_name,
@@ -156,7 +220,7 @@ export async function inspectDatabaseSchema(
     LEFT JOIN pg_attrdef d ON d.adrelid = t.oid AND d.adnum = a.attnum
     WHERE n.nspname = 'public' AND t.relkind IN ('r', 'p')
   `);
-  const issues = compareDatabaseColumns(snapshot, columns.rows);
+  const issues = compareDatabaseColumns(snapshot, columns.rows, development);
   if (!deep || issues.length > 0) {
     return issues;
   }
@@ -207,7 +271,7 @@ export async function inspectDatabaseSchema(
       );
       const [defaults, checks, indexIssues] = await Promise.all([
         compareDefaults(client, table, columns.rows),
-        compareChecks(client, table, actualConstraints),
+        compareChecks(client, table, actualConstraints, development),
         compareIndexes(client, table, actualIndexes),
       ]);
       return [
@@ -355,6 +419,7 @@ async function compareChecks(
   client: Pick<Pool, "query">,
   table: MigrationTable,
   constraints: DatabaseConstraint[],
+  development: boolean,
 ) {
   const results = await Promise.all(
     Object.values(table.checkConstraints).map(async (check) => {
@@ -371,6 +436,7 @@ async function compareChecks(
           table.name,
           check.value,
           found.definition.replace(checkPrefix, ""),
+          development,
         ));
       return matches
         ? []
