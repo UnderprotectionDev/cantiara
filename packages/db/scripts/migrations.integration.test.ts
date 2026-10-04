@@ -624,11 +624,17 @@ describeDatabase(
       ).toBe("connection");
     });
 
-    test("development startup fails before launching applications on drift", async () => {
+    test("development startup rejects API schema drift and directs diagnosis to db:doctor without writing", async () => {
       await database.execute(
         sql`ALTER TABLE "user" RENAME COLUMN name TO test_only_name`,
       );
       try {
+        expect(
+          (await diagnoseDatabase(environment, { development: true })).reason,
+        ).toBe("schema-drift");
+        const history = await database.execute(
+          sql`SELECT * FROM drizzle.__drizzle_migrations ORDER BY created_at`,
+        );
         const result = spawnSync("bun", ["scripts/local-dev.ts", "server"], {
           cwd: root,
           env: {
@@ -641,8 +647,19 @@ describeDatabase(
           timeout: 30_000,
         });
         expect(result.status).toBe(1);
-        expect(result.stdout).toContain("Primary: schema-drift");
-        expect(result.stdout).not.toContain("turbo");
+        expect(result.stdout).toContain(
+          "Development API could not start safely. No migration was applied.",
+        );
+        expect(result.stdout).toContain(
+          "Run bun run db:doctor for a database diagnosis.",
+        );
+        expect(
+          (await diagnoseDatabase(environment, { development: true })).reason,
+        ).toBe("schema-drift");
+        const unchangedHistory = await database.execute(
+          sql`SELECT * FROM drizzle.__drizzle_migrations ORDER BY created_at`,
+        );
+        expect(unchangedHistory.rows).toEqual(history.rows);
       } finally {
         await database.execute(
           sql`ALTER TABLE "user" RENAME COLUMN test_only_name TO name`,
