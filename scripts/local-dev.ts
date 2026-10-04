@@ -30,40 +30,23 @@ if (proxy) {
 }
 
 let development: ReturnType<typeof Bun.spawn> | undefined;
-let doctor: ReturnType<typeof Bun.spawn> | undefined;
 let stopped = false;
 const stop = () => {
   stopped = true;
-  doctor?.kill();
   development?.kill();
   proxy?.kill();
 };
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 try {
-  doctor = Bun.spawn(
-    ["bun", "packages/db/scripts/doctor.ts", "--development"],
-    {
-      env: environment,
-      stdout: "inherit",
-      stderr: "inherit",
-    },
-  );
-  const status = await doctor.exited;
-  doctor = undefined;
-  if (stopped) {
-    process.exitCode = 130;
-  } else if (status === 0) {
-    development = Bun.spawn(command, {
-      env: environment,
-      stdin: "inherit",
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    process.exitCode = await development.exited;
-  } else {
-    process.exitCode = status;
-  }
+  development = Bun.spawn(command, {
+    env: environment,
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const status = await development.exited;
+  process.exitCode = stopped ? 130 : status;
 } finally {
   stop();
   if (proxy) {

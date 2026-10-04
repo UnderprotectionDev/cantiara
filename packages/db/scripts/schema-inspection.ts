@@ -14,6 +14,12 @@ const publicSchemaPrefix = /^public\./;
 const checkPrefix = /^CHECK\s*/;
 type MigrationTable = MigrationSnapshot["tables"][string];
 
+interface ExpressionComparison {
+  actual: string | null;
+  allowTextCheckExpansion?: boolean;
+  expected: string | undefined;
+}
+
 function normalizedType(value: string) {
   return value
     .replaceAll('"', "")
@@ -34,39 +40,67 @@ function postgresName(value: string) {
   return name;
 }
 
-async function equivalentExpression(
+async function compareExpressions(
   client: Pick<Pool, "query">,
   schema: string,
   table: string,
-  expected: string | undefined,
-  actual: string | null,
-  allowTextCheckExpansion = false,
+  comparisons: ExpressionComparison[],
 ) {
-  if (expected === undefined || actual === null) {
-    return expected === undefined && actual === null;
+  const matches = comparisons.map(({ expected, actual }) =>
+    expected === undefined ? actual === null : expected === actual,
+  );
+  const pending = comparisons.flatMap((comparison, index) =>
+    matches[index] ||
+    comparison.expected === undefined ||
+    comparison.actual === null
+      ? []
+      : [
+          {
+            index,
+            expected: comparison.expected,
+            actual: comparison.actual,
+            allowTextCheckExpansion:
+              comparison.allowTextCheckExpansion ?? false,
+          },
+        ],
+  );
+  if (pending.length === 0) {
+    return matches;
   }
-  if (expected === actual) {
-    return true;
-  }
+
   const identifier = (value: string) => `"${value.replaceAll('"', '""')}"`;
-  const outputs = await Promise.all(
-    [expected, actual].map(async (expression) => {
-      const plan = await client.query<{
-        "QUERY PLAN": { Plan: { Output: string[] } }[];
-      }>(
-        `EXPLAIN (VERBOSE, COSTS OFF, FORMAT JSON) SELECT (${expression}) FROM ${identifier(schema)}.${identifier(table)}`,
-      );
-      const output = plan.rows[0]?.["QUERY PLAN"][0]?.Plan.Output;
-      if (!output) {
+  const comparisonBatchSize = 32;
+  for (let offset = 0; offset < pending.length; offset += comparisonBatchSize) {
+    const batch = pending.slice(offset, offset + comparisonBatchSize);
+    const expressions = batch.flatMap(({ expected, actual }) => [
+      `(${expected})`,
+      `(${actual})`,
+    ]);
+    // biome-ignore lint/performance/noAwaitInLoops: Compare bounded batches on the same database inspection connection.
+    const plan = await client.query<{
+      "QUERY PLAN": { Plan: { Output: string[] } }[];
+    }>(
+      `EXPLAIN (VERBOSE, COSTS OFF, FORMAT JSON) SELECT ${expressions.join(", ")} FROM ${identifier(schema)}.${identifier(table)}`,
+    );
+    const output = plan.rows[0]?.["QUERY PLAN"][0]?.Plan.Output;
+    if (!output || output.length !== expressions.length) {
+      throw new Error("Database expression could not be inspected");
+    }
+    for (const [batchIndex, comparison] of batch.entries()) {
+      const expectedOutput = output[batchIndex * 2];
+      const actualOutput = output[batchIndex * 2 + 1];
+      if (expectedOutput === undefined || actualOutput === undefined) {
         throw new Error("Database expression could not be inspected");
       }
-      return output;
-    }),
-  );
-  return (
-    JSON.stringify(outputs[0]) === JSON.stringify(outputs[1]) ||
-    (allowTextCheckExpansion && textCheckExpansion(outputs[0], outputs[1]))
-  );
+      const expectedPlan = [expectedOutput];
+      const actualPlan = [actualOutput];
+      matches[comparison.index] =
+        JSON.stringify(expectedPlan) === JSON.stringify(actualPlan) ||
+        (comparison.allowTextCheckExpansion &&
+          textCheckExpansion(expectedPlan, actualPlan));
+    }
+  }
+  return matches;
 }
 
 // Only accept planner-normalized single-column text equality/membership.
@@ -269,17 +303,18 @@ export async function inspectDatabaseSchema(
           index.schema_name === (table.schema || "public") &&
           index.table_name === table.name,
       );
-      const [defaults, checks, indexIssues] = await Promise.all([
-        compareDefaults(client, table, columns.rows),
-        compareChecks(client, table, actualConstraints, development),
-        compareIndexes(client, table, actualIndexes),
-      ]);
+      const detailIssues = await compareTableExpressions(
+        client,
+        table,
+        columns.rows,
+        actualConstraints,
+        actualIndexes,
+        development,
+      );
       return [
         ...compareKeys(table, actualConstraints),
         ...compareUniqueConstraints(table, actualConstraints),
-        ...defaults,
-        ...checks,
-        ...indexIssues,
+        ...detailIssues,
       ];
     }),
   );
@@ -385,115 +420,133 @@ function compareUniqueConstraints(
   return issues;
 }
 
-async function compareDefaults(
+async function compareTableExpressions(
   client: Pick<Pool, "query">,
   table: MigrationTable,
   columns: DatabaseColumn[],
-) {
-  const results = await Promise.all(
-    Object.values(table.columns).map(async (column) => {
-      const found = columns.find(
-        (candidate) =>
-          candidate.schema_name === (table.schema || "public") &&
-          candidate.table_name === table.name &&
-          candidate.column_name === column.name,
-      );
-      const expected =
-        column.default === undefined ? undefined : String(column.default);
-      return found &&
-        !(await equivalentExpression(
-          client,
-          table.schema || "public",
-          table.name,
-          expected,
-          found.default_expression,
-        ))
-        ? [`Column default differs: ${table.name}.${column.name}`]
-        : [];
-    }),
-  );
-  return results.flat();
-}
-
-async function compareChecks(
-  client: Pick<Pool, "query">,
-  table: MigrationTable,
   constraints: DatabaseConstraint[],
+  indexes: DatabaseIndex[],
   development: boolean,
 ) {
-  const results = await Promise.all(
-    Object.values(table.checkConstraints).map(async (check) => {
-      const found = constraints.find(
-        (constraint) =>
-          constraint.name === postgresName(check.name) &&
-          constraint.type === "c",
-      );
-      const matches =
-        found?.validated &&
-        (await equivalentExpression(
-          client,
-          table.schema || "public",
-          table.name,
-          check.value,
-          found.definition.replace(checkPrefix, ""),
-          development,
-        ));
-      return matches
-        ? []
-        : [`Check constraint differs: ${table.name}.${check.name}`];
-    }),
-  );
-  return results.flat();
-}
+  const comparisons: ExpressionComparison[] = [];
+  const addComparison = (
+    expected: string | undefined,
+    actual: string | null,
+    allowTextCheckExpansion = false,
+  ) => {
+    const index = comparisons.length;
+    comparisons.push({ expected, actual, allowTextCheckExpansion });
+    return index;
+  };
+  const defaultChecks: Array<{ comparisonIndex: number; issue: string }> = [];
+  for (const column of Object.values(table.columns)) {
+    const found = columns.find(
+      (candidate) =>
+        candidate.schema_name === (table.schema || "public") &&
+        candidate.table_name === table.name &&
+        candidate.column_name === column.name,
+    );
+    if (found) {
+      defaultChecks.push({
+        comparisonIndex: addComparison(
+          column.default === undefined ? undefined : String(column.default),
+          found.default_expression,
+        ),
+        issue: `Column default differs: ${table.name}.${column.name}`,
+      });
+    }
+  }
 
-async function compareIndexes(
-  client: Pick<Pool, "query">,
-  table: MigrationTable,
-  indexes: DatabaseIndex[],
-) {
+  const checkChecks: Array<{
+    comparisonIndex?: number;
+    issue: string;
+  }> = [];
+  for (const check of Object.values(table.checkConstraints)) {
+    const found = constraints.find(
+      (constraint) =>
+        constraint.name === postgresName(check.name) && constraint.type === "c",
+    );
+    const issue = `Check constraint differs: ${table.name}.${check.name}`;
+    if (!found?.validated) {
+      checkChecks.push({ issue });
+      continue;
+    }
+    checkChecks.push({
+      comparisonIndex: addComparison(
+        check.value,
+        found.definition.replace(checkPrefix, ""),
+        development,
+      ),
+      issue,
+    });
+  }
+
   const expectedNames = new Set(
     Object.values(table.indexes).map((index) => postgresName(index.name)),
   );
-  const results = await Promise.all(
-    Object.values(table.indexes).map(async (index) => {
-      const found = indexes.find(
-        (candidate) => candidate.name === postgresName(index.name),
-      );
-      if (
-        !found?.valid ||
-        found.is_unique !== index.isUnique ||
-        found.method !== index.method ||
-        found.include_count !== 0 ||
-        found.columns.length !== index.columns.length
-      ) {
-        return [`Index differs: ${table.name}.${index.name}`];
-      }
-      const predicate = await equivalentExpression(
-        client,
-        table.schema || "public",
-        table.name,
-        index.where,
-        found.predicate,
-      );
-      const matches = await Promise.all(
-        index.columns.map(
-          async (column, position) =>
-            (await equivalentExpression(
-              client,
-              table.schema || "public",
-              table.name,
-              column.expression,
-              found.columns[position] ?? null,
-            )) &&
-            found.ascending[position] === column.asc &&
-            found.nulls_first[position] === (column.nulls === "first"),
-        ),
-      );
-      return predicate && matches.every(Boolean)
-        ? []
-        : [`Index differs: ${table.name}.${index.name}`];
-    }),
+  const indexChecks: Array<{
+    comparisonIndexes: number[];
+    metadataMatches: boolean;
+    issue: string;
+  }> = [];
+  for (const index of Object.values(table.indexes)) {
+    const found = indexes.find(
+      (candidate) => candidate.name === postgresName(index.name),
+    );
+    const issue = `Index differs: ${table.name}.${index.name}`;
+    if (
+      !found?.valid ||
+      found.is_unique !== index.isUnique ||
+      found.method !== index.method ||
+      found.include_count !== 0 ||
+      found.columns.length !== index.columns.length
+    ) {
+      indexChecks.push({
+        comparisonIndexes: [],
+        metadataMatches: false,
+        issue,
+      });
+      continue;
+    }
+    const comparisonIndexes = [
+      addComparison(index.where, found.predicate),
+      ...index.columns.map((column, position) =>
+        addComparison(column.expression, found.columns[position] ?? null),
+      ),
+    ];
+    indexChecks.push({
+      comparisonIndexes,
+      metadataMatches: index.columns.every(
+        (column, position) =>
+          found.ascending[position] === column.asc &&
+          found.nulls_first[position] === (column.nulls === "first"),
+      ),
+      issue,
+    });
+  }
+
+  const expressionMatches = await compareExpressions(
+    client,
+    table.schema || "public",
+    table.name,
+    comparisons,
   );
+  const defaultIssues = defaultChecks
+    .filter(({ comparisonIndex }) => !expressionMatches[comparisonIndex])
+    .map(({ issue }) => issue);
+  const checkIssues = checkChecks
+    .filter(
+      ({ comparisonIndex }) =>
+        comparisonIndex === undefined || !expressionMatches[comparisonIndex],
+    )
+    .map(({ issue }) => issue);
+  const indexIssues = indexChecks
+    .filter(
+      ({ comparisonIndexes, metadataMatches }) =>
+        !metadataMatches ||
+        comparisonIndexes.some((index) => !expressionMatches[index]),
+    )
+    .map(({ issue }) => issue);
   const unexpectedUniqueIndexes = indexes
     .filter(
       (index) =>
@@ -502,5 +555,10 @@ async function compareIndexes(
         !expectedNames.has(index.name),
     )
     .map((index) => `Unexpected unique index: ${table.name}.${index.name}`);
-  return [...results.flat(), ...unexpectedUniqueIndexes];
+  return [
+    ...defaultIssues,
+    ...checkIssues,
+    ...indexIssues,
+    ...unexpectedUniqueIndexes,
+  ];
 }

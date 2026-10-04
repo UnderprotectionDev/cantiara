@@ -34,7 +34,7 @@ function developmentFixture() {
   for (const executable of [join(bin, "bun"), join(turboBin, "turbo")]) {
     writeFileSync(
       executable,
-      '#!/bin/sh\nprintf "%s\\n" "$0 $*|$DATABASE_URL|$SECURITY_EVENT_DATABASE_URL|$NEON_API_KEY|$NEON_SECURITY_API_KEY" >> "$DEVELOPMENT_TEST_CALLS"\nexit "$DEVELOPMENT_TEST_DOCTOR_STATUS"\n',
+      '#!/bin/sh\nprintf "%s\\n" "$0 $*|$DATABASE_URL|$SECURITY_EVENT_DATABASE_URL|$NEON_API_KEY|$NEON_SECURITY_API_KEY" >> "$DEVELOPMENT_TEST_CALLS"\nexit "$DEVELOPMENT_TEST_EXIT_STATUS"\n',
     );
     chmodSync(executable, 0o700);
   }
@@ -49,7 +49,7 @@ function developmentFixture() {
     CONDUCTOR_ROOT_PATH: join(folder, "missing-root"),
     CONDUCTOR_WORKSPACE_PATH: join(folder, "missing-workspace"),
     DEVELOPMENT_TEST_CALLS: calls,
-    DEVELOPMENT_TEST_DOCTOR_STATUS: "0",
+    DEVELOPMENT_TEST_EXIT_STATUS: "0",
   };
   return { folder, calls, environment };
 }
@@ -71,32 +71,29 @@ function runDevelopment(
   );
 }
 
-test("development startup checks configured databases before launching applications", () => {
+test("development startup launches Turbo without a duplicate database check", () => {
   const fixture = developmentFixture();
   const result = runDevelopment(fixture, ["server"]);
   expect(result.status, result.stderr).toBe(0);
   const calls = readFileSync(fixture.calls, "utf8").trim().split("\n");
-  expect(calls).toHaveLength(2);
-  expect(calls[0]).toContain("packages/db/scripts/doctor.ts --development");
-  expect(calls[1]).toContain("turbo run dev -F server --");
-  for (const call of calls) {
-    expect(call).toContain(fixture.environment.DATABASE_URL);
-    expect(call).toContain(fixture.environment.SECURITY_EVENT_DATABASE_URL);
-    expect(call.split("|").slice(-2)).toEqual(["", ""]);
-    expect(call).not.toContain("management-secret");
-  }
+  expect(calls).toHaveLength(1);
+  expect(calls[0]).toContain("turbo run dev -F server --");
+  expect(calls[0]).toContain(fixture.environment.DATABASE_URL);
+  expect(calls[0]).toContain(fixture.environment.SECURITY_EVENT_DATABASE_URL);
+  expect(calls[0].split("|").slice(-2)).toEqual(["", ""]);
+  expect(calls[0]).not.toContain("management-secret");
 });
 
-test("development startup stops before applications when database readiness fails", () => {
+test("development startup propagates application failure without a root database check", () => {
   const fixture = developmentFixture();
   const result = runDevelopment(fixture, ["server"], {
     ...fixture.environment,
-    DEVELOPMENT_TEST_DOCTOR_STATUS: "1",
+    DEVELOPMENT_TEST_EXIT_STATUS: "1",
   });
   expect(result.status, result.stderr).toBe(1);
   const calls = readFileSync(fixture.calls, "utf8").trim().split("\n");
   expect(calls).toHaveLength(1);
-  expect(calls[0]).toContain("packages/db/scripts/doctor.ts --development");
+  expect(calls[0]).toContain("turbo run dev -F server --");
 });
 
 test("development help starts the tool without database configuration or readiness checks", () => {
@@ -106,7 +103,7 @@ test("development help starts the tool without database configuration or readine
     NEON_API_KEY: fixture.environment.NEON_API_KEY,
     NEON_SECURITY_API_KEY: fixture.environment.NEON_SECURITY_API_KEY,
     DEVELOPMENT_TEST_CALLS: fixture.calls,
-    DEVELOPMENT_TEST_DOCTOR_STATUS: "0",
+    DEVELOPMENT_TEST_EXIT_STATUS: "0",
   });
   expect(result.status, result.stderr).toBe(0);
   const calls = readFileSync(fixture.calls, "utf8").trim().split("\n");
