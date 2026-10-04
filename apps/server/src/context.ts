@@ -50,6 +50,7 @@ import type {
 } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
+import type { UniversalSearchAccess } from "@cantiara/api/record-discovery";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -117,6 +118,7 @@ export interface CreateContextOptions {
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
   trustedProxyIps: readonly string[];
+  universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
@@ -149,6 +151,7 @@ export async function createContext({
   documentTransfers,
   smartCollections,
   technicalDiagrams,
+  universalSearch,
   focusPeriod,
   roadmapHorizon,
   captureInbox,
@@ -212,6 +215,7 @@ export async function createContext({
     documentTransfers,
     smartCollections,
     technicalDiagrams,
+    universalSearch,
     focusPeriod,
     roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),

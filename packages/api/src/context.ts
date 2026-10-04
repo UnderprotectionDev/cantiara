@@ -39,6 +39,7 @@ import type {
 } from "./project-shell";
 import type { ProjectSourceRecordsAccess } from "./project-source-records";
 import type { RecordActionsAccess } from "./record-actions";
+import type { UniversalSearchAccess } from "./record-discovery";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -181,6 +182,7 @@ export interface Context {
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
+  universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;

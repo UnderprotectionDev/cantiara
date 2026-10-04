@@ -227,7 +227,10 @@ import {
   updateRecordActionInputSchema,
   updateRecordActionMutationInputSchema,
 } from "../record-actions";
-import { documentDiscoveryInputSchema } from "../record-discovery";
+import {
+  documentDiscoveryInputSchema,
+  universalSearchInputSchema,
+} from "../record-discovery";
 import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
@@ -2677,6 +2680,15 @@ export const appRouter = {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
       return discovery.discover(context.session.user.id, input);
+    }),
+  searchRecords: protectedProcedure
+    .input(universalSearchInputSchema)
+    .handler(({ context, input }) => {
+      const search = context.universalSearch;
+      if (!search) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return search.search(context.session.user.id, input);
     }),
   documents: protectedProcedure
     .input(

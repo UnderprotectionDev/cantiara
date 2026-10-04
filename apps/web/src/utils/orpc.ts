@@ -1,4 +1,7 @@
-import type { documentDiscoveryInputSchema } from "@cantiara/api/record-discovery";
+import type {
+  documentDiscoveryInputSchema,
+  universalSearchInputSchema,
+} from "@cantiara/api/record-discovery";
 import type { AppRouterClient } from "@cantiara/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -54,6 +57,18 @@ export function documentDiscoveryQueryOptions(
   input: z.input<typeof documentDiscoveryInputSchema>,
 ) {
   const options = orpc.discoverDocuments.queryOptions({ input });
+  return {
+    ...options,
+    enabled: Boolean(accountId),
+    queryKey: [...options.queryKey, accountId ?? "anonymous"] as const,
+  };
+}
+
+export function universalSearchQueryOptions(
+  accountId: string | undefined,
+  input: z.input<typeof universalSearchInputSchema>,
+) {
+  const options = orpc.searchRecords.queryOptions({ input });
   return {
     ...options,
     enabled: Boolean(accountId),

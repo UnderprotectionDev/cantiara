@@ -77,6 +77,7 @@ import { createDatabaseProjectShell } from "./features/project-shell/server/proj
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
+import { createDatabaseUniversalSearch } from "./features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "./features/relations/server/relations";
 import {
   createDatabaseUsageLinkMutationContracts,
@@ -99,6 +100,7 @@ const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
 export const smartCollections = createDatabaseSmartCollections(db);
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
+export const universalSearch = createDatabaseUniversalSearch(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
