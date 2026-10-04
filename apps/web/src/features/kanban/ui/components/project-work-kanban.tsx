@@ -9,7 +9,12 @@ import { useCallback, useEffect, useState } from "react";
 import { currentDateInTimeZone } from "@/features/account-preferences/lib/account-preferences-format";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import {
   type KanbanStatusMoveHandlers,
   requestKanbanStatusMove,
@@ -84,9 +89,7 @@ export default function ProjectWorkKanban({
             input: { projectId },
           }).queryKey,
         }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.smartCollectionViews.key(),
-        }),
+        ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
   });

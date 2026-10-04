@@ -6,7 +6,12 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 export function useWorkTemplates(projectId: string) {
   const queryClient = useQueryClient();
@@ -36,8 +41,12 @@ export function useWorkTemplates(projectId: string) {
           clientIdempotencyKey: crypto.randomUUID(),
         }),
       ),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectWorksQueryPrefix }),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]);
+    },
   });
   const update = useMutation({
     mutationFn: (

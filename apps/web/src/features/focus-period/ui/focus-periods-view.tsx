@@ -14,7 +14,11 @@ import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import { FocusPeriodDependencies } from "./focus-period-dependencies";
 
 async function abandonSelectedWork(
@@ -405,9 +409,7 @@ function PeriodDetail({
         (decidedWorkId) =>
           setSelectedWorkIds((ids) => ids.filter((id) => id !== decidedWorkId)),
       );
-      await queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
     } else {
       for (const selectedWorkId of selectedWorkIds) {
         // biome-ignore lint/performance/noAwaitInLoops: Each selected Work is recorded independently for recoverable partial sends.

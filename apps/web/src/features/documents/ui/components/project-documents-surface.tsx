@@ -50,7 +50,11 @@ import {
   runOnlineOnlyWrite,
 } from "@/features/web-macos-client/store/client-shell";
 import { writeTextToClipboard } from "@/lib/clipboard";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import { createDocumentEditSession } from "../../store/document-edit-session";
 import DocumentConflictDrafts from "./document-conflict-drafts";
@@ -427,9 +431,7 @@ function DocumentEditor({
   const save = useMutation({
     mutationFn: () => editSession.save(),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
     onError: (failure) =>
       setError(
@@ -465,9 +467,7 @@ function DocumentEditor({
       editSession.accept(restored);
       setSelectedVersion(null);
       setError(null);
-      await queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
       await onSaved();
     },
     onError: (failure) =>
@@ -685,9 +685,7 @@ function DocumentEditor({
       await queryClient.invalidateQueries({
         queryKey: orpc.projectWorks.key(),
       });
-      await queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
       await queryClient.invalidateQueries({
         queryKey: orpc.projectSourceRecords.key(),
       });
@@ -729,9 +727,7 @@ function DocumentEditor({
       await queryClient.invalidateQueries({
         queryKey: orpc.projectWorks.key(),
       });
-      await queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
       await queryClient.invalidateQueries({ queryKey: orpc.usageLinks.key() });
     },
   });
@@ -1072,6 +1068,9 @@ function DocumentEditor({
                     await queryClient.invalidateQueries({
                       queryKey: orpc.documents.key(),
                     });
+                    await Promise.all(
+                      invalidateSmartCollectionMembership(queryClient),
+                    );
                     await onSaved();
                   }}
                   record={{ ...record, revision }}
@@ -1090,6 +1089,9 @@ function DocumentEditor({
                     await queryClient.invalidateQueries({
                       queryKey: versionOptions.queryKey,
                     });
+                    await Promise.all(
+                      invalidateSmartCollectionMembership(queryClient),
+                    );
                     await onSaved();
                   }}
                   record={{ ...record, revision }}
@@ -2124,9 +2126,7 @@ export default function DocumentsSurface({
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
-        queryClient.invalidateQueries({
-          queryKey: orpc.smartCollectionViews.key(),
-        }),
+        ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
     onError: (failure) =>

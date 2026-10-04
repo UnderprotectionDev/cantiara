@@ -39,7 +39,12 @@ import {
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { SupportReferenceNotice } from "@/features/web-macos-client/ui/components/support-reference";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import type { BulkWorkSelection } from "../../hooks/use-bulk-work-selection";
 import {
   type BulkEditOperation,
@@ -242,9 +247,7 @@ async function refreshBulkEditQueries(
         input: { projectId },
       }).queryKey,
     }),
-    queryClient.invalidateQueries({
-      queryKey: orpc.smartCollectionViews.key(),
-    }),
+    ...invalidateSmartCollectionMembership(queryClient),
     ...records.map(({ work }) =>
       queryClient.invalidateQueries({
         queryKey: orpc.work.queryOptions({

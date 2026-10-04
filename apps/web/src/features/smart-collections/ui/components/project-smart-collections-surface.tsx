@@ -28,7 +28,11 @@ import {
 } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import {
   documentRecordHash,
   projectSourceRecordHash,
@@ -403,9 +407,7 @@ export default function ProjectSmartCollectionsSurface({
       pendingKey.current = null;
       setName("");
       setError(null);
-      await queryClient.invalidateQueries({
-        queryKey: orpc.smartCollectionViews.key(),
-      });
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
     },
     onError: (failure) =>
       setError(
