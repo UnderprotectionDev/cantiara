@@ -3,6 +3,7 @@ import {
   type DocumentDiscoveryInput,
   type DocumentDiscoveryResult,
   documentDiscoveryInputSchema,
+  type UniversalSearchResult,
 } from "@cantiara/api/record-discovery";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -24,8 +25,12 @@ import { useMatches, useRouteContext } from "@tanstack/react-router";
 import { type ChangeEvent, useCallback, useState } from "react";
 import { z } from "zod";
 import { documentsInScope } from "@/features/personal-wiki/document-scope";
-import { documentDiscoveryQueryOptions } from "@/utils/orpc";
+import {
+  documentDiscoveryQueryOptions,
+  universalSearchQueryOptions,
+} from "@/utils/orpc";
 import DocumentDiscoveryResults from "./document-discovery-results";
+import UniversalSearchResults from "./universal-search-results";
 
 const discoveryViewSchema = z.enum(["Search", "All Documents"]);
 type DiscoveryView = z.infer<typeof discoveryViewSchema>;
@@ -60,15 +65,11 @@ function DiscoveryContent({
   failed,
   pending,
   data,
-  query,
-  view,
   onOpenSource,
 }: {
   failed: boolean;
   pending: boolean;
   data?: DocumentDiscoveryResult[];
-  query: string;
-  view: DiscoveryView;
   onOpenSource: () => void;
 }) {
   if (failed) {
@@ -77,16 +78,47 @@ function DiscoveryContent({
   if (pending) {
     return <p role="status">Loading…</p>;
   }
-  if (view === "Search" && !query.trim()) {
-    return <p>Type to search authorized records.</p>;
-  }
   if (!data?.length) {
     return <p>No matching records.</p>;
   }
   return (
     <DocumentDiscoveryResults
       onOpenSource={onOpenSource}
-      query={view === "Search" ? query : ""}
+      query=""
+      results={data}
+    />
+  );
+}
+
+function UniversalSearchContent({
+  failed,
+  pending,
+  data,
+  query,
+  onOpenSource,
+}: {
+  failed: boolean;
+  pending: boolean;
+  data?: UniversalSearchResult[];
+  query: string;
+  onOpenSource: () => void;
+}) {
+  if (failed) {
+    return <p role="alert">Search is unavailable.</p>;
+  }
+  if (!query.trim()) {
+    return <p>Type to search authorized records.</p>;
+  }
+  if (pending) {
+    return <p role="status">Loading…</p>;
+  }
+  if (!data?.length) {
+    return <p>No matching records.</p>;
+  }
+  return (
+    <UniversalSearchResults
+      onOpenSource={onOpenSource}
+      query={query}
       results={data}
     />
   );
@@ -139,19 +171,29 @@ function DiscoverySurface({
     (event: ChangeEvent<HTMLInputElement>) => setArchived(event.target.checked),
     [],
   );
-  const inventory = useQuery(
-    documentDiscoveryQueryOptions(accountId, { archived }),
-  );
-  const results = useQuery(
-    documentDiscoveryQueryOptions(accountId, {
-      query: view === "Search" ? query : "",
+  const inventory = useQuery({
+    ...documentDiscoveryQueryOptions(accountId, { archived }),
+    enabled: Boolean(accountId) && view === "All Documents",
+  });
+  const documentResults = useQuery({
+    ...documentDiscoveryQueryOptions(accountId, {
+      query: "",
       scope,
       archived,
       ...(type ? { type } : {}),
       ...(folder ? { folder } : {}),
       ...(currentProjectId ? { currentProjectId } : {}),
     }),
-  );
+    enabled: Boolean(accountId) && view === "All Documents",
+  });
+  const searchResults = useQuery({
+    ...universalSearchQueryOptions(accountId, {
+      query,
+      archived,
+      ...(currentProjectId ? { currentProjectId } : {}),
+    }),
+    enabled: Boolean(accountId) && view === "Search" && Boolean(query.trim()),
+  });
   const projects = new Map(
     (inventory.data ?? []).flatMap(({ document, projectName }) =>
       document.projectId === null
@@ -176,8 +218,7 @@ function DiscoverySurface({
           All Documents
         </NativeSelectOption>
       </NativeSelect>
-      <p className="text-muted-foreground text-sm">Documents</p>
-      {view === "Search" && (
+      {view === "Search" ? (
         <>
           <Label htmlFor="discovery-query">Search</Label>
           <Input
@@ -186,67 +227,94 @@ function DiscoverySurface({
             onChange={changeQuery}
             value={query}
           />
+          <Label>
+            <input
+              checked={archived}
+              onChange={changeArchived}
+              type="checkbox"
+            />
+            Archived
+          </Label>
+          <UniversalSearchContent
+            data={searchResults.data}
+            failed={searchResults.isError}
+            onOpenSource={onOpenSource}
+            pending={searchResults.isPending && Boolean(query.trim())}
+            query={query}
+          />
+        </>
+      ) : (
+        <>
+          <p className="text-muted-foreground text-sm">Documents</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label htmlFor="discovery-scope">Scope</Label>
+              <NativeSelect
+                id="discovery-scope"
+                onChange={changeScope}
+                value={discoveryScopeValue(scope)}
+              >
+                <NativeSelectOption value="all">All scopes</NativeSelectOption>
+                <NativeSelectOption value="wiki">
+                  Personal Wiki
+                </NativeSelectOption>
+                {[...projects].map(([projectId, name]) => (
+                  <NativeSelectOption
+                    key={projectId}
+                    value={`project:${projectId}`}
+                  >
+                    Project: {name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <div>
+              <Label htmlFor="discovery-type">Type</Label>
+              <NativeSelect
+                id="discovery-type"
+                onChange={changeType}
+                value={type}
+              >
+                <NativeSelectOption value="">All types</NativeSelectOption>
+                {documentTypeSchema.options.map((option) => (
+                  <NativeSelectOption key={option} value={option}>
+                    {option}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <div>
+              <Label htmlFor="discovery-folder">Folder</Label>
+              <NativeSelect
+                id="discovery-folder"
+                onChange={changeFolder}
+                value={folder}
+              >
+                <NativeSelectOption value="">All folders</NativeSelectOption>
+                {folders.map((option) => (
+                  <NativeSelectOption key={option} value={option}>
+                    {option}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <Label>
+              <input
+                checked={archived}
+                onChange={changeArchived}
+                type="checkbox"
+              />
+              Archived
+            </Label>
+          </div>
+          <DiscoveryContent
+            data={documentResults.data}
+            failed={documentResults.isError || inventory.isError}
+            onOpenSource={onOpenSource}
+            pending={documentResults.isPending}
+          />
         </>
       )}
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <Label htmlFor="discovery-scope">Scope</Label>
-          <NativeSelect
-            id="discovery-scope"
-            onChange={changeScope}
-            value={discoveryScopeValue(scope)}
-          >
-            <NativeSelectOption value="all">All scopes</NativeSelectOption>
-            <NativeSelectOption value="wiki">Personal Wiki</NativeSelectOption>
-            {[...projects].map(([projectId, name]) => (
-              <NativeSelectOption
-                key={projectId}
-                value={`project:${projectId}`}
-              >
-                Project: {name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <div>
-          <Label htmlFor="discovery-type">Type</Label>
-          <NativeSelect id="discovery-type" onChange={changeType} value={type}>
-            <NativeSelectOption value="">All types</NativeSelectOption>
-            {documentTypeSchema.options.map((option) => (
-              <NativeSelectOption key={option} value={option}>
-                {option}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <div>
-          <Label htmlFor="discovery-folder">Folder</Label>
-          <NativeSelect
-            id="discovery-folder"
-            onChange={changeFolder}
-            value={folder}
-          >
-            <NativeSelectOption value="">All folders</NativeSelectOption>
-            {folders.map((option) => (
-              <NativeSelectOption key={option} value={option}>
-                {option}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <Label>
-          <input checked={archived} onChange={changeArchived} type="checkbox" />
-          Archived
-        </Label>
-      </div>
-      <DiscoveryContent
-        data={results.data}
-        failed={results.isError || inventory.isError}
-        onOpenSource={onOpenSource}
-        pending={results.isPending}
-        query={query}
-        view={view}
-      />
     </div>
   );
 }
@@ -265,7 +333,7 @@ export default function DocumentDiscovery() {
         <DialogHeader>
           <DialogTitle>Search</DialogTitle>
           <DialogDescription>
-            Find Documents in their Project or Personal Wiki scope.
+            Find authorized records across Projects and the Personal Wiki.
           </DialogDescription>
         </DialogHeader>
         <DiscoverySurface

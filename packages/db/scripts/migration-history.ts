@@ -18,6 +18,7 @@ export class MigrationHistoryError extends Error {
 export function assertMigrationHistory(
   expected: Pick<MigrationMeta, "folderMillis" | "hash">[],
   applied: AppliedMigration[],
+  { allowAhead = false } = {},
 ) {
   for (const [index, row] of applied.slice(0, expected.length).entries()) {
     const migration = expected[index];
@@ -32,7 +33,7 @@ export function assertMigrationHistory(
       );
     }
   }
-  if (applied.length > expected.length) {
+  if (!allowAhead && applied.length > expected.length) {
     throw new MigrationHistoryError(
       "ahead",
       "Database migration history is ahead of this Git branch",
@@ -43,6 +44,7 @@ export function assertMigrationHistory(
 export async function verifyMigrationHistory(
   pool: Pick<Pool, "query">,
   folder: string,
+  options: { allowAhead?: boolean } = {},
 ) {
   const expected = readMigrationFiles({ migrationsFolder: folder });
   const state = await pool.query<{
@@ -72,6 +74,6 @@ export async function verifyMigrationHistory(
       "Database has tables but no applied migrations",
     );
   }
-  assertMigrationHistory(expected, history.rows);
+  assertMigrationHistory(expected, history.rows, options);
   return { expected, applied: history.rows };
 }

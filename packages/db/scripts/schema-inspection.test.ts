@@ -157,3 +157,47 @@ test("detects a standalone unique index missing from the migration snapshot", as
     "Unexpected unique index: item.item_unexpected_uidx",
   ]);
 });
+
+test.each<[string | null, boolean]>([
+  [null, false],
+  ["NULL::text", false],
+  ["'{}'::jsonb", true],
+  ["'constant'::text", true],
+  ["CASE WHEN random() > 0.5 THEN 'value' ELSE NULL END", false],
+])(
+  "development accepts only proven non-null defaults on added required columns: %s",
+  (defaultExpression, compatible) => {
+    const { snapshot } = readMigrationRepository(
+      fileURLToPath(
+        new URL("../src/migrations/security-events/", import.meta.url),
+      ),
+    );
+    const table = snapshot.tables["public.security_event"];
+    if (!table) {
+      throw new Error("Security event table fixture is required");
+    }
+    const columns = Object.values(table.columns).map((column) => ({
+      column_name: column.name,
+      data_type: column.type,
+      default_expression:
+        column.default === undefined ? null : String(column.default),
+      not_null: column.notNull,
+      schema_name: "public",
+      table_name: table.name,
+    }));
+    columns.push({
+      column_name: "added_required",
+      data_type: "text",
+      default_expression: defaultExpression,
+      not_null: true,
+      schema_name: "public",
+      table_name: table.name,
+    });
+    expect(compareDatabaseColumns(snapshot, columns, true).length === 0).toBe(
+      compatible,
+    );
+    expect(compareDatabaseColumns(snapshot, columns)).toContain(
+      "Unexpected column public.security_event.added_required",
+    );
+  },
+);

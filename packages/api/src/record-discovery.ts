@@ -44,6 +44,60 @@ export interface DocumentDiscoveryAccess {
   ) => Promise<DocumentDiscoveryResult[]>;
 }
 
+export const universalSearchInputSchema = z
+  .object({
+    query: z.string().trim().max(200).default(""),
+    currentProjectId: z.string().min(1).max(200).optional(),
+    archived: z.boolean().default(false),
+  })
+  .strict();
+
+export type UniversalSearchInput = z.infer<typeof universalSearchInputSchema>;
+
+export const universalSearchRecordTypes = [
+  "Work",
+  "Decision",
+  "Risk",
+  "Assumption",
+  "Open Question",
+  "Milestone",
+  "Project Release",
+  "Production Incident",
+  "Technical Diagram",
+  "Document",
+  "File Attachment",
+] as const;
+
+export type UniversalSearchRecordType =
+  (typeof universalSearchRecordTypes)[number];
+
+export interface UniversalSearchResult {
+  archived: boolean;
+  category: string | null;
+  closureResult: string | null;
+  id: string;
+  key: string | null;
+  matchCount: number;
+  ownerDocumentId: string | null;
+  projectArchivedAt: string | null;
+  projectId: string | null;
+  projectName: string | null;
+  recordType: UniversalSearchRecordType;
+  scopeName: string;
+  scopeType: "Personal Wiki" | "Project";
+  snippet: string;
+  status: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface UniversalSearchAccess {
+  search: (
+    accountId: string,
+    input: UniversalSearchInput,
+  ) => Promise<UniversalSearchResult[]>;
+}
+
 const wordPattern = /[\p{L}\p{N}_]+/gu;
 const wordPartsPattern = /([\p{L}\p{N}_]+)/gu;
 

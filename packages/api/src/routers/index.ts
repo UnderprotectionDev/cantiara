@@ -230,7 +230,10 @@ import {
   updateRecordActionInputSchema,
   updateRecordActionMutationInputSchema,
 } from "../record-actions";
-import { documentDiscoveryInputSchema } from "../record-discovery";
+import {
+  documentDiscoveryInputSchema,
+  universalSearchInputSchema,
+} from "../record-discovery";
 import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
@@ -2687,6 +2690,15 @@ export const appRouter = {
       }
       return discovery.discover(context.session.user.id, input);
     }),
+  searchRecords: protectedProcedure
+    .input(universalSearchInputSchema)
+    .handler(({ context, input }) => {
+      const search = context.universalSearch;
+      if (!search) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return search.search(context.session.user.id, input);
+    }),
   documents: protectedProcedure
     .input(
       z
@@ -5074,7 +5086,9 @@ export const appRouter = {
           context.session.user.id,
           {
             action: "Review Later",
-            ...input,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            condition: input.condition,
+            fireAt: input.fireAt,
             sourceRecordId: input.workId,
             sourceRecordType: "Work",
           },

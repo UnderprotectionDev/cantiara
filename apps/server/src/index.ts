@@ -49,6 +49,7 @@ import {
   tags,
   tauriSessionAccess,
   technicalDiagrams,
+  universalSearch,
   usageLinkMutationContracts,
   usageLinks,
   webCapture,
@@ -103,6 +104,7 @@ const app = createApp({
   documentTransfers,
   smartCollections,
   technicalDiagrams,
+  universalSearch,
   focusPeriod,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
