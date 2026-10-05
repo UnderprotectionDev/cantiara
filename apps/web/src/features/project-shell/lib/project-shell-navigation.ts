@@ -110,6 +110,7 @@ export const ROADMAP_HASH = "roadmap";
 const WORK_RELATIONS_HASH_PREFIX = "work-relations-";
 const WORK_RECORD_HASH_PREFIX = "work-";
 const DOCUMENT_RECORD_HASH_PREFIX = "document-";
+const DOCUMENT_SECTION_RECORD_HASH_PREFIX = "document-section:";
 const PROJECT_SOURCE_RECORD_HASH_PREFIXES = {
   Assumption: "source-assumption-",
   Decision: "source-decision-",
@@ -154,7 +155,34 @@ export function documentRecordHash(documentId: string) {
   return `${DOCUMENT_RECORD_HASH_PREFIX}${encodeURIComponent(documentId)}`;
 }
 
-export function documentRecordFromHash(hash: string) {
+export function documentSectionRecordHash(
+  documentId: string,
+  sectionId: string,
+) {
+  return `${DOCUMENT_SECTION_RECORD_HASH_PREFIX}${encodeURIComponent(documentId)}:${encodeURIComponent(sectionId)}`;
+}
+
+export function documentRecordFromHash(
+  hash: string,
+): { documentId: string; sectionId?: string } | null {
+  if (hash.startsWith(DOCUMENT_SECTION_RECORD_HASH_PREFIX)) {
+    const target = hash.slice(DOCUMENT_SECTION_RECORD_HASH_PREFIX.length);
+    const separator = target.indexOf(":");
+    if (
+      separator <= 0 ||
+      separator === target.length - 1 ||
+      target.indexOf(":", separator + 1) !== -1
+    ) {
+      return null;
+    }
+    try {
+      const documentId = decodeURIComponent(target.slice(0, separator));
+      const sectionId = decodeURIComponent(target.slice(separator + 1));
+      return documentId && sectionId ? { documentId, sectionId } : null;
+    } catch {
+      return null;
+    }
+  }
   if (!hash.startsWith(DOCUMENT_RECORD_HASH_PREFIX)) {
     return null;
   }

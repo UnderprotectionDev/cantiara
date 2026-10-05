@@ -721,6 +721,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
 | Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |
 | Bölüm | `Section` | Belge `Review Later` hedefinin kararlı Markdown başlık kimliği |
+| Tüm Belge | `Entire document` | Belge hatırlatmasında bölüm hedefi olmayan seçim |
 | Bu bölüm yok | `This section is missing.` | Silinmiş veya çözülemeyen bölüm hedefinin açıklaması; sessiz başka başlık yoktur |
 | Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
 | Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |

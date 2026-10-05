@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each control closes over one source record and its reminder list.
 
+import type { DocumentSection } from "@cantiara/api/documents";
 import {
   PERSONAL_REMINDER_CONDITIONAL_SOURCE_TYPES,
   type PersonalReminderAction,
@@ -62,11 +63,13 @@ function supportsOpenCondition(sourceRecordType: PersonalReminderSourceType) {
 
 export default function PersonalReminderControl({
   compact = false,
+  sectionOptions = [],
   sourceRecordId,
   sourceRecordType,
   sourceTitle,
 }: {
   compact?: boolean;
+  sectionOptions?: readonly Pick<DocumentSection, "heading" | "id">[];
   sourceRecordId: string;
   sourceRecordType: PersonalReminderSourceType;
   sourceTitle: string;
@@ -77,6 +80,7 @@ export default function PersonalReminderControl({
   const [fireAt, setFireAt] = useState(defaultFireAt);
   const [condition, setCondition] =
     useState<PersonalReminderCondition>("In any case");
+  const [sectionId, setSectionId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const retry = useRef<{ fingerprint: string; key: string } | null>(null);
   const source = { sourceRecordId, sourceRecordType };
@@ -99,6 +103,7 @@ export default function PersonalReminderControl({
       retry.current = null;
       setError(null);
       setFireAt(defaultFireAt());
+      setSectionId("");
       await refresh();
     },
   });
@@ -116,6 +121,10 @@ export default function PersonalReminderControl({
   function openFor(nextAction: PersonalReminderAction) {
     setAction(nextAction);
     setFireAt(defaultFireAt());
+    setSectionId("");
+    if (nextAction === "Review Later") {
+      setCondition("In any case");
+    }
     setError(null);
     setOpen(true);
   }
@@ -134,10 +143,15 @@ export default function PersonalReminderControl({
       action === "Review Later" && supportsOpenCondition(sourceRecordType)
         ? condition
         : "In any case";
+    const nextSectionId =
+      action === "Review Later" && sourceRecordType === "Document" && sectionId
+        ? sectionId
+        : undefined;
     const fingerprint = JSON.stringify({
       action,
       condition: nextCondition,
       fireAt: fireAtDate.toISOString(),
+      sectionId: nextSectionId ?? null,
       sourceRecordId,
       sourceRecordType,
     });
@@ -152,6 +166,7 @@ export default function PersonalReminderControl({
       clientIdempotencyKey,
       condition: nextCondition,
       fireAt: fireAtDate.toISOString(),
+      ...(nextSectionId ? { sectionId: nextSectionId } : {}),
       sourceRecordId,
       sourceRecordType,
     });
@@ -160,6 +175,8 @@ export default function PersonalReminderControl({
   const pending = create.isPending || cancel.isPending;
   const showCondition =
     action === "Review Later" && supportsOpenCondition(sourceRecordType);
+  const showSection =
+    action === "Review Later" && sourceRecordType === "Document";
 
   return (
     <>
@@ -188,6 +205,7 @@ export default function PersonalReminderControl({
           setOpen(nextOpen);
           if (nextOpen) {
             setFireAt(defaultFireAt());
+            setSectionId("");
             setError(null);
           }
         }}
@@ -215,6 +233,28 @@ export default function PersonalReminderControl({
                 value={fireAt}
               />
             </Field>
+            {showSection ? (
+              <Field>
+                <FieldLabel
+                  htmlFor={`personal-reminder-section-${sourceRecordId}`}
+                >
+                  Section
+                </FieldLabel>
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  id={`personal-reminder-section-${sourceRecordId}`}
+                  onChange={(event) => setSectionId(event.target.value)}
+                  value={sectionId}
+                >
+                  <option value="">Entire document</option>
+                  {sectionOptions.map(({ heading, id }) => (
+                    <option key={id} value={id}>
+                      {heading}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
             {showCondition ? (
               <Field>
                 <FieldLabel

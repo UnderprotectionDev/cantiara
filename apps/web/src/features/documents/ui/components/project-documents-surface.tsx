@@ -193,11 +193,13 @@ function DocumentEditor({
   record,
   onSaved,
   documents,
+  targetSectionId,
 }: {
   accountFormattingPreferences: AccountPreferences;
   record: Document;
   onSaved: () => Promise<void>;
   documents: Document[];
+  targetSectionId?: string;
 }) {
   const queryClient = useQueryClient();
   const originDocument = useQuery({
@@ -216,7 +218,9 @@ function DocumentEditor({
   const editing = useSyncExternalStore(editSession.subscribe, editSession.get);
   const [revision, setRevision] = useState(record.revision);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<DocumentView>("write");
+  const [view, setView] = useState<DocumentView>(() =>
+    targetSectionId ? "preview" : "write",
+  );
   const [conversionWarning, setConversionWarning] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const pendingRestore = useRef<{
@@ -268,6 +272,11 @@ function DocumentEditor({
   const [originalBlockOutcome, setOriginalBlockOutcome] = useState<
     "Keep independent" | "Replace with live reference"
   >("Keep independent");
+  useEffect(() => {
+    if (targetSectionId) {
+      setView("preview");
+    }
+  }, [targetSectionId]);
   const [convertedDiagram, setConvertedDiagram] = useState<{
     id: string;
     title: string;
@@ -970,6 +979,7 @@ function DocumentEditor({
         ) : null}
         <PersonalReminderControl
           compact
+          sectionOptions={uniqueDocumentSections(record.body)}
           sourceRecordId={record.id}
           sourceRecordType="Document"
           sourceTitle={record.title}
@@ -1530,6 +1540,7 @@ function DocumentEditor({
                           : undefined
                       }
                       source={body}
+                      targetSectionId={targetSectionId}
                     />
                   </div>
                 )}
@@ -2036,11 +2047,13 @@ export default function DocumentsSurface({
   accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
   projectId,
   selectedDocumentId,
+  selectedSectionId,
   starterSkeletons,
 }: {
   accountFormattingPreferences?: AccountPreferences;
   projectId: string | null;
   selectedDocumentId?: string;
+  selectedSectionId?: string;
   starterSkeletons: readonly StarterSkeletonSelection[];
 }) {
   const queryClient = useQueryClient();
@@ -2380,6 +2393,9 @@ export default function DocumentsSurface({
               queryClient.invalidateQueries({ queryKey: orpc.documents.key() })
             }
             record={selected}
+            targetSectionId={
+              selected.id === selectedDocumentId ? selectedSectionId : undefined
+            }
           />
         ) : (
           <p>Select a Document.</p>
