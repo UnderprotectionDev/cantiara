@@ -3,6 +3,7 @@
 import { documentTypeSchema } from "@cantiara/api/documents";
 import {
   type CreateSmartCollectionInput,
+  type SetSmartCollectionSubscriptionInput,
   SMART_COLLECTION_SOURCE_TYPES,
   SMART_COLLECTION_STATUS_OPTIONS,
   type SmartCollectionSourceType,
@@ -315,6 +316,79 @@ function MembershipFieldChangePreview({
   );
 }
 
+function CollectionSubscriptionControls({
+  view,
+}: {
+  view: SmartCollectionViewSource;
+}) {
+  const queryClient = useQueryClient();
+  const subscription = useMutation({
+    mutationFn: (input: Omit<SetSmartCollectionSubscriptionInput, "viewId">) =>
+      runOnlineOnlyWrite(() =>
+        client.setSmartCollectionSubscription({ viewId: view.id, ...input }),
+      ),
+    onSuccess: async () => {
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
+    },
+  });
+  const notifyOnLeaveId = `smart-collection-notify-on-leave-${view.id}`;
+
+  return (
+    <div className="space-y-2">
+      <Label className="flex items-center gap-2 font-normal">
+        <input
+          checked={view.isSubscribed}
+          disabled={subscription.isPending}
+          onChange={(event) =>
+            subscription.mutate({
+              subscribe: event.currentTarget.checked,
+              notifyOnLeave: event.currentTarget.checked
+                ? view.notifyOnLeave
+                : false,
+            })
+          }
+          type="checkbox"
+        />
+        Subscribe
+      </Label>
+      <Label
+        className={`flex items-center gap-2 font-normal ${view.isSubscribed ? "" : "text-muted-foreground"}`}
+        htmlFor={notifyOnLeaveId}
+      >
+        <input
+          aria-describedby={
+            view.isSubscribed ? undefined : `${notifyOnLeaveId}-description`
+          }
+          checked={view.notifyOnLeave}
+          disabled={!view.isSubscribed || subscription.isPending}
+          id={notifyOnLeaveId}
+          onChange={(event) =>
+            subscription.mutate({
+              subscribe: true,
+              notifyOnLeave: event.currentTarget.checked,
+            })
+          }
+          type="checkbox"
+        />
+        Notify on leave
+      </Label>
+      {view.isSubscribed ? null : (
+        <p
+          className="ml-6 text-muted-foreground text-xs"
+          id={`${notifyOnLeaveId}-description`}
+        >
+          Turn on Subscribe first.
+        </p>
+      )}
+      {subscription.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Smart Collection subscription could not be updated.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function CollectionViewCard({
   preview,
   view,
@@ -363,6 +437,7 @@ function CollectionViewCard({
       <p className="text-muted-foreground text-sm">
         {view.sourceType} · {view.presentation}
       </p>
+      <CollectionSubscriptionControls view={view} />
       {isWorkCollection ? (
         <fieldset className="flex gap-2">
           <legend className="sr-only">Collection view</legend>

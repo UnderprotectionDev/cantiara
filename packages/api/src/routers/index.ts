@@ -262,6 +262,7 @@ import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
   SmartCollectionUnavailableError,
+  setSmartCollectionSubscriptionInputSchema,
 } from "../smart-collections";
 import {
   applyTagInputSchema,
@@ -2996,6 +2997,24 @@ export const appRouter = {
         context.session.user.id,
         input.projectId,
       );
+    }),
+  setSmartCollectionSubscription: protectedProcedure
+    .input(setSmartCollectionSubscriptionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.smartCollections.setSubscription(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof SmartCollectionUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
     }),
   smartCollectionView: protectedProcedure
     .input(z.object({ viewId: z.string().min(1) }).strict())

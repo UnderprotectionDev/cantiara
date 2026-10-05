@@ -362,6 +362,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
 | Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
 | Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
+| Akıllı Koleksiyon aboneliği güncellenemedi | `Smart Collection subscription could not be updated.` | Abonelik ayarı kaydedilemediğinde gösterilen hata iletisi |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Hafif İçgörüler | `Insights` | İş koleksiyonunun mevcut filtre sonucundan sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir |
 | Koleksiyon panel grubu | `Collection view` | Ekran okuyucu için `Records` ve `Insights` panel seçimlerini adlandıran grup etiketi |

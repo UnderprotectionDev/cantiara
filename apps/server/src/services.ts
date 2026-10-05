@@ -84,7 +84,11 @@ import {
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
-import { createDatabaseSmartCollections } from "./features/smart-collections/server/smart-collections-database";
+import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
+import {
+  createDatabaseSmartCollections,
+  sweepSmartCollectionSubscriptionSignals,
+} from "./features/smart-collections/server/smart-collections-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -99,6 +103,17 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
 export const smartCollections = createDatabaseSmartCollections(db);
+export const sweepDueSmartCollectionSubscriptionSignals = (now = new Date()) =>
+  sweepSmartCollectionSubscriptionSignals(db, now);
+const smartCollectionSubscriptionSignalWorker =
+  createSmartCollectionSubscriptionSignalWorker({
+    connectionString: env.DATABASE_URL,
+    process: () => sweepDueSmartCollectionSubscriptionSignals(),
+  });
+export const startSmartCollectionSubscriptionSignalWorker =
+  smartCollectionSubscriptionSignalWorker.start;
+export const stopSmartCollectionSubscriptionSignalWorker =
+  smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
 export const universalSearch = createDatabaseUniversalSearch(db);
 export const documentMutationContracts =
