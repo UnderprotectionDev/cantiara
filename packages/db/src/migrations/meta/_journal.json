@@ -659,6 +659,20 @@
       "when": 1791194109326,
       "tag": "0093_superb_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1791238358955,
+      "tag": "0094_personal-reminder-signal-lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1791238412206,
+      "tag": "0095_personal-reminder-fire-history",
+      "breakpoints": true
     }
   ]
 }

@@ -5,8 +5,10 @@ import type {
   PersonalReminder,
   PersonalReminderFireResult,
   PersonalReminderSignal,
+  PersonalReminderSignalHistory,
   PersonalReminderSourceType,
   PersonalRemindersAccess,
+  ReschedulePersonalReminderSignalInput,
   WorkReviewLater,
   WorkReviewLaterFireResult,
 } from "@cantiara/api/personal-reminders";
@@ -14,6 +16,7 @@ import {
   createPersonalReminderInputSchema,
   personalReminderSchema,
   personalReminderSourceTypeSchema,
+  reschedulePersonalReminderSignalInputSchema,
   workReviewLaterSchema,
 } from "@cantiara/api/personal-reminders";
 import type { Database } from "@cantiara/db";
@@ -33,6 +36,8 @@ import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray, lte, or } from "drizzle-orm";
 
 type PersonalReminderRecord = typeof personalReminder.$inferSelect;
+type PersonalReminderSignalRecord =
+  typeof personalReminderAttentionSignal.$inferSelect;
 type ReminderSourceRef = Pick<
   PersonalReminderRecord,
   "accountId" | "sourceRecordId" | "sourceRecordType"
@@ -134,6 +139,54 @@ function toPersonalReminder(record: PersonalReminderRecord): PersonalReminder {
     status: record.status,
     triggeredAt: record.triggeredAt?.toISOString() ?? null,
   });
+}
+
+function pendingRescheduleRetry(
+  reminder: PersonalReminderRecord,
+  fireAt: Date,
+) {
+  return reminder.status === "Planned" &&
+    reminder.fireAt.valueOf() === fireAt.valueOf()
+    ? toPersonalReminder(reminder)
+    : null;
+}
+
+function toSignalHistory(
+  record: PersonalReminderSignalRecord,
+): PersonalReminderSignalHistory {
+  return {
+    dismissedAt: record.dismissedAt?.toISOString() ?? null,
+    evaluationNote: record.evaluationNote,
+    occurredAt: record.occurredAt.toISOString(),
+    signalId: record.signalId,
+    signalType:
+      record.signalType === "review-later"
+        ? "review-later"
+        : "personal-reminder",
+    sourcePath: record.sourcePath,
+    sourceProjectId: record.sourceProjectId,
+    sourceRecordId: record.sourceRecordId,
+    sourceRecordType: sourceRecordTypeOf(record),
+  };
+}
+
+async function lockOwnedSignal(
+  executor: Pick<Database, "select">,
+  accountId: string,
+  signalId: string,
+) {
+  const [signal] = await executor
+    .select()
+    .from(personalReminderAttentionSignal)
+    .where(
+      and(
+        eq(personalReminderAttentionSignal.ownerAccountId, accountId),
+        eq(personalReminderAttentionSignal.signalId, signalId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return signal;
 }
 
 function toWorkReviewLater(
@@ -451,9 +504,10 @@ function unavailableConditionNote(
 function decideReminderFire(
   reminder: PersonalReminderRecord,
   source: OwnedSource | undefined,
+  originProjectArchived = false,
 ) {
   const sourceRecordType = sourceRecordTypeOf(reminder);
-  if (source?.projectArchivedAt) {
+  if (source?.projectArchivedAt || (!source && originProjectArchived)) {
     return {
       emitSignal: false,
       fireNote: "Project is archived; no signal was emitted.",
@@ -557,7 +611,7 @@ async function persistReminderFire(
   const signal: PersonalReminderSignal = {
     evaluationNote: decisionForFire.fireNote,
     occurredAt: at.toISOString(),
-    signalId: `${signalType}:${reminder.id}`,
+    signalId: `${signalType}:${reminder.id}:${crypto.randomUUID()}`,
     signalType,
     sourcePath: reminderSourcePath(reminder),
     sourceProjectId: reminder.sourceProjectId,
@@ -616,6 +670,98 @@ export function createDatabasePersonalReminders(
 } {
   const newId = options.newId ?? (() => crypto.randomUUID());
   const now = options.now ?? (() => new Date());
+
+  async function listSignals(accountId: string) {
+    const records = await database
+      .select()
+      .from(personalReminderAttentionSignal)
+      .where(eq(personalReminderAttentionSignal.ownerAccountId, accountId))
+      .orderBy(
+        desc(personalReminderAttentionSignal.occurredAt),
+        asc(personalReminderAttentionSignal.signalId),
+      );
+    return records.map(toSignalHistory);
+  }
+
+  async function rescheduleSignal(
+    accountId: string,
+    input: ReschedulePersonalReminderSignalInput,
+  ) {
+    reschedulePersonalReminderSignalInputSchema.parse(input);
+    const fireAt = new Date(input.fireAt);
+    if (fireAt.valueOf() <= now().valueOf()) {
+      throw new PersonalReminderFireAtMustBeFutureError();
+    }
+    return await database.transaction(async (transaction) => {
+      const signal = await lockOwnedSignal(
+        transaction,
+        accountId,
+        input.signalId,
+      );
+      if (!signal) {
+        return null;
+      }
+      const [reminder] = await transaction
+        .select()
+        .from(personalReminder)
+        .where(
+          and(
+            eq(personalReminder.accountId, accountId),
+            eq(personalReminder.id, signal.personalReminderId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!reminder) {
+        return null;
+      }
+      // A retry of this consumed signal can only acknowledge the same pending time.
+      // It must never move a later fire using a stale signal identity.
+      if (signal.dismissedAt) {
+        return pendingRescheduleRetry(reminder, fireAt);
+      }
+      if (reminder.status !== "Triggered") {
+        return null;
+      }
+      const source = await findOwnedSource(
+        transaction,
+        accountId,
+        sourceRecordTypeOf(reminder),
+        reminder.sourceRecordId,
+      );
+      if (!source || source.projectArchivedAt) {
+        return null;
+      }
+      await transaction
+        .update(personalReminderAttentionSignal)
+        .set({ dismissedAt: now() })
+        .where(eq(personalReminderAttentionSignal.signalId, input.signalId));
+      const [rescheduled] = await transaction
+        .update(personalReminder)
+        .set({ fireAt, fireNote: null, status: "Planned", triggeredAt: null })
+        .where(eq(personalReminder.id, reminder.id))
+        .returning();
+      return rescheduled ? toPersonalReminder(rescheduled) : null;
+    });
+  }
+
+  async function dismissSignal(accountId: string, signalId: string) {
+    return await database.transaction(async (transaction) => {
+      const signal = await lockOwnedSignal(transaction, accountId, signalId);
+      if (!signal) {
+        return null;
+      }
+      if (signal.dismissedAt) {
+        return toSignalHistory(signal);
+      }
+      const [dismissed] = await transaction
+        .update(personalReminderAttentionSignal)
+        .set({ dismissedAt: now() })
+        .where(eq(personalReminderAttentionSignal.signalId, signalId))
+        .returning();
+      return dismissed ? toSignalHistory(dismissed) : null;
+    });
+  }
 
   async function create(
     accountId: string,
@@ -701,9 +847,6 @@ export function createDatabasePersonalReminders(
       input.sourceRecordType,
       input.sourceRecordId,
     );
-    if (!source) {
-      return null;
-    }
     const records = await database
       .select()
       .from(personalReminder)
@@ -715,6 +858,9 @@ export function createDatabasePersonalReminders(
         ),
       )
       .orderBy(desc(personalReminder.createdAt), asc(personalReminder.fireAt));
+    if (!source && records.length === 0) {
+      return null;
+    }
     return records.map(toPersonalReminder);
   }
 
@@ -786,6 +932,34 @@ export function createDatabasePersonalReminders(
         .limit(100)
         .for("update");
       const sources = await findOwnedSources(transaction, due);
+      // Origin references survive deletion of their source; archive still wins
+      // over an unavailable condition on those reminders.
+      const projectIds = [
+        ...new Set(
+          due.flatMap((reminder) =>
+            reminder.sourceProjectId ? [reminder.sourceProjectId] : [],
+          ),
+        ),
+      ];
+      const archivedProjects =
+        projectIds.length > 0
+          ? await transaction
+              .select({
+                accountId: workspace.ownerAccountId,
+                projectId: project.id,
+                archivedAt: project.archivedAt,
+              })
+              .from(project)
+              .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+              .where(inArray(project.id, projectIds))
+          : [];
+      const archivedOrigins = new Set(
+        archivedProjects
+          .filter((origin) => origin.archivedAt)
+          .map((origin) =>
+            sourceKey(origin.accountId, "Project", origin.projectId),
+          ),
+      );
       const signals = await Promise.all(
         due.map((reminder) => {
           const source = sources.get(
@@ -799,7 +973,18 @@ export function createDatabasePersonalReminders(
             transaction,
             reminder,
             at,
-            decideReminderFire(reminder, source),
+            decideReminderFire(
+              reminder,
+              source,
+              reminder.sourceProjectId !== null &&
+                archivedOrigins.has(
+                  sourceKey(
+                    reminder.accountId,
+                    "Project",
+                    reminder.sourceProjectId,
+                  ),
+                ),
+            ),
           );
         }),
       );
@@ -874,10 +1059,13 @@ export function createDatabasePersonalReminders(
     cancelWorkReviewLater,
     create,
     createWorkReviewLater,
+    dismissSignal,
     fireDuePersonalReminders,
     fireDueWorkReviewLater: fireDuePersonalReminders,
     list,
+    listSignals,
     listWorkReviewLater,
+    rescheduleSignal,
   };
 }
 

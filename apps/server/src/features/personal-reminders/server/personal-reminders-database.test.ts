@@ -499,7 +499,7 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
         {
           evaluationNote: null,
           occurredAt: "2026-09-28T11:00:00.000Z",
-          signalId: `review-later:${created.id}`,
+          signalId: expect.stringMatching(`^review-later:${created.id}:`),
           signalType: "review-later",
           sourcePath: `/projects/${projectId}#work-${workId}`,
           sourceProjectId: projectId,
@@ -509,7 +509,7 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
         {
           evaluationNote: null,
           occurredAt: "2026-09-28T11:00:00.000Z",
-          signalId: `review-later:${second.id}`,
+          signalId: expect.stringMatching(`^review-later:${second.id}:`),
           signalType: "review-later",
           sourcePath: `/projects/${projectId}#work-${workId}`,
           sourceProjectId: projectId,
@@ -545,6 +545,79 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
     });
   });
 
+  test("ignores a due Target date and gives each reminder action exactly its own signal type", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database
+      .update(work)
+      .set({ targetDate: "2026-09-28" })
+      .where(eq(work.id, workId));
+    let clock = now;
+    const reminders = createDatabasePersonalReminders(database, {
+      now: () => clock,
+    });
+    const [before] = await database
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+    await expect(reminders.fireDuePersonalReminders()).resolves.toEqual({
+      processedCount: 0,
+      signals: [],
+    });
+    await expect(
+      reminders.listWorkReviewLater(accountId, workId),
+    ).resolves.toEqual([]);
+    await Promise.all(
+      (["Remind me", "Review Later"] as const).map((action) =>
+        reminders.create(accountId, {
+          action,
+          clientIdempotencyKey: `signal-type-${action}`,
+          fireAt: "2026-09-28T11:00:00.000Z",
+          sourceRecordId: workId,
+          sourceRecordType: "Work",
+        }),
+      ),
+    );
+    clock = new Date("2026-09-28T11:00:00.000Z");
+    const fired = await reminders.fireDuePersonalReminders();
+    expect(fired.processedCount).toBe(2);
+    expect(fired.signals.map((signal) => signal.signalType).sort()).toEqual([
+      "personal-reminder",
+      "review-later",
+    ]);
+    expect(new Set(fired.signals.map((signal) => signal.signalId)).size).toBe(
+      2,
+    );
+    for (const signal of fired.signals) {
+      expect(signal).toMatchObject({
+        sourcePath: `/projects/${projectId}#work-${workId}`,
+        evaluationNote: null,
+      });
+    }
+    await database
+      .update(work)
+      .set({ closureResult: "Completed", status: "Closed" })
+      .where(eq(work.id, workId));
+    await expect(reminders.fireDuePersonalReminders()).resolves.toEqual({
+      processedCount: 0,
+      signals: [],
+    });
+    await expect(reminders.listSignals(accountId)).resolves.toHaveLength(2);
+    // Observe the source counterpart before the intentional lifecycle change.
+    expect(before?.targetDate).toBe("2026-09-28");
+    await expect(
+      database.select().from(work).where(eq(work.projectId, projectId)),
+    ).resolves.toMatchObject([
+      {
+        ...before,
+        closureResult: "Completed",
+        status: "Closed",
+        updatedAt: expect.any(Date),
+      },
+    ]);
+  });
+
   test("suppresses Only if still open when Work is closed and explains why", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -578,6 +651,137 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
         status: "Triggered",
       },
     ]);
+  });
+
+  test("dismisses a fired signal as its Account while preserving the reminder and source", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const reminders = createDatabasePersonalReminders(database, {
+      now: () => now,
+    });
+    const created = await reminders.createWorkReviewLater(accountId, {
+      clientIdempotencyKey: "dismiss-fire",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      workId,
+    });
+    const [before] = await database
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+    const fired = await reminders.fireDuePersonalReminders(
+      new Date("2026-09-28T11:00:00.000Z"),
+    );
+    const [signal] = fired.signals;
+    if (!(signal && created)) {
+      throw new Error("Expected a fired reminder signal.");
+    }
+    await expect(
+      reminders.dismissSignal("another-account", signal.signalId),
+    ).resolves.toBeNull();
+    await expect(
+      reminders.dismissSignal(accountId, signal.signalId),
+    ).resolves.toMatchObject({
+      dismissedAt: now.toISOString(),
+      signalId: signal.signalId,
+    });
+    await expect(
+      reminders.dismissSignal(accountId, signal.signalId),
+    ).resolves.toMatchObject({
+      dismissedAt: now.toISOString(),
+    });
+    await expect(
+      reminders.listWorkReviewLater(accountId, workId),
+    ).resolves.toMatchObject([{ id: created.id, status: "Triggered" }]);
+    await expect(
+      database.select().from(work).where(eq(work.id, workId)),
+    ).resolves.toEqual([before]);
+  });
+
+  test("reschedules the same reminder and preserves each fire while rejecting stale signals", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    let clock = now;
+    const reminders = createDatabasePersonalReminders(database, {
+      now: () => clock,
+    });
+    const created = await reminders.createWorkReviewLater(accountId, {
+      clientIdempotencyKey: "reschedule-fire",
+      condition: "Only if still open",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      workId,
+    });
+    const [before] = await database
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+    clock = new Date("2026-09-28T11:00:00.000Z");
+    const fired = await reminders.fireDuePersonalReminders();
+    const [signal] = fired.signals;
+    if (!(signal && created)) {
+      throw new Error("Expected a fired reminder signal.");
+    }
+    const input = {
+      signalId: signal.signalId,
+      fireAt: "2026-09-28T12:00:00.000Z",
+    };
+    await expect(
+      reminders.rescheduleSignal("another-account", input),
+    ).resolves.toBeNull();
+    await expect(
+      reminders.rescheduleSignal(accountId, {
+        ...input,
+        fireAt: clock.toISOString(),
+      }),
+    ).rejects.toMatchObject({
+      code: "PERSONAL_REMINDER_FIRE_AT_MUST_BE_FUTURE",
+    });
+    await expect(
+      reminders.rescheduleSignal(accountId, input),
+    ).resolves.toMatchObject({
+      id: created.id,
+      status: "Planned",
+      fireAt: input.fireAt,
+      condition: "Only if still open",
+      triggeredAt: null,
+    });
+    await expect(
+      reminders.rescheduleSignal(accountId, input),
+    ).resolves.toMatchObject({ id: created.id });
+    await expect(reminders.fireDuePersonalReminders()).resolves.toEqual({
+      processedCount: 0,
+      signals: [],
+    });
+    clock = new Date(input.fireAt);
+    const [first, second] = await Promise.all([
+      reminders.fireDuePersonalReminders(),
+      reminders.fireDuePersonalReminders(),
+    ]);
+    const signals = [...first.signals, ...second.signals];
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      signalType: "review-later",
+      sourceRecordId: workId,
+    });
+    expect(signals[0]?.signalId).not.toBe(signal.signalId);
+    await expect(
+      reminders.rescheduleSignal(accountId, {
+        signalId: signal.signalId,
+        fireAt: "2026-09-28T13:00:00.000Z",
+      }),
+    ).resolves.toBeNull();
+    await expect(reminders.listSignals(accountId)).resolves.toMatchObject([
+      { signalId: signals[0]?.signalId, dismissedAt: null },
+      { signalId: signal.signalId, dismissedAt: "2026-09-28T11:00:00.000Z" },
+    ]);
+    await expect(reminders.listSignals("another-account")).resolves.toEqual([]);
+    await expect(
+      reminders.listWorkReviewLater(accountId, workId),
+    ).resolves.toHaveLength(1);
+    await expect(
+      database.select().from(work).where(eq(work.id, workId)),
+    ).resolves.toEqual([before]);
   });
 
   test("does not fire reminders toward an archived Project", async () => {
@@ -643,7 +847,7 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
           evaluationNote:
             "Work is unavailable; the condition could not be evaluated.",
           occurredAt: "2026-09-28T11:00:00.000Z",
-          signalId: `review-later:${created.id}`,
+          signalId: expect.stringMatching(`^review-later:${created.id}:`),
           signalType: "review-later",
           sourcePath: `/projects/${projectId}#work-${workId}`,
           sourceProjectId: projectId,
@@ -652,5 +856,45 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
         },
       ],
     });
+    await expect(
+      reminders.listWorkReviewLater(accountId, workId),
+    ).resolves.toMatchObject([
+      {
+        id: created.id,
+        status: "Triggered",
+        fireNote: "Work is unavailable; the condition could not be evaluated.",
+      },
+    ]);
+    await expect(
+      reminders.listWorkReviewLater("another-account", workId),
+    ).resolves.toBeNull();
+  });
+
+  test("keeps the archived Project boundary when the reminder source was deleted", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const reminders = createDatabasePersonalReminders(database, {
+      now: () => now,
+    });
+    await reminders.createWorkReviewLater(accountId, {
+      clientIdempotencyKey: "archived-deleted-source",
+      condition: "Only if still open",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      workId,
+    });
+    await database.delete(work).where(eq(work.id, workId));
+    await database
+      .update(project)
+      .set({ archivedAt: now })
+      .where(eq(project.id, projectId));
+    await expect(
+      reminders.fireDuePersonalReminders(new Date("2026-09-28T11:00:00.000Z")),
+    ).resolves.toEqual({ processedCount: 1, signals: [] });
+    await expect(
+      reminders.listWorkReviewLater(accountId, workId),
+    ).resolves.toMatchObject([
+      { fireNote: "Project is archived; no signal was emitted." },
+    ]);
   });
 });

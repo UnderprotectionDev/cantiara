@@ -55,6 +55,53 @@ function createContext(personalReminders: PersonalRemindersAccess): Context {
 }
 
 describe("Personal Reminders RPC", () => {
+  test("lists, dismisses, and reschedules fired signals through the signed-in Account", async () => {
+    const signal = {
+      dismissedAt: null,
+      evaluationNote: null,
+      occurredAt: "2026-09-28T11:00:00.000Z",
+      signalId: "personal-reminder:reminder-1:fire-1",
+      signalType: "personal-reminder" as const,
+      sourcePath: "/projects/project-1",
+      sourceProjectId: "project-1",
+      sourceRecordId: "project-1",
+      sourceRecordType: "Project" as const,
+    };
+    const access: PersonalRemindersAccess = {
+      cancel: vi.fn(),
+      create: vi.fn(),
+      list: vi.fn(),
+      dismissSignal: vi.fn().mockResolvedValue({
+        ...signal,
+        dismissedAt: "2026-09-28T11:05:00.000Z",
+      }),
+      listSignals: vi.fn().mockResolvedValue([signal]),
+      rescheduleSignal: vi.fn().mockResolvedValue(personalReminder),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+    await expect(client.personalReminderSignals()).resolves.toEqual([signal]);
+    await expect(
+      client.dismissPersonalReminderSignal({ signalId: signal.signalId }),
+    ).resolves.toMatchObject({ dismissedAt: "2026-09-28T11:05:00.000Z" });
+    const input = {
+      signalId: signal.signalId,
+      fireAt: "2026-09-28T12:00:00.000Z",
+    };
+    await expect(
+      client.reschedulePersonalReminderSignal(input),
+    ).resolves.toEqual(personalReminder);
+    expect(access.listSignals).toHaveBeenCalledExactlyOnceWith("account-1");
+    expect(access.dismissSignal).toHaveBeenCalledExactlyOnceWith(
+      "account-1",
+      signal.signalId,
+    );
+    expect(access.rescheduleSignal).toHaveBeenCalledExactlyOnceWith(
+      "account-1",
+      input,
+    );
+  });
   test.each(["In any case", "Only if still open"] as const)(
     "maps Work Review Later into the strict Personal Reminders input with %s",
     async (condition) => {
@@ -66,6 +113,9 @@ describe("Personal Reminders RPC", () => {
         sourceRecordType: "Work",
       };
       const access: PersonalRemindersAccess = {
+        dismissSignal: vi.fn(),
+        listSignals: vi.fn(),
+        rescheduleSignal: vi.fn(),
         cancel: vi.fn(),
         create: vi.fn<PersonalRemindersAccess["create"]>(
           (_accountId, reminderInput) => {
@@ -106,6 +156,9 @@ describe("Personal Reminders RPC", () => {
       status: "Cancelled" as const,
     };
     const access: PersonalRemindersAccess = {
+      dismissSignal: vi.fn(),
+      listSignals: vi.fn(),
+      rescheduleSignal: vi.fn(),
       cancel: vi.fn().mockResolvedValue(cancelled),
       create: vi.fn().mockResolvedValue(personalReminder),
       list: vi.fn().mockResolvedValue([personalReminder]),
@@ -153,6 +206,9 @@ describe("Personal Reminders RPC", () => {
       sourceRecordType: "Document",
     };
     const access: PersonalRemindersAccess = {
+      dismissSignal: vi.fn(),
+      listSignals: vi.fn(),
+      rescheduleSignal: vi.fn(),
       cancel: vi.fn(),
       create: vi.fn().mockResolvedValue(documentReminder),
       list: vi.fn(),
@@ -198,6 +254,9 @@ describe("Personal Reminders RPC", () => {
       sourceRecordType: "Project Release",
     };
     const access: PersonalRemindersAccess = {
+      dismissSignal: vi.fn(),
+      listSignals: vi.fn(),
+      rescheduleSignal: vi.fn(),
       cancel: vi.fn(),
       create: vi.fn().mockResolvedValue(releaseReminder),
       list: vi.fn(),

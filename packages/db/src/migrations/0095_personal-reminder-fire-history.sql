@@ -1,0 +1,2 @@
+DROP INDEX "personal_reminder_attention_signal_reminder_uidx";--> statement-breakpoint
+CREATE UNIQUE INDEX "personal_reminder_attention_signal_reminder_uidx" ON "personal_reminder_attention_signal" USING btree ("personal_reminder_id") WHERE "personal_reminder_attention_signal"."dismissed_at" is null;
