@@ -43,6 +43,7 @@ import {
   startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
   startPersonalReminderWorker,
+  startSmartCollectionSubscriptionSignalWorker,
   sweepExpiredFileAttachmentUploads,
   sweepExpiredPriorityMetrics,
   tagMutationContracts,
@@ -70,6 +71,7 @@ await Promise.all([
   startFileAttachmentPreviewWorker(),
   startBacklogReappearSignalWorker(),
   startPersonalReminderWorker(),
+  startSmartCollectionSubscriptionSignalWorker(),
 ]);
 await sweepExpiredFileAttachmentUploads();
 setInterval(

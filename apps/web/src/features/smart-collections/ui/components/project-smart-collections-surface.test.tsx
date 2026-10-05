@@ -10,7 +10,7 @@ import { orpc } from "@/utils/orpc";
 import ProjectSmartCollectionsSurface from "./project-smart-collections-surface";
 
 vi.mock("@tanstack/react-router", () => ({
-  useLinkProps: () => ({ href: "#new-work" }),
+  useLinkProps: () => ({ href: "/projects/project-1#create" }),
 }));
 
 const projectId = "project-1";
@@ -25,7 +25,9 @@ function emptyView(
     conditions: {},
     documents: [],
     id,
+    isSubscribed: false,
     name: "Default",
+    notifyOnLeave: false,
     presentation: "List",
     projectId,
     projectSourceRecords: [],

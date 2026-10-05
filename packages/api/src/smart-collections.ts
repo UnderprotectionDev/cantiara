@@ -165,6 +165,27 @@ export type CreateSmartCollectionInput = z.infer<
   typeof createSmartCollectionInputSchema
 >;
 
+export const setSmartCollectionSubscriptionInputSchema = z
+  .object({
+    viewId: z.string().min(1),
+    subscribe: z.boolean(),
+    notifyOnLeave: z.boolean(),
+  })
+  .strict()
+  .superRefine(({ notifyOnLeave, subscribe }, context) => {
+    if (notifyOnLeave && !subscribe) {
+      context.addIssue({
+        code: "custom",
+        path: ["notifyOnLeave"],
+        message: "Turn on Subscribe first.",
+      });
+    }
+  });
+
+export type SetSmartCollectionSubscriptionInput = z.infer<
+  typeof setSmartCollectionSubscriptionInputSchema
+>;
+
 export class SmartCollectionUnavailableError extends Error {}
 export class SmartCollectionConflictError extends Error {}
 
@@ -181,7 +202,9 @@ export interface SmartCollectionViewSource {
     membershipReasons: string[];
   }>;
   id: string;
+  isSubscribed: boolean;
   name: string;
+  notifyOnLeave: boolean;
   presentation: "List" | "Table";
   projectId: string;
   projectSourceRecords: Array<{
@@ -222,4 +245,8 @@ export interface SmartCollectionsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<SmartCollectionViewSource[]>;
+  setSubscription: (
+    accountId: string,
+    input: SetSmartCollectionSubscriptionInput,
+  ) => Promise<SmartCollectionViewSource>;
 }

@@ -21,12 +21,26 @@ import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
 import {
   smartCollection,
+  smartCollectionAttentionSignal,
+  smartCollectionSubscription,
+  smartCollectionSubscriptionMembership,
   smartCollectionView,
 } from "@cantiara/db/schema/smart-collection";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  type SmartCollectionSubscriptionContext,
+  type SmartCollectionSubscriptionMember,
+  type SmartCollectionSubscriptionMembershipState,
+  startSmartCollectionSubscriptionMembership,
+  transitionSmartCollectionSubscriptionMembership,
+} from "./smart-collection-subscription-signals";
 
 type SmartCollectionConditions = CreateSmartCollectionInput["conditions"];
+type SmartCollectionExecutor = Pick<
+  Database,
+  "delete" | "insert" | "select" | "update"
+>;
 type ProjectSourceMembershipRecord =
   SmartCollectionViewSource["projectSourceRecords"][number];
 type SmartCollectionWorkRecord = SmartCollectionViewSource["works"][number];
@@ -69,7 +83,7 @@ function explainProjectSourceMembership<
 }
 
 async function getProjectSourceMembershipRecords(
-  database: Database,
+  database: SmartCollectionExecutor,
   sourceType: ProjectSourceMembershipRecord["sourceType"],
   projectIds: string[],
   projectNames: ReadonlyMap<string, string>,
@@ -286,7 +300,7 @@ function getStoredProjectIds(
 }
 
 async function getAccessibleProjectScope(
-  database: Database,
+  database: SmartCollectionExecutor,
   accountId: string,
   workspaceId: string,
   collection: typeof smartCollection.$inferSelect,
@@ -319,7 +333,7 @@ async function getAccessibleProjectScope(
 }
 
 async function getWorkMembershipRecords(
-  database: Database,
+  database: SmartCollectionExecutor,
   projectIds: string[],
   projectNames: ReadonlyMap<string, string>,
   conditions: SmartCollectionConditions,
@@ -363,7 +377,7 @@ async function getWorkMembershipRecords(
 }
 
 async function getDocumentMembershipRecords(
-  database: Database,
+  database: SmartCollectionExecutor,
   sourceType: "Document" | "Wiki Document" | null,
   projectScope: SmartCollectionProjectScope,
   workspaceId: string,
@@ -438,7 +452,7 @@ async function getDocumentMembershipRecords(
 }
 
 function getProjectSourceRecords(
-  database: Database,
+  database: SmartCollectionExecutor,
   sourceType: SmartCollectionSourceType,
   projectScope: SmartCollectionProjectScope,
   conditions: SmartCollectionConditions,
@@ -459,72 +473,330 @@ function getProjectSourceRecords(
   );
 }
 
-export function createDatabaseSmartCollections(
-  database: Database,
-): SmartCollectionsAccess {
-  async function getView(
-    accountId: string,
-    viewId: string,
-  ): Promise<SmartCollectionViewSource | null> {
-    const [row] = await database
-      .select({
-        collection: smartCollection,
-        view: smartCollectionView,
-        workspaceId: project.workspaceId,
-      })
-      .from(smartCollectionView)
-      .innerJoin(
-        smartCollection,
-        eq(smartCollectionView.collectionId, smartCollection.id),
-      )
-      .innerJoin(project, eq(smartCollection.projectId, project.id))
-      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-      .where(
-        and(
-          eq(smartCollectionView.id, viewId),
-          eq(workspace.ownerAccountId, accountId),
-        ),
-      )
-      .limit(1);
-    if (!row) {
-      return null;
-    }
+function assertNever(value: never): never {
+  throw new Error(`Unsupported Smart Collection source type: ${value}`);
+}
 
-    const { collection, view, workspaceId } = row;
-    const sourceType = collection.sourceType as SmartCollectionSourceType;
-    const conditions = collection.conditions as SmartCollectionConditions;
-    const projectScope = await getAccessibleProjectScope(
-      database,
-      accountId,
-      workspaceId,
-      collection,
-      sourceType,
+function smartCollectionSourcePath(
+  sourceRecordType: SmartCollectionSourceType,
+  sourceRecordId: string,
+  sourceProjectId: string | null,
+) {
+  const recordId = encodeURIComponent(sourceRecordId);
+  const recordPath = sourceProjectId
+    ? `/projects/${encodeURIComponent(sourceProjectId)}`
+    : "/personal-wiki";
+  switch (sourceRecordType) {
+    case "Work":
+      return `${recordPath}#work-${recordId}`;
+    case "Document":
+    case "Wiki Document":
+      return `${recordPath}#document-${recordId}`;
+    case "Decision":
+      return `${recordPath}#source-decision-${recordId}`;
+    case "Risk":
+      return `${recordPath}#source-risk-${recordId}`;
+    case "Assumption":
+      return `${recordPath}#source-assumption-${recordId}`;
+    case "Open Question":
+      return `${recordPath}#source-open-question-${recordId}`;
+    case "Milestone":
+      return `${recordPath}#source-milestone-${recordId}`;
+    case "Project Release":
+      return `${recordPath}#source-project-release-${recordId}`;
+    case "Production Incident":
+      return `${recordPath}#source-production-incident-${recordId}`;
+    default:
+      return assertNever(sourceRecordType);
+  }
+}
+
+function smartCollectionSubscriptionMembers(
+  view: SmartCollectionViewSource,
+): SmartCollectionSubscriptionMember[] {
+  if (view.sourceType === "Work") {
+    return view.works.map((record) => ({
+      membershipReasons: record.membershipReasons,
+      sourcePath: smartCollectionSourcePath(
+        "Work",
+        record.id,
+        record.projectId,
+      ),
+      sourceProjectId: record.projectId,
+      sourceRecordId: record.id,
+      sourceRecordTitle: `${record.key} · ${record.title}`,
+      sourceRecordType: "Work",
+    }));
+  }
+  if (view.sourceType === "Document" || view.sourceType === "Wiki Document") {
+    return view.documents.map((record) => ({
+      membershipReasons: record.membershipReasons,
+      sourcePath: smartCollectionSourcePath(
+        view.sourceType,
+        record.id,
+        record.projectId,
+      ),
+      sourceProjectId: record.projectId,
+      sourceRecordId: record.id,
+      sourceRecordTitle: record.title,
+      sourceRecordType: view.sourceType,
+    }));
+  }
+  return view.projectSourceRecords.map((record) => ({
+    membershipReasons: record.membershipReasons,
+    sourcePath: smartCollectionSourcePath(
+      record.sourceType,
+      record.id,
+      record.projectId,
+    ),
+    sourceProjectId: record.projectId,
+    sourceRecordId: record.id,
+    sourceRecordTitle: record.title,
+    sourceRecordType: record.sourceType,
+  }));
+}
+
+function subscriptionMembershipState(
+  row: typeof smartCollectionSubscriptionMembership.$inferSelect,
+): SmartCollectionSubscriptionMembershipState {
+  return {
+    membershipReasons: row.membershipReasons,
+    sourcePath: row.sourcePath,
+    sourceProjectId: row.sourceProjectId,
+    sourceRecordId: row.sourceRecordId,
+    sourceRecordTitle: row.sourceRecordTitle,
+    sourceRecordType: row.sourceRecordType as SmartCollectionSourceType,
+    enteredAt: row.enteredAt,
+    isMember: row.isMember,
+    leftAt: row.leftAt,
+    membershipPeriod: row.membershipPeriod,
+  };
+}
+
+function subscriptionMembershipKey(
+  sourceRecordType: string,
+  sourceRecordId: string,
+) {
+  return JSON.stringify([sourceRecordType, sourceRecordId]);
+}
+
+async function saveSubscriptionMembership(
+  executor: SmartCollectionExecutor,
+  subscriptionId: string,
+  state: SmartCollectionSubscriptionMembershipState,
+) {
+  await executor
+    .insert(smartCollectionSubscriptionMembership)
+    .values({ ...state, subscriptionId })
+    .onConflictDoUpdate({
+      target: [
+        smartCollectionSubscriptionMembership.subscriptionId,
+        smartCollectionSubscriptionMembership.sourceRecordType,
+        smartCollectionSubscriptionMembership.sourceRecordId,
+      ],
+      set: {
+        enteredAt: state.enteredAt,
+        isMember: state.isMember,
+        leftAt: state.leftAt,
+        membershipPeriod: state.membershipPeriod,
+        membershipReasons: state.membershipReasons,
+        sourcePath: state.sourcePath,
+        sourceProjectId: state.sourceProjectId,
+        sourceRecordTitle: state.sourceRecordTitle,
+      },
+    });
+}
+
+async function reconcileSubscriptionMembership(
+  executor: SmartCollectionExecutor,
+  subscription: SmartCollectionSubscriptionContext,
+  notifyOnLeave: boolean,
+  view: SmartCollectionViewSource,
+  now: Date,
+) {
+  const currentMembers = smartCollectionSubscriptionMembers(view);
+  const previousRows = await executor
+    .select()
+    .from(smartCollectionSubscriptionMembership)
+    .where(
+      eq(smartCollectionSubscriptionMembership.subscriptionId, subscription.id),
     );
-    const [works, documents, projectSourceRecords] = await Promise.all([
-      getWorkMembershipRecords(
-        database,
-        sourceType === "Work" ? projectScope.projectIds : [],
-        projectScope.projectNames,
-        conditions,
-      ),
-      getDocumentMembershipRecords(
-        database,
-        sourceType === "Document" || sourceType === "Wiki Document"
-          ? sourceType
-          : null,
-        projectScope,
-        workspaceId,
-        conditions,
-      ),
-      getProjectSourceRecords(database, sourceType, projectScope, conditions),
-    ]);
+  const previousByKey = new Map(
+    previousRows.map((row) => [
+      subscriptionMembershipKey(row.sourceRecordType, row.sourceRecordId),
+      row,
+    ]),
+  );
+  const currentKeys = new Set<string>();
 
-    return {
+  for (const current of currentMembers) {
+    const key = subscriptionMembershipKey(
+      current.sourceRecordType,
+      current.sourceRecordId,
+    );
+    currentKeys.add(key);
+    const previousRow = previousByKey.get(key);
+    const transition = transitionSmartCollectionSubscriptionMembership({
+      current,
+      now,
+      notifyOnLeave,
+      previous: previousRow ? subscriptionMembershipState(previousRow) : null,
+      subscription,
+    });
+    if (transition.changed && transition.nextState) {
+      // biome-ignore lint/performance/noAwaitInLoops: Keep each snapshot write before its idempotent signal insert in the same transaction.
+      await saveSubscriptionMembership(
+        executor,
+        subscription.id,
+        transition.nextState,
+      );
+    }
+    if (transition.signal) {
+      await executor
+        .insert(smartCollectionAttentionSignal)
+        .values(transition.signal)
+        .onConflictDoNothing();
+    }
+  }
+
+  for (const row of previousRows) {
+    const key = subscriptionMembershipKey(
+      row.sourceRecordType,
+      row.sourceRecordId,
+    );
+    if (currentKeys.has(key)) {
+      continue;
+    }
+    const transition = transitionSmartCollectionSubscriptionMembership({
+      current: null,
+      now,
+      notifyOnLeave,
+      previous: subscriptionMembershipState(row),
+      subscription,
+    });
+    if (transition.changed && transition.nextState) {
+      // biome-ignore lint/performance/noAwaitInLoops: Keep each snapshot write before its idempotent signal insert in the same transaction.
+      await saveSubscriptionMembership(
+        executor,
+        subscription.id,
+        transition.nextState,
+      );
+    }
+    if (transition.signal) {
+      await executor
+        .insert(smartCollectionAttentionSignal)
+        .values(transition.signal)
+        .onConflictDoNothing();
+    }
+  }
+}
+
+async function startSubscriptionMembershipBaseline(
+  executor: SmartCollectionExecutor,
+  subscriptionId: string,
+  view: SmartCollectionViewSource,
+  now: Date,
+) {
+  const baseline = smartCollectionSubscriptionMembers(view).map((member) => ({
+    ...startSmartCollectionSubscriptionMembership(member, now),
+    subscriptionId,
+  }));
+  if (baseline.length === 0) {
+    return;
+  }
+  await executor
+    .insert(smartCollectionSubscriptionMembership)
+    .values(baseline)
+    .onConflictDoNothing();
+}
+
+type SmartCollectionSubscriptionRow =
+  typeof smartCollectionSubscription.$inferSelect;
+
+async function loadSmartCollectionView(
+  executor: SmartCollectionExecutor,
+  accountId: string,
+  viewId: string,
+): Promise<{
+  subscription: SmartCollectionSubscriptionRow | null;
+  view: SmartCollectionViewSource;
+} | null> {
+  const query = executor
+    .select({
+      collection: smartCollection,
+      view: smartCollectionView,
+      workspaceId: project.workspaceId,
+    })
+    .from(smartCollectionView)
+    .innerJoin(
+      smartCollection,
+      eq(smartCollectionView.collectionId, smartCollection.id),
+    )
+    .innerJoin(project, eq(smartCollection.projectId, project.id))
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(
+      and(
+        eq(smartCollectionView.id, viewId),
+        eq(workspace.ownerAccountId, accountId),
+      ),
+    );
+  const [row] = await query.for("update", { of: smartCollection }).limit(1);
+  if (!row) {
+    return null;
+  }
+
+  const { collection, view, workspaceId } = row;
+  const sourceType = collection.sourceType as SmartCollectionSourceType;
+  const conditions = collection.conditions as SmartCollectionConditions;
+  const [subscription] = await executor
+    .select()
+    .from(smartCollectionSubscription)
+    .where(
+      and(
+        eq(smartCollectionSubscription.collectionId, collection.id),
+        eq(smartCollectionSubscription.accountId, accountId),
+      ),
+    )
+    .limit(1);
+  const projectScope = await getAccessibleProjectScope(
+    executor,
+    accountId,
+    workspaceId,
+    collection,
+    sourceType,
+  );
+  const works = await getWorkMembershipRecords(
+    executor,
+    sourceType === "Work" ? projectScope.projectIds : [],
+    projectScope.projectNames,
+    conditions,
+  );
+  const documents = await getDocumentMembershipRecords(
+    executor,
+    sourceType === "Document" || sourceType === "Wiki Document"
+      ? sourceType
+      : null,
+    projectScope,
+    workspaceId,
+    conditions,
+  );
+  const projectSourceRecords = await getProjectSourceRecords(
+    executor,
+    sourceType,
+    projectScope,
+    conditions,
+  );
+
+  return {
+    subscription: subscription ?? null,
+    view: {
       collectionId: collection.id,
       collectionName: collection.name,
       conditions,
       id: view.id,
+      isSubscribed: Boolean(subscription),
       name: view.name,
+      notifyOnLeave: subscription?.notifyOnLeave ?? false,
       presentation: view.presentation as "List" | "Table",
       projectId: collection.projectId,
       sourceType,
@@ -533,7 +805,46 @@ export function createDatabaseSmartCollections(
       works,
       documents,
       projectSourceRecords,
-    };
+    },
+  };
+}
+
+function subscriptionContext(
+  accountId: string,
+  view: SmartCollectionViewSource,
+  subscription: SmartCollectionSubscriptionRow,
+): SmartCollectionSubscriptionContext {
+  return {
+    accountId,
+    collectionId: view.collectionId,
+    collectionName: view.collectionName,
+    id: subscription.id,
+  };
+}
+
+export function createDatabaseSmartCollections(
+  database: Database,
+): SmartCollectionsAccess {
+  function getView(
+    accountId: string,
+    viewId: string,
+  ): Promise<SmartCollectionViewSource | null> {
+    return database.transaction(async (tx) => {
+      const loaded = await loadSmartCollectionView(tx, accountId, viewId);
+      if (!loaded) {
+        return null;
+      }
+      if (loaded.subscription) {
+        await reconcileSubscriptionMembership(
+          tx,
+          subscriptionContext(accountId, loaded.view, loaded.subscription),
+          loaded.subscription.notifyOnLeave,
+          loaded.view,
+          new Date(),
+        );
+      }
+      return loaded.view;
+    });
   }
 
   return {
@@ -649,6 +960,92 @@ export function createDatabaseSmartCollections(
       }
       return result;
     },
+    setSubscription(accountId, input) {
+      return database.transaction(async (tx) => {
+        const loaded = await loadSmartCollectionView(
+          tx,
+          accountId,
+          input.viewId,
+        );
+        if (!loaded) {
+          throw new SmartCollectionUnavailableError();
+        }
+
+        const { view } = loaded;
+        if (!input.subscribe) {
+          if (loaded.subscription) {
+            await reconcileSubscriptionMembership(
+              tx,
+              subscriptionContext(accountId, view, loaded.subscription),
+              loaded.subscription.notifyOnLeave,
+              view,
+              new Date(),
+            );
+            await tx
+              .delete(smartCollectionSubscription)
+              .where(
+                and(
+                  eq(
+                    smartCollectionSubscription.collectionId,
+                    view.collectionId,
+                  ),
+                  eq(smartCollectionSubscription.accountId, accountId),
+                ),
+              );
+          }
+          return { ...view, isSubscribed: false, notifyOnLeave: false };
+        }
+
+        const now = new Date();
+        if (loaded.subscription) {
+          await reconcileSubscriptionMembership(
+            tx,
+            subscriptionContext(accountId, view, loaded.subscription),
+            loaded.subscription.notifyOnLeave,
+            view,
+            now,
+          );
+          if (loaded.subscription.notifyOnLeave !== input.notifyOnLeave) {
+            await tx
+              .update(smartCollectionSubscription)
+              .set({ notifyOnLeave: input.notifyOnLeave })
+              .where(
+                and(
+                  eq(
+                    smartCollectionSubscription.collectionId,
+                    view.collectionId,
+                  ),
+                  eq(smartCollectionSubscription.accountId, accountId),
+                ),
+              );
+          }
+          return {
+            ...view,
+            isSubscribed: true,
+            notifyOnLeave: input.notifyOnLeave,
+          };
+        }
+
+        const subscriptionId = crypto.randomUUID();
+        await tx.insert(smartCollectionSubscription).values({
+          accountId,
+          collectionId: view.collectionId,
+          id: subscriptionId,
+          notifyOnLeave: input.notifyOnLeave,
+        });
+        await startSubscriptionMembershipBaseline(
+          tx,
+          subscriptionId,
+          view,
+          now,
+        );
+        return {
+          ...view,
+          isSubscribed: true,
+          notifyOnLeave: input.notifyOnLeave,
+        };
+      });
+    },
     async listViews(accountId, projectId) {
       const [targetProject] = await database
         .select({ workspaceId: project.workspaceId })
@@ -691,4 +1088,59 @@ export function createDatabaseSmartCollections(
       ).filter((value): value is SmartCollectionViewSource => value !== null);
     },
   };
+}
+
+export async function sweepSmartCollectionSubscriptionSignals(
+  database: Database,
+  now = new Date(),
+) {
+  const subscriptions = await database
+    .select({
+      accountId: smartCollectionSubscription.accountId,
+      collectionId: smartCollectionSubscription.collectionId,
+    })
+    .from(smartCollectionSubscription)
+    .orderBy(asc(smartCollectionSubscription.collectionId));
+  let processedCount = 0;
+
+  for (const candidate of subscriptions) {
+    // biome-ignore lint/performance/noAwaitInLoops: Bound shared database load and isolate each subscription's atomic reconciliation.
+    const processed = await database.transaction(async (tx) => {
+      const [view] = await tx
+        .select({ id: smartCollectionView.id })
+        .from(smartCollectionView)
+        .where(eq(smartCollectionView.collectionId, candidate.collectionId))
+        .orderBy(asc(smartCollectionView.id))
+        .limit(1);
+      if (!view) {
+        return false;
+      }
+
+      const loaded = await loadSmartCollectionView(
+        tx,
+        candidate.accountId,
+        view.id,
+      );
+      if (!loaded?.subscription) {
+        return false;
+      }
+      await reconcileSubscriptionMembership(
+        tx,
+        subscriptionContext(
+          candidate.accountId,
+          loaded.view,
+          loaded.subscription,
+        ),
+        loaded.subscription.notifyOnLeave,
+        loaded.view,
+        now,
+      );
+      return true;
+    });
+    if (processed) {
+      processedCount += 1;
+    }
+  }
+
+  return processedCount;
 }

@@ -1,6 +1,7 @@
 import {
   createSmartCollectionInputSchema,
   SmartCollectionUnavailableError,
+  setSmartCollectionSubscriptionInputSchema,
 } from "@cantiara/api/smart-collections";
 import { createDb } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
@@ -13,6 +14,12 @@ import { project } from "@cantiara/db/schema/project";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
+import {
+  smartCollectionAttentionSignal,
+  smartCollectionSubscription,
+  smartCollectionSubscriptionMembership,
+  smartCollectionView,
+} from "@cantiara/db/schema/smart-collection";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -23,7 +30,10 @@ import {
   expect,
   test,
 } from "vitest";
-import { createDatabaseSmartCollections } from "./smart-collections-database";
+import {
+  createDatabaseSmartCollections,
+  sweepSmartCollectionSubscriptionSignals,
+} from "./smart-collections-database";
 
 const databaseUrl = process.env.MIGRATION_TEST_DATABASE_URL;
 const databaseTarget = databaseUrl ? new URL(databaseUrl) : undefined;
@@ -177,6 +187,26 @@ describe("Smart Collections condition contract", () => {
         }).success,
       ).toBe(false);
     }
+  });
+
+  test("requires Subscribe before Notify on leave", () => {
+    expect(
+      setSmartCollectionSubscriptionInputSchema.safeParse({
+        viewId: "view-id",
+        subscribe: false,
+        notifyOnLeave: true,
+      }),
+    ).toMatchObject({
+      success: false,
+      error: {
+        issues: [
+          {
+            message: "Turn on Subscribe first.",
+            path: ["notifyOnLeave"],
+          },
+        ],
+      },
+    });
   });
 });
 
@@ -725,6 +755,487 @@ describeDatabase(
       expect(
         (await access.listViews(accountId, projectBId)).map(({ id }) => id),
       ).toContain(view.id);
+    });
+
+    test("emits one registered entry signal for a membership period", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const workId = `work-${crypto.randomUUID()}`;
+      await database.insert(work).values({
+        id: workId,
+        key: `${shortCode}A-1`,
+        number: 1,
+        projectId: projectAId,
+        status: "Not Started",
+        title: "Incoming Work",
+        type: "Task",
+      });
+
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Active Work",
+        sourceType: "Work",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "In Progress" },
+      });
+
+      expect(view.isSubscribed).toBe(false);
+      const subscribed = await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: true,
+        notifyOnLeave: false,
+      });
+      expect(subscribed).toMatchObject({
+        isSubscribed: true,
+        notifyOnLeave: false,
+      });
+      expect(
+        (
+          await database
+            .select({ status: work.status })
+            .from(work)
+            .where(eq(work.id, workId))
+        )[0]?.status,
+      ).toBe("Not Started");
+
+      const alternateViewId = `${view.id}:table`;
+      await database.insert(smartCollectionView).values({
+        id: alternateViewId,
+        collectionId: view.collectionId,
+        name: "Table",
+        presentation: "Table",
+      });
+      const alternateSubscription = await access.setSubscription(accountId, {
+        viewId: alternateViewId,
+        subscribe: true,
+        notifyOnLeave: true,
+      });
+      expect(alternateSubscription).toMatchObject({
+        id: alternateViewId,
+        isSubscribed: true,
+        notifyOnLeave: true,
+      });
+      expect(
+        await database
+          .select()
+          .from(smartCollectionSubscription)
+          .where(
+            eq(smartCollectionSubscription.collectionId, view.collectionId),
+          ),
+      ).toHaveLength(1);
+
+      await database
+        .update(work)
+        .set({ status: "In Progress" })
+        .where(eq(work.id, workId));
+      await Promise.all([
+        access.getView(accountId, view.id),
+        access.getView(accountId, alternateViewId),
+        sweepSmartCollectionSubscriptionSignals(
+          database,
+          new Date("2026-10-05T10:05:00.000Z"),
+        ),
+      ]);
+
+      const signals = await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(
+          eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+        );
+      expect(signals).toHaveLength(1);
+      expect(signals[0]).toMatchObject({
+        eventType: "entry",
+        signalType: "smart-collection-entry",
+        sourceRecordId: workId,
+        sourceRecordType: "Work",
+      });
+      expect(signals[0]?.reason).toContain("Status: In Progress");
+    });
+
+    test("rejects an unregistered attention signal type", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Active Work",
+        sourceType: "Work",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "In Progress" },
+      });
+
+      await expect(
+        database.insert(smartCollectionAttentionSignal).values({
+          signalId: crypto.randomUUID(),
+          subscriptionId: crypto.randomUUID(),
+          collectionId: view.collectionId,
+          ownerAccountId: accountId,
+          eventType: "entry",
+          signalType: "unregistered-smart-collection-signal",
+          presentation: "Information Flow",
+          membershipPeriod: 1,
+          sourceRecordType: "Work",
+          sourceRecordId: "work-unregistered-signal",
+          sourceProjectId: projectAId,
+          sourceRecordName: "Unregistered signal",
+          sourcePath: `/projects/${projectAId}#work-work-unregistered-signal`,
+          reason: "Unregistered signal type",
+          occurredAt: new Date("2026-10-05T10:00:00.000Z"),
+        }),
+      ).rejects.toMatchObject({
+        cause: {
+          message: expect.stringContaining(
+            "smart_collection_attention_signal_type_check",
+          ),
+        },
+      });
+    });
+
+    test("keeps existing members silent, then emits an optional leave and a new-period entry", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const workId = `work-${crypto.randomUUID()}`;
+      await database.insert(work).values({
+        id: workId,
+        key: `${shortCode}A-2`,
+        number: 2,
+        projectId: projectAId,
+        status: "In Progress",
+        title: "Existing Work",
+        type: "Task",
+      });
+
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Active Work",
+        sourceType: "Work",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "In Progress" },
+      });
+
+      await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: true,
+        notifyOnLeave: true,
+      });
+      expect(
+        await database
+          .select()
+          .from(smartCollectionAttentionSignal)
+          .where(
+            eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+          ),
+      ).toEqual([]);
+
+      await database
+        .update(work)
+        .set({ status: "Not Started" })
+        .where(eq(work.id, workId));
+      await access.getView(accountId, view.id);
+      await access.getView(accountId, view.id);
+
+      const afterLeave = await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(
+          eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+        );
+      expect(afterLeave).toHaveLength(1);
+      expect(afterLeave[0]).toMatchObject({
+        eventType: "leave",
+        membershipPeriod: 1,
+        signalType: "smart-collection-entry",
+        sourceRecordId: workId,
+        sourceRecordType: "Work",
+      });
+      expect(afterLeave[0]?.reason).toContain("Status: In Progress");
+
+      await database
+        .update(work)
+        .set({ status: "In Progress" })
+        .where(eq(work.id, workId));
+      await access.getView(accountId, view.id);
+      await access.getView(accountId, view.id);
+
+      const afterReentry = await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(
+          eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+        );
+      expect(afterReentry).toHaveLength(2);
+      expect(afterReentry).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            eventType: "entry",
+            membershipPeriod: 2,
+            signalType: "smart-collection-entry",
+            sourceRecordId: workId,
+          }),
+          expect.objectContaining({
+            eventType: "leave",
+            membershipPeriod: 1,
+            signalType: "smart-collection-entry",
+            sourceRecordId: workId,
+          }),
+        ]),
+      );
+    });
+
+    test("clears the collection snapshot when unsubscribed and silently reseeds on subscribe", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const workId = `work-${crypto.randomUUID()}`;
+      await database.insert(work).values({
+        id: workId,
+        key: `${shortCode}A-4`,
+        number: 4,
+        projectId: projectAId,
+        status: "In Progress",
+        title: "Existing Work",
+        type: "Task",
+      });
+
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Active Work",
+        sourceType: "Work",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "In Progress" },
+      });
+      const subscribed = await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: true,
+        notifyOnLeave: false,
+      });
+      const [subscription] = await database
+        .select({ id: smartCollectionSubscription.id })
+        .from(smartCollectionSubscription)
+        .where(eq(smartCollectionSubscription.collectionId, view.collectionId));
+      expect(subscription).toBeDefined();
+      expect(subscribed).toMatchObject({ isSubscribed: true });
+      if (!subscription) {
+        throw new Error("Expected a subscription after enabling Subscribe.");
+      }
+      expect(
+        await database
+          .select()
+          .from(smartCollectionSubscriptionMembership)
+          .where(
+            eq(
+              smartCollectionSubscriptionMembership.subscriptionId,
+              subscription.id,
+            ),
+          ),
+      ).toHaveLength(1);
+
+      const unsubscribed = await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: false,
+        notifyOnLeave: false,
+      });
+      expect(unsubscribed).toMatchObject({
+        isSubscribed: false,
+        notifyOnLeave: false,
+      });
+      expect(
+        await database
+          .select()
+          .from(smartCollectionSubscription)
+          .where(
+            eq(smartCollectionSubscription.collectionId, view.collectionId),
+          ),
+      ).toEqual([]);
+      expect(
+        await database
+          .select()
+          .from(smartCollectionSubscriptionMembership)
+          .where(
+            eq(
+              smartCollectionSubscriptionMembership.subscriptionId,
+              subscription.id,
+            ),
+          ),
+      ).toEqual([]);
+
+      const resubscribed = await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: true,
+        notifyOnLeave: false,
+      });
+      expect(resubscribed).toMatchObject({ isSubscribed: true });
+      expect(
+        await database
+          .select()
+          .from(smartCollectionAttentionSignal)
+          .where(
+            eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+          ),
+      ).toEqual([]);
+      expect(
+        (
+          await database
+            .select({ status: work.status })
+            .from(work)
+            .where(eq(work.id, workId))
+        )[0]?.status,
+      ).toBe("In Progress");
+    });
+
+    test("reconciles pending entry and leave signals before unsubscribing", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const existingMemberId = `work-${crypto.randomUUID()}`;
+      const newMemberId = `work-${crypto.randomUUID()}`;
+      await database.insert(work).values([
+        {
+          id: existingMemberId,
+          key: `${shortCode}A-5`,
+          number: 5,
+          projectId: projectAId,
+          status: "In Progress",
+          title: "Leaving Work",
+          type: "Task",
+        },
+        {
+          id: newMemberId,
+          key: `${shortCode}A-6`,
+          number: 6,
+          projectId: projectAId,
+          status: "Not Started",
+          title: "Entering Work",
+          type: "Task",
+        },
+      ]);
+
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Active Work",
+        sourceType: "Work",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "In Progress" },
+      });
+      await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: true,
+        notifyOnLeave: true,
+      });
+
+      await database
+        .update(work)
+        .set({ status: "Not Started" })
+        .where(eq(work.id, existingMemberId));
+      await database
+        .update(work)
+        .set({ status: "In Progress" })
+        .where(eq(work.id, newMemberId));
+
+      await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: false,
+        notifyOnLeave: false,
+      });
+
+      const signals = await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(
+          eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+        );
+      expect(signals).toHaveLength(2);
+      expect(signals).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            eventType: "leave",
+            membershipPeriod: 1,
+            signalType: "smart-collection-entry",
+            sourceRecordId: existingMemberId,
+            sourceRecordType: "Work",
+          }),
+          expect.objectContaining({
+            eventType: "entry",
+            membershipPeriod: 1,
+            signalType: "smart-collection-entry",
+            sourceRecordId: newMemberId,
+            sourceRecordType: "Work",
+          }),
+        ]),
+      );
+    });
+
+    test("sweeps subscribed views that are not being read", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const workId = `work-${crypto.randomUUID()}`;
+      await database.insert(work).values({
+        id: workId,
+        key: `${shortCode}A-3`,
+        number: 3,
+        projectId: projectAId,
+        status: "Not Started",
+        title: "Unopened Work",
+        type: "Task",
+      });
+
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Active Work",
+        sourceType: "Work",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "In Progress" },
+      });
+      await access.setSubscription(accountId, {
+        viewId: view.id,
+        subscribe: true,
+        notifyOnLeave: false,
+      });
+      await database
+        .update(work)
+        .set({ status: "In Progress" })
+        .where(eq(work.id, workId));
+
+      await sweepSmartCollectionSubscriptionSignals(
+        database,
+        new Date("2026-10-05T10:05:00.000Z"),
+      );
+
+      const signals = await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(
+          eq(smartCollectionAttentionSignal.collectionId, view.collectionId),
+        );
+      expect(signals).toHaveLength(1);
+      expect(signals[0]).toMatchObject({
+        eventType: "entry",
+        membershipPeriod: 1,
+        signalType: "smart-collection-entry",
+        sourceRecordId: workId,
+      });
     });
   },
 );

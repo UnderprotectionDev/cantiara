@@ -83,6 +83,13 @@ import {
 } from "./schema/priority-metrics";
 import { roadmapView } from "./schema/roadmap-horizon";
 import {
+  smartCollection,
+  smartCollectionAttentionSignal,
+  smartCollectionSubscription,
+  smartCollectionSubscriptionMembership,
+  smartCollectionView,
+} from "./schema/smart-collection";
+import {
   workspaceTag,
   workspaceTagAssignment,
   workspaceTagAssignmentRelations,
@@ -141,6 +148,11 @@ const schema = {
   personalReminderAttentionSignal,
   prioritizationSession,
   prioritizationSessionWork,
+  smartCollection,
+  smartCollectionView,
+  smartCollectionSubscription,
+  smartCollectionSubscriptionMembership,
+  smartCollectionAttentionSignal,
   productionIncident,
   productionIncidentRelations,
   rateLimit,
