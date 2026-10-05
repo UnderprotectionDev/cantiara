@@ -170,6 +170,25 @@ function toSignalHistory(
   };
 }
 
+async function lockOwnedSignal(
+  executor: Pick<Database, "select">,
+  accountId: string,
+  signalId: string,
+) {
+  const [signal] = await executor
+    .select()
+    .from(personalReminderAttentionSignal)
+    .where(
+      and(
+        eq(personalReminderAttentionSignal.ownerAccountId, accountId),
+        eq(personalReminderAttentionSignal.signalId, signalId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return signal;
+}
+
 function toWorkReviewLater(
   record: PersonalReminderRecord | PersonalReminder,
 ): WorkReviewLater {
@@ -674,17 +693,11 @@ export function createDatabasePersonalReminders(
       throw new PersonalReminderFireAtMustBeFutureError();
     }
     return await database.transaction(async (transaction) => {
-      const [signal] = await transaction
-        .select()
-        .from(personalReminderAttentionSignal)
-        .where(
-          and(
-            eq(personalReminderAttentionSignal.ownerAccountId, accountId),
-            eq(personalReminderAttentionSignal.signalId, input.signalId),
-          ),
-        )
-        .limit(1)
-        .for("update");
+      const signal = await lockOwnedSignal(
+        transaction,
+        accountId,
+        input.signalId,
+      );
       if (!signal) {
         return null;
       }
@@ -734,17 +747,7 @@ export function createDatabasePersonalReminders(
 
   async function dismissSignal(accountId: string, signalId: string) {
     return await database.transaction(async (transaction) => {
-      const [signal] = await transaction
-        .select()
-        .from(personalReminderAttentionSignal)
-        .where(
-          and(
-            eq(personalReminderAttentionSignal.ownerAccountId, accountId),
-            eq(personalReminderAttentionSignal.signalId, signalId),
-          ),
-        )
-        .limit(1)
-        .for("update");
+      const signal = await lockOwnedSignal(transaction, accountId, signalId);
       if (!signal) {
         return null;
       }
