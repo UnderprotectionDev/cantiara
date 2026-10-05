@@ -91,7 +91,7 @@ function discoveryIndexInput(
 ) {
   return {
     query: "",
-    index: view === "Search" ? "All Work" : view,
+    index: view,
     scope,
     archived,
     ...(currentProjectId ? { currentProjectId } : {}),
