@@ -23,6 +23,7 @@ test("scope controls round-trip exact homes and reject invalid selections", () =
   }
   expect(parseDiscoveryView("Search")).toBe("Search");
   expect(parseDiscoveryView("All Documents")).toBe("All Documents");
+  expect(parseDiscoveryView("Table")).toBe("Table");
   expect(() => parseDiscoveryView("unknown")).toThrow();
 });
 

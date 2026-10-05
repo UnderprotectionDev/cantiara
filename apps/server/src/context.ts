@@ -50,7 +50,10 @@ import type {
 } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
-import type { UniversalSearchAccess } from "@cantiara/api/record-discovery";
+import type {
+  RecordTableAccess,
+  UniversalSearchAccess,
+} from "@cantiara/api/record-discovery";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -111,6 +114,7 @@ export interface CreateContextOptions {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
+  recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
@@ -169,6 +173,7 @@ export async function createContext({
   projectShell,
   projectShellMutationContracts,
   projectSourceRecords,
+  recordTable,
   priorityMetricMutationContracts,
   priorityMetrics,
   prioritizationSessionMutationContracts,
@@ -236,6 +241,7 @@ export async function createContext({
     projectShell,
     projectShellMutationContracts,
     projectSourceRecords,
+    recordTable,
     priorityMetricMutationContracts,
     priorityMetrics,
     prioritizationSessionMutationContracts,

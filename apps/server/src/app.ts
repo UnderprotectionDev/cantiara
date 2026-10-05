@@ -60,7 +60,10 @@ import type {
 } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
-import type { UniversalSearchAccess } from "@cantiara/api/record-discovery";
+import type {
+  RecordTableAccess,
+  UniversalSearchAccess,
+} from "@cantiara/api/record-discovery";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -176,6 +179,7 @@ export interface AppDependencies {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
+  recordTable?: RecordTableAccess;
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
@@ -1177,6 +1181,7 @@ export function createApp(dependencies: AppDependencies) {
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       projectSourceRecords: dependencies.projectSourceRecords,
+      recordTable: dependencies.recordTable,
       priorityMetricMutationContracts:
         dependencies.priorityMetricMutationContracts,
       priorityMetrics: dependencies.priorityMetrics,

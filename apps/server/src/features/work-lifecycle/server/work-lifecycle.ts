@@ -32,6 +32,7 @@ import {
   updateFeaturePrimarySpecInputSchema,
   updateWorkChecklistInputSchema,
   updateWorkDateInputSchema,
+  updateWorkFieldsInputSchema,
   updateWorkPlannedDateInputSchema,
   updateWorkReappearDateInputSchema,
   updateWorkStatusInputSchema,
@@ -2578,6 +2579,73 @@ export function createWorkLifecycle({
         throw new WorkNotFoundError(input.workId);
       }
       return { ...receipt.nextValue.work, receiptId: receipt.id };
+    },
+
+    async updateFields(accountId, rawInput) {
+      const input = updateWorkFieldsInputSchema.parse(rawInput);
+      const mutation = mutationContracts.update(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: "human" as const,
+        payload: { fields: input.fields, workId: input.workId },
+        targetId: input.workId,
+      };
+      const replay = await mutation.replay(command);
+      if (replay) {
+        if (!replay.nextValue.work) {
+          throw new WorkNotFoundError(input.workId);
+        }
+        return replay.nextValue.work;
+      }
+
+      const currentWork = await store.find(accountId, input.workId);
+      if (!currentWork) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      if (input.fields.status && currentWork.status === "Closed") {
+        throw new WorkReopenConfirmationRequiredError();
+      }
+
+      const changedStatus =
+        input.fields.status !== undefined &&
+        input.fields.status !== currentWork.status;
+      if (
+        Object.entries(input.fields).every(
+          ([field, value]) => currentWork[field as keyof WorkProfile] === value,
+        )
+      ) {
+        return currentWork;
+      }
+
+      const receipt = await mutation.mutate(
+        command,
+        ({ committedAt, currentRevision, currentValue }) => {
+          if (!currentValue.work || currentValue.work.id !== input.workId) {
+            throw new WorkNotFoundError(input.workId);
+          }
+          return {
+            work: {
+              ...currentValue.work,
+              ...input.fields,
+              ...(changedStatus
+                ? {
+                    closureReason: null,
+                    closureResult: null,
+                    statusChangedAt: committedAt,
+                  }
+                : {}),
+              revision: currentRevision + 1,
+              updatedAt: committedAt,
+            },
+          } satisfies WorkLifecycleMutationValue;
+        },
+      );
+      if (!receipt.nextValue.work) {
+        throw new WorkNotFoundError(input.workId);
+      }
+      return receipt.nextValue.work;
     },
 
     updateChecklist(accountId, rawInput) {

@@ -3,9 +3,12 @@ import {
   type RecordDiscoveryIndex,
   type RecordDiscoveryScope,
   type RecordDiscoveryView,
+  type RecordTableCellUpdateInput,
+  type RecordTablePasteInput,
   recordDiscoveryIndexLabels,
   recordDiscoveryScopeSchema,
   recordDiscoveryViewSchema,
+  type recordTableTypes,
   type UniversalSearchResult,
 } from "@cantiara/api/record-discovery";
 import { Button } from "@cantiara/ui/components/button";
@@ -23,13 +26,22 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMatches, useRouteContext } from "@tanstack/react-router";
-import { type ChangeEvent, useCallback, useState } from "react";
 import {
+  type ChangeEvent,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+import {
+  client,
+  orpc,
   projectsQueryOptions,
   universalSearchQueryOptions,
 } from "@/utils/orpc";
+import { RecordTableView } from "./record-table";
 import UniversalSearchResults from "./universal-search-results";
 
 interface ProjectScopeOption {
@@ -37,8 +49,11 @@ interface ProjectScopeOption {
   name: string;
 }
 
-export function parseDiscoveryView(value: string): RecordDiscoveryView {
-  return recordDiscoveryViewSchema.parse(value);
+type DiscoveryView = RecordDiscoveryView | "Table";
+type RecordTableType = (typeof recordTableTypes)[number];
+
+export function parseDiscoveryView(value: string): DiscoveryView {
+  return value === "Table" ? value : recordDiscoveryViewSchema.parse(value);
 }
 
 export function discoveryScopeValue(scope: RecordDiscoveryScope) {
@@ -396,73 +411,68 @@ function DiscoverySurface({
   currentProjectId?: string;
   onOpenSource: () => void;
 }) {
-  const [view, setView] = useState<RecordDiscoveryView>("Search");
+  const [view, setView] = useState<DiscoveryView>("Search");
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<RecordDiscoveryScope>({ kind: "all" });
-  const [type, setType] = useState("");
-  const [folder, setFolder] = useState("");
   const [archived, setArchived] = useState(false);
+  const [tableRecordType, setTableRecordType] =
+    useState<RecordTableType>("Work");
+  const [tableProjectId, setTableProjectId] = useState(currentProjectId ?? "");
   const changeView = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
     setView(parseDiscoveryView(event.target.value));
-    setType("");
-    setFolder("");
   }, []);
   const changeQuery = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value),
     [],
   );
-  const changeScope = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    setScope(parseDiscoveryScope(event.target.value));
-    setFolder("");
-  }, []);
-  const changeType = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => setType(event.target.value),
-    [],
-  );
-  const changeFolder = useCallback(
-    (event: ChangeEvent<HTMLSelectElement>) => setFolder(event.target.value),
+  const changeScope = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) =>
+      setScope(parseDiscoveryScope(event.target.value)),
     [],
   );
   const changeArchived = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setArchived(event.target.checked);
   }, []);
-  const indexInput = discoveryIndexInput(
-    view,
-    scope,
-    archived,
-    currentProjectId,
-  );
-  const metadataIndex = view !== "Search" && hasMetadataFilters(view);
-  const projectsQuery = useQuery({
-    ...projectsQueryOptions(),
-    enabled: Boolean(accountId) && view !== "Search",
-  });
-  const indexInventory = useQuery({
-    ...universalSearchQueryOptions(accountId, indexInput),
-    enabled: Boolean(accountId) && view !== "Search" && metadataIndex,
-  });
-  const indexResults = useQuery({
-    ...universalSearchQueryOptions(accountId, {
-      ...indexInput,
-      ...(metadataIndex && type ? { type } : {}),
-      ...(metadataIndex && folder ? { folder } : {}),
-    }),
-    enabled: Boolean(accountId) && view !== "Search",
-  });
-  const searchResults = useQuery({
-    ...universalSearchQueryOptions(accountId, {
-      query,
-      index: "Search",
-      archived,
-      ...(currentProjectId ? { currentProjectId } : {}),
-    }),
-    enabled: Boolean(accountId) && view === "Search" && Boolean(query.trim()),
-  });
-  const projects = projectsQuery.data ?? [];
-  const inventory = indexInventory.data ?? [];
-  const typeOptions =
-    view === "Search" ? [] : indexTypeOptions(view, inventory, type);
-  const folders = indexFolderOptions(inventory);
+  let content: ReactNode;
+  if (view === "Search") {
+    content = (
+      <RecordSearchSurface
+        {...{
+          accountId,
+          archived,
+          currentProjectId,
+          onChangeArchived: changeArchived,
+          onChangeQuery: changeQuery,
+          onOpenSource,
+          query,
+        }}
+      />
+    );
+  } else if (view === "Table") {
+    content = (
+      <RecordTableSurface
+        accountId={accountId}
+        onProjectChange={setTableProjectId}
+        onRecordTypeChange={setTableRecordType}
+        projectId={tableProjectId}
+        recordType={tableRecordType}
+      />
+    );
+  } else {
+    content = (
+      <RecordIndexSurface
+        accountId={accountId}
+        archived={archived}
+        currentProjectId={currentProjectId}
+        index={view}
+        key={view}
+        onChangeArchived={changeArchived}
+        onChangeScope={changeScope}
+        onOpenSource={onOpenSource}
+        scope={scope}
+      />
+    );
+  }
   return (
     <div className="space-y-4">
       <Label htmlFor="discovery-view">Discovery view</Label>
@@ -473,48 +483,205 @@ function DiscoverySurface({
             {label}
           </NativeSelectOption>
         ))}
+        <NativeSelectOption value="Table">Table</NativeSelectOption>
       </NativeSelect>
-      {view === "Search" ? (
-        <SearchPanel
-          archived={archived}
-          failed={searchResults.isError}
-          onChangeArchived={changeArchived}
-          onChangeQuery={changeQuery}
-          onOpenSource={onOpenSource}
-          pending={searchResults.isPending && Boolean(query.trim())}
-          query={query}
-          results={searchResults.data}
-        />
-      ) : (
-        <IndexPanel
-          archived={archived}
-          failed={discoveryIndexFailed({
-            index: view,
-            inventoryFailed: indexInventory.isError,
-            projectsFailed: projectsQuery.isError,
-            resultsFailed: indexResults.isError,
-          })}
-          folder={folder}
-          folders={folders}
-          index={view}
-          onChangeArchived={changeArchived}
-          onChangeFolder={changeFolder}
-          onChangeScope={changeScope}
-          onChangeType={changeType}
-          onOpenSource={onOpenSource}
-          pending={
-            indexResults.isPending ||
-            projectsQuery.isPending ||
-            (metadataIndex && indexInventory.isPending)
-          }
-          projects={projects}
-          results={indexResults.data}
-          scope={scope}
-          type={type}
-          typeOptions={typeOptions}
-        />
-      )}
+      {content}
     </div>
+  );
+}
+
+function RecordSearchSurface({
+  accountId,
+  archived,
+  currentProjectId,
+  onChangeArchived,
+  onChangeQuery,
+  onOpenSource,
+  query,
+}: {
+  accountId: string;
+  archived: boolean;
+  currentProjectId?: string;
+  onChangeArchived: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChangeQuery: (event: ChangeEvent<HTMLInputElement>) => void;
+  onOpenSource: () => void;
+  query: string;
+}) {
+  const searchResults = useQuery({
+    ...universalSearchQueryOptions(accountId, {
+      query,
+      index: "Search",
+      archived,
+      ...(currentProjectId ? { currentProjectId } : {}),
+    }),
+    enabled: Boolean(accountId) && Boolean(query.trim()),
+  });
+  return (
+    <SearchPanel
+      archived={archived}
+      failed={searchResults.isError}
+      onChangeArchived={onChangeArchived}
+      onChangeQuery={onChangeQuery}
+      onOpenSource={onOpenSource}
+      pending={searchResults.isPending && Boolean(query.trim())}
+      query={query}
+      results={searchResults.data}
+    />
+  );
+}
+
+function RecordIndexSurface({
+  accountId,
+  archived,
+  currentProjectId,
+  index,
+  onChangeArchived,
+  onChangeScope,
+  onOpenSource,
+  scope,
+}: {
+  accountId: string;
+  archived: boolean;
+  currentProjectId?: string;
+  index: RecordDiscoveryIndex;
+  onChangeArchived: (event: ChangeEvent<HTMLInputElement>) => void;
+  onChangeScope: (event: ChangeEvent<HTMLSelectElement>) => void;
+  onOpenSource: () => void;
+  scope: RecordDiscoveryScope;
+}) {
+  const [type, setType] = useState("");
+  const [folder, setFolder] = useState("");
+  const changeType = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => setType(event.target.value),
+    [],
+  );
+  const changeFolder = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => setFolder(event.target.value),
+    [],
+  );
+  const changeScope = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      onChangeScope(event);
+      setFolder("");
+    },
+    [onChangeScope],
+  );
+  const indexInput = discoveryIndexInput(
+    index,
+    scope,
+    archived,
+    currentProjectId,
+  );
+  const metadataIndex = hasMetadataFilters(index);
+  const projectsQuery = useQuery({
+    ...projectsQueryOptions(),
+    enabled: Boolean(accountId),
+  });
+  const indexInventory = useQuery({
+    ...universalSearchQueryOptions(accountId, indexInput),
+    enabled: Boolean(accountId) && metadataIndex,
+  });
+  const indexResults = useQuery({
+    ...universalSearchQueryOptions(accountId, {
+      ...indexInput,
+      ...(metadataIndex && type ? { type } : {}),
+      ...(metadataIndex && folder ? { folder } : {}),
+    }),
+    enabled: Boolean(accountId),
+  });
+  const projects = projectsQuery.data ?? [];
+  const inventory = indexInventory.data ?? [];
+  return (
+    <IndexPanel
+      archived={archived}
+      failed={discoveryIndexFailed({
+        index,
+        inventoryFailed: indexInventory.isError,
+        projectsFailed: projectsQuery.isError,
+        resultsFailed: indexResults.isError,
+      })}
+      folder={folder}
+      folders={indexFolderOptions(inventory)}
+      index={index}
+      onChangeArchived={onChangeArchived}
+      onChangeFolder={changeFolder}
+      onChangeScope={changeScope}
+      onChangeType={changeType}
+      onOpenSource={onOpenSource}
+      pending={
+        indexResults.isPending ||
+        projectsQuery.isPending ||
+        (metadataIndex && indexInventory.isPending)
+      }
+      projects={projects}
+      results={indexResults.data}
+      scope={scope}
+      type={type}
+      typeOptions={indexTypeOptions(index, inventory, type)}
+    />
+  );
+}
+
+function RecordTableSurface({
+  accountId,
+  onProjectChange,
+  onRecordTypeChange,
+  projectId,
+  recordType,
+}: {
+  accountId: string;
+  onProjectChange: (projectId: string) => void;
+  onRecordTypeChange: (recordType: RecordTableType) => void;
+  projectId: string;
+  recordType: RecordTableType;
+}) {
+  const queryClient = useQueryClient();
+  const projectsQuery = useQuery({
+    ...projectsQueryOptions(),
+    enabled: Boolean(accountId),
+  });
+  const tableRecordsOptions = useMemo(
+    () =>
+      orpc.tableRecords.queryOptions({
+        input: {
+          recordType,
+          ...(projectId ? { projectId } : {}),
+        },
+      }),
+    [projectId, recordType],
+  );
+  const tableRecords = useQuery({
+    ...tableRecordsOptions,
+    enabled: Boolean(accountId),
+  });
+  const tableQueryKey = tableRecordsOptions.queryKey;
+  const saveTableCell = useCallback(
+    async (input: RecordTableCellUpdateInput) => {
+      await client.updateTableCell(input);
+      await queryClient.invalidateQueries({ queryKey: tableQueryKey });
+    },
+    [queryClient, tableQueryKey],
+  );
+  const applyTablePaste = useCallback(
+    async (input: RecordTablePasteInput) => {
+      await client.applyTablePaste(input);
+      await queryClient.invalidateQueries({ queryKey: tableQueryKey });
+    },
+    [queryClient, tableQueryKey],
+  );
+  return (
+    <RecordTableView
+      failed={tableRecords.isError || projectsQuery.isError}
+      onApplyPaste={applyTablePaste}
+      onProjectChange={onProjectChange}
+      onRecordTypeChange={onRecordTypeChange}
+      onSaveCell={saveTableCell}
+      pending={tableRecords.isPending || projectsQuery.isPending}
+      projectId={projectId}
+      projects={projectsQuery.data ?? []}
+      records={tableRecords.data ?? []}
+      recordType={recordType}
+    />
   );
 }
 

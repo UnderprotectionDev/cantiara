@@ -60,7 +60,9 @@ import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/
 import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
+import { createDatabaseRecordTable } from "../src/features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
@@ -145,8 +147,17 @@ const tagMutationContracts = createDatabaseTagMutationContracts(
 const customFields = createDatabaseCustomFields(database);
 const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(database);
+const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
 const workLifecycle = createDatabaseWorkLifecycle(database, {
-  customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+  customFieldValueWriter,
+});
+const projectSourceRecords = createDatabaseProjectSourceRecords(database);
+const recordTable = createDatabaseRecordTable({
+  customFieldValueWriter,
+  database,
+  projectShell,
+  projectSourceRecords,
+  workLifecycle,
 });
 const focusPeriod = createDatabaseFocusPeriod(database);
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
@@ -290,6 +301,7 @@ const app = createApp({
   prioritizationSessionMutationContracts,
   prioritizationSessions,
   recordActions,
+  recordTable,
   relations,
   roadmapHorizon,
   tags,

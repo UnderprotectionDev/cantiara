@@ -232,6 +232,9 @@ import {
 } from "../record-actions";
 import {
   documentDiscoveryInputSchema,
+  recordTableCellUpdateInputSchema,
+  recordTableInputSchema,
+  recordTablePasteInputSchema,
   universalSearchInputSchema,
 } from "../record-discovery";
 import {
@@ -2699,6 +2702,33 @@ export const appRouter = {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
       return search.search(context.session.user.id, input);
+    }),
+  tableRecords: protectedProcedure
+    .input(recordTableInputSchema)
+    .handler(({ context, input }) => {
+      const table = context.recordTable;
+      if (!table) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return table.list(context.session.user.id, input);
+    }),
+  updateTableCell: protectedProcedure
+    .input(recordTableCellUpdateInputSchema)
+    .handler(({ context, input }) => {
+      const table = context.recordTable;
+      if (!table) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return table.updateCell(context.session.user.id, input);
+    }),
+  applyTablePaste: protectedProcedure
+    .input(recordTablePasteInputSchema)
+    .handler(({ context, input }) => {
+      const table = context.recordTable;
+      if (!table) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return table.applyPaste(context.session.user.id, input);
     }),
   documents: protectedProcedure
     .input(
