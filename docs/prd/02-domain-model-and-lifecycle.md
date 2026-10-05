@@ -667,7 +667,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Akıllı Koleksiyon kaydedilemedi | `Smart Collection could not be saved.` | Yeni koleksiyon ve ilk adlandırılmış görünüm birlikte kaydedilemediğinde hata durumu |
 | Akıllı Koleksiyon kullanılamıyor | `Smart Collection is unavailable.` | Kaynak görünüm çözümlenemediğinde salt okunur hata durumu |
 | Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
-| Yeni iş | `New work` | İş koleksiyonunda doğrudan tekil alan eşitliğini dolduran oluşturma; tarih aralığı veya olumsuz koşul uygulamaz |
+| Yeni iş | `New work` | İş koleksiyonundaki doğrudan `Work type` eşitliğini `Type` alanında önceden dolduran oluşturma; diğer koşulları yeni İşe uygulamaz |
+| Yeni İş eşleşmeme uyarısı | `This Work may not appear in this Smart Collection.` | Seçili `Type` veya varsayılan `Status` koleksiyon koşullarını karşılamadığında gösterilen uyarı |
 | Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
 | Yeni görünüm olarak kaydet | `Save as` | Kirli sunumu yeni adlandırılmış görünüme yazma |
 | Geri dön | `Revert` | Kirli sunumu kayıtlı adlandırılmış görünüme döndürme |
@@ -1129,6 +1130,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge araması açıklaması | `Find Documents in their Project or Personal Wiki scope.` | Search içindeki teslim edilmiş Belge türü karşılığını açıklar |
 | Kayıt eşleşme sayısı | `<count> matches` | Yetkili Belge başlık/gövdesindeki eşleşen terimlerin toplam sayısı |
 | Tam sayfa aç | `Open full page` | Derin çalışma için kaynağı tam sayfada açma; geçici önizleme paneli veya kalıcı yerleşim değildir |
+| Belge önizlemesi yükleniyor | `Loading document preview…` | Belge önizlemesi yüklenirken gösterilen durum metni |
+| Geçici önizleme açıklaması | `Temporary preview that keeps the current source view in place.` | Geçici önizlemenin mevcut kaynak görünümünü koruduğunu açıklayan panel metni |
 | Yakalama Gelen Kutusu öğesi | `Capture Inbox item` | Henüz ana kayda dönüşmemiş geçici girdi; Evrensel Arama sonucu değildir |
 | GitHub dış kaydı | `GitHub external record` | GitHub kaynak kimliğini taşıyan salt okunur Proje ana kaydı; Evrensel Arama sonucu değildir |
 | Secret | `Secret` | Kapalı alandan gelen gizli değer; arama, export, paylaşım ve yayın kapsamına girmez |

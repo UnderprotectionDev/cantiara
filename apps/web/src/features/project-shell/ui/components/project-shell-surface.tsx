@@ -7,7 +7,11 @@ import {
   type ProjectArea,
   type ProjectShellConfiguration,
 } from "@cantiara/api/project-shell";
-import type { ScopeTree, WorkStatus } from "@cantiara/api/work-lifecycle";
+import type {
+  ScopeTree,
+  WorkStatus,
+  WorkType,
+} from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -54,6 +58,13 @@ import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-a
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
+import {
+  clearSmartCollectionWorkPrefillSearch,
+  type SmartCollectionWorkPrefillSearch,
+  smartCollectionWorkPrefillClearsOnLeave,
+  smartCollectionWorkPrefillFromSearch,
+  smartCollectionWorkPrefillWarning,
+} from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
@@ -147,6 +158,9 @@ export default function ProjectShellSurface({
   const configurationReturnHash = useLocation({
     select: ({ search }) => search.configurationReturn,
   });
+  const collectionWorkPrefill: SmartCollectionWorkPrefillSearch = useLocation({
+    select: ({ search }) => smartCollectionWorkPrefillFromSearch(search),
+  });
   const navigate = useNavigate();
   const configurationMode = activeHash === CONFIGURATION_MODE_HASH;
   const [showExplanation, setShowExplanation] = useState(
@@ -159,6 +173,25 @@ export default function ProjectShellSurface({
   const dailyAction = dailyActionFromHash(activeHash);
   const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
   const documentRoute = documentRecordFromHash(activeHash);
+  const collectionWorkConditions = {
+    ...(collectionWorkPrefill.smartCollectionWorkStatus === undefined
+      ? {}
+      : { status: collectionWorkPrefill.smartCollectionWorkStatus }),
+    ...(collectionWorkPrefill.smartCollectionWorkType === undefined
+      ? {}
+      : { type: collectionWorkPrefill.smartCollectionWorkType }),
+  };
+  const hasCollectionWorkPrefill =
+    collectionWorkPrefill.smartCollectionWorkStatus !== undefined ||
+    collectionWorkPrefill.smartCollectionWorkType !== undefined;
+  const collectionWorkTypeWarning = hasCollectionWorkPrefill
+    ? (type: WorkType) =>
+        smartCollectionWorkPrefillWarning(collectionWorkConditions, type)
+    : undefined;
+  const clearCollectionWorkPrefill = smartCollectionWorkPrefillClearsOnLeave(
+    dailyAction,
+    collectionWorkPrefill,
+  );
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
@@ -182,6 +215,18 @@ export default function ProjectShellSurface({
 
     return () => window.cancelAnimationFrame(frame);
   }, [activeHash]);
+
+  useEffect(() => {
+    if (!clearCollectionWorkPrefill) {
+      return;
+    }
+
+    navigate({
+      to: ".",
+      search: (previous) => clearSmartCollectionWorkPrefillSearch(previous),
+      replace: true,
+    });
+  }, [clearCollectionWorkPrefill, navigate]);
 
   const {
     configuration,
@@ -257,8 +302,10 @@ export default function ProjectShellSurface({
           activeAction={dailyAction}
           activeHash={activeHash}
           configuration={configuration}
+          initialWorkType={collectionWorkPrefill.smartCollectionWorkType}
           key={projectId}
           projectId={projectId}
+          workTypeWarning={collectionWorkTypeWarning}
         />
       );
     }
@@ -455,14 +502,18 @@ function ProjectWorkSurface({
   activeAction,
   accountFormattingPreferences,
   configuration,
+  initialWorkType,
   projectId,
+  workTypeWarning,
 }: {
   accountId?: string;
   activeHash: string;
   activeAction: DailyAction | null;
   accountFormattingPreferences: AccountPreferences;
   configuration: ProjectShellConfiguration;
+  initialWorkType?: WorkType;
   projectId: string;
+  workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const navigate = useNavigate();
   const [selectedWorkView, setSelectedWorkView] = useState<"Board" | "List">(
@@ -529,7 +580,9 @@ function ProjectWorkSurface({
         <DailyWorkActions
           accountFormattingPreferences={accountFormattingPreferences}
           activeAction={activeAction}
+          initialWorkType={initialWorkType}
           projectId={projectId}
+          workTypeWarning={workTypeWarning}
         />
         {showSourceWork ||
         !configuration.preparedWorkViews.includes("Board") ? (
@@ -699,11 +752,15 @@ function ScopeTreeSection({
 function DailyWorkActions({
   accountFormattingPreferences,
   activeAction,
+  initialWorkType,
   projectId,
+  workTypeWarning,
 }: {
   accountFormattingPreferences: AccountPreferences;
   activeAction: DailyAction | null;
+  initialWorkType?: WorkType;
   projectId: string;
+  workTypeWarning?: (type: WorkType) => string | null;
 }) {
   return (
     <section aria-labelledby="daily-actions-heading" className="mb-6">
@@ -723,7 +780,9 @@ function DailyWorkActions({
         <DailyActionHost
           accountFormattingPreferences={accountFormattingPreferences}
           action={activeAction}
+          initialWorkType={initialWorkType}
           projectId={projectId}
+          workTypeWarning={workTypeWarning}
         />
       ) : null}
     </section>
@@ -773,11 +832,15 @@ function dailyActionVariant(
 function DailyActionHost({
   accountFormattingPreferences,
   action,
+  initialWorkType,
   projectId,
+  workTypeWarning,
 }: {
   accountFormattingPreferences: AccountPreferences;
   action: DailyAction;
+  initialWorkType?: WorkType;
   projectId: string;
+  workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const hostId = DAILY_ACTION_HASHES[action];
 
@@ -793,7 +856,9 @@ function DailyActionHost({
       {action === "Create" ? (
         <WorkDraftForm
           accountFormattingPreferences={accountFormattingPreferences}
+          initialType={initialWorkType}
           projectId={projectId}
+          typeWarning={workTypeWarning}
         />
       ) : (
         <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
