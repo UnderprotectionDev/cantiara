@@ -107,6 +107,7 @@ test("moves Work through Board with explicit close and reopen steps", async ({
     page.getByRole("heading", { name: title, exact: true }),
   ).toBeVisible();
 
+  await openBoard(page);
   await page.getByRole("button", { name: "List", exact: true }).click();
   const listView = page.getByRole("region", { name: "List" });
   const listRow = listView.getByRole("listitem").filter({ hasText: title });
