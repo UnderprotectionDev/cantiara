@@ -9,7 +9,7 @@ import {
   type SmartCollectionViewSource,
 } from "@cantiara/api/smart-collections";
 import { WORK_TYPE_OPTIONS } from "@cantiara/api/work-lifecycle";
-import { Button } from "@cantiara/ui/components/button";
+import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
 import {
@@ -18,6 +18,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLinkProps } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 import {
   type ComponentProps,
@@ -48,6 +49,7 @@ import {
   type SmartCollectionMembershipFieldChange,
   type SmartCollectionMembershipPreviewRecord,
 } from "../../lib/smart-collection-membership-preview";
+import { newWorkLinkTarget } from "../../lib/smart-collection-work-prefill";
 import { SmartCollectionInsights } from "./smart-collection-insights";
 
 const SMART_COLLECTION_DRAG_TYPE = "smart-collection-record";
@@ -334,6 +336,7 @@ function CollectionViewCard({
   });
   const showDropTarget = droppable.isDropTarget && preview?.viewId === view.id;
   const isWorkCollection = view.sourceType === "Work";
+  const newWorkLinkProps = useLinkProps(newWorkLinkTarget(view));
   const now = new Date();
   const selectedWorks = isWorkCollection
     ? selectedSlices.reduce(
@@ -363,6 +366,14 @@ function CollectionViewCard({
       <p className="text-muted-foreground text-sm">
         {view.sourceType} · {view.presentation}
       </p>
+      {isWorkCollection ? (
+        <a
+          {...newWorkLinkProps}
+          className={buttonVariants({ size: "sm", variant: "outline" })}
+        >
+          New work
+        </a>
+      ) : null}
       {isWorkCollection ? (
         <fieldset className="flex gap-2">
           <legend className="sr-only">Collection view</legend>
