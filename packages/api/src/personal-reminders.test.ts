@@ -144,6 +144,84 @@ describe("Personal Reminders RPC", () => {
     );
   });
 
+  test("creates a Review Later for a Document section through the signed-in Account", async () => {
+    const documentReminder: PersonalReminder = {
+      ...personalReminder,
+      action: "Review Later",
+      sectionId: "release-readiness",
+      sourceRecordId: "document-1",
+      sourceRecordType: "Document",
+    };
+    const access: PersonalRemindersAccess = {
+      cancel: vi.fn(),
+      create: vi.fn().mockResolvedValue(documentReminder),
+      list: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+    const input = {
+      action: "Review Later" as const,
+      clientIdempotencyKey: "document-section-review-later-1",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      sectionId: "release-readiness",
+      sourceRecordId: "document-1",
+      sourceRecordType: "Document" as const,
+    };
+
+    await expect(client.createPersonalReminder(input)).resolves.toEqual(
+      documentReminder,
+    );
+    expect(access.create).toHaveBeenCalledExactlyOnceWith("account-1", {
+      ...input,
+      condition: "In any case",
+    });
+    expect(
+      createPersonalReminderInputSchema.safeParse({
+        ...input,
+        action: "Remind me",
+      }).success,
+    ).toBe(false);
+    expect(
+      createPersonalReminderInputSchema.safeParse({
+        ...input,
+        sourceRecordType: "Project",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("uses the same Review Later contract for a Project Release", async () => {
+    const releaseReminder: PersonalReminder = {
+      ...personalReminder,
+      action: "Review Later",
+      sourceRecordId: "release-1",
+      sourceRecordType: "Project Release",
+    };
+    const access: PersonalRemindersAccess = {
+      cancel: vi.fn(),
+      create: vi.fn().mockResolvedValue(releaseReminder),
+      list: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: createContext(access),
+    });
+    const input = {
+      action: "Review Later" as const,
+      clientIdempotencyKey: "release-review-later-1",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      sourceRecordId: "release-1",
+      sourceRecordType: "Project Release" as const,
+    };
+
+    await expect(client.createPersonalReminder(input)).resolves.toEqual(
+      releaseReminder,
+    );
+    expect(access.create).toHaveBeenCalledExactlyOnceWith("account-1", {
+      ...input,
+      condition: "In any case",
+    });
+  });
+
   test("requires a source and keeps the list closed to permanent record models", () => {
     expect(PERSONAL_REMINDER_SOURCE_TYPES).toEqual([
       "Project",

@@ -70,6 +70,7 @@ export const createPersonalReminderInputSchema = z
     clientIdempotencyKey: identifierSchema,
     condition: personalReminderConditionSchema.default("In any case"),
     fireAt: z.iso.datetime({ offset: true }),
+    sectionId: identifierSchema.optional(),
     sourceRecordId: identifierSchema,
     sourceRecordType: personalReminderSourceTypeSchema,
   })
@@ -91,6 +92,16 @@ export const createPersonalReminderInputSchema = z
     {
       message: "This source has no open and resolved life condition.",
       path: ["condition"],
+    },
+  )
+  .refine(
+    (input) =>
+      input.sectionId === undefined ||
+      (input.action === "Review Later" &&
+        input.sourceRecordType === "Document"),
+    {
+      message: "Only Review Later on a Document can target a section.",
+      path: ["sectionId"],
     },
   );
 

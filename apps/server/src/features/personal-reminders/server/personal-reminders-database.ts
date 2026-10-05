@@ -1,3 +1,4 @@
+import { documentSectionById } from "@cantiara/api/documents";
 import type {
   CreatePersonalReminderInput,
   CreateWorkReviewLaterInput,
@@ -38,6 +39,7 @@ type ReminderSourceRef = Pick<
 >;
 
 interface OwnedSource {
+  documentBody: string | null;
   projectArchivedAt: Date | null;
   projectId: string | null;
   recordArchivedAt: Date | null;
@@ -49,6 +51,7 @@ interface OwnedSource {
 
 interface OwnedSourceRow {
   accountId: string;
+  documentBody?: string | null;
   projectArchivedAt: Date | null;
   projectId: string | null;
   recordArchivedAt?: Date | null;
@@ -146,6 +149,7 @@ function rememberRows(
 ) {
   for (const row of rows) {
     result.set(sourceKey(row.accountId, sourceRecordType, row.sourceRecordId), {
+      documentBody: row.documentBody ?? null,
       projectArchivedAt: row.projectArchivedAt,
       projectId: row.projectId,
       recordArchivedAt: row.recordArchivedAt ?? null,
@@ -160,6 +164,7 @@ function rememberRows(
 async function findOwnedSources(
   executor: Pick<Database, "select">,
   sources: readonly ReminderSourceRef[],
+  includeDocumentBodies = false,
 ) {
   const result = new Map<string, OwnedSource>();
   const groups = new Map<PersonalReminderSourceType, ReminderSourceRef[]>();
@@ -203,6 +208,7 @@ async function findOwnedSources(
           const rows = await executor
             .select({
               accountId: workspace.ownerAccountId,
+              ...(includeDocumentBodies ? { documentBody: document.body } : {}),
               projectArchivedAt: project.archivedAt,
               projectId: document.projectId,
               recordArchivedAt: document.archivedAt,
@@ -367,10 +373,13 @@ async function findOwnedSource(
   accountId: string,
   sourceRecordType: PersonalReminderSourceType,
   sourceRecordId: string,
+  includeDocumentBodies = false,
 ) {
-  const sources = await findOwnedSources(executor, [
-    { accountId, sourceRecordId, sourceRecordType },
-  ]);
+  const sources = await findOwnedSources(
+    executor,
+    [{ accountId, sourceRecordId, sourceRecordType }],
+    includeDocumentBodies,
+  );
   return sources.get(sourceKey(accountId, sourceRecordType, sourceRecordId));
 }
 
@@ -495,8 +504,13 @@ function reminderSourcePath(reminder: PersonalReminderRecord) {
     ? `/projects/${encodeURIComponent(reminder.sourceProjectId)}`
     : "/personal-wiki";
   switch (sourceRecordType) {
-    case "Document":
-      return `${projectPath}#document-${sourceId}`;
+    case "Document": {
+      const encodedSourceId = encodeURIComponent(sourceId);
+      const hash = reminder.sectionId
+        ? `document-section:${encodedSourceId}:${encodeURIComponent(reminder.sectionId)}`
+        : `document-${encodedSourceId}`;
+      return `${projectPath}#${hash}`;
+    }
     case "Work":
       return `${projectPath}#work-${sourceId}`;
     case "Decision":
@@ -617,24 +631,13 @@ export function createDatabasePersonalReminders(
     }
 
     return await database.transaction(async (transaction) => {
-      const [existing] = await transaction
-        .select()
-        .from(personalReminder)
-        .where(
-          and(
-            eq(personalReminder.accountId, accountId),
-            eq(
-              personalReminder.clientIdempotencyKey,
-              input.clientIdempotencyKey,
-            ),
-          ),
-        )
-        .limit(1);
+      const existing = await findExistingCreateRequest(
+        transaction,
+        accountId,
+        input,
+      );
       if (existing) {
-        if (!matchesCreateRequest(existing, input)) {
-          throw new PersonalReminderIdempotencyConflictError();
-        }
-        return toPersonalReminder(existing);
+        return existing;
       }
 
       const source = await findOwnedSource(
@@ -642,8 +645,15 @@ export function createDatabasePersonalReminders(
         accountId,
         input.sourceRecordType,
         input.sourceRecordId,
+        input.sectionId !== undefined,
       );
       if (!source || source.projectArchivedAt) {
+        return null;
+      }
+      if (
+        input.sectionId &&
+        !documentSectionById(source.documentBody ?? "", input.sectionId)
+      ) {
         return null;
       }
 
@@ -656,6 +666,7 @@ export function createDatabasePersonalReminders(
           condition: input.condition ?? "In any case",
           fireAt,
           id: `reminder-${newId()}`,
+          sectionId: input.sectionId ?? null,
           sourceProjectId: source.projectId,
           sourceRecordId: source.sourceRecordId,
           sourceRecordType: input.sourceRecordType,
@@ -666,23 +677,15 @@ export function createDatabasePersonalReminders(
         return toPersonalReminder(created);
       }
 
-      const [raced] = await transaction
-        .select()
-        .from(personalReminder)
-        .where(
-          and(
-            eq(personalReminder.accountId, accountId),
-            eq(
-              personalReminder.clientIdempotencyKey,
-              input.clientIdempotencyKey,
-            ),
-          ),
-        )
-        .limit(1);
-      if (!(raced && matchesCreateRequest(raced, input))) {
+      const raced = await findExistingCreateRequest(
+        transaction,
+        accountId,
+        input,
+      );
+      if (!raced) {
         throw new PersonalReminderIdempotencyConflictError();
       }
-      return toPersonalReminder(raced);
+      return raced;
     });
   }
 
@@ -888,6 +891,31 @@ function matchesCreateRequest(
     record.sourceRecordType === input.sourceRecordType &&
     record.sourceRecordId === input.sourceRecordId &&
     record.condition === (input.condition ?? "In any case") &&
+    record.sectionId === (input.sectionId ?? null) &&
     record.fireAt.valueOf() === new Date(input.fireAt).valueOf()
   );
+}
+
+async function findExistingCreateRequest(
+  executor: Pick<Database, "select">,
+  accountId: string,
+  input: CreatePersonalReminderInput,
+) {
+  const [existing] = await executor
+    .select()
+    .from(personalReminder)
+    .where(
+      and(
+        eq(personalReminder.accountId, accountId),
+        eq(personalReminder.clientIdempotencyKey, input.clientIdempotencyKey),
+      ),
+    )
+    .limit(1);
+  if (!existing) {
+    return null;
+  }
+  if (!matchesCreateRequest(existing, input)) {
+    throw new PersonalReminderIdempotencyConflictError();
+  }
+  return toPersonalReminder(existing);
 }

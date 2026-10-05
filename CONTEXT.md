@@ -487,7 +487,7 @@ _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for La
 _Avoid_: genel koşul oluşturucu, Target date kuralı, Yeniden görünme tarihi
 
 **Belge bölüm hedefi**:
-`Review Later`'ın isteğe bağlı kararlı Markdown başlık kimliği; yeniden adlandırma ve taşıma aynı kimliği izler, silinmiş başlığa sessiz yönelme yoktur ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Section`, `This section is missing.`
+`Review Later`'ın isteğe bağlı kararlı Markdown başlık kimliği; yeniden adlandırma ve taşıma aynı kimliği izler, silinmiş başlığa sessiz yönelme yoktur ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Section`, `Entire document`, `This section is missing.`
 _Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 
 **Akıllı Koleksiyon**:

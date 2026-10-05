@@ -2,6 +2,7 @@ import {
   type DocumentLiveSectionSource,
   type DocumentRecordReferenceView,
   documentLiveDirectives,
+  documentSectionById,
   type LiveWorkSource,
 } from "@cantiara/api/documents";
 import type { ProjectSourceType } from "@cantiara/api/project-source-records";
@@ -133,6 +134,44 @@ const inlineRecordReferenceExtension: MarkdownExtension = {
       }
       return pieces;
     });
+  },
+};
+
+const documentSectionAnchorPattern =
+  /\s+\{#([A-Za-z0-9][A-Za-z0-9_-]{0,254})\}[ \t]*$/;
+
+const documentSectionAnchorExtension: MarkdownExtension = {
+  name: "document-section-anchor",
+  transformDocument(document) {
+    return {
+      ...document,
+      children: document.children.map((node) => {
+        if (node.type !== "heading") {
+          return node;
+        }
+        const lastChild = node.children.at(-1);
+        if (lastChild?.type !== "text") {
+          return node;
+        }
+        const match = documentSectionAnchorPattern.exec(lastChild.value);
+        const sectionId = match?.[1];
+        if (!(match && sectionId)) {
+          return node;
+        }
+        const children = [...node.children];
+        const headingText = lastChild.value.slice(0, match.index);
+        if (headingText) {
+          children[children.length - 1] = { ...lastChild, value: headingText };
+        } else {
+          children.pop();
+        }
+        return {
+          ...node,
+          children,
+          id: sectionId,
+        };
+      }),
+    };
   },
 };
 
@@ -775,6 +814,7 @@ export default function DocumentPreview({
   onLiveWorkAction,
   onOpenSourceRecord,
   source,
+  targetSectionId,
 }: {
   documentReferences?: readonly DocumentRecordReferenceView[];
   liveOtherBlocks?: readonly LiveOtherBlock[];
@@ -783,7 +823,24 @@ export default function DocumentPreview({
   onLiveWorkAction?: (workId: string, action: "status" | "close") => void;
   onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
   source: string;
+  targetSectionId?: string;
 }) {
+  const previewRef = useRef<HTMLElement>(null);
+  const targetSectionExists = targetSectionId
+    ? documentSectionById(source, targetSectionId) !== null
+    : false;
+  useEffect(() => {
+    if (
+      !targetSectionId ||
+      documentSectionById(source, targetSectionId) === null
+    ) {
+      return;
+    }
+    const target = Array.from(
+      previewRef.current?.querySelectorAll<HTMLElement>("[id]") ?? [],
+    ).find(({ id }) => id === targetSectionId);
+    target?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [source, targetSectionId]);
   const referencesByIdentity = new Map(
     (documentReferences ?? []).map((reference) => [
       `${reference.recordType}:${reference.recordId}`,
@@ -866,8 +923,12 @@ export default function DocumentPreview({
     <section
       aria-label="Document preview"
       className="document-preview space-y-4"
+      ref={previewRef}
     >
       <style>{highlightThemeCss}</style>
+      {targetSectionId && !targetSectionExists ? (
+        <p role="status">This section is missing.</p>
+      ) : null}
       {parts.map((part, index) => {
         const key = `${index}-${part.kind}`;
         if (part.kind === "mermaid") {
@@ -986,14 +1047,15 @@ export default function DocumentPreview({
                 );
               },
             }}
-            extensions={[inlineMathExtension, inlineRecordReferenceExtension]}
+            extensions={[
+              inlineMathExtension,
+              inlineRecordReferenceExtension,
+              documentSectionAnchorExtension,
+            ]}
             highlighter={codeHighlighter}
             key={key}
           >
-            {part.value.replace(
-              /^(#{1,6}[ \t]+.+?)\s+\{#[A-Za-z0-9][A-Za-z0-9_-]{0,254}\}[ \t]*$/gm,
-              "$1",
-            )}
+            {part.value}
           </Markdown>
         );
       })}

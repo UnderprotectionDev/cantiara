@@ -327,6 +327,7 @@ export default function ProjectShellSurface({
               accountFormattingPreferences={accountFormattingPreferences}
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
+              selectedSectionId={documentRoute?.sectionId}
               starterSkeletons={configuration.starterSkeletons}
             />
           </Suspense>
