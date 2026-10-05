@@ -3,6 +3,13 @@ import type {
   SmartCollectionViewSource,
 } from "@cantiara/api/smart-collections";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
@@ -10,6 +17,13 @@ import { orpc } from "@/utils/orpc";
 import ProjectSmartCollectionsSurface from "./project-smart-collections-surface";
 
 const projectId = "project-1";
+const rootRoute = createRootRoute({});
+const projectRoute = createRoute({
+  component: () => null,
+  getParentRoute: () => rootRoute,
+  path: "/projects/$projectId",
+});
+const routeTree = rootRoute.addChildren([projectRoute]);
 
 function emptyView(
   id: string,
@@ -101,12 +115,20 @@ function renderSurface() {
   queryClient.setQueryData(viewsOptions.queryKey, views);
   const projectsOptions = orpc.projects.queryOptions();
   queryClient.setQueryData(projectsOptions.queryKey, []);
+  const router = createRouter({
+    history: createMemoryHistory({
+      initialEntries: [`/projects/${projectId}`],
+    }),
+    routeTree,
+  });
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <ContextRecordPreviewProvider>
-        <ProjectSmartCollectionsSurface projectId={projectId} />
-      </ContextRecordPreviewProvider>
+      <RouterContextProvider router={router}>
+        <ContextRecordPreviewProvider>
+          <ProjectSmartCollectionsSurface projectId={projectId} />
+        </ContextRecordPreviewProvider>
+      </RouterContextProvider>
     </QueryClientProvider>,
   );
 }

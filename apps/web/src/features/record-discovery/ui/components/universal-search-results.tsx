@@ -150,7 +150,7 @@ function UniversalSearchResultItem({
         <SearchMatchDetails query={query} result={result} />
       ) : null}
       <a
-        aria-label={`Open ${result.title}`}
+        aria-label={index === "Search" ? `Open ${result.title}` : undefined}
         className="text-primary underline"
         href={resultHref(result)}
         onClick={onOpenSource}

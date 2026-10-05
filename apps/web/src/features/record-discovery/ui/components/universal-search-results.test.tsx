@@ -38,6 +38,7 @@ test("shows the source type, state, scope, highlighted context, and source link"
   expect(markup).toContain("<mark>PostgreSQL</mark>");
   expect(markup).toContain("2 matches");
   expect(markup).toContain('href="/projects/project-1#work-work-1"');
+  expect(markup).toContain('aria-label="Open Repair PostgreSQL access"');
   expect(universalSearchRecordTypes).toContain("File Attachment");
 });
 
@@ -86,6 +87,7 @@ test("browses document metadata without presenting it as a text search hit", () 
   expect(markup).toContain("Plan");
   expect(markup).toContain("Folder: Engineering");
   expect(markup).toContain("Open source record");
+  expect(markup).not.toContain('aria-label="Open Engineering plan"');
   expect(markup).not.toContain("hidden document body");
   expect(markup).not.toContain("0 matches");
 });
