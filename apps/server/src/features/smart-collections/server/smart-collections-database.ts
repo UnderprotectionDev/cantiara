@@ -329,10 +329,13 @@ async function getWorkMembershipRecords(
   }
   const records = await database
     .select({
+      createdAt: work.createdAt,
+      effort: work.effort,
       id: work.id,
       key: work.key,
       title: work.title,
       status: work.status,
+      statusChangedAt: work.statusChangedAt,
       type: work.type,
       projectId: work.projectId,
     })
@@ -349,6 +352,8 @@ async function getWorkMembershipRecords(
     .orderBy(asc(work.projectId), asc(work.key));
   return records.map((record) => ({
     ...record,
+    createdAt: record.createdAt.toISOString(),
+    statusChangedAt: record.statusChangedAt.toISOString(),
     membershipReasons: [
       `Project: ${projectNames.get(record.projectId) ?? "Project scope"}`,
       ...(conditions.status ? [`Status: ${conditions.status}`] : []),

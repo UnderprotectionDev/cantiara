@@ -195,10 +195,13 @@ export interface SmartCollectionViewSource {
   scope: { projectIds: string[] };
   sourceType: SmartCollectionSourceType;
   works: Array<{
+    createdAt: string;
+    effort: string | null;
     id: string;
     key: string;
     title: string;
     status: string;
+    statusChangedAt: string;
     type: string;
     projectId: string;
     membershipReasons: string[];
