@@ -73,10 +73,13 @@ test("renders named collection and Diagram View blocks from their resolved sourc
             projectSourceRecords: [],
             works: [
               {
+                createdAt: "2026-10-01T09:00:00.000Z",
+                effort: null,
                 id: "work-1",
                 key: "PRO-1",
                 title: "Current Work",
                 status: "In Progress",
+                statusChangedAt: "2026-10-02T09:00:00.000Z",
                 type: "Task",
                 projectId: "project-1",
                 membershipReasons: ["Project: Product project"],
