@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import ProjectShellView from "@/features/project-shell/ui/views/project-shell-view";
+import { smartCollectionWorkPrefillFromSearch } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 
 export const Route = createFileRoute("/_auth/projects/$projectId/")({
   validateSearch: (search) => {
@@ -10,7 +11,10 @@ export const Route = createFileRoute("/_auth/projects/$projectId/")({
         ? search.configurationReturn
         : undefined;
 
-    return configurationReturn ? { configurationReturn } : {};
+    return {
+      ...smartCollectionWorkPrefillFromSearch(search),
+      ...(configurationReturn ? { configurationReturn } : {}),
+    };
   },
   component: RouteComponent,
 });

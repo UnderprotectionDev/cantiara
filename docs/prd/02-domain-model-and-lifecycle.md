@@ -666,7 +666,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Akıllı Koleksiyon kaydedilemedi | `Smart Collection could not be saved.` | Yeni koleksiyon ve ilk adlandırılmış görünüm birlikte kaydedilemediğinde hata durumu |
 | Akıllı Koleksiyon kullanılamıyor | `Smart Collection is unavailable.` | Kaynak görünüm çözümlenemediğinde salt okunur hata durumu |
 | Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
-| Yeni iş | `New work` | İş koleksiyonunda doğrudan tekil alan eşitliğini dolduran oluşturma; tarih aralığı veya olumsuz koşul uygulamaz |
+| Yeni iş | `New work` | İş koleksiyonundaki doğrudan `Work type` eşitliğini `Type` alanında önceden dolduran oluşturma; diğer koşulları yeni İşe uygulamaz |
+| Yeni İş eşleşmeme uyarısı | `This Work may not appear in this Smart Collection.` | Seçili `Type` veya varsayılan `Status` koleksiyon koşullarını karşılamadığında gösterilen uyarı |
 | Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
 | Yeni görünüm olarak kaydet | `Save as` | Kirli sunumu yeni adlandırılmış görünüme yazma |
 | Geri dön | `Revert` | Kirli sunumu kayıtlı adlandırılmış görünüme döndürme |
