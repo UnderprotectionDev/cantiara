@@ -4,10 +4,14 @@ import type {
 } from "@cantiara/api/smart-collections";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 import { orpc } from "@/utils/orpc";
 import ProjectSmartCollectionsSurface from "./project-smart-collections-surface";
+
+vi.mock("@tanstack/react-router", () => ({
+  useLinkProps: () => ({ href: "/projects/project-1#create" }),
+}));
 
 const projectId = "project-1";
 
@@ -21,7 +25,9 @@ function emptyView(
     conditions: {},
     documents: [],
     id,
+    isSubscribed: false,
     name: "Default",
+    notifyOnLeave: false,
     presentation: "List",
     projectId,
     projectSourceRecords: [],
