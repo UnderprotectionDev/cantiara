@@ -148,11 +148,12 @@ test("Backlog drag persists its own order across alternate presentations and a s
   const notStarted = page.locator('[data-kanban-column="Not Started"]');
   const inProgress = page.locator('[data-kanban-column="In Progress"]');
   for (const title of ["Beta Work", "Alpha Work"]) {
-    await notStarted
+    const moveButton = notStarted
       .locator("article")
       .filter({ hasText: title })
-      .getByRole("button", { name: /^Move / })
-      .dragTo(inProgress);
+      .getByRole("button", { name: /^Move / });
+    await expect(moveButton).toBeEnabled({ timeout: 20_000 });
+    await moveButton.dragTo(inProgress);
     await expect(
       inProgress.locator("article").filter({ hasText: title }),
     ).toBeVisible();
