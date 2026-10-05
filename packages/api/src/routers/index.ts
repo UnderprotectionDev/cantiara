@@ -154,7 +154,9 @@ import {
   cancelWorkReviewLaterInputSchema,
   createPersonalReminderInputSchema,
   createWorkReviewLaterInputSchema,
+  personalReminderSignalInputSchema,
   personalRemindersInputSchema,
+  reschedulePersonalReminderSignalInputSchema,
   workReviewLaterInputSchema,
 } from "../personal-reminders";
 import {
@@ -5035,6 +5037,40 @@ export const appRouter = {
       }
       return blockers;
     }),
+  personalReminderSignals: protectedProcedure.handler(({ context }) =>
+    requirePersonalReminders(context).listSignals(context.session.user.id),
+  ),
+  dismissPersonalReminderSignal: protectedProcedure
+    .input(personalReminderSignalInputSchema)
+    .handler(async ({ context, input }) => {
+      const signal = await requirePersonalReminders(context).dismissSignal(
+        context.session.user.id,
+        input.signalId,
+      );
+      if (!signal) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Reminder signal is unavailable.",
+        });
+      }
+      return signal;
+    }),
+  reschedulePersonalReminderSignal: protectedProcedure
+    .input(reschedulePersonalReminderSignalInputSchema)
+    .handler(({ context, input }) =>
+      runPersonalReminderOperation(async () => {
+        const reminder = await requirePersonalReminders(
+          context,
+        ).rescheduleSignal(context.session.user.id, input);
+        if (!reminder) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Reminder signal is unavailable.",
+          });
+        }
+        return reminder;
+      }),
+    ),
   personalReminders: protectedProcedure
     .input(personalRemindersInputSchema)
     .handler(async ({ context, input }) => {

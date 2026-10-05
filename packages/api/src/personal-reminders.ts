@@ -113,6 +113,21 @@ export const cancelPersonalReminderInputSchema = z
   .object({ reminderId: identifierSchema })
   .strict();
 
+export const personalReminderSignalInputSchema = z
+  .object({ signalId: identifierSchema })
+  .strict();
+
+export const reschedulePersonalReminderSignalInputSchema = z
+  .object({
+    signalId: identifierSchema,
+    fireAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export type ReschedulePersonalReminderSignalInput = z.infer<
+  typeof reschedulePersonalReminderSignalInputSchema
+>;
+
 export const personalReminderSchema = z
   .object({
     action: personalReminderActionSchema,
@@ -149,6 +164,10 @@ export interface PersonalReminderFireResult {
   signals: PersonalReminderSignal[];
 }
 
+export interface PersonalReminderSignalHistory extends PersonalReminderSignal {
+  dismissedAt: string | null;
+}
+
 export interface PersonalRemindersAccess {
   cancel: (
     accountId: string,
@@ -162,10 +181,19 @@ export interface PersonalRemindersAccess {
     accountId: string,
     input: CreatePersonalReminderInput,
   ) => Promise<PersonalReminder | null>;
+  dismissSignal: (
+    accountId: string,
+    signalId: string,
+  ) => Promise<PersonalReminderSignalHistory | null>;
   list: (
     accountId: string,
     input: z.infer<typeof personalRemindersInputSchema>,
   ) => Promise<PersonalReminder[] | null>;
+  listSignals: (accountId: string) => Promise<PersonalReminderSignalHistory[]>;
+  rescheduleSignal: (
+    accountId: string,
+    input: ReschedulePersonalReminderSignalInput,
+  ) => Promise<PersonalReminder | null>;
 }
 
 // Work Review Later remains a convenience contract for existing Work surfaces.
