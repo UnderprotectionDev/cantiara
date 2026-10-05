@@ -1125,6 +1125,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge araması açıklaması | `Find Documents in their Project or Personal Wiki scope.` | Search içindeki teslim edilmiş Belge türü karşılığını açıklar |
 | Kayıt eşleşme sayısı | `<count> matches` | Yetkili Belge başlık/gövdesindeki eşleşen terimlerin toplam sayısı |
 | Tam sayfa aç | `Open full page` | Derin çalışma için kaynağı tam sayfada açma; geçici önizleme paneli veya kalıcı yerleşim değildir |
+| Belge önizlemesi yükleniyor | `Loading document preview…` | Belge önizlemesi yüklenirken gösterilen durum metni |
+| Geçici önizleme açıklaması | `Temporary preview that keeps the current source view in place.` | Geçici önizlemenin mevcut kaynak görünümünü koruduğunu açıklayan panel metni |
 | Yakalama Gelen Kutusu öğesi | `Capture Inbox item` | Henüz ana kayda dönüşmemiş geçici girdi; Evrensel Arama sonucu değildir |
 | GitHub dış kaydı | `GitHub external record` | GitHub kaynak kimliğini taşıyan salt okunur Proje ana kaydı; Evrensel Arama sonucu değildir |
 | Secret | `Secret` | Kapalı alandan gelen gizli değer; arama, export, paylaşım ve yayın kapsamına girmez |
