@@ -289,7 +289,14 @@ async function searchWorkRecords({
   return results;
 }
 
-async function searchProjectRecords({
+function searchesFamily(
+  selectedRecordType: UniversalSearchRecordType | undefined,
+  family: UniversalSearchRecordType,
+) {
+  return !selectedRecordType || selectedRecordType === family;
+}
+
+async function searchDecisionRecords({
   accountId,
   database,
   input,
@@ -342,7 +349,16 @@ async function searchProjectRecords({
       ),
     ),
   );
+  return results;
+}
 
+async function searchRiskRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
   const riskText = textContent([
     risk.description,
     risk.impact,
@@ -389,7 +405,16 @@ async function searchProjectRecords({
       ),
     ),
   );
+  return results;
+}
 
+async function searchAssumptionRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
   const assumptionText = textContent([
     assumption.statement,
     assumption.rationale,
@@ -439,7 +464,16 @@ async function searchProjectRecords({
       ),
     ),
   );
+  return results;
+}
 
+async function searchOpenQuestionRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
   const questionText = textContent([
     openQuestion.question,
     openQuestion.answer,
@@ -490,7 +524,16 @@ async function searchProjectRecords({
       ),
     ),
   );
+  return results;
+}
 
+async function searchMilestoneRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
   const milestoneText = textContent([projectMilestone.description]);
   const milestoneTitle = textContent([projectMilestone.title]);
   const milestoneRows = await database
@@ -537,7 +580,16 @@ async function searchProjectRecords({
       ),
     ),
   );
+  return results;
+}
 
+async function searchProjectReleaseRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
   const releaseText = textContent([
     projectRelease.versionLabel,
     projectRelease.description,
@@ -587,7 +639,16 @@ async function searchProjectRecords({
       ),
     ),
   );
+  return results;
+}
 
+async function searchProductionIncidentRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
   const incidentText = textContent([
     productionIncident.detectedHow,
     productionIncident.impact,
@@ -641,6 +702,32 @@ async function searchProjectRecords({
     ),
   );
   return results;
+}
+
+const projectRecordFamilySearches: [
+  UniversalSearchRecordType,
+  (context: SearchContext) => Promise<Candidate[]>,
+][] = [
+  ["Decision", searchDecisionRecords],
+  ["Risk", searchRiskRecords],
+  ["Assumption", searchAssumptionRecords],
+  ["Open Question", searchOpenQuestionRecords],
+  ["Milestone", searchMilestoneRecords],
+  ["Project Release", searchProjectReleaseRecords],
+  ["Production Incident", searchProductionIncidentRecords],
+];
+
+async function searchProjectRecords(
+  context: SearchContext,
+  selectedRecordType?: UniversalSearchRecordType,
+) {
+  const families = projectRecordFamilySearches.filter(([family]) =>
+    searchesFamily(selectedRecordType, family),
+  );
+  const familyResults = await Promise.all(
+    families.map(([, searchRecords]) => searchRecords(context)),
+  );
+  return familyResults.flat();
 }
 
 async function searchDiagramRecords({
@@ -988,7 +1075,7 @@ async function searchIndexCandidates(context: SearchContext) {
       : []),
     ...(isSearch ||
     ["All Decisions", "All Risks", "All Project Releases"].includes(input.index)
-      ? await searchProjectRecords(context)
+      ? await searchProjectRecords(context, selectedRecordType)
       : []),
     ...(isSearch || input.index === "All Technical Diagrams"
       ? await searchDiagramRecords(context)
