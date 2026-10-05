@@ -35,7 +35,6 @@ import {
   orpc,
 } from "@/utils/orpc";
 import {
-  DAILY_ACTION_HASHES,
   documentRecordHash,
   projectSourceRecordHash,
   workRecordHref,
@@ -50,7 +49,7 @@ import {
   type SmartCollectionMembershipFieldChange,
   type SmartCollectionMembershipPreviewRecord,
 } from "../../lib/smart-collection-membership-preview";
-import { smartCollectionWorkPrefillSearch } from "../../lib/smart-collection-work-prefill";
+import { newWorkLinkTarget } from "../../lib/smart-collection-work-prefill";
 import { SmartCollectionInsights } from "./smart-collection-insights";
 
 const SMART_COLLECTION_DRAG_TYPE = "smart-collection-record";
@@ -337,12 +336,7 @@ function CollectionViewCard({
   });
   const showDropTarget = droppable.isDropTarget && preview?.viewId === view.id;
   const isWorkCollection = view.sourceType === "Work";
-  const newWorkLinkProps = useLinkProps({
-    hash: DAILY_ACTION_HASHES.Create,
-    params: { projectId: view.projectId },
-    search: smartCollectionWorkPrefillSearch(view.conditions),
-    to: "/projects/$projectId",
-  });
+  const newWorkLinkProps = useLinkProps(newWorkLinkTarget(view));
   const now = new Date();
   const selectedWorks = isWorkCollection
     ? selectedSlices.reduce(

@@ -5,6 +5,7 @@ import {
   type WorkStatus,
   type WorkType,
 } from "@cantiara/api/work-lifecycle";
+import { DAILY_ACTION_HASHES } from "../../project-shell/lib/project-shell-navigation";
 
 type SmartCollectionWorkConditions = CreateSmartCollectionInput["conditions"];
 
@@ -52,6 +53,34 @@ export function clearSmartCollectionWorkPrefillSearch<
     smartCollectionWorkStatus: undefined,
     smartCollectionWorkType: undefined,
   };
+}
+
+export function newWorkLinkTarget(view: {
+  conditions: SmartCollectionWorkConditions;
+  projectId: string;
+}): {
+  hash: string;
+  params: { projectId: string };
+  search: SmartCollectionWorkPrefillSearch;
+  to: "/projects/$projectId";
+} {
+  return {
+    hash: DAILY_ACTION_HASHES.Create,
+    params: { projectId: view.projectId },
+    search: smartCollectionWorkPrefillSearch(view.conditions),
+    to: "/projects/$projectId",
+  };
+}
+
+export function smartCollectionWorkPrefillClearsOnLeave(
+  dailyAction: string | null,
+  prefill: SmartCollectionWorkPrefillSearch,
+): boolean {
+  return (
+    dailyAction !== "Create" &&
+    (prefill.smartCollectionWorkStatus !== undefined ||
+      prefill.smartCollectionWorkType !== undefined)
+  );
 }
 
 function smartCollectionWorkPrefillMayMiss(

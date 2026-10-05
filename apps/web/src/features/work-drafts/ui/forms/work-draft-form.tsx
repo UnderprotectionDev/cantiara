@@ -44,6 +44,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import {
+  type ChangeEvent,
   type FormEvent,
   type ReactNode,
   useEffect,
@@ -104,7 +105,13 @@ function serializeValues(values: WorkDraftFormValues) {
   return JSON.stringify(values);
 }
 
-function draftValues(draft: WorkDraft): WorkDraftFormValues {
+export function workDraftInitialValues(
+  initialType?: WorkType,
+): WorkDraftFormValues {
+  return { ...EMPTY_VALUES, type: initialType ?? EMPTY_VALUES.type };
+}
+
+export function draftValues(draft: WorkDraft): WorkDraftFormValues {
   return {
     customFieldValues: draft.customFieldValues,
     description: draft.description ?? "",
@@ -513,9 +520,50 @@ function WorkCustomFields({
   );
 }
 
+export function WorkTypeField({
+  disabled,
+  onChange,
+  value,
+  warning,
+}: {
+  disabled: boolean;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  value: WorkType;
+  warning: string | null;
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor="work-draft-type">Type</FieldLabel>
+      <NativeSelect
+        aria-describedby={warning ? "work-draft-type-warning" : undefined}
+        disabled={disabled}
+        id="work-draft-type"
+        name="type"
+        onChange={onChange}
+        value={value}
+      >
+        {WORK_TYPE_OPTIONS.map((type) => (
+          <NativeSelectOption key={type} value={type}>
+            {type}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      {warning ? (
+        <FieldDescription
+          className="text-amber-800 dark:text-amber-300"
+          id="work-draft-type-warning"
+          role="status"
+        >
+          {warning}
+        </FieldDescription>
+      ) : null}
+    </Field>
+  );
+}
+
 export default function WorkDraftForm({
   accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
-  initialType = EMPTY_VALUES.type,
+  initialType,
   projectId,
   typeWarning,
 }: {
@@ -539,7 +587,7 @@ export default function WorkDraftForm({
   // target the Project whose surface opened the form.
   const [targetProjectId, setTargetProjectId] = useState(projectId);
   const initialValues = useMemo(
-    () => ({ ...EMPTY_VALUES, type: initialType }),
+    () => workDraftInitialValues(initialType),
     [initialType],
   );
   const draftIdRef = useRef<string>(activeDraftId);
@@ -1031,44 +1079,18 @@ export default function WorkDraftForm({
             )}
           </form.Field>
           <form.Field name="type">
-            {(field) => {
-              const warning = typeWarning?.(field.state.value);
-
-              return (
-                <Field>
-                  <FieldLabel htmlFor="work-draft-type">Type</FieldLabel>
-                  <NativeSelect
-                    aria-describedby={
-                      warning ? "work-draft-type-warning" : undefined
-                    }
-                    disabled={isBusy}
-                    id="work-draft-type"
-                    name={field.name}
-                    onChange={(event) => {
-                      const type = event.target.value as WorkType;
-                      field.handleChange(type);
-                      queueAutosave({ ...form.state.values, type });
-                    }}
-                    value={field.state.value}
-                  >
-                    {WORK_TYPE_OPTIONS.map((type) => (
-                      <NativeSelectOption key={type} value={type}>
-                        {type}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                  {warning ? (
-                    <FieldDescription
-                      className="text-amber-800 dark:text-amber-300"
-                      id="work-draft-type-warning"
-                      role="status"
-                    >
-                      {warning}
-                    </FieldDescription>
-                  ) : null}
-                </Field>
-              );
-            }}
+            {(field) => (
+              <WorkTypeField
+                disabled={isBusy}
+                onChange={(event) => {
+                  const type = event.target.value as WorkType;
+                  field.handleChange(type);
+                  queueAutosave({ ...form.state.values, type });
+                }}
+                value={field.state.value}
+                warning={typeWarning?.(field.state.value) ?? null}
+              />
+            )}
           </form.Field>
         </FieldGroup>
 

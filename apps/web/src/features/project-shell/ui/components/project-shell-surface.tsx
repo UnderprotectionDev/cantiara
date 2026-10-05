@@ -61,6 +61,7 @@ import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roa
 import {
   clearSmartCollectionWorkPrefillSearch,
   type SmartCollectionWorkPrefillSearch,
+  smartCollectionWorkPrefillClearsOnLeave,
   smartCollectionWorkPrefillFromSearch,
   smartCollectionWorkPrefillWarning,
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
@@ -187,6 +188,10 @@ export default function ProjectShellSurface({
     ? (type: WorkType) =>
         smartCollectionWorkPrefillWarning(collectionWorkConditions, type)
     : undefined;
+  const clearCollectionWorkPrefill = smartCollectionWorkPrefillClearsOnLeave(
+    dailyAction,
+    collectionWorkPrefill,
+  );
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
@@ -212,7 +217,7 @@ export default function ProjectShellSurface({
   }, [activeHash]);
 
   useEffect(() => {
-    if (dailyAction === "Create" || !hasCollectionWorkPrefill) {
+    if (!clearCollectionWorkPrefill) {
       return;
     }
 
@@ -221,7 +226,7 @@ export default function ProjectShellSurface({
       search: (previous) => clearSmartCollectionWorkPrefillSearch(previous),
       replace: true,
     });
-  }, [dailyAction, hasCollectionWorkPrefill, navigate]);
+  }, [clearCollectionWorkPrefill, navigate]);
 
   const {
     configuration,
