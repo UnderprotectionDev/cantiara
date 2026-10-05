@@ -62,3 +62,88 @@ test("renders result titles and matched context as escaped text", () => {
   expect(markup).not.toContain("<img");
   expect(markup).not.toContain("<script>");
 });
+
+test("browses document metadata without presenting it as a text search hit", () => {
+  const markup = renderToStaticMarkup(
+    <UniversalSearchResults
+      index="All Documents"
+      query=""
+      results={[
+        {
+          ...result,
+          category: "Plan",
+          folder: "Engineering",
+          matchCount: 0,
+          recordType: "Document",
+          snippet: "hidden document body",
+          title: "Engineering plan",
+        },
+      ]}
+    />,
+  );
+
+  expect(markup).toContain('aria-label="All Documents"');
+  expect(markup).toContain("Plan");
+  expect(markup).toContain("Folder: Engineering");
+  expect(markup).toContain("Open source record");
+  expect(markup).not.toContain("hidden document body");
+  expect(markup).not.toContain("0 matches");
+});
+
+test("browses file metadata without presenting it as a text search hit", () => {
+  const markup = renderToStaticMarkup(
+    <UniversalSearchResults
+      index="All Files"
+      query=""
+      results={[
+        {
+          ...result,
+          archived: false,
+          category: "pdf",
+          fileMimeType: "application/pdf",
+          fileName: "runbook-v2.pdf",
+          folder: "Engineering",
+          matchCount: 0,
+          ownerDocumentId: "document-1",
+          recordType: "File Attachment",
+          snippet: "runbook-v2.pdf application/pdf",
+          title: "Runbook",
+        },
+      ]}
+    />,
+  );
+
+  expect(markup).toContain('aria-label="All Files"');
+  expect(markup).toContain("application/pdf");
+  expect(markup).toContain("runbook-v2.pdf");
+  expect(markup).toContain("Folder: Engineering");
+  expect(markup).toContain("Open source record");
+  expect(markup).not.toContain("runbook-v2.pdf application/pdf");
+  expect(markup).not.toContain("0 matches");
+});
+
+test("browses technical diagram type and authority mode distinctly", () => {
+  const markup = renderToStaticMarkup(
+    <UniversalSearchResults
+      index="All Technical Diagrams"
+      query=""
+      results={[
+        {
+          ...result,
+          authorityMode: "Product-authored Model",
+          category: "Data Model",
+          matchCount: 0,
+          recordType: "Technical Diagram",
+          snippet: "secret generated SQL body",
+          title: "Workspace data model",
+        },
+      ]}
+    />,
+  );
+
+  expect(markup).toContain('aria-label="All Technical Diagrams"');
+  expect(markup).toContain("Data Model");
+  expect(markup).toContain("Product-authored Model");
+  expect(markup).not.toContain("secret generated SQL body");
+  expect(markup).not.toContain("0 matches");
+});

@@ -2,21 +2,23 @@ import { z } from "zod";
 import { type Document, documentTypeSchema } from "./documents";
 import type { ProjectLifecycleStatus } from "./project-shell";
 
+export const recordDiscoveryScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("all") }).strict(),
+  z.object({ kind: z.literal("wiki") }).strict(),
+  z
+    .object({
+      kind: z.literal("project"),
+      projectId: z.string().min(1).max(200),
+    })
+    .strict(),
+]);
+
+export type RecordDiscoveryScope = z.infer<typeof recordDiscoveryScopeSchema>;
+
 export const documentDiscoveryInputSchema = z
   .object({
     query: z.string().trim().max(200).default(""),
-    scope: z
-      .discriminatedUnion("kind", [
-        z.object({ kind: z.literal("all") }).strict(),
-        z.object({ kind: z.literal("wiki") }).strict(),
-        z
-          .object({
-            kind: z.literal("project"),
-            projectId: z.string().min(1).max(200),
-          })
-          .strict(),
-      ])
-      .default({ kind: "all" }),
+    scope: recordDiscoveryScopeSchema.default({ kind: "all" }),
     archived: z.boolean().default(false),
     type: documentTypeSchema.optional(),
     folder: z.string().min(1).max(255).optional(),
@@ -44,11 +46,39 @@ export interface DocumentDiscoveryAccess {
   ) => Promise<DocumentDiscoveryResult[]>;
 }
 
+export const recordDiscoveryIndexLabels = [
+  "All Work",
+  "All Documents",
+  "All Decisions",
+  "All Risks",
+  "All Research Sessions",
+  "All Tests",
+  "All Designs",
+  "All Technical Diagrams",
+  "All Project Releases",
+  "All Sources",
+  "All Files",
+] as const;
+
+export const recordDiscoveryIndexSchema = z.enum(recordDiscoveryIndexLabels);
+
+export const recordDiscoveryViewSchema = z.enum([
+  "Search",
+  ...recordDiscoveryIndexLabels,
+]);
+
+export type RecordDiscoveryIndex = z.infer<typeof recordDiscoveryIndexSchema>;
+export type RecordDiscoveryView = z.infer<typeof recordDiscoveryViewSchema>;
+
 export const universalSearchInputSchema = z
   .object({
     query: z.string().trim().max(200).default(""),
     currentProjectId: z.string().min(1).max(200).optional(),
     archived: z.boolean().default(false),
+    index: recordDiscoveryViewSchema.default("Search"),
+    scope: recordDiscoveryScopeSchema.default({ kind: "all" }),
+    type: z.string().trim().min(1).max(255).optional(),
+    folder: z.string().min(1).max(255).optional(),
   })
   .strict();
 
@@ -73,8 +103,12 @@ export type UniversalSearchRecordType =
 
 export interface UniversalSearchResult {
   archived: boolean;
+  authorityMode?: string | null;
   category: string | null;
   closureResult: string | null;
+  fileMimeType?: string | null;
+  fileName?: string | null;
+  folder?: string | null;
   id: string;
   key: string | null;
   matchCount: number;

@@ -1,5 +1,6 @@
 import {
   documentMatchParts,
+  type RecordDiscoveryView,
   type UniversalSearchRecordType,
   type UniversalSearchResult,
 } from "@cantiara/api/record-discovery";
@@ -72,52 +73,118 @@ function resultHref(result: UniversalSearchResult) {
   return "/projects";
 }
 
+function IndexMetadata({
+  index,
+  result,
+}: {
+  index: RecordDiscoveryView;
+  result: UniversalSearchResult;
+}) {
+  const isFilesIndex = index === "All Files";
+  const showFolder = index === "All Documents" || isFilesIndex;
+  const authorityMode =
+    index === "All Technical Diagrams" ? result.authorityMode : null;
+  const fileName =
+    isFilesIndex && result.fileName !== result.title ? result.fileName : null;
+  const fileMimeType = isFilesIndex ? result.fileMimeType : null;
+  const folder = showFolder ? result.folder : null;
+  const scope =
+    result.scopeType === "Project"
+      ? `Project: ${result.scopeName}`
+      : "Personal Wiki";
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Badge variant="outline">{result.recordType}</Badge>
+      {result.category ? (
+        <Badge variant="outline">{result.category}</Badge>
+      ) : null}
+      {authorityMode ? <Badge variant="outline">{authorityMode}</Badge> : null}
+      {fileName ? <Badge variant="outline">{fileName}</Badge> : null}
+      {fileMimeType ? <Badge variant="outline">{fileMimeType}</Badge> : null}
+      <Badge variant="outline">{result.status}</Badge>
+      {result.closureResult ? (
+        <Badge variant="outline">{result.closureResult}</Badge>
+      ) : null}
+      <Badge variant="outline">{scope}</Badge>
+      {folder ? (
+        <span className="text-muted-foreground text-sm">Folder: {folder}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function SearchMatchDetails({
+  query,
+  result,
+}: {
+  query: string;
+  result: UniversalSearchResult;
+}) {
+  return (
+    <>
+      <MatchSnippet query={query} snippet={result.snippet} />
+      <p className="text-muted-foreground text-sm">
+        {result.matchCount} {result.matchCount === 1 ? "match" : "matches"}
+      </p>
+    </>
+  );
+}
+
+function UniversalSearchResultItem({
+  index,
+  onOpenSource,
+  query,
+  result,
+}: {
+  index: RecordDiscoveryView;
+  onOpenSource?: () => void;
+  query: string;
+  result: UniversalSearchResult;
+}) {
+  return (
+    <li className="space-y-2 rounded-md border p-3" data-record-id={result.id}>
+      <h3 className="font-medium">{result.title}</h3>
+      <IndexMetadata index={index} result={result} />
+      {index === "Search" ? (
+        <SearchMatchDetails query={query} result={result} />
+      ) : null}
+      <a
+        aria-label={`Open ${result.title}`}
+        className="text-primary underline"
+        href={resultHref(result)}
+        onClick={onOpenSource}
+      >
+        Open source record
+      </a>
+    </li>
+  );
+}
+
 export default function UniversalSearchResults({
+  index = "Search",
   results,
   query,
   onOpenSource,
 }: {
+  index?: RecordDiscoveryView;
   results: UniversalSearchResult[];
   query: string;
   onOpenSource?: () => void;
 }) {
   return (
-    <ul aria-label="Search results" className="space-y-3">
+    <ul
+      aria-label={index === "Search" ? "Search results" : index}
+      className="space-y-3"
+    >
       {results.map((result) => (
-        <li
-          className="space-y-2 rounded-md border p-3"
-          data-record-id={result.id}
+        <UniversalSearchResultItem
+          index={index}
           key={`${result.recordType}:${result.id}`}
-        >
-          <h3 className="font-medium">{result.title}</h3>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{result.recordType}</Badge>
-            {result.category ? (
-              <Badge variant="outline">{result.category}</Badge>
-            ) : null}
-            <Badge variant="outline">{result.status}</Badge>
-            {result.closureResult ? (
-              <Badge variant="outline">{result.closureResult}</Badge>
-            ) : null}
-            <Badge variant="outline">
-              {result.scopeType === "Project"
-                ? `Project: ${result.scopeName}`
-                : "Personal Wiki"}
-            </Badge>
-          </div>
-          <MatchSnippet query={query} snippet={result.snippet} />
-          <p className="text-muted-foreground text-sm">
-            {result.matchCount} {result.matchCount === 1 ? "match" : "matches"}
-          </p>
-          <a
-            aria-label={`Open ${result.title}`}
-            className="text-primary underline"
-            href={resultHref(result)}
-            onClick={onOpenSource}
-          >
-            Open source record
-          </a>
-        </li>
+          onOpenSource={onOpenSource}
+          query={query}
+          result={result}
+        />
       ))}
     </ul>
   );

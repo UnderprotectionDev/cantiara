@@ -1,5 +1,6 @@
 import {
   documentMatchContext,
+  type RecordDiscoveryIndex,
   type UniversalSearchAccess,
   type UniversalSearchInput,
   type UniversalSearchRecordType,
@@ -119,8 +120,12 @@ function isClosed(
 function candidate(
   input: {
     archived: boolean;
+    authorityMode?: string | null;
     category?: string | null;
     closureResult?: string | null;
+    fileMimeType?: string | null;
+    fileName?: string | null;
+    folder?: string | null;
     id: string;
     indexedText: string;
     key?: string | null;
@@ -142,9 +147,13 @@ function candidate(
   return makeCandidate(
     {
       archived: input.archived || Boolean(input.projectArchivedAt),
+      authorityMode: input.authorityMode ?? null,
       category: input.category ?? null,
       closed: isClosed(input.recordType, input.status, closureResult),
       closureResult,
+      fileMimeType: input.fileMimeType ?? null,
+      fileName: input.fileName ?? null,
+      folder: input.folder ?? null,
       id: input.id,
       indexedText: input.indexedText,
       key: input.key ?? null,
@@ -680,6 +689,7 @@ async function searchDiagramRecords({
       candidate(
         {
           archived: false,
+          authorityMode: row.authorityMode,
           category: row.type,
           id: row.id,
           indexedText: row.text,
@@ -723,6 +733,7 @@ async function searchDocumentRecords({
         : sql<boolean>`false`,
       updatedAt: document.updatedAt,
       workspaceId: workspace.id,
+      folder: document.folder,
     })
     .from(document)
     .leftJoin(project, eq(document.projectId, project.id))
@@ -749,6 +760,7 @@ async function searchDocumentRecords({
         {
           archived: Boolean(row.archivedAt),
           category: row.status,
+          folder: row.folder,
           id: row.id,
           indexedText: row.text,
           projectArchivedAt: row.projectArchivedAt,
@@ -810,6 +822,8 @@ async function searchAttachmentRecords({
       ownerDocumentArchivedAt: document.archivedAt,
       versionFileName: fileAttachmentVersion.fileName,
       versionExtension: fileAttachmentVersion.extension,
+      fileMimeType: fileAttachmentVersion.detectedMimeType,
+      folder: document.folder,
     })
     .from(fileAttachment)
     .innerJoin(workspace, eq(fileAttachment.workspaceId, workspace.id))
@@ -867,6 +881,9 @@ async function searchAttachmentRecords({
         {
           archived,
           category: row.versionExtension,
+          fileMimeType: row.fileMimeType,
+          fileName: row.versionFileName,
+          folder: row.folder,
           id: row.id,
           indexedText: `${otherFileName} ${row.text}`,
           ownerDocumentId: row.ownerDocumentId,
@@ -890,41 +907,120 @@ async function searchAttachmentRecords({
   return results;
 }
 
+const recordTypeByIndex: Partial<
+  Record<RecordDiscoveryIndex, UniversalSearchRecordType>
+> = {
+  "All Work": "Work",
+  "All Documents": "Document",
+  "All Decisions": "Decision",
+  "All Risks": "Risk",
+  "All Technical Diagrams": "Technical Diagram",
+  "All Project Releases": "Project Release",
+  "All Files": "File Attachment",
+};
+
+function canSearchIndex(index: RecordDiscoveryIndex | "Search", query: string) {
+  return index === "Search"
+    ? Boolean(query)
+    : recordTypeByIndex[index] !== undefined;
+}
+
+function matchesIndex(
+  result: Candidate,
+  input: UniversalSearchInput,
+  selectedRecordType?: UniversalSearchRecordType,
+) {
+  if (selectedRecordType && result.recordType !== selectedRecordType) {
+    return false;
+  }
+  if (input.scope.kind === "wiki" && result.scopeType !== "Personal Wiki") {
+    return false;
+  }
+  if (
+    input.scope.kind === "project" &&
+    result.projectId !== input.scope.projectId
+  ) {
+    return false;
+  }
+  if (input.type && result.category !== input.type) {
+    return false;
+  }
+  if (input.folder && result.folder !== input.folder) {
+    return false;
+  }
+  return true;
+}
+
+async function currentProjectIdForAccount(
+  database: Database,
+  accountId: string,
+  currentProjectId?: string,
+) {
+  if (!currentProjectId) {
+    return;
+  }
+
+  const [currentProject] = await database
+    .select({ id: project.id })
+    .from(project)
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(
+      and(
+        eq(project.id, currentProjectId),
+        eq(workspace.ownerAccountId, accountId),
+        isNull(project.archivedAt),
+        inArray(project.status, ["Active", "Pending"]),
+      ),
+    )
+    .limit(1);
+
+  return currentProject?.id;
+}
+
+async function searchIndexCandidates(context: SearchContext) {
+  const { input } = context;
+  const isSearch = input.index === "Search";
+  const selectedRecordType =
+    input.index === "Search" ? undefined : recordTypeByIndex[input.index];
+  const results = [
+    ...(isSearch || input.index === "All Work"
+      ? await searchWorkRecords(context)
+      : []),
+    ...(isSearch ||
+    ["All Decisions", "All Risks", "All Project Releases"].includes(input.index)
+      ? await searchProjectRecords(context)
+      : []),
+    ...(isSearch || input.index === "All Technical Diagrams"
+      ? await searchDiagramRecords(context)
+      : []),
+    ...(isSearch || input.index === "All Documents"
+      ? await searchDocumentRecords(context)
+      : []),
+    ...(isSearch || input.index === "All Files"
+      ? await searchAttachmentRecords(context)
+      : []),
+  ];
+
+  return results.filter((result) =>
+    matchesIndex(result, input, selectedRecordType),
+  );
+}
+
 export function createDatabaseUniversalSearch(
   database: Database,
 ): UniversalSearchAccess {
   return {
     async search(accountId, input) {
       const query = input.query.trim();
-      if (!query) {
+      if (!canSearchIndex(input.index, query)) {
         return [];
       }
 
-      const currentProjectId = input.currentProjectId
-        ? (
-            await database
-              .select({ id: project.id })
-              .from(project)
-              .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-              .where(
-                and(
-                  eq(project.id, input.currentProjectId),
-                  eq(workspace.ownerAccountId, accountId),
-                  isNull(project.archivedAt),
-                  inArray(project.status, ["Active", "Pending"]),
-                ),
-              )
-              .limit(1)
-          )[0]?.id
-        : undefined;
-      const searchContext = { accountId, database, input, query };
-      const results = [
-        ...(await searchWorkRecords(searchContext)),
-        ...(await searchProjectRecords(searchContext)),
-        ...(await searchDiagramRecords(searchContext)),
-        ...(await searchDocumentRecords(searchContext)),
-        ...(await searchAttachmentRecords(searchContext)),
-      ];
+      const context = { accountId, database, input, query };
+      const [currentProjectId, results] = await Promise.all([
+        currentProjectIdForAccount(database, accountId, input.currentProjectId),
+        searchIndexCandidates(context),
+      ]);
       return results
         .sort((left, right) => compareCandidates(left, right, currentProjectId))
         .map(
