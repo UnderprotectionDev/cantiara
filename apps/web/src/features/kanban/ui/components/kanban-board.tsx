@@ -20,7 +20,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
+import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import { buildKanbanCardSummary } from "../../lib/kanban-card-summary";
@@ -341,12 +341,11 @@ function KanbanCard({
       ) : null}
       <KanbanCardSummary work={work} />
       <KanbanWorkDetails work={work} />
-      <a
+      <OpenSourceRecordButton
         className="inline-block min-h-11 py-3 text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        href={workRecordHref(projectId, work.id)}
-      >
-        Open source record
-      </a>
+        sourceLabel={`${work.key} · ${work.title}`}
+        target={{ kind: "work", projectId, workId: work.id }}
+      />
     </article>
   );
 }

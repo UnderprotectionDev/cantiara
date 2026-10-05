@@ -26,18 +26,16 @@ import {
   useRef,
   useState,
 } from "react";
-
+import {
+  OpenSourceRecordButton,
+  type SourceRecordPreviewTarget,
+} from "@/features/record-discovery/ui/components/context-record-preview";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import {
   client,
   invalidateSmartCollectionMembership,
   orpc,
 } from "@/utils/orpc";
-import {
-  documentRecordHash,
-  projectSourceRecordHash,
-  workRecordHref,
-} from "../../../project-shell/lib/project-shell-navigation";
 import {
   previewSmartCollectionMembership,
   type SmartCollectionMembershipFieldChange,
@@ -147,14 +145,14 @@ function MembershipReasons({ reasons }: { reasons: string[] }) {
 
 function CollectionMember({
   children,
-  href,
   reasons,
   record,
+  target,
 }: {
   children: ReactNode;
-  href: string;
   reasons: string[];
   record: SmartCollectionDragRecord;
+  target: SourceRecordPreviewTarget;
 }) {
   const draggable = useDraggable({
     data: { smartCollectionRecord: record },
@@ -167,7 +165,7 @@ function CollectionMember({
       className={`space-y-1 ${draggable.isDragging ? "opacity-50" : ""}`}
       ref={draggable.ref}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           aria-label={`Drag ${record.recordName}`}
           className="min-h-8 min-w-8 shrink-0 cursor-grab touch-none active:cursor-grabbing"
@@ -178,9 +176,12 @@ function CollectionMember({
         >
           <GripVertical aria-hidden="true" className="size-4" />
         </Button>
-        <a className="underline" href={href}>
-          {children}
-        </a>
+        <span>{children}</span>
+        <OpenSourceRecordButton
+          className="h-8 px-0"
+          sourceLabel={record.recordName}
+          target={target}
+        />
       </div>
       <MembershipReasons reasons={reasons} />
     </li>
@@ -196,7 +197,6 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
       <ul className="list-inside list-disc space-y-2">
         {view.works.map((record) => (
           <CollectionMember
-            href={workRecordHref(record.projectId, record.id)}
             key={record.id}
             reasons={record.membershipReasons}
             record={{
@@ -208,6 +208,11 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
               status: record.status,
               workType: record.type,
               workspaceId: view.workspaceId,
+            }}
+            target={{
+              kind: "work",
+              projectId: record.projectId,
+              workId: record.id,
             }}
           >
             {record.key} · {record.title}
@@ -225,11 +230,6 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
       <ul className="list-inside list-disc space-y-2">
         {view.documents.map((record) => (
           <CollectionMember
-            href={
-              record.projectId
-                ? `/projects/${encodeURIComponent(record.projectId)}#${documentRecordHash(record.id)}`
-                : `/personal-wiki#${documentRecordHash(record.id)}`
-            }
             key={record.id}
             reasons={record.membershipReasons}
             record={{
@@ -240,6 +240,11 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
               sourceType: view.sourceType,
               sourceViewId: view.id,
               workspaceId: record.workspaceId,
+            }}
+            target={{
+              kind: "document",
+              documentId: record.id,
+              projectId: record.projectId,
             }}
           >
             {record.title}
@@ -256,7 +261,6 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
     <ul className="list-inside list-disc space-y-2">
       {view.projectSourceRecords.map((record) => (
         <CollectionMember
-          href={`/projects/${encodeURIComponent(record.projectId)}#${projectSourceRecordHash(record.sourceType, record.id)}`}
           key={record.id}
           reasons={record.membershipReasons}
           record={{
@@ -267,6 +271,12 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
             sourceViewId: view.id,
             status: record.status,
             workspaceId: view.workspaceId,
+          }}
+          target={{
+            kind: "project-source-record",
+            projectId: record.projectId,
+            sourceId: record.id,
+            sourceType: record.sourceType,
           }}
         >
           {record.title}

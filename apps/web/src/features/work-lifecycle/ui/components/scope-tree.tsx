@@ -4,7 +4,7 @@ import type {
   ScopeTreeNode,
   ScopeTreeReference,
 } from "@cantiara/api/work-lifecycle";
-import { useLinkProps } from "@tanstack/react-router";
+import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 
 export default function ScopeTreeView({ scopeTree }: { scopeTree: ScopeTree }) {
   return (
@@ -77,9 +77,14 @@ function FeatureTreeNode({
             <span className="font-medium">Progress:</span> {completedCount} /{" "}
             {feature.progress.includedWorkCount}
           </p>
-          <OpenSourceRecordLink
-            projectId={projectId}
-            workId={feature.work.id}
+          <OpenSourceRecordButton
+            className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            sourceLabel={`${feature.work.key} · ${feature.work.title}`}
+            target={{
+              kind: "work",
+              projectId,
+              workId: feature.work.id,
+            }}
           />
         </div>
         {feature.includedWork.length > 0 ? (
@@ -115,7 +120,15 @@ function WorkTreeNode({
           </span>
         </p>
         <ScopeTreeWorkMetadata node={node} projectId={projectId} />
-        <OpenSourceRecordLink projectId={projectId} workId={node.work.id} />
+        <OpenSourceRecordButton
+          className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          sourceLabel={`${node.work.key} · ${node.work.title}`}
+          target={{
+            kind: "work",
+            projectId,
+            workId: node.work.id,
+          }}
+        />
       </div>
     </li>
   );
@@ -189,40 +202,16 @@ function ScopeTreeReferenceLink({
   projectId: string;
   reference: ScopeTreeReference;
 }) {
-  const linkProps = useLinkProps({
-    activeOptions: { exact: true, includeHash: true },
-    hash: `work-${reference.id}`,
-    params: { projectId },
-    to: "/projects/$projectId",
-  });
-
   return (
-    <a {...linkProps} className="underline-offset-4 hover:underline">
-      {reference.key} {reference.label}
-    </a>
-  );
-}
-
-function OpenSourceRecordLink({
-  projectId,
-  workId,
-}: {
-  projectId: string;
-  workId: string;
-}) {
-  const linkProps = useLinkProps({
-    activeOptions: { exact: true, includeHash: true },
-    hash: `work-${workId}`,
-    params: { projectId },
-    to: "/projects/$projectId",
-  });
-
-  return (
-    <a
-      {...linkProps}
-      className="inline-block text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-    >
-      Open source record
-    </a>
+    <>
+      <span>
+        {reference.key} {reference.label}
+      </span>{" "}
+      <OpenSourceRecordButton
+        className="min-h-8 px-0 py-0 text-xs underline-offset-4 hover:underline"
+        sourceLabel={`${reference.key} · ${reference.label}`}
+        target={{ kind: "work", projectId, workId: reference.id }}
+      />
+    </>
   );
 }

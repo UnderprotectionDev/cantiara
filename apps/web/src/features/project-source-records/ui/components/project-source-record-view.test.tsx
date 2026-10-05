@@ -85,6 +85,24 @@ describe("Project source record detail", () => {
     expect(html).toContain("Review Later");
   });
 
+  test("omits reminder actions when a source record is shown read-only", () => {
+    mocks.useQuery.mockReturnValue({ data: incident, isError: false });
+
+    const html = renderToStaticMarkup(
+      <ProjectSourceRecordView
+        projectId="project-1"
+        readOnly
+        sourceId="incident/1"
+        sourceType="Production Incident"
+      />,
+    );
+
+    expect(html).toContain("Queue delay");
+    expect(html).not.toContain("Remind me");
+    expect(html).not.toContain("Review Later");
+    expect(mocks.reminderInput).not.toHaveBeenCalled();
+  });
+
   test("does not render a source record in a different Project route", () => {
     mocks.useQuery.mockReturnValue({ data: incident, isError: false });
 

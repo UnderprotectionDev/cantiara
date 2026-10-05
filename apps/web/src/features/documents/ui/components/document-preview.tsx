@@ -4,6 +4,7 @@ import {
   documentLiveDirectives,
   type LiveWorkSource,
 } from "@cantiara/api/documents";
+import type { ProjectSourceType } from "@cantiara/api/project-source-records";
 import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
@@ -19,12 +20,14 @@ import "katex/dist/katex.min.css";
 import mermaid from "mermaid";
 import {
   type MouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
   useRef,
   useState,
 } from "react";
+import type { SourceRecordPreviewTarget } from "@/features/record-discovery/ui/components/context-record-preview";
 import {
   documentRecordHash,
   projectSourceRecordHash,
@@ -146,15 +149,7 @@ function recordReferenceHref(
   if (recordType === "Work") {
     return workRecordHref(projectId, recordId);
   }
-  if (
-    recordType === "Decision" ||
-    recordType === "Risk" ||
-    recordType === "Assumption" ||
-    recordType === "Open Question" ||
-    recordType === "Milestone" ||
-    recordType === "Project Release" ||
-    recordType === "Production Incident"
-  ) {
+  if (isProjectSourceType(recordType)) {
     return `/projects/${encodeURIComponent(projectId)}#${projectSourceRecordHash(
       recordType,
       recordId,
@@ -169,6 +164,87 @@ function recordReferenceHref(
     )}`;
   }
   return null;
+}
+
+const projectSourceTypes = new Set<ProjectSourceType>([
+  "Assumption",
+  "Decision",
+  "Milestone",
+  "Open Question",
+  "Production Incident",
+  "Project Release",
+  "Risk",
+]);
+
+function isProjectSourceType(
+  recordType: string,
+): recordType is ProjectSourceType {
+  return projectSourceTypes.has(recordType as ProjectSourceType);
+}
+
+function documentPreviewRecordTarget(
+  projectId: string | null,
+  recordType: string,
+  recordId: string,
+): SourceRecordPreviewTarget | null {
+  if (recordType === "Work" && projectId) {
+    return { kind: "work", projectId, workId: recordId };
+  }
+  if (recordType === "Document") {
+    return { documentId: recordId, kind: "document", projectId };
+  }
+  if (projectId && isProjectSourceType(recordType)) {
+    return {
+      kind: "project-source-record",
+      projectId,
+      sourceId: recordId,
+      sourceType: recordType,
+    };
+  }
+  return null;
+}
+
+function SourceRecordPreviewLink({
+  children,
+  className,
+  href,
+  label,
+  onOpenSourceRecord,
+  target,
+}: {
+  children: ReactNode;
+  className?: string;
+  href: string | null;
+  label: string;
+  onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
+  target: SourceRecordPreviewTarget | null;
+}) {
+  const handleOpenSourceRecord = useCallback(() => {
+    if (target) {
+      onOpenSourceRecord?.(target);
+    }
+  }, [onOpenSourceRecord, target]);
+
+  if (target && onOpenSourceRecord) {
+    return (
+      <Button
+        aria-label={`Open source record: ${label}`}
+        className={`h-auto px-0 py-0 font-normal ${className ?? ""}`}
+        onClick={handleOpenSourceRecord}
+        type="button"
+        variant="link"
+      >
+        {children}
+      </Button>
+    );
+  }
+  return href ? (
+    <a className={className} href={href}>
+      {children}
+    </a>
+  ) : (
+    <span>{children}</span>
+  );
 }
 
 function MermaidPreview({ source }: { source: string }) {
@@ -290,9 +366,11 @@ interface LiveOtherBlock {
 function LiveSectionCard({
   block,
   loading,
+  onOpenSourceRecord,
 }: {
   block?: LiveOtherBlock;
   loading: boolean;
+  onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
 }) {
   const source = block?.source;
   if (!(source && "sectionId" in source)) {
@@ -318,16 +396,23 @@ function LiveSectionCard({
         {source.title} · {source.heading}
       </h3>
       <Markdown extensions={[inlineMathExtension]}>{source.text}</Markdown>
-      <a
+      <SourceRecordPreviewLink
         className="underline"
         href={
           source.projectId === null
             ? `/personal-wiki#${documentRecordHash(source.documentId)}`
             : `/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`
         }
+        label={`${source.title} · ${source.heading}`}
+        onOpenSourceRecord={onOpenSourceRecord}
+        target={{
+          documentId: source.documentId,
+          kind: "document",
+          projectId: source.projectId,
+        }}
       >
         Open source record
-      </a>
+      </SourceRecordPreviewLink>
     </section>
   );
 }
@@ -347,11 +432,14 @@ interface SmartCollectionPreviewMember {
   id: string;
   label: string;
   membershipReasons: string[];
+  target: SourceRecordPreviewTarget | null;
 }
 
 function SmartCollectionMembers({
+  onOpenSourceRecord,
   source,
 }: {
+  onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
   source: SmartCollectionViewSource;
 }) {
   let memberHeading: string;
@@ -367,6 +455,7 @@ function SmartCollectionMembers({
       id: record.id,
       label: `${record.key} · ${record.title}`,
       membershipReasons: record.membershipReasons,
+      target: { kind: "work", projectId: record.projectId, workId: record.id },
     }));
   } else if (
     source.sourceType === "Document" ||
@@ -383,6 +472,11 @@ function SmartCollectionMembers({
       id: record.id,
       label: record.title,
       membershipReasons: record.membershipReasons,
+      target: {
+        documentId: record.id,
+        kind: "document",
+        projectId: record.projectId,
+      },
     }));
   } else {
     memberHeading = source.sourceType;
@@ -393,6 +487,12 @@ function SmartCollectionMembers({
       id: record.id,
       label: record.title,
       membershipReasons: record.membershipReasons,
+      target: {
+        kind: "project-source-record",
+        projectId: record.projectId,
+        sourceId: record.id,
+        sourceType: record.sourceType,
+      },
     }));
   }
 
@@ -415,9 +515,15 @@ function SmartCollectionMembers({
           {members.map((member) => (
             <tr key={member.id}>
               <td>
-                <a className="underline" href={member.href}>
+                <SourceRecordPreviewLink
+                  className="underline"
+                  href={member.href}
+                  label={member.label}
+                  onOpenSourceRecord={onOpenSourceRecord}
+                  target={member.target}
+                >
                   {member.label}
-                </a>
+                </SourceRecordPreviewLink>
                 <MembershipReasons reasons={member.membershipReasons} />
               </td>
               {member.details.map((detail, index) => (
@@ -434,9 +540,15 @@ function SmartCollectionMembers({
     <ul className="list-inside list-disc">
       {members.map((member) => (
         <li key={member.id}>
-          <a className="underline" href={member.href}>
+          <SourceRecordPreviewLink
+            className="underline"
+            href={member.href}
+            label={member.label}
+            onOpenSourceRecord={onOpenSourceRecord}
+            target={member.target}
+          >
             {member.label}
-          </a>
+          </SourceRecordPreviewLink>
           {member.details.length > 0 ? (
             <> · {member.details.join(" · ")}</>
           ) : null}
@@ -451,10 +563,12 @@ function LiveOtherCard({
   block,
   kind,
   loading,
+  onOpenSourceRecord,
 }: {
   block?: LiveOtherBlock;
   kind: "Smart Collection" | "Technical Diagram";
   loading: boolean;
+  onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
 }) {
   const source = block?.source;
   if (kind === "Smart Collection") {
@@ -479,7 +593,10 @@ function LiveOtherCard({
           {source.collectionName} · {source.name}
         </h3>
         <p className="text-muted-foreground text-sm">{source.presentation}</p>
-        <SmartCollectionMembers source={source} />
+        <SmartCollectionMembers
+          onOpenSourceRecord={onOpenSourceRecord}
+          source={source}
+        />
         <a
           className="underline"
           href={`/projects/${source.projectId}#smart-collection-view-${encodeURIComponent(source.id)}`}
@@ -553,10 +670,12 @@ function LiveWorkCard({
   block,
   loading,
   onAction,
+  onOpenSourceRecord,
 }: {
   block?: LiveWorkBlock;
   loading: boolean;
   onAction?: (workId: string, action: "status" | "close") => void;
+  onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
 }) {
   const record = block?.source;
   const handleAction = useCallback(
@@ -619,12 +738,19 @@ function LiveWorkCard({
                 )}
               </>
             ) : null}
-            <a
+            <SourceRecordPreviewLink
               className="self-center underline-offset-4 hover:underline"
               href={workRecordHref(record.projectId, record.id)}
+              label={`${record.key} · ${record.title}`}
+              onOpenSourceRecord={onOpenSourceRecord}
+              target={{
+                kind: "work",
+                projectId: record.projectId,
+                workId: record.id,
+              }}
             >
               Open source record
-            </a>
+            </SourceRecordPreviewLink>
           </div>
         </>
       ) : (
@@ -642,6 +768,7 @@ export default function DocumentPreview({
   liveWorkBlocks,
   onMermaidConvert,
   onLiveWorkAction,
+  onOpenSourceRecord,
   source,
 }: {
   documentReferences?: readonly DocumentRecordReferenceView[];
@@ -649,6 +776,7 @@ export default function DocumentPreview({
   liveWorkBlocks?: readonly LiveWorkBlock[];
   onMermaidConvert?: (blockStart: number, blockEnd: number) => void;
   onLiveWorkAction?: (workId: string, action: "status" | "close") => void;
+  onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
   source: string;
 }) {
   const referencesByIdentity = new Map(
@@ -771,6 +899,7 @@ export default function DocumentPreview({
               key={key}
               loading={!liveWorkBlocks}
               onAction={onLiveWorkAction}
+              onOpenSourceRecord={onOpenSourceRecord}
             />
           );
         }
@@ -786,6 +915,7 @@ export default function DocumentPreview({
               block={block}
               key={key}
               loading={!liveOtherBlocks}
+              onOpenSourceRecord={onOpenSourceRecord}
             />
           );
         }
@@ -806,6 +936,7 @@ export default function DocumentPreview({
               key={key}
               kind={kind}
               loading={!liveOtherBlocks}
+              onOpenSourceRecord={onOpenSourceRecord}
             />
           );
         }
@@ -833,12 +964,20 @@ export default function DocumentPreview({
                   reference.recordType,
                   reference.recordId,
                 );
-                return href ? (
-                  <a className="underline" href={href}>
+                return (
+                  <SourceRecordPreviewLink
+                    className="underline"
+                    href={href}
+                    label={reference.source.title}
+                    onOpenSourceRecord={onOpenSourceRecord}
+                    target={documentPreviewRecordTarget(
+                      reference.source.projectId,
+                      reference.recordType,
+                      reference.recordId,
+                    )}
+                  >
                     {reference.source.title}
-                  </a>
-                ) : (
-                  <span>{reference.source.title}</span>
+                  </SourceRecordPreviewLink>
                 );
               },
             }}

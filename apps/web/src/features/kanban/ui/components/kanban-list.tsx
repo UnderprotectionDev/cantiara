@@ -1,7 +1,7 @@
 import type { WorkStatusLabel } from "@cantiara/api/project-shell";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
-import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
+import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { KanbanCardSummary } from "./kanban-board";
 import { KanbanWorkDetails, KanbanWorkSummary } from "./kanban-work-summary";
@@ -46,12 +46,11 @@ export default function KanbanList({
               </div>
               <KanbanWorkDetails work={work} />
               <KanbanCardSummary work={work} />
-              <a
+              <OpenSourceRecordButton
                 className="min-h-11 py-3 text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                href={workRecordHref(projectId, work.id)}
-              >
-                Open source record
-              </a>
+                sourceLabel={`${work.key} · ${work.title}`}
+                target={{ kind: "work", projectId, workId: work.id }}
+              />
             </article>
           </li>
         ))}

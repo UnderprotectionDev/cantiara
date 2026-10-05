@@ -40,7 +40,7 @@ import {
 import { CalendarDays, GripVertical } from "lucide-react";
 import { useCallback, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
-import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
+import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 
 export type CalendarView = "Day" | "Week" | "Month" | "Agenda";
 export type CalendarWork = Pick<
@@ -376,10 +376,7 @@ function CalendarDateMark({
         view={view}
         work={work}
       />
-      <a
-        className="min-w-0 flex-1 rounded border border-border/70 px-2 py-1 text-xs hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-        href={workRecordHref(work.projectId, work.id)}
-      >
+      <div className="min-w-0 flex-1 rounded border border-border/70 px-2 py-1 text-xs">
         <span className="block font-medium">{label}</span>
         <span>
           {work.key} · {work.title}
@@ -389,7 +386,12 @@ function CalendarDateMark({
             {projectNames.get(work.projectId)}
           </span>
         ) : null}
-      </a>
+        <OpenSourceRecordButton
+          className="min-h-10 px-0 py-0 text-xs"
+          sourceLabel={`${work.key} · ${work.title}`}
+          target={{ kind: "work", projectId: work.projectId, workId: work.id }}
+        />
+      </div>
     </li>
   );
 }
@@ -444,16 +446,24 @@ function CalendarDaySection({
         {formattedDate}
       </h2>
       {ranges.map((work) => (
-        <a
-          className="mb-2 block rounded bg-primary/10 px-2 py-1 text-xs hover:bg-primary/15 focus-visible:outline-2 focus-visible:outline-ring"
-          href={workRecordHref(work.projectId, work.id)}
+        <div
+          className="mb-2 rounded bg-primary/10 px-2 py-1 text-xs"
           key={work.id}
         >
           <span className="font-medium">{work.key}</span> · {work.title}
           <span className="block text-muted-foreground">
             Planned start · Target date
           </span>
-        </a>
+          <OpenSourceRecordButton
+            className="min-h-10 px-0 py-0 text-xs"
+            sourceLabel={`${work.key} · ${work.title}`}
+            target={{
+              kind: "work",
+              projectId: work.projectId,
+              workId: work.id,
+            }}
+          />
+        </div>
       ))}
       {marks.length > 0 ? (
         <ul className="space-y-1.5">
@@ -634,13 +644,15 @@ function CalendarAgenda({
                 </span>
               ) : null}
             </div>
-            <a
-              aria-label={`Open source record: ${work.key} · ${work.title}`}
+            <OpenSourceRecordButton
               className="w-fit rounded text-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-              href={workRecordHref(work.projectId, work.id)}
-            >
-              Open source record
-            </a>
+              sourceLabel={`${work.key} · ${work.title}`}
+              target={{
+                kind: "work",
+                projectId: work.projectId,
+                workId: work.id,
+              }}
+            />
           </li>
         ))}
       </ol>
