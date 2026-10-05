@@ -692,6 +692,170 @@ describeDatabase("Record Discovery universal search boundary", () => {
     ).toContain(recordId("universal-diagram"));
   });
 
+  it("browses prepared work, decision, risk, release, and diagram indexes", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.insert(work).values([
+      {
+        archivedAt: new Date("2026-09-01T00:00:00Z"),
+        id: recordId("index-work-archived"),
+        key: "CUR-21",
+        number: 21,
+        projectId,
+        title: "Archived work",
+        type: "Task",
+      },
+      {
+        id: recordId("index-work-current"),
+        key: "CUR-22",
+        number: 22,
+        projectId,
+        title: "Current work",
+        type: "Feature",
+      },
+      {
+        id: recordId("index-work-other-project"),
+        key: "OTH-23",
+        number: 23,
+        projectId: otherProjectId,
+        title: "Other project work",
+        type: "Task",
+      },
+    ]);
+    await database.insert(decision).values({
+      decision: "Keep a bounded index.",
+      id: recordId("index-decision"),
+      projectId,
+      title: "Index decision",
+    });
+    await database.insert(risk).values({
+      id: recordId("index-risk"),
+      projectId,
+      title: "Index risk",
+    });
+    await database.insert(projectRelease).values({
+      id: recordId("index-release"),
+      name: "Index release",
+      projectId,
+    });
+    await database.insert(technicalDiagram).values({
+      authorityMode: "Imported Independent Copy",
+      id: recordId("index-diagram"),
+      model: { links: [], nodes: [] },
+      projectId,
+      title: "Index diagram",
+      type: "Technical Architecture",
+    });
+    await database.insert(document).values({
+      body: "",
+      id: recordId("index-document"),
+      projectId,
+      title: "Index document",
+    });
+    await database.insert(fileAttachment).values({
+      id: recordId("index-file"),
+      name: "Index file",
+      projectId,
+      scopeType: "Project",
+      workspaceId,
+    });
+    await database.insert(fileAttachmentVersion).values({
+      attachmentId: recordId("index-file"),
+      byteSize: 1,
+      contentHash: contentHash(),
+      detectedMimeType: "text/plain",
+      extension: "txt",
+      fileName: "index.txt",
+      id: recordId("index-file-version"),
+      mimeType: "text/plain",
+      objectKey: recordId("index-file-object"),
+      version: 1,
+    });
+
+    const scopedWork = await client().searchRecords({
+      archived: false,
+      index: "All Work",
+      query: "",
+      scope: { kind: "project", projectId },
+    });
+    expect(scopedWork.map(({ id }) => id)).toEqual([
+      recordId("index-work-current"),
+    ]);
+    expect(scopedWork[0]).toMatchObject({
+      category: "Feature",
+      recordType: "Work",
+      title: "Current work",
+    });
+
+    const archivedWork = await client().searchRecords({
+      archived: true,
+      index: "All Work",
+      query: "",
+      scope: { kind: "project", projectId },
+    });
+    expect(archivedWork.map(({ id }) => id)).toEqual([
+      recordId("index-work-archived"),
+    ]);
+
+    const supportedIndexes = [
+      ["All Decisions", "index-decision", "Decision"],
+      ["All Risks", "index-risk", "Risk"],
+      ["All Project Releases", "index-release", "Project Release"],
+      ["All Technical Diagrams", "index-diagram", "Technical Diagram"],
+    ] as const;
+    const supportedResults = await Promise.all(
+      supportedIndexes.map(([index]) =>
+        client().searchRecords({
+          archived: false,
+          index,
+          query: "",
+          scope: { kind: "project", projectId },
+        }),
+      ),
+    );
+    for (const [
+      resultIndex,
+      [, id, recordType],
+    ] of supportedIndexes.entries()) {
+      const results = supportedResults[resultIndex];
+      expect(results?.map(({ id: resultId }) => resultId)).toEqual([
+        recordId(id),
+      ]);
+      expect(results?.[0]?.recordType).toBe(recordType);
+    }
+
+    const diagrams = await client().searchRecords({
+      archived: false,
+      index: "All Technical Diagrams",
+      query: "",
+      scope: { kind: "project", projectId },
+      type: "Technical Architecture",
+    });
+    expect(diagrams[0]).toMatchObject({
+      authorityMode: "Imported Independent Copy",
+      category: "Technical Architecture",
+    });
+
+    const modelLessIndexes = [
+      "All Research Sessions",
+      "All Tests",
+      "All Designs",
+      "All Sources",
+    ] as const;
+    const modelLessResults = await Promise.all(
+      modelLessIndexes.map((index) =>
+        client().searchRecords({
+          archived: false,
+          index,
+          query: "",
+          scope: { kind: "project", projectId },
+        }),
+      ),
+    );
+    expect(modelLessResults).toEqual(modelLessIndexes.map(() => []));
+  });
+
   it("searches owned Documents and only current File Attachment metadata", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -807,5 +971,227 @@ describeDatabase("Record Discovery universal search boundary", () => {
     expect(results.map(({ id }) => id)).not.toContain(
       recordId("attachment-trash"),
     );
+  });
+
+  it("browses All Files once per attachment with scope, type, and Folder filters", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.insert(document).values([
+      {
+        id: recordId("file-index-engineering-document"),
+        projectId,
+        title: "Engineering runbook",
+        body: "",
+        folder: "Engineering",
+      },
+      {
+        id: recordId("file-index-operations-document"),
+        projectId,
+        title: "Operations runbook",
+        body: "",
+        folder: "Operations",
+      },
+      {
+        id: recordId("file-index-other-project-document"),
+        projectId: otherProjectId,
+        title: "Other project runbook",
+        body: "",
+        folder: "Engineering",
+      },
+    ]);
+    await database.insert(fileAttachment).values([
+      {
+        id: recordId("file-index-current"),
+        name: "Runbook",
+        ownerDocumentId: recordId("file-index-engineering-document"),
+        currentVersion: 2,
+        projectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+      {
+        id: recordId("file-index-other-folder"),
+        name: "Operations PDF",
+        ownerDocumentId: recordId("file-index-operations-document"),
+        projectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+      {
+        id: recordId("file-index-other-project"),
+        name: "Other project PDF",
+        ownerDocumentId: recordId("file-index-other-project-document"),
+        projectId: otherProjectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+      {
+        id: recordId("file-index-archived"),
+        name: "Archived runbook",
+        lifecycleStatus: "Archive",
+        ownerDocumentId: recordId("file-index-engineering-document"),
+        projectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+    ]);
+    await database.insert(fileAttachmentVersion).values([
+      {
+        id: recordId("file-index-current-v1"),
+        attachmentId: recordId("file-index-current"),
+        version: 1,
+        byteSize: 1,
+        contentHash: contentHash(),
+        detectedMimeType: "application/pdf",
+        extension: "pdf",
+        fileName: "runbook-v1.pdf",
+        mimeType: "application/pdf",
+        objectKey: recordId("file-index-current-object-v1"),
+      },
+      {
+        id: recordId("file-index-current-v2"),
+        attachmentId: recordId("file-index-current"),
+        version: 2,
+        byteSize: 1,
+        contentHash: contentHash(),
+        detectedMimeType: "application/pdf",
+        extension: "pdf",
+        fileName: "runbook-v2.pdf",
+        mimeType: "application/pdf",
+        objectKey: recordId("file-index-current-object-v2"),
+      },
+      ...(
+        [
+          ["file-index-other-folder", "operations.pdf"],
+          ["file-index-other-project", "other-project.pdf"],
+          ["file-index-archived", "archived.pdf"],
+        ] as const
+      ).map(([attachment, fileName]) => ({
+        id: recordId(`${attachment}-version`),
+        attachmentId: recordId(attachment),
+        version: 1,
+        byteSize: 1,
+        contentHash: contentHash(),
+        detectedMimeType: "application/pdf",
+        extension: "pdf",
+        fileName,
+        mimeType: "application/pdf",
+        objectKey: recordId(`${attachment}-object`),
+      })),
+    ]);
+
+    const input = {
+      archived: false,
+      folder: "Engineering",
+      index: "All Files",
+      query: "",
+      scope: { kind: "project", projectId },
+      type: "pdf",
+    } as const;
+    const results = await client().searchRecords(input);
+    expect(results.map(({ id }) => id)).toEqual([
+      recordId("file-index-current"),
+    ]);
+    expect(results[0]).toMatchObject({
+      category: "pdf",
+      fileMimeType: "application/pdf",
+      fileName: "runbook-v2.pdf",
+      folder: "Engineering",
+      ownerDocumentId: recordId("file-index-engineering-document"),
+      recordType: "File Attachment",
+      snippet: expect.stringContaining("runbook-v2.pdf"),
+      title: "Runbook",
+    });
+    expect(results[0]?.snippet).not.toContain("runbook-v1.pdf");
+
+    const archivedResults = await client().searchRecords({
+      ...input,
+      archived: true,
+    });
+    expect(archivedResults.map(({ id }) => id)).toEqual([
+      recordId("file-index-archived"),
+    ]);
+  });
+
+  it("browses All Documents with scope, type, Folder, and Archived filters", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database.insert(document).values([
+      {
+        body: "",
+        folder: "Engineering",
+        id: recordId("document-index-project"),
+        projectId,
+        title: "Project plan",
+        type: "Plan",
+      },
+      {
+        archivedAt: new Date("2026-09-01T00:00:00Z"),
+        body: "",
+        folder: "Engineering",
+        id: recordId("document-index-archived"),
+        projectId,
+        title: "Archived plan",
+        type: "Plan",
+      },
+      {
+        body: "",
+        folder: "Research",
+        id: recordId("document-index-wiki"),
+        title: "Wiki research note",
+        type: "Research Note",
+        workspaceId,
+      },
+      {
+        body: "",
+        folder: "Engineering",
+        id: recordId("document-index-other-project"),
+        projectId: otherProjectId,
+        title: "Other project plan",
+        type: "Plan",
+      },
+    ]);
+
+    const input = {
+      archived: false,
+      folder: "Engineering",
+      index: "All Documents",
+      query: "",
+      scope: { kind: "project", projectId },
+      type: "Plan",
+    } as const;
+    const results = await client().searchRecords(input);
+
+    expect(results.map(({ id }) => id)).toEqual([
+      recordId("document-index-project"),
+    ]);
+    expect(results[0]).toMatchObject({
+      category: "Plan",
+      folder: "Engineering",
+      recordType: "Document",
+      scopeName: "Current Project",
+      scopeType: "Project",
+      title: "Project plan",
+    });
+
+    const wikiResults = await client().searchRecords({
+      ...input,
+      folder: "Research",
+      scope: { kind: "wiki" },
+      type: "Research Note",
+    });
+    expect(wikiResults.map(({ id }) => id)).toEqual([
+      recordId("document-index-wiki"),
+    ]);
+
+    const archivedResults = await client().searchRecords({
+      ...input,
+      archived: true,
+    });
+    expect(archivedResults.map(({ id }) => id)).toEqual([
+      recordId("document-index-archived"),
+    ]);
   });
 });
