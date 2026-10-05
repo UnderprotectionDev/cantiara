@@ -177,11 +177,7 @@ function CollectionMember({
           <GripVertical aria-hidden="true" className="size-4" />
         </Button>
         <span>{children}</span>
-        <OpenSourceRecordButton
-          className="h-8 px-0"
-          sourceLabel={record.recordName}
-          target={target}
-        />
+        <OpenSourceRecordButton className="h-8 px-0" target={target} />
       </div>
       <MembershipReasons reasons={reasons} />
     </li>
@@ -211,6 +207,7 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
             }}
             target={{
               kind: "work",
+              label: `${record.key} · ${record.title}`,
               projectId: record.projectId,
               workId: record.id,
             }}
@@ -244,6 +241,7 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
             target={{
               kind: "document",
               documentId: record.id,
+              label: record.title,
               projectId: record.projectId,
             }}
           >
@@ -274,6 +272,7 @@ function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
           }}
           target={{
             kind: "project-source-record",
+            label: record.title,
             projectId: record.projectId,
             sourceId: record.id,
             sourceType: record.sourceType,

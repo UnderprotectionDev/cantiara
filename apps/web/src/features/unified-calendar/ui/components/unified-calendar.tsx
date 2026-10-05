@@ -388,8 +388,12 @@ function CalendarDateMark({
         ) : null}
         <OpenSourceRecordButton
           className="min-h-10 px-0 py-0 text-xs"
-          sourceLabel={`${work.key} · ${work.title}`}
-          target={{ kind: "work", projectId: work.projectId, workId: work.id }}
+          target={{
+            kind: "work",
+            label: `${work.key} · ${work.title}`,
+            projectId: work.projectId,
+            workId: work.id,
+          }}
         />
       </div>
     </li>
@@ -456,9 +460,9 @@ function CalendarDaySection({
           </span>
           <OpenSourceRecordButton
             className="min-h-10 px-0 py-0 text-xs"
-            sourceLabel={`${work.key} · ${work.title}`}
             target={{
               kind: "work",
+              label: `${work.key} · ${work.title}`,
               projectId: work.projectId,
               workId: work.id,
             }}
@@ -646,9 +650,9 @@ function CalendarAgenda({
             </div>
             <OpenSourceRecordButton
               className="w-fit rounded text-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-              sourceLabel={`${work.key} · ${work.title}`}
               target={{
                 kind: "work",
+                label: `${work.key} · ${work.title}`,
                 projectId: work.projectId,
                 workId: work.id,
               }}

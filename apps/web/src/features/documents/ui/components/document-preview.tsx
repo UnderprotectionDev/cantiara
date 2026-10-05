@@ -183,19 +183,21 @@ function isProjectSourceType(
 }
 
 function documentPreviewRecordTarget(
+  label: string,
   projectId: string | null,
   recordType: string,
   recordId: string,
 ): SourceRecordPreviewTarget | null {
   if (recordType === "Work" && projectId) {
-    return { kind: "work", projectId, workId: recordId };
+    return { kind: "work", label, projectId, workId: recordId };
   }
   if (recordType === "Document") {
-    return { documentId: recordId, kind: "document", projectId };
+    return { documentId: recordId, kind: "document", label, projectId };
   }
   if (projectId && isProjectSourceType(recordType)) {
     return {
       kind: "project-source-record",
+      label,
       projectId,
       sourceId: recordId,
       sourceType: recordType,
@@ -208,14 +210,12 @@ function SourceRecordPreviewLink({
   children,
   className,
   href,
-  label,
   onOpenSourceRecord,
   target,
 }: {
   children: ReactNode;
   className?: string;
   href: string | null;
-  label: string;
   onOpenSourceRecord?: (target: SourceRecordPreviewTarget) => void;
   target: SourceRecordPreviewTarget | null;
 }) {
@@ -228,7 +228,7 @@ function SourceRecordPreviewLink({
   if (target && onOpenSourceRecord) {
     return (
       <Button
-        aria-label={`Open source record: ${label}`}
+        aria-label={`Open source record: ${target.label}`}
         className={`h-auto px-0 py-0 font-normal ${className ?? ""}`}
         onClick={handleOpenSourceRecord}
         type="button"
@@ -403,11 +403,11 @@ function LiveSectionCard({
             ? `/personal-wiki#${documentRecordHash(source.documentId)}`
             : `/projects/${encodeURIComponent(source.projectId)}#${documentRecordHash(source.documentId)}`
         }
-        label={`${source.title} · ${source.heading}`}
         onOpenSourceRecord={onOpenSourceRecord}
         target={{
           documentId: source.documentId,
           kind: "document",
+          label: `${source.title} · ${source.heading}`,
           projectId: source.projectId,
         }}
       >
@@ -455,7 +455,12 @@ function SmartCollectionMembers({
       id: record.id,
       label: `${record.key} · ${record.title}`,
       membershipReasons: record.membershipReasons,
-      target: { kind: "work", projectId: record.projectId, workId: record.id },
+      target: {
+        kind: "work",
+        label: `${record.key} · ${record.title}`,
+        projectId: record.projectId,
+        workId: record.id,
+      },
     }));
   } else if (
     source.sourceType === "Document" ||
@@ -475,6 +480,7 @@ function SmartCollectionMembers({
       target: {
         documentId: record.id,
         kind: "document",
+        label: record.title,
         projectId: record.projectId,
       },
     }));
@@ -489,6 +495,7 @@ function SmartCollectionMembers({
       membershipReasons: record.membershipReasons,
       target: {
         kind: "project-source-record",
+        label: record.title,
         projectId: record.projectId,
         sourceId: record.id,
         sourceType: record.sourceType,
@@ -518,7 +525,6 @@ function SmartCollectionMembers({
                 <SourceRecordPreviewLink
                   className="underline"
                   href={member.href}
-                  label={member.label}
                   onOpenSourceRecord={onOpenSourceRecord}
                   target={member.target}
                 >
@@ -543,7 +549,6 @@ function SmartCollectionMembers({
           <SourceRecordPreviewLink
             className="underline"
             href={member.href}
-            label={member.label}
             onOpenSourceRecord={onOpenSourceRecord}
             target={member.target}
           >
@@ -741,10 +746,10 @@ function LiveWorkCard({
             <SourceRecordPreviewLink
               className="self-center underline-offset-4 hover:underline"
               href={workRecordHref(record.projectId, record.id)}
-              label={`${record.key} · ${record.title}`}
               onOpenSourceRecord={onOpenSourceRecord}
               target={{
                 kind: "work",
+                label: `${record.key} · ${record.title}`,
                 projectId: record.projectId,
                 workId: record.id,
               }}
@@ -968,9 +973,9 @@ export default function DocumentPreview({
                   <SourceRecordPreviewLink
                     className="underline"
                     href={href}
-                    label={reference.source.title}
                     onOpenSourceRecord={onOpenSourceRecord}
                     target={documentPreviewRecordTarget(
+                      reference.source.title,
                       reference.source.projectId,
                       reference.recordType,
                       reference.recordId,

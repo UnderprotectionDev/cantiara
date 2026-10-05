@@ -32,14 +32,20 @@ const DocumentPreview = lazy(
 );
 
 export type SourceRecordPreviewTarget =
-  | { documentId: string; kind: "document"; projectId: string | null }
+  | {
+      documentId: string;
+      kind: "document";
+      label: string;
+      projectId: string | null;
+    }
   | {
       kind: "project-source-record";
+      label: string;
       projectId: string;
       sourceId: string;
       sourceType: ProjectSourceType;
     }
-  | { kind: "work"; projectId: string; workId: string };
+  | { kind: "work"; label: string; projectId: string; workId: string };
 
 interface SourceRecordPreviewContextValue {
   openSourceRecord: (target: SourceRecordPreviewTarget) => void;
@@ -77,11 +83,9 @@ export function closeContextRecordPreviewOnNavigation(
 
 export function OpenSourceRecordButton({
   className,
-  sourceLabel,
   target,
 }: {
   className?: string;
-  sourceLabel: string;
   target: SourceRecordPreviewTarget;
 }) {
   const preview = useContext(SourceRecordPreviewContext);
@@ -97,7 +101,7 @@ export function OpenSourceRecordButton({
 
   return (
     <Button
-      aria-label={`Open source record: ${sourceLabel}`}
+      aria-label={`Open source record: ${target.label}`}
       className={className}
       onClick={handleClick}
       type="button"
@@ -167,7 +171,7 @@ export function ContextRecordPreviewPanel({
         side="right"
       >
         <SheetHeader className="border-b">
-          <SheetTitle>Open source record</SheetTitle>
+          <SheetTitle>{record.label}</SheetTitle>
           <SheetDescription>
             Temporary preview that keeps the current source view in place.
           </SheetDescription>

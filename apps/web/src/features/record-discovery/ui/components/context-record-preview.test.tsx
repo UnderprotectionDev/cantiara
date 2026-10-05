@@ -34,7 +34,8 @@ vi.mock("@cantiara/ui/components/sheet", async () => {
     SheetDescription: MockContainer,
     SheetFooter: MockContainer,
     SheetHeader: MockContainer,
-    SheetTitle: MockContainer,
+    SheetTitle: ({ children }: { children?: ReactNode }) =>
+      React.createElement("h2", { "data-slot": "sheet-title" }, children),
   };
 });
 
@@ -93,8 +94,12 @@ describe("Context record preview", () => {
     const html = renderToStaticMarkup(
       <ContextRecordPreviewProvider>
         <OpenSourceRecordButton
-          sourceLabel="CAN-1 · Verify provider callback"
-          target={{ kind: "work", projectId: "project-1", workId: "work-1" }}
+          target={{
+            kind: "work",
+            label: "CAN-1 · Verify provider callback",
+            projectId: "project-1",
+            workId: "work-1",
+          }}
         />
       </ContextRecordPreviewProvider>,
     );
@@ -109,20 +114,36 @@ describe("Context record preview", () => {
   test("links each supported source to its canonical full page", () => {
     const targets: [SourceRecordPreviewTarget, string][] = [
       [
-        { kind: "work", projectId: "project-1", workId: "work/1" },
+        {
+          kind: "work",
+          label: "CAN-1 · Verify provider callback",
+          projectId: "project-1",
+          workId: "work/1",
+        },
         "/projects/project-1#work-work%2F1",
       ],
       [
-        { kind: "document", documentId: "doc-1", projectId: "project-1" },
+        {
+          kind: "document",
+          documentId: "doc-1",
+          label: "Payment spec",
+          projectId: "project-1",
+        },
         "/projects/project-1#document-doc-1",
       ],
       [
-        { kind: "document", documentId: "wiki-1", projectId: null },
+        {
+          kind: "document",
+          documentId: "wiki-1",
+          label: "Research notes",
+          projectId: null,
+        },
         "/personal-wiki#document-wiki-1",
       ],
       [
         {
           kind: "project-source-record",
+          label: "Use the hosted callback",
           projectId: "project-1",
           sourceId: "decision-1",
           sourceType: "Decision",
@@ -149,6 +170,7 @@ describe("Context record preview", () => {
           onClose={noop}
           record={{
             kind: "work",
+            label: "CAN-1 · Verify provider callback",
             projectId: work.projectId,
             workId: work.id,
           }}
@@ -157,6 +179,12 @@ describe("Context record preview", () => {
     );
 
     expect(html).toContain("Verify provider callback");
+    expect(html).toContain(
+      '<h2 data-slot="sheet-title">CAN-1 · Verify provider callback</h2>',
+    );
+    expect(html).not.toContain(
+      '<h2 data-slot="sheet-title">Open source record</h2>',
+    );
     expect(html).toContain("Confirm the provider&#x27;s access requirements.");
     expect(html).toContain("Horizon");
     expect(html).toContain("Next");
@@ -255,6 +283,7 @@ describe("Context record preview", () => {
           record={{
             documentId: sourceDocument.id,
             kind: "document",
+            label: sourceDocument.title,
             projectId: sourceDocument.projectId,
           }}
         />

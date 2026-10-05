@@ -343,8 +343,12 @@ function KanbanCard({
       <KanbanWorkDetails work={work} />
       <OpenSourceRecordButton
         className="inline-block min-h-11 py-3 text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        sourceLabel={`${work.key} · ${work.title}`}
-        target={{ kind: "work", projectId, workId: work.id }}
+        target={{
+          kind: "work",
+          label: `${work.key} · ${work.title}`,
+          projectId,
+          workId: work.id,
+        }}
       />
     </article>
   );

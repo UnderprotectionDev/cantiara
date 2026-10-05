@@ -153,9 +153,9 @@ function SourceAction({
   return (
     <OpenSourceRecordButton
       className={className}
-      sourceLabel={`${record.key} · ${record.title}`}
       target={{
         kind: "work",
+        label: `${record.key} · ${record.title}`,
         projectId: record.projectId,
         workId: record.id,
       }}

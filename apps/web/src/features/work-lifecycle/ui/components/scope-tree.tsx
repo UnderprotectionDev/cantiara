@@ -79,9 +79,9 @@ function FeatureTreeNode({
           </p>
           <OpenSourceRecordButton
             className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            sourceLabel={`${feature.work.key} · ${feature.work.title}`}
             target={{
               kind: "work",
+              label: `${feature.work.key} · ${feature.work.title}`,
               projectId,
               workId: feature.work.id,
             }}
@@ -122,9 +122,9 @@ function WorkTreeNode({
         <ScopeTreeWorkMetadata node={node} projectId={projectId} />
         <OpenSourceRecordButton
           className="inline-block min-h-10 px-0 py-0 text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          sourceLabel={`${node.work.key} · ${node.work.title}`}
           target={{
             kind: "work",
+            label: `${node.work.key} · ${node.work.title}`,
             projectId,
             workId: node.work.id,
           }}
@@ -209,8 +209,12 @@ function ScopeTreeReferenceLink({
       </span>{" "}
       <OpenSourceRecordButton
         className="min-h-8 px-0 py-0 text-xs underline-offset-4 hover:underline"
-        sourceLabel={`${reference.key} · ${reference.label}`}
-        target={{ kind: "work", projectId, workId: reference.id }}
+        target={{
+          kind: "work",
+          label: `${reference.key} · ${reference.label}`,
+          projectId,
+          workId: reference.id,
+        }}
       />
     </>
   );
