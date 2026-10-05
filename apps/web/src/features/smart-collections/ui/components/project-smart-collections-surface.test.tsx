@@ -37,11 +37,14 @@ const views: SmartCollectionViewSource[] = [
     ...emptyView("work-view", "Work"),
     works: [
       {
+        createdAt: "2026-09-30T12:00:00.000Z",
+        effort: null,
         id: "work-1",
         key: "CAN-1",
         membershipReasons: ["Status: In Progress"],
         projectId,
         status: "In Progress",
+        statusChangedAt: "2026-10-04T12:00:00.000Z",
         title: "Verify callback",
         type: "Task",
       },

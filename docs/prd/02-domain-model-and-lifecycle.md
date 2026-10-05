@@ -364,6 +364,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Hafif İçgörüler | `Insights` | İş koleksiyonunun mevcut filtre sonucundan sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir |
+| Koleksiyon panel grubu | `Collection view` | Ekran okuyucu için `Records` ve `Insights` panel seçimlerini adlandıran grup etiketi |
+| İçgörü kapsamındaki kayıtlar | `Records` | İş koleksiyonunun mevcut filtre veya seçili Insights dilimiyle eşleşen kayıt listesini gösterme |
+| İçgörü kayıt sayısı | `Count` | Insights özetindeki geçerli yetkili kayıt adedi; skor değildir |
 | Kayıt yaşı | `Age` | İş kaydının oluşturulmasından bu yana geçen süre özeti; skor değildir |
 | Tüm kayıtları göster | `Show all records` | Insights dilimini kaldırıp koleksiyonun mevcut koşul sonucuna dönme |
 | Ayarlanmadı | `Not set` | Eforu boş kaydın Insights dilimi; skor değildir |

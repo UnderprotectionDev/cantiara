@@ -243,6 +243,10 @@ describeDatabase(
       const secondWorkId = `work-${crypto.randomUUID()}`;
       const outsideScopeWorkId = `work-${crypto.randomUUID()}`;
       const outsideProjectId = `project-${crypto.randomUUID()}`;
+      const firstCreatedAt = new Date("2026-09-01T08:00:00.000Z");
+      const firstStatusChangedAt = new Date("2026-09-03T10:00:00.000Z");
+      const secondCreatedAt = new Date("2026-09-02T08:00:00.000Z");
+      const secondStatusChangedAt = new Date("2026-09-04T10:00:00.000Z");
       await database.insert(project).values({
         id: outsideProjectId,
         name: "Outside project",
@@ -256,7 +260,10 @@ describeDatabase(
           key: `${shortCode}A-1`,
           number: 1,
           projectId: projectAId,
+          createdAt: firstCreatedAt,
+          effort: "Large",
           status: "In Progress",
+          statusChangedAt: firstStatusChangedAt,
           title: "Matching Work A",
           type: "Task",
         },
@@ -265,7 +272,10 @@ describeDatabase(
           key: `${shortCode}B-1`,
           number: 1,
           projectId: projectBId,
+          createdAt: secondCreatedAt,
+          effort: null,
           status: "In Progress",
+          statusChangedAt: secondStatusChangedAt,
           title: "Matching Work B",
           type: "Task",
         },
@@ -293,6 +303,22 @@ describeDatabase(
       });
       expect(view.works.map(({ id }) => id).sort()).toEqual(
         [firstWorkId, secondWorkId].sort(),
+      );
+      expect(view.works).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: firstWorkId,
+            effort: "Large",
+            createdAt: firstCreatedAt.toISOString(),
+            statusChangedAt: firstStatusChangedAt.toISOString(),
+          }),
+          expect.objectContaining({
+            id: secondWorkId,
+            effort: null,
+            createdAt: secondCreatedAt.toISOString(),
+            statusChangedAt: secondStatusChangedAt.toISOString(),
+          }),
+        ]),
       );
       expect(view.works[0]?.membershipReasons).toContain("Status: In Progress");
       expect(

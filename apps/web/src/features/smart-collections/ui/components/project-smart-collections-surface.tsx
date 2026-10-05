@@ -37,10 +37,16 @@ import {
   orpc,
 } from "@/utils/orpc";
 import {
+  filterSmartCollectionWorks,
+  type SmartCollectionInsightSelection,
+  toggleSmartCollectionInsightSelection,
+} from "../../lib/smart-collection-insights";
+import {
   previewSmartCollectionMembership,
   type SmartCollectionMembershipFieldChange,
   type SmartCollectionMembershipPreviewRecord,
 } from "../../lib/smart-collection-membership-preview";
+import { SmartCollectionInsights } from "./smart-collection-insights";
 
 const SMART_COLLECTION_DRAG_TYPE = "smart-collection-record";
 
@@ -184,14 +190,20 @@ function CollectionMember({
   );
 }
 
-function CollectionMembers({ view }: { view: SmartCollectionViewSource }) {
+function CollectionMembers({
+  view,
+  works = view.works,
+}: {
+  view: SmartCollectionViewSource;
+  works?: SmartCollectionViewSource["works"];
+}) {
   if (view.sourceType === "Work") {
-    if (view.works.length === 0) {
+    if (works.length === 0) {
       return <p>No Work matches this view.</p>;
     }
     return (
       <ul className="list-inside list-disc space-y-2">
-        {view.works.map((record) => (
+        {works.map((record) => (
           <CollectionMember
             key={record.id}
             reasons={record.membershipReasons}
@@ -319,11 +331,35 @@ function CollectionViewCard({
   preview: SmartCollectionMembershipPreview | null;
   view: SmartCollectionViewSource;
 }) {
+  const [activePanel, setActivePanel] = useState<"records" | "insights">(
+    "records",
+  );
+  const [selectedSlices, setSelectedSlices] = useState<
+    SmartCollectionInsightSelection[]
+  >([]);
   const droppable = useDroppable({
     accept: SMART_COLLECTION_DRAG_TYPE,
     id: collectionViewDropId(view.id),
   });
   const showDropTarget = droppable.isDropTarget && preview?.viewId === view.id;
+  const isWorkCollection = view.sourceType === "Work";
+  const now = new Date();
+  const selectedWorks = isWorkCollection
+    ? selectedSlices.reduce(
+        (current, selection) =>
+          filterSmartCollectionWorks(current, selection, now),
+        view.works,
+      )
+    : undefined;
+  const selectSlice = (selection: SmartCollectionInsightSelection) => {
+    setSelectedSlices((current) =>
+      toggleSmartCollectionInsightSelection(current, selection),
+    );
+  };
+  const showAllRecords = () => {
+    setSelectedSlices([]);
+    setActivePanel("records");
+  };
 
   return (
     <section
@@ -336,10 +372,51 @@ function CollectionViewCard({
       <p className="text-muted-foreground text-sm">
         {view.sourceType} · {view.presentation}
       </p>
+      {isWorkCollection ? (
+        <fieldset className="flex gap-2">
+          <legend className="sr-only">Collection view</legend>
+          <Button
+            aria-pressed={activePanel === "records"}
+            onClick={() => setActivePanel("records")}
+            type="button"
+            variant={activePanel === "records" ? "secondary" : "outline"}
+          >
+            Records
+          </Button>
+          <Button
+            aria-pressed={activePanel === "insights"}
+            onClick={() => setActivePanel("insights")}
+            type="button"
+            variant={activePanel === "insights" ? "secondary" : "outline"}
+          >
+            Insights
+          </Button>
+        </fieldset>
+      ) : null}
       {preview?.viewId === view.id ? (
         <MembershipFieldChangePreview preview={preview} />
       ) : null}
-      <CollectionMembers view={view} />
+      {isWorkCollection && activePanel === "insights" ? (
+        <SmartCollectionInsights
+          now={now}
+          onSelectSlice={selectSlice}
+          onShowAllRecords={showAllRecords}
+          selectedSlices={selectedSlices}
+          works={selectedWorks ?? []}
+        />
+      ) : null}
+      {isWorkCollection &&
+      selectedSlices.length > 0 &&
+      activePanel === "records" ? (
+        <Button onClick={showAllRecords} type="button" variant="ghost">
+          Show all records
+        </Button>
+      ) : null}
+      {!isWorkCollection ||
+      activePanel === "records" ||
+      selectedSlices.length > 0 ? (
+        <CollectionMembers view={view} works={selectedWorks} />
+      ) : null}
     </section>
   );
 }
