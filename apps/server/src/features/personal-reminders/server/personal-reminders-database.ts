@@ -505,10 +505,9 @@ function reminderSourcePath(reminder: PersonalReminderRecord) {
     : "/personal-wiki";
   switch (sourceRecordType) {
     case "Document": {
-      const encodedSourceId = encodeURIComponent(sourceId);
       const hash = reminder.sectionId
-        ? `document-section:${encodedSourceId}:${encodeURIComponent(reminder.sectionId)}`
-        : `document-${encodedSourceId}`;
+        ? `document-section:${sourceId}:${encodeURIComponent(reminder.sectionId)}`
+        : `document-${sourceId}`;
       return `${projectPath}#${hash}`;
     }
     case "Work":
