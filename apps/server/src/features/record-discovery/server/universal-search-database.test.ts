@@ -9,7 +9,11 @@ import {
   user,
   workspace,
 } from "@cantiara/db/schema/auth";
-import { captureInboxItem } from "@cantiara/db/schema/capture-triage";
+import {
+  captureExtensionLink,
+  captureExtensionPairingCode,
+  captureInboxItem,
+} from "@cantiara/db/schema/capture-triage";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
 import {
@@ -54,6 +58,8 @@ describeDatabase("Record Discovery universal search boundary", () => {
   const otherProjectId = `project-${crypto.randomUUID()}`;
   const foreignProjectId = `project-${crypto.randomUUID()}`;
   const recordNamespace = crypto.randomUUID();
+  const canary = (prefix: string) =>
+    `${prefix}${recordNamespace.replaceAll("-", "")}`;
   const recordId = (suffix: string) =>
     `universal-search-record-${recordNamespace}-${suffix}`;
   const contentHash = () =>
@@ -297,14 +303,12 @@ describeDatabase("Record Discovery universal search boundary", () => {
   );
 
   it(
-    "keeps Capture Inbox items, Drafts, External Surfaces, and secrets outside Search",
+    "keeps Capture Inbox items, Drafts, External Surfaces, and credentials outside Search",
     async () => {
       if (!database) {
         throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
       }
 
-      const suffix = recordNamespace.replaceAll("-", "");
-      const canary = (prefix: string) => `${prefix}${suffix}`;
       const captureText = canary("CaptureInboxOnly");
       const draftText = canary("WorkDraftOnly");
       const externalSurfaceText = canary("ExternalSurfaceOnly");
@@ -315,8 +319,21 @@ describeDatabase("Record Discovery universal search boundary", () => {
       const refreshToken = canary("GitHubRefreshTokenSecret");
       const idToken = canary("GitHubIdTokenSecret");
       const credentialPassword = canary("CredentialPasswordSecret");
+      const captureExtensionTokenHash = contentHash();
+      const captureExtensionPairingCodeHash = contentHash();
       const searchableWorkTitle = canary("SearchableWork");
       const diagramLabel = canary("DiagramMigrationName");
+      const secretCanaries = [
+        shareToken,
+        linkPassword,
+        sessionToken,
+        accessToken,
+        refreshToken,
+        idToken,
+        credentialPassword,
+        captureExtensionTokenHash,
+        captureExtensionPairingCodeHash,
+      ];
       const shareableSurfaceId = recordId("excluded-external-surface");
       const diagramId = recordId("migration-name-owner-diagram");
       const supportedRecordTypes: string[] = [...universalSearchRecordTypes];
@@ -362,6 +379,19 @@ describeDatabase("Record Discovery universal search boundary", () => {
         token: sessionToken,
         userId: accountId,
       });
+      await database.insert(captureExtensionLink).values({
+        accountId,
+        browser: "Chrome",
+        device: "Search exclusion fixture",
+        id: recordId("secret-capture-extension-link"),
+        tokenHash: captureExtensionTokenHash,
+      });
+      await database.insert(captureExtensionPairingCode).values({
+        accountId,
+        codeHash: captureExtensionPairingCodeHash,
+        expiresAt: new Date("2027-01-01T00:00:00Z"),
+        id: recordId("secret-capture-extension-pairing-code"),
+      });
       await database.insert(work).values({
         id: recordId("searchable-work-without-secret-material"),
         key: "CUR-90",
@@ -389,20 +419,21 @@ describeDatabase("Record Discovery universal search boundary", () => {
         type: "Data Model",
       });
 
-      expect(supportedRecordTypes).not.toContain("GitHub external");
-      expect(supportedRecordTypes).not.toContain("Migration Artifact");
+      for (const excludedRecordType of [
+        "Capture Inbox",
+        "Draft",
+        "External Surface",
+        "GitHub external",
+        "Migration Artifact",
+      ]) {
+        expect(supportedRecordTypes).not.toContain(excludedRecordType);
+      }
 
       const excludedQueries = [
         captureText,
         draftText,
         externalSurfaceText,
-        shareToken,
-        linkPassword,
-        sessionToken,
-        accessToken,
-        refreshToken,
-        idToken,
-        credentialPassword,
+        ...secretCanaries,
       ];
       const excludedResults = await Promise.all(
         excludedQueries.map((query) => client().searchRecords({ query })),
@@ -420,15 +451,7 @@ describeDatabase("Record Discovery universal search boundary", () => {
         },
       ]);
       const serializedSafeResults = JSON.stringify(safeResults);
-      for (const secret of [
-        shareToken,
-        linkPassword,
-        sessionToken,
-        accessToken,
-        refreshToken,
-        idToken,
-        credentialPassword,
-      ]) {
+      for (const secret of secretCanaries) {
         expect(serializedSafeResults).not.toContain(secret);
       }
 
@@ -437,6 +460,92 @@ describeDatabase("Record Discovery universal search boundary", () => {
           ({ id, recordType }) => ({ id, recordType }),
         ),
       ).toEqual([{ id: diagramId, recordType: "Technical Diagram" }]);
+    },
+    databaseTestTimeout,
+  );
+
+  it(
+    "keeps trashed File Attachments out of Search and exposes archived ones only with the archive filter",
+    async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+
+      const archivedAttachmentId = recordId("archived-attachment");
+      const archivedAttachmentName = canary("ArchivedAttachmentOnly");
+      const trashedAttachmentId = recordId("trashed-attachment");
+      const trashedAttachmentName = canary("TrashedAttachmentOnly");
+
+      await database.insert(fileAttachment).values([
+        {
+          id: archivedAttachmentId,
+          lifecycleStatus: "Archive",
+          name: archivedAttachmentName,
+          projectId,
+          scopeType: "Project",
+          workspaceId,
+        },
+        {
+          id: trashedAttachmentId,
+          lifecycleStatus: "Trash",
+          name: trashedAttachmentName,
+          projectId,
+          scopeType: "Project",
+          workspaceId,
+        },
+      ]);
+      await database.insert(fileAttachmentVersion).values([
+        {
+          attachmentId: archivedAttachmentId,
+          byteSize: 1,
+          contentHash: contentHash(),
+          detectedMimeType: "text/plain",
+          extension: "txt",
+          fileName: `${archivedAttachmentName}.txt`,
+          id: recordId("archived-attachment-version"),
+          mimeType: "text/plain",
+          objectKey: recordId("archived-attachment-object"),
+          version: 1,
+        },
+        {
+          attachmentId: trashedAttachmentId,
+          byteSize: 1,
+          contentHash: contentHash(),
+          detectedMimeType: "text/plain",
+          extension: "txt",
+          fileName: `${trashedAttachmentName}.txt`,
+          id: recordId("trashed-attachment-version"),
+          mimeType: "text/plain",
+          objectKey: recordId("trashed-attachment-object"),
+          version: 1,
+        },
+      ]);
+
+      expect(
+        await client().searchRecords({ query: archivedAttachmentName }),
+      ).toEqual([]);
+      expect(
+        await client().searchRecords({
+          archived: true,
+          query: archivedAttachmentName,
+        }),
+      ).toMatchObject([
+        {
+          archived: true,
+          id: archivedAttachmentId,
+          recordType: "File Attachment",
+          status: "Archived",
+        },
+      ]);
+      const trashedResults = await Promise.all(
+        [false, true].map((archived) =>
+          client().searchRecords({
+            archived,
+            query: trashedAttachmentName,
+          }),
+        ),
+      );
+      expect(trashedResults).toEqual([[], []]);
     },
     databaseTestTimeout,
   );
