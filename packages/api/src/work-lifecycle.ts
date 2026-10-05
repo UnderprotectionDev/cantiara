@@ -388,6 +388,23 @@ export const updateWorkStatusInputSchema =
     clientIdempotencyKey: identifierSchema,
   });
 
+export const updateWorkFieldsInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    fields: z
+      .object({
+        description: workDescriptionSchema.optional(),
+        effort: workEffortSchema.optional(),
+        plannedStartDate: workPlannedStartDateSchema.optional(),
+        status: workOpenStatusSchema.optional(),
+        targetDate: workTargetDateSchema.optional(),
+        title: workTitleSchema.optional(),
+      })
+      .strict()
+      .refine((fields) => Object.keys(fields).length > 0),
+    workId: identifierSchema,
+  })
+  .strict();
+
 export const workClosePreviewInputSchema = z
   .object({ workId: identifierSchema })
   .strict();
@@ -1049,6 +1066,10 @@ export interface WorkLifecycleAccess {
   updateFeaturePrimarySpec: (
     accountId: string,
     input: UpdateFeaturePrimarySpecInput,
+  ) => Promise<WorkProfile>;
+  updateFields: (
+    accountId: string,
+    input: z.input<typeof updateWorkFieldsInputSchema>,
   ) => Promise<WorkProfile>;
   updatePlannedDate: (
     accountId: string,

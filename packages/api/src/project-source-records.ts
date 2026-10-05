@@ -291,6 +291,40 @@ export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
       .strict(),
     humanMutationEnvelopeSchema
       .extend({
+        description: optionalLongText,
+        impact: optionalLongText,
+        probability: optionalLongText,
+        projectId: identifier,
+        rationale: optionalLongText,
+        response: optionalLongText,
+        sourceId: identifier,
+        sourceType: z.literal("Risk"),
+        title: text255,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
+        projectId: identifier,
+        rationale: optionalLongText,
+        sourceId: identifier,
+        sourceType: z.literal("Assumption"),
+        statement: longText,
+        title: text255,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
+        answer: optionalLongText,
+        context: optionalLongText,
+        projectId: identifier,
+        question: longText,
+        sourceId: identifier,
+        sourceType: z.literal("Open Question"),
+        title: text255,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
         description: optionalText,
         projectId: identifier,
         sourceId: identifier,

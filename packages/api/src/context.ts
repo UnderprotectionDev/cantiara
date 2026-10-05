@@ -39,7 +39,10 @@ import type {
 } from "./project-shell";
 import type { ProjectSourceRecordsAccess } from "./project-source-records";
 import type { RecordActionsAccess } from "./record-actions";
-import type { UniversalSearchAccess } from "./record-discovery";
+import type {
+  RecordTableAccess,
+  UniversalSearchAccess,
+} from "./record-discovery";
 import type {
   RelationsAccess,
   UsageLinkMutationContracts,
@@ -173,6 +176,7 @@ export interface Context {
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
+  recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   session: Awaited<

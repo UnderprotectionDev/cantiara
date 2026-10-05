@@ -194,6 +194,7 @@ function createWorkLifecycleStub(): WorkLifecycleAccess {
     undoDate: vi.fn(),
     updateFeaturePrimarySpec: vi.fn(),
     updateChecklist: vi.fn(),
+    updateFields: vi.fn(),
     updateStatus: vi.fn(),
     updateReappearDate: vi.fn(),
     updatePlannedDate: vi.fn(),

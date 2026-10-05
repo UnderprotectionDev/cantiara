@@ -309,7 +309,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hafta görünümü | `Week` | Birleşik Takvimde hafta penceresindeki konumlar ve başlangıç–hedef aralığı; Hesap tercihindeki hafta önizlemesi değildir |
 | Agenda | `Agenda` | Birleşik Takvimde seçili ayın kayıtlarını kapsam ve tarih türü filtreleriyle kronolojik yoğun listede sunan görünüm; Event kaydı, üyelik veya ikinci takvim gerçeği değildir |
 | Tarih türleri | `Date kinds` | Birleşik Takvimde Planned start, Target date ve Reappear date filtre grubu; seçimi Day, Week, Month ve Agenda boyunca korunur |
-| Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının bütün Projeleri kapsayan seçeneği |
+| Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının ve Table proje filtresinin bütün yetkili Projeleri kapsayan seçeneği |
 | Takvimde tarihli İş yok | `No dated Work in this Calendar view.` | Seçili görünüm penceresinde tarihli İş olmadığında boş durum |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Seçili gün (Birleşik Takvim) | `Selected day` | Birleşik Takvim `/calendar` `calendarDay` sorgusu; Gün yalnız o günün konumları, Hafta o günü içeren hesap haftası, Ay o günün ayı, Agenda o ayın konumlarını kronolojik yoğun listede. Günlük Odak üyelik günü değildir |
@@ -1124,6 +1124,45 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili kayıt ara | `Type to search authorized records.` | Boş sorgu yönlendirmesi |
 | Eşleşen kayıt yok | `No matching records.` | Süzgecin yetkili sonuç döndürmediği durum |
 | Arama kullanılamıyor | `Search is unavailable.` | Arama yüzeyinin yüklenemediği durum |
+| Tablo Görünümü | `Table` | Tek kayıt türü üzerinde mevcut ana kayıt sahibinin izinli alanlarını sıralama, süzme, düzenleme ve çok satırlı yapıştırma yüzeyi |
+| Satırları süz | `Filter rows` | Yalnızca geçerli Table satırlarını geçici metin süzgeciyle daraltma |
+| Satır yapıştır | `Paste rows` | Başlık ve veri satırlarından oluşan sekmeyle ayrılmış çok satırlı giriş alanı |
+| Yapıştırmayı önizle | `Preview paste` | Sütun eşlemesi ve satır sonuçlarını herhangi bir kayıt yazmadan inceleme |
+| Sütun eşlemesi | `Column mapping` | Yapıştırılan her sütunu aynı tür Table alanına veya atlama seçeneğine bağlama |
+| Sütunu atla | `Skip column` | Yapıştırılan sütunu yazmalardan çıkarma |
+| Kayıt kimliği | `Record ID` | Mevcut satırı güncellemek için kullanılan ana kayıt kimliği; yeni kayıt oluşturmaz |
+| Yapıştırmayı gözden geçir | `Review paste` | Eşlenen satırları, doğrulama hatalarını ve dahil edilme durumunu yazma öncesi inceleme |
+| Satırı düzelt | `Correct row` | Hatalı yapıştırma satırını açıkça düzeltme denetimi |
+| Satırı dışla | `Exclude row` | Yapıştırma uygulanırken satırı atlama |
+| Satırı dahil et | `Include row` | Önceden dışlanan satırı yapıştırma kapsamına döndürme |
+| Değişiklikleri uygula | `Apply changes` | Önizlemedeki geçerli ve dahil edilen satırları tek atomik, idempotent yazma olarak uygulama |
+| Değer seç | `Select a value` | Seçenekli düzeltme alanında geçerli değere geçmeden önceki boş seçenek |
+| Satır numarası | `Row <n>` | Yapıştırma önizlemesinde kaynağın sırasını koruyan satır göstergesi |
+| Kayıt oluşturma eylemi | `Create` | Yapıştırma önizlemesinde yeni ana kayıt satırını belirtir |
+| Kayıt güncelleme eylemi | `Update` | Yapıştırma önizlemesinde mevcut ana kayıt satırını belirtir |
+| Planlanan başlangıç tarihi | `Planned start date` | İşin isteğe bağlı başlangıç günü |
+| Karar alanı | `Decision` | Karar ana kaydının yürürlükteki seçim metni |
+| Karar yaşamı | `Life` | Table'da düzenlenebilen Kararın `Valid` veya `Withdrawn` yaşamı; `Superseded` açık yerine-geçme ilişkisiyle oluşur |
+| Risk olasılığı | `Probability` | Risk ana kaydının olasılık alanı |
+| Risk yanıtı | `Response` | Risk ana kaydının yanıt/azaltma alanı |
+| Varsayım ifadesi | `Statement` | Varsayım ana kaydının kullanıcı tarafından doğrulanacak ifadesi |
+| Açık soru | `Question` | Açık Soru ana kaydındaki kullanıcı sorusu |
+| Soru bağlamı | `Context` | Açık Soru ana kaydının isteğe bağlı bağlamı |
+| Soru yanıtı | `Answer` | Açık Soru ana kaydının isteğe bağlı yanıtı |
+| Sıralama alanı | `Sort by <field>` | Table sütununu artan veya azalan biçimde sıralayan erişilebilir başlık eylemi |
+| Yapıştırma sütunu eşleme denetimi | `Map column <header>` | Belirtilen yapıştırma başlığının hedef alanını seçen erişilebilir denetim |
+| Satır düzeltme alanı | `Correct <field> in row <n>` | Belirtilen önizleme satırındaki alan değerini düzeltmeye yönelik erişilebilir denetim |
+| Kayıt kimliği eşleşme hatası | `Record ID must match a row in this Table.` | Güncelleme kimliği geçerli Table satırıyla eşleşmediğinde gösterilir |
+| Proje seçme hatası | `Select a Project before creating rows.` | Proje kapsamlı yeni satır oluşturmadan önce hedef Proje seçilmesi gerektiğini belirtir |
+| Satır değerlerini gözden geçir | `Review this row's values.` | Satır önizlemesinde alan doğrulaması başarısız olduğunda gösterilen genel hata |
+| Başlık ve veri satırı gerekli | `Paste a header row and at least one data row.` | Yapıştırma girişi sütun eşleme ve önizleme için yetersiz olduğunda gösterilen hata |
+| Seçili satırları gözden geçir | `Review the selected rows.` | Uygulama önizlemesinde dahil edilen satırlar geçersiz kaldığında gösterilen hata |
+| Hücre kaydedilemedi | `Could not save this cell.` | Hücre düzenlemesi başarısız olduğunda gösterilen genel hata |
+| Yapıştırma uygulanamadı | `Could not apply these changes.` | Çok satırlı yazma başarısız olduğunda gösterilen genel hata |
+| Değişiklikler uygulandı | `Changes applied.` | Çok satırlı yazmanın başarıyla tamamlandığını belirtir |
+| Değişiklikler uygulanıyor | `Applying changes…` | Çok satırlı yazma sürerken gösterilen durum |
+| Tablo kullanılamıyor | `Table is unavailable.` | Table verisi yüklenemediğinde gösterilen hata durumu |
+| Kilometre Taşıının Planned'a dönüşü yok | `A Milestone cannot return to Planned.` | Milestone Reached veya Abandoned olduktan sonra Table'dan `Planned` durumuna geçişi reddeden doğrulama hatası |
 | Keşif görünümü | `Discovery view` | Aynı geçici keşif yüzeyinde Search ile hazır tür dizini arasında seçim |
 | Bütün sahiplik kapsamları | `All scopes` | Yetkili Proje ve Kişisel Wiki kayıtlarının kapsamlarını değiştirmeden birlikte gösterilmesi |
 | Bütün Belge türleri | `All types` | Belge keşfindeki geçici tür filtresini kaldırır |

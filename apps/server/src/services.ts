@@ -77,6 +77,7 @@ import { createDatabaseProjectShell } from "./features/project-shell/server/proj
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
+import { createDatabaseRecordTable } from "./features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "./features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "./features/relations/server/relations";
 import {
@@ -214,8 +215,16 @@ export const tagMutationContracts = createDatabaseTagMutationContracts(
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);
+const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
-  customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+  customFieldValueWriter,
+});
+export const recordTable = createDatabaseRecordTable({
+  customFieldValueWriter,
+  database: db,
+  projectShell,
+  projectSourceRecords,
+  workLifecycle,
 });
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
 export const workHandoffs = createDatabaseExternalExecutionHandoffs(db);

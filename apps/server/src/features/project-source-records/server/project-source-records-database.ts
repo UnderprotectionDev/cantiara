@@ -1045,6 +1045,46 @@ export function createDatabaseProjectSourceRecords(
                   updatedAt: committedAt,
                 });
                 break;
+              case "Risk":
+                record = riskRecordSchema.parse({
+                  ...current,
+                  description: input.description,
+                  id: input.sourceId,
+                  impact: input.impact,
+                  probability: input.probability,
+                  rationale: input.rationale,
+                  response: input.response,
+                  revision: currentRevision + 1,
+                  sourceType: "Risk",
+                  title: input.title,
+                  updatedAt: committedAt,
+                });
+                break;
+              case "Assumption":
+                record = assumptionRecordSchema.parse({
+                  ...current,
+                  id: input.sourceId,
+                  rationale: input.rationale,
+                  revision: currentRevision + 1,
+                  sourceType: "Assumption",
+                  statement: input.statement,
+                  title: input.title,
+                  updatedAt: committedAt,
+                });
+                break;
+              case "Open Question":
+                record = openQuestionRecordSchema.parse({
+                  ...current,
+                  answer: input.answer,
+                  context: input.context,
+                  id: input.sourceId,
+                  question: input.question,
+                  revision: currentRevision + 1,
+                  sourceType: "Open Question",
+                  title: input.title,
+                  updatedAt: committedAt,
+                });
+                break;
               case "Milestone":
                 record = milestoneRecordSchema.parse({
                   ...current,
