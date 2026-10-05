@@ -138,6 +138,7 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
         await expect(
           page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR),
         ).toBeVisible();
+        await page.waitForLoadState("networkidle");
         return page;
       }),
     );
