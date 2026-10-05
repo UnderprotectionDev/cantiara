@@ -9,10 +9,12 @@ import { orpc } from "@/utils/orpc";
 
 export default function ProjectSourceRecordView({
   projectId,
+  readOnly = false,
   sourceId,
   sourceType,
 }: {
   projectId: string;
+  readOnly?: boolean;
   sourceId: string;
   sourceType: ProjectSourceType;
 }) {
@@ -58,7 +60,7 @@ export default function ProjectSourceRecordView({
         <p className="mt-2 text-muted-foreground text-sm">
           {recordStatus(source.data)}
         </p>
-        {reminderType ? (
+        {reminderType && !readOnly ? (
           <div className="mt-4">
             <PersonalReminderControl
               compact

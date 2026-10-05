@@ -3,6 +3,7 @@ import type { WorkProfile, WorkStatus } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 import { orpc } from "@/utils/orpc";
 import KanbanBoard from "./kanban-board";
 
@@ -66,16 +67,18 @@ function renderBoard(
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <KanbanBoard
-        disabled={false}
-        error={null}
-        focusThreshold={configuration.focusThreshold}
-        onStatusAction={onStatusAction}
-        projectId="project-1"
-        softWipLimits={configuration.softWipLimits}
-        workStatusLabels={workStatusLabels}
-        works={works}
-      />
+      <ContextRecordPreviewProvider>
+        <KanbanBoard
+          disabled={false}
+          error={null}
+          focusThreshold={configuration.focusThreshold}
+          onStatusAction={onStatusAction}
+          projectId="project-1"
+          softWipLimits={configuration.softWipLimits}
+          workStatusLabels={workStatusLabels}
+          works={works}
+        />
+      </ContextRecordPreviewProvider>
     </QueryClientProvider>,
   );
 }
@@ -97,27 +100,29 @@ async function renderBoardWithFailedWorkContext(work: WorkProfile) {
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <KanbanBoard
-        disabled={false}
-        error={null}
-        focusThreshold={null}
-        onStatusAction={onStatusAction}
-        projectId="project-1"
-        softWipLimits={{
-          Blocked: null,
-          Closed: null,
-          "In Progress": null,
-          "Not Started": null,
-        }}
-        workStatusLabels={workStatusLabels}
-        works={[work]}
-      />
+      <ContextRecordPreviewProvider>
+        <KanbanBoard
+          disabled={false}
+          error={null}
+          focusThreshold={null}
+          onStatusAction={onStatusAction}
+          projectId="project-1"
+          softWipLimits={{
+            Blocked: null,
+            Closed: null,
+            "In Progress": null,
+            "Not Started": null,
+          }}
+          workStatusLabels={workStatusLabels}
+          works={[work]}
+        />
+      </ContextRecordPreviewProvider>
     </QueryClientProvider>,
   );
 }
 
 describe("Kanban Board", () => {
-  test("shows the four protected status columns and opens source Work records", () => {
+  test("shows the four protected status columns and offers source preview actions", () => {
     const html = renderBoard([
       workForStatus("Not Started", 1),
       workForStatus("In Progress", 2),
@@ -135,7 +140,8 @@ describe("Kanban Board", () => {
     expect(html).toContain("CAN-4");
     expect(html).toContain("Work 4");
     expect(html).toContain("Completed");
-    expect(html).toContain('href="/projects/project-1#work-work-1"');
+    expect(html).toContain('aria-label="Open source record: CAN-1 · Work 1"');
+    expect(html).not.toContain('href="/projects/project-1#work-work-1"');
     expect(html).toContain("Open source record");
     expect(html).not.toContain("Sprint");
     expect(html).not.toContain("Archived Work");
@@ -245,21 +251,23 @@ describe("Kanban Board", () => {
     );
     const html = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
-        <KanbanBoard
-          disabled={false}
-          error={null}
-          focusThreshold={null}
-          onStatusAction={onStatusAction}
-          projectId="project-1"
-          softWipLimits={{
-            Blocked: null,
-            Closed: null,
-            "In Progress": null,
-            "Not Started": null,
-          }}
-          workStatusLabels={workStatusLabels}
-          works={[work]}
-        />
+        <ContextRecordPreviewProvider>
+          <KanbanBoard
+            disabled={false}
+            error={null}
+            focusThreshold={null}
+            onStatusAction={onStatusAction}
+            projectId="project-1"
+            softWipLimits={{
+              Blocked: null,
+              Closed: null,
+              "In Progress": null,
+              "Not Started": null,
+            }}
+            workStatusLabels={workStatusLabels}
+            works={[work]}
+          />
+        </ContextRecordPreviewProvider>
       </QueryClientProvider>,
     );
 

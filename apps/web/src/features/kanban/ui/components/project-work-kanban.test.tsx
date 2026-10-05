@@ -3,6 +3,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 import { orpc } from "@/utils/orpc";
 import ProjectWorkKanban from "./project-work-kanban";
 
@@ -59,26 +60,28 @@ function renderView(view: "Board" | "List", works: readonly WorkProfile[]) {
   }
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <ProjectWorkKanban
-        accountFormattingPreferences={DEFAULT_ACCOUNT_PREFERENCES}
-        focusThreshold={null}
-        onExplicitStatusAction={onExplicitStatusAction}
-        projectId="project-1"
-        softWipLimits={{
-          Blocked: null,
-          Closed: null,
-          "In Progress": null,
-          "Not Started": null,
-        }}
-        sort={{ direction: "ascending", field: "number" }}
-        view={view}
-        workStatusLabels={[
-          { label: "Not Started", semantic: "Not Started" },
-          { label: "In Progress", semantic: "In Progress" },
-          { label: "Blocked", semantic: "Blocked" },
-          { label: "Closed", semantic: "Closed" },
-        ]}
-      />
+      <ContextRecordPreviewProvider>
+        <ProjectWorkKanban
+          accountFormattingPreferences={DEFAULT_ACCOUNT_PREFERENCES}
+          focusThreshold={null}
+          onExplicitStatusAction={onExplicitStatusAction}
+          projectId="project-1"
+          softWipLimits={{
+            Blocked: null,
+            Closed: null,
+            "In Progress": null,
+            "Not Started": null,
+          }}
+          sort={{ direction: "ascending", field: "number" }}
+          view={view}
+          workStatusLabels={[
+            { label: "Not Started", semantic: "Not Started" },
+            { label: "In Progress", semantic: "In Progress" },
+            { label: "Blocked", semantic: "Blocked" },
+            { label: "Closed", semantic: "Closed" },
+          ]}
+        />
+      </ContextRecordPreviewProvider>
     </QueryClientProvider>,
   );
 }

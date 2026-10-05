@@ -1,8 +1,9 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as renderMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
-import { workRecordHref } from "@/features/project-shell/lib/project-shell-navigation";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 
 import UnifiedCalendar from "./unified-calendar";
 
@@ -29,6 +30,12 @@ const base = {
 const noopDateChange = () => undefined;
 const TARGET_DATE_EDITOR_BUTTON =
   /<button[^>]*aria-label="Target date for Payment flow"[^>]*>/;
+
+function renderToStaticMarkup(element: ReactNode) {
+  return renderMarkup(
+    <ContextRecordPreviewProvider>{element}</ContextRecordPreviewProvider>,
+  );
+}
 
 function calendarDayContent(html: string, date: string) {
   const label = `aria-label="${formatAccountDate(
@@ -64,6 +71,17 @@ describe("Unified Calendar", () => {
     expect(selectedDay).not.toContain("Planned start");
     expect(selectedDay).not.toContain("Target date");
     expect(selectedDay).toContain("Payment flow");
+  });
+
+  test("date marks and multi-day ranges offer the shared preview action", () => {
+    const html = renderToStaticMarkup(
+      <UnifiedCalendar {...base} view="Week" />,
+    );
+
+    expect(
+      html.match(/aria-label="Open source record: PAY-1 · Payment flow"/g),
+    ).toHaveLength(6);
+    expect(html).not.toContain('href="/projects/project-1#work-work-1"');
   });
 
   test.each(["Week", "Month"] as const)(
@@ -221,14 +239,10 @@ describe("Unified Calendar", () => {
     );
     expect(html.match(/>Open source record</g)).toHaveLength(4);
     expect(
-      html.match(
-        new RegExp(`href="${workRecordHref("project-1", "work-1")}"`, "g"),
-      ),
+      html.match(/aria-label="Open source record: PAY-1 · Payment flow"/g),
     ).toHaveLength(3);
     expect(
-      html.match(
-        new RegExp(`href="${workRecordHref("project-2", "work-2")}"`, "g"),
-      ),
+      html.match(/aria-label="Open source record: PAY-2 · Card recovery"/g),
     ).toHaveLength(1);
   });
 

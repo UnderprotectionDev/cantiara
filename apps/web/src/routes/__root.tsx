@@ -14,6 +14,7 @@ import Header from "@/components/header";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { useFounderCommandPaletteSource } from "@/features/command-palette/hooks/use-command-palette-source";
 import { CommandPaletteProvider } from "@/features/command-palette/ui/components/command-palette";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 import { ClientShellProvider } from "@/features/web-macos-client/ui/components/client-shell";
 import type { orpc } from "@/utils/orpc";
 
@@ -78,9 +79,11 @@ function AppShell() {
     <>
       <div className="grid h-svh grid-rows-[auto_1fr]">
         {isFounderContext ? (
-          <FounderCommandPaletteShell>
-            {shellContent}
-          </FounderCommandPaletteShell>
+          <ContextRecordPreviewProvider>
+            <FounderCommandPaletteShell>
+              {shellContent}
+            </FounderCommandPaletteShell>
+          </ContextRecordPreviewProvider>
         ) : (
           shellContent
         )}
