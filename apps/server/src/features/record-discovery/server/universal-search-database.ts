@@ -62,16 +62,66 @@ function archiveCondition(archived: boolean, recordArchivedAt?: SQLWrapper) {
     : sql<boolean>`(not ${recordIsArchived} and ${project.archivedAt} is null)`;
 }
 
+// Records that always live in one Project can only satisfy an explicit
+// project scope; the Personal Wiki scope cannot see them.
+function projectRecordScope(input: UniversalSearchInput) {
+  if (input.scope.kind === "project") {
+    return eq(project.id, input.scope.projectId);
+  }
+  if (input.scope.kind === "wiki") {
+    return sql`false`;
+  }
+}
+
+function documentScope(input: UniversalSearchInput) {
+  if (input.scope.kind === "project") {
+    return eq(document.projectId, input.scope.projectId);
+  }
+  if (input.scope.kind === "wiki") {
+    return isNull(document.projectId);
+  }
+}
+
+function attachmentScope(input: UniversalSearchInput) {
+  if (input.scope.kind === "project") {
+    return eq(fileAttachment.projectId, input.scope.projectId);
+  }
+  if (input.scope.kind === "wiki") {
+    return eq(fileAttachment.scopeType, "Personal Wiki");
+  }
+}
+
+function typeFilter(
+  input: UniversalSearchInput,
+  category: SQLWrapper | undefined,
+) {
+  if (!input.type) {
+    return;
+  }
+  return category ? eq(category, input.type) : sql`false`;
+}
+
+function folderFilter(input: UniversalSearchInput, folder?: SQLWrapper) {
+  if (!input.folder) {
+    return;
+  }
+  return folder ? eq(folder, input.folder) : sql`false`;
+}
+
 function projectConditions(
   accountId: string,
   input: UniversalSearchInput,
   searchableText: SQLWrapper,
   recordArchivedAt?: SQLWrapper,
+  category?: SQLWrapper,
 ) {
   return and(
     eq(workspace.ownerAccountId, accountId),
     archiveCondition(input.archived, recordArchivedAt),
     input.query ? matches(input.query, searchableText) : undefined,
+    projectRecordScope(input),
+    typeFilter(input, category),
+    folderFilter(input),
   );
 }
 
@@ -261,6 +311,9 @@ async function searchWorkRecords({
         isNull(work.trashedAt),
         archiveCondition(input.archived, work.archivedAt),
         query ? matches(query, workSearchText) : undefined,
+        projectRecordScope(input),
+        typeFilter(input, work.type),
+        folderFilter(input),
       ),
     );
   results.push(
@@ -616,6 +669,8 @@ async function searchProjectReleaseRecords({
         accountId,
         input,
         textContent([releaseTitle, releaseText]),
+        undefined,
+        projectRelease.versionLabel,
       ),
     );
   results.push(
@@ -769,6 +824,8 @@ async function searchDiagramRecords({
         accountId,
         input,
         textContent([diagramTitle, diagramText]),
+        undefined,
+        technicalDiagram.type,
       ),
     );
   results.push(
@@ -839,6 +896,9 @@ async function searchDocumentRecords({
         query
           ? matches(query, textContent([documentTitle, documentText]))
           : undefined,
+        documentScope(input),
+        typeFilter(input, document.type),
+        folderFilter(input, document.folder),
       ),
     );
   results.push(
@@ -953,6 +1013,9 @@ async function searchAttachmentRecords({
               isNull(document.archivedAt),
             ),
         query ? matches(query, attachmentText) : undefined,
+        attachmentScope(input),
+        typeFilter(input, fileAttachmentVersion.extension),
+        folderFilter(input, document.folder),
       ),
     );
   results.push(
@@ -1012,30 +1075,29 @@ function canSearchIndex(index: RecordDiscoveryIndex | "Search", query: string) {
     : recordTypeByIndex[index] !== undefined;
 }
 
-function matchesIndex(
-  result: Candidate,
-  input: UniversalSearchInput,
-  selectedRecordType?: UniversalSearchRecordType,
-) {
-  if (selectedRecordType && result.recordType !== selectedRecordType) {
-    return false;
-  }
-  if (input.scope.kind === "wiki" && result.scopeType !== "Personal Wiki") {
-    return false;
-  }
-  if (
-    input.scope.kind === "project" &&
-    result.projectId !== input.scope.projectId
-  ) {
-    return false;
-  }
-  if (input.type && result.category !== input.type) {
-    return false;
-  }
-  if (input.folder && result.folder !== input.folder) {
-    return false;
-  }
-  return true;
+async function searchIndexCandidates(context: SearchContext) {
+  const { input } = context;
+  const isSearch = input.index === "Search";
+  const selectedRecordType =
+    input.index === "Search" ? undefined : recordTypeByIndex[input.index];
+  return [
+    ...(isSearch || input.index === "All Work"
+      ? await searchWorkRecords(context)
+      : []),
+    ...(isSearch ||
+    ["All Decisions", "All Risks", "All Project Releases"].includes(input.index)
+      ? await searchProjectRecords(context, selectedRecordType)
+      : []),
+    ...(isSearch || input.index === "All Technical Diagrams"
+      ? await searchDiagramRecords(context)
+      : []),
+    ...(isSearch || input.index === "All Documents"
+      ? await searchDocumentRecords(context)
+      : []),
+    ...(isSearch || input.index === "All Files"
+      ? await searchAttachmentRecords(context)
+      : []),
+  ];
 }
 
 async function currentProjectIdForAccount(
@@ -1062,35 +1124,6 @@ async function currentProjectIdForAccount(
     .limit(1);
 
   return currentProject?.id;
-}
-
-async function searchIndexCandidates(context: SearchContext) {
-  const { input } = context;
-  const isSearch = input.index === "Search";
-  const selectedRecordType =
-    input.index === "Search" ? undefined : recordTypeByIndex[input.index];
-  const results = [
-    ...(isSearch || input.index === "All Work"
-      ? await searchWorkRecords(context)
-      : []),
-    ...(isSearch ||
-    ["All Decisions", "All Risks", "All Project Releases"].includes(input.index)
-      ? await searchProjectRecords(context, selectedRecordType)
-      : []),
-    ...(isSearch || input.index === "All Technical Diagrams"
-      ? await searchDiagramRecords(context)
-      : []),
-    ...(isSearch || input.index === "All Documents"
-      ? await searchDocumentRecords(context)
-      : []),
-    ...(isSearch || input.index === "All Files"
-      ? await searchAttachmentRecords(context)
-      : []),
-  ];
-
-  return results.filter((result) =>
-    matchesIndex(result, input, selectedRecordType),
-  );
 }
 
 export function createDatabaseUniversalSearch(
