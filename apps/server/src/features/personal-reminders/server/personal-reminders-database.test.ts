@@ -383,6 +383,79 @@ describeDatabase("Personal Reminders Work Review Later contract", () => {
     ).rejects.toThrow("This source has no open and resolved life condition.");
   });
 
+  test("targets a stable Document section through rename and rejects missing ids", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const documentId = `review-later-section-document/${crypto.randomUUID()}:source`;
+    await database.insert(document).values({
+      body: [
+        "## Release readiness {#release-gate}",
+        "",
+        "Confirm the launch.",
+        "",
+        "## Rollout notes {#rollout-notes}",
+        "",
+        "Capture the launch window.",
+      ].join("\n"),
+      id: documentId,
+      projectId,
+      title: "Release notes",
+    });
+    const reminders = createDatabasePersonalReminders(database, {
+      newId: () => "contract-reminder-section",
+      now: () => now,
+    });
+    const input = {
+      action: "Review Later" as const,
+      clientIdempotencyKey: "review-later-document-section-1",
+      fireAt: "2026-09-28T11:00:00.000Z",
+      sectionId: "release-gate",
+      sourceRecordId: documentId,
+      sourceRecordType: "Document" as const,
+    };
+
+    const created = await reminders.create(accountId, input);
+    expect(created).toMatchObject({ sectionId: "release-gate" });
+    if (!created) {
+      throw new Error("Expected the Document section reminder to be created.");
+    }
+    await expect(
+      reminders.create(accountId, { ...input, sectionId: "other-section" }),
+    ).rejects.toThrow("already used for different input");
+    await expect(
+      reminders.create(accountId, {
+        ...input,
+        clientIdempotencyKey: "review-later-document-section-missing",
+        sectionId: "missing-section",
+      }),
+    ).resolves.toBeNull();
+
+    await database
+      .update(document)
+      .set({
+        body: [
+          "## Rollout notes {#rollout-notes}",
+          "",
+          "Capture the launch window.",
+          "",
+          "## Launch checklist {#release-gate}",
+          "",
+          "Confirm the launch.",
+        ].join("\n"),
+      })
+      .where(eq(document.id, documentId));
+    const fired = await reminders.fireDuePersonalReminders(
+      new Date("2026-09-28T11:00:00.000Z"),
+    );
+    expect(fired.signals).toContainEqual(
+      expect.objectContaining({
+        signalType: "review-later",
+        sourcePath: `/projects/${encodeURIComponent(projectId)}#document-section:${encodeURIComponent(documentId)}:release-gate`,
+      }),
+    );
+  });
+
   test("fires exactly one source-linked signal without changing Work planning", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

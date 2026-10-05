@@ -14,6 +14,25 @@ test("renders CRLF Mermaid fences as Mermaid previews", () => {
   );
 });
 
+test("renders stable section ids and explains when a targeted section is missing", () => {
+  const markup = renderToStaticMarkup(
+    <DocumentPreview
+      source={"## Release readiness {#release-gate}\n\nConfirm the launch."}
+      targetSectionId="release-gate"
+    />,
+  );
+  const missingMarkup = renderToStaticMarkup(
+    <DocumentPreview
+      source="## Another section {#other}"
+      targetSectionId="deleted"
+    />,
+  );
+
+  expect(markup).toContain('<h2 id="release-gate">Release readiness</h2>');
+  expect(markup).not.toContain("{#release-gate}");
+  expect(missingMarkup).toContain("This section is missing.");
+});
+
 test("renders current live Work fields and a safe broken target", () => {
   const markup = renderToStaticMarkup(
     <DocumentPreview

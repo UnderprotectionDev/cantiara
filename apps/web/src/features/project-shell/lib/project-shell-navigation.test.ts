@@ -5,6 +5,9 @@ import {
   BACKLOG_HASH,
   CONFIGURATION_HOSTS,
   configurationHostId,
+  documentRecordFromHash,
+  documentRecordHash,
+  documentSectionRecordHash,
   isWorkRecordHash,
   isWorkSurfaceHash,
   navigationHash,
@@ -18,6 +21,25 @@ import {
 } from "./project-shell-navigation";
 
 describe("Project Shell Work navigation", () => {
+  test("round trips a Document section target and keeps legacy Document links", () => {
+    const hash = documentSectionRecordHash("document/1", "release:readiness");
+
+    expect(hash).toBe("document-section:document%2F1:release%3Areadiness");
+    expect(documentRecordFromHash(hash)).toEqual({
+      documentId: "document/1",
+      sectionId: "release:readiness",
+    });
+    expect(documentRecordFromHash(documentRecordHash("document/1"))).toEqual({
+      documentId: "document/1",
+    });
+  });
+
+  test("rejects a malformed Document section target without treating it as a Document id", () => {
+    expect(documentRecordFromHash("document-section:document-1:%E0%A4%A")).toBe(
+      null,
+    );
+  });
+
   test("exposes Smart Collection and the enabled Technical Diagrams area", () => {
     expect(ALWAYS_REACHABLE_SURFACES).toContain("Smart Collection");
     expect(navigationHash("Smart Collection")).toBe("smart-collections");
