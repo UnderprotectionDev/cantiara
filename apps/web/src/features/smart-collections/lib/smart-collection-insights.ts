@@ -1,7 +1,13 @@
-import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import {
+  SMART_COLLECTION_STATUS_OPTIONS,
+  type SmartCollectionViewSource,
+} from "@cantiara/api/smart-collections";
 import { parseISO } from "date-fns";
 
 type CollectionWork = SmartCollectionViewSource["works"][number];
+
+const WORK_INSIGHT_STATUS_OPTIONS: readonly string[] =
+  SMART_COLLECTION_STATUS_OPTIONS.Work ?? [];
 
 export type SmartCollectionInsightElapsedDaysBucket =
   | "0–7 days"
@@ -87,15 +93,33 @@ function getStatusSlices(
   for (const work of works) {
     counts.set(work.status, (counts.get(work.status) ?? 0) + 1);
   }
+  for (const status of WORK_INSIGHT_STATUS_OPTIONS) {
+    if (!counts.has(status)) {
+      counts.set(status, 0);
+    }
+  }
   for (const selection of selectedSlices) {
     if (selection.dimension === "status" && !counts.has(selection.value)) {
       counts.set(selection.value, 0);
     }
   }
-  return [...counts]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([value, count]) => ({
-      count,
+  return [...counts.keys()]
+    .sort((left, right) => {
+      const leftIndex = WORK_INSIGHT_STATUS_OPTIONS.indexOf(left);
+      const rightIndex = WORK_INSIGHT_STATUS_OPTIONS.indexOf(right);
+      if (leftIndex === -1 && rightIndex === -1) {
+        return left.localeCompare(right);
+      }
+      if (leftIndex === -1) {
+        return 1;
+      }
+      if (rightIndex === -1) {
+        return -1;
+      }
+      return leftIndex - rightIndex;
+    })
+    .map((value) => ({
+      count: counts.get(value) ?? 0,
       dimension: "status" as const,
       label: value,
       value,
@@ -110,6 +134,7 @@ function getEffortSlices(
   for (const work of works) {
     counts.set(work.effort, (counts.get(work.effort) ?? 0) + 1);
   }
+  counts.set(null, counts.get(null) ?? 0);
   for (const selection of selectedSlices) {
     if (selection.dimension === "effort" && !counts.has(selection.value)) {
       counts.set(selection.value, 0);

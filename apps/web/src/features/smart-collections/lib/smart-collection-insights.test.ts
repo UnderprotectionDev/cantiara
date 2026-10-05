@@ -56,13 +56,21 @@ describe("Smart Collection light insights", () => {
 
     expect(insights.recordCount).toBe(4);
     expect(insights.statusSlices).toEqual([
-      { count: 1, dimension: "status", label: "Done", value: "Done" },
+      {
+        count: 0,
+        dimension: "status",
+        label: "Not Started",
+        value: "Not Started",
+      },
       {
         count: 3,
         dimension: "status",
         label: "In Progress",
         value: "In Progress",
       },
+      { count: 0, dimension: "status", label: "Blocked", value: "Blocked" },
+      { count: 0, dimension: "status", label: "Closed", value: "Closed" },
+      { count: 1, dimension: "status", label: "Done", value: "Done" },
     ]);
     expect(insights.effortSlices).toEqual([
       { count: 1, dimension: "effort", label: "Large", value: "Large" },
@@ -171,10 +179,40 @@ describe("Smart Collection light insights", () => {
 
     expect(insights.recordCount).toBe(0);
     expect(insights.statusSlices).toEqual([
+      {
+        count: 0,
+        dimension: "status",
+        label: "Not Started",
+        value: "Not Started",
+      },
+      {
+        count: 0,
+        dimension: "status",
+        label: "In Progress",
+        value: "In Progress",
+      },
+      { count: 0, dimension: "status", label: "Blocked", value: "Blocked" },
+      { count: 0, dimension: "status", label: "Closed", value: "Closed" },
       { count: 0, dimension: "status", label: "Done", value: "Done" },
     ]);
     expect(insights.effortSlices).toEqual([
       { count: 0, dimension: "effort", label: "Large", value: "Large" },
+      { count: 0, dimension: "effort", label: "Not set", value: null },
+    ]);
+  });
+
+  test("renders the closed status catalog and the Not set effort slice for an empty set", () => {
+    const insights = getSmartCollectionInsights([], now);
+
+    expect(insights.recordCount).toBe(0);
+    expect(insights.statusSlices.map(({ label }) => label)).toEqual([
+      "Not Started",
+      "In Progress",
+      "Blocked",
+      "Closed",
+    ]);
+    expect(insights.effortSlices).toEqual([
+      { count: 0, dimension: "effort", label: "Not set", value: null },
     ]);
   });
 

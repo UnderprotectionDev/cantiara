@@ -77,4 +77,12 @@ describe("Smart Collection Insights surface", () => {
     expect(html).toContain("Large");
     expect(html.split('aria-pressed="true"')).toHaveLength(3);
   });
+
+  test("renders fixed catalog rows when the collection has no records", () => {
+    const html = renderInsights([], []);
+
+    expect(html).toContain("Not Started");
+    expect(html).toContain("Blocked");
+    expect(html).toContain("Not set");
+  });
 });
