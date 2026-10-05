@@ -316,6 +316,19 @@ function MembershipFieldChangePreview({
   );
 }
 
+export function smartCollectionSubscriptionMutationInput(
+  view: Pick<SmartCollectionViewSource, "notifyOnLeave">,
+  toggle: { checked: boolean; kind: "notifyOnLeave" | "subscribe" },
+): Omit<SetSmartCollectionSubscriptionInput, "viewId"> {
+  if (toggle.kind === "notifyOnLeave") {
+    return { notifyOnLeave: toggle.checked, subscribe: true };
+  }
+  return {
+    notifyOnLeave: toggle.checked ? view.notifyOnLeave : false,
+    subscribe: toggle.checked,
+  };
+}
+
 function CollectionSubscriptionControls({
   view,
 }: {
@@ -340,12 +353,12 @@ function CollectionSubscriptionControls({
           checked={view.isSubscribed}
           disabled={subscription.isPending}
           onChange={(event) =>
-            subscription.mutate({
-              subscribe: event.currentTarget.checked,
-              notifyOnLeave: event.currentTarget.checked
-                ? view.notifyOnLeave
-                : false,
-            })
+            subscription.mutate(
+              smartCollectionSubscriptionMutationInput(view, {
+                checked: event.currentTarget.checked,
+                kind: "subscribe",
+              }),
+            )
           }
           type="checkbox"
         />
@@ -363,10 +376,12 @@ function CollectionSubscriptionControls({
           disabled={!view.isSubscribed || subscription.isPending}
           id={notifyOnLeaveId}
           onChange={(event) =>
-            subscription.mutate({
-              subscribe: true,
-              notifyOnLeave: event.currentTarget.checked,
-            })
+            subscription.mutate(
+              smartCollectionSubscriptionMutationInput(view, {
+                checked: event.currentTarget.checked,
+                kind: "notifyOnLeave",
+              }),
+            )
           }
           type="checkbox"
         />

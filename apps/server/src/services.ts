@@ -103,12 +103,12 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
 export const smartCollections = createDatabaseSmartCollections(db);
-export const sweepDueSmartCollectionSubscriptionSignals = (now = new Date()) =>
-  sweepSmartCollectionSubscriptionSignals(db, now);
 const smartCollectionSubscriptionSignalWorker =
   createSmartCollectionSubscriptionSignalWorker({
     connectionString: env.DATABASE_URL,
-    process: () => sweepDueSmartCollectionSubscriptionSignals(),
+    // The sweep intentionally reconciles every subscription; membership transitions are
+    // only discoverable by recomputing each collection's live result, not by a due time.
+    process: () => sweepSmartCollectionSubscriptionSignals(db),
   });
 export const startSmartCollectionSubscriptionSignalWorker =
   smartCollectionSubscriptionSignalWorker.start;
