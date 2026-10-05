@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { OPEN_SOURCE_RECORD_BUTTON_NAME } from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const MOVE_BUTTON_NAME = /^Move /;
@@ -83,12 +84,28 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Board", exact: true }).click();
   await expect(initialCard).toBeVisible();
-  const sourceHref = await initialCard
-    .getByRole("link", { name: "Open source record" })
-    .getAttribute("href");
+  const sourceViewUrl = page.url();
+  await initialCard
+    .getByRole("button", { name: OPEN_SOURCE_RECORD_BUTTON_NAME })
+    .click();
+  const boardPreview = page.getByRole("dialog");
+  await expect(boardPreview).toBeVisible();
+  await expect(page).toHaveURL(sourceViewUrl);
+  const fullPageLink = boardPreview.getByRole("link", {
+    exact: true,
+    name: "Open full page",
+  });
+  const sourceHref = await fullPageLink.getAttribute("href");
   if (!sourceHref) {
-    throw new Error("The Work card has no source-record link.");
+    throw new Error("The Work preview has no full-page destination.");
   }
+  await fullPageLink.click();
+  await expect(page).toHaveURL(
+    (url) => `${url.pathname}${url.hash}` === sourceHref,
+  );
+  await expect(
+    page.getByRole("heading", { name: title, exact: true }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "List", exact: true }).click();
   const listView = page.getByRole("region", { name: "List" });
@@ -98,11 +115,25 @@ test("moves Work through Board with explicit close and reopen steps", async ({
   await expect(listRow).toContainText("Not Started");
   await expect(listRow).toContainText("Time in status:");
   await expect(
+    listRow.getByRole("button", { name: OPEN_SOURCE_RECORD_BUTTON_NAME }),
+  ).toHaveCount(1);
+  await expect(
     listRow.getByRole("link", { name: "Open source record" }),
-  ).toHaveAttribute("href", sourceHref);
-  await expect(listRow.getByRole("link")).toHaveCount(1);
+  ).toHaveCount(0);
   await expect(listRow.getByRole("combobox")).toHaveCount(0);
-  await listRow.getByRole("link", { name: "Open source record" }).click();
+  const listViewUrl = page.url();
+  await listRow
+    .getByRole("button", { name: OPEN_SOURCE_RECORD_BUTTON_NAME })
+    .click();
+  const listPreview = page.getByRole("dialog");
+  await expect(listPreview).toBeVisible();
+  await expect(page).toHaveURL(listViewUrl);
+  const listFullPageLink = listPreview.getByRole("link", {
+    exact: true,
+    name: "Open full page",
+  });
+  await expect(listFullPageLink).toHaveAttribute("href", sourceHref);
+  await listFullPageLink.click();
   await expect(page).toHaveURL(
     (url) => `${url.pathname}${url.hash}` === sourceHref,
   );

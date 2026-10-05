@@ -157,14 +157,14 @@ describe("Context record preview", () => {
     }
   });
 
-  test("reads the canonical Work in a temporary panel with a full-page action", () => {
+  test("reads the canonical Work in a temporary panel with a full-page action", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(
       orpc.work.queryOptions({ input: { workId: work.id } }).queryKey,
       work,
     );
 
-    const html = renderToStaticMarkup(
+    const html = await renderToMarkup(
       <QueryClientProvider client={queryClient}>
         <ContextRecordPreviewPanel
           onClose={noop}
