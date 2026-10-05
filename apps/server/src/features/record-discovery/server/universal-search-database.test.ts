@@ -3,9 +3,19 @@ import { universalSearchRecordTypes } from "@cantiara/api/record-discovery";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
-import { user, workspace } from "@cantiara/db/schema/auth";
+import {
+  account as authAccount,
+  session as authSession,
+  user,
+  workspace,
+} from "@cantiara/db/schema/auth";
+import { captureInboxItem } from "@cantiara/db/schema/capture-triage";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
+import {
+  externalSurface,
+  externalSurfaceSnapshotRevision,
+} from "@cantiara/db/schema/external-surface";
 import {
   fileAttachment,
   fileAttachmentVersion,
@@ -21,6 +31,7 @@ import {
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
 import { work } from "@cantiara/db/schema/work";
+import { workDraft } from "@cantiara/db/schema/work-draft";
 import { createRouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -281,6 +292,151 @@ describeDatabase("Record Discovery universal search boundary", () => {
         ),
       ).toEqual([recordId("work-archived")]);
       expect(await client().searchRecords({ query: "   " })).toEqual([]);
+    },
+    databaseTestTimeout,
+  );
+
+  it(
+    "keeps Capture Inbox items, Drafts, External Surfaces, and secrets outside Search",
+    async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+
+      const suffix = recordNamespace.replaceAll("-", "");
+      const canary = (prefix: string) => `${prefix}${suffix}`;
+      const captureText = canary("CaptureInboxOnly");
+      const draftText = canary("WorkDraftOnly");
+      const externalSurfaceText = canary("ExternalSurfaceOnly");
+      const shareToken = canary("ShareTokenSecret");
+      const linkPassword = canary("LinkPasswordSecret");
+      const sessionToken = canary("SessionTokenSecret");
+      const accessToken = canary("GitHubAccessTokenSecret");
+      const refreshToken = canary("GitHubRefreshTokenSecret");
+      const idToken = canary("GitHubIdTokenSecret");
+      const credentialPassword = canary("CredentialPasswordSecret");
+      const searchableWorkTitle = canary("SearchableWork");
+      const diagramLabel = canary("DiagramMigrationName");
+      const shareableSurfaceId = recordId("excluded-external-surface");
+      const diagramId = recordId("migration-name-owner-diagram");
+      const supportedRecordTypes: string[] = [...universalSearchRecordTypes];
+
+      await database.insert(captureInboxItem).values({
+        accountId,
+        content: `${captureText} ${shareToken} ${linkPassword}`,
+        fields: {},
+        id: recordId("excluded-capture-inbox-item"),
+      });
+      await database.insert(workDraft).values({
+        accountId,
+        description: draftText,
+        id: recordId("excluded-work-draft"),
+        projectId,
+        title: draftText,
+        type: "Task",
+      });
+      await database.insert(externalSurface).values({
+        id: shareableSurfaceId,
+        projectId,
+        workspaceId,
+      });
+      await database.insert(externalSurfaceSnapshotRevision).values({
+        id: recordId("excluded-external-surface-snapshot"),
+        revision: 1,
+        snapshot: { body: externalSurfaceText },
+        surfaceId: shareableSurfaceId,
+      });
+      await database.insert(authAccount).values({
+        accountId: canary("ProviderAccount"),
+        accessToken,
+        id: recordId("secret-provider-account"),
+        idToken,
+        password: credentialPassword,
+        providerId: "github",
+        refreshToken,
+        userId: accountId,
+      });
+      await database.insert(authSession).values({
+        expiresAt: new Date("2027-01-01T00:00:00Z"),
+        id: recordId("secret-session"),
+        token: sessionToken,
+        userId: accountId,
+      });
+      await database.insert(work).values({
+        id: recordId("searchable-work-without-secret-material"),
+        key: "CUR-90",
+        number: 90,
+        projectId,
+        status: "In Progress",
+        title: searchableWorkTitle,
+        type: "Task",
+      });
+      await database.insert(technicalDiagram).values({
+        authorityMode: "Product-authored Model",
+        id: diagramId,
+        model: {
+          links: [],
+          nodes: [
+            {
+              id: "migration-name",
+              kind: "Datastore",
+              label: diagramLabel,
+            },
+          ],
+        },
+        projectId,
+        title: "Schema owner",
+        type: "Data Model",
+      });
+
+      expect(supportedRecordTypes).not.toContain("GitHub external");
+      expect(supportedRecordTypes).not.toContain("Migration Artifact");
+
+      const excludedQueries = [
+        captureText,
+        draftText,
+        externalSurfaceText,
+        shareToken,
+        linkPassword,
+        sessionToken,
+        accessToken,
+        refreshToken,
+        idToken,
+        credentialPassword,
+      ];
+      const excludedResults = await Promise.all(
+        excludedQueries.map((query) => client().searchRecords({ query })),
+      );
+      expect(excludedResults).toEqual(excludedQueries.map(() => []));
+
+      const safeResults = await client().searchRecords({
+        query: searchableWorkTitle,
+      });
+      expect(safeResults).toMatchObject([
+        {
+          id: recordId("searchable-work-without-secret-material"),
+          recordType: "Work",
+          snippet: expect.stringContaining(searchableWorkTitle),
+        },
+      ]);
+      const serializedSafeResults = JSON.stringify(safeResults);
+      for (const secret of [
+        shareToken,
+        linkPassword,
+        sessionToken,
+        accessToken,
+        refreshToken,
+        idToken,
+        credentialPassword,
+      ]) {
+        expect(serializedSafeResults).not.toContain(secret);
+      }
+
+      expect(
+        (await client().searchRecords({ query: diagramLabel })).map(
+          ({ id, recordType }) => ({ id, recordType }),
+        ),
+      ).toEqual([{ id: diagramId, recordType: "Technical Diagram" }]);
     },
     databaseTestTimeout,
   );
