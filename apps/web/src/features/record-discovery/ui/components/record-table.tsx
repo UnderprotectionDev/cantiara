@@ -50,7 +50,7 @@ const fieldLabels = {
   status: "Status",
   targetDate: "Target date",
   title: "Title",
-  versionLabel: "Version",
+  versionLabel: "Version label",
 } satisfies Record<RecordTableField, string>;
 
 const recordIdMapping = "$recordId";
@@ -108,6 +108,22 @@ function fieldOptions(recordType: RecordTableType, field: string) {
       readonly string[] | undefined
     >
   )[field];
+}
+
+function editableChoices(
+  recordType: RecordTableType,
+  field: string,
+  currentValue: unknown,
+) {
+  const choices = fieldOptions(recordType, field);
+  if (
+    recordType === "Milestone" &&
+    field === "status" &&
+    currentValue !== "Planned"
+  ) {
+    return [];
+  }
+  return choices;
 }
 
 function parseTsv(text: string) {
@@ -513,7 +529,7 @@ function EditableCell({
   const currentValue = recordField(record, field);
   const [value, setValue] = useState(displayValue(currentValue));
   const [error, setError] = useState("");
-  const choices = fieldOptions(recordType, field);
+  const choices = editableChoices(recordType, field, currentValue);
   const currentChoice = displayValue(currentValue);
   const hasCurrentChoice = choices?.includes(currentChoice) ?? true;
   const title = rowTitle(record);

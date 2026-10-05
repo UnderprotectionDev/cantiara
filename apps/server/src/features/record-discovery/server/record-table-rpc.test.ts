@@ -674,4 +674,48 @@ describe("type-scoped Table RPC", () => {
     });
     expect(withWriteTransaction).toHaveBeenCalledTimes(1);
   });
+
+  test("rejects a Milestone status returning to Planned as a validation error", async () => {
+    const currentRecord = {
+      createdAt: "2026-01-01T00:00:00.000Z",
+      description: null,
+      id: "milestone-1",
+      projectId: "project-1",
+      revision: 2,
+      sourceType: "Milestone",
+      status: "Reached",
+      targetDate: null,
+      title: "Launch milestone",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    } as const;
+    const transition = vi.fn();
+    const projectSourceRecords = {
+      find: vi.fn().mockResolvedValue(currentRecord),
+      list: vi.fn(),
+      transition,
+      update: vi.fn(),
+    };
+    const context = {
+      ...createContext().context,
+      recordTable: createRecordTableAccess({
+        projectShell: { find: vi.fn(), list: vi.fn() } as never,
+        projectSourceRecords: projectSourceRecords as never,
+        workLifecycle: { list: vi.fn(), updateFields: vi.fn() } as never,
+      }),
+    } as unknown as Context;
+    const client = createRouterClient(appRouter, { context });
+
+    await expect(
+      client.updateTableCell({
+        baseRevision: 2,
+        clientIdempotencyKey: "milestone-planned-cell-1",
+        field: "status",
+        projectId: "project-1",
+        recordId: "milestone-1",
+        recordType: "Milestone",
+        value: "Planned",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(transition).not.toHaveBeenCalled();
+  });
 });

@@ -495,7 +495,9 @@ async function transitionProjectSourceRecord(
         if (record.status === "Planned") {
           return record;
         }
-        return recordNotFound();
+        throw new ORPCError("BAD_REQUEST", {
+          message: "A Milestone cannot return to Planned.",
+        });
       }
       return requireProjectSourceRecord(
         await owners.projectSourceRecords.transition(accountId, {
@@ -690,8 +692,7 @@ async function applyProjectSourcePasteRow(
   if (!hasStatus) {
     return record;
   }
-  const currentStatus =
-    record.sourceType === "Decision" ? record.life : record.status;
+  const currentStatus = "life" in record ? record.life : record.status;
   if (currentStatus === desiredStatus) {
     return record;
   }

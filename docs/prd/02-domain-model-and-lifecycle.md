@@ -1162,6 +1162,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Değişiklikler uygulandı | `Changes applied.` | Çok satırlı yazmanın başarıyla tamamlandığını belirtir |
 | Değişiklikler uygulanıyor | `Applying changes…` | Çok satırlı yazma sürerken gösterilen durum |
 | Tablo kullanılamıyor | `Table is unavailable.` | Table verisi yüklenemediğinde gösterilen hata durumu |
+| Kilometre Taşıının Planned'a dönüşü yok | `A Milestone cannot return to Planned.` | Milestone Reached veya Abandoned olduktan sonra Table'dan `Planned` durumuna geçişi reddeden doğrulama hatası |
 | Keşif görünümü | `Discovery view` | Aynı geçici keşif yüzeyinde Search ile hazır tür dizini arasında seçim |
 | Bütün sahiplik kapsamları | `All scopes` | Yetkili Proje ve Kişisel Wiki kayıtlarının kapsamlarını değiştirmeden birlikte gösterilmesi |
 | Bütün Belge türleri | `All types` | Belge keşfindeki geçici tür filtresini kaldırır |
