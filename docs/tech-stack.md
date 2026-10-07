@@ -11,6 +11,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | Teknoloji | Amaç |
 | --- | --- |
 | React | Web arayüzü ve yalnız tek bir component'a ait geçici UI durumu |
+| TypeScript | Return to Work görsel turunun framework bağımsız, bellekte yaşayan sürücüsü ve canvas viewport adaptör sözleşmesi; mevcut `packages/api/src/return-to-work.ts` türetilmiş özet örüntüsünü kullanır |
 | Vite | Web geliştirme ve derleme |
 | TanStack Router | Yönlendirme ve URL durumu |
 | Hono | API backend'i ve herkese açık HTML/SEO yanıtları |
@@ -82,6 +83,8 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: ileri
 | date-fns | Tarih işlemleri |
 
 ## İçerik ve görsel çalışma alanları
+
+Return to Work görsel turu `packages/api/src/return-visual-tour.ts` üzerinden canvas sahibinin public viewport adaptörünü çağırır. Kesin hedefi güncel yetkili görünümde bulma, highlight/pan, anlamlı viewport geri yükleme ve görünür içeriğe sığdırma canvas sahibindedir. Adaptör viewport snapshot'ını kendisi anlamlandırır; sürücü onu kalıcılaştırmaz, DOM scroll veya canvas motoru kurmaz. `showTarget` iptal sinyalini izlemeli, iptalde hızla sonlanmalı ve promise sonlandıktan sonra hareket uygulamamalıdır; kapanış restore'u bekleyen hareket sonlandıktan sonra çalışır. Bu sözleşmenin test karşılığı spec 36'nın Testing Decisions bölümündeki #295 hazırlık dilimidir. Gerçek yüzey adaptörleri henüz yoktur; bu seçim onların teknoloji sahipliğini değiştirmez.
 
 | Teknoloji | Amaç |
 | --- | --- |
