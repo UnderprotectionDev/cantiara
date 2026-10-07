@@ -1,14 +1,19 @@
 import type {
+  ReturnChanges,
   ReturnSource,
   ReturnToWorkAccess,
 } from "@cantiara/api/return-to-work";
-import { cardsForSources } from "@cantiara/api/return-to-work";
+import { cardsForSources, sinceLastLooked } from "@cantiara/api/return-to-work";
 export interface ReturnToWorkStore {
   markViewed: ReturnToWorkAccess["markViewed"];
   read: (
     accountId: string,
     context: Parameters<ReturnToWorkAccess["read"]>[1],
   ) => Promise<{ readOnly: boolean; sources: ReturnSource[] }>;
+  readChanges: (
+    accountId: string,
+    context: Parameters<ReturnToWorkAccess["read"]>[1],
+  ) => Promise<ReturnChanges>;
   readTimeZone: (accountId: string) => Promise<string>;
   saveNextStep: ReturnToWorkAccess["saveNextStep"];
 }
@@ -18,13 +23,16 @@ export function createReturnToWork(
 ): ReturnToWorkAccess {
   return {
     async read(accountId, context) {
-      const [{ readOnly, sources }, timeZone] = await Promise.all([
+      const [{ readOnly, sources }, timeZone, changes] = await Promise.all([
         store.read(accountId, context),
         store.readTimeZone(accountId),
+        store.readChanges(accountId, context),
       ]);
+      const now = clock();
       return {
-        cards: cardsForSources(sources, clock(), timeZone),
+        cards: cardsForSources(sources, now, timeZone),
         readOnly,
+        sinceLastLooked: sinceLastLooked(changes, now),
         source:
           sources.find(
             (source) =>

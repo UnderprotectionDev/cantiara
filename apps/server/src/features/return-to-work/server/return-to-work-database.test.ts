@@ -1,7 +1,11 @@
 // biome-ignore-all lint/style/noNonNullAssertion: Fixtures assert the presence of their source records at the seam.
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
+import { document } from "@cantiara/db/schema/document";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
+import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
@@ -80,6 +84,191 @@ suite("Return to Work PostgreSQL seam", () => {
       workLifecycle,
     };
   }
+  test("reads all six defined groups from current sources and excludes unrelated Work context", async () => {
+    const { access, currentProject, currentWork } = await fixture();
+    const context = { projectId: currentProject.id };
+    await access.markViewed(accountId, context);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const time = new Date();
+    await database().insert(decision).values({
+      id: currentWork.id,
+      projectId: currentProject.id,
+      title: "Release scope",
+      decision: "Ship",
+      createdAt: time,
+    });
+    await database().insert(risk).values({
+      id: "risk",
+      projectId: currentProject.id,
+      title: "Payments",
+      createdAt: time,
+    });
+    await database().insert(document).values({
+      id: "document",
+      projectId: currentProject.id,
+      title: "Release notes",
+      body: "Notes",
+      createdAt: time,
+    });
+    await database().insert(projectRelease).values({
+      id: "release",
+      projectId: currentProject.id,
+      name: "First release",
+    });
+    await database()
+      .insert(mutationHistory)
+      .values([
+        {
+          id: crypto.randomUUID(),
+          targetId: currentWork.id,
+          revision: 4,
+          actorType: "User",
+          actorId: accountId,
+          originKind: "human",
+          payloadFingerprint: "unsupported",
+          previousValue: {},
+          nextValue: { analytics: { seen: true } },
+          occurredAt: time,
+        },
+        {
+          id: crypto.randomUUID(),
+          targetId: currentWork.id,
+          revision: 2,
+          actorType: "User",
+          actorId: accountId,
+          originKind: "human",
+          payloadFingerprint: "work",
+          previousValue: {},
+          nextValue: { work: { title: "Updated" } },
+          occurredAt: time,
+        },
+        {
+          id: crypto.randomUUID(),
+          targetId: currentWork.id,
+          revision: 3,
+          actorType: "GitHub",
+          actorId: "github",
+          originKind: "source",
+          sourceId: "delivery-source",
+          deliveryId: "delivery",
+          payloadFingerprint: "github",
+          previousValue: {},
+          nextValue: { work: { status: "In Progress" } },
+          occurredAt: time,
+        },
+        {
+          id: crypto.randomUUID(),
+          targetId: "release",
+          revision: 2,
+          actorType: "User",
+          actorId: accountId,
+          originKind: "human",
+          payloadFingerprint: "publish",
+          previousValue: { projectRelease: { status: "Draft" } },
+          nextValue: { projectRelease: { status: "Published" } },
+          occurredAt: time,
+        },
+      ]);
+    const summary = await access.read(accountId, context);
+    expect(
+      summary.sinceLastLooked.groups.map((group) => [
+        group.name,
+        group.events.map((event) => event.kind),
+      ]),
+    ).toEqual([
+      ["Work", ["Work updated"]],
+      ["Decisions", ["Decision recorded"]],
+      ["Risks", ["Risk recorded"]],
+      ["Documents", ["Document created"]],
+      ["GitHub", ["GitHub development signal"]],
+      ["Publish", ["Project Release published"]],
+    ]);
+    expect(
+      summary.sinceLastLooked.groups
+        .flatMap((group) => group.events)
+        .every(
+          (event) =>
+            Object.keys(event.source).sort().join(",") ===
+            "id,projectId,sourcePath,title",
+        ),
+    ).toBe(true);
+    expect(
+      (await access.read(accountId, { ...context, workId: currentWork.id }))
+        .sinceLastLooked.groups,
+    ).toEqual([]);
+    await expect(access.read("visitor", context)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+  test("deleting Work or Project removes its visit so a reused fixture identity starts without a mark", async () => {
+    const { access, currentProject, currentWork } = await fixture();
+    const context = { projectId: currentProject.id, workId: currentWork.id };
+    await access.markViewed(accountId, context);
+    const [oldWork] = await database()
+      .select()
+      .from(work)
+      .where(eq(work.id, currentWork.id));
+    await database().delete(work).where(eq(work.id, currentWork.id));
+    await database().insert(work).values(oldWork!);
+    expect(
+      (await access.read(accountId, context)).sinceLastLooked.lastViewedAt,
+    ).toBeNull();
+    await access.markViewed(accountId, { projectId: currentProject.id });
+    const [oldProject] = await database()
+      .select()
+      .from(project)
+      .where(eq(project.id, currentProject.id));
+    await database().delete(project).where(eq(project.id, currentProject.id));
+    await database().insert(project).values(oldProject!);
+    expect(
+      (await access.read(accountId, { projectId: currentProject.id }))
+        .sinceLastLooked.lastViewedAt,
+    ).toBeNull();
+  });
+  test("keeps first visits empty and reads later Work changes without moving the visit or creating history", async () => {
+    const { access, currentProject, currentWork } = await fixture();
+    const context = { projectId: currentProject.id, workId: currentWork.id };
+    expect((await access.read(accountId, context)).sinceLastLooked).toEqual({
+      lastViewedAt: null,
+      groups: [],
+    });
+    await access.markViewed(accountId, context);
+    const visited = (await access.read(accountId, context)).sinceLastLooked;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await access.saveNextStep(accountId, {
+      ...context,
+      baseRevision: currentWork.revision,
+      clientIdempotencyKey: "changed-after-visit",
+      nextConcreteStep: "Review payments",
+    });
+    const summary = await access.read(accountId, context);
+    expect(summary.sinceLastLooked.lastViewedAt).toBe(visited.lastViewedAt);
+    expect(summary.sinceLastLooked.groups).toEqual([
+      {
+        name: "Work",
+        events: [
+          expect.objectContaining({
+            kind: "Work updated",
+            source: expect.objectContaining({
+              id: currentWork.id,
+              title: "RETURN-1 · Follow up with customer",
+            }),
+          }),
+        ],
+      },
+    ]);
+    expect((await access.read(accountId, context)).sinceLastLooked).toEqual(
+      summary.sinceLastLooked,
+    );
+    expect(
+      (await access.read(accountId, { projectId: currentProject.id }))
+        .sinceLastLooked.groups,
+    ).toEqual([]);
+    await access.markViewed(accountId, context);
+    expect(
+      (await access.read(accountId, context)).sinceLastLooked.groups,
+    ).toEqual([]);
+  });
   test("source hint survives status, date, effort, planning and Project configuration changes", async () => {
     const {
       access,
