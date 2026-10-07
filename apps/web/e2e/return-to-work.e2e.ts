@@ -194,11 +194,23 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(
     summary.getByText("Recently edited", { exact: false }).first(),
   ).toBeVisible();
+  const sourceNavigation = page
+    .waitForEvent("request", {
+      predicate: (navigationRequest) =>
+        navigationRequest.resourceType() === "document",
+      timeout: 1500,
+    })
+    .then(
+      () => true,
+      () => false,
+    );
   await summary.getByRole("link", { name: workLinkName }).click();
   await expect(page).toHaveURL(workUrl);
+  expect(await sourceNavigation).toBe(false);
   await expect(
     page.getByRole("heading", { name: "Investigate payments", exact: true }),
   ).toBeVisible();
+  await page.screenshot({ path: "../../.context/return-work-source.png" });
   await expect(summary.getByLabel("Next concrete step")).toHaveValue("");
   await summary
     .getByLabel("Next concrete step")

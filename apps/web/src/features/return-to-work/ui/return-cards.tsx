@@ -3,6 +3,7 @@ import {
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
 import type { ReturnCard, ReturnSource } from "@cantiara/api/return-to-work";
+import { Link } from "@tanstack/react-router";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 
 export default function ReturnCards({
@@ -52,14 +53,16 @@ export default function ReturnCards({
 export function ReturnSourceLink({
   source,
 }: {
-  source: Pick<ReturnSource, "sourcePath" | "title">;
+  source: Pick<ReturnSource, "projectId" | "sourcePath" | "title">;
 }) {
   return (
-    <a
+    <Link
       className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
-      href={source.sourcePath}
+      hash={source.sourcePath.split("#")[1] ?? ""}
+      params={{ projectId: source.projectId }}
+      to="/projects/$projectId"
     >
       Open source record<span className="sr-only">: {source.title}</span>
-    </a>
+    </Link>
   );
 }
