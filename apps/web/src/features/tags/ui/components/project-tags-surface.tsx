@@ -54,6 +54,17 @@ function invalidateTagQueries(queryClient: ReturnType<typeof useQueryClient>) {
   ]);
 }
 
+function invalidateTagRenameQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  return Promise.all([
+    invalidateTagQueries(queryClient),
+    queryClient.invalidateQueries({ queryKey: orpc.documents.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.document.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.documentVersions.key() }),
+  ]);
+}
+
 export default function ProjectTagsSurface({
   projectId,
 }: {
@@ -128,7 +139,7 @@ export default function ProjectTagsSurface({
         receiptId: renamed.receiptId,
         tagId: renamed.tag.id,
       });
-      await invalidateTagQueries(queryClient);
+      await invalidateTagRenameQueries(queryClient);
     },
   });
 
@@ -148,7 +159,7 @@ export default function ProjectTagsSurface({
     onSuccess: async () => {
       setRenameError(null);
       setRenameUndo(null);
-      await invalidateTagQueries(queryClient);
+      await invalidateTagRenameQueries(queryClient);
     },
   });
 

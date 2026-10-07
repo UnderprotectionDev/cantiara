@@ -505,6 +505,13 @@ function requireReturnToWork(context: Context) {
   return context.returnToWork;
 }
 
+function requireFavorites(context: Context) {
+  if (!context.favorites) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.favorites;
+}
+
 function requireDailyFocus(context: Context) {
   if (!context.dailyFocus) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -5121,28 +5128,24 @@ export const appRouter = {
     ),
   favoriteMembership: protectedProcedure
     .input(favoriteSourceSchema)
-    .handler(async ({ context, input }) => {
-      if (!context.favorites) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR");
-      }
-      return {
-        isFavorite: await context.favorites.contains(
-          context.session.user.id,
-          input,
-        ),
-      };
-    }),
+    .handler(async ({ context, input }) => ({
+      isFavorite: await requireFavorites(context).contains(
+        context.session.user.id,
+        input,
+      ),
+    })),
   addToFavorites: protectedProcedure
     .input(favoriteSourceSchema)
     .handler(async ({ context, input }) => {
-      if (!context.favorites) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR");
-      }
       try {
-        await context.favorites.add(context.session.user.id, input);
+        await requireFavorites(context).add(context.session.user.id, input);
       } catch (error) {
         if (error instanceof FavoriteSourceUnavailableError) {
-          throw new ORPCError("NOT_FOUND", { cause: error });
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            defined: true,
+            message: "Source record is unavailable.",
+          });
         }
         throw error;
       }
@@ -5151,10 +5154,7 @@ export const appRouter = {
   removeFromFavorites: protectedProcedure
     .input(favoriteSourceSchema)
     .handler(async ({ context, input }) => {
-      if (!context.favorites) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR");
-      }
-      await context.favorites.remove(context.session.user.id, input);
+      await requireFavorites(context).remove(context.session.user.id, input);
       return { status: true };
     }),
   addToDailyFocus: protectedProcedure
