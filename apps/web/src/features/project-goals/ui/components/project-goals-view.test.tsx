@@ -1,3 +1,10 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { ProjectGoalMembershipView } from "./project-goal-membership-view";
@@ -92,40 +99,54 @@ test("Goal detail shows source-linked neutral status counts and historical membe
     openPath: "/projects/project-1#work-work-1",
     unavailable: false,
   };
+  const rootRoute = createRootRoute({});
+  const projectRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/projects/$projectId",
+  });
+  const router = createRouter({
+    history: createMemoryHistory({
+      initialEntries: ["/projects/project-1#goals"],
+    }),
+    routeTree: rootRoute.addChildren([projectRoute]),
+  });
   const html = renderToStaticMarkup(
-    <ProjectGoalMembershipView
-      detail={{
-        relations: [
-          {
-            id: "membership",
-            kind: "Contributes to Goal",
-            revision: 1,
-            attached: true,
-            source,
-          },
-          {
-            id: "deleted",
-            kind: "Contributes to Goal",
-            revision: 1,
-            attached: true,
-            source: {
-              ...source,
-              recordId: "deleted",
-              title: null,
-              openPath: null,
-              unavailable: true,
+    <RouterContextProvider router={router}>
+      <ProjectGoalMembershipView
+        detail={{
+          relations: [
+            {
+              id: "membership",
+              kind: "Contributes to Goal",
+              revision: 1,
+              attached: true,
+              source,
             },
-          },
-        ],
-        candidates: [source],
-        statusMix: [
-          { recordType: "Research", status: "In Progress", count: 1 },
-        ],
-        openQuestionsAndRisks: [],
-        readOnly: false,
-      }}
-      onSetRelation={onSave}
-    />,
+            {
+              id: "deleted",
+              kind: "Contributes to Goal",
+              revision: 1,
+              attached: true,
+              source: {
+                ...source,
+                recordId: "deleted",
+                title: null,
+                openPath: null,
+                unavailable: true,
+              },
+            },
+          ],
+          candidates: [source],
+          statusMix: [
+            { recordType: "Research", status: "In Progress", count: 1 },
+          ],
+          openQuestionsAndRisks: [],
+          readOnly: false,
+        }}
+        onSetRelation={onSave}
+        projectId="project-1"
+      />
+    </RouterContextProvider>,
   );
   for (const text of [
     "Contributes to Goal",

@@ -9,6 +9,8 @@ import {
 } from "@cantiara/api/project-goals";
 import type { RelationRecordType } from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
+import { assumption } from "@cantiara/db/schema/assumption";
+import { decision } from "@cantiara/db/schema/decision";
 import { openQuestion } from "@cantiara/db/schema/open-question";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { projectGoalRelation } from "@cantiara/db/schema/project-goal-relation";
@@ -63,6 +65,8 @@ function sourcePath(projectId: string, type: RelationRecordType, id: string) {
     Work: "work-",
     Milestone: "source-milestone-",
     "Project Release": "source-project-release-",
+    Decision: "source-decision-",
+    Assumption: "source-assumption-",
     Risk: "source-risk-",
     "Open Question": "source-open-question-",
   };
@@ -72,7 +76,15 @@ function sourcePath(projectId: string, type: RelationRecordType, id: string) {
     : null;
 }
 async function sources(executor: MutationDatabaseExecutor, projectId: string) {
-  const [works, milestones, releases, risks, questions] = await Promise.all([
+  const [
+    works,
+    milestones,
+    releases,
+    risks,
+    questions,
+    decisions,
+    assumptions,
+  ] = await Promise.all([
     executor
       .select()
       .from(work)
@@ -98,6 +110,16 @@ async function sources(executor: MutationDatabaseExecutor, projectId: string) {
       .from(openQuestion)
       .where(eq(openQuestion.projectId, projectId))
       .orderBy(asc(openQuestion.title)),
+    executor
+      .select()
+      .from(decision)
+      .where(eq(decision.projectId, projectId))
+      .orderBy(asc(decision.title)),
+    executor
+      .select()
+      .from(assumption)
+      .where(eq(assumption.projectId, projectId))
+      .orderBy(asc(assumption.title)),
   ]);
   const result: ProjectGoalSource[] = [];
   function add(
@@ -140,7 +162,26 @@ async function sources(executor: MutationDatabaseExecutor, projectId: string) {
   for (const row of questions) {
     add("Open Question", row.id, row.title, row.life);
   }
+  for (const row of decisions) {
+    add("Decision", row.id, row.title, row.life);
+  }
+  for (const row of assumptions) {
+    add("Assumption", row.id, row.title, row.life);
+  }
   return result;
+}
+async function findAvailableSource(
+  executor: MutationDatabaseExecutor,
+  projectId: string,
+  memberType: RelationRecordType,
+  memberId: string,
+) {
+  return (await sources(executor, projectId)).find(
+    (candidate) =>
+      candidate.recordType === memberType &&
+      candidate.recordId === memberId &&
+      !candidate.unavailable,
+  );
 }
 function relationView(
   row: StoredRelation,
@@ -204,12 +245,12 @@ function target(
       }
       if (
         input.attached &&
-        !(await sources(executor, input.projectId)).some(
-          (candidate) =>
-            candidate.recordType === input.memberType &&
-            candidate.recordId === input.memberId &&
-            !candidate.unavailable,
-        )
+        !(await findAvailableSource(
+          executor,
+          input.projectId,
+          input.memberType,
+          input.memberId,
+        ))
       ) {
         return null;
       }
@@ -262,6 +303,8 @@ function target(
           Work: work,
           Milestone: projectMilestone,
           "Project Release": projectRelease,
+          Decision: decision,
+          Assumption: assumption,
           Risk: risk,
           "Open Question": openQuestion,
         };
@@ -282,11 +325,11 @@ function target(
         if (!locked) {
           return null;
         }
-        const record = (await sources(executor, value.projectId)).find(
-          (candidate) =>
-            candidate.recordType === value.memberType &&
-            candidate.recordId === value.memberId &&
-            !candidate.unavailable,
+        const record = await findAvailableSource(
+          executor,
+          value.projectId,
+          value.memberType,
+          value.memberId,
         );
         if (!record) {
           return null;
