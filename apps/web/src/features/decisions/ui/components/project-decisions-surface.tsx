@@ -2,6 +2,7 @@ import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -139,6 +140,12 @@ export default function ProjectDecisionsSurface({
         savedMessage={savedMessage}
         selectedId={selectedId}
       />
+      {selected ? (
+        <FavoriteControl
+          sourceRecordId={selected.id}
+          sourceRecordType="Decision"
+        />
+      ) : null}
       {selected && !(readOnly || records.data.readOnly) ? (
         <PersonalReminderControl
           compact

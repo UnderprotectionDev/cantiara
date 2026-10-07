@@ -1,11 +1,7 @@
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { DecisionEditor, ProjectDecisionsView } from "./project-decisions-view";
-
-vi.mock("@/features/favorites/ui/components/favorite-control", () => ({
-  default: () => <button type="button">Add to Favorites</button>,
-}));
 
 const decision = {
   createdAt: "2026-10-07T10:00:00.000Z",

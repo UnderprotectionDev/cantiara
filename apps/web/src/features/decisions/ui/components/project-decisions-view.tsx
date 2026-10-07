@@ -11,8 +11,6 @@ import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 
-import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
-
 export type DecisionRecord = Extract<
   ProjectSourceRecord,
   { sourceType: "Decision" }
@@ -276,7 +274,6 @@ function DecisionDetail({
       className="space-y-4 rounded-lg border border-border/70 p-5"
     >
       <h3 className="font-semibold text-xl">{record.title}</h3>
-      <FavoriteControl sourceRecordId={record.id} sourceRecordType="Decision" />
       <p>{record.life}</p>
       <dl className="space-y-4">
         <div>

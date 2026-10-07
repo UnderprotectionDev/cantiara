@@ -19,6 +19,7 @@ import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 import { runOnlineOnlyWrite } from "../../web-macos-client/store/client-shell";
 import ReturnCards, { ReturnSourceLink } from "./return-cards";
+import SinceLastLooked from "./since-last-looked";
 
 export default function ReturnToWork({ projectId, workId }: ReturnContext) {
   const input = { projectId, ...(workId ? { workId } : {}) };
@@ -102,6 +103,12 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
         ) : (
           <p className="text-muted-foreground text-sm">No return cards yet.</p>
         ))}
+      {query.isSuccess && !query.isFetching && (
+        <SinceLastLooked
+          changes={query.data.sinceLastLooked}
+          preferences={preferences}
+        />
+      )}
       {visitError === true && (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-muted-foreground text-sm" role="status">

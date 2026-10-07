@@ -99,6 +99,15 @@ function toDecision(record: DecisionRecord) {
   });
 }
 
+async function listDecisionRecords(database: Database, projectId: string) {
+  const rows = await database
+    .select()
+    .from(decision)
+    .where(eq(decision.projectId, projectId))
+    .orderBy(asc(decision.createdAt), asc(decision.id));
+  return rows.map(toDecision);
+}
+
 function toMilestone(record: MilestoneRecord): ProjectSourceRecord {
   return milestoneRecordSchema.parse({
     ...record,
@@ -929,13 +938,8 @@ export function createDatabaseProjectSourceRecords(
       if (!ownedProject) {
         return null;
       }
-      const rows = await database
-        .select()
-        .from(decision)
-        .where(eq(decision.projectId, input.projectId))
-        .orderBy(asc(decision.createdAt), asc(decision.id));
       return {
-        records: rows.map(toDecision),
+        records: await listDecisionRecords(database, input.projectId),
         readOnly: ownedProject.archivedAt !== null,
       };
     },
@@ -1273,11 +1277,7 @@ export function createDatabaseProjectSourceRecords(
         releases,
         incidents,
       ] = await Promise.all([
-        database
-          .select()
-          .from(decision)
-          .where(eq(decision.projectId, input.projectId))
-          .orderBy(asc(decision.createdAt), asc(decision.id)),
+        listDecisionRecords(database, input.projectId),
         database
           .select()
           .from(risk)
@@ -1313,7 +1313,7 @@ export function createDatabaseProjectSourceRecords(
           ),
       ]);
       return [
-        ...decisions.map(toDecision),
+        ...decisions,
         ...risks.map(toRisk),
         ...assumptions.map(toAssumption),
         ...openQuestions.map(toOpenQuestion),

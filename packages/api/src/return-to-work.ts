@@ -50,9 +50,77 @@ export type ReturnCard = Omit<
 > & {
   reasons: (typeof RETURN_CARD_REASONS)[number][];
 };
+export const RETURN_EVENT_GROUPS = {
+  Work: ["Work created", "Work updated"],
+  Decisions: ["Decision recorded", "Decision updated"],
+  Risks: ["Risk recorded", "Risk updated"],
+  Documents: ["Document created", "Document updated"],
+  GitHub: ["GitHub development signal"],
+  Publish: ["Project Release published"],
+} as const;
+export type ReturnEventKind =
+  (typeof RETURN_EVENT_GROUPS)[keyof typeof RETURN_EVENT_GROUPS][number];
+export type ReturnEventSource = Pick<
+  ReturnSource,
+  "id" | "projectId" | "title" | "sourcePath"
+>;
+export interface ReturnEvent {
+  id: string;
+  kind: ReturnEventKind;
+  occurredAt: string;
+  source: ReturnEventSource;
+}
+export type ReturnEventCandidate = Omit<ReturnEvent, "kind"> & { kind: string };
+export interface ReturnChanges {
+  events: ReturnEventCandidate[];
+  lastViewedAt: string | null;
+}
+export interface SinceLastLooked {
+  groups: { name: keyof typeof RETURN_EVENT_GROUPS; events: ReturnEvent[] }[];
+  lastViewedAt: string | null;
+}
+export function sinceLastLooked(
+  changes: ReturnChanges,
+  now: Date,
+): SinceLastLooked {
+  const lastViewedAt = Date.parse(changes.lastViewedAt ?? "");
+  const events =
+    changes.lastViewedAt === null
+      ? []
+      : changes.events
+          .filter(isReturnEvent)
+          .filter(
+            (event) =>
+              Date.parse(event.occurredAt) > lastViewedAt &&
+              Date.parse(event.occurredAt) <= now.getTime(),
+          )
+          .sort(
+            (a, b) =>
+              a.occurredAt.localeCompare(b.occurredAt) ||
+              a.id.localeCompare(b.id),
+          );
+  const groups: SinceLastLooked["groups"] = [];
+  for (const name of Object.keys(
+    RETURN_EVENT_GROUPS,
+  ) as (keyof typeof RETURN_EVENT_GROUPS)[]) {
+    const kinds: readonly string[] = RETURN_EVENT_GROUPS[name];
+    const grouped = events.filter((event) => kinds.includes(event.kind));
+    if (grouped.length > 0) {
+      groups.push({ name, events: grouped });
+    }
+  }
+  return { lastViewedAt: changes.lastViewedAt, groups };
+}
+function isReturnEvent(event: ReturnEventCandidate): event is ReturnEvent {
+  return Object.values(RETURN_EVENT_GROUPS).some((kinds) => {
+    const allowedKinds: readonly string[] = kinds;
+    return allowedKinds.includes(event.kind);
+  });
+}
 export interface ReturnToWorkSummary {
   cards: ReturnCard[];
   readOnly: boolean;
+  sinceLastLooked: SinceLastLooked;
   source: ReturnSource | null;
 }
 export interface ReturnToWorkAccess {

@@ -83,13 +83,16 @@ test("Decision Favorites preserves its source content and life across membership
     .getByRole("link", { name: "Favorite release decision", exact: true })
     .click();
   const detail = page.getByRole("article", { name: "Decision", exact: true });
-  const add = detail.getByRole("button", {
+  const decisionsSurface = page
+    .getByRole("region", { name: "Decisions", exact: true })
+    .locator("..");
+  const add = decisionsSurface.getByRole("button", {
     name: "Add to Favorites",
     exact: true,
   });
   await expect(add).toBeEnabled({ timeout: 5000 });
   await add.click();
-  const remove = detail.getByRole("button", {
+  const remove = decisionsSurface.getByRole("button", {
     name: "Remove from Favorites",
     exact: true,
   });
