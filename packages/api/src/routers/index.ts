@@ -5023,7 +5023,10 @@ export const appRouter = {
         );
         return { status: true };
       } catch (error) {
-        rethrowWorkLifecycleError(error);
+        if (input.workId) {
+          rethrowWorkLifecycleError(error);
+        }
+        rethrowProjectShellMutationError(error, input.projectId);
       }
     }),
   dailyFocusDay: protectedProcedure

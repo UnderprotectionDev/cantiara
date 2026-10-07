@@ -4,6 +4,7 @@ import {
 } from "@cantiara/api/account-preferences";
 import type { ReturnCard, ReturnSource } from "@cantiara/api/return-to-work";
 import { Link } from "@tanstack/react-router";
+import { type MouseEvent, useCallback } from "react";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 
 export default function ReturnCards({
@@ -55,10 +56,34 @@ export function ReturnSourceLink({
 }: {
   source: Pick<ReturnSource, "projectId" | "sourcePath" | "title">;
 }) {
+  const sourceHash = source.sourcePath.split("#")[1] ?? "";
+  const revealCurrentSource = useCallback(
+    (event: MouseEvent<HTMLAnchorElement>) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.currentTarget.href !== window.location.href
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      document.getElementById(sourceHash)?.scrollIntoView({
+        block: "start",
+        behavior: "auto",
+      });
+    },
+    [sourceHash],
+  );
   return (
     <Link
       className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
-      hash={source.sourcePath.split("#")[1] ?? ""}
+      hash={sourceHash}
+      onClick={revealCurrentSource}
       params={{ projectId: source.projectId }}
       to="/projects/$projectId"
     >
