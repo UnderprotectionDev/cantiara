@@ -77,7 +77,10 @@ test("Decisions persists creation and explicit withdrawal, keeps rationale, and 
   await expect(
     page.getByRole("button", { name: "Withdraw", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page
+    .getByRole("region", { name: "Decisions", exact: true })
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
   await page
     .getByLabel("Title", { exact: true })
     .fill("Draft survives browsing");
