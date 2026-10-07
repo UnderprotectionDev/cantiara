@@ -181,6 +181,50 @@ describeDatabase("Record Discovery universal search boundary", () => {
     ).not.toContain(id);
   });
 
+  it("finds the Project source by its current next step within Account, scope and archive boundaries", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    await database
+      .update(project)
+      .set({ nextConcreteStep: "Inspect billing evidence" })
+      .where(eq(project.id, projectId));
+    expect(await client().searchRecords({ query: "billing evidence" })).toEqual(
+      [expect.objectContaining({ id: projectId, recordType: "Project" })],
+    );
+    expect(
+      await client(otherAccountId).searchRecords({ query: "billing evidence" }),
+    ).toEqual([]);
+    expect(
+      await client().searchRecords({
+        query: "billing evidence",
+        scope: { kind: "wiki" },
+      }),
+    ).toEqual([]);
+    await database
+      .update(project)
+      .set({ nextConcreteStep: "Talk to customer" })
+      .where(eq(project.id, projectId));
+    expect(await client().searchRecords({ query: "billing evidence" })).toEqual(
+      [],
+    );
+    await database
+      .update(project)
+      .set({ archivedAt: new Date() })
+      .where(eq(project.id, projectId));
+    expect(await client().searchRecords({ query: "Talk to customer" })).toEqual(
+      [],
+    );
+    expect(
+      await client().searchRecords({
+        query: "Talk to customer",
+        archived: true,
+      }),
+    ).toEqual([
+      expect.objectContaining({ id: projectId, recordType: "Project" }),
+    ]);
+  });
+
   it(
     "applies the closed ranking order and excludes Trash and other Accounts",
     async () => {
@@ -327,7 +371,7 @@ describeDatabase("Record Discovery universal search boundary", () => {
         (await client(otherAccountId).searchRecords({ query: "private" })).map(
           ({ id }) => id,
         ),
-      ).toEqual([recordId("work-private")]);
+      ).toEqual([recordId("work-private"), foreignProjectId]);
       expect(
         (await client().searchRecords({ ...input, archived: true })).map(
           ({ id }) => id,
@@ -618,6 +662,10 @@ describeDatabase("Record Discovery universal search boundary", () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
+    await database
+      .update(project)
+      .set({ nextConcreteStep: "Inspect PostgreSQL evidence" })
+      .where(eq(project.id, projectId));
     await database.insert(work).values({
       id: recordId("universal-work"),
       key: "CUR-10",

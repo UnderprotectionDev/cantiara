@@ -51,6 +51,24 @@ function fixture(records: ReturnSource[], timeZone = "UTC") {
   };
 }
 describe("Return to Work", () => {
+  test("reserves the nearest date but fills remaining places only from recent edits", async () => {
+    const records = [
+      source("edited"),
+      source("nearest", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        targetDate: "2026-10-08",
+      }),
+      source("later", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        targetDate: "2026-10-10",
+      }),
+    ];
+    expect(
+      (await fixture(records).access.read("account-1", context)).cards.map(
+        (card) => card.id,
+      ),
+    ).toEqual(["edited", "nearest"]);
+  });
   test("evaluates upcoming calendar dates in the Account time zone", async () => {
     const records = [
       source("due", {

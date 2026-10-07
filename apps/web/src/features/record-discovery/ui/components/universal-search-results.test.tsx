@@ -26,6 +26,27 @@ const result: UniversalSearchResult = {
   updatedAt: "2026-10-01T00:00:00.000Z",
 };
 
+test("opens a Project next-step search hit at its canonical source", () => {
+  const html = renderToStaticMarkup(
+    <UniversalSearchResults
+      query="evidence"
+      results={[
+        {
+          ...result,
+          id: "project-1",
+          projectId: "project-1",
+          recordType: "Project",
+          snippet: "Inspect billing evidence",
+          title: "Payment Project",
+        },
+      ]}
+    />,
+  );
+  expect(html).toContain('href="/projects/project-1"');
+  expect(html).toContain("Payment Project");
+  expect(html).toContain("evidence");
+});
+
 test("shows the source type, state, scope, highlighted context, and source link", () => {
   const markup = renderToStaticMarkup(
     <UniversalSearchResults query="PostgreSQL" results={[result]} />,

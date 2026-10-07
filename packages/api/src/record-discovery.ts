@@ -105,6 +105,7 @@ export const universalSearchInputSchema = z
 export type UniversalSearchInput = z.infer<typeof universalSearchInputSchema>;
 
 export const universalSearchRecordTypes = [
+  "Project",
   "Work",
   "Decision",
   "Risk",

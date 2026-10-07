@@ -152,7 +152,9 @@ export function cardsForSources(
     if (selected.size === 5) {
       break;
     }
-    selected.add(card);
+    if (card.reasons.includes("Recently edited")) {
+      selected.add(card);
+    }
   }
   return [...selected];
 }
