@@ -117,6 +117,17 @@ describe("Smart Collection subscription controls", () => {
     });
   });
 
+  test("shows the neutral prepared long-status collection without subscription or creation controls", () => {
+    const markup = renderSurface({
+      ...baseView,
+      collectionName: "Long in the same status",
+      preparedReason: "Long in the same status",
+    });
+    expect(markup).toContain("Long in the same status");
+    expect(markup).not.toContain("Subscribe");
+    expect(markup).not.toContain("Notify on leave");
+    expect(markup).not.toContain("New work");
+  });
   test("explains why Notify on leave is disabled until Subscribe is enabled", () => {
     const markup = renderSurface(baseView);
     const notifyOnLeave = inputWithId(

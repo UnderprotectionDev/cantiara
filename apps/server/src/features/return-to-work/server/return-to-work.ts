@@ -9,7 +9,11 @@ export interface ReturnToWorkStore {
   read: (
     accountId: string,
     context: Parameters<ReturnToWorkAccess["read"]>[1],
-  ) => Promise<{ readOnly: boolean; sources: ReturnSource[] }>;
+  ) => Promise<{
+    readOnly: boolean;
+    sources: ReturnSource[];
+    statusAgeThresholdDays?: number | null;
+  }>;
   readChanges: (
     accountId: string,
     context: Parameters<ReturnToWorkAccess["read"]>[1],
@@ -23,14 +27,20 @@ export function createReturnToWork(
 ): ReturnToWorkAccess {
   return {
     async read(accountId, context) {
-      const [{ readOnly, sources }, timeZone, changes] = await Promise.all([
-        store.read(accountId, context),
-        store.readTimeZone(accountId),
-        store.readChanges(accountId, context),
-      ]);
+      const [{ readOnly, sources, statusAgeThresholdDays }, timeZone, changes] =
+        await Promise.all([
+          store.read(accountId, context),
+          store.readTimeZone(accountId),
+          store.readChanges(accountId, context),
+        ]);
       const now = clock();
       return {
-        cards: cardsForSources(sources, now, timeZone),
+        cards: cardsForSources(
+          sources,
+          now,
+          timeZone,
+          statusAgeThresholdDays ?? null,
+        ),
         readOnly,
         sinceLastLooked: sinceLastLooked(changes, now),
         source:

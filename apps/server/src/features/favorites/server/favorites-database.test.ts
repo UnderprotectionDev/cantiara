@@ -232,7 +232,10 @@ describeDatabase("Favorites membership", () => {
       await favorites.add(accountId, source);
       await expect(
         clientFor(otherAccountId).addToFavorites(source),
-      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Source record is unavailable.",
+      });
       expect(await favorites.contains(otherAccountId, source)).toBe(false);
       await favorites.remove(otherAccountId, source);
       expect(await favorites.contains(accountId, source)).toBe(true);

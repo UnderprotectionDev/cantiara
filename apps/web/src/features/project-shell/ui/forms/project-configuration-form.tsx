@@ -992,7 +992,81 @@ function SavedViewsConfiguration({
           Save Focus threshold
         </Button>
       </div>
+      <StatusAgeThresholdConfiguration
+        configuration={configuration}
+        disabled={disabled}
+        onChange={onChange}
+      />
       <ConfigurationMutationError error={error} />
+    </div>
+  );
+}
+
+function StatusAgeThresholdConfiguration({
+  configuration,
+  disabled,
+  onChange,
+}: {
+  configuration: ProjectShellConfiguration;
+  disabled: boolean;
+  onChange: (change: ProjectShellConfigurationChange) => void;
+}) {
+  const [draft, setDraft] = useState(
+    () => configuration.statusAgeThresholdDays?.toString() ?? "",
+  );
+  const thresholdDays = draft === "" ? null : Number(draft);
+  const valid =
+    thresholdDays === null ||
+    (Number.isInteger(thresholdDays) &&
+      thresholdDays >= 1 &&
+      thresholdDays <= 10_000);
+  return (
+    <div className="space-y-2">
+      <label
+        className="grid max-w-sm gap-1 text-sm"
+        htmlFor="status-age-threshold"
+      >
+        Long in the same status
+        <Input
+          aria-describedby="status-age-threshold-description"
+          aria-invalid={!valid}
+          disabled={disabled}
+          id="status-age-threshold"
+          max={10_000}
+          min={1}
+          onChange={(event) => setDraft(event.target.value)}
+          type="number"
+          value={draft}
+        />
+      </label>
+      <p
+        className="text-muted-foreground text-xs/relaxed"
+        id="status-age-threshold-description"
+      >
+        Optional days in the current status. Leave blank to turn off. Candidates
+        appear in Return to Work and a Smart Collection without changing Work or
+        sending notifications.
+      </p>
+      {valid ? null : (
+        <p className="text-destructive text-sm" role="alert">
+          Enter a whole number of days from 1 to 10000.
+        </p>
+      )}
+      <Button
+        disabled={
+          disabled ||
+          !valid ||
+          thresholdDays === (configuration.statusAgeThresholdDays ?? null)
+        }
+        onClick={() =>
+          onChange({ kind: "set-status-age-threshold", thresholdDays })
+        }
+        size="xs"
+        type="button"
+        variant="outline"
+      >
+        Save Long in the same status
+      </Button>
     </div>
   );
 }
