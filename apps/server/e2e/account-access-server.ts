@@ -13,7 +13,6 @@ import { testUtils } from "better-auth/plugins";
 import { serve } from "bun";
 import { eq } from "drizzle-orm";
 import { initLogger } from "evlog";
-
 import { createApp } from "../src/app";
 import { createDatabaseAccountAdmission } from "../src/features/account-access/server/account-admission";
 import { createGitHubAvailability } from "../src/features/account-access/server/github-availability";
@@ -58,6 +57,7 @@ import { createDatabasePrioritizationSessionMutationContracts } from "../src/fea
 import { createPriorityMetricsAccess } from "../src/features/priority-metrics/server/priority-metrics";
 import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/server/priority-metrics-database";
 import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
+import { createDatabaseProjectGoals } from "../src/features/project-goals/server/project-goals-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
@@ -293,6 +293,7 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
+  projectGoals: createDatabaseProjectGoals(database),
   personalReminders,
   priorityMetricMutationContracts,
   priorityMetrics,

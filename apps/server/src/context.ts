@@ -44,6 +44,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
+import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -110,6 +111,7 @@ export interface CreateContextOptions {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
@@ -172,6 +174,7 @@ export async function createContext({
   mutationContract,
   projectShell,
   projectShellMutationContracts,
+  projectGoals,
   projectSourceRecords,
   recordTable,
   priorityMetricMutationContracts,
@@ -240,6 +243,7 @@ export async function createContext({
     mutationContract,
     projectShell,
     projectShellMutationContracts,
+    projectGoals,
     projectSourceRecords,
     recordTable,
     priorityMetricMutationContracts,

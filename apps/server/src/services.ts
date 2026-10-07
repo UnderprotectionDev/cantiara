@@ -7,7 +7,6 @@ import {
   createLocalSecurityEventDb,
   createSecurityEventDb,
 } from "@cantiara/db/security-events";
-
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
@@ -73,6 +72,7 @@ import {
   createDatabasePriorityMetricPermanentDeleteEvents,
   createDatabasePriorityMetricTrashMaintenance,
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
+import { createDatabaseProjectGoals } from "./features/project-goals/server/project-goals-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
@@ -121,6 +121,7 @@ export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
 export const focusPeriod = createDatabaseFocusPeriod(db);
+export const projectGoals = createDatabaseProjectGoals(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
 const securityEventDb =
   env.SECURITY_EVENT_LOCAL === "true"
