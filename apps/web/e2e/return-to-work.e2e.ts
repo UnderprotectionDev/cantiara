@@ -79,18 +79,33 @@ test("Return to Work saves independent source hints, opens current sources, and 
       .getByText("Next concrete step saved.", { exact: true })
       .last(),
   ).toBeVisible();
-  await page.screenshot({
-    path: "../../.context/return-save-feedback.png",
-    fullPage: true,
-  });
+
   await summary
     .getByLabel("Next concrete step")
     .fill("Ask about payment failures");
+  const nextSave = page.waitForResponse((response) =>
+    response.url().endsWith("/rpc/saveNextConcreteStep"),
+  );
   await summary.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await nextSave).ok()).toBe(true);
+  await expect(
+    summary.getByText("Next concrete step saved.", { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Ask about payment failures",
   );
+  const repeatedSave = page.waitForResponse((response) =>
+    response.url().endsWith("/rpc/saveNextConcreteStep"),
+  );
+  await summary.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await repeatedSave).ok()).toBe(true);
+  await expect(
+    page
+      .locator("[data-sonner-toast]")
+      .getByText("Next concrete step saved.", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: "../../.context/return-save-feedback.png" });
   await summary
     .getByRole("list")
     .getByRole("link", {
