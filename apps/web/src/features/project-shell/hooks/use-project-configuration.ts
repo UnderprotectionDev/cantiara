@@ -31,12 +31,20 @@ export function useProjectConfiguration(
           : "Project configuration could not be changed. Try again.",
       );
     },
-    onSuccess: async (nextProject) => {
+    onSuccess: async (nextProject, change) => {
       setError(null);
       queryClient.setQueryData(projectQueryKey, nextProject);
       await queryClient.invalidateQueries({
         queryKey: projectQueryKey,
       });
+      if (change.kind === "set-status-age-threshold") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: orpc.returnToWork.key() }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.smartCollectionViews.key(),
+          }),
+        ]);
+      }
     },
   });
 

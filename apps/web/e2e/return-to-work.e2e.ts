@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+const longStatusReason = /Long in the same status/;
+const agedWorkTitle = /Review payment retries/;
 const documentSourceLinkName = /Open source record\s*: Returning document/;
 const returningSourceLinkName = /Open source record/;
 const workLinkName = /Open source record\s*: .*Investigate payments/;
@@ -517,4 +519,126 @@ test("Since you last looked opens a Document after its area is hidden", async ({
       .getByRole("region", { name: "Document", exact: true })
       .getByLabel("Title", { exact: true }),
   ).toHaveValue("Returning document");
+});
+
+test("optional Project status-age threshold shows neutral return cards and a live prepared collection", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=long-status`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}`);
+  const summary = page.getByRole("region", {
+    name: "Return to Work",
+    exact: true,
+  });
+  await expect(summary.getByText(longStatusReason)).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
+  const configuration = page.getByRole("region", {
+    name: "Configuration Mode",
+    exact: true,
+  });
+  await configuration
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  await configuration
+    .getByLabel("Long in the same status", { exact: true })
+    .fill("0");
+  await expect(
+    configuration.getByRole("button", {
+      name: "Save Long in the same status",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await configuration
+    .getByLabel("Long in the same status", { exact: true })
+    .fill("7");
+  await configuration
+    .getByRole("button", { name: "Save Long in the same status", exact: true })
+    .click();
+  await expect(
+    configuration.getByRole("button", {
+      name: "Save Long in the same status",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await page.reload();
+  await configuration
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  await expect(
+    configuration.getByLabel("Long in the same status", { exact: true }),
+  ).toHaveValue("7");
+  await page
+    .getByRole("button", { name: "Exit Configuration Mode", exact: true })
+    .click();
+  await page.goto(`/projects/${setup.projectId}#overview`);
+  await expect(summary.getByText(longStatusReason)).toBeVisible();
+  await page.goto(`/projects/${setup.projectId}#smart-collections`);
+  await expect(
+    page.getByRole("heading", { name: "Long in the same status · Default" }),
+  ).toBeVisible();
+  await expect(page.getByText(agedWorkTitle).first()).toBeVisible();
+  await expect(page.getByText("Subscribe", { exact: true })).toHaveCount(0);
+  const preparedCollection = page
+    .locator("section")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Long in the same status · Default",
+      }),
+    })
+    .last();
+  await expect(
+    preparedCollection.getByRole("button", {
+      name: "Add to Favorites",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: "../../.context/long-status-collection.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
+  await configuration
+    .getByRole("button", { name: "Saved views", exact: true })
+    .click();
+  await configuration
+    .getByLabel("Long in the same status", { exact: true })
+    .fill("");
+  await page.route(
+    "**/rpc/updateProjectConfiguration",
+    (route) => route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+    { times: 1 },
+  );
+  await configuration
+    .getByRole("button", { name: "Save Long in the same status", exact: true })
+    .click();
+  await expect(configuration.getByRole("alert")).toBeVisible();
+  await expect(
+    configuration.getByLabel("Long in the same status", { exact: true }),
+  ).toHaveValue("");
+
+  await configuration
+    .getByRole("button", { name: "Save Long in the same status", exact: true })
+    .click();
+  await expect(
+    configuration.getByRole("button", {
+      name: "Save Long in the same status",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Exit Configuration Mode", exact: true })
+    .click();
+  await page.goto(`/projects/${setup.projectId}#overview`);
+  await expect(summary.getByText(longStatusReason)).toHaveCount(0);
 });
