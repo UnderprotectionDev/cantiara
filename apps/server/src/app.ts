@@ -70,6 +70,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
@@ -184,6 +185,7 @@ export interface AppDependencies {
   recordTable?: RecordTableAccess;
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
+  returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
   tagMutationContracts?: TagMutationContracts;
@@ -1159,6 +1161,7 @@ export function createApp(dependencies: AppDependencies) {
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
       dailyFocus: dependencies.dailyFocus,
+      returnToWork: dependencies.returnToWork,
       documentMutationContracts: dependencies.documentMutationContracts,
       documents: dependencies.documents,
       documentTransfers: dependencies.documentTransfers,

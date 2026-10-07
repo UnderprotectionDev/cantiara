@@ -262,6 +262,10 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  returnContextInputSchema,
+  saveNextConcreteStepInputSchema,
+} from "../return-to-work";
+import {
   createMilestoneInputSchema,
   projectRoadmapInputSchema,
   saveRoadmapViewInputSchema,
@@ -487,6 +491,13 @@ function requireBacklog(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.backlog;
+}
+
+function requireReturnToWork(context: Context) {
+  if (!context.returnToWork) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.returnToWork;
 }
 
 function requireDailyFocus(context: Context) {
@@ -4956,6 +4967,36 @@ export const appRouter = {
         return created;
       } catch (error) {
         rethrowFocusPeriodError(error);
+      }
+    }),
+  returnToWork: protectedProcedure
+    .input(returnContextInputSchema)
+    .handler(({ context, input }) =>
+      requireReturnToWork(context).read(context.session.user.id, input),
+    ),
+  markReturnContextViewed: protectedProcedure
+    .input(returnContextInputSchema)
+    .handler(async ({ context, input }) => {
+      await requireReturnToWork(context).markViewed(
+        context.session.user.id,
+        input,
+      );
+      return { status: true };
+    }),
+  saveNextConcreteStep: protectedProcedure
+    .input(saveNextConcreteStepInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireReturnToWork(context).saveNextStep(
+          context.session.user.id,
+          input,
+        );
+        return { status: true };
+      } catch (error) {
+        if (input.workId) {
+          rethrowWorkLifecycleError(error);
+        }
+        rethrowProjectShellMutationError(error, input.projectId);
       }
     }),
   dailyFocusDay: protectedProcedure

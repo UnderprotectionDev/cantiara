@@ -60,6 +60,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
@@ -118,6 +119,7 @@ export interface CreateContextOptions {
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
   tagMutationContracts?: TagMutationContracts;
@@ -152,6 +154,7 @@ export async function createContext({
   backlog,
   backlogMutationContracts,
   dailyFocus,
+  returnToWork,
   documentMutationContracts,
   documents,
   documentTransfers,
@@ -218,6 +221,7 @@ export async function createContext({
     backlog,
     backlogMutationContracts,
     dailyFocus,
+    returnToWork,
     documentMutationContracts,
     documents,
     documentTransfers,
