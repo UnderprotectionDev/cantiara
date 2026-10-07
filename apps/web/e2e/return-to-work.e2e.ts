@@ -156,6 +156,19 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Ask about payment failures",
   );
+  for (const projectSourceLink of [
+    summary.locator("form").getByRole("link", { name: projectLinkName }),
+    summary.getByRole("list").getByRole("link", { name: projectLinkName }),
+  ]) {
+    // biome-ignore lint/performance/noAwaitInLoops: Each click must follow scrolling away from the same source.
+    await projectSourceLink.scrollIntoViewIfNeeded();
+    await expect(
+      page.locator("#project-overview-heading"),
+    ).not.toBeInViewport();
+    await projectSourceLink.click();
+    await expect(page).toHaveURL(`${projectUrl}#overview`);
+    await expect(page.locator("#project-overview-heading")).toBeInViewport();
+  }
   await page.getByRole("button", { name: "Search", exact: true }).click();
   const discovery = page.getByRole("dialog", { name: "Search", exact: true });
   await discovery
@@ -190,7 +203,7 @@ test("Return to Work saves independent source hints, opens current sources, and 
     -"-heading".length,
   );
   const workUrl = `${projectUrl}#work-${workId}`;
-  await page.goto(projectUrl);
+  await page.goto(`${projectUrl}#overview`);
   await expect(
     summary.getByText("Recently edited", { exact: false }).first(),
   ).toBeVisible();
@@ -210,6 +223,9 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(
     page.getByRole("heading", { name: "Investigate payments", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Investigate payments", exact: true }),
+  ).toBeInViewport();
   await page.screenshot({ path: "../../.context/return-work-source.png" });
   await expect(summary.getByLabel("Next concrete step")).toHaveValue("");
   await summary
@@ -238,6 +254,15 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Request the failing transaction",
   );
+  const activeWorkSourceLink = summary
+    .locator("form")
+    .getByRole("link", { name: workLinkName });
+  await activeWorkSourceLink.scrollIntoViewIfNeeded();
+  await activeWorkSourceLink.press("Enter");
+  await expect(page).toHaveURL(workUrl);
+  await expect(
+    page.getByRole("heading", { name: "Investigate payments", exact: true }),
+  ).toBeInViewport();
   await summary.getByLabel("Next concrete step").fill("");
   await summary.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
@@ -245,7 +270,7 @@ test("Return to Work saves independent source hints, opens current sources, and 
   ).toHaveText("Next concrete step saved.");
   await page.reload();
   await expect(summary.getByLabel("Next concrete step")).toHaveValue("");
-  await page.goto(projectUrl);
+  await page.goto(`${projectUrl}#overview`);
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Ask about payment failures",
   );
