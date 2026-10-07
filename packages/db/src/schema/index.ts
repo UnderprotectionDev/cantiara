@@ -20,6 +20,7 @@ export * from "./priority-metrics";
 export * from "./production-incident";
 export * from "./project";
 export * from "./project-goal";
+export * from "./project-goal-relation";
 export * from "./project-milestone";
 export * from "./project-release";
 export * from "./record-action";
