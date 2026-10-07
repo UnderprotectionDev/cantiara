@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 import { runOnlineOnlyWrite } from "../../web-macos-client/store/client-shell";
-import ReturnCards from "./return-cards";
+import ReturnCards, { ReturnSourceLink } from "./return-cards";
 
 export default function ReturnToWork({ projectId, workId }: ReturnContext) {
   const input = { projectId, ...(workId ? { workId } : {}) };
@@ -190,12 +190,7 @@ function NextConcreteStepForm({
             )}
           </time>
         )}
-        <a
-          className="inline-flex min-h-11 items-center text-sm underline focus-visible:ring-2 focus-visible:ring-ring"
-          href={source.sourcePath}
-        >
-          Open source record<span className="sr-only">: {source.title}</span>
-        </a>
+        <ReturnSourceLink source={source} />
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
             <Button disabled={isSubmitting} type="submit">
