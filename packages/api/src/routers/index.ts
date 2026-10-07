@@ -119,6 +119,10 @@ import {
   startExternalExecutionHandoffMutationInputSchema,
 } from "../external-handoffs";
 import {
+  FavoriteSourceUnavailableError,
+  favoriteSourceSchema,
+} from "../favorites";
+import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
   fileAttachmentLocationBindInputSchema,
@@ -5034,6 +5038,14 @@ export const appRouter = {
     .handler(({ context, input }) =>
       requireDailyFocus(context).list(context.session.user.id, input.focusDate),
     ),
+  projectDecisions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).listDecisions(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
   projectSourceRecords: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) =>
@@ -5107,6 +5119,44 @@ export const appRouter = {
         input.focusDate,
       ),
     ),
+  favoriteMembership: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.favorites) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return {
+        isFavorite: await context.favorites.contains(
+          context.session.user.id,
+          input,
+        ),
+      };
+    }),
+  addToFavorites: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.favorites) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        await context.favorites.add(context.session.user.id, input);
+      } catch (error) {
+        if (error instanceof FavoriteSourceUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+      return { status: true };
+    }),
+  removeFromFavorites: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.favorites) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      await context.favorites.remove(context.session.user.id, input);
+      return { status: true };
+    }),
   addToDailyFocus: protectedProcedure
     .input(dailyFocusMembershipInputSchema)
     .handler(async ({ context, input }) => {

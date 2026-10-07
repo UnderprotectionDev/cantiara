@@ -7,6 +7,7 @@ import {
   mutationTarget,
 } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { eq, inArray } from "drizzle-orm";
 import {
   afterAll,
@@ -16,6 +17,7 @@ import {
   expect,
   test,
 } from "vitest";
+import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseProjectSourceRecords } from "./project-source-records-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -81,6 +83,142 @@ describeDatabase(
 
     afterAll(async () => {
       await database?.$client.end();
+    });
+
+    test("withdraws a Decision with a dated rationale without replacing its original rationale", async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const created = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "decision-create",
+        decision: "Ship a focused first release.",
+        id: sourceIds[0],
+        projectId,
+        rationale: "Keep the initial scope inspectable.",
+        sourceType: "Decision",
+        title: "First release scope",
+      });
+      if (!created) {
+        throw new Error("Decision creation failed");
+      }
+      const input = {
+        baseRevision: created.revision,
+        clientIdempotencyKey: "decision-withdraw",
+        life: "Withdrawn" as const,
+        projectId,
+        sourceId: created.id,
+        sourceType: "Decision" as const,
+        rationale: "The release constraint no longer applies.",
+      };
+      const withdrawn = await records.transition(accountId, input);
+      expect(withdrawn).toMatchObject({
+        life: "Withdrawn",
+        rationale: "Keep the initial scope inspectable.",
+        withdrawalRationale: "The release constraint no longer applies.",
+        withdrawnAt: expect.any(String),
+        revision: 2,
+      });
+      await expect(
+        records.find(accountId, "Decision", created.id),
+      ).resolves.toEqual(withdrawn);
+      await expect(records.transition(accountId, input)).resolves.toEqual(
+        withdrawn,
+      );
+      await expect(
+        records.transition(accountId, {
+          ...input,
+          clientIdempotencyKey: "stale-withdraw",
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      await expect(
+        records.find(`${accountId}-other`, "Decision", created.id),
+      ).resolves.toBeNull();
+    });
+
+    test("Decisions listing respects Account ownership and archived Project writes", async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      await expect(
+        records.listDecisions(accountId, projectId),
+      ).resolves.toEqual({ records: [], readOnly: false });
+      await expect(
+        records.listDecisions(`${accountId}-other`, projectId),
+      ).resolves.toBeNull();
+      await database
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      await expect(
+        records.listDecisions(accountId, projectId),
+      ).resolves.toEqual({ records: [], readOnly: true });
+      await expect(
+        records.create(accountId, {
+          baseRevision: 0,
+          clientIdempotencyKey: "archived-decision",
+          id: sourceIds[0],
+          projectId,
+          sourceType: "Decision",
+          title: "Release scope",
+          decision: "Ship.",
+          rationale: null,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    test("closing related Work leaves its Decision Valid with the original rationale", async () => {
+      if (!database) {
+        throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const created = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "decision-create",
+        id: sourceIds[0],
+        projectId,
+        sourceType: "Decision",
+        title: "Release scope",
+        decision: "Ship a focused first release.",
+        rationale: "Keep the initial scope inspectable.",
+      });
+      if (created?.sourceType !== "Decision") {
+        throw new Error("Decision creation failed");
+      }
+      const lifecycle = createDatabaseWorkLifecycle(database);
+      const work = await lifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "decision-work-create",
+        projectId,
+        title: "Ship the release",
+        type: "Task",
+      });
+      // The Relations counterpart has no Decision create flow yet; seed its existing typed link.
+      await database.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Related",
+        sourceWorkId: work.id,
+        targetLabel: created.title,
+        targetProjectId: projectId,
+        targetRecordId: created.id,
+        targetRecordType: "Decision",
+      });
+      await lifecycle.close(
+        accountId,
+        {
+          baseRevision: work.revision,
+          clientIdempotencyKey: "decision-work-close",
+          workId: work.id,
+          closureResult: "Completed",
+          reason: null,
+        },
+        { kind: "Visible user" },
+      );
+      await expect(
+        records.find(accountId, "Decision", created.id),
+      ).resolves.toEqual(created);
     });
 
     test("records source creation and explicit lifecycle transitions in mutation history", async () => {

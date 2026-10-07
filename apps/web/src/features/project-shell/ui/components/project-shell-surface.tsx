@@ -24,6 +24,7 @@ import {
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
+import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
@@ -270,6 +271,13 @@ export default function ProjectShellSurface({
     });
   }
 
+  const decisionSourceId =
+    sourceRecordRoute?.sourceType === "Decision"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isDecisionSurface =
+    ["decisions", "project-area-decisions"].includes(activeHash) ||
+    decisionSourceId !== undefined;
   const projectSurface = (() => {
     if (activeHash === "goals" || activeHash.startsWith("project-goal-")) {
       return (
@@ -277,6 +285,16 @@ export default function ProjectShellSurface({
           hash={activeHash}
           key={`${projectId}:${activeHash}`}
           projectId={projectId}
+        />
+      );
+    }
+    if (isDecisionSurface) {
+      return (
+        <ProjectDecisionsSurface
+          accountFormattingPreferences={accountFormattingPreferences}
+          key={projectId}
+          projectId={projectId}
+          selectedId={decisionSourceId}
         />
       );
     }

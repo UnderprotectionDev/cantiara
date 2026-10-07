@@ -82,6 +82,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── favorites/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── daily-focus/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── file-attachments/
@@ -137,6 +139,7 @@
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
+│       │   ├── favorites.e2e.ts
 │       │   ├── bulk-editing.e2e.ts
 │       │   ├── account-preferences.e2e.ts
 │       │   ├── completion-effects.e2e.ts
@@ -168,6 +171,10 @@
 │       │   ├── features/
 │       │   │   ├── return-to-work/
 │       │   │   │   └── ui/
+│       │   │   ├── favorites/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           └── favorite-control.tsx
 │       │   │   ├── daily-focus/
 │       │   │   │   └── ui/
 │       │   │   │       ├── daily-focus-view.test.tsx
@@ -514,6 +521,8 @@
 │   │   │   ├── completion-effects.test.ts
 │   │   │   ├── completion-effects.ts
 │   │   │   ├── capture-triage.ts
+│   │   │   ├── favorites.ts
+│   │   │   ├── favorites.test.ts
 │   │   │   ├── daily-focus.test.ts
 │   │   │   ├── daily-focus.ts
 │   │   │   ├── context.ts
@@ -597,6 +606,7 @@
 │   │   │   │   ├── capture-triage.ts
 │   │   │   │   ├── completion-effects.ts
 │   │   │   │   ├── custom-fields.ts
+│   │   │   │   ├── favorites.ts
 │   │   │   │   ├── daily-focus.ts
 │   │   │   │   ├── decision.ts
 │   │   │   │   ├── file-attachments.ts
@@ -714,5 +724,9 @@ Decision, Risk, Assumption, Open Question, Milestone, Project Release, and Produ
 Completion Effects preferences are an Account-scoped catalog owned by `packages/api/src/completion-effects.ts`, persisted in `packages/db/src/schema/completion-effects.ts`, served from `apps/server/src/features/completion-effects/server/`, and configured through `apps/web/src/features/completion-effects/`.
 
 Project Goals membership is owned by `packages/api/src/project-goals.ts`, `packages/db/src/schema/project-goal-relation.ts`, and versioned migrations. Its Project ownership helper and typed relation adapter live in `apps/server/src/features/project-goals/server/project-goal-access.ts` and `project-goal-membership-database.ts`; `project-goal-membership-database.test.ts` verifies the same Project Goals seam. Goal detail consumes `apps/web/src/features/project-goals/ui/components/project-goal-membership.tsx` and `project-goal-membership-view.tsx`. The browser journey is `apps/web/e2e/project-goal-membership.e2e.ts`. The adapter reuses the closed Relations catalog; endpoint deletion preserves its historical pair, while the Project remains the cleanup owner.
+
+Favorites membership is owned by `packages/api/src/favorites.ts`, `packages/db/src/schema/favorites.ts`, and `apps/server/src/features/favorites/server/`. Source screens consume the shared control in `apps/web/src/features/favorites/ui/components/`; the personal shell does not own a membership store.
+
+Decision lifecycle editing is owned by `apps/web/src/features/decisions/ui/components/`: `project-decisions-surface.tsx` consumes the existing Project source-record owner through `projectDecisions`, create/update and transition RPCs; `project-decisions-view.tsx` owns TanStack Form editing and explicit withdrawal. Project Shell opens the Project area and existing Decision source hashes; preview consumers retain the shared read-only source-record detail. The Decisions seam browser journey is `apps/web/e2e/decisions.e2e.ts`. Withdrawal metadata is part of `packages/db/src/schema/decision.ts` and the versioned migration; general supersession remains a later delivery.
 
 Return to Work derives Since you last looked at the same summary boundary. `apps/server/src/features/return-to-work/server/return-events-database.ts` owns the existing source/history read adapter; `apps/web/src/features/return-to-work/ui/since-last-looked.tsx` owns grouped event presentation and its adjacent presentation test.

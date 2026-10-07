@@ -23,6 +23,8 @@ export const decision = pgTable(
     rationale: text("rationale"),
     revision: integer("revision").default(0).notNull(),
     title: text("title").notNull(),
+    withdrawnAt: timestamp("withdrawn_at"),
+    withdrawalRationale: text("withdrawal_rationale"),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())
