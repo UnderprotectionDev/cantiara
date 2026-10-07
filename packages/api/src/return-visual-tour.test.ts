@@ -352,3 +352,27 @@ test("Return to Work uses exact identities across all supported canvas surfaces"
   }
   expect(canvas.shown).toEqual(targets);
 });
+
+test("Return to Work preserves an explicitly supplied Roadmap Milestone target without substituting the Work source", async () => {
+  const canvas = canvasDouble();
+  const target: ReturnVisualTarget = {
+    surface: "Roadmap",
+    surfaceId: "current-view",
+    recordType: "Milestone",
+    recordId: "checkout-available",
+  };
+  // Target enrichment belongs to the future surface adapter, not this driver.
+  const change = event("first", target);
+  const tour = createReturnVisualTour(changes([change]), canvas.viewport);
+  await tour.start();
+  expect(canvas.shown).toEqual([
+    {
+      surface: "Roadmap",
+      surfaceId: "current-view",
+      recordType: "Milestone",
+      recordId: "checkout-available",
+    },
+  ]);
+  expect(tour.state.current?.event.source.id).toBe("work-first");
+  expect(tour.state.current?.outcome).toEqual({ status: "shown" });
+});
