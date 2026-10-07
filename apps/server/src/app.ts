@@ -33,6 +33,7 @@ import type {
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import {
   FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
@@ -163,6 +164,7 @@ export interface AppDependencies {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: import("@cantiara/api/document-transfer").DocumentTransfersAccess;
+  favorites?: FavoritesAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: Pick<
@@ -1161,6 +1163,7 @@ export function createApp(dependencies: AppDependencies) {
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
       dailyFocus: dependencies.dailyFocus,
+      favorites: dependencies.favorites,
       returnToWork: dependencies.returnToWork,
       documentMutationContracts: dependencies.documentMutationContracts,
       documents: dependencies.documents,

@@ -4,6 +4,7 @@ import type {
   ProjectSourceType,
 } from "@cantiara/api/project-source-records";
 import { useQuery } from "@tanstack/react-query";
+import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { orpc } from "@/utils/orpc";
 
@@ -60,6 +61,12 @@ export default function ProjectSourceRecordView({
         <p className="mt-2 text-muted-foreground text-sm">
           {recordStatus(source.data)}
         </p>
+        {source.data.sourceType === "Decision" ? (
+          <FavoriteControl
+            sourceRecordId={source.data.id}
+            sourceRecordType="Decision"
+          />
+        ) : null}
         {reminderType && !readOnly ? (
           <div className="mt-4">
             <PersonalReminderControl

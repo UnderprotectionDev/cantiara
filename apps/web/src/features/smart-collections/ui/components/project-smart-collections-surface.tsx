@@ -28,6 +28,7 @@ import {
   useRef,
   useState,
 } from "react";
+import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import {
   OpenSourceRecordButton,
   type SourceRecordPreviewTarget,
@@ -464,6 +465,10 @@ function CollectionViewCard({
       <p className="text-muted-foreground text-sm">
         {view.sourceType} · {view.presentation}
       </p>
+      <FavoriteControl
+        sourceRecordId={view.collectionId}
+        sourceRecordType="Smart Collection"
+      />
       <CollectionSubscriptionControls view={view} />
       {isWorkCollection ? (
         <a
