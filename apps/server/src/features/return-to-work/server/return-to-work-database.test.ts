@@ -167,8 +167,21 @@ suite("Return to Work PostgreSQL seam", () => {
     expect(await sweepSmartCollectionSubscriptionSignals(database())).toBe(0);
   });
   test("re-evaluates prepared membership and excludes closed, archived, trashed and foreign Work", async () => {
-    const { access, currentProject, currentWork } = await fixture();
+    const { access, currentProject, currentWork, projectShell, workLifecycle } =
+      await fixture();
     const collections = createDatabaseSmartCollections(database());
+    const foreignProject = await projectShell.create(accountId, {
+      name: "Foreign return project",
+      shortCode: "FOREIGN",
+      starterConfiguration: "Blank Project",
+    });
+    const foreignWork = await workLifecycle.create(accountId, {
+      projectId: foreignProject.id,
+      type: "Task",
+      title: "Foreign candidate",
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
     await database()
       .update(project)
       .set({
@@ -181,7 +194,11 @@ suite("Return to Work PostgreSQL seam", () => {
     await database()
       .update(work)
       .set({ statusChangedAt: new Date("2025-01-01T00:00:00.000Z") })
-      .where(eq(work.id, currentWork.id));
+      .where(eq(work.projectId, currentProject.id));
+    await database()
+      .update(work)
+      .set({ statusChangedAt: new Date("2025-01-01T00:00:00.000Z") })
+      .where(eq(work.id, foreignWork.id));
     const inactive = [
       { id: "closed", status: "Closed", closureResult: "Completed" },
       { id: "archived", archivedAt: new Date() },
