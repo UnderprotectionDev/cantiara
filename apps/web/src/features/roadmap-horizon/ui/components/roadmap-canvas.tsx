@@ -1,12 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Viewport controls bind to the mounted canvas.
 
 import type { ReturnCanvasViewport } from "@cantiara/api/return-visual-tour";
-import type { Milestone } from "@cantiara/api/roadmap-horizon";
-import {
-  listUnplannedRoadmapCandidates,
-  presentRoadmap,
-  type RoadmapOriginLink,
-  type RoadmapView,
+import type {
+  Milestone,
+  RoadmapOriginLink,
+  RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
 import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
@@ -17,6 +15,7 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { projectRoadmapWorks } from "../../lib/roadmap-projection";
 import {
   createRoadmapViewport,
   type RoadmapVisualView,
@@ -71,49 +70,35 @@ export default function RoadmapCanvas({
     ...milestones.map((milestone) => `Milestone:${milestone.id}`),
   ];
   const nodes = useMemo(() => {
-    const candidates = works.map((work) => ({
-      ...work,
-      horizon: work.roadmapHorizon ?? null,
-      originResearchIds: origins
-        .filter((origin) => origin.targetFeatureId === work.id)
-        .map((origin) => origin.sourceResearchId),
-      plannedStartDate: work.plannedStartDate ?? null,
-    }));
-    const unplanned = new Set(
-      listUnplannedRoadmapCandidates(candidates, view).map(
-        ({ work }) => work.id,
-      ),
-    );
+    const { shown } = projectRoadmapWorks(works, origins, view);
     const groups = new Map<string, number>();
     const rows = new Map<number, number>();
-    const result: RoadmapNode[] = presentRoadmap(candidates, view)
-      .filter(({ work }) => !unplanned.has(work.id))
-      .map(({ work }) => {
-        const groupValues = {
-          Type: work.type,
-          Status: work.status,
-          Horizon: work.roadmapHorizon ?? "No horizon",
-        };
-        const group = groupValues[view?.groupBy ?? "Horizon"];
-        if (!groups.has(group)) {
-          groups.set(group, groups.size);
-        }
-        const column = groups.get(group) ?? 0;
-        const row = rows.get(column) ?? 0;
-        rows.set(column, row + 1);
-        return {
-          id: `Work:${work.id}`,
-          type: "roadmap",
-          position: { x: column * 300, y: row * 140 },
-          width: 260,
-          height: 100,
-          data: {
-            title: `${work.key} · ${work.title}`,
-            detail: `${group} · ${work.status}`,
-            highlighted: highlight === `Work:${work.id}`,
-          },
-        };
-      });
+    const result: RoadmapNode[] = shown.map(({ work }) => {
+      const groupValues = {
+        Type: work.type,
+        Status: work.status,
+        Horizon: work.roadmapHorizon ?? "No horizon",
+      };
+      const group = groupValues[view?.groupBy ?? "Horizon"];
+      if (!groups.has(group)) {
+        groups.set(group, groups.size);
+      }
+      const column = groups.get(group) ?? 0;
+      const row = rows.get(column) ?? 0;
+      rows.set(column, row + 1);
+      return {
+        id: `Work:${work.id}`,
+        type: "roadmap",
+        position: { x: column * 300, y: row * 140 },
+        width: 260,
+        height: 100,
+        data: {
+          title: `${work.key} · ${work.title}`,
+          detail: `${group} · ${work.status}`,
+          highlighted: highlight === `Work:${work.id}`,
+        },
+      };
+    });
     const milestoneX = groups.size * 300;
     for (const [index, milestone] of milestones.entries()) {
       result.push({
@@ -172,7 +157,10 @@ export default function RoadmapCanvas({
           if (!current.current.available) {
             throw new Error("Roadmap is unavailable.");
           }
-          if (!(await flow.fitView({ duration: 0, padding: 0.2 }))) {
+          const fitted = current.current.nodes.length
+            ? await flow.fitView({ duration: 0, padding: 0.2 })
+            : await flow.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 0 });
+          if (!fitted) {
             throw new Error("Roadmap viewport could not be fitted.");
           }
           session?.setState((state) => ({
@@ -211,7 +199,9 @@ export default function RoadmapCanvas({
           Fit View
         </Button>
       </div>
-      <div className="h-[360px] w-full rounded-lg border bg-muted/20 sm:h-[420px]">
+      <div
+        className={`w-full rounded-lg border bg-muted/20 ${onReady ? "h-[240px] sm:h-[300px]" : "h-[360px] sm:h-[420px]"}`}
+      >
         <ReactFlow<RoadmapNode>
           defaultViewport={session?.state.viewport ?? undefined}
           deleteKeyCode={null}

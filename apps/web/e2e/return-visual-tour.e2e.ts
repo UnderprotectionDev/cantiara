@@ -131,6 +131,15 @@ test("tours the same changes on the live Roadmap and restores viewport and keybo
     .include('[role="dialog"]')
     .analyze();
   expect(accessibility.violations).toEqual([]);
+  await expect(
+    dialog.getByRole("heading", {
+      name: "Tour the visual changes",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.locator('[data-sonner-toast][data-type="error"]'),
+  ).toBeHidden({ timeout: 10_000 });
   await page.screenshot({ path: "../../.context/issue-295-visual-tour.png" });
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();

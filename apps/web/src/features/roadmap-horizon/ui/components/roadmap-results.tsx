@@ -1,12 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Roadmap controls bind to the selected Work and view.
-import {
-  listUnplannedRoadmapCandidates,
-  presentRoadmap,
-  type RoadmapBlocker,
-  type RoadmapBlockerSource,
-  type RoadmapHorizon,
-  type RoadmapOriginLink,
-  type RoadmapView,
+import type {
+  RoadmapBlocker,
+  RoadmapBlockerSource,
+  RoadmapHorizon,
+  RoadmapOriginLink,
+  RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
 import {
   WORK_TYPE_OPTIONS,
@@ -21,6 +19,7 @@ import { OpenSourceRecordButton } from "@/features/record-discovery/ui/component
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, projectWorksQueryPrefix } from "@/utils/orpc";
+import { projectRoadmapWorks } from "../../lib/roadmap-projection";
 import { useRoadmapSession } from "../../store/roadmap-session";
 import LiveRoadmapCanvas from "./live-roadmap-canvas";
 import ResearchDirection from "./research-direction";
@@ -374,20 +373,7 @@ export function RoadmapResults({
       session.setState((state) => ({ ...state, view }));
     }
   }, [session, view]);
-  const roadmapWorks = works.map((work) => ({
-    ...work,
-    horizon: work.roadmapHorizon ?? null,
-    originResearchIds: origins
-      .filter((origin) => origin.targetFeatureId === work.id)
-      .map((origin) => origin.sourceResearchId),
-    plannedStartDate: work.plannedStartDate ?? null,
-    targetDate: work.targetDate,
-  }));
-  const candidates = listUnplannedRoadmapCandidates(roadmapWorks, view);
-  const candidateIds = new Set(candidates.map(({ work }) => work.id));
-  const shown = presentRoadmap(roadmapWorks, view).filter(
-    ({ work }) => !candidateIds.has(work.id),
-  );
+  const { candidates, shown } = projectRoadmapWorks(works, origins, view);
   const blockersByWork = new Map<string, RoadmapBlockerSource[]>();
   for (const { blockedWorkId, blocker } of blockers) {
     const current = blockersByWork.get(blockedWorkId) ?? [];
