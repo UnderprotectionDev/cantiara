@@ -308,6 +308,9 @@
 │       │   │   ├── project-goals/
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
+│       │   │   │           ├── project-goals-surface.tsx
+│       │   │   │           ├── project-goals-view.test.tsx
+│       │   │   │           └── project-goals-view.tsx
 │       │   │   ├── project-overview/
 │       │   │   │   ├── lib/
 │       │   │   │   │   └── project-overview.ts
