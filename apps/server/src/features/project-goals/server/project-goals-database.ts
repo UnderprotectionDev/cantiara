@@ -9,8 +9,6 @@ import {
   updateProjectGoalInputSchema,
 } from "@cantiara/api/project-goals";
 import type { Database } from "@cantiara/db";
-import { workspace } from "@cantiara/db/schema/auth";
-import { project } from "@cantiara/db/schema/project";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { and, asc, eq } from "drizzle-orm";
 import {
@@ -20,9 +18,11 @@ import {
 } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createDatabaseMutationContract,
-  type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
+
+import { ownedProject } from "./project-goal-access";
+import { createDatabaseProjectGoalMembership } from "./project-goal-membership-database";
 
 interface GoalValue {
   projectGoal: ProjectGoalRecord | null;
@@ -33,23 +33,6 @@ function toRecord(row: typeof projectGoal.$inferSelect) {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   });
-}
-async function ownedProject(
-  executor: MutationDatabaseExecutor,
-  accountId: string,
-  projectId: string,
-  lock: boolean,
-) {
-  const query = executor
-    .select({ id: project.id, archivedAt: project.archivedAt })
-    .from(project)
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-    .where(
-      and(eq(project.id, projectId), eq(workspace.ownerAccountId, accountId)),
-    )
-    .limit(1);
-  const [row] = lock ? await query.for("update", { of: project }) : await query;
-  return row && (!lock || row.archivedAt === null) ? row : null;
 }
 function goalTarget(
   accountId: string,
@@ -202,6 +185,7 @@ export function createDatabaseProjectGoals(
     }
   }
   return {
+    membership: createDatabaseProjectGoalMembership(database),
     create: (accountId, input) => save(accountId, input, "create"),
     update: (accountId, input) => save(accountId, input, "update"),
     async find(accountId, rawInput) {

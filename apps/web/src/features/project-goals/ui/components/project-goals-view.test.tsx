@@ -1,5 +1,13 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterContextProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import { ProjectGoalMembershipView } from "./project-goal-membership-view";
 import { ProjectGoalEditor, ProjectGoalsView } from "./project-goals-view";
 
 const onSave = async () => undefined;
@@ -79,4 +87,78 @@ describe("Project Goals visible record seam", () => {
     expect(html).not.toContain("Edit Project Goal");
     expect(html).not.toContain("New Project Goal");
   });
+});
+
+test("Goal detail shows source-linked neutral status counts and historical members", () => {
+  const source = {
+    recordId: "work-1",
+    recordType: "Work" as const,
+    title: "Find the problem",
+    status: "In Progress",
+    workType: "Research",
+    openPath: "/projects/project-1#work-work-1",
+    unavailable: false,
+  };
+  const rootRoute = createRootRoute({});
+  const projectRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/projects/$projectId",
+  });
+  const router = createRouter({
+    history: createMemoryHistory({
+      initialEntries: ["/projects/project-1#goals"],
+    }),
+    routeTree: rootRoute.addChildren([projectRoute]),
+  });
+  const html = renderToStaticMarkup(
+    <RouterContextProvider router={router}>
+      <ProjectGoalMembershipView
+        detail={{
+          relations: [
+            {
+              id: "membership",
+              kind: "Contributes to Goal",
+              revision: 1,
+              attached: true,
+              source,
+            },
+            {
+              id: "deleted",
+              kind: "Contributes to Goal",
+              revision: 1,
+              attached: true,
+              source: {
+                ...source,
+                recordId: "deleted",
+                title: null,
+                openPath: null,
+                unavailable: true,
+              },
+            },
+          ],
+          candidates: [source],
+          statusMix: [
+            { recordType: "Research", status: "In Progress", count: 1 },
+          ],
+          openQuestionsAndRisks: [],
+          readOnly: false,
+        }}
+        onSetRelation={onSave}
+        projectId="project-1"
+      />
+    </RouterContextProvider>,
+  );
+  for (const text of [
+    "Contributes to Goal",
+    "Find the problem",
+    "Research",
+    "In Progress",
+    "Unavailable source record",
+    source.openPath,
+  ]) {
+    expect(html).toContain(text);
+  }
+  for (const text of ["%", "health", "success", "completion"]) {
+    expect(html).not.toContain(text);
+  }
 });

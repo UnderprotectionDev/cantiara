@@ -35,7 +35,11 @@ export function createDatabaseReturnToWork(
     pendingGitHubSignals?: PendingGitHubSignals;
   },
 ) {
-  async function requireContext(accountId: string, rawContext: ReturnContext) {
+  // Archived Projects and Works stay readable; writes check the archive below.
+  async function requireReadableContext(
+    accountId: string,
+    rawContext: ReturnContext,
+  ) {
     const context = returnContextInputSchema.parse(rawContext);
     const [owned] = await database
       .select({ project })
@@ -45,7 +49,6 @@ export function createDatabaseReturnToWork(
         and(
           eq(project.id, context.projectId),
           eq(workspace.ownerAccountId, accountId),
-          isNull(project.archivedAt),
         ),
       )
       .limit(1);
@@ -60,7 +63,6 @@ export function createDatabaseReturnToWork(
           and(
             eq(work.id, context.workId),
             eq(work.projectId, context.projectId),
-            isNull(work.archivedAt),
             isNull(work.trashedAt),
           ),
         )
@@ -76,7 +78,7 @@ export function createDatabaseReturnToWork(
     readTimeZone: async (accountId) =>
       (await preferences.get(accountId)).timeZone,
     async read(accountId, context) {
-      const currentProject = await requireContext(accountId, context);
+      const currentProject = await requireReadableContext(accountId, context);
       const [projectVisit] = await database
         .select()
         .from(projectLastVisit)
@@ -99,9 +101,12 @@ export function createDatabaseReturnToWork(
         .where(
           and(
             eq(work.projectId, context.projectId),
-            isNull(work.archivedAt),
             isNull(work.trashedAt),
-            context.workId ? eq(work.id, context.workId) : undefined,
+            // The context Work stays a readable source even while archived;
+            // card candidates without an explicit context skip archived Work.
+            context.workId
+              ? eq(work.id, context.workId)
+              : isNull(work.archivedAt),
           ),
         );
       const risks = context.workId
@@ -170,14 +175,17 @@ export function createDatabaseReturnToWork(
           nextConcreteStepUpdatedAt: null,
         });
       }
-      return sources;
+      return { readOnly: currentProject.archivedAt !== null, sources };
     },
     async saveNextStep(accountId, rawInput) {
       const input = saveNextConcreteStepInputSchema.parse(rawInput);
-      await requireContext(accountId, {
+      const currentProject = await requireReadableContext(accountId, {
         projectId: input.projectId,
         ...(input.workId ? { workId: input.workId } : {}),
       });
+      if (currentProject.archivedAt !== null) {
+        throw new ORPCError("NOT_FOUND", { message: "Project is read-only." });
+      }
       if (input.workId) {
         await dependencies.workLifecycle.updateFields(accountId, {
           workId: input.workId,
@@ -213,7 +221,7 @@ export function createDatabaseReturnToWork(
       );
     },
     async markViewed(accountId, context) {
-      await requireContext(accountId, context);
+      await requireReadableContext(accountId, context);
       const viewedAt = new Date();
       if (context.workId) {
         await database

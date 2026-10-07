@@ -52,6 +52,7 @@ export type ReturnCard = Omit<
 };
 export interface ReturnToWorkSummary {
   cards: ReturnCard[];
+  readOnly: boolean;
   source: ReturnSource | null;
 }
 export interface ReturnToWorkAccess {
