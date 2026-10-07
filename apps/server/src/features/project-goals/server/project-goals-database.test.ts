@@ -106,6 +106,17 @@ describeDatabase("Project Goals record PostgreSQL seam", () => {
     expect(created).not.toHaveProperty("health");
     expect(created).not.toHaveProperty("keyResults");
     expect(await goals.create(accountId, input)).toEqual(created);
+    await expect(
+      goals.create(accountId, { ...input, title: "Changed payload" }),
+    ).rejects.toThrow();
+    await expect(
+      goals.create(accountId, {
+        ...input,
+        title: "Changed payload",
+        clientIdempotencyKey: "new-key-existing-id",
+      }),
+    ).rejects.toThrow();
+    expect((await goals.list(accountId, projectId))?.records).toHaveLength(1);
     const updated = await goals.update(accountId, {
       ...input,
       baseRevision: 1,

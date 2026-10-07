@@ -73,6 +73,9 @@ describe("Project Goals RPC seam", () => {
     );
     await expect(
       client.updateProjectGoal({ ...draft, baseRevision: 1 }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "CONFLICT", targetId: "goal-1" },
+    });
   });
 });

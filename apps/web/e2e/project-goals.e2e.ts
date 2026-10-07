@@ -65,7 +65,7 @@ test("Project Goals remain optional and preserve founder outcomes through create
   await expect(page.getByLabel("Observed outcome / learning")).toHaveValue(
     "Small scope helped.",
   );
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByText("Project Goal saved.")).toBeVisible();
   await page.reload();
   await expect(
@@ -88,6 +88,35 @@ test("Project Goals remain optional and preserve founder outcomes through create
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Useful first release", exact: true }),
+  ).toBeVisible();
+  const otherPage = await context.newPage();
+  await otherPage.goto(page.url());
+  await page.getByRole("button", { name: "Edit Project Goal" }).click();
+  await page
+    .getByLabel("Observed outcome / learning")
+    .fill("Uncommitted learning");
+  await otherPage.getByRole("button", { name: "Edit Project Goal" }).click();
+  await otherPage
+    .getByLabel("Observed outcome / learning")
+    .fill("Another window learning");
+  await otherPage.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(otherPage.getByText("Project Goal saved.")).toBeVisible();
+  await page.bringToFront();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Conflict" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Observed outcome / learning")).toHaveValue(
+    "Uncommitted learning",
+  );
+  await expect(
+    page.getByRole("region", { name: "Current value", exact: true }),
+  ).toContainText("Another window learning");
+  await otherPage.close();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.reload();
+  await expect(
+    page.getByText("Another window learning", { exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Goals", exact: true }).click();
   await expect(

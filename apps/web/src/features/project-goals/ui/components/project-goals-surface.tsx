@@ -7,7 +7,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import { type ProjectGoalDraft, ProjectGoalsView } from "./project-goals-view";
+import {
+  type ProjectGoalDraft,
+  ProjectGoalSaveConflictError,
+  ProjectGoalsView,
+} from "./project-goals-view";
 
 export default function ProjectGoalsSurface({
   projectId,
@@ -20,7 +24,7 @@ export default function ProjectGoalsSurface({
   const options = orpc.projectGoals.queryOptions({ input: { projectId } });
   const goals = useQuery(options);
   const [savedMessage, setSavedMessage] = useState<string>();
-  const attempt = useRef<{
+  const pendingProjectGoalSave = useRef<{
     fingerprint: string;
     id: string;
     key: string;
@@ -32,32 +36,51 @@ export default function ProjectGoalsSurface({
       goalId: goal?.id,
       revision: goal?.revision,
     });
-    if (attempt.current?.fingerprint !== fingerprint) {
-      attempt.current = {
+    if (pendingProjectGoalSave.current?.fingerprint !== fingerprint) {
+      pendingProjectGoalSave.current = {
         fingerprint,
-        id: goal?.id ?? crypto.randomUUID(),
+        id:
+          goal?.id ?? pendingProjectGoalSave.current?.id ?? crypto.randomUUID(),
         key: crypto.randomUUID(),
       };
     }
-    const { id, key } = attempt.current;
-    await runOnlineOnlyWrite(() =>
-      goal
-        ? client.updateProjectGoal({
-            ...fields,
-            projectId,
+    const { id, key } = pendingProjectGoalSave.current;
+    try {
+      await runOnlineOnlyWrite(() =>
+        goal
+          ? client.updateProjectGoal({
+              ...fields,
+              projectId,
+              id,
+              baseRevision: goal.revision,
+              clientIdempotencyKey: key,
+            })
+          : client.createProjectGoal({
+              ...fields,
+              projectId,
+              id,
+              baseRevision: 0,
+              clientIdempotencyKey: key,
+            }),
+      );
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "CONFLICT"
+      ) {
+        const currentValue = await client
+          .projectGoal({
             id,
-            baseRevision: goal.revision,
-            clientIdempotencyKey: key,
+            projectId,
           })
-        : client.createProjectGoal({
-            ...fields,
-            projectId,
-            id,
-            baseRevision: 0,
-            clientIdempotencyKey: key,
-          }),
-    );
-    attempt.current = null;
+          .catch(() => null);
+        throw new ProjectGoalSaveConflictError(currentValue, { cause: error });
+      }
+      throw error;
+    }
+    pendingProjectGoalSave.current = null;
     setSavedMessage("Project Goal saved.");
     await queryClient.invalidateQueries({ queryKey: options.queryKey });
   }

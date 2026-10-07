@@ -45,23 +45,40 @@ const FIELDS = [
 export function projectGoalsHref(projectId: string, goalId?: string) {
   return `/projects/${encodeURIComponent(projectId)}#${goalId ? `project-goal-${encodeURIComponent(goalId)}` : "goals"}`;
 }
+export class ProjectGoalSaveConflictError extends Error {
+  readonly currentValue: ProjectGoalRecord | null;
+  constructor(currentValue: ProjectGoalRecord | null, options?: ErrorOptions) {
+    super(
+      "Conflict. Project Goal changed. Cancel and reopen the editor before saving again. Your text is kept here.",
+      options,
+    );
+    this.currentValue = currentValue;
+  }
+}
 export function ProjectGoalEditor({
   goal,
   onSave,
   onCancel,
 }: {
   goal?: ProjectGoalRecord;
-  onSave: (draft: ProjectGoalDraft) => Promise<unknown>;
+  onSave: (
+    draft: ProjectGoalDraft,
+    baseGoal?: ProjectGoalRecord,
+  ) => Promise<unknown>;
   onCancel: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [baseGoal] = useState(goal);
+  const [conflict, setConflict] = useState<ProjectGoalSaveConflictError | null>(
+    null,
+  );
   const form = useForm({
-    defaultValues: goal
+    defaultValues: baseGoal
       ? {
-          title: goal.title,
-          description: goal.description,
-          intendedOutcome: goal.intendedOutcome ?? "",
-          observedOutcomeLearning: goal.observedOutcomeLearning ?? "",
+          title: baseGoal.title,
+          description: baseGoal.description,
+          intendedOutcome: baseGoal.intendedOutcome ?? "",
+          observedOutcomeLearning: baseGoal.observedOutcomeLearning ?? "",
         }
       : EMPTY_DRAFT,
     onSubmit: async ({ value }) => {
@@ -71,14 +88,20 @@ export function ProjectGoalEditor({
         return;
       }
       try {
-        await onSave(value);
-      } catch {
+        await onSave(value, baseGoal);
+      } catch (saveError) {
+        if (saveError instanceof ProjectGoalSaveConflictError) {
+          setConflict(saveError);
+          setError(saveError.message);
+          return;
+        }
         setError(
           "Project Goal could not be saved. Retry, or reload to check for changes. Your text is kept here.",
         );
       }
     },
   });
+  const saveLabel = error && !conflict ? "Retry" : "Save";
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -93,6 +116,15 @@ export function ProjectGoalEditor({
         <p className="text-destructive text-sm" role="alert">
           {error}
         </p>
+      ) : null}
+      {conflict?.currentValue ? (
+        <section
+          aria-label="Current value"
+          className="space-y-2 rounded-md border p-4"
+        >
+          <h3 className="font-medium">Current value</h3>
+          <ProjectGoalValues goal={conflict.currentValue} />
+        </section>
       ) : null}
       <form.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
@@ -138,8 +170,8 @@ export function ProjectGoalEditor({
               </form.Field>
             ))}
             <div className="flex flex-wrap gap-3">
-              <Button disabled={isSubmitting} type="submit">
-                {isSubmitting ? "Saving…" : "Save"}
+              <Button disabled={isSubmitting || !!conflict} type="submit">
+                {isSubmitting ? "Saving…" : <span>{saveLabel}</span>}
               </Button>
               <Button
                 disabled={isSubmitting}
@@ -228,8 +260,8 @@ export function ProjectGoalsView({
           goal={selected}
           key={selected?.id ?? "new"}
           onCancel={() => setEditing(false)}
-          onSave={async (draft) => {
-            await onSave(draft, selected);
+          onSave={async (draft, baseGoal) => {
+            await onSave(draft, baseGoal);
             setEditing(false);
           }}
         />
@@ -268,5 +300,20 @@ function ProjectGoalList({
         </li>
       ))}
     </ul>
+  );
+}
+
+function ProjectGoalValues({ goal }: { goal: ProjectGoalRecord }) {
+  return (
+    <dl className="space-y-3">
+      {FIELDS.map(({ name, label }) => (
+        <div key={name}>
+          <dt className="font-medium text-sm">{label}</dt>
+          <dd className="whitespace-pre-wrap break-words text-muted-foreground text-sm">
+            {goal[name] || "—"}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

@@ -2503,9 +2503,14 @@ function requireProjectGoals(context: Context) {
   }
   return context.projectGoals;
 }
-function rethrowProjectGoalError(error: unknown): never {
+function rethrowProjectGoalError(error: unknown, targetId: string): never {
   if (error instanceof ProjectGoalConflictError) {
-    throw new ORPCError("CONFLICT", { cause: error });
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: { code: "CONFLICT", targetId },
+      defined: true,
+      message: "Conflict",
+    });
   }
   throw error;
 }
@@ -2536,7 +2541,7 @@ export const appRouter = {
         }
         return record;
       } catch (error) {
-        rethrowProjectGoalError(error);
+        rethrowProjectGoalError(error, input.id);
       }
     }),
   updateProjectGoal: protectedProcedure
@@ -2552,7 +2557,7 @@ export const appRouter = {
         }
         return record;
       } catch (error) {
-        rethrowProjectGoalError(error);
+        rethrowProjectGoalError(error, input.id);
       }
     }),
   documentTemplates: protectedProcedure
