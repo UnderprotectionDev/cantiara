@@ -11,6 +11,11 @@ import ProjectSmartCollectionsSurface, {
   smartCollectionSubscriptionMutationInput,
 } from "./project-smart-collections-surface";
 
+// Favorites has its own membership seam; this suite exercises subscriptions.
+vi.mock("@/features/favorites/ui/components/favorite-control", () => ({
+  default: () => null,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useLinkProps: () => ({ href: "/projects/project-1#create" }),
 }));
