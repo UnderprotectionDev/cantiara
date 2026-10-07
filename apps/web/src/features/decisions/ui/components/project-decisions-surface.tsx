@@ -49,7 +49,7 @@ export default function ProjectDecisionsSurface({
   async function refresh(message: string) {
     pendingWrite.current = null;
     setSavedMessage(message);
-    await queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({ queryKey: options.queryKey });
   }
   async function save(draft: DecisionDraft, record?: DecisionRecord) {
     const fields = {
