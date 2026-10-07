@@ -4,7 +4,6 @@ import { expect, test } from "@playwright/test";
 const workLinkName = /Open source record\s*: .*Investigate payments/;
 const workRoute = /#work-/;
 const projectLinkName = /Open source record\s*: Return to Work Project/;
-const projectRoute = /#overview$/;
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
 test("Return to Work saves independent source hints, opens current sources, and preserves drafts after a failure", async ({
@@ -111,13 +110,50 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(successToast).toHaveCSS("opacity", "1");
   await expect(successToast).toBeInViewport();
   await page.screenshot({ path: "../../.context/return-save-feedback.png" });
+  await page.route("**/rpc/returnToWork", (route) =>
+    route.fulfill({ status: 503, body: "Summary refresh unavailable" }),
+  );
+  await summary
+    .getByLabel("Next concrete step")
+    .fill("Check the saved step after a refresh failure");
+  const saveBeforeRefreshFailure = page.waitForResponse((response) =>
+    response.url().endsWith("/rpc/saveNextConcreteStep"),
+  );
+  await summary.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await saveBeforeRefreshFailure).ok()).toBe(true);
+  await expect(
+    summary.getByText("Return to Work is unavailable. Try loading it again.", {
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    summary.getByRole("button", { name: "Save", exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("**/rpc/returnToWork");
+  await summary.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(summary.getByLabel("Next concrete step")).toHaveValue(
+    "Check the saved step after a refresh failure",
+  );
+  await summary
+    .getByLabel("Next concrete step")
+    .fill("Ask about payment failures");
+  const saveAfterRefreshRetry = page.waitForResponse((response) =>
+    response.url().endsWith("/rpc/saveNextConcreteStep"),
+  );
+  await summary.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await saveAfterRefreshRetry).ok()).toBe(true);
+  await expect(
+    summary
+      .getByRole("list")
+      .getByText("Ask about payment failures", { exact: true }),
+  ).toBeVisible();
   await summary
     .getByRole("list")
     .getByRole("link", {
       name: projectLinkName,
     })
     .click();
-  await expect(page).toHaveURL(projectRoute);
+  await expect(page).toHaveURL(`${projectUrl}#overview`);
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Ask about payment failures",
   );
@@ -146,12 +182,14 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(
     page.getByRole("heading", { name: "Investigate payments", exact: true }),
   ).toBeVisible();
+  await expect(page).toHaveURL(workRoute);
+  const workUrl = page.url();
   await page.goto(projectUrl);
   await expect(
     summary.getByText("Recently edited", { exact: false }).first(),
   ).toBeVisible();
   await summary.getByRole("link", { name: workLinkName }).click();
-  await expect(page).toHaveURL(workRoute);
+  await expect(page).toHaveURL(workUrl);
   await expect(
     page.getByRole("heading", { name: "Investigate payments", exact: true }),
   ).toBeVisible();
