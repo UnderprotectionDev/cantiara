@@ -24,6 +24,9 @@ function testClient(session: Context["session"] | null) {
     create: vi.fn().mockResolvedValue(decisionRecord),
     find: vi.fn().mockResolvedValue(decisionRecord),
     list: vi.fn().mockResolvedValue([decisionRecord]),
+    listDecisions: vi
+      .fn()
+      .mockResolvedValue({ records: [decisionRecord], readOnly: false }),
     transition: vi
       .fn()
       .mockResolvedValue({ ...decisionRecord, life: "Withdrawn" }),

@@ -296,6 +296,7 @@ const app = createApp({
   githubIdentityConfirmation,
   nodeEnv: "test",
   projectGoals: createDatabaseProjectGoals(database),
+  projectSourceRecords,
   personalReminders,
   favorites: createDatabaseFavorites(database),
   priorityMetricMutationContracts,
