@@ -64,6 +64,7 @@ export default function ProjectGoalMembership({
     <ProjectGoalMembershipView
       detail={detail.data}
       onSetRelation={setRelation}
+      projectId={projectId}
     />
   );
 }

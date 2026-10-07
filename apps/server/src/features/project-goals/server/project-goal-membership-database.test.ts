@@ -1,6 +1,8 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Membership commands deliberately verify sequential revisions and retries.
 import { createDb } from "@cantiara/db";
+import { assumption } from "@cantiara/db/schema/assumption";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
 import {
   mutationHistory,
   mutationReceipt,
@@ -39,6 +41,8 @@ suite("Project Goals membership PostgreSQL seam", () => {
   const workId = crypto.randomUUID();
   const milestoneId = crypto.randomUUID();
   const releaseId = crypto.randomUUID();
+  const decisionId = crypto.randomUUID();
+  const assumptionId = crypto.randomUUID();
   const riskId = crypto.randomUUID();
   const questionId = crypto.randomUUID();
   const targets: string[] = [];
@@ -118,6 +122,18 @@ suite("Project Goals membership PostgreSQL seam", () => {
     await db
       .insert(risk)
       .values({ id: riskId, projectId, title: "Insufficient feedback" });
+    await db.insert(decision).values({
+      id: decisionId,
+      projectId,
+      title: "Keep the first release small",
+      decision: "Ship a narrow release",
+    });
+    await db.insert(assumption).values({
+      id: assumptionId,
+      projectId,
+      title: "Founders need context",
+      statement: "Context improves return to work",
+    });
     await db.insert(openQuestion).values({
       id: questionId,
       projectId,
@@ -251,6 +267,39 @@ suite("Project Goals membership PostgreSQL seam", () => {
       (await goals.membership?.detail(accountId, { projectId, id: goalId }))
         ?.openQuestionsAndRisks,
     ).toEqual([]);
+  });
+  test("allows source-linked Related Decisions and Assumptions without counting contribution", async () => {
+    const goals = access();
+    for (const [type, id] of [
+      ["Decision", decisionId],
+      ["Assumption", assumptionId],
+    ]) {
+      const member = await goals.membership?.setRelation(
+        accountId,
+        command(type, id, "Related"),
+      );
+      expect(member).toMatchObject({
+        attached: true,
+        kind: "Related",
+        source: { recordType: type, recordId: id, unavailable: false },
+      });
+      if (member) {
+        targets.push(member.id);
+      }
+      expect(member?.source.openPath).toContain("#source-");
+    }
+    const detail = await goals.membership?.detail(accountId, {
+      projectId,
+      id: goalId,
+    });
+    expect(detail?.candidates.map((source) => source.recordType)).toContain(
+      "Decision",
+    );
+    expect(detail?.statusMix).toEqual([]);
+    expect(detail?.openQuestionsAndRisks).toEqual([]);
+    await expect(
+      goals.membership?.setRelation(accountId, command("Decision", decisionId)),
+    ).rejects.toThrow();
   });
   test("retains historical membership after member or Goal deletion and isolates ownership and archive", async () => {
     const goals = access();

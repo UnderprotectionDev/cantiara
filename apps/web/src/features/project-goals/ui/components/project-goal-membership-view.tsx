@@ -6,6 +6,7 @@ import type {
 } from "@cantiara/api/project-goals";
 import { isAllowedRelationEndpoints } from "@cantiara/api/relations";
 import { Button } from "@cantiara/ui/components/button";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 export interface GoalRelationChange {
@@ -17,26 +18,36 @@ export interface GoalRelationChange {
 function selectionKey(source: ProjectGoalSource) {
   return JSON.stringify([source.recordType, source.recordId]);
 }
-function SourceLink({ source }: { source: ProjectGoalSource }) {
+function SourceLink({
+  source,
+  projectId,
+}: {
+  source: ProjectGoalSource;
+  projectId: string;
+}) {
   if (!source.title) {
     return <span>Unavailable source record</span>;
   }
   return source.openPath ? (
-    <a
+    <Link
       className="inline-flex min-h-11 items-center underline underline-offset-4"
-      href={source.openPath}
+      hash={source.openPath.split("#")[1] ?? ""}
+      params={{ projectId }}
+      to="/projects/$projectId"
     >
       {source.title}
-    </a>
+    </Link>
   ) : (
     <span>{source.title}</span>
   );
 }
 export function ProjectGoalMembershipView({
   detail,
+  projectId,
   onSetRelation,
 }: {
   detail: ProjectGoalDetail;
+  projectId: string;
   onSetRelation: (change: GoalRelationChange) => Promise<unknown>;
 }) {
   const [selection, setSelection] = useState("");
@@ -123,7 +134,7 @@ export function ProjectGoalMembershipView({
                     key={row.id}
                   >
                     <div className="min-w-0 break-words">
-                      <SourceLink source={row.source} />
+                      <SourceLink projectId={projectId} source={row.source} />
                       <span className="pl-2 text-muted-foreground text-sm">
                         {row.source.workType ?? row.source.recordType}
                         {row.source.status ? ` · ${row.source.status}` : ""}
@@ -222,7 +233,10 @@ export function ProjectGoalMembershipView({
                       )
                       .map((relation) => (
                         <li key={relation.id}>
-                          <SourceLink source={relation.source} />
+                          <SourceLink
+                            projectId={projectId}
+                            source={relation.source}
+                          />
                         </li>
                       ))}
                   </ul>
@@ -239,7 +253,7 @@ export function ProjectGoalMembershipView({
             <ul>
               {detail.openQuestionsAndRisks.map((source) => (
                 <li key={selectionKey(source)}>
-                  <SourceLink source={source} />
+                  <SourceLink projectId={projectId} source={source} />
                   <span className="pl-2 text-sm">
                     {source.recordType} · {source.status}
                   </span>
