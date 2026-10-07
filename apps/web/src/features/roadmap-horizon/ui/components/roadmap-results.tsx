@@ -15,12 +15,14 @@ import {
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, projectWorksQueryPrefix } from "@/utils/orpc";
+import { useRoadmapSession } from "../../store/roadmap-session";
+import LiveRoadmapCanvas from "./live-roadmap-canvas";
 import ResearchDirection from "./research-direction";
 import RoadmapPlacementEditor from "./roadmap-placement";
 
@@ -349,18 +351,29 @@ function RoadmapWorkItem({
 }
 
 export function RoadmapResults({
+  projectId,
   blockers,
   origins,
   presentationMode,
   view,
   works,
 }: {
+  projectId?: string;
   blockers: RoadmapBlocker[];
   origins: RoadmapOriginLink[];
   presentationMode: boolean;
   view: RoadmapView | null;
   works: WorkProfile[];
 }) {
+  const session = useRoadmapSession();
+  useEffect(() => {
+    if (
+      session &&
+      JSON.stringify(session.state.view) !== JSON.stringify(view)
+    ) {
+      session.setState((state) => ({ ...state, view }));
+    }
+  }, [session, view]);
   const roadmapWorks = works.map((work) => ({
     ...work,
     horizon: work.roadmapHorizon ?? null,
@@ -391,6 +404,9 @@ export function RoadmapResults({
 
   return (
     <div className="grid gap-6">
+      {Boolean(projectId) && (
+        <LiveRoadmapCanvas projectId={projectId ?? ""} view={view} />
+      )}
       <div className="grid gap-6">
         {shown.length ? (
           Array.from(groups, ([group, items]) => (

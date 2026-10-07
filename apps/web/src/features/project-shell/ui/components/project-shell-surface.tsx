@@ -59,6 +59,7 @@ import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-a
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
 import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
+import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
 import {
   clearSmartCollectionWorkPrefillSearch,
@@ -143,7 +144,17 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
   return null;
 }
 
-export default function ProjectShellSurface({
+export default function ProjectShellSurface(
+  props: Parameters<typeof ProjectShellContent>[0],
+) {
+  return (
+    <RoadmapSessionProvider key={props.projectId}>
+      <ProjectShellContent {...props} />
+    </RoadmapSessionProvider>
+  );
+}
+
+function ProjectShellContent({
   accountId,
   accountFormattingPreferences,
   project,

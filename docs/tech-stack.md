@@ -84,7 +84,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: ileri
 
 ## İçerik ve görsel çalışma alanları
 
-Return to Work görsel turu `packages/api/src/return-visual-tour.ts` üzerinden canvas sahibinin public viewport adaptörünü çağırır. Kesin hedefi güncel yetkili görünümde bulma, highlight/pan, anlamlı viewport geri yükleme ve görünür içeriğe sığdırma canvas sahibindedir. Adaptör viewport snapshot'ını kendisi anlamlandırır; sürücü onu kalıcılaştırmaz, DOM scroll veya canvas motoru kurmaz. `showTarget` iptal sinyalini izlemeli, iptalde hızla sonlanmalı ve promise sonlandıktan sonra hareket uygulamamalıdır; kapanış restore'u bekleyen hareket sonlandıktan sonra çalışır. Bu sözleşmenin test karşılığı spec 36'nın Testing Decisions bölümündeki #295 hazırlık dilimidir. Gerçek yüzey adaptörleri henüz yoktur; bu seçim onların teknoloji sahipliğini değiştirmez.
+Return to Work calls the canvas owner's public viewport API through `packages/api/src/return-visual-tour.ts`. Roadmap's `lib/roadmap-viewport.ts` resolves exact targets in its current authorized view and owns meaningful restore/fit. React Flow moves use zero duration so canceled movement cannot outlive close. The Project-scoped TanStack Store (`store/roadmap-session.tsx`) shares the current view and viewport, without storage or cross-session persistence. UI uses the existing shadcn/Base UI Dialog and Button pattern (`packages/ui/src/components/dialog.tsx`) and TanStack Query live record queries. Tests bind to spec 36's #295 Testing Decisions; other canvas features retain their viewport ownership.
 
 | Teknoloji | Amaç |
 | --- | --- |
@@ -94,7 +94,7 @@ Return to Work görsel turu `packages/api/src/return-visual-tour.ts` üzerinden 
 | `diff` (jsdiff) | Metin ve sürüm karşılaştırma |
 | Mermaid.js | Diyagramlar |
 | KaTeX | Matematik gösterimi |
-| React Flow (xyflow) | İlişki ve akış canvas'ı |
+| React Flow (xyflow) | İlişki ve akış canvas'ı ; Roadmap live record projection and exact target viewport adapter (`apps/web/src/features/roadmap-horizon/ui/components/roadmap-canvas.tsx`) |
 | Custom Wireframe Engine (TypeScript) | Canonical `WireframeDocument` modeli; command/transaction, araç, seçim, history, snapping, binding, constraint, semantic component, state, mirror ve detach davranışları |
 | Konva | Wireframe ve görsel/PDF işaretleme için Canvas 2D renderer, katman, hit detection ve geçici transform altyapısı |
 | React-Konva | Konva'nın React görünüm adaptörü; canonical veri veya history kaynağı değildir |

@@ -249,6 +249,12 @@ suite("Return to Work PostgreSQL seam", () => {
         events: [
           expect.objectContaining({
             kind: "Work updated",
+            visualTarget: {
+              surface: "Roadmap",
+              surfaceId: currentProject.id,
+              recordType: "Work",
+              recordId: currentWork.id,
+            },
             source: expect.objectContaining({
               id: currentWork.id,
               title: "RETURN-1 · Follow up with customer",

@@ -4,6 +4,7 @@ import type {
   ReturnEvent,
   ReturnEventKind,
   ReturnEventSource,
+  ReturnVisualTarget,
 } from "@cantiara/api/return-to-work";
 import type { Database } from "@cantiara/db";
 import { decision } from "@cantiara/db/schema/decision";
@@ -25,6 +26,7 @@ interface EventSource {
   snapshotKey: "work" | "decision" | "risk" | "document" | "projectRelease";
   source: ReturnEventSource;
   updatedKind: ReturnEventKind;
+  visualTarget?: ReturnVisualTarget;
 }
 export async function readReturnChanges(
   database: Database,
@@ -62,6 +64,9 @@ export async function readReturnChanges(
             kind: record.createdKind,
             occurredAt: record.createdAt.toISOString(),
             source: record.source,
+            ...(record.visualTarget
+              ? { visualTarget: record.visualTarget }
+              : {}),
           },
         ]
       : [],
@@ -105,6 +110,12 @@ async function readEventSources(
       projectId: context.projectId,
       title: `${record.key} · ${record.title}`,
       sourcePath: `${projectPath}#work-${encodeURIComponent(record.id)}`,
+    },
+    visualTarget: {
+      surface: "Roadmap",
+      surfaceId: context.projectId,
+      recordType: "Work",
+      recordId: record.id,
     },
     createdAt: record.createdAt,
     createdKind: "Work created",
@@ -244,6 +255,7 @@ function eventsFromHistory(
           : record.updatedKind,
       occurredAt: entry.occurredAt.toISOString(),
       source: record.source,
+      ...(record.visualTarget ? { visualTarget: record.visualTarget } : {}),
     });
   }
 
