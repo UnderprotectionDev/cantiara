@@ -53,3 +53,52 @@ test("Since you last looked shows a semantic group, event time and the current s
   expect(markup).toContain('href="/projects/p#work-w"');
   expect(markup).toContain("Open source record");
 });
+
+test("the explicit tour action uses only events with an exact visual target", () => {
+  const root = createRootRoute({});
+  const router = createRouter({
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+    routeTree: root,
+  });
+  const changes = {
+    lastViewedAt: "2026-10-06T12:00:00.000Z",
+    groups: [
+      {
+        name: "Work" as const,
+        events: [
+          {
+            id: "event",
+            kind: "Work updated" as const,
+            occurredAt: "2026-10-07T10:00:00.000Z",
+            source: {
+              id: "w",
+              projectId: "p",
+              title: "PAY-1 · Payment retry",
+              sourcePath: "/projects/p#work-w",
+            },
+            visualTarget: {
+              surface: "Roadmap" as const,
+              surfaceId: "p",
+              recordType: "Work" as const,
+              recordId: "w",
+            },
+          },
+        ],
+      },
+    ],
+  };
+  const markup = renderToStaticMarkup(
+    <RouterContextProvider router={router}>
+      <SinceLastLooked changes={changes} projectId="p" />
+    </RouterContextProvider>,
+  );
+  expect(markup).toContain("Tour the visual changes");
+  expect(markup).toContain('id="return-event-event"');
+  const firstVisit = renderToStaticMarkup(
+    <SinceLastLooked
+      changes={{ ...changes, lastViewedAt: null }}
+      projectId="p"
+    />,
+  );
+  expect(firstVisit).not.toContain("Tour the visual changes");
+});

@@ -11,6 +11,7 @@ Bir sorumluluğun sahibi bu belgede yoksa, birden fazla yoruma açıksa veya se�
 | Teknoloji | Amaç |
 | --- | --- |
 | React | Web arayüzü ve yalnız tek bir component'a ait geçici UI durumu |
+| TypeScript | Return to Work görsel turunun framework bağımsız, bellekte yaşayan sürücüsü ve canvas viewport adaptör sözleşmesi; mevcut `packages/api/src/return-to-work.ts` türetilmiş özet örüntüsünü kullanır |
 | Vite | Web geliştirme ve derleme |
 | TanStack Router | Yönlendirme ve URL durumu |
 | Hono | API backend'i ve herkese açık HTML/SEO yanıtları |
@@ -83,6 +84,8 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: ileri
 
 ## İçerik ve görsel çalışma alanları
 
+Return to Work calls the canvas owner's public viewport API through `packages/api/src/return-visual-tour.ts`. Roadmap's `lib/roadmap-viewport.ts` resolves exact targets in its current authorized view and owns meaningful restore/fit. React Flow moves use zero duration so canceled movement cannot outlive close. The Project-scoped TanStack Store (`store/roadmap-session.tsx`) shares the current view and viewport, without storage or cross-session persistence. UI uses the existing shadcn/Base UI Dialog and Button pattern (`packages/ui/src/components/dialog.tsx`) and TanStack Query live record queries. Tests bind to spec 36's #295 Testing Decisions; other canvas features retain their viewport ownership.
+
 | Teknoloji | Amaç |
 | --- | --- |
 | Tiptap | Canvas dışındaki zengin metin belgelerini düzenleme |
@@ -91,7 +94,7 @@ Uyumluluk karşılıkları aynı Testing Decisions seam'inde doğrulanır: ileri
 | `diff` (jsdiff) | Metin ve sürüm karşılaştırma |
 | Mermaid.js | Diyagramlar |
 | KaTeX | Matematik gösterimi |
-| React Flow (xyflow) | İlişki ve akış canvas'ı |
+| React Flow (xyflow) | İlişki ve akış canvas'ı ; Roadmap live record projection and exact target viewport adapter (`apps/web/src/features/roadmap-horizon/ui/components/roadmap-canvas.tsx`) |
 | Custom Wireframe Engine (TypeScript) | Canonical `WireframeDocument` modeli; command/transaction, araç, seçim, history, snapping, binding, constraint, semantic component, state, mirror ve detach davranışları |
 | Konva | Wireframe ve görsel/PDF işaretleme için Canvas 2D renderer, katman, hit detection ve geçici transform altyapısı |
 | React-Konva | Konva'nın React görünüm adaptörü; canonical veri veya history kaynağı değildir |

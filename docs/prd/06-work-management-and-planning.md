@@ -380,3 +380,9 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 - **Kullanıcı arayüzü açıkken bir otomasyon kaynak kaydı değiştirdiğinde tek bir sonuç bildirimi açılır ve güvenli değişiklikler için `10 saniye içinde geri al` eylemi sunar; süre sonunda bildirim kendiliğinden kapanır.** Daha sonra geri alma, her kaynak kaydın normal değişiklik geçmişinden ayrı ayrı başlatılabilir. Önizleme otomasyonun yazdığı alanları ve o andan sonraki değişiklikleri gösterir; ilgisiz sonraki düzenlemeleri korur, aynı alandaki daha yeni değerle çatışıyorsa sessizce üzerine yazmak yerine işlemi durdurup çatışmayı açıklar.
 
 - **Her otomasyon değişikliği kaynak kaydın normal etkinlik/değişiklik geçmişinde ilgili kural, kural tanımı sürümü, tetikleyici, sağlanan koşullar ve uygulanan eylemle açıklanır.** Kural, tetikleyici ve etkilenen bütün kayıtları tek run altında birleştiren ayrı otomasyon çalıştırma günlüğü veya run bazlı toplu geri alma sistemi bulunmaz.
+
+| Roadmap viewport control | English UI label |
+| --- | --- |
+| Increase viewport zoom | `Zoom in` |
+| Decrease viewport zoom | `Zoom out` |
+| Fit current visible content | `Fit View` |

@@ -148,6 +148,7 @@ function RoadmapContent({
         blockers={blockers}
         origins={origins}
         presentationMode={presentationMode}
+        projectId={projectId}
         view={null}
         works={works}
       />
@@ -164,6 +165,7 @@ function RoadmapContent({
           blockers={blockers}
           origins={origins}
           presentationMode={isPresentationMode}
+          projectId={projectId}
           view={view}
           works={works}
         />

@@ -39,7 +39,10 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
     .getByRole("button", { name: "Create", exact: true })
     .click();
   await expect(
-    page.getByText("Prepare Focus Period release").first(),
+    page.getByRole("heading", {
+      name: "Prepare Focus Period release",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Create", exact: true }).click();
   await page.getByLabel("Title").fill("Retire Focus Period draft");
@@ -48,7 +51,10 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
     .getByRole("button", { name: "Create", exact: true })
     .click();
   await expect(
-    page.getByText("Retire Focus Period draft").first(),
+    page.getByRole("heading", {
+      name: "Retire Focus Period draft",
+      exact: true,
+    }),
   ).toBeVisible();
 
   await page.goto("/focus-periods");

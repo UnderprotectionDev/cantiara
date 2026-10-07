@@ -103,10 +103,11 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
         ) : (
           <p className="text-muted-foreground text-sm">No return cards yet.</p>
         ))}
-      {query.isSuccess && !query.isFetching && (
+      {query.isSuccess === true && (
         <SinceLastLooked
           changes={query.data.sinceLastLooked}
           preferences={preferences}
+          projectId={projectId}
         />
       )}
       {visitError === true && (

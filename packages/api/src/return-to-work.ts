@@ -90,11 +90,24 @@ export type ReturnEventSource = Pick<
   ReturnSource,
   "id" | "projectId" | "title" | "sourcePath"
 >;
+export type ReturnVisualTarget =
+  | {
+      surface: "Project Wall" | "User Flow" | "Screen Wireframe" | "Moodboard";
+      surfaceId: string;
+      elementId: string;
+    }
+  | {
+      surface: "Roadmap";
+      surfaceId: string;
+      recordType: "Work" | "Milestone";
+      recordId: string;
+    };
 export interface ReturnEvent {
   id: string;
   kind: ReturnEventKind;
   occurredAt: string;
   source: ReturnEventSource;
+  visualTarget?: ReturnVisualTarget;
 }
 export type ReturnEventCandidate = Omit<ReturnEvent, "kind"> & { kind: string };
 export interface ReturnChanges {
