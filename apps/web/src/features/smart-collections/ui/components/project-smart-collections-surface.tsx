@@ -465,10 +465,12 @@ function CollectionViewCard({
       <p className="text-muted-foreground text-sm">
         {view.sourceType} · {view.presentation}
       </p>
-      <FavoriteControl
-        sourceRecordId={view.collectionId}
-        sourceRecordType="Smart Collection"
-      />
+      {view.preparedReason ? null : (
+        <FavoriteControl
+          sourceRecordId={view.collectionId}
+          sourceRecordType="Smart Collection"
+        />
+      )}
       {view.preparedReason ? null : (
         <CollectionSubscriptionControls view={view} />
       )}

@@ -587,6 +587,24 @@ test("optional Project status-age threshold shows neutral return cards and a liv
   ).toBeVisible();
   await expect(page.getByText(agedWorkTitle).first()).toBeVisible();
   await expect(page.getByText("Subscribe", { exact: true })).toHaveCount(0);
+  const preparedCollection = page
+    .locator("section")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Long in the same status · Default",
+      }),
+    })
+    .last();
+  await expect(
+    preparedCollection.getByRole("button", {
+      name: "Add to Favorites",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: "../../.context/long-status-collection.png",
+    fullPage: true,
+  });
   await page
     .getByRole("button", { name: "Configuration Mode", exact: true })
     .click();
