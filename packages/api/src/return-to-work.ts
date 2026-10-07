@@ -50,8 +50,66 @@ export type ReturnCard = Omit<
 > & {
   reasons: (typeof RETURN_CARD_REASONS)[number][];
 };
+export const RETURN_EVENT_GROUPS = {
+  Work: ["Work created", "Work updated"],
+  Decisions: ["Decision recorded", "Decision updated"],
+  Risks: ["Risk recorded", "Risk updated"],
+  Documents: ["Document created", "Document updated"],
+  GitHub: ["GitHub development signal"],
+  Publish: ["Project Release published"],
+} as const;
+export type ReturnEventSource = Pick<
+  ReturnSource,
+  "id" | "projectId" | "title" | "sourcePath"
+>;
+export interface ReturnEvent {
+  id: string;
+  kind: string;
+  occurredAt: string;
+  source: ReturnEventSource;
+}
+export interface ReturnChanges {
+  events: ReturnEvent[];
+  lastViewedAt: string | null;
+}
+export interface SinceLastLooked {
+  groups: { name: keyof typeof RETURN_EVENT_GROUPS; events: ReturnEvent[] }[];
+  lastViewedAt: string | null;
+}
+export function sinceLastLooked(
+  changes: ReturnChanges,
+  now: Date,
+): SinceLastLooked {
+  const lastViewedAt = Date.parse(changes.lastViewedAt ?? "");
+  const events =
+    changes.lastViewedAt === null
+      ? []
+      : changes.events
+          .filter(
+            (event) =>
+              Date.parse(event.occurredAt) > lastViewedAt &&
+              Date.parse(event.occurredAt) <= now.getTime(),
+          )
+          .sort(
+            (a, b) =>
+              a.occurredAt.localeCompare(b.occurredAt) ||
+              a.id.localeCompare(b.id),
+          );
+  const groups: SinceLastLooked["groups"] = [];
+  for (const name of Object.keys(
+    RETURN_EVENT_GROUPS,
+  ) as (keyof typeof RETURN_EVENT_GROUPS)[]) {
+    const kinds: readonly string[] = RETURN_EVENT_GROUPS[name];
+    const grouped = events.filter((event) => kinds.includes(event.kind));
+    if (grouped.length > 0) {
+      groups.push({ name, events: grouped });
+    }
+  }
+  return { lastViewedAt: changes.lastViewedAt, groups };
+}
 export interface ReturnToWorkSummary {
   cards: ReturnCard[];
+  sinceLastLooked: SinceLastLooked;
   source: ReturnSource | null;
 }
 export interface ReturnToWorkAccess {

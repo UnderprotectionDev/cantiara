@@ -18,6 +18,7 @@ import { work } from "@cantiara/db/schema/work";
 import { ORPCError } from "@orpc/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { createDatabaseAccountPreferences } from "../../account-preferences/server/account-preferences-database";
+import { readReturnChanges } from "./return-events-database";
 import { createReturnToWork } from "./return-to-work";
 
 // The integration owns pending GitHub signals. Never infer one from a link or handoff.
@@ -171,6 +172,10 @@ export function createDatabaseReturnToWork(
         });
       }
       return sources;
+    },
+    async readChanges(accountId, context) {
+      await requireContext(accountId, context);
+      return readReturnChanges(database, accountId, context);
     },
     async saveNextStep(accountId, rawInput) {
       const input = saveNextConcreteStepInputSchema.parse(rawInput);

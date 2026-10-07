@@ -6,7 +6,11 @@ import { describe, expect, test, vi } from "vitest";
 
 function setup() {
   const returnToWork: ReturnToWorkAccess = {
-    read: vi.fn().mockResolvedValue({ cards: [], source: null }),
+    read: vi.fn().mockResolvedValue({
+      cards: [],
+      source: null,
+      sinceLastLooked: { lastViewedAt: null, groups: [] },
+    }),
     markViewed: vi.fn().mockResolvedValue(undefined),
     saveNextStep: vi.fn().mockResolvedValue(undefined),
   };
@@ -25,6 +29,24 @@ describe("Return to Work RPC seam", () => {
     nextConcreteStep: "Ask about payment failures",
   };
 
+  test("an external visitor cannot read or write Account visit marks", async () => {
+    const returnToWork: ReturnToWorkAccess = {
+      read: vi.fn(),
+      markViewed: vi.fn(),
+      saveNextStep: vi.fn(),
+    };
+    const client = createRouterClient(appRouter, {
+      context: { returnToWork, session: null } as Context,
+    });
+    await expect(
+      client.returnToWork({ projectId: "project-1" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      client.markReturnContextViewed({ projectId: "project-1" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(returnToWork.read).not.toHaveBeenCalled();
+    expect(returnToWork.markViewed).not.toHaveBeenCalled();
+  });
   test("saves the next step and marks visits through the authenticated account", async () => {
     const { client, returnToWork } = setup();
     await client.saveNextConcreteStep({ ...projectInput, workId: "work-1" });
