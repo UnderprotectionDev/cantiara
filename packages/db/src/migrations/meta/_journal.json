@@ -680,6 +680,13 @@
       "when": 1791363633824,
       "tag": "0096_parallel_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1791364123202,
+      "tag": "0097_short_firestar",
+      "breakpoints": true
     }
   ]
 }

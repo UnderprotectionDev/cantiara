@@ -2629,6 +2629,9 @@ export function createWorkLifecycle({
             work: {
               ...currentValue.work,
               ...input.fields,
+              ...(input.fields.nextConcreteStep === undefined
+                ? {}
+                : { nextConcreteStepUpdatedAt: committedAt }),
               ...(changedStatus
                 ? {
                     closureReason: null,

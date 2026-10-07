@@ -394,6 +394,13 @@ export const updateWorkFieldsInputSchema = humanMutationEnvelopeSchema
       .object({
         description: workDescriptionSchema.optional(),
         effort: workEffortSchema.optional(),
+        nextConcreteStep: z
+          .string()
+          .trim()
+          .max(4000)
+          .nullable()
+          .transform((value) => value || null)
+          .optional(),
         plannedStartDate: workPlannedStartDateSchema.optional(),
         status: workOpenStatusSchema.optional(),
         targetDate: workTargetDateSchema.optional(),
@@ -812,6 +819,8 @@ export interface WorkProfile {
   featureHealthHistory: FeatureHealthUpdate[];
   id: string;
   key: string;
+  nextConcreteStep?: string | null;
+  nextConcreteStepUpdatedAt?: string | null;
   notNow?: WorkNotNowSummary;
   number: number;
   originPosition?: WorkOriginPosition;

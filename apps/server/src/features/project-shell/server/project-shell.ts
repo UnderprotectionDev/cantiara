@@ -82,6 +82,8 @@ function toProfile(record: ProjectShellRecord): ProjectProfile {
   return {
     configuration: record.configuration,
     createdAt: record.createdAt,
+    nextConcreteStep: record.nextConcreteStep,
+    nextConcreteStepUpdatedAt: record.nextConcreteStepUpdatedAt,
     id: record.id,
     logo: record.logo,
     name: record.name,

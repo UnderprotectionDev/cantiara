@@ -120,6 +120,9 @@ function toWorkProfile(record: WorkDatabaseRecord): WorkProfile {
       ? workClosureResultSchema.parse(record.closureResult)
       : null,
     createdAt: record.createdAt.toISOString(),
+    nextConcreteStep: record.nextConcreteStep,
+    nextConcreteStepUpdatedAt:
+      record.nextConcreteStepUpdatedAt?.toISOString() ?? null,
     description: record.description,
     expectedOutcome: record.expectedOutcome,
     effort: record.effort,
@@ -586,6 +589,10 @@ function createWorkMutationTarget(
           closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
           createdAt: new Date(nextWork.createdAt),
+          nextConcreteStep: nextWork.nextConcreteStep,
+          nextConcreteStepUpdatedAt: nextWork.nextConcreteStepUpdatedAt
+            ? new Date(nextWork.nextConcreteStepUpdatedAt)
+            : null,
           description: nextWork.description,
           expectedOutcome: nextWork.expectedOutcome ?? null,
           effort: nextWork.effort,
@@ -1340,6 +1347,10 @@ function createWorkUpdateMutationTarget(
           checklist: nextWork.checklist,
           closureReason: nextWork.closureReason,
           closureResult: nextWork.closureResult,
+          nextConcreteStep: nextWork.nextConcreteStep,
+          nextConcreteStepUpdatedAt: nextWork.nextConcreteStepUpdatedAt
+            ? new Date(nextWork.nextConcreteStepUpdatedAt)
+            : null,
           description: nextWork.description,
           effort: nextWork.effort,
           featureHealthHistory: nextWork.featureHealthHistory,

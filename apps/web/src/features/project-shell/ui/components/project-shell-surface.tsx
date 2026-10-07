@@ -58,6 +58,7 @@ import {
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
+import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
 import {
   clearSmartCollectionWorkPrefillSearch,
@@ -353,6 +354,7 @@ export default function ProjectShellSurface({
           project={project}
         />
 
+        <ReturnToWork projectId={projectId} />
         <ScopeTreeSection query={scopeTreeQuery} />
 
         <section
