@@ -196,6 +196,13 @@ import {
   updatePriorityMetricMutationInputSchema,
 } from "../priority-metrics";
 import {
+  createProjectGoalInputSchema,
+  ProjectGoalConflictError,
+  projectGoalInputSchema,
+  projectGoalsProjectInputSchema,
+  updateProjectGoalInputSchema,
+} from "../project-goals";
+import {
   applyProjectShellConfigurationChange,
   createProjectInputSchema,
   createProjectMutationInputSchema,
@@ -2490,7 +2497,69 @@ async function transferWikiDocument(
   }
 }
 
+function requireProjectGoals(context: Context) {
+  if (!context.projectGoals) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectGoals;
+}
+function rethrowProjectGoalError(error: unknown, targetId: string): never {
+  if (error instanceof ProjectGoalConflictError) {
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: { code: "CONFLICT", targetId },
+      defined: true,
+      message: "Conflict",
+    });
+  }
+  throw error;
+}
 export const appRouter = {
+  projectGoals: protectedProcedure
+    .input(projectGoalsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectGoals(context).list(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  projectGoal: protectedProcedure
+    .input(projectGoalInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectGoals(context).find(context.session.user.id, input),
+    ),
+  createProjectGoal: protectedProcedure
+    .input(createProjectGoalInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectGoals(context).create(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectGoalError(error, input.id);
+      }
+    }),
+  updateProjectGoal: protectedProcedure
+    .input(updateProjectGoalInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectGoals(context).update(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectGoalError(error, input.id);
+      }
+    }),
   documentTemplates: protectedProcedure
     .input(documentTemplateScopeSchema)
     .handler(async ({ context, input }) => {

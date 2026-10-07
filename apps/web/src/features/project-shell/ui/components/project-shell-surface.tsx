@@ -26,6 +26,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
+import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
 import ProjectOverviewSurface from "@/features/project-overview/ui/components/project-overview-surface";
 import {
   isProjectShellExplanationDismissed,
@@ -269,6 +270,15 @@ export default function ProjectShellSurface({
   }
 
   const projectSurface = (() => {
+    if (activeHash === "goals" || activeHash.startsWith("project-goal-")) {
+      return (
+        <ProjectGoalsRoute
+          hash={activeHash}
+          key={`${projectId}:${activeHash}`}
+          projectId={projectId}
+        />
+      );
+    }
     if (sourceRecordRoute) {
       return (
         <ProjectSourceRecordView

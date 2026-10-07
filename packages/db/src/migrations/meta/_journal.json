@@ -673,6 +673,13 @@
       "when": 1791238412206,
       "tag": "0095_personal-reminder-fire-history",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1791363633824,
+      "tag": "0096_parallel_whirlwind",
+      "breakpoints": true
     }
   ]
 }
