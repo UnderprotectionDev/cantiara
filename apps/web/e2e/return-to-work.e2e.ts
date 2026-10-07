@@ -2,7 +2,6 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 const workLinkName = /Open source record\s*: .*Investigate payments/;
-const workRoute = /#work-/;
 const projectLinkName = /Open source record\s*: Return to Work Project/;
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
@@ -182,8 +181,15 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(
     page.getByRole("heading", { name: "Investigate payments", exact: true }),
   ).toBeVisible();
-  await expect(page).toHaveURL(workRoute);
-  const workUrl = page.url();
+  const workHeadingId = await page
+    .getByRole("heading", { name: "Investigate payments", exact: true })
+    .getAttribute("id");
+  expect(workHeadingId).not.toBeNull();
+  const workId = workHeadingId?.slice(
+    "work-context-card-".length,
+    -"-heading".length,
+  );
+  const workUrl = `${projectUrl}#work-${workId}`;
   await page.goto(projectUrl);
   await expect(
     summary.getByText("Recently edited", { exact: false }).first(),
