@@ -283,7 +283,7 @@ export default function WorkContextCard({
         ))}
       </dl>
 
-      <ReturnToWork projectId={work.projectId} workId={work.id} />
+      <ReturnToWork key={work.id} projectId={work.projectId} workId={work.id} />
 
       <PriorityFoundations
         foundations={contextModel.priorityFoundations}

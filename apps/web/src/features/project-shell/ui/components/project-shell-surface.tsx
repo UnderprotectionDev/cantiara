@@ -354,7 +354,7 @@ export default function ProjectShellSurface({
           project={project}
         />
 
-        <ReturnToWork projectId={projectId} />
+        <ReturnToWork key={projectId} projectId={projectId} />
         <ScopeTreeSection query={scopeTreeQuery} />
 
         <section

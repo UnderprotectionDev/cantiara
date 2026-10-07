@@ -185,6 +185,23 @@ describeDatabase("Record Discovery universal search boundary", () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
     }
+    const [source] = await database
+      .select({ shortCode: project.shortCode })
+      .from(project)
+      .where(eq(project.id, projectId));
+    if (!source) {
+      throw new Error("Project fixture is unavailable.");
+    }
+    const keyMatches = await client().searchRecords({
+      query: source.shortCode,
+    });
+    expect(keyMatches).toEqual([
+      expect.objectContaining({
+        id: projectId,
+        snippet: expect.stringContaining(source.shortCode),
+      }),
+    ]);
+    expect(keyMatches[0]?.matchCount).toBeGreaterThan(0);
     await database
       .update(project)
       .set({ nextConcreteStep: "Inspect billing evidence" })

@@ -124,6 +124,28 @@ test("Return to Work saves independent source hints, opens current sources, and 
         .analyze()
     ).violations,
   ).toEqual([]);
+  let releaseVisit: (() => Promise<void>) | undefined;
+  await page.route(
+    "**/rpc/markReturnContextViewed",
+    (route) => {
+      releaseVisit = () =>
+        route.fulfill({ status: 503, body: "Delayed visit failure" });
+    },
+    { times: 1 },
+  );
+  await summary.getByRole("link", { name: workLinkName }).click();
+  await expect.poll(() => Boolean(releaseVisit)).toBe(true);
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("link", { name: "Overview", exact: true })
+    .click();
+  await expect(summary.getByLabel("Next concrete step")).toHaveValue(
+    "Ask about payment failures",
+  );
+  await releaseVisit?.();
+  await expect(
+    summary.getByText("The last visit could not be saved.", { exact: true }),
+  ).toBeHidden();
   await summary.screenshot({
     path: "../../.context/return-to-work.png",
   });

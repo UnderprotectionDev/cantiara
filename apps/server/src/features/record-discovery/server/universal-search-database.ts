@@ -796,7 +796,7 @@ async function searchProjectProfiles({
   query,
 }: SearchContext) {
   const titleKey = textContent([project.name, project.shortCode]);
-  const body = textContent([project.nextConcreteStep]);
+  const body = textContent([project.shortCode, project.nextConcreteStep]);
   const rows = await database
     .select({
       project,
