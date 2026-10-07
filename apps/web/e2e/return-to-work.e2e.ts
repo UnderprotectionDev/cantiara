@@ -20,6 +20,11 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await page.goto("/projects/new");
   await page.getByLabel("Project Name").fill("Return to Work Project");
   await page.getByRole("button", { name: "Create Project" }).click();
+  await page.route(
+    "**/rpc/markReturnContextViewed",
+    (route) => route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+    { times: 1 },
+  );
   await page
     .getByRole("link", { name: "Return to Work Project", exact: true })
     .click();
@@ -28,6 +33,13 @@ test("Return to Work saves independent source hints, opens current sources, and 
     name: "Return to Work",
     exact: true,
   });
+  await expect(
+    summary.getByText("The last visit could not be saved.", { exact: true }),
+  ).toBeVisible();
+  await summary.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(
+    summary.getByText("The last visit could not be saved.", { exact: true }),
+  ).toBeHidden();
   await summary
     .getByLabel("Next concrete step")
     .fill("Ask about payment failures");
@@ -36,6 +48,18 @@ test("Return to Work saves independent source hints, opens current sources, and 
     summary.getByText("Next concrete step saved.", { exact: true }),
   ).toHaveText("Next concrete step saved.");
   await page.reload();
+  await expect(summary.getByLabel("Next concrete step")).toHaveValue(
+    "Ask about payment failures",
+  );
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const discovery = page.getByRole("dialog", { name: "Search", exact: true });
+  await discovery
+    .getByRole("textbox", { name: "Search", exact: true })
+    .fill("Ask about payment failures");
+  await discovery
+    .getByRole("link", { name: "Open Return to Work Project", exact: true })
+    .click();
+  await expect(discovery).toBeHidden();
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Ask about payment failures",
   );

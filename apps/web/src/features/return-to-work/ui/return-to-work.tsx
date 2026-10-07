@@ -13,7 +13,7 @@ import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 import { runOnlineOnlyWrite } from "../../web-macos-client/store/client-shell";
@@ -32,28 +32,41 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
     DEFAULT_ACCOUNT_PREFERENCES;
   const [visitError, setVisitError] = useState(false);
   const viewedContext = useRef<string | null>(null);
-  useEffect(() => {
+  const visitsInFlight = useRef(new Set<string>());
+  const markViewed = useCallback(() => {
     const contextKey = `${projectId}:${workId ?? ""}`;
-    const mark = () => {
-      if (
-        viewedContext.current === contextKey ||
-        document.visibilityState !== "visible" ||
-        !query.isSuccess
-      ) {
-        return;
-      }
-      viewedContext.current = contextKey;
-      runOnlineOnlyWrite(() =>
-        client.markReturnContextViewed({
-          projectId,
-          ...(workId ? { workId } : {}),
-        }),
-      ).catch(() => setVisitError(true));
+    if (
+      viewedContext.current === contextKey ||
+      visitsInFlight.current.has(contextKey) ||
+      document.visibilityState !== "visible" ||
+      !query.isSuccess ||
+      query.isFetching
+    ) {
+      return;
+    }
+    visitsInFlight.current.add(contextKey);
+    runOnlineOnlyWrite(() =>
+      client.markReturnContextViewed({
+        projectId,
+        ...(workId ? { workId } : {}),
+      }),
+    )
+      .then(() => {
+        viewedContext.current = contextKey;
+        setVisitError(false);
+      })
+      .catch(() => setVisitError(true))
+      .finally(() => visitsInFlight.current.delete(contextKey));
+  }, [projectId, workId, query.isSuccess, query.isFetching]);
+  useEffect(() => {
+    markViewed();
+    document.addEventListener("visibilitychange", markViewed);
+    window.addEventListener("online", markViewed);
+    return () => {
+      document.removeEventListener("visibilitychange", markViewed);
+      window.removeEventListener("online", markViewed);
     };
-    mark();
-    document.addEventListener("visibilitychange", mark);
-    return () => document.removeEventListener("visibilitychange", mark);
-  }, [projectId, workId, query.isSuccess]);
+  }, [markViewed]);
   return (
     <section aria-label="Return to Work" className="space-y-5 border-t pt-6">
       <h2 className="font-semibold text-lg">Return to Work</h2>
@@ -88,9 +101,14 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
           <p className="text-muted-foreground text-sm">No return cards yet.</p>
         ))}
       {visitError === true && (
-        <p className="text-muted-foreground text-sm" role="status">
-          The last visit could not be saved.
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-muted-foreground text-sm" role="status">
+            The last visit could not be saved.
+          </p>
+          <Button onClick={markViewed} variant="outline">
+            Retry
+          </Button>
+        </div>
       )}
     </section>
   );
