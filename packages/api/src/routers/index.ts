@@ -5141,7 +5141,11 @@ export const appRouter = {
         await requireFavorites(context).add(context.session.user.id, input);
       } catch (error) {
         if (error instanceof FavoriteSourceUnavailableError) {
-          throw new ORPCError("NOT_FOUND", { cause: error });
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            defined: true,
+            message: "Source record is unavailable.",
+          });
         }
         throw error;
       }
