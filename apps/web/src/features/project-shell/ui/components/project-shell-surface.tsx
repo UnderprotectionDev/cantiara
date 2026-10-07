@@ -327,9 +327,10 @@ export default function ProjectShellSurface({
     }
 
     if (
-      (activeHash === "documents" || documentRoute !== null) &&
-      configuration.enabledAreas.includes("Documents") &&
-      !configuration.hiddenAreas.includes("Documents")
+      documentRoute !== null ||
+      (activeHash === "documents" &&
+        configuration.enabledAreas.includes("Documents") &&
+        !configuration.hiddenAreas.includes("Documents"))
     ) {
       return (
         <div className="space-y-8">

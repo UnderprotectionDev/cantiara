@@ -40,6 +40,7 @@ function fixture(records: ReturnSource[], timeZone = "UTC", readOnly = false) {
     return Promise.resolve();
   });
   const store: ReturnToWorkStore = {
+    readChanges: async () => ({ lastViewedAt: null, events: [] }),
     readTimeZone: () => Promise.resolve(timeZone),
     markViewed: () => Promise.resolve(),
     read: () => Promise.resolve({ readOnly, sources: records }),
@@ -51,6 +52,79 @@ function fixture(records: ReturnSource[], timeZone = "UTC", readOnly = false) {
   };
 }
 describe("Return to Work", () => {
+  test("groups only defined events strictly after the Account visit in chronological order", async () => {
+    const store = {
+      read: async () => ({
+        readOnly: true,
+        sources: [source("project-1", { recordType: "Project" })],
+      }),
+      readTimeZone: async () => "UTC",
+      markViewed: () => Promise.resolve(),
+      saveNextStep: () => Promise.resolve(),
+      readChanges: async () => ({
+        lastViewedAt: "2026-10-06T12:00:00.000Z",
+        events: [
+          {
+            id: "boundary",
+            kind: "Work updated",
+            occurredAt: "2026-10-06T12:00:00.000Z",
+            source: source("work-1"),
+          },
+          {
+            id: "later",
+            kind: "Work updated",
+            occurredAt: "2026-10-07T10:00:00.000Z",
+            source: source("work-1"),
+          },
+          {
+            id: "earlier",
+            kind: "Work created",
+            occurredAt: "2026-10-06T13:00:00.000Z",
+            source: source("work-2"),
+          },
+          {
+            id: "unsupported",
+            kind: "Analytics",
+            occurredAt: "2026-10-07T09:00:00.000Z",
+            source: source("work-1"),
+          },
+          {
+            id: "future",
+            kind: "Work updated",
+            occurredAt: "2027-01-01T00:00:00.000Z",
+            source: source("work-1"),
+          },
+        ],
+      }),
+    };
+    const summary = await createReturnToWork(store, () => new Date(now)).read(
+      "account-1",
+      context,
+    );
+    expect(summary.readOnly).toBe(true);
+    expect(summary.sinceLastLooked).toEqual({
+      lastViewedAt: "2026-10-06T12:00:00.000Z",
+      groups: [
+        {
+          name: "Work",
+          events: [
+            {
+              id: "earlier",
+              kind: "Work created",
+              occurredAt: "2026-10-06T13:00:00.000Z",
+              source: source("work-2"),
+            },
+            {
+              id: "later",
+              kind: "Work updated",
+              occurredAt: "2026-10-07T10:00:00.000Z",
+              source: source("work-1"),
+            },
+          ],
+        },
+      ],
+    });
+  });
   test("reserves the nearest date but fills remaining places only from recent edits", async () => {
     const records = [
       source("edited"),
