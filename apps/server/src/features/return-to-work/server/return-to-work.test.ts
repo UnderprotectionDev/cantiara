@@ -26,7 +26,7 @@ function source(
     ...overrides,
   };
 }
-function fixture(records: ReturnSource[], timeZone = "UTC") {
+function fixture(records: ReturnSource[], timeZone = "UTC", readOnly = false) {
   const saveNextStep = vi.fn((_accountId, input) => {
     const record = records.find(
       (item) => item.id === (input.workId ?? input.projectId),
@@ -43,7 +43,7 @@ function fixture(records: ReturnSource[], timeZone = "UTC") {
     readChanges: async () => ({ lastViewedAt: null, events: [] }),
     readTimeZone: () => Promise.resolve(timeZone),
     markViewed: () => Promise.resolve(),
-    read: () => Promise.resolve(records),
+    read: () => Promise.resolve({ readOnly, sources: records }),
     saveNextStep,
   };
   return {
@@ -54,7 +54,10 @@ function fixture(records: ReturnSource[], timeZone = "UTC") {
 describe("Return to Work", () => {
   test("groups only defined events strictly after the Account visit in chronological order", async () => {
     const store = {
-      read: async () => [source("project-1", { recordType: "Project" })],
+      read: async () => ({
+        readOnly: true,
+        sources: [source("project-1", { recordType: "Project" })],
+      }),
       readTimeZone: async () => "UTC",
       markViewed: () => Promise.resolve(),
       saveNextStep: () => Promise.resolve(),
@@ -98,6 +101,7 @@ describe("Return to Work", () => {
       "account-1",
       context,
     );
+    expect(summary.readOnly).toBe(true);
     expect(summary.sinceLastLooked).toEqual({
       lastViewedAt: "2026-10-06T12:00:00.000Z",
       groups: [
@@ -175,6 +179,28 @@ describe("Return to Work", () => {
     const summary = await fixture(records).access.read("account-1", context);
     expect(summary.source?.nextConcreteStep).toBe("Still intentional");
     expect(summary.cards[1]?.id).toBe("viewed-latest");
+  });
+  test("carries the read-only archive state without hiding current cards or sources", async () => {
+    const records = [
+      source("project-1", {
+        recordType: "Project",
+        nextConcreteStep: "Archived hint",
+      }),
+      source("current"),
+    ];
+    expect(
+      (await fixture(records).access.read("account-1", context)).readOnly,
+    ).toBe(false);
+    const archived = await fixture(records, "UTC", true).access.read(
+      "account-1",
+      context,
+    );
+    expect(archived.readOnly).toBe(true);
+    expect(archived.source?.nextConcreteStep).toBe("Archived hint");
+    expect(archived.cards.map((card) => card.id)).toEqual([
+      "current",
+      "project-1",
+    ]);
   });
   test("keeps at most five cards and covers the closed reasons with deterministic current sources", async () => {
     const records = [

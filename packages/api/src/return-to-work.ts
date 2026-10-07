@@ -119,6 +119,7 @@ function isReturnEvent(event: ReturnEventCandidate): event is ReturnEvent {
 }
 export interface ReturnToWorkSummary {
   cards: ReturnCard[];
+  readOnly: boolean;
   sinceLastLooked: SinceLastLooked;
   source: ReturnSource | null;
 }

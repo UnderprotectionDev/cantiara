@@ -81,6 +81,7 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
           context={input}
           key={query.data.source.id}
           preferences={preferences}
+          readOnly={query.data.readOnly}
           source={query.data.source}
         />
       )}
@@ -124,10 +125,12 @@ export default function ReturnToWork({ projectId, workId }: ReturnContext) {
 function NextConcreteStepForm({
   context,
   preferences,
+  readOnly,
   source,
 }: {
   context: ReturnContext;
   preferences: AccountPreferences;
+  readOnly: boolean;
   source: ReturnSource;
 }) {
   const queryClient = useQueryClient();
@@ -197,7 +200,7 @@ function NextConcreteStepForm({
                 <FieldLabel htmlFor={fieldId}>Next concrete step</FieldLabel>
                 <Textarea
                   aria-describedby={error ? `${fieldId}-error` : undefined}
-                  disabled={isSubmitting}
+                  disabled={readOnly || isSubmitting}
                   id={fieldId}
                   maxLength={4000}
                   onBlur={field.handleBlur}
@@ -226,13 +229,15 @@ function NextConcreteStepForm({
           </time>
         )}
         <ReturnSourceLink source={source} />
-        <form.Subscribe selector={(state) => state.isSubmitting}>
-          {(isSubmitting) => (
-            <Button disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Saving…" : "Save"}
-            </Button>
-          )}
-        </form.Subscribe>
+        {readOnly ? null : (
+          <form.Subscribe selector={(state) => state.isSubmitting}>
+            {(isSubmitting) => (
+              <Button disabled={isSubmitting} type="submit">
+                {isSubmitting ? "Saving…" : "Save"}
+              </Button>
+            )}
+          </form.Subscribe>
+        )}
       </div>
       {error !== null && (
         <p id={`${fieldId}-error`} role="alert">

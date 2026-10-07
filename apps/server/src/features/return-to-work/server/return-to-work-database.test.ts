@@ -404,6 +404,49 @@ suite("Return to Work PostgreSQL seam", () => {
       code: "NOT_FOUND",
     });
   });
+  test("keeps archived contexts readable, still marks visits, and rejects archived Project writes", async () => {
+    const { access, currentProject, currentWork, workLifecycle } =
+      await fixture();
+    const workContext = {
+      projectId: currentProject.id,
+      workId: currentWork.id,
+    };
+    await workLifecycle.archive(accountId, {
+      baseRevision: currentWork.revision,
+      clientIdempotencyKey: "archive-work",
+      workId: currentWork.id,
+    });
+    const archivedWork = await access.read(accountId, workContext);
+    expect(archivedWork.readOnly).toBe(false);
+    expect(archivedWork.source).toMatchObject({ id: currentWork.id });
+    await access.saveNextStep(accountId, {
+      ...workContext,
+      baseRevision: archivedWork.source!.revision,
+      clientIdempotencyKey: "archived-work-step",
+      nextConcreteStep: "Resume from archived context",
+    });
+    expect(
+      (await access.read(accountId, workContext)).source!.nextConcreteStep,
+    ).toBe("Resume from archived context");
+    await access.markViewed(accountId, workContext);
+    await database()
+      .update(project)
+      .set({ archivedAt: new Date() })
+      .where(eq(project.id, currentProject.id));
+    const projectContext = { projectId: currentProject.id };
+    const archivedProject = await access.read(accountId, projectContext);
+    expect(archivedProject.readOnly).toBe(true);
+    expect(archivedProject.source).toMatchObject({ id: currentProject.id });
+    await access.markViewed(accountId, projectContext);
+    await expect(
+      access.saveNextStep(accountId, {
+        ...projectContext,
+        baseRevision: archivedProject.source!.revision,
+        clientIdempotencyKey: "archived-project-step",
+        nextConcreteStep: "Blocked write",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
   test("uses only the explicit GitHub signal adapter for authorized current Work", async () => {
     const {
       access,
