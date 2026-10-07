@@ -44,6 +44,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
+import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import {
@@ -977,6 +978,10 @@ function DocumentEditor({
             Personal Wiki
           </p>
         ) : null}
+        <FavoriteControl
+          sourceRecordId={record.id}
+          sourceRecordType="Document"
+        />
         <PersonalReminderControl
           compact
           sectionOptions={uniqueDocumentSections(record.body)}

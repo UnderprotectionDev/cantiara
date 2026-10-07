@@ -89,13 +89,23 @@ function assertNever(value: never): never {
   throw new Error(`Unsupported project source record: ${String(value)}`);
 }
 
-function toDecision(record: DecisionRecord): ProjectSourceRecord {
+function toDecision(record: DecisionRecord) {
   return decisionRecordSchema.parse({
     ...record,
     createdAt: record.createdAt.toISOString(),
     sourceType: "Decision",
+    withdrawnAt: record.withdrawnAt?.toISOString() ?? null,
     updatedAt: record.updatedAt.toISOString(),
   });
+}
+
+async function listDecisionRecords(database: Database, projectId: string) {
+  const rows = await database
+    .select()
+    .from(decision)
+    .where(eq(decision.projectId, projectId))
+    .orderBy(asc(decision.createdAt), asc(decision.id));
+  return rows.map(toDecision);
 }
 
 function toMilestone(record: MilestoneRecord): ProjectSourceRecord {
@@ -596,6 +606,8 @@ async function writeDecisionRecord(
   const values = {
     decision: record.decision,
     life: record.life,
+    withdrawnAt: record.withdrawnAt ? new Date(record.withdrawnAt) : null,
+    withdrawalRationale: record.withdrawalRationale ?? null,
     projectId: record.projectId,
     rationale: record.rationale,
     revision: expectedRevision + 1,
@@ -915,6 +927,22 @@ export function createDatabaseProjectSourceRecords(
   database: Database,
 ): ProjectSourceRecordsAccess {
   return {
+    async listDecisions(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      return {
+        records: await listDecisionRecords(database, input.projectId),
+        readOnly: ownedProject.archivedAt !== null,
+      };
+    },
     async create(accountId, rawInput) {
       const input = createProjectSourceRecordInputSchema.parse(rawInput);
       const mutation = requireMutationContract(database, accountId);
@@ -1176,6 +1204,12 @@ export function createDatabaseProjectSourceRecords(
                 ? {
                     ...current,
                     life: input.life,
+                    withdrawnAt:
+                      input.life === "Withdrawn" ? committedAt : null,
+                    withdrawalRationale:
+                      input.life === "Withdrawn"
+                        ? (input.rationale ?? null)
+                        : null,
                     revision: currentRevision + 1,
                     updatedAt: committedAt,
                   }
@@ -1243,11 +1277,7 @@ export function createDatabaseProjectSourceRecords(
         releases,
         incidents,
       ] = await Promise.all([
-        database
-          .select()
-          .from(decision)
-          .where(eq(decision.projectId, input.projectId))
-          .orderBy(asc(decision.createdAt), asc(decision.id)),
+        listDecisionRecords(database, input.projectId),
         database
           .select()
           .from(risk)
@@ -1283,7 +1313,7 @@ export function createDatabaseProjectSourceRecords(
           ),
       ]);
       return [
-        ...decisions.map(toDecision),
+        ...decisions,
         ...risks.map(toRisk),
         ...assumptions.map(toAssumption),
         ...openQuestions.map(toOpenQuestion),

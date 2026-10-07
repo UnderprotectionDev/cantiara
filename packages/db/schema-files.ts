@@ -4,6 +4,7 @@ export const primarySchemaFiles = [
   "./src/schema/custom-fields.ts",
   "./src/schema/completion-effects.ts",
   "./src/schema/daily-focus.ts",
+  "./src/schema/favorites.ts",
   "./src/schema/return-to-work.ts",
   "./src/schema/document.ts",
   "./src/schema/external-surface.ts",

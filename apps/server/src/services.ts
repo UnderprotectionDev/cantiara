@@ -52,6 +52,7 @@ import {
   createDatabaseDocuments,
 } from "./features/documents/server/documents-database";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
+import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
 import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
@@ -120,6 +121,7 @@ export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
 export const universalSearch = createDatabaseUniversalSearch(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
+export const favorites = createDatabaseFavorites(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
 export const focusPeriod = createDatabaseFocusPeriod(db);
 export const projectGoals = createDatabaseProjectGoals(db);

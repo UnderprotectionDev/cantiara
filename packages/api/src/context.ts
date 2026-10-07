@@ -20,6 +20,7 @@ import type { DailyFocusAccess } from "./daily-focus";
 import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
+import type { FavoritesAccess } from "./favorites";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
@@ -163,6 +164,7 @@ export interface Context {
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;
+  favorites?: FavoritesAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;

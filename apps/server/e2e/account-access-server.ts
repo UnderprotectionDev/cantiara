@@ -48,6 +48,7 @@ import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "../src/features/documents/server/documents-database";
+import { createDatabaseFavorites } from "../src/features/favorites/server/favorites-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
@@ -295,7 +296,9 @@ const app = createApp({
   githubIdentityConfirmation,
   nodeEnv: "test",
   projectGoals: createDatabaseProjectGoals(database),
+  projectSourceRecords,
   personalReminders,
+  favorites: createDatabaseFavorites(database),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,
