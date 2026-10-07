@@ -159,4 +159,29 @@ test("Project Goals remain optional and preserve founder outcomes through create
   await expect(
     page.getByRole("link", { name: "Independent next Goal", exact: true }),
   ).toHaveCount(1);
+  await page.getByRole("button", { name: "New Project Goal" }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Retried same Goal");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("Retry keeps one identity.");
+  await page.route(
+    "**/rpc/createProjectGoal",
+    async (route) => {
+      const savedResponse = await route.fetch();
+      expect(savedResponse.ok()).toBe(true);
+      await route.abort();
+    },
+    { times: 1 },
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Project Goal could not be saved" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByText("Project Goal saved.")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Retried same Goal", exact: true }),
+  ).toHaveCount(1);
 });
