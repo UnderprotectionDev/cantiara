@@ -194,6 +194,7 @@ export function ProjectGoalsView({
   readOnly,
   selectedId,
   onSave,
+  onStartEditing,
   savedMessage,
 }: {
   goals: readonly ProjectGoalRecord[];
@@ -205,6 +206,7 @@ export function ProjectGoalsView({
     goal?: ProjectGoalRecord,
   ) => Promise<unknown>;
   savedMessage?: string;
+  onStartEditing?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const selected = selectedId
@@ -267,7 +269,13 @@ export function ProjectGoalsView({
         />
       ) : null}
       {canEdit && !editing ? (
-        <Button onClick={() => setEditing(true)} type="button">
+        <Button
+          onClick={() => {
+            onStartEditing?.();
+            setEditing(true);
+          }}
+          type="button"
+        >
           {selected ? "Edit Project Goal" : "New Project Goal"}
         </Button>
       ) : null}

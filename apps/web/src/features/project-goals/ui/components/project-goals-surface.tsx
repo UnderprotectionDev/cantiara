@@ -87,6 +87,10 @@ export default function ProjectGoalsSurface({
   function retry() {
     goals.refetch().catch(() => undefined);
   }
+  function startEditing() {
+    pendingProjectGoalSave.current = null;
+    setSavedMessage(undefined);
+  }
   if (goals.isPending) {
     return <p role="status">Loading Goals…</p>;
   }
@@ -104,6 +108,7 @@ export default function ProjectGoalsSurface({
     <ProjectGoalsView
       goals={goals.data.records}
       onSave={save}
+      onStartEditing={startEditing}
       projectId={projectId}
       readOnly={goals.data.readOnly}
       savedMessage={savedMessage}

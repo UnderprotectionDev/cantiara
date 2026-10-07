@@ -122,4 +122,41 @@ test("Project Goals remain optional and preserve founder outcomes through create
   await expect(
     page.getByRole("link", { name: "Useful first release", exact: true }),
   ).toHaveCount(1);
+  await page.getByRole("button", { name: "New Project Goal" }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Response lost Goal");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("Saved before response loss.");
+  await page.route(
+    "**/rpc/createProjectGoal",
+    async (route) => {
+      const savedResponse = await route.fetch();
+      expect(savedResponse.ok()).toBe(true);
+      await route.abort();
+    },
+    { times: 1 },
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Project Goal could not be saved" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "New Project Goal" }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Independent next Goal");
+  await page
+    .getByLabel("Description", { exact: true })
+    .fill("A separate founder outcome.");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Independent next Goal", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("link", { name: "Response lost Goal", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: "Independent next Goal", exact: true }),
+  ).toHaveCount(1);
 });
