@@ -1234,6 +1234,8 @@ export interface ProjectProfile {
   id: string;
   logo: string | null;
   name: string;
+  nextConcreteStep?: string | null;
+  nextConcreteStepUpdatedAt?: string | null;
   problem: string | null;
   purpose: string | null;
   revision: number;

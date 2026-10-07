@@ -106,6 +106,8 @@
 │   │   │   │   │       ├── personal-reminder-worker.ts
 │   │   │   │   │       ├── personal-reminders-database.test.ts
 │   │   │   │   │       └── personal-reminders-database.ts
+│   │   │   │   ├── return-to-work/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── roadmap-horizon/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── record-actions/
@@ -147,6 +149,7 @@
 │       │   ├── kanban.e2e.ts
 │       │   ├── project-goals.e2e.ts
 │       │   ├── project-shell.e2e.ts
+│       │   ├── return-to-work.e2e.ts
 │       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
 │       │   ├── work-blockers.e2e.ts
@@ -163,6 +166,8 @@
 │       │   │   ├── theme-provider.tsx
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
+│       │   │   ├── return-to-work/
+│       │   │   │   └── ui/
 │       │   │   ├── daily-focus/
 │       │   │   │   └── ui/
 │       │   │   │       ├── daily-focus-view.test.tsx
@@ -521,6 +526,7 @@
 │   │   │   ├── prioritization-sessions.ts
 │   │   │   ├── personal-reminders.ts
 │   │   │   ├── roadmap-horizon.test.ts
+│   │   │   ├── return-to-work.ts
 │   │   │   ├── roadmap-horizon.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
@@ -604,6 +610,7 @@
 │   │   │   │   ├── roadmap-horizon.ts
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
+│   │   │   │   ├── return-to-work.ts
 │   │   │   │   ├── security-event.ts
 │   │   │   │   ├── work-external-handoff.ts
 │   │   │   │   ├── work-draft.ts

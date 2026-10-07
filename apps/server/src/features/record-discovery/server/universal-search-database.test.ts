@@ -145,6 +145,42 @@ describeDatabase("Record Discovery universal search boundary", () => {
     await database?.$client.end();
   });
 
+  it("searches the current Next concrete step and drops a replaced hint", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const id = recordId("next-step");
+    await database.insert(work).values({
+      id,
+      key: "CUR-1",
+      number: 1,
+      projectId,
+      title: "Payment investigation",
+      type: "Task",
+      nextConcreteStep: "Obtain transaction evidence",
+    });
+    expect(
+      (
+        await client().searchRecords({
+          query: "transaction evidence",
+          currentProjectId: projectId,
+        })
+      ).map((result) => result.id),
+    ).toContain(id);
+    await database
+      .update(work)
+      .set({ nextConcreteStep: "Contact customer" })
+      .where(eq(work.id, id));
+    expect(
+      (
+        await client().searchRecords({
+          query: "transaction evidence",
+          currentProjectId: projectId,
+        })
+      ).map((result) => result.id),
+    ).not.toContain(id);
+  });
+
   it(
     "applies the closed ranking order and excludes Trash and other Accounts",
     async () => {

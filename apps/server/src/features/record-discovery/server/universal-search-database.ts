@@ -282,6 +282,7 @@ async function searchWorkRecords({
     work.description,
     work.expectedOutcome,
     work.problemOpportunity,
+    work.nextConcreteStep,
     checklistText,
     retiredKeys,
   ]);

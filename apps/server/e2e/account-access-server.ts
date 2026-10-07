@@ -65,6 +65,7 @@ import { createDatabaseRecordActions } from "../src/features/record-actions/serv
 import { createDatabaseRecordTable } from "../src/features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
+import { createDatabaseReturnToWork } from "../src/features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
 import {
@@ -299,6 +300,10 @@ const app = createApp({
   priorityMetrics,
   projectShell,
   projectShellMutationContracts,
+  returnToWork: createDatabaseReturnToWork(database, {
+    projectMutations: projectShellMutationContracts,
+    workLifecycle,
+  }),
   prioritizationSessionMutationContracts,
   prioritizationSessions,
   recordActions,

@@ -48,6 +48,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "./relations";
+import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SmartCollectionsAccess } from "./smart-collections";
 import type { TagMutationContracts, TagsAccess } from "./tags";
@@ -179,6 +180,7 @@ export interface Context {
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>

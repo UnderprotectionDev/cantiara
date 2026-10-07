@@ -29,13 +29,13 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
   workRecordHash,
   workRecordHref,
   workRelationsHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import {
@@ -282,6 +282,8 @@ export default function WorkContextCard({
           />
         ))}
       </dl>
+
+      <ReturnToWork projectId={work.projectId} workId={work.id} />
 
       <PriorityFoundations
         foundations={contextModel.priorityFoundations}
