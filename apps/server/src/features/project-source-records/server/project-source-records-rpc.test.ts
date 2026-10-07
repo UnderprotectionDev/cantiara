@@ -136,4 +136,49 @@ describe("Project source record RPC", () => {
       authenticated.projectSourceRecords.transition,
     ).not.toHaveBeenCalled();
   });
+
+  test("maps dropped Decision writes to client failures, never resolved successes", async () => {
+    const { client, projectSourceRecords } = testClient({
+      session: { id: "session-1" },
+      user: { id: accountId },
+    } as Context["session"]);
+    vi.mocked(projectSourceRecords.create).mockResolvedValueOnce(null);
+    vi.mocked(projectSourceRecords.update).mockResolvedValueOnce(null);
+    vi.mocked(projectSourceRecords.transition).mockResolvedValueOnce(null);
+
+    await expect(
+      client.createProjectSourceRecord({
+        baseRevision: 0,
+        clientIdempotencyKey: "dropped-create",
+        decision: "Ship a focused first release.",
+        id: "decision-1",
+        projectId: "project-1",
+        rationale: null,
+        sourceType: "Decision",
+        title: "First release scope",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client.updateProjectSourceRecord({
+        baseRevision: 1,
+        clientIdempotencyKey: "dropped-update",
+        decision: "Ship a focused first release.",
+        projectId: "project-1",
+        rationale: null,
+        sourceId: "decision-1",
+        sourceType: "Decision",
+        title: "First release scope",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client.transitionProjectSourceRecord({
+        baseRevision: 1,
+        clientIdempotencyKey: "dropped-withdraw",
+        life: "Withdrawn",
+        projectId: "project-1",
+        sourceId: "decision-1",
+        sourceType: "Decision",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });

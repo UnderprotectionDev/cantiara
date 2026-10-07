@@ -292,7 +292,7 @@ export default function ProjectShellSurface({
       return (
         <ProjectDecisionsSurface
           accountFormattingPreferences={accountFormattingPreferences}
-          key={`${projectId}:${activeHash}`}
+          key={projectId}
           projectId={projectId}
           selectedId={decisionSourceId}
         />
