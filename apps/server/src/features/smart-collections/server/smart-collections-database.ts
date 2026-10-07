@@ -1,7 +1,4 @@
-import {
-  resolveProjectShellConfiguration,
-  type StarterConfiguration,
-} from "@cantiara/api/project-shell";
+import { getProjectStatusAgeThresholdDays } from "@cantiara/api/project-shell";
 import { isLongInSameStatus } from "@cantiara/api/return-to-work";
 import type {
   CreateSmartCollectionInput,
@@ -868,11 +865,7 @@ async function preparedLongStatusView(
     return null;
   }
   const currentProject = owned.project;
-  const threshold =
-    resolveProjectShellConfiguration(
-      currentProject.configuration,
-      currentProject.starterConfiguration as StarterConfiguration,
-    ).statusAgeThresholdDays ?? null;
+  const threshold = getProjectStatusAgeThresholdDays(currentProject);
   if (threshold === null) {
     return null;
   }

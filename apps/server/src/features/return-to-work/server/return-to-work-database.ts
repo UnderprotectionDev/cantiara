@@ -1,8 +1,5 @@
 import type { ProjectShellMutationContracts } from "@cantiara/api/project-shell";
-import {
-  resolveProjectShellConfiguration,
-  type StarterConfiguration,
-} from "@cantiara/api/project-shell";
+import { getProjectStatusAgeThresholdDays } from "@cantiara/api/project-shell";
 import {
   type ReturnContext,
   type ReturnSource,
@@ -191,10 +188,7 @@ export function createDatabaseReturnToWork(
         readOnly: currentProject.archivedAt !== null,
         sources,
         statusAgeThresholdDays:
-          resolveProjectShellConfiguration(
-            currentProject.configuration,
-            currentProject.starterConfiguration as StarterConfiguration,
-          ).statusAgeThresholdDays ?? null,
+          getProjectStatusAgeThresholdDays(currentProject),
       };
     },
     async readChanges(accountId, context) {

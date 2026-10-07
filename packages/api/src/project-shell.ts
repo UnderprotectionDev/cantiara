@@ -670,6 +670,18 @@ export function resolveProjectShellConfiguration(
     : expected;
 }
 
+export function getProjectStatusAgeThresholdDays(source: {
+  configuration: unknown;
+  starterConfiguration: string;
+}): number | null {
+  return (
+    resolveProjectShellConfiguration(
+      source.configuration,
+      starterConfigurationSchema.parse(source.starterConfiguration),
+    ).statusAgeThresholdDays ?? null
+  );
+}
+
 export function enableProjectArea(
   configuration: ProjectShellConfiguration,
   area: ProjectArea,
