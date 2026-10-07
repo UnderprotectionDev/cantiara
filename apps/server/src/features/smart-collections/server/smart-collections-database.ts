@@ -1,3 +1,8 @@
+import {
+  resolveProjectShellConfiguration,
+  type StarterConfiguration,
+} from "@cantiara/api/project-shell";
+import { isLongInSameStatus } from "@cantiara/api/return-to-work";
 import type {
   CreateSmartCollectionInput,
   SmartCollectionSourceType,
@@ -337,6 +342,7 @@ async function getWorkMembershipRecords(
   projectIds: string[],
   projectNames: ReadonlyMap<string, string>,
   conditions: SmartCollectionConditions,
+  statusAgeThresholdDays?: number,
 ): Promise<SmartCollectionWorkRecord[]> {
   if (projectIds.length === 0) {
     return [];
@@ -364,7 +370,21 @@ async function getWorkMembershipRecords(
       ),
     )
     .orderBy(asc(work.projectId), asc(work.key));
-  return records.map((record) => ({
+  const now = new Date();
+  const members =
+    statusAgeThresholdDays === undefined
+      ? records
+      : records.filter((record) =>
+          isLongInSameStatus(
+            {
+              active: record.status !== "Closed",
+              changedAt: record.statusChangedAt.toISOString(),
+            },
+            statusAgeThresholdDays,
+            now,
+          ),
+        );
+  return members.map((record) => ({
     ...record,
     createdAt: record.createdAt.toISOString(),
     statusChangedAt: record.statusChangedAt.toISOString(),
@@ -372,6 +392,9 @@ async function getWorkMembershipRecords(
       `Project: ${projectNames.get(record.projectId) ?? "Project scope"}`,
       ...(conditions.status ? [`Status: ${conditions.status}`] : []),
       ...(conditions.type ? [`Work type: ${conditions.type}`] : []),
+      ...(statusAgeThresholdDays === undefined
+        ? []
+        : ["Long in the same status"]),
     ],
   }));
 }
@@ -822,6 +845,65 @@ function subscriptionContext(
   };
 }
 
+const LONG_STATUS_VIEW_PREFIX = "long-status:";
+
+async function preparedLongStatusView(
+  database: SmartCollectionExecutor,
+  accountId: string,
+  projectId: string,
+): Promise<SmartCollectionViewSource | null> {
+  const [owned] = await database
+    .select({ project })
+    .from(project)
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(
+      and(
+        eq(project.id, projectId),
+        eq(workspace.ownerAccountId, accountId),
+        isNull(project.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (!owned) {
+    return null;
+  }
+  const currentProject = owned.project;
+  const threshold =
+    resolveProjectShellConfiguration(
+      currentProject.configuration,
+      currentProject.starterConfiguration as StarterConfiguration,
+    ).statusAgeThresholdDays ?? null;
+  if (threshold === null) {
+    return null;
+  }
+  const id = `${LONG_STATUS_VIEW_PREFIX}${projectId}`;
+  const works = await getWorkMembershipRecords(
+    database,
+    [projectId],
+    new Map([[projectId, currentProject.name]]),
+    {},
+    threshold,
+  );
+  return {
+    id,
+    collectionId: id,
+    collectionName: "Long in the same status",
+    name: "Default",
+    preparedReason: "Long in the same status",
+    conditions: {},
+    documents: [],
+    projectSourceRecords: [],
+    works,
+    scope: { projectIds: [projectId] },
+    sourceType: "Work",
+    projectId,
+    workspaceId: currentProject.workspaceId,
+    presentation: "List",
+    isSubscribed: false,
+    notifyOnLeave: false,
+  };
+}
+
 export function createDatabaseSmartCollections(
   database: Database,
 ): SmartCollectionsAccess {
@@ -829,6 +911,13 @@ export function createDatabaseSmartCollections(
     accountId: string,
     viewId: string,
   ): Promise<SmartCollectionViewSource | null> {
+    if (viewId.startsWith(LONG_STATUS_VIEW_PREFIX)) {
+      return preparedLongStatusView(
+        database,
+        accountId,
+        viewId.slice(LONG_STATUS_VIEW_PREFIX.length),
+      );
+    }
     return database.transaction(async (tx) => {
       const loaded = await loadSmartCollectionView(tx, accountId, viewId);
       if (!loaded) {
@@ -1083,9 +1172,15 @@ export function createDatabaseSmartCollections(
             ),
           ),
         );
-      return (
+      const views = (
         await Promise.all(rows.map(({ id }) => getView(accountId, id)))
       ).filter((value): value is SmartCollectionViewSource => value !== null);
+      const prepared = await preparedLongStatusView(
+        database,
+        accountId,
+        projectId,
+      );
+      return prepared ? [prepared, ...views] : views;
     },
   };
 }

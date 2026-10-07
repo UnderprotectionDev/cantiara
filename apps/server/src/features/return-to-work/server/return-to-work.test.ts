@@ -26,7 +26,12 @@ function source(
     ...overrides,
   };
 }
-function fixture(records: ReturnSource[], timeZone = "UTC", readOnly = false) {
+function fixture(
+  records: ReturnSource[],
+  timeZone = "UTC",
+  readOnly = false,
+  statusAgeThresholdDays: number | null = null,
+) {
   const saveNextStep = vi.fn((_accountId, input) => {
     const record = records.find(
       (item) => item.id === (input.workId ?? input.projectId),
@@ -43,7 +48,8 @@ function fixture(records: ReturnSource[], timeZone = "UTC", readOnly = false) {
     readChanges: async () => ({ lastViewedAt: null, events: [] }),
     readTimeZone: () => Promise.resolve(timeZone),
     markViewed: () => Promise.resolve(),
-    read: () => Promise.resolve({ readOnly, sources: records }),
+    read: () =>
+      Promise.resolve({ readOnly, sources: records, statusAgeThresholdDays }),
     saveNextStep,
   };
   return {
@@ -52,6 +58,70 @@ function fixture(records: ReturnSource[], timeZone = "UTC", readOnly = false) {
   };
 }
 describe("Return to Work", () => {
+  test("returns an old active Work only after the optional Project status-age threshold", async () => {
+    const records = [
+      source("old-active", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        statusAge: { active: true, changedAt: "2026-09-29T12:00:00.000Z" },
+      }),
+    ];
+    expect(
+      (await fixture(records).access.read("account-1", context)).cards,
+    ).toEqual([]);
+    expect(
+      (
+        await fixture(records, "UTC", false, 7).access.read(
+          "account-1",
+          context,
+        )
+      ).cards,
+    ).toEqual([
+      expect.objectContaining({
+        id: "old-active",
+        reasons: ["Long in the same status"],
+      }),
+    ]);
+  });
+  test("excludes the exact threshold, inactive and future status ages and keeps the five-card cap", async () => {
+    const records = [
+      source("boundary", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        statusAge: { active: true, changedAt: "2026-09-30T12:00:00.000Z" },
+      }),
+      source("closed", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        statusAge: { active: false, changedAt: "2025-01-01T00:00:00.000Z" },
+      }),
+      source("future", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        statusAge: { active: true, changedAt: "2026-10-08T12:00:00.000Z" },
+      }),
+      source("long", {
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        statusAge: { active: true, changedAt: "2026-09-29T12:00:00.000Z" },
+      }),
+      source("edited"),
+      source("viewed", { lastViewedAt: now }),
+      source("due", { targetDate: "2026-10-10" }),
+      source("risk", { openRisk: true }),
+      source("github", { pendingGitHubSignal: true }),
+    ];
+    const before = structuredClone(records);
+    const { access, saveNextStep } = fixture(records, "UTC", false, 7);
+    const summary = await access.read("account-1", context);
+    expect(summary.cards).toHaveLength(5);
+    expect(summary.cards[0]).toMatchObject({
+      id: "long",
+      reasons: ["Long in the same status"],
+    });
+    expect(
+      summary.cards.filter((card) =>
+        ["boundary", "closed", "future"].includes(card.id),
+      ),
+    ).toEqual([]);
+    expect(records).toEqual(before);
+    expect(saveNextStep).not.toHaveBeenCalled();
+  });
   test("groups only defined events strictly after the Account visit in chronological order", async () => {
     const store = {
       read: async () => ({

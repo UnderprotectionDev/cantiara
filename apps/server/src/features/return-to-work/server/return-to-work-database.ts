@@ -1,5 +1,9 @@
 import type { ProjectShellMutationContracts } from "@cantiara/api/project-shell";
 import {
+  resolveProjectShellConfiguration,
+  type StarterConfiguration,
+} from "@cantiara/api/project-shell";
+import {
   type ReturnContext,
   type ReturnSource,
   returnContextInputSchema,
@@ -146,6 +150,13 @@ export function createDatabaseReturnToWork(
           id: record.id,
           projectId: record.projectId,
           recordType: "Work",
+          statusAge: {
+            active:
+              currentProject.archivedAt === null &&
+              record.archivedAt === null &&
+              record.status !== "Closed",
+            changedAt: record.statusChangedAt.toISOString(),
+          },
           title: `${record.key} · ${record.title}`,
           sourcePath: `${projectPath}#work-${encodeURIComponent(record.id)}`,
           revision: record.revision,
@@ -176,7 +187,15 @@ export function createDatabaseReturnToWork(
           nextConcreteStepUpdatedAt: null,
         });
       }
-      return { readOnly: currentProject.archivedAt !== null, sources };
+      return {
+        readOnly: currentProject.archivedAt !== null,
+        sources,
+        statusAgeThresholdDays:
+          resolveProjectShellConfiguration(
+            currentProject.configuration,
+            currentProject.starterConfiguration as StarterConfiguration,
+          ).statusAgeThresholdDays ?? null,
+      };
     },
     async readChanges(accountId, context) {
       await requireReadableContext(accountId, context);

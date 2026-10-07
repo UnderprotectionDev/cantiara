@@ -205,6 +205,7 @@ export interface SmartCollectionViewSource {
   isSubscribed: boolean;
   name: string;
   notifyOnLeave: boolean;
+  preparedReason?: "Long in the same status";
   presentation: "List" | "Table";
   projectId: string;
   projectSourceRecords: Array<{

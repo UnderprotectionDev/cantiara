@@ -22,13 +22,38 @@ export type ReturnContext = z.infer<typeof returnContextInputSchema>;
 export type SaveNextConcreteStepInput = z.input<
   typeof saveNextConcreteStepInputSchema
 >;
+export const statusAgeThresholdDaysSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(10_000)
+  .nullable();
+
 export const RETURN_CARD_REASONS = [
+  "Long in the same status",
   "Recently edited",
   "Recently viewed",
   "Upcoming date",
   "Open risk",
   "Pending GitHub development signal",
 ] as const;
+export interface WorkStatusAge {
+  active: boolean;
+  changedAt: string;
+}
+
+export function isLongInSameStatus(
+  age: WorkStatusAge | undefined,
+  thresholdDays: number | null,
+  now: Date,
+): boolean {
+  return (
+    thresholdDays !== null &&
+    age?.active === true &&
+    now.getTime() - Date.parse(age.changedAt) > thresholdDays * 86_400_000
+  );
+}
+
 export interface ReturnSource {
   id: string;
   lastViewedAt: string | null;
@@ -40,13 +65,14 @@ export interface ReturnSource {
   recordType: "Project" | "Work" | "Risk";
   revision: number;
   sourcePath: string;
+  statusAge?: WorkStatusAge;
   targetDate: string | null;
   title: string;
   updatedAt: string;
 }
 export type ReturnCard = Omit<
   ReturnSource,
-  "openRisk" | "pendingGitHubSignal" | "lastViewedAt"
+  "openRisk" | "pendingGitHubSignal" | "lastViewedAt" | "statusAge"
 > & {
   reasons: (typeof RETURN_CARD_REASONS)[number][];
 };
@@ -139,6 +165,7 @@ export function cardsForSources(
   sources: ReturnSource[],
   now: Date,
   timeZone: string,
+  statusAgeThresholdDays: number | null = null,
 ): ReturnCard[] {
   const recent = addDays(now, -7).getTime();
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -153,36 +180,50 @@ export function cardsForSources(
     representation: "date",
   });
   const cards = sources
-    .map(({ lastViewedAt, openRisk, pendingGitHubSignal, ...source }) => {
-      const reasons: ReturnCard["reasons"] = [];
-      if (
-        Date.parse(source.updatedAt) >= recent &&
-        Date.parse(source.updatedAt) <= now.getTime()
-      ) {
-        reasons.push("Recently edited");
-      }
-      if (
-        lastViewedAt &&
-        Date.parse(lastViewedAt) >= recent &&
-        Date.parse(lastViewedAt) <= now.getTime()
-      ) {
-        reasons.push("Recently viewed");
-      }
-      if (
-        source.targetDate &&
-        source.targetDate >= today &&
-        source.targetDate <= upcoming
-      ) {
-        reasons.push("Upcoming date");
-      }
-      if (openRisk) {
-        reasons.push("Open risk");
-      }
-      if (pendingGitHubSignal) {
-        reasons.push("Pending GitHub development signal");
-      }
-      return { ...source, reasons };
-    })
+    .map(
+      ({
+        lastViewedAt,
+        openRisk,
+        pendingGitHubSignal,
+        statusAge,
+        ...source
+      }) => {
+        const reasons: ReturnCard["reasons"] = [];
+        if (
+          source.recordType === "Work" &&
+          isLongInSameStatus(statusAge, statusAgeThresholdDays, now)
+        ) {
+          reasons.push("Long in the same status");
+        }
+        if (
+          Date.parse(source.updatedAt) >= recent &&
+          Date.parse(source.updatedAt) <= now.getTime()
+        ) {
+          reasons.push("Recently edited");
+        }
+        if (
+          lastViewedAt &&
+          Date.parse(lastViewedAt) >= recent &&
+          Date.parse(lastViewedAt) <= now.getTime()
+        ) {
+          reasons.push("Recently viewed");
+        }
+        if (
+          source.targetDate &&
+          source.targetDate >= today &&
+          source.targetDate <= upcoming
+        ) {
+          reasons.push("Upcoming date");
+        }
+        if (openRisk) {
+          reasons.push("Open risk");
+        }
+        if (pendingGitHubSignal) {
+          reasons.push("Pending GitHub development signal");
+        }
+        return { ...source, reasons };
+      },
+    )
     .filter((card) => card.reasons.length > 0);
   cards.sort(
     (a, b) =>
@@ -194,6 +235,9 @@ export function cardsForSources(
   );
   const selected = new Set<ReturnCard>();
   for (const reason of RETURN_CARD_REASONS) {
+    if (selected.size === 5) {
+      break;
+    }
     const candidates = cards.filter(
       (candidate) =>
         candidate.reasons.includes(reason) && !selected.has(candidate),

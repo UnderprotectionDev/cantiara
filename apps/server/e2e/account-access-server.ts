@@ -349,6 +349,29 @@ async function createUnifiedCalendarFixture(accountId: string) {
   return project;
 }
 
+async function createLongStatusFixture(fixtureKey: string, accountId: string) {
+  if (fixtureKey !== "long-status") {
+    return null;
+  }
+  const longStatusProject = await projectShell.create(accountId, {
+    name: "Return Status Project",
+    shortCode: "RETURN",
+    starterConfiguration: "Blank Project",
+  });
+  const candidate = await workLifecycle.create(accountId, {
+    projectId: longStatusProject.id,
+    type: "Task",
+    title: "Review payment retries",
+    baseRevision: 0,
+    clientIdempotencyKey: crypto.randomUUID(),
+  });
+  await database
+    .update(workTable)
+    .set({ statusChangedAt: new Date("2025-01-01T00:00:00.000Z") })
+    .where(eq(workTable.id, candidate.id));
+  return longStatusProject;
+}
+
 async function createE2EFixture(fixtureKey: string) {
   const fixtureEmail = `account-access-e2e-${fixtureKey}@example.invalid`;
   await database.delete(user).where(eq(user.email, fixtureEmail));
@@ -386,6 +409,11 @@ async function createE2EFixture(fixtureKey: string) {
   if (!(currentCookie && otherCookie)) {
     throw new Error("Better Auth did not create an E2E session cookie");
   }
+
+  const longStatusProject = await createLongStatusFixture(
+    fixtureKey,
+    founder.id,
+  );
 
   const captureProject =
     fixtureKey === "capture-inbox"
@@ -555,6 +583,7 @@ async function createE2EFixture(fixtureKey: string) {
   }
 
   const projectId =
+    longStatusProject?.id ??
     usedInTargetProject?.id ??
     captureProject?.id ??
     calendarProject?.id ??

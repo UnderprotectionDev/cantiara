@@ -244,6 +244,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Atla | `Skip` | Turda bir sonraki görsel hedefe geçer |
 | Kalanı listede aç | `Open remainder in the list` | Üst sınırı aşan görsel değişiklikleri normal Son baktığından beri listesinde açar |
 | Uzun süredir aynı durumda | `Long in the same status` | İsteğe bağlı Proje durum yaşı eşiğini aşan aktif İş için nötr geri dönüş gerekçesi ve hazır Akıllı Koleksiyon üyeliği; varsayılan bildirim veya sağlık puanı değildir |
+| Durum yaşı eşiğini kaydet | `Save Long in the same status` | İsteğe bağlı Proje durum yaşı eşiğini mevcut yapılandırma mutasyonuyla kaydetme |
 | Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
 | Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
 | Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar ve varsayılan `Valid` öne çıkarır |

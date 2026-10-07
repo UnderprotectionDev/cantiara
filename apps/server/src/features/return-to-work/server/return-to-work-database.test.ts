@@ -1,4 +1,5 @@
 // biome-ignore-all lint/style/noNonNullAssertion: Fixtures assert the presence of their source records at the seam.
+import { applyProjectShellConfigurationChange } from "@cantiara/api/project-shell";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
@@ -20,6 +21,10 @@ import {
 import { createDatabaseDailyFocus } from "../../daily-focus/server/daily-focus-database";
 import { createDatabaseProjectShell } from "../../project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../../project-shell/server/project-shell-mutation-database";
+import {
+  createDatabaseSmartCollections,
+  sweepSmartCollectionSubscriptionSignals,
+} from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseReturnToWork } from "./return-to-work-database";
 
@@ -84,6 +89,178 @@ suite("Return to Work PostgreSQL seam", () => {
       workLifecycle,
     };
   }
+  test("derives the optional long-status reason and prepared collection without changing Work or emitting signals", async () => {
+    const {
+      access,
+      currentProject,
+      currentWork,
+      projectShell,
+      workLifecycle,
+      projectMutations,
+    } = await fixture();
+    const collections = createDatabaseSmartCollections(database());
+    const context = { projectId: currentProject.id, workId: currentWork.id };
+    await database()
+      .update(work)
+      .set({ statusChangedAt: new Date("2025-01-01T00:00:00.000Z") })
+      .where(eq(work.id, currentWork.id));
+    expect(
+      (await access.read(accountId, context)).cards[0]?.reasons,
+    ).not.toContain("Long in the same status");
+    expect(await collections.listViews(accountId, currentProject.id)).toEqual(
+      [],
+    );
+    const before = await workLifecycle.find(accountId, currentWork.id);
+    const mutation = projectMutations.update(accountId);
+    await mutation.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision: (await projectShell.find(accountId, currentProject.id))!
+          .revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        kind: "human",
+        targetId: currentProject.id,
+        payload: { thresholdDays: 7 },
+      },
+      ({ currentValue, currentRevision, committedAt }) => ({
+        project: {
+          ...currentValue.project!,
+          revision: currentRevision + 1,
+          updatedAt: committedAt,
+          configuration: applyProjectShellConfigurationChange(
+            currentValue.project!.configuration,
+            { kind: "set-status-age-threshold", thresholdDays: 7 },
+            "Blank Project",
+          ),
+        },
+      }),
+    );
+    expect(
+      (await projectShell.find(accountId, currentProject.id))?.configuration
+        .statusAgeThresholdDays,
+    ).toBe(7);
+    expect((await access.read(accountId, context)).cards[0]?.reasons).toContain(
+      "Long in the same status",
+    );
+    const [prepared] = await collections.listViews(
+      accountId,
+      currentProject.id,
+    );
+    expect(prepared).toMatchObject({
+      collectionName: "Long in the same status",
+      isSubscribed: false,
+      notifyOnLeave: false,
+      works: [
+        expect.objectContaining({
+          id: currentWork.id,
+          membershipReasons: expect.arrayContaining([
+            "Long in the same status",
+          ]),
+        }),
+      ],
+    });
+    expect(await collections.getView(accountId, prepared!.id)).toEqual(
+      prepared,
+    );
+    expect(await collections.getView("other-account", prepared!.id)).toBeNull();
+    expect(await workLifecycle.find(accountId, currentWork.id)).toEqual(before);
+    expect(await sweepSmartCollectionSubscriptionSignals(database())).toBe(0);
+  });
+  test("re-evaluates prepared membership and excludes closed, archived, trashed and foreign Work", async () => {
+    const { access, currentProject, currentWork } = await fixture();
+    const collections = createDatabaseSmartCollections(database());
+    await database()
+      .update(project)
+      .set({
+        configuration: {
+          ...currentProject.configuration,
+          statusAgeThresholdDays: 7,
+        },
+      })
+      .where(eq(project.id, currentProject.id));
+    await database()
+      .update(work)
+      .set({ statusChangedAt: new Date("2025-01-01T00:00:00.000Z") })
+      .where(eq(work.id, currentWork.id));
+    const inactive = [
+      { id: "closed", status: "Closed", closureResult: "Completed" },
+      { id: "archived", archivedAt: new Date() },
+      { id: "trashed", trashedAt: new Date() },
+      { id: "future", statusChangedAt: new Date("2099-01-01T00:00:00.000Z") },
+    ];
+    await database()
+      .insert(work)
+      .values(
+        inactive.map((record, index) => ({
+          number: index + 2,
+          key: `RETURN-${index + 2}`,
+          title: record.id,
+          type: "Task",
+          projectId: currentProject.id,
+          statusChangedAt: new Date("2025-01-01T00:00:00.000Z"),
+          ...record,
+        })),
+      );
+    const [prepared] = await collections.listViews(
+      accountId,
+      currentProject.id,
+    );
+    expect(prepared!.works.map((record) => record.id)).toEqual([
+      currentWork.id,
+    ]);
+    expect(
+      (await access.read(accountId, { projectId: currentProject.id })).cards
+        .filter((card) => card.reasons.includes("Long in the same status"))
+        .map((card) => card.id),
+    ).toEqual([currentWork.id]);
+    expect(
+      (
+        await access.read(accountId, {
+          projectId: currentProject.id,
+          workId: "archived",
+        })
+      ).cards.flatMap((card) => card.reasons),
+    ).not.toContain("Long in the same status");
+    await database()
+      .update(work)
+      .set({ statusChangedAt: new Date() })
+      .where(eq(work.id, currentWork.id));
+    expect((await collections.getView(accountId, prepared!.id))!.works).toEqual(
+      [],
+    );
+    await database()
+      .update(project)
+      .set({
+        configuration: {
+          ...currentProject.configuration,
+          statusAgeThresholdDays: null,
+        },
+      })
+      .where(eq(project.id, currentProject.id));
+    expect(await collections.listViews(accountId, currentProject.id)).toEqual(
+      [],
+    );
+    expect(await collections.getView(accountId, prepared!.id)).toBeNull();
+    await database()
+      .update(project)
+      .set({
+        configuration: {
+          ...currentProject.configuration,
+          statusAgeThresholdDays: 7,
+        },
+        archivedAt: new Date(),
+      })
+      .where(eq(project.id, currentProject.id));
+    expect(await collections.listViews(accountId, currentProject.id)).toEqual(
+      [],
+    );
+    expect(
+      (
+        await access.read(accountId, { projectId: currentProject.id })
+      ).cards.flatMap((card) => card.reasons),
+    ).not.toContain("Long in the same status");
+  });
+
   test("reads all six defined groups from current sources and excludes unrelated Work context", async () => {
     const { access, currentProject, currentWork } = await fixture();
     const context = { projectId: currentProject.id };

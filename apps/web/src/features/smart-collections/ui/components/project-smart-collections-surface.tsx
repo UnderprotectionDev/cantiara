@@ -469,8 +469,10 @@ function CollectionViewCard({
         sourceRecordId={view.collectionId}
         sourceRecordType="Smart Collection"
       />
-      <CollectionSubscriptionControls view={view} />
-      {isWorkCollection ? (
+      {view.preparedReason ? null : (
+        <CollectionSubscriptionControls view={view} />
+      )}
+      {isWorkCollection && !view.preparedReason ? (
         <a
           {...newWorkLinkProps}
           className={buttonVariants({ size: "sm", variant: "outline" })}

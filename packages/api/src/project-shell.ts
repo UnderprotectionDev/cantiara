@@ -5,6 +5,7 @@ import {
   DOCUMENT_STARTER_SKELETONS,
 } from "./document-skeletons";
 import type { MutationContract } from "./mutation-and-undo";
+import { statusAgeThresholdDaysSchema } from "./return-to-work";
 import {
   cloneWorkContextLayouts,
   getDefaultWorkContextLayouts,
@@ -471,6 +472,7 @@ export interface ProjectShellConfiguration
   extends StarterConfigurationDefinition {
   notifyOnReappearDate?: boolean;
   notifyOnReappearDateEnabledAt?: string | null;
+  statusAgeThresholdDays?: number | null;
   workContextLayouts: WorkContextLayouts;
   workFocusThreshold: number | null;
   workSort: ProjectWorkSort;
@@ -492,6 +494,7 @@ export const projectShellConfigurationSchema = z
     // Work Context Card layouts are repaired on read; storage stays lenient so
     // an evolved prepared section set cannot invalidate the configuration.
     workContextLayouts: z.unknown().optional(),
+    statusAgeThresholdDays: statusAgeThresholdDaysSchema.default(null),
     workFocusThreshold: workFocusThresholdSchema,
     workSort: projectWorkSortSchema,
     workStatuses: protectedWorkStatusesSchema,
@@ -513,6 +516,7 @@ const legacyProjectShellConfigurationSchema = z
     preparedWorkViews: z.array(projectWorkViewSchema),
     starterSkeletons: starterSkeletonsSchema.optional(),
     workContextLayouts: z.unknown().optional(),
+    statusAgeThresholdDays: statusAgeThresholdDaysSchema.default(null),
     workFocusThreshold: workFocusThresholdSchema,
     workSort: projectWorkSortSchema,
     workStatuses: protectedWorkStatusesSchema,
@@ -529,6 +533,7 @@ export function getProjectShellConfiguration(
     notifyOnReappearDate: false,
     notifyOnReappearDateEnabledAt: null,
     workContextLayouts: getDefaultWorkContextLayouts(),
+    statusAgeThresholdDays: null,
     workFocusThreshold: null,
     workSort: { direction: "ascending", field: "number" },
     workStatuses: [...PROTECTED_WORK_STATUS_OPTIONS],
@@ -589,6 +594,7 @@ function cloneProjectShellConfiguration(
     workContextLayouts: cloneWorkContextLayouts(
       configuration.workContextLayouts,
     ),
+    statusAgeThresholdDays: configuration.statusAgeThresholdDays ?? null,
     workFocusThreshold: configuration.workFocusThreshold,
     workSort: { ...configuration.workSort },
     workStatuses: [...configuration.workStatuses],
@@ -619,6 +625,7 @@ export function resolveProjectShellConfiguration(
       workContextLayouts: repairWorkContextLayouts(
         parsed.data.workContextLayouts,
       ),
+      statusAgeThresholdDays: parsed.data.statusAgeThresholdDays,
       workFocusThreshold: parsed.data.workFocusThreshold,
       workSort: parsed.data.workSort,
       workStatuses: [...parsed.data.workStatuses],
@@ -652,6 +659,7 @@ export function resolveProjectShellConfiguration(
         workContextLayouts: repairWorkContextLayouts(
           legacy.data.workContextLayouts,
         ),
+        statusAgeThresholdDays: legacy.data.statusAgeThresholdDays,
         workFocusThreshold: legacy.data.workFocusThreshold,
         workSort: legacy.data.workSort,
         workStatusLabels: cloneWorkStatusLabels(
@@ -683,6 +691,7 @@ export function enableProjectArea(
     workContextLayouts: cloneWorkContextLayouts(
       configuration.workContextLayouts,
     ),
+    statusAgeThresholdDays: configuration.statusAgeThresholdDays ?? null,
     workFocusThreshold: configuration.workFocusThreshold,
     workSort: { ...configuration.workSort },
     workStatuses: [...configuration.workStatuses],
@@ -792,6 +801,12 @@ export const projectShellConfigurationChangeSchema = z.discriminatedUnion(
         direction: z.enum(PROJECT_WORK_SORT_DIRECTION_OPTIONS),
         field: z.enum(PROJECT_WORK_SORT_FIELD_OPTIONS),
         kind: z.literal("set-work-sort"),
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("set-status-age-threshold"),
+        thresholdDays: statusAgeThresholdDaysSchema,
       })
       .strict(),
     workContextLayoutChangeSchema,
@@ -1003,6 +1018,9 @@ export function applyProjectShellConfigurationChange(
         ...next.workStatusSoftWipLimits,
         [parsedChange.semantic]: parsedChange.limit,
       };
+      return next;
+    case "set-status-age-threshold":
+      next.statusAgeThresholdDays = parsedChange.thresholdDays;
       return next;
     case "set-work-focus-threshold":
       next.workFocusThreshold = parsedChange.threshold;
