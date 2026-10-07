@@ -178,27 +178,32 @@ function NextConcreteStepForm({
         )}
       </form.Field>
       <p className="text-muted-foreground text-sm">Optional · {source.title}</p>
-      {source.nextConcreteStepUpdatedAt !== null && (
-        <time
-          className="text-muted-foreground text-xs"
-          dateTime={source.nextConcreteStepUpdatedAt}
-        >
-          {formatAccountDateTime(source.nextConcreteStepUpdatedAt, preferences)}
-        </time>
-      )}
-      <a
-        className="inline-flex min-h-11 items-center text-sm underline focus-visible:ring-2 focus-visible:ring-ring"
-        href={source.sourcePath}
-      >
-        Open source record<span className="sr-only">: {source.title}</span>
-      </a>
-      <form.Subscribe selector={(state) => state.isSubmitting}>
-        {(isSubmitting) => (
-          <Button disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Saving…" : "Save"}
-          </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        {source.nextConcreteStepUpdatedAt !== null && (
+          <time
+            className="text-muted-foreground text-xs"
+            dateTime={source.nextConcreteStepUpdatedAt}
+          >
+            {formatAccountDateTime(
+              source.nextConcreteStepUpdatedAt,
+              preferences,
+            )}
+          </time>
         )}
-      </form.Subscribe>
+        <a
+          className="inline-flex min-h-11 items-center text-sm underline focus-visible:ring-2 focus-visible:ring-ring"
+          href={source.sourcePath}
+        >
+          Open source record<span className="sr-only">: {source.title}</span>
+        </a>
+        <form.Subscribe selector={(state) => state.isSubmitting}>
+          {(isSubmitting) => (
+            <Button disabled={isSubmitting} type="submit">
+              {isSubmitting ? "Saving…" : "Save"}
+            </Button>
+          )}
+        </form.Subscribe>
+      </div>
       {error !== null && (
         <p id={`${fieldId}-error`} role="alert">
           {error}
