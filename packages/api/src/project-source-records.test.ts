@@ -122,3 +122,56 @@ describe("Project source record contracts", () => {
     });
   });
 });
+
+describe("Decisions lifecycle", () => {
+  test("reads a Decision with missing life as Valid", () => {
+    expect(
+      projectSourceRecordSchema.parse({
+        createdAt: "2026-10-07T10:00:00.000Z",
+        decision: "Keep the first release focused.",
+        id: "decision-import",
+        projectId: "project-1",
+        rationale: null,
+        revision: 1,
+        sourceType: "Decision",
+        title: "Release scope",
+        updatedAt: "2026-10-07T10:00:00.000Z",
+      }),
+    ).toMatchObject({ life: "Valid" });
+  });
+});
+
+test("withdraws explicitly with optional rationale and rejects unlinked Superseded", () => {
+  const input = {
+    baseRevision: 1,
+    clientIdempotencyKey: "withdraw-decision",
+    life: "Withdrawn",
+    projectId: "project-1",
+    sourceId: "decision-1",
+    sourceType: "Decision",
+    rationale: "The original constraint no longer applies.",
+  };
+  expect(transitionProjectSourceRecordInputSchema.parse(input)).toMatchObject({
+    life: "Withdrawn",
+    rationale: "The original constraint no longer applies.",
+  });
+  expect(
+    transitionProjectSourceRecordInputSchema.safeParse({
+      ...input,
+      life: "Superseded",
+    }).success,
+  ).toBe(false);
+  expect(
+    createProjectSourceRecordInputSchema.safeParse({
+      baseRevision: 0,
+      clientIdempotencyKey: "superseded-create",
+      id: "decision-1",
+      projectId: "project-1",
+      sourceType: "Decision",
+      title: "Release scope",
+      decision: "Ship the first release.",
+      rationale: null,
+      life: "Superseded",
+    }).success,
+  ).toBe(false);
+});

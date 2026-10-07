@@ -48,3 +48,59 @@ test("Favorites membership persists, supports keyboard input, and retains its st
   await expect(add).toBeEnabled();
   await expect(overview.getByText("Active", { exact: true })).toBeVisible();
 });
+
+test("Decision Favorites preserves its source content and life across membership changes", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=favorites-decisions`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#decisions`);
+  await page
+    .getByRole("region", { name: "Decisions", exact: true })
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await page
+    .getByLabel("Title", { exact: true })
+    .fill("Favorite release decision");
+  await page
+    .getByLabel("Decision text", { exact: true })
+    .fill("Keep the source unchanged.");
+  await page
+    .getByLabel("Rationale (optional)", { exact: true })
+    .fill("Personal access only.");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByText("Decision saved.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Favorite release decision", exact: true })
+    .click();
+  const detail = page.getByRole("article", { name: "Decision", exact: true });
+  const add = detail.getByRole("button", {
+    name: "Add to Favorites",
+    exact: true,
+  });
+  await expect(add).toBeEnabled({ timeout: 5000 });
+  await add.click();
+  const remove = detail.getByRole("button", {
+    name: "Remove from Favorites",
+    exact: true,
+  });
+  await expect(remove).toBeEnabled();
+  await page.reload();
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await expect(add).toBeEnabled();
+  await page.reload();
+  await expect(add).toBeEnabled();
+  await expect(detail).toContainText("Valid");
+  await expect(detail).toContainText("Keep the source unchanged.");
+  await expect(detail).toContainText("Personal access only.");
+});

@@ -79,7 +79,9 @@ export const decisionRecordSchema = z
   .object({
     ...sourceRecordIdentity,
     decision: z.string().trim().min(1).max(20_000),
-    life: decisionLifeSchema,
+    life: decisionLifeSchema.default("Valid"),
+    withdrawnAt: timestamp.nullable().optional(),
+    withdrawalRationale: optionalText.optional(),
     rationale: optionalText,
     sourceType: z.literal("Decision"),
     title: text255,
@@ -366,6 +368,7 @@ export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
     humanMutationEnvelopeSchema
       .extend({
         life: z.enum(["Valid", "Withdrawn"]),
+        rationale: optionalText.optional(),
         projectId: identifier,
         sourceId: identifier,
         sourceType: z.literal("Decision"),
@@ -431,6 +434,13 @@ export interface ProjectSourceRecordsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProjectSourceRecord[] | null>;
+  listDecisions: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof decisionRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
   transition: (
     accountId: string,
     input: z.input<typeof transitionProjectSourceRecordInputSchema>,

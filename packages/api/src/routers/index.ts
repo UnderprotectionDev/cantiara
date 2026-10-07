@@ -5045,6 +5045,14 @@ export const appRouter = {
     .handler(({ context, input }) =>
       requireDailyFocus(context).list(context.session.user.id, input.focusDate),
     ),
+  projectDecisions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).listDecisions(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
   projectSourceRecords: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) =>
