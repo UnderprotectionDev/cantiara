@@ -124,13 +124,7 @@ export function cardsForSources(
     sources.map((source) => [source.id, source.lastViewedAt ?? ""]),
   );
   const selected = new Set<ReturnCard>();
-  for (const reason of [
-    "Recently edited",
-    "Recently viewed",
-    "Upcoming date",
-    "Open risk",
-    "Pending GitHub development signal",
-  ] as const) {
+  for (const reason of RETURN_CARD_REASONS) {
     const candidates = cards.filter(
       (candidate) =>
         candidate.reasons.includes(reason) && !selected.has(candidate),

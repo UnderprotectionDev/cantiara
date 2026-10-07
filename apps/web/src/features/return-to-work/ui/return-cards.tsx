@@ -2,7 +2,7 @@ import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
-import type { ReturnCard } from "@cantiara/api/return-to-work";
+import type { ReturnCard, ReturnSource } from "@cantiara/api/return-to-work";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 
 export default function ReturnCards({
@@ -42,14 +42,24 @@ export default function ReturnCards({
               )}
             </div>
           )}
-          <a
-            className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
-            href={card.sourcePath}
-          >
-            Open source record<span className="sr-only">: {card.title}</span>
-          </a>
+          <ReturnSourceLink source={card} />
         </li>
       ))}
     </ul>
+  );
+}
+
+export function ReturnSourceLink({
+  source,
+}: {
+  source: Pick<ReturnSource, "sourcePath" | "title">;
+}) {
+  return (
+    <a
+      className="inline-flex min-h-11 items-center text-sm underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring"
+      href={source.sourcePath}
+    >
+      Open source record<span className="sr-only">: {source.title}</span>
+    </a>
   );
 }
