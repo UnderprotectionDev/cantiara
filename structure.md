@@ -94,6 +94,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── project-goals/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── project-source-records/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── priority-metrics/
@@ -143,6 +145,7 @@
 │       │   ├── command-palette.e2e.ts
 │       │   ├── custom-fields.e2e.ts
 │       │   ├── kanban.e2e.ts
+│       │   ├── project-goals.e2e.ts
 │       │   ├── project-shell.e2e.ts
 │       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
@@ -302,6 +305,9 @@
 │       │   │   │       └── components/
 │       │   │   │           ├── work-relations.test.tsx
 │       │   │   │           └── work-relations.tsx
+│       │   │   ├── project-goals/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
 │       │   │   ├── project-overview/
 │       │   │   │   ├── lib/
 │       │   │   │   │   └── project-overview.ts

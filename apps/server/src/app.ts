@@ -54,6 +54,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
+import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -175,6 +176,7 @@ export interface AppDependencies {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
@@ -1180,6 +1182,7 @@ export function createApp(dependencies: AppDependencies) {
       mutationContract: dependencies.mutationContract,
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
+      projectGoals: dependencies.projectGoals,
       projectSourceRecords: dependencies.projectSourceRecords,
       recordTable: dependencies.recordTable,
       priorityMetricMutationContracts:

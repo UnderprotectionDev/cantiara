@@ -1,6 +1,5 @@
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
-
 import type {
   AccountPreferences,
   AccountPreferencesAccess,
@@ -33,6 +32,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "./priority-metrics";
+import type { ProjectGoalsAccess } from "./project-goals";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -172,6 +172,7 @@ export interface Context {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;

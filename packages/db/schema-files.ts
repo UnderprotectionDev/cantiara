@@ -16,6 +16,7 @@ export const primarySchemaFiles = [
   "./src/schema/file-attachments.ts",
   "./src/schema/focus-period.ts",
   "./src/schema/project.ts",
+  "./src/schema/project-goal.ts",
   "./src/schema/project-milestone.ts",
   "./src/schema/project-release.ts",
   "./src/schema/production-incident.ts",
