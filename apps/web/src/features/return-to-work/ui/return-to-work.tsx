@@ -14,6 +14,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../account-preferences/lib/account-preferences-format";
 import { runOnlineOnlyWrite } from "../../web-macos-client/store/client-shell";
@@ -133,7 +134,9 @@ function NextConcreteStepForm({
       setSaved(false);
       const parsed = nextConcreteStepSchema.safeParse(value.nextConcreteStep);
       if (!parsed.success) {
-        setError("Next concrete step must be 4000 characters or fewer.");
+        const message = "Next concrete step must be 4000 characters or fewer.";
+        setError(message);
+        toast.error(message);
         return;
       }
       const request = {
@@ -155,15 +158,17 @@ function NextConcreteStepForm({
           }),
         );
         pending.current = null;
+        await queryClient.invalidateQueries();
         form.reset({ nextConcreteStep: parsed.data ?? "" });
         setSaved(true);
-        await queryClient.invalidateQueries();
+        toast.success("Next concrete step saved.");
       } catch (failure) {
-        setError(
+        const message =
           failure instanceof Error
             ? failure.message
-            : "Next concrete step could not be saved. Try again.",
-        );
+            : "Next concrete step could not be saved. Try again.";
+        setError(message);
+        toast.error(message);
       }
     },
   });
@@ -177,24 +182,29 @@ function NextConcreteStepForm({
         form.handleSubmit();
       }}
     >
-      <form.Field name="nextConcreteStep">
-        {(field) => (
-          <Field>
-            <FieldLabel htmlFor={fieldId}>Next concrete step</FieldLabel>
-            <Textarea
-              aria-describedby={error ? `${fieldId}-error` : undefined}
-              id={fieldId}
-              maxLength={4000}
-              onBlur={field.handleBlur}
-              onChange={(event) => {
-                field.handleChange(event.target.value);
-                setSaved(false);
-              }}
-              value={field.state.value}
-            />
-          </Field>
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(isSubmitting) => (
+          <form.Field name="nextConcreteStep">
+            {(field) => (
+              <Field>
+                <FieldLabel htmlFor={fieldId}>Next concrete step</FieldLabel>
+                <Textarea
+                  aria-describedby={error ? `${fieldId}-error` : undefined}
+                  disabled={isSubmitting}
+                  id={fieldId}
+                  maxLength={4000}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => {
+                    field.handleChange(event.target.value);
+                    setSaved(false);
+                  }}
+                  value={field.state.value}
+                />
+              </Field>
+            )}
+          </form.Field>
         )}
-      </form.Field>
+      </form.Subscribe>
       <p className="text-muted-foreground text-sm">Optional · {source.title}</p>
       <div className="flex flex-wrap items-center gap-3">
         {source.nextConcreteStepUpdatedAt !== null && (

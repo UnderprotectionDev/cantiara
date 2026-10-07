@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 
 const workLinkName = /Open source record\s*: .*Investigate payments/;
 const workRoute = /#work-/;
+const projectLinkName = /Open source record\s*: Return to Work Project/;
+const projectRoute = /#overview$/;
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
 test("Return to Work saves independent source hints, opens current sources, and preserves drafts after a failure", async ({
@@ -47,7 +49,55 @@ test("Return to Work saves independent source hints, opens current sources, and 
   await expect(
     summary.getByText("Next concrete step saved.", { exact: true }),
   ).toHaveText("Next concrete step saved.");
+  let releaseSummary: (() => Promise<void>) | undefined;
+  await page.route(
+    "**/rpc/returnToWork",
+    async (route) => {
+      const response = await route.fetch();
+      releaseSummary = () => route.fulfill({ response });
+    },
+    { times: 1 },
+  );
+  await summary
+    .getByLabel("Next concrete step")
+    .fill("Check payment failure logs");
+  await summary.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => Boolean(releaseSummary)).toBe(true);
+  await expect(
+    summary.getByRole("button", { name: "Saving…", exact: true }),
+  ).toBeDisabled();
+  await expect(summary.getByLabel("Next concrete step")).toBeDisabled();
+  await releaseSummary?.();
+  await expect(
+    summary
+      .getByRole("list")
+      .getByText("Check payment failure logs", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator("[data-sonner-toast]")
+      .getByText("Next concrete step saved.", { exact: true })
+      .last(),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "../../.context/return-save-feedback.png",
+    fullPage: true,
+  });
+  await summary
+    .getByLabel("Next concrete step")
+    .fill("Ask about payment failures");
+  await summary.getByRole("button", { name: "Save", exact: true }).click();
   await page.reload();
+  await expect(summary.getByLabel("Next concrete step")).toHaveValue(
+    "Ask about payment failures",
+  );
+  await summary
+    .getByRole("list")
+    .getByRole("link", {
+      name: projectLinkName,
+    })
+    .click();
+  await expect(page).toHaveURL(projectRoute);
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Ask about payment failures",
   );
@@ -82,6 +132,9 @@ test("Return to Work saves independent source hints, opens current sources, and 
   ).toBeVisible();
   await summary.getByRole("link", { name: workLinkName }).click();
   await expect(page).toHaveURL(workRoute);
+  await expect(
+    page.getByRole("heading", { name: "Investigate payments", exact: true }),
+  ).toBeVisible();
   await expect(summary.getByLabel("Next concrete step")).toHaveValue("");
   await summary
     .getByLabel("Next concrete step")
@@ -95,6 +148,9 @@ test("Return to Work saves independent source hints, opens current sources, and 
   );
   await summary.getByRole("button", { name: "Save", exact: true }).click();
   await expect(summary.getByRole("alert")).toBeVisible();
+  await expect(
+    page.locator('[data-sonner-toast][data-type="error"]').last(),
+  ).toBeVisible();
   await expect(summary.getByLabel("Next concrete step")).toHaveValue(
     "Request the failing transaction",
   );
