@@ -42,6 +42,9 @@ function toProfile(record: ProjectDatabaseRecord): ProjectProfile {
       starterConfiguration,
     ),
     createdAt: record.createdAt.toISOString(),
+    nextConcreteStep: record.nextConcreteStep,
+    nextConcreteStepUpdatedAt:
+      record.nextConcreteStepUpdatedAt?.toISOString() ?? null,
     id: record.id,
     logo: record.logo,
     name: record.name,
@@ -180,6 +183,10 @@ async function createProjectShellRecord(
   const [created] = await executor
     .insert(project)
     .values({
+      nextConcreteStep: nextProject.nextConcreteStep,
+      nextConcreteStepUpdatedAt: nextProject.nextConcreteStepUpdatedAt
+        ? new Date(nextProject.nextConcreteStepUpdatedAt)
+        : null,
       configuration: nextProject.configuration,
       createdAt: committedAt,
       id: nextProject.id,
@@ -262,6 +269,10 @@ async function updateProjectShellRecord(
   const [updated] = await executor
     .update(project)
     .set({
+      nextConcreteStep: nextProject.nextConcreteStep,
+      nextConcreteStepUpdatedAt: nextProject.nextConcreteStepUpdatedAt
+        ? new Date(nextProject.nextConcreteStepUpdatedAt)
+        : null,
       configuration: nextProject.configuration,
       revision: input.expectedRevision + 1,
       shortCode: nextProject.shortCode,

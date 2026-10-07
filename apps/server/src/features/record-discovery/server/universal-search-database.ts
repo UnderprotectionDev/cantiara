@@ -140,6 +140,9 @@ function isClosed(
   status: string,
   closureResult: string | null,
 ) {
+  if (recordType === "Project") {
+    return status === "Completed" || status === "Abandoned";
+  }
   if (recordType === "Work") {
     return status === "Closed";
   }
@@ -282,6 +285,7 @@ async function searchWorkRecords({
     work.description,
     work.expectedOutcome,
     work.problemOpportunity,
+    work.nextConcreteStep,
     checklistText,
     retiredKeys,
   ]);
@@ -785,6 +789,52 @@ async function searchProjectRecords(
   return familyResults.flat();
 }
 
+async function searchProjectProfiles({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const titleKey = textContent([project.name, project.shortCode]);
+  const body = textContent([project.shortCode, project.nextConcreteStep]);
+  const rows = await database
+    .select({
+      project,
+      body,
+      titleKeyMatch: matches(query, titleKey),
+    })
+    .from(project)
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(
+      projectConditions(
+        accountId,
+        input,
+        textContent([titleKey, body]),
+        undefined,
+        sql`'Project'`,
+      ),
+    );
+  return rows.map(({ project: record, body: indexedText, titleKeyMatch }) =>
+    candidate(
+      {
+        archived: Boolean(record.archivedAt),
+        id: record.id,
+        indexedText,
+        key: record.shortCode,
+        projectArchivedAt: record.archivedAt,
+        projectId: record.id,
+        projectName: record.name,
+        recordType: "Project",
+        status: record.status,
+        title: record.name,
+        titleKeyMatch,
+        updatedAt: record.updatedAt,
+      },
+      query,
+    ),
+  );
+}
+
 async function searchDiagramRecords({
   accountId,
   database,
@@ -1081,6 +1131,7 @@ async function searchIndexCandidates(context: SearchContext) {
   const selectedRecordType =
     input.index === "Search" ? undefined : recordTypeByIndex[input.index];
   return [
+    ...(isSearch ? await searchProjectProfiles(context) : []),
     ...(isSearch || input.index === "All Work"
       ? await searchWorkRecords(context)
       : []),

@@ -30,6 +30,9 @@ function toRecord(record: ProjectDatabaseRecord) {
       starterConfiguration,
     ),
     createdAt: record.createdAt.toISOString(),
+    nextConcreteStep: record.nextConcreteStep,
+    nextConcreteStepUpdatedAt:
+      record.nextConcreteStepUpdatedAt?.toISOString() ?? null,
     id: record.id,
     logo: record.logo,
     name: record.name,
