@@ -105,6 +105,11 @@ test("Return to Work saves independent source hints, opens current sources, and 
       .locator("[data-sonner-toast]")
       .getByText("Next concrete step saved.", { exact: true }),
   ).toBeVisible();
+  const successToast = page
+    .locator('[data-sonner-toast][data-type="success"]')
+    .last();
+  await expect(successToast).toHaveCSS("opacity", "1");
+  await expect(successToast).toBeInViewport();
   await page.screenshot({ path: "../../.context/return-save-feedback.png" });
   await summary
     .getByRole("list")
