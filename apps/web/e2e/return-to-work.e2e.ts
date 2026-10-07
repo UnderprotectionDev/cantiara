@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+const documentSourceLinkName = /Open source record\s*: Returning document/;
 const returningSourceLinkName = /Open source record/;
 const workLinkName = /Open source record\s*: .*Investigate payments/;
 const projectLinkName = /Open source record\s*: Return to Work Project/;
@@ -353,14 +354,58 @@ test("Since you last looked keeps visible changes until reopening and opens thei
   await page
     .getByLabel("Title", { exact: true })
     .fill("Inspect returning context");
-  const workVisit = page.waitForResponse((response) =>
-    response.url().endsWith("/rpc/markReturnContextViewed"),
-  );
+  const workVisits: string[] = [];
+  page.on("request", (visitRequest) => {
+    if (visitRequest.url().endsWith("/rpc/markReturnContextViewed")) {
+      workVisits.push(visitRequest.postData() ?? "");
+    }
+  });
   await page
     .locator("#work-create")
     .getByRole("button", { name: "Create", exact: true })
     .click();
+  const heading = page.getByRole("heading", {
+    name: "Inspect returning context",
+    exact: true,
+  });
+  await expect(heading).toBeVisible();
+  const workId = (await heading.getAttribute("id"))?.slice(
+    "work-context-card-".length,
+    -"-heading".length,
+  );
+  const [projectUrl] = page.url().split("#");
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page
+    .getByLabel("Title", { exact: true })
+    .fill("Unopened returning context");
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Unopened returning context",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.goto(`${projectUrl}#work-relations-${workId}`);
+  await expect(
+    page.getByRole("list", { name: "Work list", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Return to Work", exact: true }),
+  ).toHaveCount(0);
+  expect(workVisits).toEqual([]);
+  const workVisit = page.waitForResponse((response) =>
+    response.url().endsWith("/rpc/markReturnContextViewed"),
+  );
+  await page.goto(`${projectUrl}#work-${workId}`);
   expect((await workVisit).ok()).toBe(true);
+  expect(workVisits).toHaveLength(1);
+  expect(workVisits[0]).toContain(workId ?? "");
+  await expect(
+    page.getByRole("region", { name: "Return to Work", exact: true }),
+  ).toHaveCount(1);
   const summary = page.getByRole("region", {
     name: "Return to Work",
     exact: true,
@@ -403,4 +448,73 @@ test("Since you last looked keeps visible changes until reopening and opens thei
         .analyze()
     ).violations,
   ).toEqual([]);
+});
+
+test("Since you last looked opens a Document after its area is hidden", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  const projectUrl = `/projects/${setup.projectId}`;
+  const visit = page.waitForResponse((visitResponse) =>
+    visitResponse.url().endsWith("/rpc/markReturnContextViewed"),
+  );
+  await page.goto(`${projectUrl}#overview`);
+  expect((await visit).ok()).toBe(true);
+  await page.goto(`${projectUrl}#documents`);
+  await page
+    .getByRole("region", { name: "Documents", exact: true })
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const create = page.getByRole("dialog", { name: "Create Document" });
+  await create.getByLabel("Title").fill("Returning document");
+  await create
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("region", { name: "Document", exact: true })
+      .getByLabel("Title", { exact: true }),
+  ).toHaveValue("Returning document");
+  await page.goto(`${projectUrl}#overview`);
+  const changes = page.getByRole("region", {
+    name: "Since you last looked",
+    exact: true,
+  });
+  const sourceLink = changes.getByRole("link", {
+    name: documentSourceLinkName,
+  });
+  const sourceHref = await sourceLink.getAttribute("href");
+  expect(sourceHref).not.toBeNull();
+  await sourceLink.press("Enter");
+  await expect(
+    page
+      .getByRole("region", { name: "Document", exact: true })
+      .getByLabel("Title", { exact: true }),
+  ).toHaveValue("Returning document");
+  await page
+    .getByRole("button", { name: "Configuration Mode", exact: true })
+    .click();
+  const configuration = page.locator(
+    'section[aria-label="Configuration Mode"]',
+  );
+  await configuration
+    .locator("#configuration-host-project-areas")
+    .getByRole("button", { name: "Hide Documents", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Exit Configuration Mode", exact: true })
+    .click();
+  await page.goto(sourceHref ?? "");
+  await expect(
+    page
+      .getByRole("region", { name: "Document", exact: true })
+      .getByLabel("Title", { exact: true }),
+  ).toHaveValue("Returning document");
 });

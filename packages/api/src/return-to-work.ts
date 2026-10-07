@@ -58,18 +58,21 @@ export const RETURN_EVENT_GROUPS = {
   GitHub: ["GitHub development signal"],
   Publish: ["Project Release published"],
 } as const;
+export type ReturnEventKind =
+  (typeof RETURN_EVENT_GROUPS)[keyof typeof RETURN_EVENT_GROUPS][number];
 export type ReturnEventSource = Pick<
   ReturnSource,
   "id" | "projectId" | "title" | "sourcePath"
 >;
 export interface ReturnEvent {
   id: string;
-  kind: string;
+  kind: ReturnEventKind;
   occurredAt: string;
   source: ReturnEventSource;
 }
+export type ReturnEventCandidate = Omit<ReturnEvent, "kind"> & { kind: string };
 export interface ReturnChanges {
-  events: ReturnEvent[];
+  events: ReturnEventCandidate[];
   lastViewedAt: string | null;
 }
 export interface SinceLastLooked {
@@ -85,6 +88,7 @@ export function sinceLastLooked(
     changes.lastViewedAt === null
       ? []
       : changes.events
+          .filter(isReturnEvent)
           .filter(
             (event) =>
               Date.parse(event.occurredAt) > lastViewedAt &&
@@ -106,6 +110,12 @@ export function sinceLastLooked(
     }
   }
   return { lastViewedAt: changes.lastViewedAt, groups };
+}
+function isReturnEvent(event: ReturnEventCandidate): event is ReturnEvent {
+  return Object.values(RETURN_EVENT_GROUPS).some((kinds) => {
+    const allowedKinds: readonly string[] = kinds;
+    return allowedKinds.includes(event.kind);
+  });
 }
 export interface ReturnToWorkSummary {
   cards: ReturnCard[];

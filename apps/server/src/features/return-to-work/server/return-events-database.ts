@@ -2,6 +2,7 @@ import type {
   ReturnChanges,
   ReturnContext,
   ReturnEvent,
+  ReturnEventKind,
   ReturnEventSource,
 } from "@cantiara/api/return-to-work";
 import type { Database } from "@cantiara/db";
@@ -19,11 +20,11 @@ import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 
 interface EventSource {
   createdAt: Date;
-  createdKind: string;
+  createdKind: ReturnEventKind | null;
   publish: boolean;
   snapshotKey: "work" | "decision" | "risk" | "document" | "projectRelease";
   source: ReturnEventSource;
-  updatedKind: string;
+  updatedKind: ReturnEventKind;
 }
 export async function readReturnChanges(
   database: Database,
@@ -53,15 +54,19 @@ export async function readReturnChanges(
     return { lastViewedAt: null, events: [] };
   }
   const sources = await readEventSources(database, context);
-  const events: ReturnEvent[] = sources
-    .filter((record) => record.createdKind && record.createdAt > visit.viewedAt)
-    .map((record) => ({
-      id: `created:${record.source.id}`,
-      kind: record.createdKind,
-      occurredAt: record.createdAt.toISOString(),
-      source: record.source,
-    }));
-  const byId = new Map(sources.map((record) => [record.source.id, record]));
+  const events: ReturnEvent[] = sources.flatMap((record) =>
+    record.createdKind !== null && record.createdAt > visit.viewedAt
+      ? [
+          {
+            id: `created:${record.snapshotKey}:${record.source.id}`,
+            kind: record.createdKind,
+            occurredAt: record.createdAt.toISOString(),
+            source: record.source,
+          },
+        ]
+      : [],
+  );
+  const sourceIds = [...new Set(sources.map((record) => record.source.id))];
   const history =
     sources.length === 0
       ? []
@@ -70,7 +75,7 @@ export async function readReturnChanges(
           .from(mutationHistory)
           .where(
             and(
-              inArray(mutationHistory.targetId, [...byId.keys()]),
+              inArray(mutationHistory.targetId, sourceIds),
               gt(mutationHistory.occurredAt, visit.viewedAt),
             ),
           );
@@ -182,7 +187,7 @@ async function readEventSources(
           sourcePath: `${projectPath}#source-project-release-${encodeURIComponent(record.id)}`,
         },
         createdAt: record.createdAt,
-        createdKind: "",
+        createdKind: null,
         updatedKind: "Project Release published",
         snapshotKey: "projectRelease",
         publish: true,
@@ -197,14 +202,21 @@ function eventsFromHistory(
   history: (typeof mutationHistory.$inferSelect)[],
   sources: EventSource[],
 ): ReturnEvent[] {
-  const byId = new Map(sources.map((record) => [record.source.id, record]));
+  const byId = new Map<string, EventSource[]>();
+  for (const record of sources) {
+    const matches = byId.get(record.source.id) ?? [];
+    matches.push(record);
+    byId.set(record.source.id, matches);
+  }
   const events: ReturnEvent[] = [];
   for (const entry of history) {
-    const record = byId.get(entry.targetId);
-    if (
-      !record ||
-      recordSnapshot(entry.nextValue, record.snapshotKey) === null
-    ) {
+    const record = byId
+      .get(entry.targetId)
+      ?.find(
+        (source) =>
+          recordSnapshot(entry.nextValue, source.snapshotKey) !== null,
+      );
+    if (!record) {
       continue;
     }
     if (

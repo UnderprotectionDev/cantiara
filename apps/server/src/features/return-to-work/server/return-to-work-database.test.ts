@@ -91,7 +91,7 @@ suite("Return to Work PostgreSQL seam", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     const time = new Date();
     await database().insert(decision).values({
-      id: "decision",
+      id: currentWork.id,
       projectId: currentProject.id,
       title: "Release scope",
       decision: "Ship",
