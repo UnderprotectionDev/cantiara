@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import ProjectGoalMembership from "./project-goal-membership";
 import {
   type ProjectGoalDraft,
   ProjectGoalSaveConflictError,
@@ -107,6 +108,15 @@ export default function ProjectGoalsSurface({
   return (
     <ProjectGoalsView
       goals={goals.data.records}
+      membership={
+        selectedId ? (
+          <ProjectGoalMembership
+            goalId={selectedId}
+            key={selectedId}
+            projectId={projectId}
+          />
+        ) : undefined
+      }
       onSave={save}
       onStartEditing={startEditing}
       projectId={projectId}

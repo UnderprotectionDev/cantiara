@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   createProjectGoalInputSchema,
   projectGoalRecordSchema,
+  projectGoalRelationInputSchema,
 } from "./project-goals";
 
 const draft = {
@@ -69,5 +70,52 @@ describe("Project Goals record interface", () => {
       createProjectGoalInputSchema.safeParse({ ...draft, description: " " })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("Project Goals membership interface", () => {
+  test("accepts only Work, Milestone, and Project Release contribution without lifecycle fields", () => {
+    const relation = {
+      projectId: "project-1",
+      goalId: "goal-1",
+      memberId: "member-1",
+      kind: "Contributes to Goal",
+      attached: true,
+      baseRevision: 0,
+      clientIdempotencyKey: "attach",
+    };
+    for (const memberType of ["Work", "Milestone", "Project Release"]) {
+      expect(
+        projectGoalRelationInputSchema.safeParse({ ...relation, memberType })
+          .success,
+      ).toBe(true);
+    }
+    for (const memberType of [
+      "Decision",
+      "Evidence",
+      "Test",
+      "Experiment/Validation",
+      "User Research Session",
+      "Feature",
+    ]) {
+      expect(
+        projectGoalRelationInputSchema.safeParse({ ...relation, memberType })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      projectGoalRelationInputSchema.safeParse({
+        ...relation,
+        memberType: "Work",
+        status: "Done",
+      }).success,
+    ).toBe(false);
+    expect(
+      projectGoalRelationInputSchema.safeParse({
+        ...relation,
+        memberType: "Risk",
+        kind: "Related",
+      }).success,
+    ).toBe(true);
   });
 });

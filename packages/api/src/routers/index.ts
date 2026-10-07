@@ -199,6 +199,7 @@ import {
   createProjectGoalInputSchema,
   ProjectGoalConflictError,
   projectGoalInputSchema,
+  projectGoalRelationInputSchema,
   projectGoalsProjectInputSchema,
   updateProjectGoalInputSchema,
 } from "../project-goals";
@@ -2526,6 +2527,35 @@ function rethrowProjectGoalError(error: unknown, targetId: string): never {
   throw error;
 }
 export const appRouter = {
+  projectGoalDetail: protectedProcedure
+    .input(projectGoalInputSchema)
+    .handler(({ context, input }) => {
+      const { membership } = requireProjectGoals(context);
+      if (!membership) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return membership.detail(context.session.user.id, input);
+    }),
+  setProjectGoalRelation: protectedProcedure
+    .input(projectGoalRelationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { membership } = requireProjectGoals(context);
+      if (!membership) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const relation = await membership.setRelation(
+          context.session.user.id,
+          input,
+        );
+        if (!relation) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return relation;
+      } catch (error) {
+        rethrowProjectGoalError(error, input.goalId);
+      }
+    }),
   projectGoals: protectedProcedure
     .input(projectGoalsProjectInputSchema)
     .handler(({ context, input }) =>

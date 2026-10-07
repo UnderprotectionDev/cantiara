@@ -7,7 +7,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 
 export interface ProjectGoalDraft {
   description: string;
@@ -196,6 +196,7 @@ export function ProjectGoalsView({
   onSave,
   onStartEditing,
   savedMessage,
+  membership,
 }: {
   goals: readonly ProjectGoalRecord[];
   projectId: string;
@@ -205,6 +206,7 @@ export function ProjectGoalsView({
     draft: ProjectGoalDraft,
     goal?: ProjectGoalRecord,
   ) => Promise<unknown>;
+  membership?: ReactNode;
   savedMessage?: string;
   onStartEditing?: () => void;
 }) {
@@ -254,6 +256,7 @@ export function ProjectGoalsView({
           </dl>
         </>
       ) : null}
+      {selected ? membership : null}
       {selectedId ? null : (
         <ProjectGoalList goals={goals} projectId={projectId} />
       )}
