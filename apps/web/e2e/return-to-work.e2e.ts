@@ -614,6 +614,19 @@ test("optional Project status-age threshold shows neutral return cards and a liv
   await configuration
     .getByLabel("Long in the same status", { exact: true })
     .fill("");
+  await page.route(
+    "**/rpc/updateProjectConfiguration",
+    (route) => route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+    { times: 1 },
+  );
+  await configuration
+    .getByRole("button", { name: "Save Long in the same status", exact: true })
+    .click();
+  await expect(configuration.getByRole("alert")).toBeVisible();
+  await expect(
+    configuration.getByLabel("Long in the same status", { exact: true }),
+  ).toHaveValue("");
+
   await configuration
     .getByRole("button", { name: "Save Long in the same status", exact: true })
     .click();
