@@ -20,7 +20,7 @@ import { mutationHistory, mutationTarget } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import {
   MutationConflictError,
   MutationStaleBaseRevisionError,
@@ -34,6 +34,18 @@ import {
 
 function conflict(projectId: string): never {
   throw new ProjectSourceRecordConflictError(projectId);
+}
+
+function isEvidenceLockConflict(error: unknown) {
+  let current = error;
+  while (current instanceof Error) {
+    const { cause, code } = current as Error & { code?: unknown };
+    if (code === "55P03") {
+      return true;
+    }
+    current = cause;
+  }
+  return false;
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: One graph guard covers full replacement and explicit removal.
@@ -126,7 +138,8 @@ function adapter(
         .select()
         .from(mutationTarget)
         .where(eq(mutationTarget.id, targetId));
-      const evidence = await executor
+      const decisionIds = rows.map((row) => row.id);
+      const evidenceQuery = executor
         .select({
           relation: usageLink,
           id: usageLink.id,
@@ -142,9 +155,18 @@ function adapter(
             eq(usageLink.surfaceRecordType, "Decision"),
             eq(usageLink.sourceRecordType, "Document"),
             eq(usageLink.workspaceId, owned.project.workspaceId),
+            inArray(usageLink.surfaceRecordId, decisionIds),
           ),
         );
-      const workEvidence = await executor
+      // Evidence writers can lock their source before the owning Project.
+      // NOWAIT avoids reversing that order while protecting the snapshot until commit.
+      const evidence = lock
+        ? await evidenceQuery.for("share", {
+            of: [usageLink, document],
+            noWait: true,
+          })
+        : await evidenceQuery;
+      const workEvidenceQuery = executor
         .select({
           relation: workRelation,
           id: workRelation.id,
@@ -162,8 +184,15 @@ function adapter(
             eq(workRelation.targetRecordType, "Decision"),
             eq(workRelation.kind, "Evidence"),
             isNull(workRelation.deletedAt),
+            inArray(workRelation.targetRecordId, decisionIds),
           ),
         );
+      const workEvidence = lock
+        ? await workEvidenceQuery.for("share", {
+            of: [workRelation, work],
+            noWait: true,
+          })
+        : await workEvidenceQuery;
       const savedTransition = decisionSupersessionGraphSchema
         .pick({ transition: true })
         .parse(marker?.value ?? {});
@@ -481,7 +510,8 @@ export function createDatabaseDecisionSupersession(
         }
         if (
           error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
+          error instanceof MutationStaleBaseRevisionError ||
+          isEvidenceLockConflict(error)
         ) {
           conflict(input.projectId);
         }

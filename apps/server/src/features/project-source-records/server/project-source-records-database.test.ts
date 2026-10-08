@@ -1,5 +1,7 @@
+import { ProjectSourceRecordConflictError } from "@cantiara/api/project-source-records";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
 import {
   mutationHistory,
   mutationReceipt,
@@ -7,8 +9,9 @@ import {
   mutationTarget,
 } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
-import { workRelation } from "@cantiara/db/schema/relation";
+import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
+import { work as workTable } from "@cantiara/db/schema/work";
 import { eq, inArray } from "drizzle-orm";
 import {
   afterAll,
@@ -470,6 +473,255 @@ describeDatabase(
         (await records.supersession.read(accountId, projectId))?.relations,
       ).toEqual([]);
     });
+
+    test.each(["Work", "Evidence relation"])(
+      "requires a fresh preview while cross-Project %s evidence is being updated",
+      async (changing) => {
+        if (!database) {
+          throw new Error("Database required");
+        }
+        const records = await decisionsFixture();
+        const evidenceProjectId = `${projectId}-evidence`;
+        await database.insert(project).values({
+          id: evidenceProjectId,
+          name: "Evidence Project",
+          shortCode: `EV-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+          starterConfiguration: "Blank Project",
+          workspaceId,
+        });
+        const lifecycle = createDatabaseWorkLifecycle(database);
+        const evidenceWork = await lifecycle.create(accountId, {
+          baseRevision: 0,
+          clientIdempotencyKey: "concurrent-evidence",
+          projectId: evidenceProjectId,
+          title: "Earlier evidence",
+          type: "Task",
+        });
+        await database.insert(workRelation).values({
+          id: crypto.randomUUID(),
+          kind: "Evidence",
+          sourceWorkId: evidenceWork.id,
+          targetLabel: "Choice 0",
+          targetProjectId: projectId,
+          targetRecordId: sourceIds[0],
+          targetRecordType: "Decision",
+        });
+        const preview = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        if (!preview) {
+          throw new Error("Preview required");
+        }
+        const evidenceLocked = Promise.withResolvers<void>();
+        const releaseEvidence = Promise.withResolvers<void>();
+        // Counterpart fixture holds the source Project/Work write boundary until confirmation finishes.
+        const writer = database.transaction(async (transaction) => {
+          try {
+            await transaction
+              .select()
+              .from(project)
+              .where(eq(project.id, evidenceProjectId))
+              .for("update");
+            if (changing === "Work") {
+              await transaction
+                .update(workTable)
+                .set({
+                  title: "Changed evidence",
+                  revision: evidenceWork.revision + 1,
+                })
+                .where(eq(workTable.id, evidenceWork.id));
+            } else {
+              await transaction
+                .update(workRelation)
+                .set({ targetLabel: "Changed evidence label", revision: 1 })
+                .where(eq(workRelation.sourceWorkId, evidenceWork.id));
+            }
+            evidenceLocked.resolve();
+            await releaseEvidence.promise;
+          } catch (error) {
+            evidenceLocked.reject(error);
+            throw error;
+          }
+        });
+        try {
+          await evidenceLocked.promise;
+          await expect(
+            records.supersession.commit(accountId, {
+              ...preview.command,
+              clientIdempotencyKey: "concurrent-confirmation",
+            }),
+          ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+        } finally {
+          releaseEvidence.resolve();
+          await writer;
+        }
+        expect(
+          (await records.supersession.read(accountId, projectId))?.relations,
+        ).toEqual([]);
+        expect(
+          await records.find(accountId, "Decision", sourceIds[0]),
+        ).toMatchObject({ life: "Valid" });
+        expect(
+          await records.supersession.history(accountId, projectId),
+        ).toEqual([]);
+        await expect(
+          records.supersession.commit(accountId, {
+            ...preview.command,
+            clientIdempotencyKey: "concurrent-confirmation",
+          }),
+        ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+        const refreshed = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        expect(refreshed?.graph.evidence).toEqual([
+          expect.objectContaining({
+            title:
+              changing === "Work" ? "Changed evidence" : "Earlier evidence",
+          }),
+        ]);
+        if (!refreshed) {
+          throw new Error("Preview required");
+        }
+        expect(
+          await records.supersession.commit(accountId, {
+            ...refreshed.command,
+            clientIdempotencyKey: "refreshed-confirmation",
+          }),
+        ).not.toBeNull();
+      },
+    );
+
+    test.each(["Document", "Evidence link", "Unrelated evidence link"])(
+      "confirms only against stable Document evidence while %s is being updated",
+      async (changing) => {
+        if (!database) {
+          throw new Error("Database required");
+        }
+        const records = await decisionsFixture();
+        const documentId = `evidence-${crypto.randomUUID()}`;
+        const linkId = `evidence-link-${crypto.randomUUID()}`;
+        const unrelated = changing === "Unrelated evidence link";
+        if (unrelated) {
+          const otherProjectId = `${projectId}-other`;
+          await database.insert(project).values({
+            id: otherProjectId,
+            name: "Other Project",
+            shortCode: `OT-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+            starterConfiguration: "Blank Project",
+            workspaceId,
+          });
+          await records.create(accountId, {
+            id: sourceIds[3],
+            projectId: otherProjectId,
+            sourceType: "Decision",
+            title: "Other choice",
+            decision: "Independent choice",
+            rationale: null,
+            baseRevision: 0,
+            clientIdempotencyKey: "other-choice",
+          });
+        }
+        // Document evidence is a counterpart fixture; this seam owns confirmation.
+        await database.insert(document).values({
+          id: documentId,
+          workspaceId,
+          title: "Decision evidence",
+          body: "Evidence excerpt",
+          revision: 1,
+        });
+        await database.insert(usageLink).values({
+          id: linkId,
+          workspaceId,
+          sourceRecordType: "Document",
+          sourceRecordId: documentId,
+          surfaceRecordType: "Decision",
+          surfaceRecordId: unrelated ? sourceIds[3] : sourceIds[0],
+          kind: "Pinned bind",
+          location: { documentVersion: 1, excerpt: "Evidence excerpt" },
+        });
+        const preview = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        if (!preview) {
+          throw new Error("Preview required");
+        }
+        expect(preview.graph.evidence).toHaveLength(unrelated ? 0 : 1);
+        const evidenceLocked = Promise.withResolvers<void>();
+        const releaseEvidence = Promise.withResolvers<void>();
+        const writer = database.transaction(async (transaction) => {
+          try {
+            if (changing === "Document") {
+              await transaction
+                .update(document)
+                .set({ title: "Changed evidence", revision: 2 })
+                .where(eq(document.id, documentId));
+            } else {
+              await transaction
+                .delete(usageLink)
+                .where(eq(usageLink.id, linkId));
+            }
+            evidenceLocked.resolve();
+            await releaseEvidence.promise;
+          } catch (error) {
+            evidenceLocked.reject(error);
+            throw error;
+          }
+        });
+        const command = {
+          ...preview.command,
+          clientIdempotencyKey: "document-confirmation",
+        };
+        try {
+          await evidenceLocked.promise;
+          if (unrelated) {
+            expect(
+              await records.supersession.commit(accountId, command),
+            ).not.toBeNull();
+          } else {
+            await expect(
+              records.supersession.commit(accountId, command),
+            ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+          }
+        } finally {
+          releaseEvidence.resolve();
+          await writer;
+        }
+        if (unrelated) {
+          expect(
+            (await records.supersession.read(accountId, projectId))?.relations,
+          ).toHaveLength(1);
+          return;
+        }
+        expect(
+          await records.find(accountId, "Decision", sourceIds[0]),
+        ).toMatchObject({ life: "Valid" });
+        expect(
+          (await records.supersession.read(accountId, projectId))?.relations,
+        ).toEqual([]);
+        expect(
+          await records.supersession.history(accountId, projectId),
+        ).toEqual([]);
+        await expect(
+          records.supersession.commit(accountId, command),
+        ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+        const refreshed = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        if (!refreshed) {
+          throw new Error("Preview required");
+        }
+        expect(
+          await records.supersession.commit(accountId, {
+            ...refreshed.command,
+            clientIdempotencyKey: "fresh-document-confirmation",
+          }),
+        ).not.toBeNull();
+      },
+    );
 
     test("supersession retains evidence and relations and never writes related Work, Risk, Assumption or Project Release", async () => {
       if (!database) {
