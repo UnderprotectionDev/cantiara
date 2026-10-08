@@ -3170,7 +3170,11 @@ export const appRouter = {
       }
     }),
   smartCollectionView: protectedProcedure
-    .input(z.object({ viewId: z.string().min(1) }).strict())
+    .input(
+      z
+        .object({ viewId: z.string().min(1), readOnly: z.boolean().optional() })
+        .strict(),
+    )
     .handler(async ({ context, input }) => {
       if (!context.smartCollections) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -3178,6 +3182,7 @@ export const appRouter = {
       const view = await context.smartCollections.getView(
         context.session.user.id,
         input.viewId,
+        { readOnly: input.readOnly },
       );
       if (!view) {
         throw new ORPCError("NOT_FOUND");
@@ -5126,6 +5131,27 @@ export const appRouter = {
         input.focusDate,
       ),
     ),
+  favoritesList: protectedProcedure.handler(({ context }) =>
+    requireFavorites(context).list(context.session.user.id),
+  ),
+  openFavoriteSource: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFavorites(context).open(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof FavoriteSourceUnavailableError) {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            message: "Source record is unavailable.",
+          });
+        }
+        throw error;
+      }
+    }),
   favoriteMembership: protectedProcedure
     .input(favoriteSourceSchema)
     .handler(async ({ context, input }) => ({

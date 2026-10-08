@@ -42,7 +42,15 @@ export type SourceRecordPreviewTarget =
       sourceId: string;
       sourceType: ProjectSourceType;
     }
-  | { kind: "work"; label: string; projectId: string; workId: string };
+  | { kind: "work"; label: string; projectId: string; workId: string }
+  | { kind: "project"; label: string; projectId: string }
+  | {
+      kind: "smart-collection";
+      label: string;
+      projectId: string;
+      collectionId: string;
+      viewId: string;
+    };
 
 interface SourceRecordPreviewContextValue {
   openSourceRecord: (target: SourceRecordPreviewTarget) => void;
@@ -52,6 +60,12 @@ const SourceRecordPreviewContext =
   createContext<SourceRecordPreviewContextValue | null>(null);
 
 export function sourceRecordPreviewHref(target: SourceRecordPreviewTarget) {
+  if (target.kind === "project") {
+    return `/projects/${encodeURIComponent(target.projectId)}`;
+  }
+  if (target.kind === "smart-collection") {
+    return `/projects/${encodeURIComponent(target.projectId)}#smart-collection-view-${encodeURIComponent(target.viewId)}`;
+  }
   if (target.kind === "work") {
     return workRecordHref(target.projectId, target.workId);
   }
@@ -67,6 +81,16 @@ export function sourceRecordPreviewHref(target: SourceRecordPreviewTarget) {
     target.sourceType,
     target.sourceId,
   )}`;
+}
+
+export function useOpenSourceRecord() {
+  const preview = useContext(SourceRecordPreviewContext);
+  if (!preview) {
+    throw new Error(
+      "Source record actions require ContextRecordPreviewProvider.",
+    );
+  }
+  return preview.openSourceRecord;
 }
 
 export function closeContextRecordPreviewOnNavigation(

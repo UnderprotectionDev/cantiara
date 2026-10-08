@@ -36,6 +36,13 @@ export default function ContextRecordPreviewContent({
     );
   }
 
+  if (record.kind === "project") {
+    return <ProjectRecordPreview projectId={record.projectId} />;
+  }
+  if (record.kind === "smart-collection") {
+    return <SmartCollectionRecordPreview record={record} />;
+  }
+
   return (
     <Suspense fallback={<PreviewStatus>Loading source record…</PreviewStatus>}>
       <ProjectSourceRecordView
@@ -45,6 +52,75 @@ export default function ContextRecordPreviewContent({
         sourceType={record.sourceType}
       />
     </Suspense>
+  );
+}
+
+function ProjectRecordPreview({ projectId }: { projectId: string }) {
+  const project = useQuery(orpc.project.queryOptions({ input: { projectId } }));
+  if (project.isPending) {
+    return <PreviewStatus>Loading source record…</PreviewStatus>;
+  }
+  if (project.isError || !project.data) {
+    return (
+      <PreviewStatus role="alert">Source record is unavailable.</PreviewStatus>
+    );
+  }
+  return (
+    <section aria-label="Project record" className="space-y-4">
+      <h2 className="font-semibold text-2xl tracking-tight">
+        {project.data.name}
+      </h2>
+      <p className="text-muted-foreground text-sm">{project.data.status}</p>
+      <p className="whitespace-pre-wrap text-sm">{project.data.purpose}</p>
+    </section>
+  );
+}
+
+function SmartCollectionRecordPreview({
+  record,
+}: {
+  record: Extract<SourceRecordPreviewTarget, { kind: "smart-collection" }>;
+}) {
+  const view = useQuery(
+    orpc.smartCollectionView.queryOptions({
+      input: { viewId: record.viewId, readOnly: true },
+    }),
+  );
+  if (view.isPending) {
+    return <PreviewStatus>Loading source record…</PreviewStatus>;
+  }
+  if (
+    view.isError ||
+    !view.data ||
+    view.data.collectionId !== record.collectionId ||
+    view.data.projectId !== record.projectId
+  ) {
+    return (
+      <PreviewStatus role="alert">Source record is unavailable.</PreviewStatus>
+    );
+  }
+  return (
+    <section aria-label="Smart Collection record" className="space-y-4">
+      <h2 className="font-semibold text-2xl tracking-tight">
+        {view.data.collectionName}
+      </h2>
+      <p className="text-muted-foreground text-sm">
+        {view.data.name} · {view.data.sourceType} · {view.data.presentation}
+      </p>
+      <ul className="space-y-2">
+        {view.data.works.map((work) => (
+          <li key={work.id}>
+            {work.key} · {work.title}
+          </li>
+        ))}
+        {view.data.documents.map((document) => (
+          <li key={document.id}>{document.title}</li>
+        ))}
+        {view.data.projectSourceRecords.map((source) => (
+          <li key={source.id}>{source.title}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

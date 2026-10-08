@@ -29,6 +29,8 @@ function testClient(
 describe("Favorites membership RPC", () => {
   test("maps an unavailable source to a user-facing NOT_FOUND", async () => {
     const favorites: FavoritesAccess = {
+      list: vi.fn().mockResolvedValue([]),
+      open: vi.fn().mockRejectedValue(new FavoriteSourceUnavailableError()),
       add: vi.fn().mockRejectedValue(new FavoriteSourceUnavailableError()),
       contains: vi.fn().mockResolvedValue(false),
       remove: vi.fn().mockResolvedValue(undefined),
@@ -47,6 +49,8 @@ describe("Favorites membership RPC", () => {
 
   test("binds add, membership, and remove to the authenticated Account", async () => {
     const favorites: FavoritesAccess = {
+      list: vi.fn().mockResolvedValue([]),
+      open: vi.fn().mockRejectedValue(new FavoriteSourceUnavailableError()),
       add: vi.fn().mockResolvedValue(undefined),
       contains: vi.fn().mockResolvedValue(true),
       remove: vi.fn().mockResolvedValue(undefined),

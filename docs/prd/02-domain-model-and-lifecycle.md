@@ -322,6 +322,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Karar kaydı olayı | `Recorded` | `What happened today?` içinde kaynak Kararın oluşturulduğu günü gösterir |
 | Kaynak kaydı yükleniyor | `Loading source record…` | Proje kabuğunda seçilen kaynak kaydı okunurken erişilebilir yüklenme durumu |
 | Kaynak kaydı kullanılamıyor | `Source record is unavailable.` | Kaynak kaydı bulunamadığında veya geçerli Projeye ait olmadığında salt okunur hata durumu |
+| Favoriler yükleniyor | `Loading Favorites…` | Favoriler listesinin geçici yükleme durumu |
+| Favoriler boş | `No Favorites yet.` | Henüz kişisel favori bulunmadığında gösterilen durum |
+| Favoriler kullanılamıyor | `Favorites are unavailable.` | Favoriler listesinin okunamadığını bildiren hata durumu |
 | Kaynak açıklaması | `Description` | Kilometre Taşı veya Proje Sürümünün isteğe bağlı açıklama alanı; İş açıklamasıyla aynı gövde alanı değildir |
 | Sürüm etiketi | `Version label` | Proje Sürümünde isteğe bağlı kullanıcı tanımlı sürüm metni |
 | Olay zamanı | `Occurred at` | Üretim Olayının gerçekleşme zamanı; Geri Bildirim özgün mesaj zamanıyla aynı etiketi bağlamında kullanır |

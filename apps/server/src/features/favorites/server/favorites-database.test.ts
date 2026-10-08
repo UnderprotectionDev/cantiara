@@ -15,7 +15,12 @@ import {
   focusPeriodMembership,
 } from "@cantiara/db/schema/focus-period";
 import { project } from "@cantiara/db/schema/project";
-import { smartCollection } from "@cantiara/db/schema/smart-collection";
+import {
+  smartCollection,
+  smartCollectionAttentionSignal,
+  smartCollectionSubscriptionMembership,
+  smartCollectionView,
+} from "@cantiara/db/schema/smart-collection";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq } from "drizzle-orm";
@@ -27,6 +32,7 @@ import {
   expect,
   test,
 } from "vitest";
+import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseFavorites } from "./favorites-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -113,6 +119,12 @@ describeDatabase("Favorites membership", () => {
       scope: { projectIds: [projectId] },
       conditions: { status: "Closed" },
     });
+    await database.insert(smartCollectionView).values({
+      id: crypto.randomUUID(),
+      collectionId,
+      name: "Favorite view",
+      presentation: "List",
+    });
     await database
       .insert(projectBacklogOrder)
       .values({ projectId, revision: 4, workIds: [workId] });
@@ -178,6 +190,7 @@ describeDatabase("Favorites membership", () => {
     const context = {
       db: database,
       favorites,
+      smartCollections: createDatabaseSmartCollections(database),
       auth: null,
       session: principal
         ? { session: { id: "favorite-session" }, user: { id: principal } }
@@ -185,6 +198,222 @@ describeDatabase("Favorites membership", () => {
     } as Context;
     return createRouterClient(appRouter, { context });
   }
+
+  test("previews a subscribed Favorite collection without advancing membership or emitting attention signals", async () => {
+    const source: FavoriteSource = {
+      sourceRecordType: "Smart Collection",
+      sourceRecordId: collectionId,
+    };
+    await favorites.add(accountId, source);
+    const client = clientFor(accountId);
+    const opened = await client.openFavoriteSource(source);
+    if (opened.status !== "available" || !opened.viewId) {
+      throw new Error("Favorite collection must resolve a named view");
+    }
+    await client.setSmartCollectionSubscription({
+      viewId: opened.viewId,
+      subscribe: true,
+      notifyOnLeave: true,
+    });
+    await database
+      .update(work)
+      .set({ status: "Not Started", closureResult: null })
+      .where(eq(work.id, workId));
+    const before = await sourceAndPlanningState();
+    const membershipBefore = await database
+      .select()
+      .from(smartCollectionSubscriptionMembership)
+      .where(eq(smartCollectionSubscriptionMembership.sourceRecordId, workId));
+    const signalsBefore = await database
+      .select()
+      .from(smartCollectionAttentionSignal)
+      .where(eq(smartCollectionAttentionSignal.collectionId, collectionId));
+    for (let read = 0; read < 2; read += 1) {
+      const view = await client.smartCollectionView({
+        viewId: opened.viewId,
+        readOnly: true,
+      });
+      expect(view.collectionId).toBe(collectionId);
+      expect(view.works).toEqual([]);
+    }
+    expect(
+      await database
+        .select()
+        .from(smartCollectionSubscriptionMembership)
+        .where(
+          eq(smartCollectionSubscriptionMembership.sourceRecordId, workId),
+        ),
+    ).toEqual(membershipBefore);
+    expect(
+      await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(eq(smartCollectionAttentionSignal.collectionId, collectionId)),
+    ).toEqual(signalsBefore);
+    expect(await sourceAndPlanningState()).toEqual(before);
+    expect(await favorites.contains(accountId, source)).toBe(true);
+    await expect(
+      clientFor(otherAccountId).smartCollectionView({
+        viewId: opened.viewId,
+        readOnly: true,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      clientFor(null).smartCollectionView({
+        viewId: opened.viewId,
+        readOnly: true,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    // A normal source visit still owns subscription reconciliation.
+    await client.smartCollectionView({ viewId: opened.viewId });
+    expect(
+      await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(eq(smartCollectionAttentionSignal.collectionId, collectionId)),
+    ).toHaveLength(signalsBefore.length + 1);
+  });
+
+  test("lists and opens the original sources without copying records or writing membership from the shell", async () => {
+    for (const source of sources) {
+      await favorites.add(accountId, source);
+    }
+    const before = await sourceAndPlanningState();
+    const client = clientFor(accountId);
+    const entries = await client.favoritesList();
+    expect(entries).toHaveLength(6);
+    for (const source of sources) {
+      expect(entries).toContainEqual(
+        expect.objectContaining({
+          ...source,
+          status: "available",
+        }),
+      );
+      await expect(client.openFavoriteSource(source)).resolves.toMatchObject({
+        ...source,
+        status: "available",
+      });
+      expect(await favorites.contains(accountId, source)).toBe(true);
+    }
+    expect(await sourceAndPlanningState()).toEqual(before);
+    await expect(clientFor(otherAccountId).favoritesList()).resolves.toEqual(
+      [],
+    );
+    await expect(clientFor(null).favoritesList()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      clientFor(null).openFavoriteSource({
+        sourceRecordId: projectId,
+        sourceRecordType: "Project",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  test("rechecks exact identity at open and retains safe broken references without revealing inaccessible source content", async () => {
+    const source = {
+      sourceRecordId: documentId,
+      sourceRecordType: "Document" as const,
+    };
+    const client = clientFor(accountId);
+    await favorites.add(accountId, source);
+    expect(await client.openFavoriteSource(source)).toMatchObject({
+      title: "Favorite Document",
+      projectId,
+    });
+    const otherWorkspaceId = crypto.randomUUID();
+    await database
+      .insert(workspace)
+      .values({ id: otherWorkspaceId, ownerAccountId: otherAccountId });
+    await database
+      .update(document)
+      .set({
+        projectId: null,
+        workspaceId: otherWorkspaceId,
+        title: "Private changed title",
+      })
+      .where(eq(document.id, documentId));
+    const inaccessible = await client.openFavoriteSource(source);
+    expect(inaccessible).toEqual({
+      ...source,
+      addedAt: expect.any(String),
+      status: "unavailable",
+      reason: "No access",
+    });
+    expect(await client.favoritesList()).toEqual([inaccessible]);
+    await database.delete(document).where(eq(document.id, documentId));
+    const deleted = await client.openFavoriteSource(source);
+    expect(deleted).toEqual({
+      ...source,
+      addedAt: inaccessible.addedAt,
+      status: "unavailable",
+      reason: "Permanently deleted",
+    });
+    expect(await client.favoritesList()).toEqual([deleted]);
+    await expect(
+      clientFor(otherAccountId).openFavoriteSource(source),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await favorites.contains(accountId, source)).toBe(true);
+  });
+
+  test("keeps archived and trashed sources addressable and follows the same Document identity after a scope move", async () => {
+    const client = clientFor(accountId);
+    const workSource = {
+      sourceRecordId: workId,
+      sourceRecordType: "Work" as const,
+    };
+    const documentSource = {
+      sourceRecordId: documentId,
+      sourceRecordType: "Document" as const,
+    };
+    await favorites.add(accountId, workSource);
+    await favorites.add(accountId, documentSource);
+    await database
+      .update(work)
+      .set({ archivedAt: new Date() })
+      .where(eq(work.id, workId));
+    expect(await client.openFavoriteSource(workSource)).toMatchObject({
+      status: "available",
+      life: "Archived",
+      projectId,
+    });
+    await database
+      .update(work)
+      .set({ trashedAt: new Date() })
+      .where(eq(work.id, workId));
+    expect(await client.openFavoriteSource(workSource)).toMatchObject({
+      status: "available",
+      life: "In Trash",
+      projectId,
+    });
+    await database
+      .update(document)
+      .set({ projectId: null, workspaceId })
+      .where(eq(document.id, documentId));
+    expect(await client.openFavoriteSource(documentSource)).toMatchObject({
+      status: "available",
+      projectId: null,
+      title: "Favorite Document",
+      sourceRecordId: documentId,
+    });
+    const current = await client.favoritesList();
+    expect(current).toHaveLength(2);
+    expect(await client.favoritesList()).toEqual(current);
+  });
+
+  test("retains membership availability independently of a Smart Collection named view", async () => {
+    await database
+      .delete(smartCollectionView)
+      .where(eq(smartCollectionView.collectionId, collectionId));
+    const source = {
+      sourceRecordId: collectionId,
+      sourceRecordType: "Smart Collection" as const,
+    };
+    await expect(clientFor(accountId).addToFavorites(source)).resolves.toEqual({
+      status: true,
+    });
+    expect(await favorites.contains(accountId, source)).toBe(true);
+  });
 
   test("authenticates membership and rejects unsupported or source-changing input", async () => {
     const source = {
