@@ -6,6 +6,7 @@ import FavoriteControl from "@/features/favorites/ui/components/favorite-control
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import DecisionSupersessionControls from "./decision-supersession-controls";
 import {
   type DecisionDraft,
   type DecisionRecord,
@@ -50,7 +51,14 @@ export default function ProjectDecisionsSurface({
   async function refresh(message: string) {
     pendingWrite.current = null;
     setSavedMessage(message);
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.decisionSupersessionGraph.queryOptions({
+          input: { projectId },
+        }).queryKey,
+      }),
+    ]);
   }
   async function save(draft: DecisionDraft, record?: DecisionRecord) {
     const fields = {
@@ -140,6 +148,13 @@ export default function ProjectDecisionsSurface({
         savedMessage={savedMessage}
         selectedId={selectedId}
       />
+      {selected ? (
+        <DecisionSupersessionControls
+          projectId={projectId}
+          readOnly={readOnly || records.data.readOnly}
+          selectedId={selected.id}
+        />
+      ) : null}
       {selected ? (
         <FavoriteControl
           sourceRecordId={selected.id}

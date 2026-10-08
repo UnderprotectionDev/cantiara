@@ -1,11 +1,13 @@
 import { relations, sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   integer,
   pgTable,
   text,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 
 import { project } from "./project";
@@ -36,6 +38,7 @@ export const decision = pgTable(
       table.life,
       table.title,
     ),
+    unique("project_decision_project_id_uidx").on(table.projectId, table.id),
     check(
       "project_decision_life_check",
       sql`${table.life} in ('Valid', 'Superseded', 'Withdrawn')`,
@@ -58,3 +61,33 @@ export const decisionRelations = relations(decision, ({ one }) => ({
     references: [project.id],
   }),
 }));
+
+// The predecessor primary key represents exactly one direct successor.
+export const decisionSupersession = pgTable(
+  "decision_supersession",
+  {
+    predecessorId: text("predecessor_id").primaryKey(),
+    successorId: text("successor_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    rationale: text("rationale"),
+    actorId: text("actor_id").notNull(),
+    occurredAt: timestamp("occurred_at").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId, table.predecessorId],
+      foreignColumns: [decision.projectId, decision.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId, table.successorId],
+      foreignColumns: [decision.projectId, decision.id],
+    }).onDelete("cascade"),
+    index("decision_supersession_project_idx").on(table.projectId),
+    check(
+      "decision_supersession_self_check",
+      sql`${table.predecessorId} <> ${table.successorId}`,
+    ),
+  ],
+);

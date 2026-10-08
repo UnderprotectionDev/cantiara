@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DecisionSupersessionAccess } from "./decision-supersession";
 import { documentEvidenceSelectionSchema } from "./documents";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
@@ -441,6 +442,7 @@ export interface ProjectSourceRecordsAccess {
     records: z.infer<typeof decisionRecordSchema>[];
     readOnly: boolean;
   } | null>;
+  supersession?: DecisionSupersessionAccess;
   transition: (
     accountId: string,
     input: z.input<typeof transitionProjectSourceRecordInputSchema>,

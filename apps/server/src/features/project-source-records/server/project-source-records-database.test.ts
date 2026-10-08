@@ -1,5 +1,7 @@
+import { ProjectSourceRecordConflictError } from "@cantiara/api/project-source-records";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
 import {
   mutationHistory,
   mutationReceipt,
@@ -7,7 +9,9 @@ import {
   mutationTarget,
 } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
-import { workRelation } from "@cantiara/db/schema/relation";
+import { usageLink, workRelation } from "@cantiara/db/schema/relation";
+import { risk } from "@cantiara/db/schema/risk";
+import { work as workTable } from "@cantiara/db/schema/work";
 import { eq, inArray } from "drizzle-orm";
 import {
   afterAll,
@@ -17,6 +21,7 @@ import {
   expect,
   test,
 } from "vitest";
+import { createDatabaseRelations } from "../../relations/server/relations";
 import { createDatabaseWorkLifecycle } from "../../work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseProjectSourceRecords } from "./project-source-records-database";
 
@@ -77,12 +82,750 @@ describeDatabase(
         .where(eq(mutationHistory.actorId, accountId));
       await database
         .delete(mutationTarget)
-        .where(inArray(mutationTarget.id, sourceIds));
+        .where(
+          inArray(mutationTarget.id, [
+            ...sourceIds,
+            `decision-supersession:${projectId}`,
+          ]),
+        );
       await database.delete(user).where(eq(user.id, accountId));
     });
 
     afterAll(async () => {
       await database?.$client.end();
+    });
+
+    test("previews and atomically supersedes several Decisions with an idempotent receipt", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      for (const [index, id] of sourceIds.slice(0, 3).entries()) {
+        // biome-ignore lint/performance/noAwaitInLoops: Fixture writes use the same Project serialization boundary.
+        await records.create(accountId, {
+          id,
+          projectId,
+          sourceType: "Decision",
+          title: `Choice ${index}`,
+          decision: `Choose ${index}`,
+          rationale: `Because ${index}`,
+          baseRevision: 0,
+          clientIdempotencyKey: `create-${index}`,
+        });
+      }
+      const preview = await records.supersession.preview(accountId, {
+        projectId,
+        successorId: sourceIds[2],
+        predecessorIds: [sourceIds[0], sourceIds[1]],
+        operation: "supersede",
+        rationale: "Constraints changed.",
+      });
+      expect(preview?.changes.map((change) => change.after)).toEqual([
+        "Superseded",
+        "Superseded",
+      ]);
+      expect(
+        await records.find(accountId, "Decision", sourceIds[0]),
+      ).toMatchObject({ life: "Valid" });
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      const command = { ...preview.command, clientIdempotencyKey: "replace" };
+      const receipt = await records.supersession.commit(accountId, command);
+      expect(await records.supersession.commit(accountId, command)).toEqual(
+        receipt,
+      );
+      expect(
+        await records.find(accountId, "Decision", sourceIds[0]),
+      ).toMatchObject({ life: "Superseded" });
+      expect(
+        await records.find(accountId, "Decision", sourceIds[1]),
+      ).toMatchObject({ life: "Superseded" });
+      expect(
+        await records.find(accountId, "Decision", sourceIds[2]),
+      ).toMatchObject({ life: "Valid" });
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toHaveLength(2);
+      if (!database) {
+        throw new Error("Database required");
+      }
+      await database
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(await records.supersession.commit(accountId, command)).toEqual(
+        receipt,
+      );
+    });
+
+    async function decisionsFixture() {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      await Promise.all(
+        sourceIds.slice(0, 3).map((id, index) =>
+          records.create(accountId, {
+            id,
+            projectId,
+            sourceType: "Decision",
+            title: `Choice ${index}`,
+            decision: `Choose ${index}`,
+            rationale: `Because ${index}`,
+            baseRevision: 0,
+            clientIdempotencyKey: `fixture-${index}`,
+          }),
+        ),
+      );
+      return records;
+    }
+    const replacement = () => ({
+      projectId,
+      successorId: sourceIds[1],
+      predecessorIds: [sourceIds[0]],
+      operation: "supersede" as const,
+      rationale: "A full replacement.",
+    });
+
+    test("rejects self-links, cycles, forks and unavailable selections without partial writes", async () => {
+      const records = await decisionsFixture();
+      await expect(
+        records.supersession.preview(accountId, {
+          ...replacement(),
+          predecessorIds: [sourceIds[1]],
+        }),
+      ).rejects.toThrow();
+      await expect(
+        records.supersession.preview(accountId, {
+          ...replacement(),
+          predecessorIds: [sourceIds[0], "unavailable"],
+        }),
+      ).rejects.toThrow();
+      expect(
+        await records.find(accountId, "Decision", sourceIds[0]),
+      ).toMatchObject({ life: "Valid", revision: 1 });
+      const preview = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      await records.supersession.commit(accountId, {
+        ...preview.command,
+        clientIdempotencyKey: "replace",
+      });
+      await expect(
+        records.supersession.preview(accountId, {
+          ...replacement(),
+          successorId: sourceIds[2],
+        }),
+      ).rejects.toThrow();
+      await expect(
+        records.supersession.preview(accountId, {
+          ...replacement(),
+          successorId: sourceIds[0],
+          predecessorIds: [sourceIds[1]],
+        }),
+      ).rejects.toThrow();
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toHaveLength(1);
+    });
+
+    test("allows exactly one racing successor and rejects changed retry content", async () => {
+      const records = await decisionsFixture();
+      const a = await records.supersession.preview(accountId, replacement());
+      const b = await records.supersession.preview(accountId, {
+        ...replacement(),
+        successorId: sourceIds[2],
+      });
+      if (!(a && b)) {
+        throw new Error("Preview required");
+      }
+      const results = await Promise.allSettled([
+        records.supersession.commit(accountId, {
+          ...a.command,
+          clientIdempotencyKey: "race-a",
+        }),
+        records.supersession.commit(accountId, {
+          ...b.command,
+          clientIdempotencyKey: "race-b",
+        }),
+      ]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === "rejected"),
+      ).toHaveLength(1);
+      const winning =
+        results[0].status === "fulfilled"
+          ? { ...a.command, clientIdempotencyKey: "race-a" }
+          : { ...b.command, clientIdempotencyKey: "race-b" };
+      await expect(
+        records.supersession.commit(accountId, {
+          ...winning,
+          rationale: "Changed payload",
+        }),
+      ).rejects.toThrow();
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toHaveLength(1);
+    });
+
+    test("rejects a stale content preview, other Accounts and archived Project writes", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = await decisionsFixture();
+      const preview = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      await records.update(accountId, {
+        sourceType: "Decision",
+        sourceId: sourceIds[0],
+        projectId,
+        title: "Changed choice",
+        decision: "Choose 0",
+        rationale: null,
+        baseRevision: 1,
+        clientIdempotencyKey: "edit",
+      });
+      await expect(
+        records.supersession.commit(accountId, {
+          ...preview.command,
+          clientIdempotencyKey: "stale",
+        }),
+      ).rejects.toThrow();
+      expect(
+        await records.supersession.read(`${accountId}-other`, projectId),
+      ).toBeNull();
+      expect(
+        await records.supersession.commit(`${accountId}-other`, {
+          ...preview.command,
+          clientIdempotencyKey: "other",
+        }),
+      ).toBeNull();
+      await database
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(
+        (await records.supersession.read(accountId, projectId))?.readOnly,
+      ).toBe(true);
+      expect(
+        await records.supersession.preview(accountId, replacement()),
+      ).toBeNull();
+      expect(
+        await records.supersession.commit(accountId, {
+          ...preview.command,
+          clientIdempotencyKey: "archive",
+        }),
+      ).toBeNull();
+    });
+
+    test("removing a previewed relation restores only its predecessor and preserves the successor and earlier chain", async () => {
+      const records = await decisionsFixture();
+      const a = await records.supersession.preview(accountId, replacement());
+      if (!a) {
+        throw new Error("Preview required");
+      }
+      await records.supersession.commit(accountId, {
+        ...a.command,
+        clientIdempotencyKey: "a",
+      });
+      const b = await records.supersession.preview(accountId, {
+        ...replacement(),
+        predecessorIds: [sourceIds[1]],
+        successorId: sourceIds[2],
+      });
+      if (!b) {
+        throw new Error("Preview required");
+      }
+      await records.supersession.commit(accountId, {
+        ...b.command,
+        clientIdempotencyKey: "b",
+      });
+      const remove = await records.supersession.preview(accountId, {
+        ...replacement(),
+        predecessorIds: [sourceIds[1]],
+        successorId: sourceIds[2],
+        operation: "remove",
+        rationale: "Replacement no longer applies.",
+      });
+      if (!remove) {
+        throw new Error("Preview required");
+      }
+      expect(
+        await records.find(accountId, "Decision", sourceIds[1]),
+      ).toMatchObject({ life: "Superseded" });
+      const command = { ...remove.command, clientIdempotencyKey: "remove" };
+      const receipt = await records.supersession.commit(accountId, command);
+      expect(await records.supersession.commit(accountId, command)).toEqual(
+        receipt,
+      );
+      expect(await records.supersession.history(accountId, projectId)).toEqual([
+        expect.objectContaining({ operation: "supersede", actorId: accountId }),
+        expect.objectContaining({ operation: "supersede", actorId: accountId }),
+        expect.objectContaining({
+          operation: "remove",
+          rationale: "Replacement no longer applies.",
+          actorId: accountId,
+          predecessorIds: [sourceIds[1]],
+          successorId: sourceIds[2],
+          occurredAt: receipt?.committedAt,
+        }),
+      ]);
+      expect(
+        await records.supersession.history(`${accountId}-other`, projectId),
+      ).toBeNull();
+      expect(
+        await records.find(accountId, "Decision", sourceIds[0]),
+      ).toMatchObject({ life: "Superseded" });
+      expect(
+        await records.find(accountId, "Decision", sourceIds[1]),
+      ).toMatchObject({ life: "Valid" });
+      expect(
+        await records.find(accountId, "Decision", sourceIds[2]),
+      ).toMatchObject({ life: "Valid", revision: 1 });
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toHaveLength(1);
+    });
+
+    test("preview includes cross-Project Work evidence and rejects confirmation after that evidence changes", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = await decisionsFixture();
+      const evidenceProjectId = `${projectId}-evidence`;
+      await database.insert(project).values({
+        id: evidenceProjectId,
+        name: "Evidence Project",
+        shortCode: `EV-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+        workspaceId,
+      });
+      const lifecycle = createDatabaseWorkLifecycle(database);
+      const evidenceWork = await lifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "cross-project-evidence",
+        projectId: evidenceProjectId,
+        title: "Validate earlier choice",
+        type: "Task",
+      });
+      await database.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Evidence",
+        sourceWorkId: evidenceWork.id,
+        targetLabel: "Choice 0",
+        targetProjectId: projectId,
+        targetRecordId: sourceIds[0],
+        targetRecordType: "Decision",
+      });
+      const preview = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      expect(preview?.graph.evidence).toEqual([
+        expect.objectContaining({
+          title: "Validate earlier choice",
+          decisionId: sourceIds[0],
+        }),
+      ]);
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      await database
+        .update(workRelation)
+        .set({ targetLabel: "Updated evidence label", revision: 1 })
+        .where(eq(workRelation.sourceWorkId, evidenceWork.id));
+      await expect(
+        records.supersession.commit(accountId, {
+          ...preview.command,
+          clientIdempotencyKey: "changed-evidence-edge",
+        }),
+      ).rejects.toThrow();
+      const refreshed = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      if (!refreshed) {
+        throw new Error("Preview required");
+      }
+      await database
+        .update(workRelation)
+        .set({ deletedAt: new Date(), revision: 2 })
+        .where(eq(workRelation.sourceWorkId, evidenceWork.id));
+      await expect(
+        records.supersession.commit(accountId, {
+          ...refreshed.command,
+          clientIdempotencyKey: "stale-cross-project-evidence",
+        }),
+      ).rejects.toThrow();
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toEqual([]);
+    });
+
+    test.each(["Work", "Evidence relation"])(
+      "requires a fresh preview while cross-Project %s evidence is being updated",
+      async (changing) => {
+        if (!database) {
+          throw new Error("Database required");
+        }
+        const records = await decisionsFixture();
+        const evidenceProjectId = `${projectId}-evidence`;
+        await database.insert(project).values({
+          id: evidenceProjectId,
+          name: "Evidence Project",
+          shortCode: `EV-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+          starterConfiguration: "Blank Project",
+          workspaceId,
+        });
+        const lifecycle = createDatabaseWorkLifecycle(database);
+        const evidenceWork = await lifecycle.create(accountId, {
+          baseRevision: 0,
+          clientIdempotencyKey: "concurrent-evidence",
+          projectId: evidenceProjectId,
+          title: "Earlier evidence",
+          type: "Task",
+        });
+        await database.insert(workRelation).values({
+          id: crypto.randomUUID(),
+          kind: "Evidence",
+          sourceWorkId: evidenceWork.id,
+          targetLabel: "Choice 0",
+          targetProjectId: projectId,
+          targetRecordId: sourceIds[0],
+          targetRecordType: "Decision",
+        });
+        const preview = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        if (!preview) {
+          throw new Error("Preview required");
+        }
+        const evidenceLocked = Promise.withResolvers<void>();
+        const releaseEvidence = Promise.withResolvers<void>();
+        // Counterpart fixture holds the source Project/Work write boundary until confirmation finishes.
+        const writer = database.transaction(async (transaction) => {
+          try {
+            await transaction
+              .select()
+              .from(project)
+              .where(eq(project.id, evidenceProjectId))
+              .for("update");
+            if (changing === "Work") {
+              await transaction
+                .update(workTable)
+                .set({
+                  title: "Changed evidence",
+                  revision: evidenceWork.revision + 1,
+                })
+                .where(eq(workTable.id, evidenceWork.id));
+            } else {
+              await transaction
+                .update(workRelation)
+                .set({ targetLabel: "Changed evidence label", revision: 1 })
+                .where(eq(workRelation.sourceWorkId, evidenceWork.id));
+            }
+            evidenceLocked.resolve();
+            await releaseEvidence.promise;
+          } catch (error) {
+            evidenceLocked.reject(error);
+            throw error;
+          }
+        });
+        try {
+          await evidenceLocked.promise;
+          await expect(
+            records.supersession.commit(accountId, {
+              ...preview.command,
+              clientIdempotencyKey: "concurrent-confirmation",
+            }),
+          ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+        } finally {
+          releaseEvidence.resolve();
+          await writer;
+        }
+        expect(
+          (await records.supersession.read(accountId, projectId))?.relations,
+        ).toEqual([]);
+        expect(
+          await records.find(accountId, "Decision", sourceIds[0]),
+        ).toMatchObject({ life: "Valid" });
+        expect(
+          await records.supersession.history(accountId, projectId),
+        ).toEqual([]);
+        await expect(
+          records.supersession.commit(accountId, {
+            ...preview.command,
+            clientIdempotencyKey: "concurrent-confirmation",
+          }),
+        ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+        const refreshed = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        expect(refreshed?.graph.evidence).toEqual([
+          expect.objectContaining({
+            title:
+              changing === "Work" ? "Changed evidence" : "Earlier evidence",
+          }),
+        ]);
+        if (!refreshed) {
+          throw new Error("Preview required");
+        }
+        expect(
+          await records.supersession.commit(accountId, {
+            ...refreshed.command,
+            clientIdempotencyKey: "refreshed-confirmation",
+          }),
+        ).not.toBeNull();
+      },
+    );
+
+    test.each(["Document", "Evidence link", "Unrelated evidence link"])(
+      "confirms only against stable Document evidence while %s is being updated",
+      async (changing) => {
+        if (!database) {
+          throw new Error("Database required");
+        }
+        const records = await decisionsFixture();
+        const documentId = `evidence-${crypto.randomUUID()}`;
+        const linkId = `evidence-link-${crypto.randomUUID()}`;
+        const unrelated = changing === "Unrelated evidence link";
+        if (unrelated) {
+          const otherProjectId = `${projectId}-other`;
+          await database.insert(project).values({
+            id: otherProjectId,
+            name: "Other Project",
+            shortCode: `OT-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+            starterConfiguration: "Blank Project",
+            workspaceId,
+          });
+          await records.create(accountId, {
+            id: sourceIds[3],
+            projectId: otherProjectId,
+            sourceType: "Decision",
+            title: "Other choice",
+            decision: "Independent choice",
+            rationale: null,
+            baseRevision: 0,
+            clientIdempotencyKey: "other-choice",
+          });
+        }
+        // Document evidence is a counterpart fixture; this seam owns confirmation.
+        await database.insert(document).values({
+          id: documentId,
+          workspaceId,
+          title: "Decision evidence",
+          body: "Evidence excerpt",
+          revision: 1,
+        });
+        await database.insert(usageLink).values({
+          id: linkId,
+          workspaceId,
+          sourceRecordType: "Document",
+          sourceRecordId: documentId,
+          surfaceRecordType: "Decision",
+          surfaceRecordId: unrelated ? sourceIds[3] : sourceIds[0],
+          kind: "Pinned bind",
+          location: { documentVersion: 1, excerpt: "Evidence excerpt" },
+        });
+        const preview = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        if (!preview) {
+          throw new Error("Preview required");
+        }
+        expect(preview.graph.evidence).toHaveLength(unrelated ? 0 : 1);
+        const evidenceLocked = Promise.withResolvers<void>();
+        const releaseEvidence = Promise.withResolvers<void>();
+        const writer = database.transaction(async (transaction) => {
+          try {
+            if (changing === "Document") {
+              await transaction
+                .update(document)
+                .set({ title: "Changed evidence", revision: 2 })
+                .where(eq(document.id, documentId));
+            } else {
+              await transaction
+                .delete(usageLink)
+                .where(eq(usageLink.id, linkId));
+            }
+            evidenceLocked.resolve();
+            await releaseEvidence.promise;
+          } catch (error) {
+            evidenceLocked.reject(error);
+            throw error;
+          }
+        });
+        const command = {
+          ...preview.command,
+          clientIdempotencyKey: "document-confirmation",
+        };
+        try {
+          await evidenceLocked.promise;
+          if (unrelated) {
+            expect(
+              await records.supersession.commit(accountId, command),
+            ).not.toBeNull();
+          } else {
+            await expect(
+              records.supersession.commit(accountId, command),
+            ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+          }
+        } finally {
+          releaseEvidence.resolve();
+          await writer;
+        }
+        if (unrelated) {
+          expect(
+            (await records.supersession.read(accountId, projectId))?.relations,
+          ).toHaveLength(1);
+          return;
+        }
+        expect(
+          await records.find(accountId, "Decision", sourceIds[0]),
+        ).toMatchObject({ life: "Valid" });
+        expect(
+          (await records.supersession.read(accountId, projectId))?.relations,
+        ).toEqual([]);
+        expect(
+          await records.supersession.history(accountId, projectId),
+        ).toEqual([]);
+        await expect(
+          records.supersession.commit(accountId, command),
+        ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+        const refreshed = await records.supersession.preview(
+          accountId,
+          replacement(),
+        );
+        if (!refreshed) {
+          throw new Error("Preview required");
+        }
+        expect(
+          await records.supersession.commit(accountId, {
+            ...refreshed.command,
+            clientIdempotencyKey: "fresh-document-confirmation",
+          }),
+        ).not.toBeNull();
+      },
+    );
+
+    test("supersession retains evidence and relations and never writes related Work, Risk, Assumption or Project Release", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = await decisionsFixture();
+      const lifecycle = createDatabaseWorkLifecycle(database);
+      const relatedWork = await lifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "related-work",
+        projectId,
+        title: "Implement scope",
+        type: "Task",
+      });
+      await database.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Evidence",
+        sourceWorkId: relatedWork.id,
+        targetLabel: "Choice 0",
+        targetProjectId: projectId,
+        targetRecordId: sourceIds[0],
+        targetRecordType: "Decision",
+      });
+      // Risk is a non-writing counterpart fixture; its create behavior belongs to its owning spec.
+      await database.insert(risk).values({
+        id: sourceIds[3],
+        projectId,
+        title: "Capacity",
+        revision: 1,
+      });
+      const relatedRisk = await records.find(accountId, "Risk", sourceIds[3]);
+      const relatedAssumption = await records.create(accountId, {
+        id: sourceIds[4],
+        projectId,
+        sourceType: "Assumption",
+        title: "Demand",
+        statement: "Demand stays stable",
+        rationale: null,
+        baseRevision: 0,
+        clientIdempotencyKey: "assumption",
+      });
+      const relatedRelease = await records.create(accountId, {
+        id: `${projectId}-release`,
+        projectId,
+        sourceType: "Project Release",
+        name: "Beta",
+        description: null,
+        versionLabel: null,
+        baseRevision: 0,
+        clientIdempotencyKey: "release",
+      });
+      const relations = createDatabaseRelations(database);
+      const beforeRelations = await relations.list(accountId, {
+        recordType: "Work",
+        recordId: relatedWork.id,
+      });
+      const beforeWork = await lifecycle.find(accountId, relatedWork.id);
+      const preview = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      expect(preview.graph.evidence).toEqual([
+        expect.objectContaining({
+          decisionId: sourceIds[0],
+          title: "Implement scope",
+        }),
+      ]);
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toEqual([]);
+      await records.supersession.commit(accountId, {
+        ...preview.command,
+        clientIdempotencyKey: "replace",
+      });
+      expect(await lifecycle.find(accountId, relatedWork.id)).toEqual(
+        beforeWork,
+      );
+      expect(
+        await relations.list(accountId, {
+          recordType: "Work",
+          recordId: relatedWork.id,
+        }),
+      ).toEqual(beforeRelations);
+      expect(await records.find(accountId, "Risk", sourceIds[3])).toEqual(
+        relatedRisk,
+      );
+      expect(await records.find(accountId, "Assumption", sourceIds[4])).toEqual(
+        relatedAssumption,
+      );
+      expect(
+        await records.find(
+          accountId,
+          "Project Release",
+          `${projectId}-release`,
+        ),
+      ).toEqual(relatedRelease);
+      const after = await records.supersession.read(accountId, projectId);
+      expect(after?.evidence).toEqual(preview.graph.evidence);
+      expect(
+        after?.evidence.some((item) => item.decisionId === sourceIds[1]),
+      ).toBe(false);
     });
 
     test("withdraws a Decision with a dated rationale without replacing its original rationale", async () => {
