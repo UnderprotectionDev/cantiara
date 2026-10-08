@@ -47,6 +47,8 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 
+import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
+
 type DecisionRecord = typeof decision.$inferSelect;
 type MilestoneRecord = typeof projectMilestone.$inferSelect;
 type ReleaseRecord = typeof projectRelease.$inferSelect;
@@ -925,8 +927,11 @@ function allowsTransition(
 
 export function createDatabaseProjectSourceRecords(
   database: Database,
-): ProjectSourceRecordsAccess {
+): ProjectSourceRecordsAccess & {
+  supersession: ReturnType<typeof createDatabaseDecisionSupersession>;
+} {
   return {
+    supersession: createDatabaseDecisionSupersession(database),
     async listDecisions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(

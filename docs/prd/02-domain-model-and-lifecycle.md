@@ -630,6 +630,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine geçildi | `Superseded` | Yalnız açık yerine-geçme ilişkisiyle oluşan Karar yaşamı |
 | Geri çekildi | `Withdrawn` | Halef gerektirmeyen açık geri çekme yaşamı |
 | Geri çek | `Withdraw` | Kararı `Withdrawn` yapan açık eylem |
+| Başka kararın yerine geçir | `Supersede another decision` | Önizleme üzerinden tam yerine-geçme eylemi |
+| Yerine geçilecek Kararlar | `Decisions to supersede` | Bir veya birden fazla eski Kararın açık seçimi |
+| Yerine geçmeyi onayla | `Confirm supersession` | Önizlenen yönlü ilişki ve yaşamları atomik kesinleştirme |
+| Yerine geçmeyi kaldır | `Remove supersession` | İlişkiyi ve eski Kararın yaşamını önizleme |
+| Kaldırmayı onayla | `Confirm removal` | Eski Kararı açık onayla yeniden `Valid` yapma |
+| Geçiş gerekçesi | `Transition rationale` | Yerine-geçme veya kaldırma olayının isteğe bağlı gerekçesi |
 | Güncel kararı aç | `Open current decision` | Yerine geçilmiş Karardan nihai `Valid` kaydı açma |
 | Karar yok | `No Decisions yet.` | Projede henüz Karar olmadığını söyleyen boş durum |
 | Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |

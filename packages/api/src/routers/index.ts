@@ -62,6 +62,10 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  decisionSupersessionCommandSchema,
+  decisionSupersessionSelectionSchema,
+} from "../decision-supersession";
+import {
   createDocumentFromTemplateInputSchema,
   createDocumentTemplateInputSchema,
   documentTemplateDefinitionSchema,
@@ -5045,6 +5049,49 @@ export const appRouter = {
     .handler(({ context, input }) =>
       requireDailyFocus(context).list(context.session.user.id, input.focusDate),
     ),
+  decisionSupersessionGraph: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).supersession;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.read(context.session.user.id, input.projectId);
+    }),
+  previewDecisionSupersession: protectedProcedure
+    .input(decisionSupersessionSelectionSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const access = requireProjectSourceRecords(context).supersession;
+        if (!access) {
+          throw new ORPCError("NOT_IMPLEMENTED");
+        }
+        const result = await access.preview(context.session.user.id, input);
+        if (!result) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return result;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
+  commitDecisionSupersession: protectedProcedure
+    .input(decisionSupersessionCommandSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const access = requireProjectSourceRecords(context).supersession;
+        if (!access) {
+          throw new ORPCError("NOT_IMPLEMENTED");
+        }
+        const result = await access.commit(context.session.user.id, input);
+        if (!result) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return result;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
   projectDecisions: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) =>

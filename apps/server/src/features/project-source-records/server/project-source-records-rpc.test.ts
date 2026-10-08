@@ -1,6 +1,9 @@
 import type { Context } from "@cantiara/api/context";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
-import { transitionProjectSourceRecordInputSchema } from "@cantiara/api/project-source-records";
+import {
+  ProjectSourceRecordConflictError,
+  transitionProjectSourceRecordInputSchema,
+} from "@cantiara/api/project-source-records";
 import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
@@ -45,6 +48,50 @@ function testClient(session: Context["session"] | null) {
 }
 
 describe("Project source record RPC", () => {
+  test("Decisions supersession binds the Account and maps dropped and conflicting commits to visible failures", async () => {
+    const { client, projectSourceRecords } = testClient({
+      session: { id: "session-1" },
+      user: { id: accountId },
+    } as Context["session"]);
+    const commit = vi.fn().mockResolvedValue(null);
+    const preview = vi.fn().mockResolvedValue(null);
+    projectSourceRecords.supersession = {
+      commit,
+      preview,
+      read: vi.fn().mockResolvedValue(null),
+    };
+    const selection = {
+      projectId: "project-1",
+      successorId: "new",
+      predecessorIds: ["old"],
+      operation: "supersede" as const,
+      rationale: null,
+    };
+    const command = {
+      ...selection,
+      baseRevision: 0,
+      clientIdempotencyKey: "confirm",
+      previewFingerprint: "preview",
+    };
+    await expect(
+      client.commitDecisionSupersession(command),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(commit).toHaveBeenCalledExactlyOnceWith(accountId, command);
+    commit.mockRejectedValueOnce(
+      new ProjectSourceRecordConflictError("project-1"),
+    );
+    await expect(
+      client.commitDecisionSupersession(command),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(
+      client.previewDecisionSupersession(selection),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const unauthenticated = testClient(null).client;
+    await expect(
+      unauthenticated.commitDecisionSupersession(command),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   test("binds create, read, and transition calls to the authenticated Account", async () => {
     const { client, projectSourceRecords } = testClient({
       session: { id: "session-1" },
