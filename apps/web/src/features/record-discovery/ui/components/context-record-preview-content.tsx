@@ -82,7 +82,9 @@ function SmartCollectionRecordPreview({
   record: Extract<SourceRecordPreviewTarget, { kind: "smart-collection" }>;
 }) {
   const view = useQuery(
-    orpc.smartCollectionView.queryOptions({ input: { viewId: record.viewId } }),
+    orpc.smartCollectionView.queryOptions({
+      input: { viewId: record.viewId, readOnly: true },
+    }),
   );
   if (view.isPending) {
     return <PreviewStatus>Loading source record…</PreviewStatus>;

@@ -17,6 +17,8 @@ import {
 import { project } from "@cantiara/db/schema/project";
 import {
   smartCollection,
+  smartCollectionAttentionSignal,
+  smartCollectionSubscriptionMembership,
   smartCollectionView,
 } from "@cantiara/db/schema/smart-collection";
 import { work } from "@cantiara/db/schema/work";
@@ -30,6 +32,7 @@ import {
   expect,
   test,
 } from "vitest";
+import { createDatabaseSmartCollections } from "../../smart-collections/server/smart-collections-database";
 import { createDatabaseFavorites } from "./favorites-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -187,6 +190,7 @@ describeDatabase("Favorites membership", () => {
     const context = {
       db: database,
       favorites,
+      smartCollections: createDatabaseSmartCollections(database),
       auth: null,
       session: principal
         ? { session: { id: "favorite-session" }, user: { id: principal } }
@@ -194,6 +198,81 @@ describeDatabase("Favorites membership", () => {
     } as Context;
     return createRouterClient(appRouter, { context });
   }
+
+  test("previews a subscribed Favorite collection without advancing membership or emitting attention signals", async () => {
+    const source: FavoriteSource = {
+      sourceRecordType: "Smart Collection",
+      sourceRecordId: collectionId,
+    };
+    await favorites.add(accountId, source);
+    const client = clientFor(accountId);
+    const opened = await client.openFavoriteSource(source);
+    if (opened.status !== "available" || !opened.viewId) {
+      throw new Error("Favorite collection must resolve a named view");
+    }
+    await client.setSmartCollectionSubscription({
+      viewId: opened.viewId,
+      subscribe: true,
+      notifyOnLeave: true,
+    });
+    await database
+      .update(work)
+      .set({ status: "Not Started", closureResult: null })
+      .where(eq(work.id, workId));
+    const before = await sourceAndPlanningState();
+    const membershipBefore = await database
+      .select()
+      .from(smartCollectionSubscriptionMembership)
+      .where(eq(smartCollectionSubscriptionMembership.sourceRecordId, workId));
+    const signalsBefore = await database
+      .select()
+      .from(smartCollectionAttentionSignal)
+      .where(eq(smartCollectionAttentionSignal.collectionId, collectionId));
+    for (let read = 0; read < 2; read += 1) {
+      const view = await client.smartCollectionView({
+        viewId: opened.viewId,
+        readOnly: true,
+      });
+      expect(view.collectionId).toBe(collectionId);
+      expect(view.works).toEqual([]);
+    }
+    expect(
+      await database
+        .select()
+        .from(smartCollectionSubscriptionMembership)
+        .where(
+          eq(smartCollectionSubscriptionMembership.sourceRecordId, workId),
+        ),
+    ).toEqual(membershipBefore);
+    expect(
+      await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(eq(smartCollectionAttentionSignal.collectionId, collectionId)),
+    ).toEqual(signalsBefore);
+    expect(await sourceAndPlanningState()).toEqual(before);
+    expect(await favorites.contains(accountId, source)).toBe(true);
+    await expect(
+      clientFor(otherAccountId).smartCollectionView({
+        viewId: opened.viewId,
+        readOnly: true,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      clientFor(null).smartCollectionView({
+        viewId: opened.viewId,
+        readOnly: true,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    // A normal source visit still owns subscription reconciliation.
+    await client.smartCollectionView({ viewId: opened.viewId });
+    expect(
+      await database
+        .select()
+        .from(smartCollectionAttentionSignal)
+        .where(eq(smartCollectionAttentionSignal.collectionId, collectionId)),
+    ).toHaveLength(signalsBefore.length + 1);
+  });
 
   test("lists and opens the original sources without copying records or writing membership from the shell", async () => {
     for (const source of sources) {

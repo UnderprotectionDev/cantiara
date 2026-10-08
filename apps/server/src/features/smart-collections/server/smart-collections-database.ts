@@ -737,6 +737,7 @@ async function loadSmartCollectionView(
   executor: SmartCollectionExecutor,
   accountId: string,
   viewId: string,
+  options?: { readOnly?: boolean },
 ): Promise<{
   subscription: SmartCollectionSubscriptionRow | null;
   view: SmartCollectionViewSource;
@@ -760,7 +761,9 @@ async function loadSmartCollectionView(
         eq(workspace.ownerAccountId, accountId),
       ),
     );
-  const [row] = await query.for("update", { of: smartCollection }).limit(1);
+  const [row] = await (options?.readOnly
+    ? query.limit(1)
+    : query.for("update", { of: smartCollection }).limit(1));
   if (!row) {
     return null;
   }
@@ -903,6 +906,7 @@ export function createDatabaseSmartCollections(
   function getView(
     accountId: string,
     viewId: string,
+    options?: { readOnly?: boolean },
   ): Promise<SmartCollectionViewSource | null> {
     if (viewId.startsWith(LONG_STATUS_VIEW_PREFIX)) {
       return preparedLongStatusView(
@@ -912,11 +916,16 @@ export function createDatabaseSmartCollections(
       );
     }
     return database.transaction(async (tx) => {
-      const loaded = await loadSmartCollectionView(tx, accountId, viewId);
+      const loaded = await loadSmartCollectionView(
+        tx,
+        accountId,
+        viewId,
+        options,
+      );
       if (!loaded) {
         return null;
       }
-      if (loaded.subscription) {
+      if (loaded.subscription && !options?.readOnly) {
         await reconcileSubscriptionMembership(
           tx,
           subscriptionContext(accountId, loaded.view, loaded.subscription),

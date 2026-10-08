@@ -8,6 +8,75 @@ const darkThemePattern = /dark/;
 
 const serverUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 
+test("Favorites recovers source access from a refreshed list while the panel stays open", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=favorites-sources`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}`);
+  const sourceUrl = page.url();
+  await page.getByRole("button", { name: "Favorites", exact: true }).click();
+  const list = page.getByRole("dialog", { name: "Favorites", exact: true });
+  const open = list.getByRole("button", {
+    name: "Open source record: Favorite Document",
+    exact: true,
+  });
+  await expect(open).toBeVisible();
+  await page.route("**/rpc/openFavoriteSource", async (route) => {
+    const opened = await route.fetch();
+    const payload = await opened.json();
+    const { sourceRecordId, sourceRecordType, addedAt } = payload.json;
+    await route.fulfill({
+      response: opened,
+      json: {
+        json: {
+          sourceRecordId,
+          sourceRecordType,
+          addedAt,
+          status: "unavailable",
+          reason: "No access",
+        },
+      },
+    });
+  });
+  await open.click();
+  await expect(open).toHaveCount(0);
+  await expect(
+    list.getByText("Favorite Document", { exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("**/rpc/openFavoriteSource");
+  const refreshed = page.waitForResponse("**/rpc/favoritesList");
+  // Exercise the normal focus refresh without unmounting the Favorites panel.
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    window.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    window.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect((await refreshed).ok()).toBe(true);
+  await expect(list).toBeVisible();
+  await expect(open).toBeVisible();
+  await open.click();
+  await expect(
+    page.getByRole("dialog", { name: "Favorite Document", exact: true }),
+  ).toBeVisible();
+  expect(page.url()).toBe(sourceUrl);
+});
+
 test("Favorites membership persists, supports keyboard input, and retains its state after a failed removal", async ({
   context,
   page,
@@ -246,12 +315,24 @@ test("Favorites opens every supported source and shows broken targets without pr
     await expect(list).toContainText("No access");
     await expect(list).not.toContainText("Private Favorite");
     await expect(list).not.toContainText("Deleted Favorite");
+    const collectionPreviewRequest =
+      title === "Favorite Collection"
+        ? page.waitForRequest((outgoing) =>
+            outgoing.url().includes("/rpc/smartCollectionView"),
+          )
+        : null;
     await list
       .getByRole("button", {
         name: `Open source record: ${title}`,
         exact: true,
       })
       .click();
+    if (collectionPreviewRequest) {
+      expect((await collectionPreviewRequest).postDataJSON().json).toEqual({
+        viewId: setup.favorites.viewId,
+        readOnly: true,
+      });
+    }
     const preview = page.getByRole("dialog", { name: title, exact: true });
     await expect(
       preview.getByRole("link", { name: "Open full page", exact: true }),
@@ -326,7 +407,7 @@ test("Favorites opens every supported source and shows broken targets without pr
     await expect(list).toBeVisible();
     // Contrast must be measured after the Sheet's opacity and color transitions settle.
     await page.evaluate(async () => {
-      await Promise.all(
+      await Promise.allSettled(
         document.getAnimations().map((animation) => animation.finished),
       );
     });

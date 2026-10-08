@@ -52,7 +52,7 @@ function FavoriteRow({
     },
   });
   const open = useCallback(() => opening.mutate(), [opening.mutate]);
-  const current = opening.data ?? entry;
+  const current = entry;
   return (
     <li className="space-y-2 rounded-lg border border-border/70 p-4">
       {current.status === "available" ? (

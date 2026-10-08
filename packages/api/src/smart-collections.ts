@@ -241,6 +241,7 @@ export interface SmartCollectionsAccess {
   getView: (
     accountId: string,
     viewId: string,
+    options?: { readOnly?: boolean },
   ) => Promise<SmartCollectionViewSource | null>;
   listViews: (
     accountId: string,
