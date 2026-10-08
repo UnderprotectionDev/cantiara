@@ -4,6 +4,7 @@ import {
   type DecisionSupersessionGraph,
   type DecisionSupersessionSelection,
   decisionSupersessionCommandSchema,
+  decisionSupersessionGraphSchema,
   decisionSupersessionSelectionSchema,
 } from "@cantiara/api/decision-supersession";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
@@ -127,6 +128,7 @@ function adapter(
         .where(eq(mutationTarget.id, targetId));
       const evidence = await executor
         .select({
+          relation: usageLink,
           id: usageLink.id,
           decisionId: usageLink.surfaceRecordId,
           title: document.title,
@@ -144,6 +146,7 @@ function adapter(
         );
       const workEvidence = await executor
         .select({
+          relation: workRelation,
           id: workRelation.id,
           decisionId: workRelation.targetRecordId,
           title: work.title,
@@ -151,15 +154,21 @@ function adapter(
         })
         .from(workRelation)
         .innerJoin(work, eq(workRelation.sourceWorkId, work.id))
+        .innerJoin(project, eq(work.projectId, project.id))
         .where(
           and(
-            eq(work.projectId, projectId),
+            eq(workRelation.targetProjectId, projectId),
+            eq(project.workspaceId, owned.project.workspaceId),
             eq(workRelation.targetRecordType, "Decision"),
             eq(workRelation.kind, "Evidence"),
             isNull(workRelation.deletedAt),
           ),
         );
+      const savedTransition = decisionSupersessionGraphSchema
+        .pick({ transition: true })
+        .parse(marker?.value ?? {});
       const graph: DecisionSupersessionGraph = {
+        ...savedTransition,
         records: rows.map((row) =>
           decisionRecordSchema.parse({
             ...row,
@@ -173,28 +182,36 @@ function adapter(
           ...relation,
           occurredAt: relation.occurredAt.toISOString(),
         })),
-        evidence: [
-          ...evidence.map((item) => ({
-            id: item.id,
-            revision: item.revision,
-            decisionId: item.decisionId,
-            title: item.title,
-            excerpt:
-              typeof item.location === "object" &&
-              item.location !== null &&
-              "excerpt" in item.location &&
-              typeof item.location.excerpt === "string"
-                ? item.location.excerpt
-                : null,
-          })),
-          ...workEvidence.map((item) => ({
-            id: item.id,
-            revision: item.revision,
-            decisionId: item.decisionId,
-            title: item.title,
-            excerpt: null,
-          })),
-        ]
+        evidence: (
+          await Promise.all([
+            ...evidence.map(async (item) => ({
+              relationFingerprint: await fingerprintMutationPayload(
+                JSON.stringify(item.relation),
+              ),
+              id: item.id,
+              revision: item.revision,
+              decisionId: item.decisionId,
+              title: item.title,
+              excerpt:
+                typeof item.location === "object" &&
+                item.location !== null &&
+                "excerpt" in item.location &&
+                typeof item.location.excerpt === "string"
+                  ? item.location.excerpt
+                  : null,
+            })),
+            ...workEvidence.map(async (item) => ({
+              relationFingerprint: await fingerprintMutationPayload(
+                JSON.stringify(item.relation),
+              ),
+              id: item.id,
+              revision: item.revision,
+              decisionId: item.decisionId,
+              title: item.title,
+              excerpt: null,
+            })),
+          ])
+        )
           .filter((item) => rows.some((row) => row.id === item.decisionId))
           .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
         revision: marker?.revision ?? 0,
@@ -250,6 +267,7 @@ function adapter(
             ),
           },
           nextValue: {
+            transition: next.transition,
             decision: record,
             relations: next.relations.filter(
               (edge) => edge.predecessorId === record.id,
@@ -287,10 +305,18 @@ function adapter(
       }
       await executor
         .insert(mutationTarget)
-        .values({ id: input.targetId, revision: next.revision, value: {} })
+        .values({
+          id: input.targetId,
+          revision: next.revision,
+          value: { transition: next.transition },
+        })
         .onConflictDoUpdate({
           target: mutationTarget.id,
-          set: { revision: next.revision, updatedAt: input.committedAt },
+          set: {
+            revision: next.revision,
+            value: { transition: next.transition },
+            updatedAt: input.committedAt,
+          },
         });
       return { id: input.targetId, revision: next.revision, value: next };
     },
@@ -314,6 +340,27 @@ export function createDatabaseDecisionSupersession(
   database: Database,
 ): DecisionSupersessionAccess {
   return {
+    async history(accountId, projectId) {
+      return await database.transaction(
+        async (transaction) => {
+          if (!(await readGraph(transaction, accountId, projectId))) {
+            return null;
+          }
+          const events = await transaction
+            .select({ nextValue: mutationHistory.nextValue })
+            .from(mutationHistory)
+            .where(eq(mutationHistory.targetId, graphTargetId(projectId)))
+            .orderBy(asc(mutationHistory.revision));
+          return events.flatMap((event) => {
+            const graph = decisionSupersessionGraphSchema.parse(
+              event.nextValue,
+            );
+            return graph.transition ? [graph.transition] : [];
+          });
+        },
+        { isolationLevel: "repeatable read", accessMode: "read only" },
+      );
+    },
     read: (accountId, projectId) =>
       database.transaction(
         (transaction) => readGraph(transaction, accountId, projectId),
@@ -355,7 +402,7 @@ export function createDatabaseDecisionSupersession(
       const targetId = graphTargetId(input.projectId);
       // Replay also rechecks current ownership; the mutation receipt itself is not an access grant.
       const current = await readGraph(database, accountId, input.projectId);
-      if (!current || current.readOnly) {
+      if (!current) {
         return null;
       }
       try {
@@ -382,6 +429,14 @@ export function createDatabaseDecisionSupersession(
             return {
               ...currentValue,
               revision: currentValue.revision + 1,
+              transition: {
+                operation: input.operation,
+                predecessorIds: input.predecessorIds,
+                successorId: input.successorId,
+                rationale: input.rationale,
+                actorId: accountId,
+                occurredAt: committedAt,
+              },
               records: currentValue.records.map((record) =>
                 selected.has(record.id)
                   ? {

@@ -144,6 +144,16 @@ describeDatabase(
       expect(
         (await records.supersession.read(accountId, projectId))?.relations,
       ).toHaveLength(2);
+      if (!database) {
+        throw new Error("Database required");
+      }
+      await database
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(await records.supersession.commit(accountId, command)).toEqual(
+        receipt,
+      );
     });
 
     async function decisionsFixture() {
@@ -344,6 +354,7 @@ describeDatabase(
         predecessorIds: [sourceIds[1]],
         successorId: sourceIds[2],
         operation: "remove",
+        rationale: "Replacement no longer applies.",
       });
       if (!remove) {
         throw new Error("Preview required");
@@ -356,6 +367,21 @@ describeDatabase(
       expect(await records.supersession.commit(accountId, command)).toEqual(
         receipt,
       );
+      expect(await records.supersession.history(accountId, projectId)).toEqual([
+        expect.objectContaining({ operation: "supersede", actorId: accountId }),
+        expect.objectContaining({ operation: "supersede", actorId: accountId }),
+        expect.objectContaining({
+          operation: "remove",
+          rationale: "Replacement no longer applies.",
+          actorId: accountId,
+          predecessorIds: [sourceIds[1]],
+          successorId: sourceIds[2],
+          occurredAt: receipt?.committedAt,
+        }),
+      ]);
+      expect(
+        await records.supersession.history(`${accountId}-other`, projectId),
+      ).toBeNull();
       expect(
         await records.find(accountId, "Decision", sourceIds[0]),
       ).toMatchObject({ life: "Superseded" });
@@ -368,6 +394,81 @@ describeDatabase(
       expect(
         (await records.supersession.read(accountId, projectId))?.relations,
       ).toHaveLength(1);
+    });
+
+    test("preview includes cross-Project Work evidence and rejects confirmation after that evidence changes", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = await decisionsFixture();
+      const evidenceProjectId = `${projectId}-evidence`;
+      await database.insert(project).values({
+        id: evidenceProjectId,
+        name: "Evidence Project",
+        shortCode: `EV-${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+        workspaceId,
+      });
+      const lifecycle = createDatabaseWorkLifecycle(database);
+      const evidenceWork = await lifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "cross-project-evidence",
+        projectId: evidenceProjectId,
+        title: "Validate earlier choice",
+        type: "Task",
+      });
+      await database.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Evidence",
+        sourceWorkId: evidenceWork.id,
+        targetLabel: "Choice 0",
+        targetProjectId: projectId,
+        targetRecordId: sourceIds[0],
+        targetRecordType: "Decision",
+      });
+      const preview = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      expect(preview?.graph.evidence).toEqual([
+        expect.objectContaining({
+          title: "Validate earlier choice",
+          decisionId: sourceIds[0],
+        }),
+      ]);
+      if (!preview) {
+        throw new Error("Preview required");
+      }
+      await database
+        .update(workRelation)
+        .set({ targetLabel: "Updated evidence label", revision: 1 })
+        .where(eq(workRelation.sourceWorkId, evidenceWork.id));
+      await expect(
+        records.supersession.commit(accountId, {
+          ...preview.command,
+          clientIdempotencyKey: "changed-evidence-edge",
+        }),
+      ).rejects.toThrow();
+      const refreshed = await records.supersession.preview(
+        accountId,
+        replacement(),
+      );
+      if (!refreshed) {
+        throw new Error("Preview required");
+      }
+      await database
+        .update(workRelation)
+        .set({ deletedAt: new Date(), revision: 2 })
+        .where(eq(workRelation.sourceWorkId, evidenceWork.id));
+      await expect(
+        records.supersession.commit(accountId, {
+          ...refreshed.command,
+          clientIdempotencyKey: "stale-cross-project-evidence",
+        }),
+      ).rejects.toThrow();
+      expect(
+        (await records.supersession.read(accountId, projectId))?.relations,
+      ).toEqual([]);
     });
 
     test("supersession retains evidence and relations and never writes related Work, Risk, Assumption or Project Release", async () => {

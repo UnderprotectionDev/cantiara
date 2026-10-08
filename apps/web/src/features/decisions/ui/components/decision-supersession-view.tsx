@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind their current Decision selection.
 import type {
+  DecisionSupersessionGraph,
   DecisionSupersessionPreview,
   DecisionSupersessionSelection,
 } from "@cantiara/api/decision-supersession";
@@ -62,17 +63,10 @@ export function DecisionSupersessionPreviewView({
         <ul aria-label="Supersedes" className="space-y-2">
           {preview.graph.relations.map((edge) => (
             <li className="break-words" key={edge.predecessorId}>
-              {
-                preview.graph.records.find(
-                  (record) => record.id === edge.predecessorId,
-                )?.title
-              }{" "}
-              →{" "}
-              {
-                preview.graph.records.find(
-                  (record) => record.id === edge.successorId,
-                )?.title
-              }
+              <SupersessionRelationSummary
+                records={preview.graph.records}
+                relation={edge}
+              />
             </li>
           ))}
         </ul>
@@ -104,7 +98,7 @@ export function SupersessionSelectionForm({
   onCancel,
 }: {
   selection: DecisionSupersessionSelection;
-  records: { id: string; title: string; life: string }[];
+  records: DecisionSupersessionGraph["records"];
   onPreview: (selection: DecisionSupersessionSelection) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -211,5 +205,20 @@ export function SupersessionSelectionForm({
         )}
       </form.Subscribe>
     </form>
+  );
+}
+
+export function SupersessionRelationSummary({
+  records,
+  relation,
+}: {
+  records: DecisionSupersessionGraph["records"];
+  relation: DecisionSupersessionGraph["relations"][number];
+}) {
+  return (
+    <span>
+      {records.find((record) => record.id === relation.predecessorId)?.title} →{" "}
+      {records.find((record) => record.id === relation.successorId)?.title}
+    </span>
   );
 }

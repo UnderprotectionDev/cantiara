@@ -5058,6 +5058,15 @@ export const appRouter = {
       }
       return access.read(context.session.user.id, input.projectId);
     }),
+  decisionSupersessionHistory: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).supersession;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.history(context.session.user.id, input.projectId);
+    }),
   previewDecisionSupersession: protectedProcedure
     .input(decisionSupersessionSelectionSchema)
     .handler(async ({ context, input }) => {

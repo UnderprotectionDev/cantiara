@@ -58,6 +58,7 @@ describe("Project source record RPC", () => {
     projectSourceRecords.supersession = {
       commit,
       preview,
+      history: vi.fn().mockResolvedValue([]),
       read: vi.fn().mockResolvedValue(null),
     };
     const selection = {
@@ -89,6 +90,29 @@ describe("Project source record RPC", () => {
     const unauthenticated = testClient(null).client;
     await expect(
       unauthenticated.commitDecisionSupersession(command),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  test("supersession history uses the authenticated Account and rejects anonymous reads", async () => {
+    const { client, projectSourceRecords } = testClient({
+      session: { id: "session-1" },
+      user: { id: accountId },
+    } as Context["session"]);
+    const history = vi.fn().mockResolvedValue([]);
+    projectSourceRecords.supersession = {
+      history,
+      commit: vi.fn().mockResolvedValue(null),
+      preview: vi.fn().mockResolvedValue(null),
+      read: vi.fn().mockResolvedValue(null),
+    };
+    await expect(
+      client.decisionSupersessionHistory({ projectId: "project-1" }),
+    ).resolves.toEqual([]);
+    expect(history).toHaveBeenCalledExactlyOnceWith(accountId, "project-1");
+    await expect(
+      testClient(null).client.decisionSupersessionHistory({
+        projectId: "project-1",
+      }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 

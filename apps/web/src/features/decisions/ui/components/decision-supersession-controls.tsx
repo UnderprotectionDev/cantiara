@@ -10,6 +10,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import {
   DecisionSupersessionPreviewView,
+  SupersessionRelationSummary,
   SupersessionSelectionForm,
 } from "./decision-supersession-view";
 
@@ -98,9 +99,8 @@ export default function DecisionSupersessionControls({
   if (!graph.data || graph.isError) {
     return <p role="alert">Supersession is unavailable.</p>;
   }
-  const selected = graph.data.records.find(
-    (record) => record.id === selectedId,
-  );
+  const decisionRecords = graph.data.records;
+  const selected = decisionRecords.find((record) => record.id === selectedId);
   const edges = graph.data.relations.filter(
     (edge) =>
       edge.predecessorId === selectedId || edge.successorId === selectedId,
@@ -114,17 +114,10 @@ export default function DecisionSupersessionControls({
           key={edge.predecessorId}
         >
           <p>
-            {
-              graph.data?.records.find(
-                (record) => record.id === edge.predecessorId,
-              )?.title
-            }{" "}
-            →{" "}
-            {
-              graph.data?.records.find(
-                (record) => record.id === edge.successorId,
-              )?.title
-            }
+            <SupersessionRelationSummary
+              records={decisionRecords}
+              relation={edge}
+            />
           </p>
           {readOnly || graph.data?.readOnly ? null : (
             <Button
@@ -162,7 +155,7 @@ export default function DecisionSupersessionControls({
         <SupersessionSelectionForm
           onCancel={cancel}
           onPreview={preview}
-          records={graph.data.records}
+          records={decisionRecords}
           selection={selection}
         />
       ) : null}

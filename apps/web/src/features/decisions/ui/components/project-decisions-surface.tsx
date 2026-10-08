@@ -51,7 +51,14 @@ export default function ProjectDecisionsSurface({
   async function refresh(message: string) {
     pendingWrite.current = null;
     setSavedMessage(message);
-    await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.decisionSupersessionGraph.queryOptions({
+          input: { projectId },
+        }).queryKey,
+      }),
+    ]);
   }
   async function save(draft: DecisionDraft, record?: DecisionRecord) {
     const fields = {

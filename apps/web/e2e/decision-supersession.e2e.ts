@@ -35,10 +35,29 @@ test("Decisions previews full supersession, retains failed confirmation, persist
       page.getByText("Decision saved.", { exact: true }),
     ).toBeVisible();
   }
+  await page.getByRole("link", { name: "Original scope", exact: true }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Supersede another decision",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await decisions.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Additional scope");
+  await page
+    .getByLabel("Decision text", { exact: true })
+    .fill("Choose additional scope");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByText("Decision saved.", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "New scope", exact: true }).click();
   await page
     .getByRole("button", { name: "Supersede another decision", exact: true })
     .click();
+  await expect(
+    page.getByRole("checkbox", { name: "Additional scope", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("checkbox", { name: "Original scope", exact: true })
     .check();

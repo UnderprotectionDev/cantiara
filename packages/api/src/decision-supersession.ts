@@ -36,13 +36,26 @@ export const decisionSupersessionRelationSchema = z.object({
   occurredAt: z.iso.datetime(),
   actorId: id,
 });
+export const decisionSupersessionTransitionSchema = z.object({
+  operation: z.enum(["supersede", "remove"]),
+  predecessorIds: z.array(id),
+  successorId: id,
+  rationale: z.string().nullable(),
+  actorId: id,
+  occurredAt: z.iso.datetime(),
+});
+export type DecisionSupersessionTransition = z.infer<
+  typeof decisionSupersessionTransitionSchema
+>;
 export const decisionSupersessionGraphSchema = z.object({
+  transition: decisionSupersessionTransitionSchema.optional(),
   records: z.array(decisionRecordSchema),
   relations: z.array(decisionSupersessionRelationSchema),
   evidence: z.array(
     z.object({
       id,
       revision: z.number().int().nonnegative(),
+      relationFingerprint: z.string().optional(),
       decisionId: id,
       title: z.string(),
       excerpt: z.string().nullable(),
@@ -75,6 +88,10 @@ export interface DecisionSupersessionAccess {
     accountId: string,
     input: DecisionSupersessionCommand,
   ) => Promise<DecisionSupersessionReceipt | null>;
+  history: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<DecisionSupersessionTransition[] | null>;
   preview: (
     accountId: string,
     input: DecisionSupersessionSelection,
