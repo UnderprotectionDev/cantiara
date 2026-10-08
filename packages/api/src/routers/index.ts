@@ -5126,6 +5126,27 @@ export const appRouter = {
         input.focusDate,
       ),
     ),
+  favoritesList: protectedProcedure.handler(({ context }) =>
+    requireFavorites(context).list(context.session.user.id),
+  ),
+  openFavoriteSource: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFavorites(context).open(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof FavoriteSourceUnavailableError) {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            message: "Source record is unavailable.",
+          });
+        }
+        throw error;
+      }
+    }),
   favoriteMembership: protectedProcedure
     .input(favoriteSourceSchema)
     .handler(async ({ context, input }) => ({

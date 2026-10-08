@@ -78,6 +78,10 @@ import { createWorkContextAccess } from "../src/features/work-context/server/wor
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkTemplates } from "../src/features/work-templates/server/work-templates-database";
+import {
+  deleteStaleFavoriteSource,
+  prepareFavoritesFixture,
+} from "./favorites-fixture";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
@@ -584,6 +588,18 @@ async function createE2EFixture(fixtureKey: string) {
     usedInSourceWorkId = source.id;
   }
 
+  const favoritesFixture = await prepareFavoritesFixture(
+    database,
+    fixtureKey,
+    founder.id,
+    () =>
+      projectShell.create(founder.id, {
+        name: "Favorite Project",
+        shortCode: "FAV",
+        starterConfiguration: "Blank Project",
+      }),
+  );
+
   const projectId =
     longStatusProject?.id ??
     usedInTargetProject?.id ??
@@ -595,6 +611,7 @@ async function createE2EFixture(fixtureKey: string) {
     bulkEditProgressFixture?.projectId;
 
   return {
+    ...favoritesFixture,
     currentCookie,
     otherCookie,
     ...(fixtureKey === "completion-effects"
@@ -672,6 +689,16 @@ serve({
   port: serverPort,
   async fetch(request, server) {
     const url = new URL(request.url);
+    if (
+      url.pathname === "/__e2e/favorites-delete-source" &&
+      request.method === "POST"
+    ) {
+      await deleteStaleFavoriteSource(
+        database,
+        url.searchParams.get("documentId") ?? "",
+      );
+      return Response.json({ status: true });
+    }
     if (url.pathname === "/__e2e/setup") {
       const fixtureKey = url.searchParams.get("fixture");
       if (!(fixtureKey && E2E_FIXTURE_KEY_PATTERN.test(fixtureKey))) {
@@ -683,6 +710,7 @@ serve({
 
       const {
         bulkEditProgressWorkCount,
+        favoritesFixture,
         currentCookie,
         otherCookie,
         projectId,
@@ -691,6 +719,7 @@ serve({
         usedInSourceWorkId,
       } = await createE2EFixture(fixtureKey);
       return Response.json({
+        ...(favoritesFixture ? { favorites: favoritesFixture } : {}),
         cookie: currentCookie,
         otherCookie,
         ...(tauriBearerToken ? { tauriBearerToken } : {}),

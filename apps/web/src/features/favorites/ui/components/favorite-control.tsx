@@ -18,7 +18,12 @@ export default function FavoriteControl(source: FavoriteSource) {
           : client.addToFavorites(source),
       ),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: options.queryKey }),
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: options.queryKey }),
+        queryClient.invalidateQueries({
+          queryKey: orpc.favoritesList.queryOptions().queryKey,
+        }),
+      ]),
   });
   function toggle() {
     mutation.mutate();
