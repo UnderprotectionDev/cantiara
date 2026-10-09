@@ -81,3 +81,88 @@ test("Decision creation uses labelled title, decision text and optional rational
   expect(html).toContain(">Cancel</button>");
   expect(html).not.toContain("Superseded");
 });
+
+test("Superseded detail opens the final Valid Decision and keeps its historical text read-only", () => {
+  const oldest = { ...decision, life: "Superseded" as const };
+  const middle = {
+    ...decision,
+    id: "middle",
+    title: "Revised scope",
+    life: "Superseded" as const,
+  };
+  const current = { ...decision, id: "current", title: "Current scope" };
+  const relation = {
+    actorId: "founder",
+    occurredAt: "2026-10-08T10:00:00.000Z",
+    rationale: "Constraints changed",
+  };
+  const html = renderToStaticMarkup(
+    <ProjectDecisionsView
+      decisions={[oldest, middle, current]}
+      graph={{
+        records: [current, middle, oldest],
+        relations: [
+          { ...relation, predecessorId: oldest.id, successorId: middle.id },
+          { ...relation, predecessorId: middle.id, successorId: current.id },
+        ],
+        evidence: [],
+        revision: 2,
+        readOnly: false,
+      }}
+      onSave={save}
+      onWithdraw={save}
+      projectId="project-1"
+      selectedId={oldest.id}
+    />,
+  );
+  expect(html).toContain('aria-label="Decision chain"');
+  expect(html).toContain(
+    'href="/projects/project-1#source-decision-current">Open current decision</a>',
+  );
+  expect(html).toContain("Constraints changed");
+  expect(html).toContain("Keep scope small.");
+  expect(html).not.toContain(">Edit</button>");
+});
+
+test("a withdrawn terminal shows No Valid Decision without current navigation from either generation", () => {
+  const oldest = { ...decision, life: "Superseded" as const };
+  const terminal = {
+    ...decision,
+    id: "terminal",
+    title: "Withdrawn scope",
+    life: "Withdrawn" as const,
+    withdrawnAt: "2026-10-08T11:00:00.000Z",
+    withdrawalRationale: "Constraint removed.",
+  };
+  const graph = {
+    records: [oldest, terminal],
+    relations: [
+      {
+        predecessorId: oldest.id,
+        successorId: terminal.id,
+        actorId: "founder",
+        occurredAt: "2026-10-08T10:00:00.000Z",
+        rationale: "Constraints changed",
+      },
+    ],
+    evidence: [],
+    revision: 2,
+    readOnly: false,
+  };
+  for (const selectedId of [oldest.id, terminal.id]) {
+    const html = renderToStaticMarkup(
+      <ProjectDecisionsView
+        decisions={graph.records}
+        graph={graph}
+        onSave={save}
+        onWithdraw={save}
+        projectId="project-1"
+        selectedId={selectedId}
+      />,
+    );
+    expect(html).toContain("No Valid Decision.");
+    expect(html).not.toContain("Open current decision");
+    expect(html).toContain("Constraints changed");
+    expect(html).toContain("Keep scope small.");
+  }
+});

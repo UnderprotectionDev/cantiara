@@ -534,9 +534,12 @@ function EditableCell({
   const hasCurrentChoice = choices?.includes(currentChoice) ?? true;
   const title = rowTitle(record);
   const editable = !(
-    recordType === "Work" &&
-    field === "status" &&
-    currentValue === "Closed"
+    (recordType === "Work" &&
+      field === "status" &&
+      currentValue === "Closed") ||
+    ("sourceType" in record &&
+      record.sourceType === "Decision" &&
+      record.life === "Superseded")
   );
   const save = useCallback(
     async (nextValue = value) => {

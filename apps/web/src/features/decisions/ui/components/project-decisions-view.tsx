@@ -3,6 +3,7 @@ import {
   type AccountPreferences,
   DEFAULT_ACCOUNT_PREFERENCES,
 } from "@cantiara/api/account-preferences";
+import type { DecisionSupersessionGraph } from "@cantiara/api/decision-supersession";
 import type { ProjectSourceRecord } from "@cantiara/api/project-source-records";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -10,6 +11,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
+import { DecisionChainView, decisionHref } from "./decision-chain-view";
 
 export type DecisionRecord = Extract<
   ProjectSourceRecord,
@@ -156,6 +158,7 @@ export function DecisionEditor({
 
 export function ProjectDecisionsView({
   decisions,
+  graph,
   projectId,
   selectedId,
   readOnly = false,
@@ -167,6 +170,7 @@ export function ProjectDecisionsView({
 }: {
   accountFormattingPreferences?: AccountPreferences;
   decisions: DecisionRecord[];
+  graph?: DecisionSupersessionGraph;
   projectId: string;
   selectedId?: string;
   readOnly?: boolean;
@@ -225,7 +229,7 @@ export function ProjectDecisionsView({
             >
               <a
                 className="min-w-0 break-words font-medium underline underline-offset-4"
-                href={`/projects/${encodeURIComponent(projectId)}#source-decision-${encodeURIComponent(record.id)}`}
+                href={decisionHref(projectId, record.id)}
               >
                 {record.title}
               </a>
@@ -243,8 +247,10 @@ export function ProjectDecisionsView({
         <DecisionDetail
           accountFormattingPreferences={accountFormattingPreferences}
           editing={Boolean(editing)}
+          graph={graph}
           onEdit={() => start("edit")}
           onWithdraw={() => start("withdraw")}
+          projectId={projectId}
           readOnly={readOnly}
           record={selected}
         />
@@ -260,7 +266,11 @@ function DecisionDetail({
   editing,
   onEdit,
   onWithdraw,
+  graph,
+  projectId,
 }: {
+  graph?: DecisionSupersessionGraph;
+  projectId: string;
   record: DecisionRecord;
   accountFormattingPreferences: AccountPreferences;
   readOnly: boolean;
@@ -275,6 +285,14 @@ function DecisionDetail({
     >
       <h3 className="font-semibold text-xl">{record.title}</h3>
       <p>{record.life}</p>
+      {graph ? (
+        <DecisionChainView
+          graph={graph}
+          preferences={accountFormattingPreferences}
+          projectId={projectId}
+          selectedId={record.id}
+        />
+      ) : null}
       <dl className="space-y-4">
         <div>
           <dt className="font-medium text-sm">Decision text</dt>
@@ -305,7 +323,7 @@ function DecisionDetail({
           </p>
         </section>
       ) : null}
-      {readOnly || editing ? null : (
+      {readOnly || editing || record.life === "Superseded" ? null : (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => onEdit()} variant="outline">
             Edit

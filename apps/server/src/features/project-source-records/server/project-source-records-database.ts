@@ -1064,6 +1064,12 @@ export function createDatabaseProjectSourceRecords(
             ) {
               throw new MutationConflictError(input.sourceId);
             }
+            if (
+              current.sourceType === "Decision" &&
+              current.life === "Superseded"
+            ) {
+              throw new MutationConflictError(input.sourceId);
+            }
             let record: ProjectSourceRecord;
             switch (input.sourceType) {
               case "Decision":

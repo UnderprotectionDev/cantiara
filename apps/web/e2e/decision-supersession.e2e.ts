@@ -71,7 +71,11 @@ test("Decisions previews full supersession, retains failed confirmation, persist
   await expect(preview).toContainText("Reason for New scope");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
-    decisions.getByRole("listitem").filter({ hasText: "Original scope" }),
+    decisions
+      .getByRole("list")
+      .first()
+      .getByRole("listitem")
+      .filter({ hasText: "Original scope" }),
   ).toContainText("Valid");
   await page
     .getByRole("button", { name: "Supersede another decision", exact: true })
@@ -97,10 +101,18 @@ test("Decisions previews full supersession, retains failed confirmation, persist
   await expect(preview).toHaveCount(0);
   await page.reload();
   await expect(
-    decisions.getByRole("listitem").filter({ hasText: "Original scope" }),
+    decisions
+      .getByRole("list")
+      .first()
+      .getByRole("listitem")
+      .filter({ hasText: "Original scope" }),
   ).toContainText("Superseded");
   await expect(
-    decisions.getByRole("listitem").filter({ hasText: "New scope" }),
+    decisions
+      .getByRole("list")
+      .first()
+      .getByRole("listitem")
+      .filter({ hasText: "New scope" }),
   ).toContainText("Valid");
   await page.getByRole("button", { name: "Remove supersession" }).click();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
@@ -108,10 +120,18 @@ test("Decisions previews full supersession, retains failed confirmation, persist
   await page.getByRole("button", { name: "Confirm removal" }).click();
   await page.reload();
   await expect(
-    decisions.getByRole("listitem").filter({ hasText: "Original scope" }),
+    decisions
+      .getByRole("list")
+      .first()
+      .getByRole("listitem")
+      .filter({ hasText: "Original scope" }),
   ).toContainText("Valid");
   await expect(
-    decisions.getByRole("listitem").filter({ hasText: "New scope" }),
+    decisions
+      .getByRole("list")
+      .first()
+      .getByRole("listitem")
+      .filter({ hasText: "New scope" }),
   ).toContainText("Valid");
   await page.setViewportSize({ width: 375, height: 812 });
   expect(
