@@ -125,11 +125,12 @@ export default function OpenQuestionsSurface({
     setEditing(undefined);
     pendingWrite.current = null;
   }
-  if (records.isPending) {
-    return <p role="status">Loading Open Questions…</p>;
-  }
-  if (records.isError || !records.data) {
-    return <p role="alert">Open Questions are unavailable. Reload to retry.</p>;
+  if (!records.data) {
+    return records.isError ? (
+      <p role="alert">Open Questions are unavailable. Reload to retry.</p>
+    ) : (
+      <p role="status">Loading Open Questions…</p>
+    );
   }
   const questions = records.data.records;
   const locked = readOnly || records.data.readOnly;
@@ -143,6 +144,11 @@ export default function OpenQuestionsSurface({
           </Button>
         )}
       </header>
+      {records.isError ? (
+        <p role="alert">
+          Open Questions could not be refreshed. Your draft is safe.
+        </p>
+      ) : null}
       {saved ? <p role="status">{saved}</p> : null}
       {questions.length ? (
         <ul className="space-y-2">
