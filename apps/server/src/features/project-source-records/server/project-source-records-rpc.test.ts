@@ -296,3 +296,55 @@ test("Uncertainty Records binds Assumption reads and transitions to the Account 
     anonymous.transitionProjectSourceRecord(command),
   ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 });
+
+test("Uncertainty Records protects Open Question reads and maps transition conflicts", async () => {
+  const { client, projectSourceRecords } = testClient({
+    session: { id: "session-1" },
+    user: { id: accountId },
+  } as Context["session"]);
+  projectSourceRecords.listOpenQuestions = vi
+    .fn()
+    .mockResolvedValue({ records: [], readOnly: true });
+  projectSourceRecords.openQuestionContext = vi
+    .fn()
+    .mockResolvedValue({ evidence: [], readOnly: true });
+  await expect(
+    client.openQuestions({ projectId: "project-1" }),
+  ).resolves.toEqual({ records: [], readOnly: true });
+  await expect(
+    client.openQuestionContext({
+      sourceId: "question-1",
+      sourceType: "Open Question",
+    }),
+  ).resolves.toEqual({ evidence: [], readOnly: true });
+  await expect(
+    testClient(null).client.openQuestions({ projectId: "project-1" }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    testClient(null).client.openQuestionContext({
+      sourceId: "question-1",
+      sourceType: "Open Question",
+    }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    client.openQuestionContext({
+      sourceId: "decision-1",
+      sourceType: "Decision",
+    }),
+  ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  const transition = vi
+    .fn()
+    .mockRejectedValue(new ProjectSourceRecordConflictError("question-1"));
+  projectSourceRecords.transition = transition;
+  await expect(
+    client.transitionProjectSourceRecord({
+      projectId: "project-1",
+      sourceType: "Open Question",
+      sourceId: "question-1",
+      life: "Answered",
+      answer: "Weekly",
+      baseRevision: 1,
+      clientIdempotencyKey: "answer-question",
+    }),
+  ).rejects.toMatchObject({ code: "CONFLICT" });
+});

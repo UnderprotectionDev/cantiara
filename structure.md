@@ -139,6 +139,7 @@
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
+│       │   ├── open-questions.e2e.ts
 │       │   ├── favorites.e2e.ts
 │       │   ├── bulk-editing.e2e.ts
 │       │   ├── account-preferences.e2e.ts
@@ -187,6 +188,11 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           └── bulk-edit-dialog.tsx
+│       │   │   ├── uncertainty-records/
+│       │   │   │   └── ui/
+│       │   │   │       ├── open-question-view.tsx
+│       │   │   │       ├── open-question-view.test.tsx
+│       │   │   │       └── open-questions-surface.tsx
 │       │   │   ├── account-access/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-account-sessions.ts

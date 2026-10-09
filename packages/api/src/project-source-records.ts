@@ -157,6 +157,7 @@ export const openQuestionRecordSchema = z
   .object({
     ...sourceRecordIdentity,
     answer: optionalLongText,
+    rationale: optionalLongText.optional().default(null),
     context: optionalLongText,
     life: openQuestionLifeSchema,
     question: longText,
@@ -367,6 +368,27 @@ export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
 export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
   "sourceType",
   [
+    z.discriminatedUnion("life", [
+      humanMutationEnvelopeSchema
+        .extend({
+          projectId: identifier,
+          sourceId: identifier,
+          sourceType: z.literal("Open Question"),
+          life: z.literal("Answered"),
+          answer: longText,
+          rationale: optionalLongText.optional(),
+          documentEvidence: documentEvidenceSelectionSchema.optional(),
+        })
+        .strict(),
+      humanMutationEnvelopeSchema
+        .extend({
+          projectId: identifier,
+          sourceId: identifier,
+          sourceType: z.literal("Open Question"),
+          life: z.literal("No longer applicable"),
+        })
+        .strict(),
+    ]),
     humanMutationEnvelopeSchema
       .extend({
         projectId: identifier,
@@ -465,6 +487,20 @@ export interface ProjectSourceRecordsAccess {
     projectId: string,
   ) => Promise<{
     records: z.infer<typeof decisionRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  listOpenQuestions?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof openQuestionRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  openQuestionContext?: (
+    accountId: string,
+    sourceId: string,
+  ) => Promise<{
+    evidence: z.infer<typeof documentEvidenceSelectionSchema>[];
     readOnly: boolean;
   } | null>;
   supersession?: DecisionSupersessionAccess;

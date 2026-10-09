@@ -1065,6 +1065,260 @@ describeDatabase(
       ).resolves.toEqual(created);
     });
 
+    test("Uncertainty Records keeps an answered question and rationale through No longer applicable without changing counterparts", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const assumption = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "assumption",
+        id: sourceIds[0],
+        projectId,
+        sourceType: "Assumption",
+        title: "Weekly reviews help",
+        statement: "Founders prefer weekly reviews",
+        rationale: null,
+      });
+      const decision = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "decision",
+        id: sourceIds[1],
+        projectId,
+        sourceType: "Decision",
+        title: "Review cadence",
+        decision: "Offer weekly reviews",
+        rationale: null,
+      });
+      const question = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "question",
+        id: sourceIds[2],
+        projectId,
+        sourceType: "Open Question",
+        title: "Preferred cadence",
+        question: "How often do founders review?",
+        context: "Check the pilot",
+      });
+      if (!question) {
+        throw new Error("Question required");
+      }
+      const lifecycle = createDatabaseWorkLifecycle(database);
+      const work = await lifecycle.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "question-counterpart-work",
+        projectId,
+        title: "Pilot interviews",
+        type: "Task",
+      });
+      await database.insert(risk).values({
+        id: sourceIds[3],
+        projectId,
+        title: "Pilot capacity",
+        revision: 1,
+      });
+      const beforeRisk = await records.find(accountId, "Risk", sourceIds[3]);
+      await database.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Blocks",
+        sourceWorkId: work.id,
+        sourceRecordType: "Open Question",
+        targetRecordType: "Work",
+        targetRecordId: work.id,
+        targetProjectId: projectId,
+        targetLabel: "Pilot interviews",
+        blockingStatus: "Active",
+      });
+      const beforeWork = await lifecycle.find(accountId, work.id);
+      const beforeWorkList = await lifecycle.list(accountId, projectId);
+      const relations = createDatabaseRelations(database);
+      const beforeRelations = await relations.list(accountId, {
+        recordType: "Work",
+        recordId: work.id,
+      });
+      const before = await records.list(accountId, projectId);
+      const answered = await records.transition(accountId, {
+        baseRevision: question.revision,
+        clientIdempotencyKey: "answer",
+        projectId,
+        sourceType: "Open Question",
+        sourceId: question.id,
+        life: "Answered",
+        answer: "Weekly",
+        rationale: "Three interviews agreed",
+      });
+      expect(answered).toMatchObject({
+        life: "Answered",
+        answer: "Weekly",
+        rationale: "Three interviews agreed",
+      });
+      if (!answered) {
+        throw new Error("Answered question required");
+      }
+      const command = {
+        baseRevision: answered.revision,
+        clientIdempotencyKey: "inapplicable",
+        projectId,
+        sourceType: "Open Question" as const,
+        sourceId: question.id,
+        life: "No longer applicable" as const,
+      };
+      const closed = await records.transition(accountId, command);
+      expect(
+        await records.find(accountId, "Open Question", question.id),
+      ).toMatchObject({
+        life: "No longer applicable",
+        question: "How often do founders review?",
+        context: "Check the pilot",
+        answer: "Weekly",
+        rationale: "Three interviews agreed",
+      });
+      expect(await records.transition(accountId, command)).toEqual(closed);
+      expect(await records.find(accountId, "Assumption", sourceIds[0])).toEqual(
+        assumption,
+      );
+      expect(await records.find(accountId, "Decision", sourceIds[1])).toEqual(
+        decision,
+      );
+      expect(
+        (await records.list(accountId, projectId))
+          ?.map((item) => item.id)
+          .sort(),
+      ).toEqual(before?.map((item) => item.id).sort());
+      expect(await records.find(accountId, "Risk", sourceIds[3])).toEqual(
+        beforeRisk,
+      );
+      expect(await lifecycle.find(accountId, work.id)).toEqual(beforeWork);
+      expect(await lifecycle.list(accountId, projectId)).toEqual(
+        beforeWorkList,
+      );
+      expect(
+        await relations.list(accountId, {
+          recordType: "Work",
+          recordId: work.id,
+        }),
+      ).toEqual(beforeRelations);
+      await expect(
+        records.transition(accountId, {
+          ...command,
+          clientIdempotencyKey: "stale-answer",
+          life: "Answered",
+          answer: "Daily",
+        }),
+      ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+      expect(
+        await records.find("another-account", "Open Question", question.id),
+      ).toBeNull();
+    });
+
+    test("Uncertainty Records pins exact optional answer evidence, retains it and rejects stale evidence atomically", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const documentId = `document-${crypto.randomUUID()}`;
+      await database.insert(document).values({
+        id: documentId,
+        projectId,
+        title: "Pilot notes",
+        body: "Weekly reviews",
+        revision: 1,
+      });
+      const question = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "create-evidence-question",
+        id: sourceIds[0],
+        projectId,
+        sourceType: "Open Question",
+        title: "Cadence",
+        question: "Which cadence?",
+        context: null,
+      });
+      if (!question) {
+        throw new Error("Question required");
+      }
+      const evidence = {
+        documentId,
+        documentRevision: 1,
+        selectedText: "Weekly reviews",
+        selectionStart: 0,
+        selectionEnd: 14,
+      };
+      const input = {
+        baseRevision: question.revision,
+        clientIdempotencyKey: "answer-with-evidence",
+        projectId,
+        sourceType: "Open Question" as const,
+        sourceId: question.id,
+        life: "Answered" as const,
+        answer: "Weekly",
+        documentEvidence: evidence,
+      };
+      await expect(
+        records.transition(accountId, {
+          ...input,
+          documentEvidence: { ...evidence, documentRevision: 0 },
+        }),
+      ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+      expect(
+        await records.find(accountId, "Open Question", question.id),
+      ).toEqual(question);
+      expect(
+        await records.openQuestionContext?.(accountId, question.id),
+      ).toMatchObject({ evidence: [] });
+      const answered = await records.transition(accountId, input);
+      expect(await records.transition(accountId, input)).toEqual(answered);
+      expect(
+        await records.openQuestionContext?.(accountId, question.id),
+      ).toEqual({ evidence: [evidence], readOnly: false });
+      await database
+        .update(document)
+        .set({ body: "Daily reviews", revision: 2 })
+        .where(eq(document.id, documentId));
+      await records.transition(accountId, {
+        baseRevision: answered?.revision ?? 0,
+        clientIdempotencyKey: "close-evidence-question",
+        projectId,
+        sourceType: "Open Question",
+        sourceId: question.id,
+        life: "No longer applicable",
+      });
+      expect(
+        await records.openQuestionContext?.(accountId, question.id),
+      ).toMatchObject({ evidence: [evidence] });
+      const closed = await records.find(
+        accountId,
+        "Open Question",
+        question.id,
+      );
+      expect(closed).toMatchObject({
+        question: "Which cadence?",
+        answer: "Weekly",
+        life: "No longer applicable",
+      });
+      await database
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(
+        await records.openQuestionContext?.(accountId, question.id),
+      ).toMatchObject({ readOnly: true });
+      await expect(
+        records.transition(accountId, {
+          ...input,
+          baseRevision: closed?.revision ?? 0,
+          clientIdempotencyKey: "archived-answer",
+          documentEvidence: undefined,
+        }),
+      ).rejects.toThrow();
+      expect(
+        await records.find(accountId, "Open Question", question.id),
+      ).toEqual(closed);
+      expect(
+        await records.openQuestionContext?.("another-account", question.id),
+      ).toBeNull();
+    });
+
     test("records source creation and explicit lifecycle transitions in mutation history", async () => {
       if (!database) {
         throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
