@@ -3,6 +3,7 @@ import { type Document, documentTypeSchema } from "./documents";
 import type { ProjectLifecycleStatus } from "./project-shell";
 import {
   assumptionRecordSchema,
+  decisionLifeSchema,
   decisionRecordSchema,
   milestoneRecordSchema,
   milestoneStatusSchema,
@@ -94,7 +95,7 @@ export const universalSearchInputSchema = z
   .object({
     query: z.string().trim().max(200).default(""),
     currentProjectId: z.string().min(1).max(200).optional(),
-    decisionStatus: z.enum(["Valid", "Superseded", "Withdrawn"]).optional(),
+    decisionStatus: decisionLifeSchema.optional(),
     archived: z.boolean().default(false),
     index: recordDiscoveryViewSchema.default("Search"),
     scope: recordDiscoveryScopeSchema.default({ kind: "all" }),

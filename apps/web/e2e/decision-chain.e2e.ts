@@ -103,6 +103,17 @@ test("Decisions follows the historical chain to the final Valid record and filte
       .getByRole("heading", { name: "Chain current" }),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Current draft");
+  await list.getByRole("link", { name: "Chain original", exact: true }).click();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+    "Current draft",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Edit", exact: true }),
+  ).toHaveCount(0);
+
   await page.getByRole("button", { name: "Search", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Search", exact: true });
   await dialog.getByLabel("Search", { exact: true }).fill("Chain");

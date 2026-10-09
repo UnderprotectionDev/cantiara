@@ -11,7 +11,7 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
-import { DecisionChainView } from "./decision-chain-view";
+import { DecisionChainView, decisionHref } from "./decision-chain-view";
 
 export type DecisionRecord = Extract<
   ProjectSourceRecord,
@@ -209,9 +209,7 @@ export function ProjectDecisionsView({
         )}
       </header>
       {savedMessage ? <p role="status">{savedMessage}</p> : null}
-      {editing &&
-      !readOnly &&
-      (editing === "create" || selected?.life !== "Superseded") ? (
+      {editing && !readOnly ? (
         <DecisionEditor
           key={editing}
           onCancel={() => setEditing(undefined)}
@@ -231,7 +229,7 @@ export function ProjectDecisionsView({
             >
               <a
                 className="min-w-0 break-words font-medium underline underline-offset-4"
-                href={`/projects/${encodeURIComponent(projectId)}#source-decision-${encodeURIComponent(record.id)}`}
+                href={decisionHref(projectId, record.id)}
               >
                 {record.title}
               </a>

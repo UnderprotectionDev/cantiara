@@ -29,11 +29,11 @@ export function DecisionChainView({
     return null;
   }
   const selected = chain.records.find((record) => record.id === selectedId);
-  const direct = chain.relations.find(
+  const directSuccessorRelation = chain.relations.find(
     (edge) => edge.predecessorId === selectedId,
   );
   const successor = chain.records.find(
-    (record) => record.id === direct?.successorId,
+    (record) => record.id === directSuccessorRelation?.successorId,
   );
   return (
     <section
@@ -54,7 +54,7 @@ export function DecisionChainView({
               Open current decision
             </a>
           ) : null}
-          {direct && successor ? (
+          {directSuccessorRelation && successor ? (
             <div className="space-y-1 text-sm">
               <p>
                 Superseded by{" "}
@@ -65,11 +65,14 @@ export function DecisionChainView({
                   {successor.title}
                 </a>
               </p>
-              <time dateTime={direct.occurredAt}>
-                {formatAccountDateTime(direct.occurredAt, preferences)}
+              <time dateTime={directSuccessorRelation.occurredAt}>
+                {formatAccountDateTime(
+                  directSuccessorRelation.occurredAt,
+                  preferences,
+                )}
               </time>
               <p className="whitespace-pre-wrap break-words">
-                {direct.rationale || "—"}
+                {directSuccessorRelation.rationale || "—"}
               </p>
             </div>
           ) : null}

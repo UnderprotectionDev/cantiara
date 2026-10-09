@@ -1,5 +1,9 @@
 import { documentTypeSchema } from "@cantiara/api/documents";
 import {
+  DECISION_LIFE_OPTIONS,
+  decisionLifeSchema,
+} from "@cantiara/api/project-source-records";
+import {
   type RecordDiscoveryIndex,
   type RecordDiscoveryScope,
   type RecordDiscoveryView,
@@ -220,7 +224,7 @@ function ArchivedFilter({
   );
 }
 
-type DecisionStatus = "Valid" | "Superseded" | "Withdrawn";
+type DecisionStatus = (typeof DECISION_LIFE_OPTIONS)[number];
 
 export function DecisionStatusFilter({
   value,
@@ -237,7 +241,7 @@ export function DecisionStatusFilter({
         onChange={onChange}
         value={value}
       >
-        {["Valid", "Superseded", "Withdrawn"].map((status) => (
+        {DECISION_LIFE_OPTIONS.map((status) => (
           <NativeSelectOption key={status} value={status}>
             {status}
           </NativeSelectOption>
@@ -251,9 +255,9 @@ export function DecisionStatusFilter({
 function useDecisionStatus() {
   const [status, setStatus] = useState<DecisionStatus>("Valid");
   const changeStatus = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    const { value } = event.target;
-    if (value === "Valid" || value === "Superseded" || value === "Withdrawn") {
-      setStatus(value);
+    const result = decisionLifeSchema.safeParse(event.target.value);
+    if (result.success) {
+      setStatus(result.data);
     }
   }, []);
   return { status, changeStatus };
