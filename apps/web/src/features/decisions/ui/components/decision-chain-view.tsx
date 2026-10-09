@@ -41,7 +41,7 @@ export function DecisionChainView({
       className="space-y-3 break-words rounded-lg border border-border/70 p-4"
     >
       <h4 className="font-medium">Decision chain</h4>
-      {selected?.life === "Superseded" ? (
+      {selected?.life === "Superseded" || !chain.current ? (
         <div className="space-y-2 border-border/70 border-b pb-3">
           <p>
             Current Decision: {chain.current?.title ?? "No Valid Decision."}

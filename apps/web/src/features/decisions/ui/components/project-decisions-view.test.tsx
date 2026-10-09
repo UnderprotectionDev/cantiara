@@ -123,3 +123,46 @@ test("Superseded detail opens the final Valid Decision and keeps its historical 
   expect(html).toContain("Keep scope small.");
   expect(html).not.toContain(">Edit</button>");
 });
+
+test("a withdrawn terminal shows No Valid Decision without current navigation from either generation", () => {
+  const oldest = { ...decision, life: "Superseded" as const };
+  const terminal = {
+    ...decision,
+    id: "terminal",
+    title: "Withdrawn scope",
+    life: "Withdrawn" as const,
+    withdrawnAt: "2026-10-08T11:00:00.000Z",
+    withdrawalRationale: "Constraint removed.",
+  };
+  const graph = {
+    records: [oldest, terminal],
+    relations: [
+      {
+        predecessorId: oldest.id,
+        successorId: terminal.id,
+        actorId: "founder",
+        occurredAt: "2026-10-08T10:00:00.000Z",
+        rationale: "Constraints changed",
+      },
+    ],
+    evidence: [],
+    revision: 2,
+    readOnly: false,
+  };
+  for (const selectedId of [oldest.id, terminal.id]) {
+    const html = renderToStaticMarkup(
+      <ProjectDecisionsView
+        decisions={graph.records}
+        graph={graph}
+        onSave={save}
+        onWithdraw={save}
+        projectId="project-1"
+        selectedId={selectedId}
+      />,
+    );
+    expect(html).toContain("No Valid Decision.");
+    expect(html).not.toContain("Open current decision");
+    expect(html).toContain("Constraints changed");
+    expect(html).toContain("Keep scope small.");
+  }
+});
