@@ -94,6 +94,7 @@ export const universalSearchInputSchema = z
   .object({
     query: z.string().trim().max(200).default(""),
     currentProjectId: z.string().min(1).max(200).optional(),
+    decisionStatus: z.enum(["Valid", "Superseded", "Withdrawn"]).optional(),
     archived: z.boolean().default(false),
     index: recordDiscoveryViewSchema.default("Search"),
     scope: recordDiscoveryScopeSchema.default({ kind: "all" }),

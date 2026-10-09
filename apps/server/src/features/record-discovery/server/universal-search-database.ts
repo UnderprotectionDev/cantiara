@@ -380,10 +380,13 @@ async function searchDecisionRecords({
     .innerJoin(project, eq(decision.projectId, project.id))
     .innerJoin(workspace, eq(project.workspaceId, workspace.id))
     .where(
-      projectConditions(
-        accountId,
-        input,
-        textContent([decisionTitle, decisionText]),
+      and(
+        projectConditions(
+          accountId,
+          input,
+          textContent([decisionTitle, decisionText]),
+        ),
+        eq(decision.life, input.decisionStatus ?? "Valid"),
       ),
     );
   results.push(

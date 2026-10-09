@@ -656,7 +656,7 @@ Yerine-geçme onayında isteğe bağlı gerekçe; Karar gerekçesi alanı veya k
 _Avoid_: Reason, oy gerekçesi
 
 **Karar zinciri**:
-En eski Karar kaydından güncel `Valid` Karara giden nesil sırası; değişiklik geçmişi satırları değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)).
+En eski Karar kaydından güncel `Valid` Karara giden nesil sırası; değişiklik geçmişi satırları değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)). UI: `Decision chain`.
 _Avoid_: changelog, event log, version history rows
 
 **Güncel kararı aç**:

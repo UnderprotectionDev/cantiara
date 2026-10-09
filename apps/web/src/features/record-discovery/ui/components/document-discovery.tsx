@@ -220,6 +220,45 @@ function ArchivedFilter({
   );
 }
 
+type DecisionStatus = "Valid" | "Superseded" | "Withdrawn";
+
+export function DecisionStatusFilter({
+  value,
+  onChange,
+}: {
+  value: DecisionStatus;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor="discovery-decision-status">Status</Label>
+      <NativeSelect
+        id="discovery-decision-status"
+        onChange={onChange}
+        value={value}
+      >
+        {["Valid", "Superseded", "Withdrawn"].map((status) => (
+          <NativeSelectOption key={status} value={status}>
+            {status}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <p className="text-muted-foreground text-xs">Filters Decisions only.</p>
+    </div>
+  );
+}
+
+function useDecisionStatus() {
+  const [status, setStatus] = useState<DecisionStatus>("Valid");
+  const changeStatus = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    const { value } = event.target;
+    if (value === "Valid" || value === "Superseded" || value === "Withdrawn") {
+      setStatus(value);
+    }
+  }, []);
+  return { status, changeStatus };
+}
+
 function SearchPanel({
   archived,
   failed,
@@ -507,26 +546,31 @@ function RecordSearchSurface({
   onOpenSource: () => void;
   query: string;
 }) {
+  const { status, changeStatus } = useDecisionStatus();
   const searchResults = useQuery({
     ...universalSearchQueryOptions(accountId, {
       query,
       index: "Search",
+      decisionStatus: status,
       archived,
       ...(currentProjectId ? { currentProjectId } : {}),
     }),
     enabled: Boolean(accountId) && Boolean(query.trim()),
   });
   return (
-    <SearchPanel
-      archived={archived}
-      failed={searchResults.isError}
-      onChangeArchived={onChangeArchived}
-      onChangeQuery={onChangeQuery}
-      onOpenSource={onOpenSource}
-      pending={searchResults.isPending && Boolean(query.trim())}
-      query={query}
-      results={searchResults.data}
-    />
+    <>
+      <DecisionStatusFilter onChange={changeStatus} value={status} />
+      <SearchPanel
+        archived={archived}
+        failed={searchResults.isError}
+        onChangeArchived={onChangeArchived}
+        onChangeQuery={onChangeQuery}
+        onOpenSource={onOpenSource}
+        pending={searchResults.isPending && Boolean(query.trim())}
+        query={query}
+        results={searchResults.data}
+      />
+    </>
   );
 }
 
@@ -549,6 +593,7 @@ function RecordIndexSurface({
   onOpenSource: () => void;
   scope: RecordDiscoveryScope;
 }) {
+  const { status, changeStatus } = useDecisionStatus();
   const [type, setType] = useState("");
   const [folder, setFolder] = useState("");
   const changeType = useCallback(
@@ -584,6 +629,7 @@ function RecordIndexSurface({
   const indexResults = useQuery({
     ...universalSearchQueryOptions(accountId, {
       ...indexInput,
+      ...(index === "All Decisions" ? { decisionStatus: status } : {}),
       ...(metadataIndex && type ? { type } : {}),
       ...(metadataIndex && folder ? { folder } : {}),
     }),
@@ -592,33 +638,38 @@ function RecordIndexSurface({
   const projects = projectsQuery.data ?? [];
   const inventory = indexInventory.data ?? [];
   return (
-    <IndexPanel
-      archived={archived}
-      failed={discoveryIndexFailed({
-        index,
-        inventoryFailed: indexInventory.isError,
-        projectsFailed: projectsQuery.isError,
-        resultsFailed: indexResults.isError,
-      })}
-      folder={folder}
-      folders={indexFolderOptions(inventory)}
-      index={index}
-      onChangeArchived={onChangeArchived}
-      onChangeFolder={changeFolder}
-      onChangeScope={changeScope}
-      onChangeType={changeType}
-      onOpenSource={onOpenSource}
-      pending={
-        indexResults.isPending ||
-        projectsQuery.isPending ||
-        (metadataIndex && indexInventory.isPending)
-      }
-      projects={projects}
-      results={indexResults.data}
-      scope={scope}
-      type={type}
-      typeOptions={indexTypeOptions(index, inventory, type)}
-    />
+    <>
+      {index === "All Decisions" ? (
+        <DecisionStatusFilter onChange={changeStatus} value={status} />
+      ) : null}
+      <IndexPanel
+        archived={archived}
+        failed={discoveryIndexFailed({
+          index,
+          inventoryFailed: indexInventory.isError,
+          projectsFailed: projectsQuery.isError,
+          resultsFailed: indexResults.isError,
+        })}
+        folder={folder}
+        folders={indexFolderOptions(inventory)}
+        index={index}
+        onChangeArchived={onChangeArchived}
+        onChangeFolder={changeFolder}
+        onChangeScope={changeScope}
+        onChangeType={changeType}
+        onOpenSource={onOpenSource}
+        pending={
+          indexResults.isPending ||
+          projectsQuery.isPending ||
+          (metadataIndex && indexInventory.isPending)
+        }
+        projects={projects}
+        results={indexResults.data}
+        scope={scope}
+        type={type}
+        typeOptions={indexTypeOptions(index, inventory, type)}
+      />
+    </>
   );
 }
 

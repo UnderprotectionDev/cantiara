@@ -145,6 +145,61 @@ describeDatabase("Record Discovery universal search boundary", () => {
     await database?.$client.end();
   });
 
+  it("defaults Search and All Decisions to Valid and finds historical Decisions only through Status", async () => {
+    if (!database) {
+      throw new Error("Database required");
+    }
+    await database.insert(decision).values([
+      {
+        id: recordId("valid"),
+        projectId,
+        title: "Shared choice",
+        decision: "Current choice",
+        life: "Valid",
+      },
+      {
+        id: recordId("superseded"),
+        projectId,
+        title: "Shared choice",
+        decision: "Old choice",
+        life: "Superseded",
+      },
+      {
+        id: recordId("withdrawn"),
+        projectId,
+        title: "Shared choice",
+        decision: "Withdrawn choice",
+        life: "Withdrawn",
+      },
+    ]);
+    for (const index of ["Search", "All Decisions"] as const) {
+      expect(
+        // biome-ignore lint/performance/noAwaitInLoops: Each index is verified independently through the public search interface.
+        (await client().searchRecords({ index, query: "Shared choice" })).map(
+          (row) => row.id,
+        ),
+      ).toEqual([recordId("valid")]);
+      expect(
+        (
+          await client().searchRecords({
+            index,
+            query: "Shared choice",
+            decisionStatus: "Superseded",
+          })
+        ).map((row) => row.id),
+      ).toEqual([recordId("superseded")]);
+      expect(
+        (
+          await client().searchRecords({
+            index,
+            query: "Shared choice",
+            decisionStatus: "Withdrawn",
+          })
+        ).map((row) => row.id),
+      ).toEqual([recordId("withdrawn")]);
+    }
+  });
+
   it("searches the current Next concrete step and drops a replaced hint", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

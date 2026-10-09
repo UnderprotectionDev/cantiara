@@ -27,6 +27,10 @@ export default function ProjectDecisionsSurface({
   const queryClient = useQueryClient();
   const options = orpc.projectDecisions.queryOptions({ input: { projectId } });
   const records = useQuery(options);
+  const graph = useQuery({
+    ...orpc.decisionSupersessionGraph.queryOptions({ input: { projectId } }),
+    enabled: Boolean(selectedId),
+  });
   const [savedMessage, setSavedMessage] = useState<string>();
   const pendingWrite = useRef<{
     fingerprint: string;
@@ -140,6 +144,7 @@ export default function ProjectDecisionsSurface({
       <ProjectDecisionsView
         accountFormattingPreferences={accountFormattingPreferences}
         decisions={decisions}
+        graph={graph.isError ? undefined : (graph.data ?? undefined)}
         onSave={save}
         onStartEditing={startEditing}
         onWithdraw={withdraw}
@@ -148,6 +153,12 @@ export default function ProjectDecisionsSurface({
         savedMessage={savedMessage}
         selectedId={selectedId}
       />
+      {selected && graph.isPending ? (
+        <p role="status">Loading Decision chain…</p>
+      ) : null}
+      {selected && (graph.isError || !(graph.isPending || graph.data)) ? (
+        <p role="alert">Decision chain is unavailable.</p>
+      ) : null}
       {selected ? (
         <DecisionSupersessionControls
           projectId={projectId}

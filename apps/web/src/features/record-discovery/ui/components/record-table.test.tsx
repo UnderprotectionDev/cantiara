@@ -20,6 +20,8 @@ const records: RecordTableRecord[] = [decisionRecord];
 
 const noop = () => undefined;
 const noopAsync = async () => undefined;
+const historicalTitleControlPattern =
+  /<input[^>]*disabled=""[^>]*aria-label="Edit Title for Choose a launch date"|<input[^>]*aria-label="Edit Title for Choose a launch date"[^>]*disabled=""/;
 const decisionLifeSelectPattern =
   /<select[^>]*aria-label="Edit Life for Choose a launch date"[^>]*>[\s\S]*?<\/select>/;
 const reachedMilestoneStatusPattern =
@@ -76,6 +78,7 @@ test("shows Superseded Decisions as read-only instead of an empty Life cell", ()
   expect(lifeControl).toContain('disabled=""');
   expect(lifeControl).toContain('value="Superseded" selected=""');
   expect(lifeControl).toContain(">Superseded</option>");
+  expect(markup).toMatch(historicalTitleControlPattern);
 });
 
 const reachedMilestone = {

@@ -1,7 +1,15 @@
+import {
+  decisionChain,
+  decisionSnapshotPreview,
+} from "@cantiara/api/decision-chain";
 import { ProjectSourceRecordConflictError } from "@cantiara/api/project-source-records";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
+import {
+  externalSurface,
+  externalSurfaceSnapshotRevision,
+} from "@cantiara/db/schema/external-surface";
 import {
   mutationHistory,
   mutationReceipt,
@@ -93,6 +101,99 @@ describeDatabase(
 
     afterAll(async () => {
       await database?.$client.end();
+    });
+
+    test("keeps generations and approved Decision snapshots stable while superseded content is read-only", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = await decisionsFixture();
+      const beforeGraph = await records.supersession.read(accountId, projectId);
+      if (!beforeGraph) {
+        throw new Error("Graph required");
+      }
+      const approved = decisionSnapshotPreview(beforeGraph, {
+        decisionIds: [sourceIds[0]],
+      });
+      const surfaceId = `surface-${crypto.randomUUID()}`;
+      await database
+        .insert(externalSurface)
+        .values({ id: surfaceId, workspaceId, projectId });
+      await database.insert(externalSurfaceSnapshotRevision).values({
+        id: `snapshot-${crypto.randomUUID()}`,
+        surfaceId,
+        revision: 1,
+        snapshot: approved,
+      });
+      for (const [predecessorId, successorId] of [
+        [sourceIds[0], sourceIds[1]],
+        [sourceIds[1], sourceIds[2]],
+      ] as const) {
+        // biome-ignore lint/performance/noAwaitInLoops: Each transition depends on the preceding committed generation.
+        const preview = await records.supersession.preview(accountId, {
+          projectId,
+          successorId,
+          predecessorIds: [predecessorId],
+          operation: "supersede",
+          rationale: "Constraints changed",
+        });
+        if (!preview) {
+          throw new Error("Preview required");
+        }
+        await records.supersession.commit(accountId, {
+          ...preview.command,
+          clientIdempotencyKey: `replace-${predecessorId}`,
+        });
+      }
+      const graph = await records.supersession.read(accountId, projectId);
+      if (!graph) {
+        throw new Error("Graph required");
+      }
+      expect(
+        decisionChain(graph, sourceIds[0])?.records.map((record) => record.id),
+      ).toEqual(sourceIds.slice(0, 3));
+      expect(decisionChain(graph, sourceIds[0])?.current?.id).toBe(
+        sourceIds[2],
+      );
+      expect(
+        await records.supersession.history(accountId, projectId),
+      ).toHaveLength(2);
+      expect(
+        decisionSnapshotPreview(graph).map((item) =>
+          item.kind === "Decision" ? item.record.id : "relation",
+        ),
+      ).toEqual([sourceIds[2]]);
+      const historical = await records.find(
+        accountId,
+        "Decision",
+        sourceIds[0],
+      );
+      if (historical?.sourceType !== "Decision") {
+        throw new Error("Decision required");
+      }
+      await expect(
+        records.update(accountId, {
+          projectId,
+          sourceId: historical.id,
+          sourceType: "Decision",
+          title: "Rewrite history",
+          decision: "Different choice",
+          rationale: null,
+          baseRevision: historical.revision,
+          clientIdempotencyKey: "rewrite-old",
+        }),
+      ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+      expect(await records.find(accountId, "Decision", sourceIds[0])).toEqual(
+        historical,
+      );
+      expect(
+        (
+          await database
+            .select()
+            .from(externalSurfaceSnapshotRevision)
+            .where(eq(externalSurfaceSnapshotRevision.surfaceId, surfaceId))
+        ).map((row) => row.snapshot),
+      ).toEqual([approved]);
     });
 
     test("previews and atomically supersedes several Decisions with an idempotent receipt", async () => {
