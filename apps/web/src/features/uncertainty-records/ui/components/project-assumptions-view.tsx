@@ -26,6 +26,11 @@ export interface AssumptionDraft {
   title: string;
 }
 type AssumptionLife = AssumptionRecord["life"];
+interface AssumptionEditing {
+  kind: "create" | "edit" | "transition";
+  life?: AssumptionLife;
+  record?: AssumptionRecord;
+}
 type Save = (
   draft: AssumptionDraft,
   record?: AssumptionRecord,
@@ -58,8 +63,11 @@ export function AssumptionEditor({
   const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState(false);
   const outcome = life === "Confirmed" || life === "Refuted";
-  const evidenceDocuments = documents.filter(
-    (doc) => doc.body.length > 0 && doc.body.length <= 100_000,
+  // Keep each editing session pinned to the versions it offered; a stale choice must conflict at commit.
+  const [evidenceDocuments] = useState(() =>
+    documents.filter(
+      (doc) => doc.body.trim().length > 0 && doc.body.length <= 100_000,
+    ),
   );
   const form = useForm({
     defaultValues: {
@@ -239,11 +247,50 @@ export function AssumptionEditor({
   );
 }
 
+function AssumptionEditingPanel({
+  editing,
+  documents,
+  documentsPending,
+  onCancel,
+  onSave,
+}: {
+  editing: AssumptionEditing;
+  documents?: Document[];
+  documentsPending: boolean;
+  onCancel: () => void;
+  onSave: Save;
+}) {
+  const needsEvidenceSnapshot =
+    editing.kind === "transition" &&
+    (editing.life === "Confirmed" || editing.life === "Refuted");
+  if (needsEvidenceSnapshot && documentsPending) {
+    return (
+      <div className="space-y-3">
+        <p role="status">Loading Documents…</p>
+        <Button onClick={onCancel} variant="outline">
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <AssumptionEditor
+      documents={documents}
+      key={`${editing.kind}:${editing.record?.id ?? "new"}:${editing.life ?? ""}`}
+      life={editing.life}
+      onCancel={onCancel}
+      onSave={onSave}
+      record={editing.record}
+    />
+  );
+}
+
 export function ProjectAssumptionsView({
   context,
   projectId,
   selectedId,
   documents,
+  documentsPending = false,
   onSave,
   onTransition,
   onStartEditing,
@@ -253,6 +300,7 @@ export function ProjectAssumptionsView({
   projectId: string;
   selectedId?: string;
   documents?: Document[];
+  documentsPending?: boolean;
   onSave: Save;
   onTransition: (
     life: AssumptionLife,
@@ -262,14 +310,9 @@ export function ProjectAssumptionsView({
   onStartEditing?: () => void;
   savedMessage?: string;
 }) {
-  const [editing, setEditing] = useState<
-    | {
-        kind: "create" | "edit" | "transition";
-        record?: AssumptionRecord;
-        life?: AssumptionLife;
-      }
-    | undefined
-  >();
+  const [editing, setEditing] = useState<AssumptionEditing | undefined>(
+    undefined,
+  );
   const selected = context.records.find((record) => record.id === selectedId);
   const evidence = context.evidence.filter(
     (entry) => entry.assumptionId === selectedId,
@@ -302,13 +345,12 @@ export function ProjectAssumptionsView({
       </header>
       {savedMessage ? <p role="status">{savedMessage}</p> : null}
       {editing && !context.readOnly ? (
-        <AssumptionEditor
+        <AssumptionEditingPanel
           documents={documents}
-          key={`${editing.kind}:${editing.record?.id ?? "new"}:${editing.life ?? ""}`}
-          life={editing.life}
+          documentsPending={documentsPending}
+          editing={editing}
           onCancel={() => setEditing(undefined)}
           onSave={save}
-          record={editing.record}
         />
       ) : null}
       {context.records.length === 0 ? (

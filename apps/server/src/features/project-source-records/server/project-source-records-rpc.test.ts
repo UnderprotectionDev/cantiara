@@ -1,4 +1,5 @@
 import type { Context } from "@cantiara/api/context";
+import { MUTATION_UI_LABELS } from "@cantiara/api/mutation-and-undo";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import {
   ProjectSourceRecordConflictError,
@@ -287,7 +288,15 @@ test("Uncertainty Records binds Assumption reads and transitions to the Account 
   );
   await expect(
     client.transitionProjectSourceRecord(command),
-  ).rejects.toMatchObject({ code: "CONFLICT" });
+  ).rejects.toMatchObject({
+    code: "CONFLICT",
+    data: {
+      code: "CONFLICT",
+      label: MUTATION_UI_LABELS.conflict,
+      targetId: "a1",
+    },
+    message: MUTATION_UI_LABELS.conflict,
+  });
   const anonymous = testClient(null).client;
   await expect(
     anonymous.projectAssumptions({ projectId: "project-1" }),

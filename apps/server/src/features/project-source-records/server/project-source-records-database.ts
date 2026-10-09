@@ -41,6 +41,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import {
+  MutationApplyFailedError,
   MutationConflictError,
   MutationStaleBaseRevisionError,
   MutationTargetNotFoundError,
@@ -96,6 +97,21 @@ type ProjectSourceMutationValue =
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported project source record: ${String(value)}`);
+}
+
+function mutationConflictCause(
+  error: unknown,
+): MutationConflictError | MutationStaleBaseRevisionError<unknown> | undefined {
+  if (
+    error instanceof MutationConflictError ||
+    error instanceof MutationStaleBaseRevisionError
+  ) {
+    return error;
+  }
+  if (error instanceof MutationApplyFailedError) {
+    return mutationConflictCause(error.cause);
+  }
+  return undefined;
 }
 
 function toDecision(record: DecisionRecord) {
@@ -1187,10 +1203,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.id, {
             cause: error,
           });
@@ -1333,10 +1347,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.sourceId, {
             cause: error,
           });
@@ -1393,10 +1405,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.sourceId, {
             cause: error,
           });

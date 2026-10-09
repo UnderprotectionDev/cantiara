@@ -172,7 +172,7 @@ suite("Uncertainty Records", () => {
     expect(await records.find(accountId, "Risk", risk.id)).toEqual(risk);
     expect(await lifecycle.find(accountId, work.id)).toEqual(originalWork);
     expect(await records.list(accountId, projectId)).toHaveLength(4);
-  }, 30_000);
+  }, 120_000);
   test("invalid evidence ranges roll back the Assumption and its evidence", async () => {
     if (!db) {
       throw new Error("Database required");

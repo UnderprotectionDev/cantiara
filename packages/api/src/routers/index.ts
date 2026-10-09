@@ -558,7 +558,16 @@ function requireProjectSourceRecords(context: Context) {
 
 function rethrowProjectSourceRecordError(error: unknown): never {
   if (error instanceof ProjectSourceRecordConflictError) {
-    throw new ORPCError("CONFLICT", { cause: error });
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: {
+        code: error.code,
+        label: MUTATION_UI_LABELS.conflict,
+        targetId: error.sourceId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
   }
   throw error;
 }

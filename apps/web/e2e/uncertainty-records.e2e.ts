@@ -128,3 +128,136 @@ test("Uncertainty Records persists outcomes and exact evidence and preserves can
     ),
   ).toBe(true);
 });
+
+test("Assumption outcome keeps the Document version offered when editing starts", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000);
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  const route = `/projects/${setup.projectId}`;
+  await page.goto(`${route}#documents`);
+  await page
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const create = page.getByRole("dialog", { name: "Create Document" });
+  await create.getByLabel("Title", { exact: true }).fill("Customer interview");
+  await create
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const documentEditor = page.getByRole("region", {
+    name: "Document",
+    exact: true,
+  });
+  await documentEditor
+    .getByRole("tab", { name: "Markdown", exact: true })
+    .click();
+  await documentEditor
+    .getByRole("textbox", { name: "Markdown source", exact: true })
+    .fill("Evidence from Document Version 2.");
+  const firstSave = page.waitForResponse((result) =>
+    result.url().endsWith("/rpc/updateDocument"),
+  );
+  await documentEditor
+    .getByRole("button", { name: "Save", exact: true })
+    .click();
+  expect((await firstSave).ok()).toBe(true);
+
+  await page.goto(`${route}#project-area-discovery`);
+  const assumptions = page.getByRole("region", {
+    name: "Assumption",
+    exact: true,
+  });
+  await assumptions
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await page.getByLabel("Title", { exact: true }).fill("Export demand");
+  await page
+    .getByLabel("Statement", { exact: true })
+    .fill("Customers will pay for export.");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByText("Assumption saved.", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Export demand", exact: true }).click();
+  const detail = page.getByRole("article", { name: "Assumption", exact: true });
+  await detail.getByRole("button", { name: "Refuted", exact: true }).click();
+  const evidence = page.getByLabel("Evidence (optional)", { exact: true });
+  const documentId = await evidence
+    .locator("option")
+    .filter({ hasText: "Customer interview — Version 2" })
+    .getAttribute("value");
+  expect(documentId).toBeTruthy();
+  await evidence.selectOption(documentId ?? "");
+
+  const second = await context.newPage();
+  await second.goto(`${route}#documents`);
+  await second
+    .getByRole("button", { name: "Customer interview", exact: true })
+    .click();
+  const secondEditor = second.getByRole("region", {
+    name: "Document",
+    exact: true,
+  });
+  await secondEditor
+    .getByRole("tab", { name: "Markdown", exact: true })
+    .click();
+  await secondEditor
+    .getByRole("textbox", { name: "Markdown source", exact: true })
+    .fill("Evidence from Document Version 3.");
+  const secondSave = second.waitForResponse((result) =>
+    result.url().endsWith("/rpc/updateDocument"),
+  );
+  await secondEditor.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await secondSave).ok()).toBe(true);
+
+  const refreshedDocuments = page.waitForResponse((result) =>
+    result.url().includes("/rpc/documents"),
+  );
+  await page.evaluate(async (projectId) => {
+    const moduleUrl = new URL("/src/utils/orpc.ts", window.location.origin)
+      .href;
+    const { orpc, queryClient } = await import(/* @vite-ignore */ moduleUrl);
+    await queryClient.invalidateQueries({
+      queryKey: orpc.documents.queryOptions({ input: { projectId } }).queryKey,
+    });
+  }, setup.projectId);
+  expect((await refreshedDocuments).ok()).toBe(true);
+  await expect(
+    evidence
+      .locator("option")
+      .filter({ hasText: "Customer interview — Version 2" }),
+  ).toHaveCount(1);
+  await expect(
+    evidence
+      .locator("option")
+      .filter({ hasText: "Customer interview — Version 3" }),
+  ).toHaveCount(0);
+  await expect(page.locator("pre")).toContainText(
+    "Evidence from Document Version 2.",
+  );
+
+  const transitionResponse = page.waitForResponse((result) =>
+    result.url().includes("transitionProjectSourceRecord"),
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const transitionResult = await transitionResponse;
+  expect(transitionResult.status()).toBe(409);
+  const transitionBody = await transitionResult.json();
+  expect(transitionBody.json.code, JSON.stringify(transitionBody)).toBe(
+    "CONFLICT",
+  );
+  await expect(
+    page.getByRole("alert").filter({
+      hasText: "Assumption or Evidence changed. Cancel and reopen",
+    }),
+  ).toBeVisible();
+  await expect(detail.getByText("Open", { exact: true })).toBeVisible();
+  await expect(evidence).toHaveValue(documentId ?? "");
+});

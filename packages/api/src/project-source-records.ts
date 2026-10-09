@@ -516,6 +516,7 @@ export interface ProjectSourceRecordsAccess {
 
 export class ProjectSourceRecordConflictError extends Error {
   readonly code = "CONFLICT" as const;
+  readonly sourceId: string;
 
   constructor(sourceId: string, options?: ErrorOptions) {
     super(
@@ -523,5 +524,6 @@ export class ProjectSourceRecordConflictError extends Error {
       options,
     );
     this.name = "ProjectSourceRecordConflictError";
+    this.sourceId = sourceId;
   }
 }

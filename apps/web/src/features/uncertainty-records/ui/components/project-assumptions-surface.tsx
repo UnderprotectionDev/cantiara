@@ -153,6 +153,7 @@ export default function ProjectAssumptionsSurface({
       <ProjectAssumptionsView
         context={records.data}
         documents={documents.data ?? []}
+        documentsPending={documents.isPending}
         onSave={save}
         onStartEditing={startEditing}
         onTransition={transition}
