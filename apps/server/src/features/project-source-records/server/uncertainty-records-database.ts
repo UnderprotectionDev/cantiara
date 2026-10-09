@@ -3,16 +3,102 @@ import type { AssumptionsContext } from "@cantiara/api/uncertainty-records";
 import type { Database } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { document } from "@cantiara/db/schema/document";
+import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
 import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const pinnedLocation = z.object({
   documentVersion: z.object({ documentId: z.string(), revision: z.number() }),
   excerpt: z.string(),
+  projectId: z.string().optional(),
+  start: z.number().int().nonnegative().optional(),
+  end: z.number().int().positive().optional(),
 });
+
+export async function readUncertaintyDocumentPins(
+  database: Database,
+  ownedProject: typeof project.$inferSelect,
+  sourceType: "Assumption" | "Open Question",
+  recordIds: string[],
+) {
+  const pins = await database
+    .select({
+      link: usageLink,
+      title: document.title,
+      documentProjectId: document.projectId,
+    })
+    .from(usageLink)
+    .leftJoin(document, eq(usageLink.sourceRecordId, document.id))
+    .where(
+      and(
+        eq(usageLink.workspaceId, ownedProject.workspaceId),
+        eq(usageLink.surfaceRecordType, sourceType),
+        eq(usageLink.sourceRecordType, "Document"),
+        eq(usageLink.kind, "Pinned bind"),
+        inArray(usageLink.surfaceRecordId, recordIds),
+      ),
+    )
+    .orderBy(asc(usageLink.createdAt), asc(usageLink.id));
+  const parsedPins = pins.flatMap(({ link, title, documentProjectId }) => {
+    const parsed = pinnedLocation.safeParse(link.location);
+    return parsed.success &&
+      parsed.data.documentVersion.documentId === link.sourceRecordId
+      ? [{ link, title, documentProjectId, location: parsed.data }]
+      : [];
+  });
+  const legacyIds = parsedPins
+    .filter(
+      (pin) =>
+        pin.location.projectId === undefined &&
+        pin.documentProjectId !== ownedProject.id,
+    )
+    .map((pin) => pin.link.sourceRecordId);
+  const history =
+    legacyIds.length === 0
+      ? []
+      : await database
+          .select({
+            before: sql<unknown>`jsonb_build_object('id', ${mutationHistory.previousValue}->'document'->'id', 'projectId', ${mutationHistory.previousValue}->'document'->'projectId', 'revision', ${mutationHistory.previousValue}->'document'->'revision')`,
+            after: sql<unknown>`jsonb_build_object('id', ${mutationHistory.nextValue}->'document'->'id', 'projectId', ${mutationHistory.nextValue}->'document'->'projectId', 'revision', ${mutationHistory.nextValue}->'document'->'revision')`,
+          })
+          .from(mutationHistory)
+          .where(inArray(mutationHistory.targetId, legacyIds));
+  const scopeSnapshot = z.object({
+    id: z.string(),
+    projectId: z.string(),
+    revision: z.number().int(),
+  });
+  const verifiedVersions = new Set(
+    history
+      .flatMap((entry) => [entry.before, entry.after])
+      .flatMap((snapshot) => {
+        const parsed = scopeSnapshot.safeParse(snapshot);
+        return parsed.success && parsed.data.projectId === ownedProject.id
+          ? [`${parsed.data.id}:${parsed.data.revision}`]
+          : [];
+      }),
+  );
+  return parsedPins
+    .filter(
+      ({ location, documentProjectId }) =>
+        location.projectId === ownedProject.id ||
+        (location.projectId === undefined &&
+          (documentProjectId === ownedProject.id ||
+            verifiedVersions.has(
+              `${location.documentVersion.documentId}:${location.documentVersion.revision}`,
+            ))),
+    )
+    .map((pin) => ({
+      ...pin,
+      title:
+        pin.documentProjectId === ownedProject.id
+          ? (pin.title ?? "Document unavailable")
+          : "Document unavailable",
+    }));
+}
 
 export async function readAssumptionsContext(
   database: Database,
@@ -40,20 +126,7 @@ export async function readAssumptionsContext(
   }
   const ids = records.map((record) => record.id);
   const [pins, workEvidence] = await Promise.all([
-    database
-      .select({ link: usageLink, title: document.title })
-      .from(usageLink)
-      .leftJoin(document, eq(usageLink.sourceRecordId, document.id))
-      .where(
-        and(
-          eq(usageLink.workspaceId, ownedProject.workspaceId),
-          eq(usageLink.surfaceRecordType, "Assumption"),
-          eq(usageLink.sourceRecordType, "Document"),
-          eq(usageLink.kind, "Pinned bind"),
-          inArray(usageLink.surfaceRecordId, ids),
-        ),
-      )
-      .orderBy(asc(usageLink.createdAt), asc(usageLink.id)),
+    readUncertaintyDocumentPins(database, ownedProject, "Assumption", ids),
     database
       .select({
         link: workRelation,
@@ -78,21 +151,14 @@ export async function readAssumptionsContext(
     records,
     readOnly: ownedProject.archivedAt !== null,
     evidence: [
-      ...pins.flatMap(({ link, title }) => {
-        const location = pinnedLocation.safeParse(link.location);
-        return location.success
-          ? [
-              {
-                id: link.id,
-                assumptionId: link.surfaceRecordId,
-                documentId: location.data.documentVersion.documentId,
-                title: title ?? "Document unavailable",
-                revision: location.data.documentVersion.revision,
-                excerpt: location.data.excerpt,
-              },
-            ]
-          : [];
-      }),
+      ...pins.map(({ link, title, location }) => ({
+        id: link.id,
+        assumptionId: link.surfaceRecordId,
+        documentId: location.documentVersion.documentId,
+        title,
+        revision: location.documentVersion.revision,
+        excerpt: location.excerpt,
+      })),
       ...workEvidence.map(({ link, title, revision }) => ({
         id: link.id,
         assumptionId: link.targetRecordId,

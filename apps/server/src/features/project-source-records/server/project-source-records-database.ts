@@ -51,7 +51,10 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
-import { readAssumptionsContext } from "./uncertainty-records-database";
+import {
+  readAssumptionsContext,
+  readUncertaintyDocumentPins,
+} from "./uncertainty-records-database";
 
 type DecisionRecord = typeof decision.$inferSelect;
 type MilestoneRecord = typeof projectMilestone.$inferSelect;
@@ -840,6 +843,7 @@ function projectSourceMutationTarget(
         if (
           !sourceDocument ||
           sourceDocument.revision !== evidence.documentRevision ||
+          evidence.selectionEnd > sourceDocument.body.length ||
           sourceDocument.body.slice(
             evidence.selectionStart,
             evidence.selectionEnd,
@@ -860,6 +864,7 @@ function projectSourceMutationTarget(
           id: crypto.randomUUID(),
           kind: "Pinned bind",
           location: {
+            projectId: record.projectId,
             documentVersion: {
               documentId: evidence.documentId,
               revision: evidence.documentRevision,
@@ -1052,18 +1057,12 @@ export function createDatabaseProjectSourceRecords(
       if (!ownedProject) {
         return null;
       }
-      const links = await database
-        .select({ location: usageLink.location })
-        .from(usageLink)
-        .where(
-          and(
-            eq(usageLink.workspaceId, ownedProject.workspaceId),
-            eq(usageLink.surfaceRecordType, "Open Question"),
-            eq(usageLink.surfaceRecordId, sourceId),
-            eq(usageLink.kind, "Pinned bind"),
-            eq(usageLink.sourceRecordType, "Document"),
-          ),
-        );
+      const links = await readUncertaintyDocumentPins(
+        database,
+        ownedProject,
+        "Open Question",
+        [sourceId],
+      );
       const evidence = links.flatMap(({ location: rawLocation }) => {
         const stored = z
           .object({

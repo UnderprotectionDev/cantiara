@@ -140,6 +140,7 @@
 │   └── web/
 │       ├── e2e/
 │       │   ├── open-questions.e2e.ts
+│       │   ├── uncertainty-records.e2e.ts
 │       │   ├── favorites.e2e.ts
 │       │   ├── bulk-editing.e2e.ts
 │       │   ├── account-preferences.e2e.ts
@@ -190,6 +191,10 @@
 │       │   │   │           └── bulk-edit-dialog.tsx
 │       │   │   ├── uncertainty-records/
 │       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       │   ├── project-assumptions-surface.tsx
+│       │   │   │       │   ├── project-assumptions-view.tsx
+│       │   │   │       │   └── project-assumptions-view.test.tsx
 │       │   │   │       ├── open-question-view.tsx
 │       │   │   │       ├── open-question-view.test.tsx
 │       │   │   │       └── open-questions-surface.tsx
@@ -742,3 +747,5 @@ Return to Work's optional exact visual-target contract lives in `packages/api/sr
 Return to Work status-age thresholds use the existing Project configuration in `packages/api/src/project-shell.ts` and its `Saved views` configuration form. `packages/api/src/return-to-work.ts` owns the shared neutral candidate predicate. `apps/server/src/features/smart-collections/server/smart-collections-database.ts` evaluates the prepared view through its existing Work membership reader. No persisted membership or new schema is introduced.
 
 Uncertainty Records uses the existing Project source-record mutation owner: `packages/api/src/project-source-records.ts` carries Assumption commands, `packages/api/src/uncertainty-records.ts` carries its evidence context, and `apps/server/src/features/project-source-records/server/uncertainty-records-database.ts` reads canonical Assumptions and existing pinned Document/Work evidence. `apps/web/src/features/uncertainty-records/ui/components/` owns the TanStack Form editor and Query surface consumed by Project Discovery and Assumption source hashes. The Assumption schema remains in `packages/db/src/schema/assumption.ts`; no new storage or lifecycle owner is introduced. The Uncertainty Records seam journey is `apps/web/e2e/uncertainty-records.e2e.ts`.
+
+Uncertainty Records also uses `apps/server/src/features/relations/server/usage-links-database.ts` for atomic exact Document pin validation. `readUncertaintyDocumentPins` in the Project source-record read adapter resolves current and legacy version ownership for both types. Open Question presentation remains in `apps/web/src/features/uncertainty-records/ui/open-question-view.tsx` and `open-questions-surface.tsx`; its browser journey is `apps/web/e2e/open-questions.e2e.ts`.

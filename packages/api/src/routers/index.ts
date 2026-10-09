@@ -3009,6 +3009,9 @@ export const appRouter = {
       const payload = usageLinkPayloadSchema.parse({
         kind: "Pinned bind",
         location: {
+          ...(input.targetRecordType === "Assumption"
+            ? { projectId: targetProjectId }
+            : {}),
           documentVersion: {
             documentId: documentRecord.id,
             revision: documentRecord.revision,
