@@ -5122,6 +5122,21 @@ export const appRouter = {
         input.projectId,
       ),
     ),
+  openQuestions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).listOpenQuestions;
+      return access(context.session.user.id, input.projectId);
+    }),
+  openQuestionContext: protectedProcedure
+    .input(projectSourceRecordInputSchema)
+    .handler(({ context, input }) => {
+      if (input.sourceType !== "Open Question") {
+        throw new ORPCError("BAD_REQUEST");
+      }
+      const access = requireProjectSourceRecords(context).openQuestionContext;
+      return access(context.session.user.id, input.sourceId);
+    }),
   projectSourceRecord: protectedProcedure
     .input(projectSourceRecordInputSchema)
     .handler(({ context, input }) =>

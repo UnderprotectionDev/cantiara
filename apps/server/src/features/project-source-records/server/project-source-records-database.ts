@@ -1,4 +1,7 @@
-import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
+import {
+  type DocumentEvidenceSelection,
+  documentEvidenceSelectionSchema,
+} from "@cantiara/api/documents";
 import type {
   MutationPayload,
   MutationTarget,
@@ -35,6 +38,7 @@ import { projectRelease } from "@cantiara/db/schema/project-release";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
 import { and, asc, eq } from "drizzle-orm";
+import { z } from "zod";
 
 import {
   MutationConflictError,
@@ -568,6 +572,7 @@ async function writeOpenQuestionRecord(
     life: record.life,
     projectId: record.projectId,
     question: record.question,
+    rationale: record.rationale,
     revision: expectedRevision + 1,
     title: record.title,
     updatedAt: committedAt,
@@ -907,6 +912,12 @@ function allowsTransition(
   if (previousStatus === nextStatus) {
     return false;
   }
+  if (record.sourceType === "Open Question") {
+    return (
+      record.life !== "No longer applicable" &&
+      next.sourceType === "Open Question"
+    );
+  }
   if (record.sourceType === "Decision") {
     return record.life === "Valid" && next.sourceType === "Decision";
   }
@@ -925,6 +936,46 @@ function allowsTransition(
   return false;
 }
 
+function transitionRecord(
+  current: ProjectSourceRecord,
+  input: z.infer<typeof transitionProjectSourceRecordInputSchema>,
+  committedAt: string,
+  revision: number,
+) {
+  const next = { ...current, revision, updatedAt: committedAt };
+  if (input.sourceType === "Decision") {
+    return projectSourceRecordSchema.parse({
+      ...next,
+      life: input.life,
+      withdrawnAt: input.life === "Withdrawn" ? committedAt : null,
+      withdrawalRationale:
+        input.life === "Withdrawn" ? (input.rationale ?? null) : null,
+    });
+  }
+  if (
+    input.sourceType === "Open Question" &&
+    current.sourceType === "Open Question"
+  ) {
+    return openQuestionRecordSchema.parse({
+      ...next,
+      life: input.life,
+      ...(input.life === "Answered"
+        ? {
+            answer: input.answer,
+            rationale:
+              input.rationale === undefined
+                ? current.rationale
+                : input.rationale,
+          }
+        : {}),
+    });
+  }
+  if ("status" in input) {
+    return projectSourceRecordSchema.parse({ ...next, status: input.status });
+  }
+  throw new MutationConflictError(input.sourceId);
+}
+
 export function createDatabaseProjectSourceRecords(
   database: Database,
 ): ProjectSourceRecordsAccess & {
@@ -932,6 +983,87 @@ export function createDatabaseProjectSourceRecords(
 } {
   return {
     supersession: createDatabaseDecisionSupersession(database),
+    async listOpenQuestions(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(openQuestion)
+        .where(eq(openQuestion.projectId, input.projectId))
+        .orderBy(asc(openQuestion.title), asc(openQuestion.id));
+      return {
+        records: rows.map((row) =>
+          openQuestionRecordSchema.parse(toOpenQuestion(row)),
+        ),
+        readOnly: ownedProject.archivedAt !== null,
+      };
+    },
+    async openQuestionContext(accountId, sourceId) {
+      const record = await readRecord(
+        database,
+        accountId,
+        "Open Question",
+        sourceId,
+      );
+      if (!record) {
+        return null;
+      }
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        record.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const links = await database
+        .select({ location: usageLink.location })
+        .from(usageLink)
+        .where(
+          and(
+            eq(usageLink.workspaceId, ownedProject.workspaceId),
+            eq(usageLink.surfaceRecordType, "Open Question"),
+            eq(usageLink.surfaceRecordId, sourceId),
+            eq(usageLink.kind, "Pinned bind"),
+            eq(usageLink.sourceRecordType, "Document"),
+          ),
+        );
+      const evidence = links.flatMap(({ location: rawLocation }) => {
+        const stored = z
+          .object({
+            documentVersion: z.object({
+              documentId: z.string(),
+              revision: z.number(),
+            }),
+            excerpt: z.string(),
+            start: z.number(),
+            end: z.number(),
+          })
+          .safeParse(rawLocation);
+        if (!stored.success) {
+          return [];
+        }
+        const location = stored.data;
+        const parsed = documentEvidenceSelectionSchema.safeParse({
+          documentId: location.documentVersion?.documentId,
+          documentRevision: location.documentVersion?.revision,
+          selectedText: location.excerpt,
+          selectionStart: location.start,
+          selectionEnd: location.end,
+        });
+        return parsed.success ? [parsed.data] : [];
+      });
+      return { evidence, readOnly: ownedProject.archivedAt !== null };
+    },
     async listDecisions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -1210,31 +1342,23 @@ export function createDatabaseProjectSourceRecords(
             ) {
               throw new MutationConflictError(input.sourceId);
             }
-            const record = projectSourceRecordSchema.parse(
-              input.sourceType === "Decision"
-                ? {
-                    ...current,
-                    life: input.life,
-                    withdrawnAt:
-                      input.life === "Withdrawn" ? committedAt : null,
-                    withdrawalRationale:
-                      input.life === "Withdrawn"
-                        ? (input.rationale ?? null)
-                        : null,
-                    revision: currentRevision + 1,
-                    updatedAt: committedAt,
-                  }
-                : {
-                    ...current,
-                    revision: currentRevision + 1,
-                    status: input.status,
-                    updatedAt: committedAt,
-                  },
+            const record = transitionRecord(
+              current,
+              input,
+              committedAt,
+              currentRevision + 1,
             );
             if (!allowsTransition(current, record)) {
               throw new MutationConflictError(input.sourceId);
             }
-            return targetForRecord(record).value;
+            return {
+              ...targetForRecord(record).value,
+              ...(input.sourceType === "Open Question" &&
+              input.life === "Answered" &&
+              input.documentEvidence
+                ? { documentEvidence: input.documentEvidence }
+                : {}),
+            };
           },
         );
         return recordFromReceipt(receipt.nextValue);

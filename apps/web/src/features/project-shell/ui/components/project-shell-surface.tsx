@@ -70,6 +70,7 @@ import {
   smartCollectionWorkPrefillWarning,
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
+import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
@@ -289,8 +290,18 @@ function ProjectShellContent({
   const isDecisionSurface =
     ["decisions", "project-area-decisions"].includes(activeHash) ||
     decisionSourceId !== undefined;
+  const questionSourceId =
+    sourceRecordRoute?.sourceType === "Open Question"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isQuestionSurface =
+    activeHash === "project-area-discovery" || questionSourceId !== undefined;
+  const isGoalsSurface =
+    activeHash === "goals" || activeHash.startsWith("project-goal-");
+  const isAreaCatalogSurface =
+    activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const projectSurface = (() => {
-    if (activeHash === "goals" || activeHash.startsWith("project-goal-")) {
+    if (isGoalsSurface) {
       return (
         <ProjectGoalsRoute
           hash={activeHash}
@@ -309,6 +320,15 @@ function ProjectShellContent({
         />
       );
     }
+    if (isQuestionSurface) {
+      return (
+        <OpenQuestionsSurface
+          key={projectId}
+          projectId={projectId}
+          selectedId={questionSourceId}
+        />
+      );
+    }
     if (sourceRecordRoute) {
       return (
         <ProjectSourceRecordView
@@ -323,7 +343,7 @@ function ProjectShellContent({
       return <ProjectTagsSurface projectId={projectId} />;
     }
 
-    if (activeHash === "all-tools" || activeHash.startsWith("project-area-")) {
+    if (isAreaCatalogSurface) {
       return (
         <ProjectAreaCatalog
           baseRevision={revision}

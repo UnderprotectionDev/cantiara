@@ -175,3 +175,64 @@ test("withdraws explicitly with optional rationale and rejects unlinked Supersed
     }).success,
   ).toBe(false);
 });
+
+describe("Uncertainty Records — Open Question lifecycle", () => {
+  test("answers explicitly with optional rationale while keeping Assumption a distinct type", () => {
+    const input = {
+      baseRevision: 1,
+      clientIdempotencyKey: "answer-question",
+      projectId: "project-1",
+      sourceId: "question-1",
+      sourceType: "Open Question",
+      life: "Answered",
+      answer: "Founders prefer a weekly review.",
+      rationale: "Three interviews agreed.",
+    };
+    expect(transitionProjectSourceRecordInputSchema.parse(input)).toMatchObject(
+      {
+        life: "Answered",
+        answer: "Founders prefer a weekly review.",
+        rationale: "Three interviews agreed.",
+      },
+    );
+    expect(
+      transitionProjectSourceRecordInputSchema.safeParse({
+        ...input,
+        life: "Confirmed",
+      }).success,
+    ).toBe(false);
+    expect(
+      transitionProjectSourceRecordInputSchema.safeParse({
+        ...input,
+        sourceType: "Assumption",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+test("Uncertainty Records closes an unanswered Open Question without new evidence and requires a nonempty Answer", () => {
+  const command = {
+    baseRevision: 1,
+    clientIdempotencyKey: "close-question",
+    projectId: "project-1",
+    sourceId: "question-1",
+    sourceType: "Open Question",
+    life: "No longer applicable",
+  };
+  expect(transitionProjectSourceRecordInputSchema.parse(command)).toMatchObject(
+    { life: "No longer applicable" },
+  );
+  expect(
+    transitionProjectSourceRecordInputSchema.safeParse({
+      ...command,
+      answer: "Replaced answer",
+    }).success,
+  ).toBe(false);
+  expect(
+    transitionProjectSourceRecordInputSchema.safeParse({
+      ...command,
+      life: "Answered",
+      answer: " ",
+    }).success,
+  ).toBe(false);
+});
