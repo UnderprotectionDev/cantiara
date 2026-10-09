@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DecisionSupersessionAccess } from "./decision-supersession";
 import { documentEvidenceSelectionSchema } from "./documents";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type { AssumptionsContext } from "./uncertainty-records";
 
 const identifier = z.string().trim().min(1).max(255);
 const text255 = z.string().trim().min(1).max(255);
@@ -368,6 +369,26 @@ export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
   [
     humanMutationEnvelopeSchema
       .extend({
+        projectId: identifier,
+        sourceId: identifier,
+        sourceType: z.literal("Assumption"),
+        life: assumptionLifeSchema,
+        rationale: optionalLongText.optional(),
+        documentEvidence: documentEvidenceSelectionSchema.optional(),
+      })
+      .strict()
+      .refine(
+        (input) =>
+          input.life === "Confirmed" ||
+          input.life === "Refuted" ||
+          (input.rationale === undefined &&
+            input.documentEvidence === undefined),
+        {
+          message: "New evidence or rationale belongs to Confirmed or Refuted.",
+        },
+      ),
+    humanMutationEnvelopeSchema
+      .extend({
         life: z.enum(["Valid", "Withdrawn"]),
         rationale: optionalText.optional(),
         projectId: identifier,
@@ -435,6 +456,10 @@ export interface ProjectSourceRecordsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProjectSourceRecord[] | null>;
+  listAssumptions?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<AssumptionsContext | null>;
   listDecisions: (
     accountId: string,
     projectId: string,

@@ -38,12 +38,20 @@ Varsayım ve Açık Soru ayrı Proje ana kayıtlarıdır. Varsayım `Open`, `Con
 - **English UI labels.** `Assumption`, `Open Question`, `Open`, `Confirmed`, `Refuted`, `Answered`, `No longer applicable`. Add when first shown. Do not show `Refuted Assumption Review` or `Based on`.
 - **Consumers.** 42 may link as method/result context without writing these lives. 38/40 do not auto-close from refutation.
 
+### Assumption lifecycle surface (#316)
+
+- Project `Discovery` and the existing Assumption source hash open the `Assumption` surface. `Create` and `Edit` use `Title`, `Statement`, and optional `Rationale`; `Save` commits, `Cancel` discards only the editor draft. Archived Projects expose the same records and evidence read-only.
+- Every distinct pair of Assumption lives is an explicit user transition; selecting the current life is rejected. The life-labelled button opens an editor and `Save` commits it. `Confirmed` and `Refuted` accept optional `Rationale` and `Evidence`. Empty outcome rationale keeps the existing rationale; `Open` and `No longer applicable` accept no new outcome context and preserve what is already stored.
+- `Evidence (optional)` selects a same-Project Document with nonempty supported text. The displayed Document text is pinned in full to its exact revision. Existing text-selection evidence remains supported through the same API. `No new evidence` never blocks a transition. The detail shows `Evidence`, exact `Version` and excerpt, or `No evidence linked.` even when a rationale exists. Changes to the chosen source or the Assumption before commit produce a conflict and no partial write.
+- Failed saves keep the draft; a conflict requires `Cancel` and reopening against current records. Successful saves refresh the list and detail. These surface decisions are bound to the Uncertainty Records seam below.
+
 ## Testing Decisions
 
 - **What a good test is.** Tests observe Uncertainty Records through create, distinct types, transitions, optional evidence visibility, and counterparts: no auto Work/Risk/Decision, no Based on, no review queue route.
 - **Seam (one).** Uncertainty Records — both types behind one product interface used by Project Discovery/Decisions area.
 - **Prior art.** Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). 19-class: Refuted Assumption Review absent.
 - **Required counterparts.** One type cannot be both; result does not auto-spawn Work/Risk/Decision; related Decision stays Valid; Based on relation absent; Confirmed/Refuted/Answered missing evidence is visible; `No longer applicable` on Assumption and on Open Question does not strip existing evidence or the record text.
+- **Assumption lifecycle implementation (#316).** `packages/api/src/uncertainty-records.test.ts`, `apps/server/src/features/project-source-records/server/uncertainty-records-database.test.ts`, the Assumption cases in `project-source-records-rpc.test.ts`, and `apps/web/src/features/uncertainty-records/ui/components/project-assumptions-view.test.tsx` cover the transition matrix, retries, exact evidence rollback and preservation, distinct counterpart records, ownership, archived writes, missing evidence and absence of future queue controls. `apps/web/e2e/uncertainty-records.e2e.ts` observes creation, editing, optional evidence, persistence, cancel/error drafts, keyboard submission, accessibility and responsive layout through the same product interface.
 - **Document conversion.** Selected-text conversion creates exactly one `Open` Assumption with the excerpt as its statement or one `Open` Open Question with the excerpt as its question, plus an exact version-pinned Document evidence link; no result status or related record is inferred.
 
 ## Out of Scope

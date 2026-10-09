@@ -46,8 +46,8 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
-
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
+import { readAssumptionsContext } from "./uncertainty-records-database";
 
 type DecisionRecord = typeof decision.$inferSelect;
 type MilestoneRecord = typeof projectMilestone.$inferSelect;
@@ -907,6 +907,9 @@ function allowsTransition(
   if (previousStatus === nextStatus) {
     return false;
   }
+  if (record.sourceType === "Assumption") {
+    return next.sourceType === "Assumption";
+  }
   if (record.sourceType === "Decision") {
     return record.life === "Valid" && next.sourceType === "Decision";
   }
@@ -925,13 +928,62 @@ function allowsTransition(
   return false;
 }
 
+function transitionedRecord(
+  current: ProjectSourceRecord,
+  input: Parameters<ProjectSourceRecordsAccess["transition"]>[1],
+  currentRevision: number,
+  committedAt: string,
+): ProjectSourceRecord {
+  const next = {
+    ...current,
+    revision: currentRevision + 1,
+    updatedAt: committedAt,
+  };
+  if (
+    input.sourceType === "Assumption" &&
+    current.sourceType === "Assumption"
+  ) {
+    return assumptionRecordSchema.parse({
+      ...next,
+      life: input.life,
+      rationale: input.rationale?.trim() || current.rationale,
+    });
+  }
+  if (input.sourceType === "Decision") {
+    return decisionRecordSchema.parse({
+      ...next,
+      life: input.life,
+      withdrawnAt: input.life === "Withdrawn" ? committedAt : null,
+      withdrawalRationale:
+        input.life === "Withdrawn" ? (input.rationale ?? null) : null,
+    });
+  }
+  if ("status" in input) {
+    return projectSourceRecordSchema.parse({ ...next, status: input.status });
+  }
+  throw new MutationConflictError(input.sourceId);
+}
+
 export function createDatabaseProjectSourceRecords(
   database: Database,
 ): ProjectSourceRecordsAccess & {
   supersession: ReturnType<typeof createDatabaseDecisionSupersession>;
+  listAssumptions: NonNullable<ProjectSourceRecordsAccess["listAssumptions"]>;
 } {
   return {
     supersession: createDatabaseDecisionSupersession(database),
+    async listAssumptions(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      return ownedProject
+        ? readAssumptionsContext(database, ownedProject)
+        : null;
+    },
     async listDecisions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -1210,31 +1262,21 @@ export function createDatabaseProjectSourceRecords(
             ) {
               throw new MutationConflictError(input.sourceId);
             }
-            const record = projectSourceRecordSchema.parse(
-              input.sourceType === "Decision"
-                ? {
-                    ...current,
-                    life: input.life,
-                    withdrawnAt:
-                      input.life === "Withdrawn" ? committedAt : null,
-                    withdrawalRationale:
-                      input.life === "Withdrawn"
-                        ? (input.rationale ?? null)
-                        : null,
-                    revision: currentRevision + 1,
-                    updatedAt: committedAt,
-                  }
-                : {
-                    ...current,
-                    revision: currentRevision + 1,
-                    status: input.status,
-                    updatedAt: committedAt,
-                  },
+            const record = transitionedRecord(
+              current,
+              input,
+              currentRevision,
+              committedAt,
             );
             if (!allowsTransition(current, record)) {
               throw new MutationConflictError(input.sourceId);
             }
-            return targetForRecord(record).value;
+            return {
+              ...targetForRecord(record).value,
+              ...(input.sourceType === "Assumption" && input.documentEvidence
+                ? { documentEvidence: input.documentEvidence }
+                : {}),
+            };
           },
         );
         return recordFromReceipt(receipt.nextValue);

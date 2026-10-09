@@ -70,6 +70,7 @@ import {
   smartCollectionWorkPrefillWarning,
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
+import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
@@ -289,13 +290,33 @@ function ProjectShellContent({
   const isDecisionSurface =
     ["decisions", "project-area-decisions"].includes(activeHash) ||
     decisionSourceId !== undefined;
+  const assumptionSourceId =
+    sourceRecordRoute?.sourceType === "Assumption"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isAssumptionSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    assumptionSourceId !== undefined;
+  const isGoalsSurface =
+    activeHash === "goals" || activeHash.startsWith("project-goal-");
+  const isAreaCatalogSurface =
+    activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const projectSurface = (() => {
-    if (activeHash === "goals" || activeHash.startsWith("project-goal-")) {
+    if (isGoalsSurface) {
       return (
         <ProjectGoalsRoute
           hash={activeHash}
           key={`${projectId}:${activeHash}`}
           projectId={projectId}
+        />
+      );
+    }
+    if (isAssumptionSurface) {
+      return (
+        <ProjectAssumptionsSurface
+          key={projectId}
+          projectId={projectId}
+          selectedId={assumptionSourceId}
         />
       );
     }
@@ -323,7 +344,7 @@ function ProjectShellContent({
       return <ProjectTagsSurface projectId={projectId} />;
     }
 
-    if (activeHash === "all-tools" || activeHash.startsWith("project-area-")) {
+    if (isAreaCatalogSurface) {
       return (
         <ProjectAreaCatalog
           baseRevision={revision}

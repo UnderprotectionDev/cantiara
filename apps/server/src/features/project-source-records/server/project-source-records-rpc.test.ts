@@ -253,3 +253,46 @@ describe("Project source record RPC", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
+
+test("Uncertainty Records binds Assumption reads and transitions to the Account and rejects anonymous access", async () => {
+  const { client, projectSourceRecords } = testClient({
+    session: { id: "session-1" },
+    user: { id: accountId },
+  } as Context["session"]);
+  const listAssumptions = vi
+    .fn()
+    .mockResolvedValue({ records: [], evidence: [], readOnly: false });
+  projectSourceRecords.listAssumptions = listAssumptions;
+  await expect(
+    client.projectAssumptions({ projectId: "project-1" }),
+  ).resolves.toMatchObject({ records: [] });
+  expect(listAssumptions).toHaveBeenCalledExactlyOnceWith(
+    accountId,
+    "project-1",
+  );
+  const command = {
+    sourceType: "Assumption" as const,
+    sourceId: "a1",
+    projectId: "project-1",
+    life: "Refuted" as const,
+    baseRevision: 1,
+    clientIdempotencyKey: "refute",
+  };
+  vi.mocked(projectSourceRecords.transition).mockResolvedValueOnce(null);
+  await expect(
+    client.transitionProjectSourceRecord(command),
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  vi.mocked(projectSourceRecords.transition).mockRejectedValueOnce(
+    new ProjectSourceRecordConflictError("a1"),
+  );
+  await expect(
+    client.transitionProjectSourceRecord(command),
+  ).rejects.toMatchObject({ code: "CONFLICT" });
+  const anonymous = testClient(null).client;
+  await expect(
+    anonymous.projectAssumptions({ projectId: "project-1" }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    anonymous.transitionProjectSourceRecord(command),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+});
