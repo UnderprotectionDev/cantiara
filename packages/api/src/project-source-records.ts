@@ -368,6 +368,23 @@ export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
   [
     humanMutationEnvelopeSchema
       .extend({
+        life: riskLifeSchema,
+        rationale: optionalLongText.optional(),
+        projectId: identifier,
+        sourceId: identifier,
+        sourceType: z.literal("Risk"),
+      })
+      .strict()
+      .refine(
+        (input) =>
+          input.life !== "Accepted" || Boolean(input.rationale?.trim()),
+        {
+          message: "Enter a Rationale before accepting a Risk.",
+          path: ["rationale"],
+        },
+      ),
+    humanMutationEnvelopeSchema
+      .extend({
         life: z.enum(["Valid", "Withdrawn"]),
         rationale: optionalText.optional(),
         projectId: identifier,
@@ -442,6 +459,13 @@ export interface ProjectSourceRecordsAccess {
     records: z.infer<typeof decisionRecordSchema>[];
     readOnly: boolean;
   } | null>;
+  listRisks: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof riskRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
   supersession?: DecisionSupersessionAccess;
   transition: (
     accountId: string,
@@ -455,12 +479,14 @@ export interface ProjectSourceRecordsAccess {
 
 export class ProjectSourceRecordConflictError extends Error {
   readonly code = "CONFLICT" as const;
+  readonly targetId: string;
 
-  constructor(sourceId: string, options?: ErrorOptions) {
+  constructor(targetId: string, options?: ErrorOptions) {
     super(
-      `Project source record ${sourceId} changed before this write.`,
+      `Project source record ${targetId} changed before this write.`,
       options,
     );
+    this.targetId = targetId;
     this.name = "ProjectSourceRecordConflictError";
   }
 }

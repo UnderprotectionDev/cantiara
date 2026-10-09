@@ -38,6 +38,13 @@ Risk Proje ana kaydıdır; başlık, açıklama, etki, olasılık, yanıt/azaltm
 - **English UI labels.** `Risk`, `Open`, `Mitigating`, `Occurred`, `Resolved`, `Accepted`. Add when first shown.
 - **Consumers.** 71 presents. 08/12 overview and release evidence read source Risks. 66 Production Incident is a different type.
 
+### Risk Record, Impact, and Status — #314
+
+- Risk alanları `Title`, `Description`, `Impact`, `Probability`, `Response/mitigation` olarak kurucunun metnini taşır; kapalı etki/olasılık kademesi veya skor eklenmez.
+- Oluşturma `Open` ile başlar. `Status` formu beş yaşam arasında açık geçiş yapar; aynı duruma yeniden geçiş çatışmadır. `Accepted` boş olmayan `Rationale` ister; kabul gerekçesi sonraki durumlarda korunur. Alan düzenleme yaşamı değiştirmez ve kabul edilmiş kaydın gerekçesini boşaltamaz.
+- Proje `Overview` içindeki `Risks` bağlantısı `/projects/$projectId#risks` listesini açar; kaynak detayları mevcut `#source-risk-$id` kimliğini kullanır. Oluşturma/düzenleme `Create`, `Edit`, `Save`, `Cancel`; yaşam değişikliği `Status` üzerinden yapılır. Arşivli Proje salt okunurdur. Yazma başarısızlığında taslak korunur; eski revizyon çatışmasında kullanıcı `Cancel` ile formu kapatıp güncel kaydı yeniden açar.
+- Bu issue sinyal üretimi veya diğer tüketici bağlamlarını kurmaz; sonraki Risk issue'larının sınırı korunur. Bu bölümün kabulü aşağıdaki #314 Testing Decisions karşılıklarıdır.
+
 ## Testing Decisions
 
 - **What a good test is.** Tests observe Risks through create, status transitions, and counterparts: related Work still open, Release not failed, `open-risk` only on the two events.
@@ -45,6 +52,10 @@ Risk Proje ana kaydıdır; başlık, açıklama, etki, olasılık, yanıt/azaltm
 - **Prior art.** Bind to [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari): related records’ status does not change implicitly.
 - **Required counterparts.** Accept is not a publish gate; Occur does not close Work; not Bug/Test Gap/Incident; no auto priority; signal negatives (time, Mitigating, high probability).
 - **Document conversion.** Selected-text conversion creates a Risk in `Open` with the excerpt as its description and an exact version-pinned Document evidence link; it does not infer impact, probability, response, or related-record changes.
+
+### #314 karşılıkları
+
+Aynı Risks seam'inde `packages/api/src/project-source-records.test.ts` tip/alan/durum doğrulamasını; `apps/server/src/features/project-source-records/server/project-source-records-database.test.ts` oluşturma, tüm durum çiftleri, idempotent tekrar, gerekçe, alan düzenleme, sahiplik, arşiv, kalıcılık ve ilişkili kayıtların değişmemesini; komşu RPC testi Account bağlamını ve görünür hataları doğrular. `apps/web/src/features/risks/ui/components/project-risks-view.test.tsx` alanları, Accepted sunumunu ve salt okunur kontrolleri; `apps/web/e2e/risks.e2e.ts` oluşturma/düzenleme/durum kalıcılığını, iptali, hata sonrası taslağı, boş kabul gerekçesini, klavye erişimini ve dar ekranı doğrular. Skor alanı ve tür dönüşümü karşılıkları API/DB sınırında kalır.
 
 ## Out of Scope
 

@@ -558,7 +558,12 @@ function requireProjectSourceRecords(context: Context) {
 
 function rethrowProjectSourceRecordError(error: unknown): never {
   if (error instanceof ProjectSourceRecordConflictError) {
-    throw new ORPCError("CONFLICT", { cause: error });
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: { code: error.code, targetId: error.targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
   }
   throw error;
 }
@@ -5106,6 +5111,14 @@ export const appRouter = {
         rethrowProjectSourceRecordError(error);
       }
     }),
+  projectRisks: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).listRisks(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
   projectDecisions: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) =>

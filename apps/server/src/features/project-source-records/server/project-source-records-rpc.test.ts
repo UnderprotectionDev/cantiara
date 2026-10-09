@@ -27,6 +27,7 @@ function testClient(session: Context["session"] | null) {
     create: vi.fn().mockResolvedValue(decisionRecord),
     find: vi.fn().mockResolvedValue(decisionRecord),
     list: vi.fn().mockResolvedValue([decisionRecord]),
+    listRisks: vi.fn().mockResolvedValue({ records: [], readOnly: false }),
     listDecisions: vi
       .fn()
       .mockResolvedValue({ records: [decisionRecord], readOnly: false }),
@@ -48,6 +49,54 @@ function testClient(session: Context["session"] | null) {
 }
 
 describe("Project source record RPC", () => {
+  test("Risks list and explicit transitions bind the Account and surface authorization and conflicts", async () => {
+    const { client, projectSourceRecords } = testClient({
+      session: { id: "session-1" },
+      user: { id: accountId },
+    } as Context["session"]);
+    await expect(
+      client.projectRisks({ projectId: "project-1" }),
+    ).resolves.toEqual({ records: [], readOnly: false });
+    expect(projectSourceRecords.listRisks).toHaveBeenCalledExactlyOnceWith(
+      accountId,
+      "project-1",
+    );
+    const command = {
+      baseRevision: 1,
+      clientIdempotencyKey: "accept-risk",
+      projectId: "project-1",
+      sourceId: "risk-1",
+      sourceType: "Risk" as const,
+      life: "Accepted" as const,
+      rationale: "Known exposure is tolerable.",
+    };
+    vi.mocked(projectSourceRecords.transition).mockRejectedValueOnce(
+      new ProjectSourceRecordConflictError("risk-1"),
+    );
+    await expect(
+      client.transitionProjectSourceRecord(command),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { code: "CONFLICT", targetId: "risk-1" },
+    });
+    expect(projectSourceRecords.transition).toHaveBeenCalledExactlyOnceWith(
+      accountId,
+      command,
+    );
+    vi.mocked(projectSourceRecords.transition).mockResolvedValueOnce(null);
+    await expect(
+      client.transitionProjectSourceRecord(command),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const anonymous = testClient(null);
+    await expect(
+      anonymous.client.projectRisks({ projectId: "project-1" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      anonymous.client.transitionProjectSourceRecord(command),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(anonymous.projectSourceRecords.transition).not.toHaveBeenCalled();
+  });
+
   test("Decisions supersession binds the Account and maps dropped and conflicting commits to visible failures", async () => {
     const { client, projectSourceRecords } = testClient({
       session: { id: "session-1" },
