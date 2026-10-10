@@ -30,6 +30,7 @@ export * from "./return-to-work";
 export * from "./risk";
 export * from "./roadmap-horizon";
 export * from "./smart-collection";
+export * from "./source";
 export * from "./tags";
 export * from "./technical-diagram";
 export * from "./validation-record";

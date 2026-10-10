@@ -94,6 +94,7 @@ import {
   smartCollectionSubscriptionMembership,
   smartCollectionView,
 } from "./schema/smart-collection";
+import { source, sourceVersion } from "./schema/source";
 import {
   workspaceTag,
   workspaceTagAssignment,
@@ -106,6 +107,8 @@ import {
 } from "./schema/work-external-handoff";
 
 const schema = {
+  source,
+  sourceVersion,
   account,
   accountPreferences,
   accountPreferencesRelations,

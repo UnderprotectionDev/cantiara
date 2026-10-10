@@ -92,6 +92,7 @@ import {
   createDatabaseSmartCollections,
   sweepSmartCollectionSubscriptionSignals,
 } from "./features/smart-collections/server/smart-collections-database";
+import { createDatabaseSourcesAndFreshness } from "./features/sources-and-freshness/server/sources-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -126,6 +127,7 @@ export const dailyFocus = createDatabaseDailyFocus(db);
 export const focusPeriod = createDatabaseFocusPeriod(db);
 export const projectGoals = createDatabaseProjectGoals(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
+export const sourcesAndFreshness = createDatabaseSourcesAndFreshness(db);
 const securityEventDb =
   env.SECURITY_EVENT_LOCAL === "true"
     ? await createLocalSecurityEventDb({

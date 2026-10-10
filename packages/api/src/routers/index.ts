@@ -291,6 +291,13 @@ import {
   setSmartCollectionSubscriptionInputSchema,
 } from "../smart-collections";
 import {
+  createSourceInputSchema,
+  SourceConflictError,
+  saveSourceVersionInputSchema,
+  sourceProjectInputSchema,
+  sourceSelectionSchema,
+} from "../sources-and-freshness";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -555,6 +562,37 @@ function requireProjectSourceRecords(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.projectSourceRecords;
+}
+
+function requireSourcesAndFreshness(context: Context) {
+  if (!context.sourcesAndFreshness) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.sourcesAndFreshness;
+}
+
+async function sourceSaveResult<T>(
+  operation: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const record = await operation();
+    if (!record) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return record;
+  } catch (error) {
+    if (error instanceof SourceConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: {
+          code: error.code,
+          label: MUTATION_UI_LABELS.conflict,
+          targetId: error.targetId,
+        },
+      });
+    }
+    throw error;
+  }
 }
 
 function rethrowProjectSourceRecordError(error: unknown): never {
@@ -2444,7 +2482,7 @@ async function previewWikiDocumentTransfer(
               reference.reference,
             );
             source = resolved;
-            title = resolved?.title ?? null;
+            title = resolved ? resolved.title : null;
           }
           return {
             ...reference,
@@ -5193,6 +5231,39 @@ export const appRouter = {
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) =>
       requireProjectSourceRecords(context).list(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  createSource: protectedProcedure
+    .input(createSourceInputSchema)
+    .handler(({ context, input }) =>
+      sourceSaveResult(() =>
+        requireSourcesAndFreshness(context).create(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  saveSourceVersion: protectedProcedure
+    .input(saveSourceVersionInputSchema)
+    .handler(({ context, input }) =>
+      sourceSaveResult(() =>
+        requireSourcesAndFreshness(context).saveVersion(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  source: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) =>
+      requireSourcesAndFreshness(context).find(context.session.user.id, input),
+    ),
+  projectSources: protectedProcedure
+    .input(sourceProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireSourcesAndFreshness(context).list(
         context.session.user.id,
         input.projectId,
       ),

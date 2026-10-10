@@ -1,4 +1,5 @@
 export const primarySchemaFiles = [
+  "./src/schema/source.ts",
   "./src/schema/auth.ts",
   "./src/schema/mutation.ts",
   "./src/schema/custom-fields.ts",
