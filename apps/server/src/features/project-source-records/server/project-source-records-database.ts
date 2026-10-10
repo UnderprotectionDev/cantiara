@@ -25,6 +25,7 @@ import {
   riskRecordSchema,
   transitionProjectSourceRecordInputSchema,
   updateProjectSourceRecordInputSchema,
+  validationRecordSchema,
 } from "@cantiara/api/project-source-records";
 import type { Database } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
@@ -38,6 +39,7 @@ import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import { projectRelease } from "@cantiara/db/schema/project-release";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
+import { validationRecord } from "@cantiara/db/schema/validation-record";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -71,6 +73,10 @@ type AssumptionRecord = typeof assumption.$inferSelect;
 type OpenQuestionRecord = typeof openQuestion.$inferSelect;
 
 type ProjectSourceMutationValue =
+  | {
+      validationRecord: ProjectSourceRecord | null;
+      documentEvidence?: DocumentEvidenceSelection;
+    }
   | {
       decision: ProjectSourceRecord | null;
       documentEvidence?: DocumentEvidenceSelection;
@@ -117,6 +123,15 @@ function mutationConflictCause(
     return mutationConflictCause(error.cause);
   }
   return undefined;
+}
+
+function toValidationRecord(record: typeof validationRecord.$inferSelect) {
+  return validationRecordSchema.parse({
+    ...record,
+    sourceType: "Validation Record",
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  });
 }
 
 function toDecision(record: DecisionRecord) {
@@ -197,6 +212,12 @@ function targetForRecord(
   record: ProjectSourceRecord,
 ): MutationTarget<ProjectSourceMutationValue> {
   switch (record.sourceType) {
+    case "Validation Record":
+      return {
+        id: record.id,
+        revision: record.revision,
+        value: { validationRecord: record },
+      };
     case "Risk":
       return {
         id: record.id,
@@ -249,6 +270,8 @@ function emptyTarget(
   targetId: string,
 ): MutationTarget<ProjectSourceMutationValue> {
   switch (sourceType) {
+    case "Validation Record":
+      return { id: targetId, revision: 0, value: { validationRecord: null } };
     case "Risk":
       return { id: targetId, revision: 0, value: { risk: null } };
     case "Assumption":
@@ -273,6 +296,9 @@ function emptyTarget(
 }
 
 function recordFromValue(value: ProjectSourceMutationValue) {
+  if ("validationRecord" in value) {
+    return value.validationRecord;
+  }
   if ("decision" in value) {
     return value.decision;
   }
@@ -301,7 +327,8 @@ function sourceTypeFromPayload(
     return null;
   }
   const { sourceType } = payload as Record<string, unknown>;
-  return sourceType === "Decision" ||
+  return sourceType === "Validation Record" ||
+    sourceType === "Decision" ||
     sourceType === "Risk" ||
     sourceType === "Assumption" ||
     sourceType === "Open Question" ||
@@ -384,6 +411,23 @@ async function findMutationTarget(
   }
 
   switch (sourceType) {
+    case "Validation Record":
+      return targetFromQuery(
+        executor
+          .select()
+          .from(validationRecord)
+          .where(
+            and(
+              eq(validationRecord.id, targetId),
+              eq(validationRecord.projectId, projectId),
+            ),
+          )
+          .limit(1),
+        lock,
+        sourceType,
+        targetId,
+        toValidationRecord,
+      );
     case "Risk":
       return targetFromQuery(
         executor
@@ -782,8 +826,48 @@ async function writeProductionIncidentRecord(
   return updated ? targetForRecord(toProductionIncident(updated)) : null;
 }
 
+async function writeValidationRecord(
+  input: WriteSourceRecordInput & {
+    record: Extract<ProjectSourceRecord, { sourceType: "Validation Record" }>;
+  },
+) {
+  const { executor, record, committedAt, expectedRevision, targetId } = input;
+  const values = {
+    projectId: record.projectId,
+    title: record.title,
+    method: record.method,
+    result: record.result,
+    context: record.context,
+    status: record.status,
+    revision: expectedRevision + 1,
+    updatedAt: committedAt,
+  };
+  if (expectedRevision === 0) {
+    const [inserted] = await executor
+      .insert(validationRecord)
+      .values({ ...values, id: record.id, createdAt: committedAt })
+      .onConflictDoNothing({ target: validationRecord.id })
+      .returning();
+    return inserted ? targetForRecord(toValidationRecord(inserted)) : null;
+  }
+  const [updated] = await executor
+    .update(validationRecord)
+    .set(values)
+    .where(
+      and(
+        eq(validationRecord.id, targetId),
+        eq(validationRecord.projectId, record.projectId),
+        eq(validationRecord.revision, expectedRevision),
+      ),
+    )
+    .returning();
+  return updated ? targetForRecord(toValidationRecord(updated)) : null;
+}
+
 function writeProjectSourceRecord(input: WriteSourceRecordInput) {
   switch (input.record.sourceType) {
+    case "Validation Record":
+      return writeValidationRecord({ ...input, record: input.record });
     case "Risk":
       return writeRiskRecord({ ...input, record: input.record });
     case "Assumption":
@@ -800,6 +884,53 @@ function writeProjectSourceRecord(input: WriteSourceRecordInput) {
       return writeProductionIncidentRecord({ ...input, record: input.record });
     default:
       return assertNever(input.record);
+  }
+}
+
+async function validateNewValidationContext(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  record: ProjectSourceRecord,
+) {
+  if (record.sourceType !== "Validation Record") {
+    return;
+  }
+  const previous = await findMutationTarget(
+    executor,
+    accountId,
+    "Validation Record",
+    record.id,
+    record.projectId,
+    false,
+  );
+  const previousRecord = previous ? recordFromValue(previous.value) : null;
+  const existing =
+    previousRecord?.sourceType === "Validation Record"
+      ? previousRecord.context
+      : [];
+  // Preserve saved references when a counterpart is unavailable; only new links require a live target.
+  const added = record.context.filter(
+    (candidate) =>
+      !existing.some(
+        (saved) =>
+          saved.sourceType === candidate.sourceType &&
+          saved.sourceId === candidate.sourceId,
+      ),
+  );
+  const targets = await Promise.all(
+    added.map((link) =>
+      findMutationTarget(
+        executor,
+        accountId,
+        link.sourceType,
+        link.sourceId,
+        record.projectId,
+        false,
+      ),
+    ),
+  );
+  if (targets.some((target) => !(target && recordFromValue(target.value)))) {
+    throw new MutationConflictError(record.id);
   }
 }
 
@@ -841,6 +972,7 @@ function projectSourceMutationTarget(
       if (!ownedProject || ownedProject.archivedAt !== null) {
         return null;
       }
+      await validateNewValidationContext(executor, accountId, record);
       const evidence = input.nextValue.documentEvidence;
       if (evidence) {
         const [sourceDocument] = await executor
@@ -960,6 +1092,9 @@ function allowsTransition(
   const nextStatus = statusOf(next);
   if (previousStatus === nextStatus) {
     return false;
+  }
+  if (record.sourceType === "Validation Record") {
+    return next.sourceType === "Validation Record";
   }
   if (record.sourceType === "Assumption") {
     return next.sourceType === "Assumption";
@@ -1082,6 +1217,26 @@ export function createDatabaseProjectSourceRecords(
   return {
     supersession: createDatabaseDecisionSupersession(database),
     riskSignals: createDatabaseRiskSignals(database),
+    async listValidationRecords(accountId, projectId) {
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(validationRecord)
+        .where(eq(validationRecord.projectId, projectId))
+        .orderBy(asc(validationRecord.createdAt), asc(validationRecord.id));
+      return {
+        records: rows.map(toValidationRecord),
+        readOnly: ownedProject.archivedAt !== null,
+      };
+    },
     async listAssumptions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -1258,6 +1413,9 @@ export function createDatabaseProjectSourceRecords(
                 };
                 break;
               }
+              case "Validation Record":
+                initialValue = { ...fields, status: "Active" };
+                break;
               case "Milestone":
                 initialValue = { ...fields, status: "Planned" };
                 break;
@@ -1321,6 +1479,12 @@ export function createDatabaseProjectSourceRecords(
               throw new MutationConflictError(input.sourceId);
             }
             if (
+              current.sourceType === "Validation Record" &&
+              current.status !== "Active"
+            ) {
+              throw new MutationConflictError(input.sourceId);
+            }
+            if (
               current.sourceType === "Decision" &&
               current.life === "Superseded"
             ) {
@@ -1328,6 +1492,17 @@ export function createDatabaseProjectSourceRecords(
             }
             let record: ProjectSourceRecord;
             switch (input.sourceType) {
+              case "Validation Record":
+                record = validationRecordSchema.parse({
+                  ...current,
+                  title: input.title,
+                  method: input.method,
+                  result: input.result,
+                  context: input.context,
+                  revision: currentRevision + 1,
+                  updatedAt: committedAt,
+                });
+                break;
               case "Decision":
                 record = decisionRecordSchema.parse({
                   ...current,
@@ -1533,6 +1708,7 @@ export function createDatabaseProjectSourceRecords(
         milestones,
         releases,
         incidents,
+        validations,
       ] = await Promise.all([
         listDecisionRecords(database, input.projectId),
         database
@@ -1568,8 +1744,13 @@ export function createDatabaseProjectSourceRecords(
             asc(productionIncident.createdAt),
             asc(productionIncident.id),
           ),
+        database
+          .select()
+          .from(validationRecord)
+          .where(eq(validationRecord.projectId, input.projectId)),
       ]);
       return [
+        ...validations.map(toValidationRecord),
         ...decisions,
         ...risks.map(toRisk),
         ...assumptions.map(toAssumption),
@@ -1595,6 +1776,15 @@ async function readRecord(
 ): Promise<ProjectSourceRecord | null> {
   let record: ProjectSourceRecord | null = null;
   switch (sourceType) {
+    case "Validation Record": {
+      const [row] = await database
+        .select()
+        .from(validationRecord)
+        .where(eq(validationRecord.id, sourceId))
+        .limit(1);
+      record = row ? toValidationRecord(row) : null;
+      break;
+    }
     case "Risk": {
       const [row] = await database
         .select()

@@ -78,6 +78,37 @@ const sourceRecordIdentity = {
   updatedAt: timestamp,
 };
 
+export const validationContextSchema = z
+  .array(
+    z
+      .object({
+        sourceType: z.enum(["Assumption", "Open Question", "Decision"]),
+        sourceId: identifier,
+      })
+      .strict(),
+  )
+  .max(100)
+  .refine(
+    (links) =>
+      new Set(links.map((link) => `${link.sourceType}:${link.sourceId}`))
+        .size === links.length,
+    "Choose each context record once.",
+  );
+const validationFields = {
+  title: text255,
+  method: longText,
+  result: optionalLongText,
+  context: validationContextSchema,
+  sourceType: z.literal("Validation Record"),
+};
+export const validationRecordSchema = z
+  .object({
+    ...sourceRecordIdentity,
+    ...validationFields,
+    status: z.enum(["Active", "Archived", "Trash"]),
+  })
+  .strict();
+
 export const decisionRecordSchema = z
   .object({
     ...sourceRecordIdentity,
@@ -168,6 +199,7 @@ export const openQuestionRecordSchema = z
   .strict();
 
 export const projectSourceRecordSchema = z.discriminatedUnion("sourceType", [
+  validationRecordSchema,
   assumptionRecordSchema,
   decisionRecordSchema,
   milestoneRecordSchema,
@@ -269,6 +301,9 @@ const createOpenQuestionInputSchema = humanMutationEnvelopeSchema
 const createProjectSourceRecordInputBaseSchema = z.discriminatedUnion(
   "sourceType",
   [
+    humanMutationEnvelopeSchema
+      .extend({ ...validationFields, id: identifier, projectId: identifier })
+      .strict(),
     createDecisionInputSchema,
     createMilestoneInputSchema,
     createRiskInputSchema,
@@ -285,6 +320,13 @@ export const createProjectSourceRecordInputSchema =
 export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
   "sourceType",
   [
+    humanMutationEnvelopeSchema
+      .extend({
+        ...validationFields,
+        sourceId: identifier,
+        projectId: identifier,
+      })
+      .strict(),
     humanMutationEnvelopeSchema
       .extend({
         decision: z.string().trim().min(1).max(20_000),
@@ -369,6 +411,14 @@ export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
 export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
   "sourceType",
   [
+    humanMutationEnvelopeSchema
+      .extend({
+        sourceType: z.literal("Validation Record"),
+        sourceId: identifier,
+        projectId: identifier,
+        status: z.enum(["Active", "Archived", "Trash"]),
+      })
+      .strict(),
     z.discriminatedUnion("life", [
       humanMutationEnvelopeSchema
         .extend({
@@ -467,6 +517,7 @@ export const projectSourceRecordInputSchema = z
   .object({
     sourceId: identifier,
     sourceType: z.enum([
+      "Validation Record",
       "Decision",
       "Risk",
       "Assumption",
@@ -519,6 +570,13 @@ export interface ProjectSourceRecordsAccess {
     projectId: string,
   ) => Promise<{
     records: z.infer<typeof riskRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  listValidationRecords?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof validationRecordSchema>[];
     readOnly: boolean;
   } | null>;
   openQuestionContext?: (

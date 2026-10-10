@@ -73,6 +73,7 @@ import {
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
+import ValidationRecordsSurface from "@/features/validation-records/ui/validation-records-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
@@ -188,11 +189,25 @@ function projectUncertaintySurface(
   const isQuestionSurface =
     ["discovery", "project-area-discovery"].includes(activeHash) ||
     questionSourceId !== undefined;
-  if (!(isAssumptionSurface || isQuestionSurface)) {
+  const validationSourceId =
+    sourceRecordRoute?.sourceType === "Validation Record"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isValidationSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    validationSourceId !== undefined;
+  if (!(isAssumptionSurface || isQuestionSurface || isValidationSurface)) {
     return null;
   }
   return (
     <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
+      {isValidationSurface ? (
+        <ValidationRecordsSurface
+          key={`validations:${projectId}`}
+          projectId={projectId}
+          selectedId={validationSourceId}
+        />
+      ) : null}
       {isAssumptionSurface ? (
         <ProjectAssumptionsSurface
           key={`assumptions:${projectId}`}
