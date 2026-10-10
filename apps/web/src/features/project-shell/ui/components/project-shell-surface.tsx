@@ -60,6 +60,7 @@ import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-a
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
 import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
+import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
 import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
 import {
@@ -70,6 +71,7 @@ import {
   smartCollectionWorkPrefillWarning,
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
+import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
@@ -108,6 +110,17 @@ function decodedSourceId(value: string) {
 }
 
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
+  const source = projectSourceRecordFromHash(activeHash);
+  if (activeHash === "risks" || source?.sourceType === "Risk") {
+    return (
+      <ProjectRisksSurface
+        key={projectId}
+        projectId={projectId}
+        selectedId={source?.sourceId}
+      />
+    );
+  }
+
   const collectionPrefix = "smart-collection-view-";
   if (
     activeHash === "smart-collections" ||
@@ -153,6 +166,48 @@ export default function ProjectShellSurface(
     <RoadmapSessionProvider key={props.projectId}>
       <ProjectShellContent {...props} />
     </RoadmapSessionProvider>
+  );
+}
+
+function projectUncertaintySurface(
+  projectId: string,
+  activeHash: string,
+  sourceRecordRoute: ReturnType<typeof projectSourceRecordFromHash>,
+) {
+  const assumptionSourceId =
+    sourceRecordRoute?.sourceType === "Assumption"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isAssumptionSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    assumptionSourceId !== undefined;
+  const questionSourceId =
+    sourceRecordRoute?.sourceType === "Open Question"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isQuestionSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    questionSourceId !== undefined;
+  if (!(isAssumptionSurface || isQuestionSurface)) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
+      {isAssumptionSurface ? (
+        <ProjectAssumptionsSurface
+          key={`assumptions:${projectId}`}
+          projectId={projectId}
+          selectedId={assumptionSourceId}
+        />
+      ) : null}
+      {isQuestionSurface ? (
+        <OpenQuestionsSurface
+          key={`questions:${projectId}`}
+          projectId={projectId}
+          selectedId={questionSourceId}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -290,16 +345,15 @@ function ProjectShellContent({
   const isDecisionSurface =
     ["decisions", "project-area-decisions"].includes(activeHash) ||
     decisionSourceId !== undefined;
-  const questionSourceId =
-    sourceRecordRoute?.sourceType === "Open Question"
-      ? sourceRecordRoute.sourceId
-      : undefined;
-  const isQuestionSurface =
-    activeHash === "project-area-discovery" || questionSourceId !== undefined;
   const isGoalsSurface =
     activeHash === "goals" || activeHash.startsWith("project-goal-");
   const isAreaCatalogSurface =
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
+  const uncertaintySurface = projectUncertaintySurface(
+    projectId,
+    activeHash,
+    sourceRecordRoute,
+  );
   const projectSurface = (() => {
     if (isGoalsSurface) {
       return (
@@ -309,6 +363,9 @@ function ProjectShellContent({
           projectId={projectId}
         />
       );
+    }
+    if (uncertaintySurface) {
+      return uncertaintySurface;
     }
     if (isDecisionSurface) {
       return (
@@ -320,14 +377,9 @@ function ProjectShellContent({
         />
       );
     }
-    if (isQuestionSurface) {
-      return (
-        <OpenQuestionsSurface
-          key={projectId}
-          projectId={projectId}
-          selectedId={questionSourceId}
-        />
-      );
+    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
+    if (liveSourceRoute) {
+      return liveSourceRoute;
     }
     if (sourceRecordRoute) {
       return (
@@ -368,11 +420,6 @@ function ProjectShellContent({
           workTypeWarning={collectionWorkTypeWarning}
         />
       );
-    }
-
-    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
-    if (liveSourceRoute) {
-      return liveSourceRoute;
     }
 
     if (
@@ -552,14 +599,7 @@ function ProjectShellContent({
             hiddenAreas={configuration.hiddenAreas}
           />
 
-          <div
-            className="min-w-0 space-y-10"
-            id={
-              activeHash === "project-area-discovery" ? activeHash : undefined
-            }
-          >
-            {projectSurface}
-          </div>
+          <div className="min-w-0 space-y-10">{projectSurface}</div>
         </div>
       )}
     </>

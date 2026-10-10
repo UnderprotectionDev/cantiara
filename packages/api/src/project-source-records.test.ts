@@ -236,3 +236,72 @@ test("Uncertainty Records closes an unanswered Open Question without new evidenc
     }).success,
   ).toBe(false);
 });
+describe("Risks contracts", () => {
+  const command = {
+    baseRevision: 1,
+    clientIdempotencyKey: "risk-status",
+    projectId: "project-1",
+    sourceId: "risk-1",
+    sourceType: "Risk",
+  };
+  test("allows all five explicit Risk statuses and requires a rationale for Accepted", () => {
+    for (const life of [
+      "Open",
+      "Mitigating",
+      "Occurred",
+      "Resolved",
+      "Accepted",
+    ]) {
+      expect(
+        transitionProjectSourceRecordInputSchema.parse({
+          ...command,
+          life,
+          rationale:
+            life === "Accepted" ? "Known exposure is tolerable." : null,
+        }),
+      ).toMatchObject({ sourceType: "Risk", life });
+    }
+    for (const rationale of [undefined, null, "", "   "]) {
+      expect(
+        transitionProjectSourceRecordInputSchema.safeParse({
+          ...command,
+          life: "Accepted",
+          rationale,
+        }).success,
+      ).toBe(false);
+    }
+  });
+  test("keeps Risk fields as founder text and rejects scores, implicit status and type conversion", () => {
+    const input = {
+      baseRevision: 0,
+      clientIdempotencyKey: "risk-create",
+      id: "risk-1",
+      projectId: "project-1",
+      sourceType: "Risk",
+      title: "Provider delay",
+      description: "Approval may slip",
+      impact: "Delayed release",
+      probability: "Unknown",
+      response: "Prepare a fallback",
+    };
+    expect(createProjectSourceRecordInputSchema.parse(input)).toMatchObject(
+      input,
+    );
+    for (const extra of [
+      { priorityScore: 9 },
+      { life: "Accepted" },
+      { type: "Bug" },
+    ]) {
+      expect(
+        createProjectSourceRecordInputSchema.safeParse({ ...input, ...extra })
+          .success,
+      ).toBe(false);
+    }
+    for (const life of ["Bug", "Test Gap", "Production Incident"]) {
+      expect(
+        transitionProjectSourceRecordInputSchema.safeParse({ ...command, life })
+          .success,
+      ).toBe(false);
+    }
+  });
+});

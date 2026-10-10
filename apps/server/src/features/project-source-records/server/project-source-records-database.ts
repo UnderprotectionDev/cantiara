@@ -41,6 +41,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import {
+  MutationApplyFailedError,
   MutationConflictError,
   MutationStaleBaseRevisionError,
   MutationTargetNotFoundError,
@@ -50,8 +51,11 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
-
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
+import {
+  readAssumptionsContext,
+  readUncertaintyDocumentPins,
+} from "./uncertainty-records-database";
 
 type DecisionRecord = typeof decision.$inferSelect;
 type MilestoneRecord = typeof projectMilestone.$inferSelect;
@@ -93,6 +97,21 @@ type ProjectSourceMutationValue =
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported project source record: ${String(value)}`);
+}
+
+function mutationConflictCause(
+  error: unknown,
+): MutationConflictError | MutationStaleBaseRevisionError<unknown> | undefined {
+  if (
+    error instanceof MutationConflictError ||
+    error instanceof MutationStaleBaseRevisionError
+  ) {
+    return error;
+  }
+  if (error instanceof MutationApplyFailedError) {
+    return mutationConflictCause(error.cause);
+  }
+  return undefined;
 }
 
 function toDecision(record: DecisionRecord) {
@@ -840,6 +859,7 @@ function projectSourceMutationTarget(
         if (
           !sourceDocument ||
           sourceDocument.revision !== evidence.documentRevision ||
+          evidence.selectionEnd > sourceDocument.body.length ||
           sourceDocument.body.slice(
             evidence.selectionStart,
             evidence.selectionEnd,
@@ -860,6 +880,7 @@ function projectSourceMutationTarget(
           id: crypto.randomUUID(),
           kind: "Pinned bind",
           location: {
+            projectId: record.projectId,
             documentVersion: {
               documentId: evidence.documentId,
               revision: evidence.documentRevision,
@@ -912,11 +933,17 @@ function allowsTransition(
   if (previousStatus === nextStatus) {
     return false;
   }
+  if (record.sourceType === "Assumption") {
+    return next.sourceType === "Assumption";
+  }
   if (record.sourceType === "Open Question") {
     return (
       record.life !== "No longer applicable" &&
       next.sourceType === "Open Question"
     );
+  }
+  if (record.sourceType === "Risk") {
+    return next.sourceType === "Risk";
   }
   if (record.sourceType === "Decision") {
     return record.life === "Valid" && next.sourceType === "Decision";
@@ -936,15 +963,57 @@ function allowsTransition(
   return false;
 }
 
-function transitionRecord(
+function assertRiskRationale(record: ProjectSourceRecord) {
+  if (
+    record.sourceType === "Risk" &&
+    record.life === "Accepted" &&
+    !record.rationale?.trim()
+  ) {
+    throw new MutationConflictError(record.id);
+  }
+}
+
+function transitionedRiskRecord(
+  current: Extract<ProjectSourceRecord, { sourceType: "Risk" }>,
+  input: Extract<
+    Parameters<ProjectSourceRecordsAccess["transition"]>[1],
+    { sourceType: "Risk" }
+  >,
+  next: ProjectSourceRecord,
+): ProjectSourceRecord {
+  return riskRecordSchema.parse({
+    ...next,
+    life: input.life,
+    rationale: input.life === "Accepted" ? input.rationale : current.rationale,
+  });
+}
+
+function transitionedRecord(
   current: ProjectSourceRecord,
-  input: z.infer<typeof transitionProjectSourceRecordInputSchema>,
+  input: Parameters<ProjectSourceRecordsAccess["transition"]>[1],
+  currentRevision: number,
   committedAt: string,
-  revision: number,
-) {
-  const next = { ...current, revision, updatedAt: committedAt };
+): ProjectSourceRecord {
+  const next = {
+    ...current,
+    revision: currentRevision + 1,
+    updatedAt: committedAt,
+  };
+  if (input.sourceType === "Risk" && current.sourceType === "Risk") {
+    return transitionedRiskRecord(current, input, next);
+  }
+  if (
+    input.sourceType === "Assumption" &&
+    current.sourceType === "Assumption"
+  ) {
+    return assumptionRecordSchema.parse({
+      ...next,
+      life: input.life,
+      rationale: input.rationale?.trim() || current.rationale,
+    });
+  }
   if (input.sourceType === "Decision") {
-    return projectSourceRecordSchema.parse({
+    return decisionRecordSchema.parse({
       ...next,
       life: input.life,
       withdrawnAt: input.life === "Withdrawn" ? committedAt : null,
@@ -980,9 +1049,22 @@ export function createDatabaseProjectSourceRecords(
   database: Database,
 ): ProjectSourceRecordsAccess & {
   supersession: ReturnType<typeof createDatabaseDecisionSupersession>;
+  listAssumptions: NonNullable<ProjectSourceRecordsAccess["listAssumptions"]>;
 } {
   return {
     supersession: createDatabaseDecisionSupersession(database),
+    async listAssumptions(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      return ownedProject
+        ? readAssumptionsContext(database, ownedProject)
+        : null;
+    },
     async listOpenQuestions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -1025,18 +1107,12 @@ export function createDatabaseProjectSourceRecords(
       if (!ownedProject) {
         return null;
       }
-      const links = await database
-        .select({ location: usageLink.location })
-        .from(usageLink)
-        .where(
-          and(
-            eq(usageLink.workspaceId, ownedProject.workspaceId),
-            eq(usageLink.surfaceRecordType, "Open Question"),
-            eq(usageLink.surfaceRecordId, sourceId),
-            eq(usageLink.kind, "Pinned bind"),
-            eq(usageLink.sourceRecordType, "Document"),
-          ),
-        );
+      const links = await readUncertaintyDocumentPins(
+        database,
+        ownedProject,
+        "Open Question",
+        [sourceId],
+      );
       const evidence = links.flatMap(({ location: rawLocation }) => {
         const stored = z
           .object({
@@ -1063,6 +1139,27 @@ export function createDatabaseProjectSourceRecords(
         return parsed.success ? [parsed.data] : [];
       });
       return { evidence, readOnly: ownedProject.archivedAt !== null };
+    },
+    async listRisks(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(risk)
+        .where(eq(risk.projectId, input.projectId))
+        .orderBy(asc(risk.createdAt), asc(risk.id));
+      return {
+        records: rows.map((row) => riskRecordSchema.parse(toRisk(row))),
+        readOnly: ownedProject.archivedAt !== null,
+      };
     },
     async listDecisions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
@@ -1111,7 +1208,7 @@ export function createDatabaseProjectSourceRecords(
               case "Risk": {
                 const { documentEvidence: evidence, ...riskFields } = fields;
                 documentEvidence = evidence;
-                initialValue = { ...riskFields, life: "Open" };
+                initialValue = { ...riskFields, life: "Open", rationale: null };
                 break;
               }
               case "Assumption": {
@@ -1161,10 +1258,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.id, {
             cause: error,
           });
@@ -1299,6 +1394,7 @@ export function createDatabaseProjectSourceRecords(
               default:
                 assertNever(input);
             }
+            assertRiskRationale(record);
             return targetForRecord(record).value;
           },
         );
@@ -1307,10 +1403,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.sourceId, {
             cause: error,
           });
@@ -1342,19 +1436,20 @@ export function createDatabaseProjectSourceRecords(
             ) {
               throw new MutationConflictError(input.sourceId);
             }
-            const record = transitionRecord(
+            const record = transitionedRecord(
               current,
               input,
+              currentRevision,
               committedAt,
-              currentRevision + 1,
             );
             if (!allowsTransition(current, record)) {
               throw new MutationConflictError(input.sourceId);
             }
             return {
               ...targetForRecord(record).value,
-              ...(input.sourceType === "Open Question" &&
-              input.life === "Answered" &&
+              ...((input.sourceType === "Assumption" ||
+                (input.sourceType === "Open Question" &&
+                  input.life === "Answered")) &&
               input.documentEvidence
                 ? { documentEvidence: input.documentEvidence }
                 : {}),
@@ -1366,10 +1461,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.sourceId, {
             cause: error,
           });
