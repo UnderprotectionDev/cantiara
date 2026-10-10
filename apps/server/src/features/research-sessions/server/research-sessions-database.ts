@@ -25,7 +25,7 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 
-interface SessionValue {
+interface ResearchSessionMutationValue {
   session: ResearchSessionRecord | null;
 }
 export interface ResearchSessionContacts {
@@ -114,7 +114,7 @@ async function validateNewFiles(
 function sessionTarget(
   accountId: string,
   contacts?: ResearchSessionContacts,
-): MutationDatabaseTargetAdapter<SessionValue> {
+): MutationDatabaseTargetAdapter<ResearchSessionMutationValue> {
   return {
     async find(executor, targetId, lock, context) {
       const projectId = projectIdFromPayload(context?.payload);
@@ -210,9 +210,12 @@ export function createDatabaseResearchSessions(
   contacts?: ResearchSessionContacts,
 ): ResearchSessionsAccess {
   function mutation(accountId: string) {
-    return createDatabaseMutationContract<SessionValue>(database, {
-      target: sessionTarget(accountId, contacts),
-    });
+    return createDatabaseMutationContract<ResearchSessionMutationValue>(
+      database,
+      {
+        target: sessionTarget(accountId, contacts),
+      },
+    );
   }
   return {
     async list(accountId, projectId) {

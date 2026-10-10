@@ -271,7 +271,13 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  captureResearchSessionInputSchema,
+  ResearchSessionConsentError,
+  researchSessionConvertPreview,
+  researchSessionConvertPreviewInputSchema,
   researchSessionProjectInputSchema,
+  researchSessionSnapshotPreview,
+  researchSessionSnapshotPreviewInputSchema,
   saveResearchSessionInputSchema,
 } from "../research-sessions";
 import {
@@ -382,6 +388,45 @@ import {
   type WorkspaceOverviewAccess,
   workspaceOverviewPresentationSchema,
 } from "../workspace-overview";
+
+async function readOwnedResearchSession(
+  context: Context,
+  input: { id: string; projectId: string },
+) {
+  if (!context.session) {
+    throw new ORPCError("UNAUTHORIZED");
+  }
+  if (!context.researchSessions) {
+    throw new ORPCError("NOT_IMPLEMENTED");
+  }
+  const sessions = await context.researchSessions.list(
+    context.session.user.id,
+    input.projectId,
+  );
+  const session = sessions?.records.find((record) => record.id === input.id);
+  if (!session) {
+    throw new ORPCError("NOT_FOUND");
+  }
+  return session;
+}
+
+function rethrowResearchSessionError(error: unknown): never {
+  if (error instanceof ResearchSessionConsentError) {
+    throw new ORPCError("FORBIDDEN", { message: error.message, cause: error });
+  }
+  if (error instanceof Error && "code" in error) {
+    if (error.code === "CONFLICT" || error.code === "STALE_BASE_REVISION") {
+      throw new ORPCError("CONFLICT", {
+        message: "Research Session changed. Reload before saving.",
+        cause: error,
+      });
+    }
+    if (error.code === "TARGET_NOT_FOUND") {
+      throw new ORPCError("NOT_FOUND", { cause: error });
+    }
+  }
+  throw error;
+}
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -5184,21 +5229,43 @@ export const appRouter = {
           input,
         );
       } catch (error) {
-        if (error instanceof Error && "code" in error) {
-          if (
-            error.code === "CONFLICT" ||
-            error.code === "STALE_BASE_REVISION"
-          ) {
-            throw new ORPCError("CONFLICT", {
-              message: "Research Session changed. Reload before saving.",
-              cause: error,
-            });
-          }
-          if (error.code === "TARGET_NOT_FOUND") {
-            throw new ORPCError("NOT_FOUND", { cause: error });
-          }
-        }
-        throw error;
+        rethrowResearchSessionError(error);
+      }
+    }),
+  captureResearchSessionContent: protectedProcedure
+    .input(captureResearchSessionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.capture(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  previewResearchSessionSnapshot: protectedProcedure
+    .input(researchSessionSnapshotPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const session = await readOwnedResearchSession(context, input);
+      return researchSessionSnapshotPreview(session, input.selection);
+    }),
+  previewResearchSessionConvert: protectedProcedure
+    .input(researchSessionConvertPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const session = await readOwnedResearchSession(context, input);
+      if (
+        !session.content.some((item) => item.content.id === input.contentId)
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      try {
+        return researchSessionConvertPreview(session, input.contentId);
+      } catch (error) {
+        rethrowResearchSessionError(error);
       }
     }),
   projectValidationRecords: protectedProcedure

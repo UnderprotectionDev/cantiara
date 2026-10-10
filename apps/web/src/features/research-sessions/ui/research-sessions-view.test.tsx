@@ -7,7 +7,11 @@ const cancel = () => undefined;
 const save = async () => undefined;
 test("Research Sessions shows four Consent choices, separate context and a consent gate explanation", () => {
   const html = renderToStaticMarkup(
-    <ResearchSessionEditor onCancel={cancel} onSave={save} />,
+    <ResearchSessionEditor
+      onCancel={cancel}
+      onSave={save}
+      timeZone="Europe/Istanbul"
+    />,
   );
   for (const label of [
     "Research Session",

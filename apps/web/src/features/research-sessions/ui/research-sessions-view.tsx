@@ -15,8 +15,11 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { format, isValid, parseISO } from "date-fns";
 import { type FormEvent, useId, useState } from "react";
+import {
+  researchSessionTimeInput,
+  researchSessionTimestamp,
+} from "../lib/research-session-time";
 
 type Save = (
   fields: ResearchSessionFields,
@@ -34,15 +37,18 @@ const textFields = [
 
 export function ResearchSessionEditor({
   record,
+  timeZone,
   onSave,
   onCancel,
 }: {
   record?: ResearchSessionRecord;
+  timeZone: string;
   onSave: Save;
   onCancel: () => void;
 }) {
   const prefix = useId();
   const [baseRecord] = useState(record);
+  const [entryTimeZone] = useState(timeZone);
   const [error, setError] = useState<string>();
   const [conflict, setConflict] = useState(false);
   const form = useForm({
@@ -57,20 +63,28 @@ export function ResearchSessionEditor({
       consent: record?.consent ?? "Not asked",
       consentNote: record?.consentNote ?? "",
       scheduledAt: record?.scheduledAt
-        ? format(parseISO(record.scheduledAt), "yyyy-MM-dd'T'HH:mm")
+        ? researchSessionTimeInput(record.scheduledAt, entryTimeZone)
         : "",
       durationMinutes: record?.durationMinutes?.toString() ?? "",
     },
     onSubmit: async ({ value }) => {
       setError(undefined);
-      const time = value.scheduledAt ? parseISO(value.scheduledAt) : null;
-      if (time && !isValid(time)) {
-        setError("Enter a valid Time.");
+      let scheduledAt: string | null = null;
+      try {
+        scheduledAt = researchSessionTimestamp(
+          value.scheduledAt,
+          entryTimeZone,
+          baseRecord?.scheduledAt,
+        );
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Enter a valid Time.",
+        );
         return;
       }
       const parsed = researchSessionFieldsSchema.safeParse({
         ...value,
-        scheduledAt: time?.toISOString() ?? null,
+        scheduledAt,
         durationMinutes: value.durationMinutes
           ? Number(value.durationMinutes)
           : null,
@@ -228,7 +242,7 @@ export function ResearchSessionEditor({
                     className="text-muted-foreground"
                     id={`${prefix}-time-help`}
                   >
-                    Time uses your browser’s time zone.
+                    Time uses your account time zone: {entryTimeZone}.
                   </p>
                 </div>
               )}
@@ -273,10 +287,12 @@ export function ResearchSessionEditor({
 
 export function ResearchSessionsView({
   records,
+  timeZone,
   readOnly,
   onSave,
 }: {
   records: ResearchSessionRecord[];
+  timeZone: string;
   readOnly: boolean;
   onSave: Save;
 }) {
@@ -316,6 +332,7 @@ export function ResearchSessionsView({
           onCancel={() => setEditing(null)}
           onSave={save}
           record={editing === "new" ? undefined : editing}
+          timeZone={timeZone}
         />
       ) : null}
       {records.length ? (

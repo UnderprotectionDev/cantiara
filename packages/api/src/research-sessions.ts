@@ -105,8 +105,14 @@ export type ResearchSessionCapturedContent = z.infer<
 >;
 
 export function assertResearchSessionConsent(consent: ResearchSessionConsent) {
-  if (!researchSessionConsentGates(consent).quote) {
-    throw new Error("Consent does not allow this Research Session operation.");
+  if (consent !== "Allowed" && consent !== "Not applicable") {
+    throw new ResearchSessionConsentError();
+  }
+}
+
+export class ResearchSessionConsentError extends Error {
+  constructor() {
+    super("Consent does not allow this Research Session operation.");
   }
 }
 
@@ -152,6 +158,20 @@ export const researchSessionSnapshotSelectionSchema = z
   })
   .strict();
 type SnapshotSelection = z.infer<typeof researchSessionSnapshotSelectionSchema>;
+export const researchSessionSnapshotPreviewInputSchema = z
+  .object({
+    id,
+    projectId: id,
+    selection: researchSessionSnapshotSelectionSchema,
+  })
+  .strict();
+export const researchSessionConvertPreviewInputSchema = z
+  .object({
+    id,
+    projectId: id,
+    contentId: id,
+  })
+  .strict();
 export type ResearchSessionSnapshotItem =
   | { kind: "Contact"; contactId: string }
   | { kind: "Consent"; value: ResearchSessionConsent; note: string | null }

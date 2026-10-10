@@ -6,19 +6,22 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
 import { ResearchSessionsView } from "./research-sessions-view";
 
 export default function ResearchSessionsSurface({
   projectId,
+  accountId,
 }: {
   projectId: string;
+  accountId?: string;
 }) {
   const queryClient = useQueryClient();
   const options = orpc.projectResearchSessions.queryOptions({
     input: { projectId },
   });
   const query = useQuery(options);
+  const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const pending = useRef<{
     fingerprint: string;
     id: string;
@@ -55,11 +58,12 @@ export default function ResearchSessionsSurface({
   }
   function retry() {
     query.refetch().catch(() => undefined);
+    preferences.refetch().catch(() => undefined);
   }
-  if (query.isPending) {
+  if (query.isPending || preferences.isPending) {
     return <p role="status">Loading Research Sessions…</p>;
   }
-  if (!query.data) {
+  if (!(query.data && preferences.data)) {
     return (
       <div className="space-y-3">
         <p role="alert">Research Sessions are unavailable.</p>
@@ -72,6 +76,7 @@ export default function ResearchSessionsSurface({
       onSave={save}
       readOnly={query.data.readOnly}
       records={query.data.records}
+      timeZone={preferences.data.timeZone}
     />
   );
 }

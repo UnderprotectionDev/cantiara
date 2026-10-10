@@ -173,6 +173,7 @@ export default function ProjectShellSurface(
 
 function projectUncertaintySurface(
   projectId: string,
+  accountId: string | undefined,
   activeHash: string,
   sourceRecordRoute: ReturnType<typeof projectSourceRecordFromHash>,
 ) {
@@ -204,6 +205,7 @@ function projectUncertaintySurface(
     <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
       {["discovery", "project-area-discovery"].includes(activeHash) ? (
         <ResearchSessionsSurface
+          accountId={accountId}
           key={`research:${projectId}`}
           projectId={projectId}
         />
@@ -373,6 +375,7 @@ function ProjectShellContent({
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const uncertaintySurface = projectUncertaintySurface(
     projectId,
+    accountId,
     activeHash,
     sourceRecordRoute,
   );
