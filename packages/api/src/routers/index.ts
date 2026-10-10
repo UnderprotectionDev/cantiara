@@ -274,6 +274,7 @@ import {
   returnContextInputSchema,
   saveNextConcreteStepInputSchema,
 } from "../return-to-work";
+import { riskContextRelationInputSchema } from "../risk-signals";
 import {
   createMilestoneInputSchema,
   projectRoadmapInputSchema,
@@ -5126,6 +5127,39 @@ export const appRouter = {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
       return access(context.session.user.id, input.projectId);
+    }),
+  projectRiskSignals: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const access = requireProjectSourceRecords(context).riskSignals;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      const result = await access.list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return result;
+    }),
+  relateRiskContext: protectedProcedure
+    .input(riskContextRelationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const access = requireProjectSourceRecords(context).riskSignals;
+        if (!access) {
+          throw new ORPCError("NOT_IMPLEMENTED");
+        }
+        const result = await access.relate(context.session.user.id, input);
+        if (!result) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return result;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
     }),
   projectRisks: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
