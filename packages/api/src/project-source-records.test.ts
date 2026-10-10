@@ -236,7 +236,6 @@ test("Uncertainty Records closes an unanswered Open Question without new evidenc
     }).success,
   ).toBe(false);
 });
-
 describe("Risks contracts", () => {
   const command = {
     baseRevision: 1,

@@ -45,7 +45,7 @@ export default function OpenQuestionsSurface({
     (item): item is OpenQuestionRecord =>
       item.sourceType === "Open Question" && item.id === selectedId,
   );
-  function identity(payload: unknown, record?: OpenQuestionRecord) {
+  function commandIdentity(payload: unknown, record?: OpenQuestionRecord) {
     const fingerprint = JSON.stringify({
       payload,
       id: record?.id,
@@ -67,7 +67,7 @@ export default function OpenQuestionsSurface({
     await queryClient.invalidateQueries();
   }
   async function save(draft: OpenQuestionDraft, record?: OpenQuestionRecord) {
-    const { id, key } = identity(draft, record);
+    const { id, key } = commandIdentity(draft, record);
     await runOnlineOnlyWrite(() =>
       record
         ? client.transitionProjectSourceRecord({
@@ -106,7 +106,7 @@ export default function OpenQuestionsSurface({
       projectId,
       life: "No longer applicable" as const,
     };
-    const { key } = identity(payload, selected);
+    const { key } = commandIdentity(payload, selected);
     await runOnlineOnlyWrite(() =>
       client.transitionProjectSourceRecord({
         ...payload,
@@ -125,11 +125,12 @@ export default function OpenQuestionsSurface({
     setEditing(undefined);
     pendingWrite.current = null;
   }
-  if (records.isPending) {
-    return <p role="status">Loading Open Questions…</p>;
-  }
-  if (records.isError || !records.data) {
-    return <p role="alert">Open Questions are unavailable. Reload to retry.</p>;
+  if (!records.data) {
+    return records.isError ? (
+      <p role="alert">Open Questions are unavailable. Reload to retry.</p>
+    ) : (
+      <p role="status">Loading Open Questions…</p>
+    );
   }
   const questions = records.data.records;
   const locked = readOnly || records.data.readOnly;
@@ -143,6 +144,11 @@ export default function OpenQuestionsSurface({
           </Button>
         )}
       </header>
+      {records.isError ? (
+        <p role="alert">
+          Open Questions could not be refreshed. Your draft is safe.
+        </p>
+      ) : null}
       {saved ? <p role="status">{saved}</p> : null}
       {questions.length ? (
         <ul className="space-y-2">

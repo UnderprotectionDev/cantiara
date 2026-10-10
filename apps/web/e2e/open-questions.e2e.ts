@@ -166,3 +166,105 @@ test("Uncertainty Records keeps exact Document evidence and can close an unanswe
   await expect(detail).toContainText("Do we still need this pilot?");
   await expect(detail).toContainText("No longer applicable");
 });
+
+test("Uncertainty Records keeps Create and Answered drafts after a failed focus refresh", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(90_000);
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=scope-tree`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#project-area-discovery`);
+  const region = page.getByRole("region", {
+    name: "Open Question",
+    exact: true,
+  });
+
+  async function failFocusRefresh() {
+    await page.route("**/rpc/openQuestions", (route) =>
+      route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+    );
+    const failedRefresh = page.waitForResponse((result) =>
+      result.url().includes("/rpc/openQuestions"),
+    );
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "hidden",
+      });
+      window.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: "visible",
+      });
+      window.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect((await failedRefresh).status()).toBe(503);
+  }
+
+  await region.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Focus refresh draft");
+  await page.getByLabel("Question", { exact: true }).fill("Will it persist?");
+  await page
+    .getByLabel("Context (optional)", { exact: true })
+    .fill("Window focus refresh");
+  await failFocusRefresh();
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+    "Focus refresh draft",
+  );
+  await expect(page.getByLabel("Question", { exact: true })).toHaveValue(
+    "Will it persist?",
+  );
+  await expect(
+    page.getByLabel("Context (optional)", { exact: true }),
+  ).toHaveValue("Window focus refresh");
+  await expect(
+    page.getByText(
+      "Open Questions could not be refreshed. Your draft is safe.",
+      {
+        exact: true,
+      },
+    ),
+  ).toBeVisible();
+  await page.unroute("**/rpc/openQuestions");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByText("Open Question saved.", { exact: true }),
+  ).toBeVisible();
+
+  await page
+    .getByRole("link", { name: "Focus refresh draft", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Answered", exact: true }).click();
+  await page.getByLabel("Answer", { exact: true }).fill("Yes, it persists.");
+  await page
+    .getByLabel("Rationale (optional)", { exact: true })
+    .fill("The cached record remained available.");
+  await failFocusRefresh();
+  await expect(page.getByLabel("Answer", { exact: true })).toHaveValue(
+    "Yes, it persists.",
+  );
+  await expect(
+    page.getByLabel("Rationale (optional)", { exact: true }),
+  ).toHaveValue("The cached record remained available.");
+  await expect(
+    page.getByText(
+      "Open Questions could not be refreshed. Your draft is safe.",
+      {
+        exact: true,
+      },
+    ),
+  ).toBeVisible();
+  await page.unroute("**/rpc/openQuestions");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("article", { name: "Open Question", exact: true }),
+  ).toContainText("Yes, it persists.");
+});

@@ -28,6 +28,12 @@ function testClient(session: Context["session"] | null) {
     create: vi.fn().mockResolvedValue(decisionRecord),
     find: vi.fn().mockResolvedValue(decisionRecord),
     list: vi.fn().mockResolvedValue([decisionRecord]),
+    listOpenQuestions: vi
+      .fn()
+      .mockResolvedValue({ records: [], readOnly: false }),
+    openQuestionContext: vi
+      .fn()
+      .mockResolvedValue({ evidence: [], readOnly: false }),
     listRisks: vi.fn().mockResolvedValue({ records: [], readOnly: false }),
     listDecisions: vi
       .fn()

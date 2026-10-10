@@ -965,7 +965,10 @@ function allowsTransition(
     return next.sourceType === "Assumption";
   }
   if (record.sourceType === "Open Question") {
-    return next.sourceType === "Open Question";
+    return (
+      record.life !== "No longer applicable" &&
+      next.sourceType === "Open Question"
+    );
   }
   if (record.sourceType === "Risk") {
     return next.sourceType === "Risk";

@@ -185,6 +185,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | Ultracite | Biome kalite preset'i |
 | Lefthook | Git hook yönetimi |
 | Vitest | Unit ve integration testleri |
+| happy-dom | Vitest içindeki UI etkileşim testlerinde browser DOM API'lerini taklit etmek; gerçek tarayıcı E2E davranışı Playwright'ta kalır |
 | Playwright | E2E test ve PDF üretimi |
 | BrowserStack Automate | Gerçek tarayıcı testleri |
 | Grafana k6 OSS | Performans testleri |
