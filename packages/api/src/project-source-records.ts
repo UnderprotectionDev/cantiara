@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DecisionSupersessionAccess } from "./decision-supersession";
 import { documentEvidenceSelectionSchema } from "./documents";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type { RiskSignalsAccess } from "./risk-signals";
 import type { AssumptionsContext } from "./uncertainty-records";
 
 const identifier = z.string().trim().min(1).max(255);
@@ -527,6 +528,7 @@ export interface ProjectSourceRecordsAccess {
     evidence: z.infer<typeof documentEvidenceSelectionSchema>[];
     readOnly: boolean;
   } | null>;
+  riskSignals?: RiskSignalsAccess;
   supersession?: DecisionSupersessionAccess;
   transition: (
     accountId: string,
