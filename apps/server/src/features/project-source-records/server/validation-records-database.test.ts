@@ -35,6 +35,116 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
     await db?.delete(user).where(eq(user.id, accountId));
     await db?.$client.end();
   });
+  test("keeps Validation Record identity separate from other source records", async () => {
+    if (!db) {
+      throw new Error("Database required");
+    }
+    const records = createDatabaseProjectSourceRecords(db);
+    const saved = await records.create(accountId, {
+      id: crypto.randomUUID(),
+      projectId,
+      sourceType: "Validation Record",
+      title: "Independent validation",
+      method: "Ask a founder",
+      result: null,
+      context: [],
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+    });
+    if (!saved) {
+      throw new Error("Validation Record required");
+    }
+    const counterparts = await Promise.all(
+      (
+        [
+          "Assumption",
+          "Open Question",
+          "Decision",
+          "Risk",
+          "Milestone",
+          "Project Release",
+          "Production Incident",
+        ] as const
+      ).map((sourceType) => records.find(accountId, sourceType, saved.id)),
+    );
+    for (const counterpart of counterparts) {
+      expect(counterpart).toBeNull();
+    }
+    await expect(
+      records.transition(accountId, {
+        projectId,
+        sourceId: saved.id,
+        sourceType: "Assumption",
+        life: "Confirmed",
+        baseRevision: saved.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(
+      await records.find(accountId, "Validation Record", saved.id),
+    ).toEqual(saved);
+  });
+  test.each(["Active", "Archived", "Trash"] as const)(
+    "publishes a Project Release with an incomplete %s Validation Record",
+    async (status) => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(db);
+      const saved = await records.create(accountId, {
+        id: crypto.randomUUID(),
+        projectId,
+        sourceType: "Validation Record",
+        title: "Unfinished check",
+        method: "Ask a founder",
+        result: null,
+        context: [],
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+      if (!saved) {
+        throw new Error("Validation Record required");
+      }
+      const validation =
+        status === "Active"
+          ? saved
+          : await records.transition(accountId, {
+              projectId,
+              sourceId: saved.id,
+              sourceType: "Validation Record",
+              status,
+              baseRevision: saved.revision,
+              clientIdempotencyKey: crypto.randomUUID(),
+            });
+      expect(validation).toMatchObject({ status, result: null });
+      const release = await records.create(accountId, {
+        id: crypto.randomUUID(),
+        projectId,
+        sourceType: "Project Release",
+        name: "Release without validation acceptance",
+        description: null,
+        versionLabel: null,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+      if (!release) {
+        throw new Error("Project Release required");
+      }
+      expect(
+        await records.transition(accountId, {
+          projectId,
+          sourceId: release.id,
+          sourceType: "Project Release",
+          status: "Published",
+          baseRevision: release.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).toMatchObject({ status: "Published" });
+      expect(
+        await records.find(accountId, "Validation Record", saved.id),
+      ).toEqual(validation);
+    },
+  );
   test("saves a result and related context without writing counterpart life or creating a release gate", async () => {
     if (!db) {
       throw new Error("Database required");
