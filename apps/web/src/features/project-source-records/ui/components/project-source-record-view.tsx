@@ -117,6 +117,11 @@ function recordStatus(record: ProjectSourceRecord) {
 
 function recordFields(record: ProjectSourceRecord): [string, string][] {
   switch (record.sourceType) {
+    case "Validation Record":
+      return [
+        ["Method", record.method],
+        ["Result", record.result ?? ""],
+      ];
     case "Risk":
       return [
         ["Description", record.description ?? ""],

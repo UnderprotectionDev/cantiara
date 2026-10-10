@@ -112,6 +112,7 @@ const WORK_RECORD_HASH_PREFIX = "work-";
 const DOCUMENT_RECORD_HASH_PREFIX = "document-";
 const DOCUMENT_SECTION_RECORD_HASH_PREFIX = "document-section:";
 const PROJECT_SOURCE_RECORD_HASH_PREFIXES = {
+  "Validation Record": "source-validation-record-",
   Assumption: "source-assumption-",
   Decision: "source-decision-",
   "Open Question": "source-open-question-",

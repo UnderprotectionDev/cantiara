@@ -28,7 +28,8 @@ Deney/Doğrulama Proje ana kaydıdır; yöntem, sonuç ve ilişkili Varsayım/A�
 - **Owning documents.** [Deney ve doğrulama kayıtları](../../prd/09-discovery-decisions-and-design.md#deney-ve-doğrulama-kayıtları). Ana kayıt [PRD 02](../../prd/02-domain-model-and-lifecycle.md#ana-kayıt-türleri-ve-asgari-sözleşmeler). Test types owned by PRD 10. Research Session owned by neighboring PRD 09 section (43). `Yerine geçer` among Validation Records is allowed by the PRD 02 relation table (same specialist type) if the founder fully replaces a method record; do not use it to overwrite Assumption life. No new ADR.
 - **Glossary.** Use Deney/Doğrulama. Avoid Test Oturumu, Planlı Test Senaryosu, Kullanıcı Araştırması Oturumu, auto Assumption status.
 - **Validation module.** Project-scoped: method, result, links to Assumption/Open Question/Decision as context (`İlgili` or evidence — not auto life). Active/archive/trash common. No survey runner.
-- **English UI labels.** `Validation Record`. Add when first shown.
+- **English UI labels.** `Validation Record`, `Title`, `Method`, `Result`, `Related`, `Status`, `Active`, `Archived`, `Trash`, `Create`, `Edit`, `Save`, `Cancel`, `Archive`, `Move to Trash`, `Restore`, `Retry`. `Result` is optional. The `Discovery` surface creates and edits records and opens same-Project Assumption/Open Question/Decision context links. These labels and interactions are verified at the Validation Records seam.
+- **Persistence and writes.** `project_validation_record` stores method, optional result and typed context references; references resolve against existing records in the owning Project at commit. Existing unavailable references remain readable as `Record unavailable`, without revealing a title. Source record mutation receipts own atomicity, idempotency and revision conflicts. Archived records are read-only until restored; an archived Project blocks all writes. Validation Records seam tests cover these boundaries and rollback for missing or cross-Project context.
 - **Consumers.** 41/38 remain status owners. 10 does not treat this as a test session.
 
 ## Testing Decisions
@@ -37,6 +38,7 @@ Deney/Doğrulama Proje ana kaydıdır; yöntem, sonuç ve ilişkili Varsayım/A�
 - **Seam (one).** Validation Records — the product-facing Deney/Doğrulama interface. Test and research modules appear only as counterparts.
 - **Modules under test.** Validation Records only.
 - **Prior art.** First contract tests at this seam. Evidence environment is [Karar ve belirsizlik](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari).
+- **Executable coverage.** `packages/api/src/validation-records.test.ts` verifies method/result and the closed context contract; `apps/server/src/features/project-source-records/server/validation-records-database.test.ts` observes create/read/update, idempotency, counterpart life preservation, release independence, ownership, rollback, revisions and archive/trash/restore through the product-facing record interface. `apps/web/src/features/validation-records/ui/validation-records-view.test.tsx` and `apps/web/e2e/validation-records.e2e.ts` verify labels, context navigation, keyboard save, accessibility, persistence, cancel and failed-write retry. Database integration runs only against disposable PostgreSQL; shared development readiness is verified separately by `db:prepare` and `db:doctor`.
 - **Required counterparts.** Creating a result does not write Assumption/Decision life; record is not a Test Session or Research Session; not a release gate.
 
 ## Out of Scope

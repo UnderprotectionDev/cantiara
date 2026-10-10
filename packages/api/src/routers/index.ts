@@ -5119,6 +5119,18 @@ export const appRouter = {
         rethrowProjectSourceRecordError(error);
       }
     }),
+  projectValidationRecords: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context);
+      if (!access.listValidationRecords) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.listValidationRecords(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
   projectAssumptions: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) => {

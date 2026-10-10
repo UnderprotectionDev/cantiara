@@ -140,6 +140,7 @@
 │   └── web/
 │       ├── e2e/
 │       │   ├── open-questions.e2e.ts
+│       │   ├── validation-records.e2e.ts
 │       │   ├── uncertainty-records.e2e.ts
 │       │   ├── favorites.e2e.ts
 │       │   ├── bulk-editing.e2e.ts
@@ -189,6 +190,11 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           └── bulk-edit-dialog.tsx
+│       │   │   ├── validation-records/
+│       │   │   │   └── ui/
+│       │   │   │       ├── validation-records-surface.tsx
+│       │   │   │       ├── validation-records-view.tsx
+│       │   │   │       └── validation-records-view.test.tsx
 │       │   │   ├── uncertainty-records/
 │       │   │   │   └── ui/
 │       │   │   │       ├── components/
@@ -561,6 +567,7 @@
 │   │   │   ├── project-shell.ts
 │   │   │   ├── project-source-records.test.ts
 │   │   │   ├── project-source-records.ts
+│   │   │   ├── validation-records.test.ts
 │   │   │   ├── record-actions.test.ts
 │   │   │   ├── record-actions.ts
 │   │   │   ├── relations.ts
@@ -753,3 +760,5 @@ Uncertainty Records also uses `apps/server/src/features/relations/server/usage-l
 Risk editing is owned by `apps/web/src/features/risks/ui/components/`, using the Project source-record API and PostgreSQL owner above. `project-risks-surface.tsx` binds Account-scoped `projectRisks`, create/update and explicit transitions; `project-risks-view.tsx` owns TanStack Form drafts and the five-status UI. Project Overview opens `#risks` and existing `#source-risk-` identities; preview consumers retain the read-only source view. The Risks seam browser journey is `apps/web/e2e/risks.e2e.ts`. No schema change or score store is introduced.
 
 Risk context relations and `open-risk` event production are owned by `packages/api/src/risk-signals.ts`, the `riskContextRelation` and `riskAttentionSignal` tables in `packages/db/src/schema/risk.ts`, and `apps/server/src/features/project-source-records/server/risk-signals-database.ts`. Project source-record mutations emit entered-Open events in their existing atomic commit. The Account-scoped `relateRiskContext` and `projectRiskSignals` RPCs expose the Risks record and signal-production seam; the Attention Signals center remains a separate consumer.
+
+Validation Records uses the shared Project source record API and mutation owner (`packages/api/src/project-source-records.ts`, `apps/server/src/features/project-source-records/server/project-source-records-database.ts`). The schema is `packages/db/src/schema/validation-record.ts`; seam tests are `packages/api/src/validation-records.test.ts`, `apps/server/src/features/project-source-records/server/validation-records-database.test.ts`, and `apps/web/e2e/validation-records.e2e.ts`.

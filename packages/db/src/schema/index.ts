@@ -32,6 +32,7 @@ export * from "./roadmap-horizon";
 export * from "./smart-collection";
 export * from "./tags";
 export * from "./technical-diagram";
+export * from "./validation-record";
 export * from "./work";
 export * from "./work-draft";
 export * from "./work-external-handoff";
