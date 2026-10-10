@@ -52,6 +52,7 @@ import type {
 import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SmartCollectionsAccess } from "./smart-collections";
+import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { WebCaptureAccess } from "./web-capture";
@@ -188,6 +189,7 @@ export interface Context {
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
   smartCollections?: SmartCollectionsAccess;
+  sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
