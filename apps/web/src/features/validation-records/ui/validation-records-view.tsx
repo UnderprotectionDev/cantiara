@@ -273,9 +273,9 @@ export function ValidationRecordsView({
       setBusy(false);
     }
   }
-  const visible = records.filter(
-    (record) =>
-      record.status === status && (!selectedId || record.id === selectedId),
+  const selected = records.find((record) => record.id === selectedId);
+  const visible = records.filter((record) =>
+    selectedId ? record.id === selectedId : record.status === status,
   );
   return (
     <section aria-label="Validation Record" className="space-y-5">
@@ -299,6 +299,7 @@ export function ValidationRecordsView({
       <div className="grid max-w-xs gap-2 text-sm">
         <label htmlFor="validation-status">Status</label>
         <NativeSelect
+          disabled={Boolean(selectedId)}
           id="validation-status"
           onChange={(event) => {
             const next = event.target.value;
@@ -306,7 +307,7 @@ export function ValidationRecordsView({
               setStatus(next);
             }
           }}
-          value={status}
+          value={selected?.status ?? status}
         >
           <NativeSelectOption value="Active">Active</NativeSelectOption>
           <NativeSelectOption value="Archived">Archived</NativeSelectOption>

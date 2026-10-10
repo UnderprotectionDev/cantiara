@@ -60,6 +60,20 @@ export default function ValidationRecordsSurface({
       }),
     ]);
   }
+  async function write(command: () => Promise<unknown>) {
+    try {
+      await runOnlineOnlyWrite(command);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "CONFLICT"
+      ) {
+        await refresh();
+      }
+      throw error;
+    }
+  }
   async function save(draft: ValidationDraft, record?: ValidationRecord) {
     const fields = {
       ...draft,
@@ -67,7 +81,7 @@ export default function ValidationRecordsSurface({
       sourceType: "Validation Record" as const,
     };
     const { id, key } = validationCommandIdentity(fields, record);
-    await runOnlineOnlyWrite(() =>
+    await write(() =>
       record
         ? client.updateProjectSourceRecord({
             ...fields,
@@ -89,7 +103,7 @@ export default function ValidationRecordsSurface({
     status: ValidationRecord["status"],
   ) {
     const { key } = validationCommandIdentity({ status }, record);
-    await runOnlineOnlyWrite(() =>
+    await write(() =>
       client.transitionProjectSourceRecord({
         projectId,
         sourceType: "Validation Record",
@@ -111,7 +125,7 @@ export default function ValidationRecordsSurface({
   if (records.isPending || sources.isPending) {
     return <p role="status">Loading Validation Records…</p>;
   }
-  if (records.isError || sources.isError || !records.data || !sources.data) {
+  if (!(records.data && sources.data)) {
     return (
       <div className="space-y-3">
         <p role="alert">Validation Records are unavailable.</p>
