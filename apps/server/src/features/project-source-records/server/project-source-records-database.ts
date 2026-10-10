@@ -1,4 +1,7 @@
-import type { DocumentEvidenceSelection } from "@cantiara/api/documents";
+import {
+  type DocumentEvidenceSelection,
+  documentEvidenceSelectionSchema,
+} from "@cantiara/api/documents";
 import type {
   MutationPayload,
   MutationTarget,
@@ -35,9 +38,10 @@ import { projectRelease } from "@cantiara/db/schema/project-release";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
 import { and, asc, eq } from "drizzle-orm";
-import type { z } from "zod";
+import { z } from "zod";
 
 import {
+  MutationApplyFailedError,
   MutationConflictError,
   MutationStaleBaseRevisionError,
   MutationTargetNotFoundError,
@@ -47,8 +51,11 @@ import {
   type MutationDatabaseExecutor,
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
-
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
+import {
+  readAssumptionsContext,
+  readUncertaintyDocumentPins,
+} from "./uncertainty-records-database";
 
 type DecisionRecord = typeof decision.$inferSelect;
 type MilestoneRecord = typeof projectMilestone.$inferSelect;
@@ -90,6 +97,21 @@ type ProjectSourceMutationValue =
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported project source record: ${String(value)}`);
+}
+
+function mutationConflictCause(
+  error: unknown,
+): MutationConflictError | MutationStaleBaseRevisionError<unknown> | undefined {
+  if (
+    error instanceof MutationConflictError ||
+    error instanceof MutationStaleBaseRevisionError
+  ) {
+    return error;
+  }
+  if (error instanceof MutationApplyFailedError) {
+    return mutationConflictCause(error.cause);
+  }
+  return undefined;
 }
 
 function toDecision(record: DecisionRecord) {
@@ -569,6 +591,7 @@ async function writeOpenQuestionRecord(
     life: record.life,
     projectId: record.projectId,
     question: record.question,
+    rationale: record.rationale,
     revision: expectedRevision + 1,
     title: record.title,
     updatedAt: committedAt,
@@ -836,6 +859,7 @@ function projectSourceMutationTarget(
         if (
           !sourceDocument ||
           sourceDocument.revision !== evidence.documentRevision ||
+          evidence.selectionEnd > sourceDocument.body.length ||
           sourceDocument.body.slice(
             evidence.selectionStart,
             evidence.selectionEnd,
@@ -856,6 +880,7 @@ function projectSourceMutationTarget(
           id: crypto.randomUUID(),
           kind: "Pinned bind",
           location: {
+            projectId: record.projectId,
             documentVersion: {
               documentId: evidence.documentId,
               revision: evidence.documentRevision,
@@ -908,6 +933,12 @@ function allowsTransition(
   if (previousStatus === nextStatus) {
     return false;
   }
+  if (record.sourceType === "Assumption") {
+    return next.sourceType === "Assumption";
+  }
+  if (record.sourceType === "Open Question") {
+    return next.sourceType === "Open Question";
+  }
   if (record.sourceType === "Risk") {
     return next.sourceType === "Risk";
   }
@@ -939,19 +970,43 @@ function assertRiskRationale(record: ProjectSourceRecord) {
   }
 }
 
-function transitionedSourceRecord(
-  current: ProjectSourceRecord,
-  input: z.infer<typeof transitionProjectSourceRecordInputSchema>,
-  committedAt: string,
-  nextRevision: number,
+function transitionedRiskRecord(
+  current: Extract<ProjectSourceRecord, { sourceType: "Risk" }>,
+  input: Extract<
+    Parameters<ProjectSourceRecordsAccess["transition"]>[1],
+    { sourceType: "Risk" }
+  >,
+  next: ProjectSourceRecord,
 ): ProjectSourceRecord {
-  const next = { ...current, revision: nextRevision, updatedAt: committedAt };
+  return riskRecordSchema.parse({
+    ...next,
+    life: input.life,
+    rationale: input.life === "Accepted" ? input.rationale : current.rationale,
+  });
+}
+
+function transitionedRecord(
+  current: ProjectSourceRecord,
+  input: Parameters<ProjectSourceRecordsAccess["transition"]>[1],
+  currentRevision: number,
+  committedAt: string,
+): ProjectSourceRecord {
+  const next = {
+    ...current,
+    revision: currentRevision + 1,
+    updatedAt: committedAt,
+  };
   if (input.sourceType === "Risk" && current.sourceType === "Risk") {
-    return riskRecordSchema.parse({
+    return transitionedRiskRecord(current, input, next);
+  }
+  if (
+    input.sourceType === "Assumption" &&
+    current.sourceType === "Assumption"
+  ) {
+    return assumptionRecordSchema.parse({
       ...next,
       life: input.life,
-      rationale:
-        input.life === "Accepted" ? input.rationale : current.rationale,
+      rationale: input.rationale?.trim() || current.rationale,
     });
   }
   if (input.sourceType === "Decision") {
@@ -961,6 +1016,24 @@ function transitionedSourceRecord(
       withdrawnAt: input.life === "Withdrawn" ? committedAt : null,
       withdrawalRationale:
         input.life === "Withdrawn" ? (input.rationale ?? null) : null,
+    });
+  }
+  if (
+    input.sourceType === "Open Question" &&
+    current.sourceType === "Open Question"
+  ) {
+    return openQuestionRecordSchema.parse({
+      ...next,
+      life: input.life,
+      ...(input.life === "Answered"
+        ? {
+            answer: input.answer,
+            rationale:
+              input.rationale === undefined
+                ? current.rationale
+                : input.rationale,
+          }
+        : {}),
     });
   }
   if ("status" in input) {
@@ -973,9 +1046,97 @@ export function createDatabaseProjectSourceRecords(
   database: Database,
 ): ProjectSourceRecordsAccess & {
   supersession: ReturnType<typeof createDatabaseDecisionSupersession>;
+  listAssumptions: NonNullable<ProjectSourceRecordsAccess["listAssumptions"]>;
 } {
   return {
     supersession: createDatabaseDecisionSupersession(database),
+    async listAssumptions(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      return ownedProject
+        ? readAssumptionsContext(database, ownedProject)
+        : null;
+    },
+    async listOpenQuestions(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(openQuestion)
+        .where(eq(openQuestion.projectId, input.projectId))
+        .orderBy(asc(openQuestion.title), asc(openQuestion.id));
+      return {
+        records: rows.map((row) =>
+          openQuestionRecordSchema.parse(toOpenQuestion(row)),
+        ),
+        readOnly: ownedProject.archivedAt !== null,
+      };
+    },
+    async openQuestionContext(accountId, sourceId) {
+      const record = await readRecord(
+        database,
+        accountId,
+        "Open Question",
+        sourceId,
+      );
+      if (!record) {
+        return null;
+      }
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        record.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const links = await readUncertaintyDocumentPins(
+        database,
+        ownedProject,
+        "Open Question",
+        [sourceId],
+      );
+      const evidence = links.flatMap(({ location: rawLocation }) => {
+        const stored = z
+          .object({
+            documentVersion: z.object({
+              documentId: z.string(),
+              revision: z.number(),
+            }),
+            excerpt: z.string(),
+            start: z.number(),
+            end: z.number(),
+          })
+          .safeParse(rawLocation);
+        if (!stored.success) {
+          return [];
+        }
+        const location = stored.data;
+        const parsed = documentEvidenceSelectionSchema.safeParse({
+          documentId: location.documentVersion?.documentId,
+          documentRevision: location.documentVersion?.revision,
+          selectedText: location.excerpt,
+          selectionStart: location.start,
+          selectionEnd: location.end,
+        });
+        return parsed.success ? [parsed.data] : [];
+      });
+      return { evidence, readOnly: ownedProject.archivedAt !== null };
+    },
     async listRisks(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -1094,10 +1255,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.id, {
             cause: error,
           });
@@ -1241,10 +1400,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.sourceId, {
             cause: error,
           });
@@ -1276,16 +1433,24 @@ export function createDatabaseProjectSourceRecords(
             ) {
               throw new MutationConflictError(input.sourceId);
             }
-            const record = transitionedSourceRecord(
+            const record = transitionedRecord(
               current,
               input,
+              currentRevision,
               committedAt,
-              currentRevision + 1,
             );
             if (!allowsTransition(current, record)) {
               throw new MutationConflictError(input.sourceId);
             }
-            return targetForRecord(record).value;
+            return {
+              ...targetForRecord(record).value,
+              ...((input.sourceType === "Assumption" ||
+                (input.sourceType === "Open Question" &&
+                  input.life === "Answered")) &&
+              input.documentEvidence
+                ? { documentEvidence: input.documentEvidence }
+                : {}),
+            };
           },
         );
         return recordFromReceipt(receipt.nextValue);
@@ -1293,10 +1458,8 @@ export function createDatabaseProjectSourceRecords(
         if (error instanceof MutationTargetNotFoundError) {
           return null;
         }
-        if (
-          error instanceof MutationConflictError ||
-          error instanceof MutationStaleBaseRevisionError
-        ) {
+        const conflict = mutationConflictCause(error);
+        if (conflict) {
           throw new ProjectSourceRecordConflictError(input.sourceId, {
             cause: error,
           });

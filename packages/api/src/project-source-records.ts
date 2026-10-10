@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { DecisionSupersessionAccess } from "./decision-supersession";
 import { documentEvidenceSelectionSchema } from "./documents";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type { AssumptionsContext } from "./uncertainty-records";
 
 const identifier = z.string().trim().min(1).max(255);
 const text255 = z.string().trim().min(1).max(255);
@@ -156,6 +157,7 @@ export const openQuestionRecordSchema = z
   .object({
     ...sourceRecordIdentity,
     answer: optionalLongText,
+    rationale: optionalLongText.optional().default(null),
     context: optionalLongText,
     life: openQuestionLifeSchema,
     question: longText,
@@ -366,6 +368,47 @@ export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
 export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
   "sourceType",
   [
+    z.discriminatedUnion("life", [
+      humanMutationEnvelopeSchema
+        .extend({
+          projectId: identifier,
+          sourceId: identifier,
+          sourceType: z.literal("Open Question"),
+          life: z.literal("Answered"),
+          answer: longText,
+          rationale: optionalLongText.optional(),
+          documentEvidence: documentEvidenceSelectionSchema.optional(),
+        })
+        .strict(),
+      humanMutationEnvelopeSchema
+        .extend({
+          projectId: identifier,
+          sourceId: identifier,
+          sourceType: z.literal("Open Question"),
+          life: z.literal("No longer applicable"),
+        })
+        .strict(),
+    ]),
+    humanMutationEnvelopeSchema
+      .extend({
+        projectId: identifier,
+        sourceId: identifier,
+        sourceType: z.literal("Assumption"),
+        life: assumptionLifeSchema,
+        rationale: optionalLongText.optional(),
+        documentEvidence: documentEvidenceSelectionSchema.optional(),
+      })
+      .strict()
+      .refine(
+        (input) =>
+          input.life === "Confirmed" ||
+          input.life === "Refuted" ||
+          (input.rationale === undefined &&
+            input.documentEvidence === undefined),
+        {
+          message: "New evidence or rationale belongs to Confirmed or Refuted.",
+        },
+      ),
     humanMutationEnvelopeSchema
       .extend({
         life: riskLifeSchema,
@@ -452,6 +495,10 @@ export interface ProjectSourceRecordsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProjectSourceRecord[] | null>;
+  listAssumptions?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<AssumptionsContext | null>;
   listDecisions: (
     accountId: string,
     projectId: string,
@@ -459,11 +506,25 @@ export interface ProjectSourceRecordsAccess {
     records: z.infer<typeof decisionRecordSchema>[];
     readOnly: boolean;
   } | null>;
+  listOpenQuestions?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof openQuestionRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
   listRisks: (
     accountId: string,
     projectId: string,
   ) => Promise<{
     records: z.infer<typeof riskRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  openQuestionContext?: (
+    accountId: string,
+    sourceId: string,
+  ) => Promise<{
+    evidence: z.infer<typeof documentEvidenceSelectionSchema>[];
     readOnly: boolean;
   } | null>;
   supersession?: DecisionSupersessionAccess;
@@ -479,6 +540,7 @@ export interface ProjectSourceRecordsAccess {
 
 export class ProjectSourceRecordConflictError extends Error {
   readonly code = "CONFLICT" as const;
+  readonly sourceId: string;
   readonly targetId: string;
 
   constructor(targetId: string, options?: ErrorOptions) {
@@ -488,5 +550,6 @@ export class ProjectSourceRecordConflictError extends Error {
     );
     this.targetId = targetId;
     this.name = "ProjectSourceRecordConflictError";
+    this.sourceId = targetId;
   }
 }

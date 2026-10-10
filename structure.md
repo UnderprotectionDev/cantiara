@@ -139,6 +139,8 @@
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
+│       │   ├── open-questions.e2e.ts
+│       │   ├── uncertainty-records.e2e.ts
 │       │   ├── favorites.e2e.ts
 │       │   ├── bulk-editing.e2e.ts
 │       │   ├── account-preferences.e2e.ts
@@ -187,6 +189,15 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           └── bulk-edit-dialog.tsx
+│       │   │   ├── uncertainty-records/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       │   ├── project-assumptions-surface.tsx
+│       │   │   │       │   ├── project-assumptions-view.tsx
+│       │   │   │       │   └── project-assumptions-view.test.tsx
+│       │   │   │       ├── open-question-view.tsx
+│       │   │   │       ├── open-question-view.test.tsx
+│       │   │   │       └── open-questions-surface.tsx
 │       │   │   ├── account-access/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-account-sessions.ts
@@ -734,5 +745,9 @@ Return to Work derives Since you last looked at the same summary boundary. `apps
 Return to Work's optional exact visual-target contract lives in `packages/api/src/return-to-work.ts`. Its transient visual tour driver and canvas viewport adapter contract live in `packages/api/src/return-visual-tour.ts`; `return-visual-tour.test.ts` observes the same Return to Work seam through a canvas viewport double. Actual canvas target resolution, highlight/pan, meaningful viewport restore and session persistence remain with the owning surface features. Browser controls live in `apps/web/src/features/return-to-work/ui/visual-changes-tour.tsx` and `visual-tour-panel.tsx`; the existing list owns remainder focus. The existing Work event adapter emits exact Roadmap Work targets. Roadmap owns the React Flow renderer under `ui/components/roadmap-canvas.tsx`, live queries under `live-roadmap-canvas.tsx`, shared list/canvas membership under `lib/roadmap-projection.ts`, public viewport resolution under `lib/roadmap-viewport.ts`, and Project-scoped transient state under `store/roadmap-session.tsx`.
 
 Return to Work status-age thresholds use the existing Project configuration in `packages/api/src/project-shell.ts` and its `Saved views` configuration form. `packages/api/src/return-to-work.ts` owns the shared neutral candidate predicate. `apps/server/src/features/smart-collections/server/smart-collections-database.ts` evaluates the prepared view through its existing Work membership reader. No persisted membership or new schema is introduced.
+
+Uncertainty Records uses the existing Project source-record mutation owner: `packages/api/src/project-source-records.ts` carries Assumption commands, `packages/api/src/uncertainty-records.ts` carries its evidence context, and `apps/server/src/features/project-source-records/server/uncertainty-records-database.ts` reads canonical Assumptions and existing pinned Document/Work evidence. `apps/web/src/features/uncertainty-records/ui/components/` owns the TanStack Form editor and Query surface consumed by Project Discovery and Assumption source hashes. The Assumption schema remains in `packages/db/src/schema/assumption.ts`; no new storage or lifecycle owner is introduced. The Uncertainty Records seam journey is `apps/web/e2e/uncertainty-records.e2e.ts`.
+
+Uncertainty Records also uses `apps/server/src/features/relations/server/usage-links-database.ts` for atomic exact Document pin validation. `readUncertaintyDocumentPins` in the Project source-record read adapter resolves current and legacy version ownership for both types. Open Question presentation remains in `apps/web/src/features/uncertainty-records/ui/open-question-view.tsx` and `open-questions-surface.tsx`; its browser journey is `apps/web/e2e/open-questions.e2e.ts`.
 
 Risk editing is owned by `apps/web/src/features/risks/ui/components/`, using the Project source-record API and PostgreSQL owner above. `project-risks-surface.tsx` binds Account-scoped `projectRisks`, create/update and explicit transitions; `project-risks-view.tsx` owns TanStack Form drafts and the five-status UI. Project Overview opens `#risks` and existing `#source-risk-` identities; preview consumers retain the read-only source view. The Risks seam browser journey is `apps/web/e2e/risks.e2e.ts`. No schema change or score store is introduced.

@@ -1,4 +1,5 @@
 import type { Context } from "@cantiara/api/context";
+import { MUTATION_UI_LABELS } from "@cantiara/api/mutation-and-undo";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import {
   ProjectSourceRecordConflictError,
@@ -301,4 +302,107 @@ describe("Project source record RPC", () => {
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+});
+
+test("Uncertainty Records binds Assumption reads and transitions to the Account and rejects anonymous access", async () => {
+  const { client, projectSourceRecords } = testClient({
+    session: { id: "session-1" },
+    user: { id: accountId },
+  } as Context["session"]);
+  const listAssumptions = vi
+    .fn()
+    .mockResolvedValue({ records: [], evidence: [], readOnly: false });
+  projectSourceRecords.listAssumptions = listAssumptions;
+  await expect(
+    client.projectAssumptions({ projectId: "project-1" }),
+  ).resolves.toMatchObject({ records: [] });
+  expect(listAssumptions).toHaveBeenCalledExactlyOnceWith(
+    accountId,
+    "project-1",
+  );
+  const command = {
+    sourceType: "Assumption" as const,
+    sourceId: "a1",
+    projectId: "project-1",
+    life: "Refuted" as const,
+    baseRevision: 1,
+    clientIdempotencyKey: "refute",
+  };
+  vi.mocked(projectSourceRecords.transition).mockResolvedValueOnce(null);
+  await expect(
+    client.transitionProjectSourceRecord(command),
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  vi.mocked(projectSourceRecords.transition).mockRejectedValueOnce(
+    new ProjectSourceRecordConflictError("a1"),
+  );
+  await expect(
+    client.transitionProjectSourceRecord(command),
+  ).rejects.toMatchObject({
+    code: "CONFLICT",
+    data: {
+      code: "CONFLICT",
+      label: MUTATION_UI_LABELS.conflict,
+      targetId: "a1",
+    },
+    message: MUTATION_UI_LABELS.conflict,
+  });
+  const anonymous = testClient(null).client;
+  await expect(
+    anonymous.projectAssumptions({ projectId: "project-1" }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    anonymous.transitionProjectSourceRecord(command),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+});
+
+test("Uncertainty Records protects Open Question reads and maps transition conflicts", async () => {
+  const { client, projectSourceRecords } = testClient({
+    session: { id: "session-1" },
+    user: { id: accountId },
+  } as Context["session"]);
+  projectSourceRecords.listOpenQuestions = vi
+    .fn()
+    .mockResolvedValue({ records: [], readOnly: true });
+  projectSourceRecords.openQuestionContext = vi
+    .fn()
+    .mockResolvedValue({ evidence: [], readOnly: true });
+  await expect(
+    client.openQuestions({ projectId: "project-1" }),
+  ).resolves.toEqual({ records: [], readOnly: true });
+  await expect(
+    client.openQuestionContext({
+      sourceId: "question-1",
+      sourceType: "Open Question",
+    }),
+  ).resolves.toEqual({ evidence: [], readOnly: true });
+  await expect(
+    testClient(null).client.openQuestions({ projectId: "project-1" }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    testClient(null).client.openQuestionContext({
+      sourceId: "question-1",
+      sourceType: "Open Question",
+    }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    client.openQuestionContext({
+      sourceId: "decision-1",
+      sourceType: "Decision",
+    }),
+  ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  const transition = vi
+    .fn()
+    .mockRejectedValue(new ProjectSourceRecordConflictError("question-1"));
+  projectSourceRecords.transition = transition;
+  await expect(
+    client.transitionProjectSourceRecord({
+      projectId: "project-1",
+      sourceType: "Open Question",
+      sourceId: "question-1",
+      life: "Answered",
+      answer: "Weekly",
+      baseRevision: 1,
+      clientIdempotencyKey: "answer-question",
+    }),
+  ).rejects.toMatchObject({ code: "CONFLICT" });
 });

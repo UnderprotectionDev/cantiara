@@ -560,7 +560,11 @@ function rethrowProjectSourceRecordError(error: unknown): never {
   if (error instanceof ProjectSourceRecordConflictError) {
     throw new ORPCError("CONFLICT", {
       cause: error,
-      data: { code: error.code, targetId: error.targetId },
+      data: {
+        code: error.code,
+        label: MUTATION_UI_LABELS.conflict,
+        targetId: error.targetId,
+      },
       defined: true,
       message: MUTATION_UI_LABELS.conflict,
     });
@@ -3014,6 +3018,9 @@ export const appRouter = {
       const payload = usageLinkPayloadSchema.parse({
         kind: "Pinned bind",
         location: {
+          ...(input.targetRecordType === "Assumption"
+            ? { projectId: targetProjectId }
+            : {}),
           documentVersion: {
             documentId: documentRecord.id,
             revision: documentRecord.revision,
@@ -5111,6 +5118,15 @@ export const appRouter = {
         rethrowProjectSourceRecordError(error);
       }
     }),
+  projectAssumptions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).listAssumptions;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access(context.session.user.id, input.projectId);
+    }),
   projectRisks: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
     .handler(({ context, input }) =>
@@ -5135,6 +5151,27 @@ export const appRouter = {
         input.projectId,
       ),
     ),
+  openQuestions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).listOpenQuestions;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access(context.session.user.id, input.projectId);
+    }),
+  openQuestionContext: protectedProcedure
+    .input(projectSourceRecordInputSchema)
+    .handler(({ context, input }) => {
+      if (input.sourceType !== "Open Question") {
+        throw new ORPCError("BAD_REQUEST");
+      }
+      const access = requireProjectSourceRecords(context).openQuestionContext;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access(context.session.user.id, input.sourceId);
+    }),
   projectSourceRecord: protectedProcedure
     .input(projectSourceRecordInputSchema)
     .handler(({ context, input }) =>

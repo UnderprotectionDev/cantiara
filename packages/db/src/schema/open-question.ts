@@ -22,6 +22,7 @@ export const openQuestion = pgTable(
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
     question: text("question").notNull(),
+    rationale: text("rationale"),
     revision: integer("revision").default(0).notNull(),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")
