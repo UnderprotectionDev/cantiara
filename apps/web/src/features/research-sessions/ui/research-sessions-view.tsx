@@ -290,11 +290,13 @@ export function ResearchSessionsView({
   timeZone,
   readOnly,
   onSave,
+  onStartEditing,
 }: {
   records: ResearchSessionRecord[];
   timeZone: string;
   readOnly: boolean;
   onSave: Save;
+  onStartEditing: () => void;
 }) {
   const [editing, setEditing] = useState<ResearchSessionRecord | "new" | null>(
     null,
@@ -315,6 +317,7 @@ export function ResearchSessionsView({
         <Button
           disabled={readOnly || editing !== null}
           onClick={() => {
+            onStartEditing();
             setEditing("new");
             setSaved(false);
           }}
@@ -352,6 +355,7 @@ export function ResearchSessionsView({
                 <Button
                   disabled={readOnly || editing !== null}
                   onClick={() => {
+                    onStartEditing();
                     setEditing(record);
                     setSaved(false);
                   }}

@@ -3,6 +3,7 @@ import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
 const identifier = z.string().trim().min(1).max(255);
 const timestamp = z.iso.datetime({ offset: true });
+const httpSchemePattern = /^https?:/i;
 const sourceCaptureFields = {
   url: z
     .url({ protocol: /^https?$/ })
@@ -10,7 +11,10 @@ const sourceCaptureFields = {
     .refine((value) => {
       const url = new URL(value);
       return !(url.username || url.password);
-    }, "Source URLs must not contain credentials."),
+    }, "Source URLs must not contain credentials.")
+    .transform((value) =>
+      value.replace(httpSchemePattern, (protocol) => protocol.toLowerCase()),
+    ),
   title: z.string().trim().min(1).max(255),
   accessedAt: timestamp,
   // Plain captured text is historical data; whitespace is part of the capture.

@@ -19,6 +19,24 @@ const command = {
 };
 
 describe("Sources and Freshness", () => {
+  test("canonicalizes HTTP schemes without changing the captured address path or query", () => {
+    expect(
+      createSourceInputSchema.parse({
+        ...command,
+        url: "HTTPS://example.org/CaseSensitive?Token=A%2FB#Section",
+      }).url,
+    ).toBe("https://example.org/CaseSensitive?Token=A%2FB#Section");
+    expect(
+      saveSourceVersionInputSchema.parse({
+        ...capture,
+        url: "HtTp://example.org/CaseSensitive",
+        sourceId: "source-1",
+        projectId: "project-1",
+        baseRevision: 1,
+        clientIdempotencyKey: "new-version",
+      }).url,
+    ).toBe("http://example.org/CaseSensitive");
+  });
   test("preserves captured text exactly and leaves unknown external provenance empty", () => {
     expect(createSourceInputSchema.parse(command)).toMatchObject({
       capturedContent: "  An exact excerpt.\n",

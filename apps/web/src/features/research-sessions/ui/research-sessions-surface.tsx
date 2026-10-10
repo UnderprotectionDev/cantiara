@@ -39,26 +39,40 @@ export default function ResearchSessionsSurface({
     if (pending.current?.fingerprint !== fingerprint) {
       pending.current = {
         fingerprint,
-        id: record?.id ?? crypto.randomUUID(),
+        id: record?.id ?? pending.current?.id ?? crypto.randomUUID(),
         key: crypto.randomUUID(),
       };
     }
     const identity = pending.current;
-    await runOnlineOnlyWrite(() =>
-      client.saveResearchSession({
-        fields,
-        projectId,
-        id: identity.id,
-        baseRevision: record?.revision ?? 0,
-        clientIdempotencyKey: identity.key,
-      }),
-    );
+    try {
+      await runOnlineOnlyWrite(() =>
+        client.saveResearchSession({
+          fields,
+          projectId,
+          id: identity.id,
+          baseRevision: record?.revision ?? 0,
+          clientIdempotencyKey: identity.key,
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "CONFLICT"
+      ) {
+        await queryClient.invalidateQueries({ queryKey: options.queryKey });
+      }
+      throw error;
+    }
     await queryClient.invalidateQueries({ queryKey: options.queryKey });
     pending.current = null;
   }
   function retry() {
     query.refetch().catch(() => undefined);
     preferences.refetch().catch(() => undefined);
+  }
+  function startEditing() {
+    pending.current = null;
   }
   if (query.isPending || preferences.isPending) {
     return <p role="status">Loading Research Sessions…</p>;
@@ -74,6 +88,7 @@ export default function ResearchSessionsSurface({
   return (
     <ResearchSessionsView
       onSave={save}
+      onStartEditing={startEditing}
       readOnly={query.data.readOnly}
       records={query.data.records}
       timeZone={preferences.data.timeZone}
