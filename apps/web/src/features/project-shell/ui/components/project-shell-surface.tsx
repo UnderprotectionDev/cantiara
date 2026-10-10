@@ -552,7 +552,14 @@ function ProjectShellContent({
             hiddenAreas={configuration.hiddenAreas}
           />
 
-          <div className="min-w-0 space-y-10">{projectSurface}</div>
+          <div
+            className="min-w-0 space-y-10"
+            id={
+              activeHash === "project-area-discovery" ? activeHash : undefined
+            }
+          >
+            {projectSurface}
+          </div>
         </div>
       )}
     </>
