@@ -103,6 +103,257 @@ describeDatabase(
       await database?.$client.end();
     });
 
+    test("Risks persists founder text, explicit status matrix, rationale and isolated counterparts", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const input = {
+        baseRevision: 0,
+        clientIdempotencyKey: "risk-create",
+        id: sourceIds[0],
+        projectId,
+        sourceType: "Risk" as const,
+        title: "Provider delay",
+        description: "Approval may slip",
+        impact: "Delayed release",
+        probability: "Unknown",
+        response: "Prepare a fallback",
+      };
+      const created = await records.create(accountId, input);
+      expect(created).toMatchObject({
+        id: input.id,
+        title: input.title,
+        description: input.description,
+        impact: input.impact,
+        probability: input.probability,
+        response: input.response,
+        life: "Open",
+        revision: 1,
+        rationale: null,
+      });
+      expect(await records.create(accountId, input)).toEqual(created);
+      const release = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "risk-release",
+        id: sourceIds[3],
+        projectId,
+        sourceType: "Project Release",
+        name: "First release",
+        description: null,
+        versionLabel: "1.0",
+      });
+      const work = createDatabaseWorkLifecycle(database);
+      const relatedWork = await work.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "risk-work",
+        projectId,
+        title: "Prepare fallback",
+        type: "Task",
+      });
+      await database.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Related",
+        sourceWorkId: relatedWork.id,
+        targetLabel: "Provider delay",
+        targetProjectId: projectId,
+        targetRecordId: sourceIds[0],
+        targetRecordType: "Risk",
+      });
+      const workBefore = await work.find(accountId, relatedWork.id);
+      const projectBefore = await database
+        .select()
+        .from(project)
+        .where(eq(project.id, projectId));
+      let current = created;
+      for (const from of [
+        "Open",
+        "Mitigating",
+        "Occurred",
+        "Resolved",
+        "Accepted",
+      ] as const) {
+        if (current?.sourceType !== "Risk") {
+          throw new Error("Risk required");
+        }
+        if (current.life !== from) {
+          // biome-ignore lint/performance/noAwaitInLoops: Each transition uses the preceding revision.
+          current = await records.transition(accountId, {
+            baseRevision: current.revision,
+            clientIdempotencyKey: `from-${from}`,
+            projectId,
+            sourceId: sourceIds[0],
+            sourceType: "Risk",
+            life: from,
+            rationale: "Known exposure is tolerable.",
+          });
+        }
+        for (const life of [
+          "Open",
+          "Mitigating",
+          "Occurred",
+          "Resolved",
+          "Accepted",
+        ] as const) {
+          if (current?.sourceType !== "Risk") {
+            throw new Error("Risk required");
+          }
+          if (current.life !== from) {
+            // biome-ignore lint/performance/noAwaitInLoops: Reset source status to cover every pair independently.
+            current = await records.transition(accountId, {
+              baseRevision: current.revision,
+              clientIdempotencyKey: `reset-${from}-${life}`,
+              projectId,
+              sourceId: sourceIds[0],
+              sourceType: "Risk",
+              life: from,
+              rationale: "Known exposure is tolerable.",
+            });
+          }
+          if (current?.sourceType !== "Risk") {
+            throw new Error("Risk required");
+          }
+          const command = {
+            baseRevision: current.revision,
+            clientIdempotencyKey: `matrix-${from}-${life}`,
+            projectId,
+            sourceId: sourceIds[0],
+            sourceType: "Risk" as const,
+            life,
+            rationale: "Known exposure is tolerable.",
+          };
+          if (life === current.life) {
+            await expect(
+              records.transition(accountId, command),
+            ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+          } else {
+            current = await records.transition(accountId, command);
+            expect(current).toMatchObject({
+              sourceType: "Risk",
+              life,
+              impact: "Delayed release",
+              probability: "Unknown",
+              response: "Prepare a fallback",
+            });
+            expect(await records.transition(accountId, command)).toEqual(
+              current,
+            );
+            expect(await records.find(accountId, "Risk", sourceIds[0])).toEqual(
+              current,
+            );
+          }
+        }
+      }
+      if (current?.sourceType !== "Risk") {
+        throw new Error("Risk required");
+      }
+      const listed = await records.listRisks(accountId, projectId);
+      expect(listed).toMatchObject({ readOnly: false, records: [current] });
+      await expect(
+        records.update(accountId, {
+          baseRevision: current.revision,
+          clientIdempotencyKey: "clear-accepted-rationale",
+          projectId,
+          sourceId: sourceIds[0],
+          sourceType: "Risk",
+          title: "Provider delay",
+          description: "Approval may slip",
+          impact: "Delayed release",
+          probability: "Unknown",
+          response: "Prepare a fallback",
+          rationale: null,
+        }),
+      ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+      expect(current).toMatchObject({
+        life: "Accepted",
+        rationale: "Known exposure is tolerable.",
+      });
+      expect(current).not.toHaveProperty("priorityScore");
+      expect(
+        await records.find(accountId, "Production Incident", sourceIds[0]),
+      ).toBeNull();
+      expect(
+        await records.find(accountId, "Project Release", sourceIds[3]),
+      ).toEqual(release);
+      expect(await work.find(accountId, relatedWork.id)).toEqual(workBefore);
+      expect(
+        await database.select().from(project).where(eq(project.id, projectId)),
+      ).toEqual(projectBefore);
+      expect(
+        await records.find("other-account", "Risk", sourceIds[0]),
+      ).toBeNull();
+    });
+
+    test("Risks edits preserve life and reject stale, foreign and archived writes", async () => {
+      if (!database) {
+        throw new Error("Database required");
+      }
+      const records = createDatabaseProjectSourceRecords(database);
+      const created = await records.create(accountId, {
+        baseRevision: 0,
+        clientIdempotencyKey: "create-risk",
+        id: sourceIds[0],
+        projectId,
+        sourceType: "Risk",
+        title: "Provider delay",
+        description: null,
+        impact: null,
+        probability: null,
+        response: null,
+      });
+      if (created?.sourceType !== "Risk") {
+        throw new Error("Risk required");
+      }
+      const update = {
+        baseRevision: created.revision,
+        clientIdempotencyKey: "edit-risk",
+        projectId,
+        sourceId: created.id,
+        sourceType: "Risk" as const,
+        title: "Provider approval delay",
+        description: "Changed circumstances",
+        impact: "High",
+        probability: "Likely",
+        response: "Use fallback",
+        rationale: null,
+      };
+      const updated = await records.update(accountId, update);
+      expect(updated).toMatchObject({
+        life: "Open",
+        title: update.title,
+        probability: "Likely",
+        revision: 2,
+      });
+      expect(await records.find(accountId, "Risk", created.id)).toEqual(
+        updated,
+      );
+      const transition = {
+        baseRevision: 2,
+        clientIdempotencyKey: "resolve-risk",
+        projectId,
+        sourceId: created.id,
+        sourceType: "Risk" as const,
+        life: "Resolved" as const,
+      };
+      await expect(
+        records.transition(accountId, { ...transition, baseRevision: 1 }),
+      ).rejects.toBeInstanceOf(ProjectSourceRecordConflictError);
+      expect(await records.transition("other-account", transition)).toBeNull();
+      expect(await records.listRisks("other-account", projectId)).toBeNull();
+      await database
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(await records.listRisks(accountId, projectId)).toMatchObject({
+        readOnly: true,
+        records: [updated],
+      });
+      expect(await records.transition(accountId, transition)).toBeNull();
+      expect(await records.find(accountId, "Risk", created.id)).toEqual(
+        updated,
+      );
+    });
+
     test("keeps generations and approved Decision snapshots stable while superseded content is read-only", async () => {
       if (!database) {
         throw new Error("Database required");

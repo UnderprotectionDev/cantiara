@@ -18,8 +18,8 @@ import {
 } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-
-import { orpc } from "@/utils/orpc";
+import type { RiskRecord } from "@/features/risks/ui/components/project-risks-view";
+import { type client, orpc } from "@/utils/orpc";
 import ProjectOverviewView from "./project-overview";
 import ProjectOverviewSurface from "./project-overview-surface";
 
@@ -147,7 +147,10 @@ function renderOverview(
   );
 }
 
-function renderOverviewSurface(milestones: Milestone[]) {
+function renderOverviewSurface(
+  milestones: Milestone[],
+  risks: RiskRecord[] = [],
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
   });
@@ -155,6 +158,14 @@ function renderOverviewSurface(milestones: Milestone[]) {
     input: { projectId: project.id },
   });
   queryClient.setQueryData(queryOptions.queryKey, milestones);
+  const risksQueryOptions = orpc.projectRisks.queryOptions({
+    input: { projectId: project.id },
+  });
+  const risksData = {
+    readOnly: false,
+    records: risks,
+  } satisfies NonNullable<Awaited<ReturnType<typeof client.projectRisks>>>;
+  queryClient.setQueryData(risksQueryOptions.queryKey, risksData);
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: ["/projects/project-1"] }),
     routeTree: projectOverviewRouteTree,
@@ -188,6 +199,49 @@ describe("Project Overview", () => {
     expect(html).toContain("Planned");
     expect(html).toContain("Early users can complete the core flow.");
     expect(html.match(/href="\/projects\/project-1#roadmap"/g)).toHaveLength(3);
+  });
+
+  test("counts every Risk in the same set opened by the Risks link", () => {
+    const risks: RiskRecord[] = [
+      {
+        createdAt: "2026-10-09T10:00:00.000Z",
+        description: "A provider approval delay.",
+        id: "risk-open",
+        impact: "Delayed release",
+        life: "Open",
+        probability: "Unknown",
+        projectId: project.id,
+        rationale: "The provider has not confirmed timing.",
+        response: "Prepare a fallback.",
+        revision: 1,
+        sourceType: "Risk",
+        title: "Provider approval",
+        updatedAt: "2026-10-09T10:00:00.000Z",
+      },
+      {
+        createdAt: "2026-10-09T10:00:00.000Z",
+        description: "A previously accepted risk.",
+        id: "risk-accepted",
+        impact: "Delayed release",
+        life: "Accepted",
+        probability: "Unknown",
+        projectId: project.id,
+        rationale: "The fallback is ready.",
+        response: "Monitor provider status.",
+        revision: 1,
+        sourceType: "Risk",
+        title: "Provider fallback",
+        updatedAt: "2026-10-09T10:00:00.000Z",
+      },
+    ];
+    const html = renderOverviewSurface([], risks);
+
+    expect(html).toContain(
+      'aria-label="Open source record: Risks (2 source records)"',
+    );
+    expect(html).toContain('href="/projects/project-1#risks"');
+    expect(html).toContain("Provider approval");
+    expect(html).toContain("Provider fallback");
   });
 
   test("summarizes source records in the named neutral modules", () => {

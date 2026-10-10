@@ -939,6 +939,9 @@ function allowsTransition(
   if (record.sourceType === "Open Question") {
     return next.sourceType === "Open Question";
   }
+  if (record.sourceType === "Risk") {
+    return next.sourceType === "Risk";
+  }
   if (record.sourceType === "Decision") {
     return record.life === "Valid" && next.sourceType === "Decision";
   }
@@ -957,6 +960,31 @@ function allowsTransition(
   return false;
 }
 
+function assertRiskRationale(record: ProjectSourceRecord) {
+  if (
+    record.sourceType === "Risk" &&
+    record.life === "Accepted" &&
+    !record.rationale?.trim()
+  ) {
+    throw new MutationConflictError(record.id);
+  }
+}
+
+function transitionedRiskRecord(
+  current: Extract<ProjectSourceRecord, { sourceType: "Risk" }>,
+  input: Extract<
+    Parameters<ProjectSourceRecordsAccess["transition"]>[1],
+    { sourceType: "Risk" }
+  >,
+  next: ProjectSourceRecord,
+): ProjectSourceRecord {
+  return riskRecordSchema.parse({
+    ...next,
+    life: input.life,
+    rationale: input.life === "Accepted" ? input.rationale : current.rationale,
+  });
+}
+
 function transitionedRecord(
   current: ProjectSourceRecord,
   input: Parameters<ProjectSourceRecordsAccess["transition"]>[1],
@@ -968,6 +996,9 @@ function transitionedRecord(
     revision: currentRevision + 1,
     updatedAt: committedAt,
   };
+  if (input.sourceType === "Risk" && current.sourceType === "Risk") {
+    return transitionedRiskRecord(current, input, next);
+  }
   if (
     input.sourceType === "Assumption" &&
     current.sourceType === "Assumption"
@@ -1106,6 +1137,27 @@ export function createDatabaseProjectSourceRecords(
       });
       return { evidence, readOnly: ownedProject.archivedAt !== null };
     },
+    async listRisks(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(risk)
+        .where(eq(risk.projectId, input.projectId))
+        .orderBy(asc(risk.createdAt), asc(risk.id));
+      return {
+        records: rows.map((row) => riskRecordSchema.parse(toRisk(row))),
+        readOnly: ownedProject.archivedAt !== null,
+      };
+    },
     async listDecisions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -1153,7 +1205,7 @@ export function createDatabaseProjectSourceRecords(
               case "Risk": {
                 const { documentEvidence: evidence, ...riskFields } = fields;
                 documentEvidence = evidence;
-                initialValue = { ...riskFields, life: "Open" };
+                initialValue = { ...riskFields, life: "Open", rationale: null };
                 break;
               }
               case "Assumption": {
@@ -1339,6 +1391,7 @@ export function createDatabaseProjectSourceRecords(
               default:
                 assertNever(input);
             }
+            assertRiskRationale(record);
             return targetForRecord(record).value;
           },
         );
