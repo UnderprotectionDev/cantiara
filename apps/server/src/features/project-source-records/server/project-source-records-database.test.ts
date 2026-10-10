@@ -1490,6 +1490,10 @@ describeDatabase(
         throw new Error("Database required");
       }
       const records = createDatabaseProjectSourceRecords(database);
+      const { openQuestionContext } = records;
+      if (!openQuestionContext) {
+        throw new Error("Open Question context access is required");
+      }
       const documentId = `document-${crypto.randomUUID()}`;
       await database.insert(document).values({
         id: documentId,
@@ -1537,14 +1541,15 @@ describeDatabase(
       expect(
         await records.find(accountId, "Open Question", question.id),
       ).toEqual(question);
-      expect(
-        await records.openQuestionContext(accountId, question.id),
-      ).toMatchObject({ evidence: [] });
+      expect(await openQuestionContext(accountId, question.id)).toMatchObject({
+        evidence: [],
+      });
       const answered = await records.transition(accountId, input);
       expect(await records.transition(accountId, input)).toEqual(answered);
-      expect(await records.openQuestionContext(accountId, question.id)).toEqual(
-        { evidence: [evidence], readOnly: false },
-      );
+      expect(await openQuestionContext(accountId, question.id)).toEqual({
+        evidence: [evidence],
+        readOnly: false,
+      });
       await database
         .update(document)
         .set({ body: "Daily reviews", revision: 2 })
@@ -1557,9 +1562,9 @@ describeDatabase(
         sourceId: question.id,
         life: "No longer applicable",
       });
-      expect(
-        await records.openQuestionContext(accountId, question.id),
-      ).toMatchObject({ evidence: [evidence] });
+      expect(await openQuestionContext(accountId, question.id)).toMatchObject({
+        evidence: [evidence],
+      });
       const closed = await records.find(
         accountId,
         "Open Question",
@@ -1574,9 +1579,9 @@ describeDatabase(
         .update(project)
         .set({ archivedAt: new Date() })
         .where(eq(project.id, projectId));
-      expect(
-        await records.openQuestionContext(accountId, question.id),
-      ).toMatchObject({ readOnly: true });
+      expect(await openQuestionContext(accountId, question.id)).toMatchObject({
+        readOnly: true,
+      });
       await expect(
         records.transition(accountId, {
           ...input,
@@ -1589,7 +1594,7 @@ describeDatabase(
         await records.find(accountId, "Open Question", question.id),
       ).toEqual(closed);
       expect(
-        await records.openQuestionContext("another-account", question.id),
+        await openQuestionContext("another-account", question.id),
       ).toBeNull();
     });
 
