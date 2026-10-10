@@ -35,6 +35,7 @@ import { projectRelease } from "@cantiara/db/schema/project-release";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { risk } from "@cantiara/db/schema/risk";
 import { and, asc, eq } from "drizzle-orm";
+import type { z } from "zod";
 
 import {
   MutationConflictError,
@@ -907,6 +908,9 @@ function allowsTransition(
   if (previousStatus === nextStatus) {
     return false;
   }
+  if (record.sourceType === "Risk") {
+    return next.sourceType === "Risk";
+  }
   if (record.sourceType === "Decision") {
     return record.life === "Valid" && next.sourceType === "Decision";
   }
@@ -925,6 +929,46 @@ function allowsTransition(
   return false;
 }
 
+function assertRiskRationale(record: ProjectSourceRecord) {
+  if (
+    record.sourceType === "Risk" &&
+    record.life === "Accepted" &&
+    !record.rationale?.trim()
+  ) {
+    throw new MutationConflictError(record.id);
+  }
+}
+
+function transitionedSourceRecord(
+  current: ProjectSourceRecord,
+  input: z.infer<typeof transitionProjectSourceRecordInputSchema>,
+  committedAt: string,
+  nextRevision: number,
+): ProjectSourceRecord {
+  const next = { ...current, revision: nextRevision, updatedAt: committedAt };
+  if (input.sourceType === "Risk" && current.sourceType === "Risk") {
+    return riskRecordSchema.parse({
+      ...next,
+      life: input.life,
+      rationale:
+        input.life === "Accepted" ? input.rationale : current.rationale,
+    });
+  }
+  if (input.sourceType === "Decision") {
+    return decisionRecordSchema.parse({
+      ...next,
+      life: input.life,
+      withdrawnAt: input.life === "Withdrawn" ? committedAt : null,
+      withdrawalRationale:
+        input.life === "Withdrawn" ? (input.rationale ?? null) : null,
+    });
+  }
+  if ("status" in input) {
+    return projectSourceRecordSchema.parse({ ...next, status: input.status });
+  }
+  throw new MutationConflictError(input.sourceId);
+}
+
 export function createDatabaseProjectSourceRecords(
   database: Database,
 ): ProjectSourceRecordsAccess & {
@@ -932,6 +976,27 @@ export function createDatabaseProjectSourceRecords(
 } {
   return {
     supersession: createDatabaseDecisionSupersession(database),
+    async listRisks(accountId, projectId) {
+      const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
+      const ownedProject = await findOwnedProject(
+        database,
+        accountId,
+        input.projectId,
+        false,
+      );
+      if (!ownedProject) {
+        return null;
+      }
+      const rows = await database
+        .select()
+        .from(risk)
+        .where(eq(risk.projectId, input.projectId))
+        .orderBy(asc(risk.createdAt), asc(risk.id));
+      return {
+        records: rows.map((row) => riskRecordSchema.parse(toRisk(row))),
+        readOnly: ownedProject.archivedAt !== null,
+      };
+    },
     async listDecisions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(
@@ -979,7 +1044,7 @@ export function createDatabaseProjectSourceRecords(
               case "Risk": {
                 const { documentEvidence: evidence, ...riskFields } = fields;
                 documentEvidence = evidence;
-                initialValue = { ...riskFields, life: "Open" };
+                initialValue = { ...riskFields, life: "Open", rationale: null };
                 break;
               }
               case "Assumption": {
@@ -1167,6 +1232,7 @@ export function createDatabaseProjectSourceRecords(
               default:
                 assertNever(input);
             }
+            assertRiskRationale(record);
             return targetForRecord(record).value;
           },
         );
@@ -1210,26 +1276,11 @@ export function createDatabaseProjectSourceRecords(
             ) {
               throw new MutationConflictError(input.sourceId);
             }
-            const record = projectSourceRecordSchema.parse(
-              input.sourceType === "Decision"
-                ? {
-                    ...current,
-                    life: input.life,
-                    withdrawnAt:
-                      input.life === "Withdrawn" ? committedAt : null,
-                    withdrawalRationale:
-                      input.life === "Withdrawn"
-                        ? (input.rationale ?? null)
-                        : null,
-                    revision: currentRevision + 1,
-                    updatedAt: committedAt,
-                  }
-                : {
-                    ...current,
-                    revision: currentRevision + 1,
-                    status: input.status,
-                    updatedAt: committedAt,
-                  },
+            const record = transitionedSourceRecord(
+              current,
+              input,
+              committedAt,
+              currentRevision + 1,
             );
             if (!allowsTransition(current, record)) {
               throw new MutationConflictError(input.sourceId);

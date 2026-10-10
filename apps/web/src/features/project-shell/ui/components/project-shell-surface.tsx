@@ -60,6 +60,7 @@ import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-a
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
 import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
+import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
 import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
 import {
@@ -107,6 +108,17 @@ function decodedSourceId(value: string) {
 }
 
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
+  const source = projectSourceRecordFromHash(activeHash);
+  if (activeHash === "risks" || source?.sourceType === "Risk") {
+    return (
+      <ProjectRisksSurface
+        key={projectId}
+        projectId={projectId}
+        selectedId={source?.sourceId}
+      />
+    );
+  }
+
   const collectionPrefix = "smart-collection-view-";
   if (
     activeHash === "smart-collections" ||
@@ -309,6 +321,10 @@ function ProjectShellContent({
         />
       );
     }
+    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
+    if (liveSourceRoute) {
+      return liveSourceRoute;
+    }
     if (sourceRecordRoute) {
       return (
         <ProjectSourceRecordView
@@ -348,11 +364,6 @@ function ProjectShellContent({
           workTypeWarning={collectionWorkTypeWarning}
         />
       );
-    }
-
-    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
-    if (liveSourceRoute) {
-      return liveSourceRoute;
     }
 
     if (
