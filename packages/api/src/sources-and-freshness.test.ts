@@ -19,6 +19,14 @@ const command = {
 };
 
 describe("Sources and Freshness", () => {
+  test("normalizes an HTTP URL once before storing the dated capture", () => {
+    expect(
+      createSourceInputSchema.parse({
+        ...command,
+        url: "HTTPS://EXAMPLE.ORG/research",
+      }).url,
+    ).toBe("https://example.org/research");
+  });
   test("preserves captured text exactly and leaves unknown external provenance empty", () => {
     expect(createSourceInputSchema.parse(command)).toMatchObject({
       capturedContent: "  An exact excerpt.\n",

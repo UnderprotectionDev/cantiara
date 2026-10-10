@@ -142,7 +142,7 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
       projectId,
       baseRevision: 0,
       clientIdempotencyKey: crypto.randomUUID(),
-      url: "https://example.org/rpc",
+      url: "HTTPS://EXAMPLE.ORG/rpc",
       title: "RPC research",
       accessedAt: "2026-10-10T10:00:00.000Z",
       capturedContent: "RPC excerpt",
@@ -150,6 +150,7 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
     expect(await client.createSource(input)).toMatchObject({
       sourceType: "Source",
       revision: 1,
+      version: { url: "https://example.org/rpc" },
     });
     expect(
       await client.source({ sourceId: input.id, projectId }),
@@ -159,6 +160,28 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         (record) => record.id,
       ),
     ).toContain(input.id);
+    const { id, ...capture } = input;
+    const newVersion = {
+      ...capture,
+      sourceId: id,
+      baseRevision: 1,
+      clientIdempotencyKey: crypto.randomUUID(),
+      capturedContent: "New RPC excerpt",
+    };
+    expect(await client.saveSourceVersion(newVersion)).toMatchObject({
+      id,
+      revision: 2,
+      version: { capturedContent: "New RPC excerpt" },
+    });
+    await expect(
+      client.saveSourceVersion({
+        ...newVersion,
+        clientIdempotencyKey: crypto.randomUUID(),
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      data: { targetId: id },
+    });
     const anonymous = createRouterClient(appRouter, {
       context: { ...context, session: null },
     });
@@ -168,9 +191,9 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
     await expect(
       anonymous.source({ sourceId: input.id, projectId }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    await expect(
-      anonymous.saveSourceVersion({ ...input, sourceId: input.id }),
-    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(anonymous.saveSourceVersion(newVersion)).rejects.toMatchObject(
+      { code: "UNAUTHORIZED" },
+    );
   });
   test("retries a committed capture once and rejects stale, duplicate and competing saves without losing history", async () => {
     if (!db) {

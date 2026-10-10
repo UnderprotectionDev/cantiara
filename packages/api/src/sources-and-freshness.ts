@@ -5,7 +5,7 @@ const identifier = z.string().trim().min(1).max(255);
 const timestamp = z.iso.datetime({ offset: true });
 const sourceCaptureFields = {
   url: z
-    .url({ protocol: /^https?$/ })
+    .url({ protocol: /^https?$/, normalize: true })
     .max(8192)
     .refine((value) => {
       const url = new URL(value);
