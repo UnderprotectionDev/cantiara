@@ -59,6 +59,7 @@ import {
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
+import ResearchSessionsSurface from "@/features/research-sessions/ui/research-sessions-surface";
 import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
 import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
 import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
@@ -201,6 +202,12 @@ function projectUncertaintySurface(
   }
   return (
     <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
+      {["discovery", "project-area-discovery"].includes(activeHash) ? (
+        <ResearchSessionsSurface
+          key={`research:${projectId}`}
+          projectId={projectId}
+        />
+      ) : null}
       {isValidationSurface ? (
         <ValidationRecordsSurface
           key={`validations:${projectId}`}

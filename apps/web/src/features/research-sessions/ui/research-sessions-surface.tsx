@@ -1,0 +1,77 @@
+import type {
+  ResearchSessionFields,
+  ResearchSessionRecord,
+} from "@cantiara/api/research-sessions";
+import { Button } from "@cantiara/ui/components/button";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
+import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
+import { client, orpc } from "@/utils/orpc";
+import { ResearchSessionsView } from "./research-sessions-view";
+
+export default function ResearchSessionsSurface({
+  projectId,
+}: {
+  projectId: string;
+}) {
+  const queryClient = useQueryClient();
+  const options = orpc.projectResearchSessions.queryOptions({
+    input: { projectId },
+  });
+  const query = useQuery(options);
+  const pending = useRef<{
+    fingerprint: string;
+    id: string;
+    key: string;
+  } | null>(null);
+  async function save(
+    fields: ResearchSessionFields,
+    record?: ResearchSessionRecord,
+  ) {
+    const fingerprint = JSON.stringify({
+      fields,
+      id: record?.id,
+      revision: record?.revision,
+    });
+    if (pending.current?.fingerprint !== fingerprint) {
+      pending.current = {
+        fingerprint,
+        id: record?.id ?? crypto.randomUUID(),
+        key: crypto.randomUUID(),
+      };
+    }
+    const identity = pending.current;
+    await runOnlineOnlyWrite(() =>
+      client.saveResearchSession({
+        fields,
+        projectId,
+        id: identity.id,
+        baseRevision: record?.revision ?? 0,
+        clientIdempotencyKey: identity.key,
+      }),
+    );
+    await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    pending.current = null;
+  }
+  function retry() {
+    query.refetch().catch(() => undefined);
+  }
+  if (query.isPending) {
+    return <p role="status">Loading Research Sessions…</p>;
+  }
+  if (!query.data) {
+    return (
+      <div className="space-y-3">
+        <p role="alert">Research Sessions are unavailable.</p>
+        <Button onClick={retry}>Retry</Button>
+      </div>
+    );
+  }
+  return (
+    <ResearchSessionsView
+      onSave={save}
+      readOnly={query.data.readOnly}
+      records={query.data.records}
+    />
+  );
+}

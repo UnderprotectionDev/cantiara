@@ -271,6 +271,10 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  researchSessionProjectInputSchema,
+  saveResearchSessionInputSchema,
+} from "../research-sessions";
+import {
   returnContextInputSchema,
   saveNextConcreteStepInputSchema,
 } from "../return-to-work";
@@ -5155,6 +5159,46 @@ export const appRouter = {
         return result;
       } catch (error) {
         rethrowProjectSourceRecordError(error);
+      }
+    }),
+  projectResearchSessions: protectedProcedure
+    .input(researchSessionProjectInputSchema)
+    .handler(({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.researchSessions.list(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  saveResearchSession: protectedProcedure
+    .input(saveResearchSessionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.save(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof Error && "code" in error) {
+          if (
+            error.code === "CONFLICT" ||
+            error.code === "STALE_BASE_REVISION"
+          ) {
+            throw new ORPCError("CONFLICT", {
+              message: "Research Session changed. Reload before saving.",
+              cause: error,
+            });
+          }
+          if (error.code === "TARGET_NOT_FOUND") {
+            throw new ORPCError("NOT_FOUND", { cause: error });
+          }
+        }
+        throw error;
       }
     }),
   projectValidationRecords: protectedProcedure

@@ -26,6 +26,7 @@ export * from "./project-milestone";
 export * from "./project-release";
 export * from "./record-action";
 export * from "./relation";
+export * from "./research-session";
 export * from "./return-to-work";
 export * from "./risk";
 export * from "./roadmap-horizon";

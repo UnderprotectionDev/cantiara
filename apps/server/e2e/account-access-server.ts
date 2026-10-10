@@ -66,6 +66,7 @@ import { createDatabaseRecordActions } from "../src/features/record-actions/serv
 import { createDatabaseRecordTable } from "../src/features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
+import { createDatabaseResearchSessions } from "../src/features/research-sessions/server/research-sessions-database";
 import { createDatabaseReturnToWork } from "../src/features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
@@ -157,6 +158,7 @@ const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
 const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter,
 });
+const researchSessions = createDatabaseResearchSessions(database);
 const projectSourceRecords = createDatabaseProjectSourceRecords(database);
 const recordTable = createDatabaseRecordTable({
   customFieldValueWriter,
@@ -267,6 +269,7 @@ await accountSessionAccess.replaySessionRevocations();
 initLogger({ env: { service: "cantiara-e2e-server" } });
 
 const app = createApp({
+  researchSessions,
   accountSessionAccess,
   accountPreferences,
   accountPreferencesCompatibility: accountPreferences,
