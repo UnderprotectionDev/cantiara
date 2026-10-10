@@ -180,7 +180,7 @@ function projectUncertaintySurface(
     return null;
   }
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
       {isAssumptionSurface ? (
         <ProjectAssumptionsSurface
           key={`assumptions:${projectId}`}
