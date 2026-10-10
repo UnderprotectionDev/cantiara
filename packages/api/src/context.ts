@@ -49,6 +49,7 @@ import type {
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "./relations";
+import type { ResearchSessionsAccess } from "./research-sessions";
 import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SmartCollectionsAccess } from "./smart-collections";
@@ -183,6 +184,7 @@ export interface Context {
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   session: Awaited<

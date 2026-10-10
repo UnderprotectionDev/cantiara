@@ -86,6 +86,7 @@ import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "./schema/priority-metrics";
+import { researchSession } from "./schema/research-session";
 import { roadmapView } from "./schema/roadmap-horizon";
 import {
   smartCollection,
@@ -117,6 +118,7 @@ const schema = {
   completionEffectPreferences,
   projectBacklogOrder,
   roadmapView,
+  researchSession,
   fileAttachment,
   fileAttachmentMarking,
   fileAttachmentMarkingRelations,

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Fixture Research Session consent rows are committed sequentially.
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import { DESKTOP_API_PUBLISHED_AT } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
@@ -66,6 +67,7 @@ import { createDatabaseRecordActions } from "../src/features/record-actions/serv
 import { createDatabaseRecordTable } from "../src/features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
+import { createDatabaseResearchSessions } from "../src/features/research-sessions/server/research-sessions-database";
 import { createDatabaseReturnToWork } from "../src/features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
@@ -157,6 +159,7 @@ const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
 const workLifecycle = createDatabaseWorkLifecycle(database, {
   customFieldValueWriter,
 });
+const researchSessions = createDatabaseResearchSessions(database);
 const projectSourceRecords = createDatabaseProjectSourceRecords(database);
 const recordTable = createDatabaseRecordTable({
   customFieldValueWriter,
@@ -267,6 +270,7 @@ await accountSessionAccess.replaySessionRevocations();
 initLogger({ env: { service: "cantiara-e2e-server" } });
 
 const app = createApp({
+  researchSessions,
   accountSessionAccess,
   accountPreferences,
   accountPreferencesCompatibility: accountPreferences,
@@ -600,7 +604,12 @@ async function createE2EFixture(fixtureKey: string) {
       }),
   );
 
+  const personalDataProject = await createResearchConsentFixture(
+    fixtureKey,
+    founder.id,
+  );
   const projectId =
+    personalDataProject?.id ??
     longStatusProject?.id ??
     usedInTargetProject?.id ??
     captureProject?.id ??
@@ -625,6 +634,39 @@ async function createE2EFixture(fixtureKey: string) {
       ? { usedInSourceProjectId, usedInSourceWorkId }
       : {}),
   };
+}
+
+async function createResearchConsentFixture(
+  fixtureKey: string,
+  accountId: string,
+) {
+  if (fixtureKey !== "personal-data") {
+    return null;
+  }
+  const project = await projectShell.create(accountId, {
+    name: "Kişisel veri",
+    shortCode: "PD",
+    starterConfiguration: "Blank Project",
+  });
+  for (const consent of [
+    "Not asked",
+    "Allowed",
+    "Not allowed",
+    "Not applicable",
+  ] as const) {
+    await researchSessions.save(accountId, {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      fields: {
+        title: `Research consent: ${consent}`,
+        purpose: "Verify personal-data consent boundaries",
+        consent,
+      },
+    });
+  }
+  return project;
 }
 
 async function createDocumentsFixture(fixtureKey: string, accountId: string) {
