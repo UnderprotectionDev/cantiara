@@ -45,6 +45,13 @@ Risk Proje ana kaydıdır; başlık, açıklama, etki, olasılık, yanıt/azaltm
 - Proje `Overview` içindeki `Risks` bağlantısı `/projects/$projectId#risks` listesini açar; kaynak detayları mevcut `#source-risk-$id` kimliğini kullanır. Oluşturma/düzenleme `Create`, `Edit`, `Save`, `Cancel`; yaşam değişikliği `Status` üzerinden yapılır. Arşivli Proje salt okunurdur. Yazma başarısızlığında taslak korunur; eski revizyon çatışmasında kullanıcı `Cancel` ile formu kapatıp güncel kaydı yeniden açar.
 - Bu issue sinyal üretimi veya diğer tüketici bağlamlarını kurmaz; sonraki Risk issue'larının sınırı korunur. Bu bölümün kabulü aşağıdaki #314 Testing Decisions karşılıklarıdır.
 
+### Risk Isolation and open-risk Production — #315
+
+- `Open` ile oluşturma ve başka yaşamdan `Open` geçişi, aynı transaction içinde bir `open-risk` olayı yazar. Alan düzenleme, aynı duruma geçme denemesi, zamanın geçmesi veya eski kaydın okunması olay değildir; geçmiş kayıtlar için geriye dönük üretim yapılmaz.
+- Risks seam'indeki `relateRiskContext` yalnız aynı Projenin `Project Release` kaydına veya aynı Çalışma Alanının `Focus Period` kaydına açık bağ ekler. Genel Relations Work adapter'ı bu uçları desteklemediğinden türlenmiş bağın sahibi `risk_context_relation` tablosudur. Bağ eklenirken Risk `Open`, sürüm `Preparing` veya dönem `Active` ise olay üretilir. Daha sonra bağın hedef yaşamının değişmesi olay değildir.
+- `risk_attention_signal` olay anındaki kaynak olayı, etki, olasılık, zaman ve Risk kaynak yolunu saklar; `projectRiskSignals` yalnız sahibi Account için okur. `Action Required` sunumu merkez tüketicisinin sözleşmesidir; bu issue merkez UI'si eklemez. Aynı mutation tekrarında bağ ve sinyal çoğalmaz; sinyal saklanamazsa kaynak yazması da geri alınır.
+- `Accepted`, `Occurred`, `Resolved` ve `Mitigating` ilişkili İş, sürüm, dönem veya Proje yaşamını/kapanışını değiştirmez. Kabul sürüm yayımlamayı engellemez; sinyal takip İşi, öncelik skoru veya sağlık hükmü üretmez. Bu bölümün test bağı aşağıdaki #315 karşılıklarıdır.
+
 ## Testing Decisions
 
 - **What a good test is.** Tests observe Risks through create, status transitions, and counterparts: related Work still open, Release not failed, `open-risk` only on the two events.
@@ -56,6 +63,10 @@ Risk Proje ana kaydıdır; başlık, açıklama, etki, olasılık, yanıt/azaltm
 ### #314 karşılıkları
 
 Aynı Risks seam'inde `packages/api/src/project-source-records.test.ts` tip/alan/durum doğrulamasını; `apps/server/src/features/project-source-records/server/project-source-records-database.test.ts` oluşturma, tüm durum çiftleri, idempotent tekrar, gerekçe, alan düzenleme, sahiplik, arşiv, kalıcılık ve ilişkili kayıtların değişmemesini; komşu RPC testi Account bağlamını ve görünür hataları doğrular. `apps/web/src/features/risks/ui/components/project-risks-view.test.tsx` alanları, Accepted sunumunu ve salt okunur kontrolleri; `apps/web/e2e/risks.e2e.ts` oluşturma/düzenleme/durum kalıcılığını, iptali, hata sonrası taslağı, boş kabul gerekçesini, klavye erişimini ve dar ekranı doğrular. Skor alanı ve tür dönüşümü karşılıkları API/DB sınırında kalır.
+
+### #315 karşılıkları
+
+Aynı Risks kayıt ve sinyal üretimi seam'inde `packages/api/src/risk-signals.test.ts` iki kaynak olayı ve durumlara göre negatif matrisi doğrular. `apps/server/src/features/project-source-records/server/risk-signals-database.test.ts` oluşturma/yeniden açma, `Preparing` sürüme ve `Active` döneme bağ, olay anı alanları, idempotent tekrar, sahiplik/arşiv/eski revizyon sınırı, alan düzenleme ve hedef yaşamının sonradan değişmesinde üretmeme, bağlı kayıtların bütün değerlerinin korunması, takip İşi üretmeme, kabulden bağımsız yayın ve transaction rollback/retry kanıtını taşır. Komşu `project-source-records-rpc.test.ts` Account bağını ve görünür yetki/çatışma hatalarını doğrular. Kaynak yaşamının mevcut #314 karşılıkları korunur. Bu issue browser UI eklemez; merkez sunumu spec 71'in seam'inde kalır.
 
 ## Out of Scope
 

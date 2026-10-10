@@ -6,6 +6,7 @@ import type {
   MutationPayload,
   MutationTarget,
 } from "@cantiara/api/mutation-and-undo";
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
   assumptionRecordSchema,
   createProjectSourceRecordInputSchema,
@@ -52,6 +53,10 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseDecisionSupersession } from "./decision-supersession-database";
+import {
+  createDatabaseRiskSignals,
+  produceRiskSignal,
+} from "./risk-signals-database";
 import {
   readAssumptionsContext,
   readUncertaintyDocumentPins,
@@ -868,6 +873,13 @@ function projectSourceMutationTarget(
           throw new MutationConflictError(input.targetId);
         }
       }
+      const [previousRisk] =
+        record.sourceType === "Risk"
+          ? await executor
+              .select({ life: risk.life })
+              .from(risk)
+              .where(eq(risk.id, record.id))
+          : [];
       const written = await writeProjectSourceRecord({
         committedAt: input.committedAt,
         expectedRevision: input.expectedRevision,
@@ -875,6 +887,22 @@ function projectSourceMutationTarget(
         record,
         targetId: input.targetId,
       });
+      if (
+        written &&
+        record.sourceType === "Risk" &&
+        record.life === "Open" &&
+        previousRisk?.life !== "Open"
+      ) {
+        await produceRiskSignal(
+          executor,
+          record,
+          {
+            type: "entered-open",
+            id: `risk-open:${await fingerprintMutationPayload({ riskId: record.id, revision: record.revision })}`,
+          },
+          input.committedAt,
+        );
+      }
       if (written && evidence) {
         await executor.insert(usageLink).values({
           id: crypto.randomUUID(),
@@ -1053,6 +1081,7 @@ export function createDatabaseProjectSourceRecords(
 } {
   return {
     supersession: createDatabaseDecisionSupersession(database),
+    riskSignals: createDatabaseRiskSignals(database),
     async listAssumptions(accountId, projectId) {
       const input = projectSourceRecordsProjectInputSchema.parse({ projectId });
       const ownedProject = await findOwnedProject(

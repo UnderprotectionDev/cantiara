@@ -412,3 +412,41 @@ test("Uncertainty Records protects Open Question reads and maps transition confl
     }),
   ).rejects.toMatchObject({ code: "CONFLICT" });
 });
+
+test("Risks signal and context RPCs bind Account ownership and expose unavailable and conflicting links", async () => {
+  const { client, projectSourceRecords } = testClient({
+    session: { id: "session-1" },
+    user: { id: accountId },
+  } as Context["session"]);
+  const list = vi.fn().mockResolvedValue([]);
+  const relate = vi.fn().mockResolvedValue(null);
+  projectSourceRecords.riskSignals = { list, relate };
+  await expect(
+    client.projectRiskSignals({ projectId: "project-1" }),
+  ).resolves.toEqual([]);
+  expect(list).toHaveBeenCalledExactlyOnceWith(accountId, "project-1");
+  const command = {
+    baseRevision: 0,
+    clientIdempotencyKey: "link-period",
+    projectId: "project-1",
+    riskId: "risk-1",
+    targetType: "Focus Period" as const,
+    targetId: "period-1",
+  };
+  await expect(client.relateRiskContext(command)).rejects.toMatchObject({
+    code: "NOT_FOUND",
+  });
+  expect(relate).toHaveBeenCalledExactlyOnceWith(accountId, command);
+  relate.mockRejectedValueOnce(new ProjectSourceRecordConflictError("risk-1"));
+  await expect(client.relateRiskContext(command)).rejects.toMatchObject({
+    code: "CONFLICT",
+    data: { targetId: "risk-1" },
+  });
+  const anonymous = testClient(null);
+  await expect(
+    anonymous.client.projectRiskSignals({ projectId: "project-1" }),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  await expect(
+    anonymous.client.relateRiskContext(command),
+  ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+});
