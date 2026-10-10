@@ -7,7 +7,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 
 export type RiskRecord = Extract<ProjectSourceRecord, { sourceType: "Risk" }>;
@@ -20,6 +20,9 @@ export interface RiskDraft {
   response: string;
   title: string;
 }
+type RiskEditing =
+  | { mode: "create"; record: undefined }
+  | { mode: "edit" | "status"; record: RiskRecord };
 const FIELDS = [
   { name: "title", label: "Title" },
   { name: "description", label: "Description" },
@@ -139,43 +142,52 @@ export function RiskEditor({
                 )}
               </form.Field>
             ) : null}
-            {FIELDS.filter(({ name }) =>
-              changingStatus
-                ? name === "rationale"
-                : name !== "rationale" || Boolean(baseRecord),
-            ).map(({ name, label }) => (
-              <form.Field key={name} name={name}>
-                {(field) => (
-                  <div className="grid gap-2 text-sm">
-                    <label htmlFor={`risk-${name}`}>{label}</label>
-                    {name === "title" ? (
-                      <Input
-                        disabled={pending}
-                        id={`risk-${name}`}
-                        maxLength={255}
-                        onBlur={field.handleBlur}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        required
-                        value={field.state.value}
-                      />
-                    ) : (
-                      <Textarea
-                        disabled={pending}
-                        id={`risk-${name}`}
-                        maxLength={100_000}
-                        onBlur={field.handleBlur}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        value={field.state.value}
-                      />
+            <form.Subscribe selector={(state) => state.values.life}>
+              {(life) =>
+                FIELDS.filter(({ name }) =>
+                  changingStatus
+                    ? name === "rationale"
+                    : name !== "rationale" || Boolean(baseRecord),
+                ).map(({ name, label }) => (
+                  <form.Field key={name} name={name}>
+                    {(field) => (
+                      <div className="grid gap-2 text-sm">
+                        <label htmlFor={`risk-${name}`}>{label}</label>
+                        {name === "title" ? (
+                          <Input
+                            disabled={pending}
+                            id={`risk-${name}`}
+                            maxLength={255}
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            value={field.state.value}
+                          />
+                        ) : (
+                          <Textarea
+                            disabled={
+                              pending ||
+                              (changingStatus &&
+                                name === "rationale" &&
+                                life !== "Accepted")
+                            }
+                            id={`risk-${name}`}
+                            maxLength={100_000}
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            value={field.state.value}
+                          />
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
-              </form.Field>
-            ))}
+                  </form.Field>
+                ))
+              }
+            </form.Subscribe>
             <div className="flex flex-wrap gap-2">
               <Button disabled={pending || conflict} type="submit">
                 {pending ? "Saving…" : "Save"}
@@ -215,21 +227,33 @@ export function ProjectRisksView({
   onStartEditing?: () => void;
   savedMessage?: string;
 }) {
-  const [editing, setEditing] = useState<
-    | {
-        mode: "create" | "edit" | "status";
-        record?: RiskRecord;
-      }
-    | undefined
+  const [editingMode, setEditingMode] = useState<
+    "create" | "edit" | "status" | undefined
   >(undefined);
   const selected = records.find((record) => record.id === selectedId);
+  const editing: RiskEditing | undefined = (() => {
+    if (editingMode === "create") {
+      return { mode: editingMode, record: undefined };
+    }
+    if (editingMode && selected) {
+      return { mode: editingMode, record: selected };
+    }
+  })();
+  useEffect(() => {
+    if (
+      readOnly ||
+      (editingMode !== "create" && editingMode !== undefined && !selected)
+    ) {
+      setEditingMode(undefined);
+    }
+  }, [editingMode, readOnly, selected]);
   function start(mode: "create" | "edit" | "status") {
     onStartEditing?.();
-    setEditing({ mode, record: mode === "create" ? undefined : selected });
+    setEditingMode(mode);
   }
   async function save(draft: RiskDraft, record?: RiskRecord) {
     await (editing?.mode === "status" ? onTransition : onSave)(draft, record);
-    setEditing(undefined);
+    setEditingMode(undefined);
   }
   return (
     <section aria-label="Risks" className="space-y-5">
@@ -245,8 +269,12 @@ export function ProjectRisksView({
       {editing && !readOnly ? (
         <RiskEditor
           changingStatus={editing.mode === "status"}
-          key={editing.mode}
-          onCancel={() => setEditing(undefined)}
+          key={
+            editing.mode === "create"
+              ? "create"
+              : `${editing.mode}:${editing.record.id}`
+          }
+          onCancel={() => setEditingMode(undefined)}
           onSave={save}
           record={editing.record}
         />

@@ -19,15 +19,13 @@ export default function ProjectOverviewSurface({
   const risksQuery = useQuery(
     orpc.projectRisks.queryOptions({ input: { projectId: project.id } }),
   );
-  const risks = risksQuery.data?.records
-    .filter((record) => record.life === "Open" || record.life === "Mitigating")
-    .map((record) => ({
-      id: record.id,
-      title: record.title,
-      status: record.life,
-      description: record.impact,
-      href: riskHref(project.id, record.id),
-    }));
+  const risks = risksQuery.data?.records.map((record) => ({
+    id: record.id,
+    title: record.title,
+    status: record.life,
+    description: record.impact,
+    href: riskHref(project.id, record.id),
+  }));
   const goalsQuery = useQuery(
     orpc.projectGoals.queryOptions({ input: { projectId: project.id } }),
   );

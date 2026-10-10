@@ -31,9 +31,43 @@ test("Risks persists founder fields and explicit acceptance, preserves drafts, a
   await page.getByRole("button", { name: "Save", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByText("Risk saved.", { exact: true })).toBeVisible();
+
+  await region.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Dependency outage");
+  await page
+    .getByLabel("Impact", { exact: true })
+    .fill("Manual fallback available");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Risk saved.", { exact: true })).toBeVisible();
+
   await page.getByRole("link", { name: "Provider delay", exact: true }).click();
   const detail = page.getByRole("article", { name: "Risk", exact: true });
   await expect(detail).toContainText("Open");
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByLabel("Impact", { exact: true })
+    .fill("Unsaved provider edit");
+  await region
+    .getByRole("link", { name: "Dependency outage", exact: true })
+    .click();
+  await expect(detail).toContainText("Dependency outage");
+  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+    "Dependency outage",
+  );
+  await expect(page.getByLabel("Impact", { exact: true })).toHaveValue(
+    "Manual fallback available",
+  );
+  await page
+    .getByLabel("Impact", { exact: true })
+    .fill("Fallback remains available");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Risk saved.", { exact: true })).toBeVisible();
+  await expect(detail).toContainText("Fallback remains available");
+  await region
+    .getByRole("link", { name: "Provider delay", exact: true })
+    .click();
+  await expect(detail).toContainText("Delayed release");
+
   await page.reload();
   await expect(detail).toContainText("Prepare fallback");
   await page.getByRole("button", { name: "Edit", exact: true }).click();

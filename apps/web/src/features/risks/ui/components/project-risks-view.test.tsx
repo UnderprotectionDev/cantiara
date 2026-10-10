@@ -23,6 +23,8 @@ const record: RiskRecord = {
 };
 const save = async () => undefined;
 const cancel = () => undefined;
+const rationaleTextareaPattern = /<textarea[^>]*id="risk-rationale"[^>]*>/;
+const disabledAttributePattern = /\sdisabled(?:=""|=)/;
 
 test("Risks keeps Accepted visible with its rationale and offers explicit status changes without scores", () => {
   const html = renderToStaticMarkup(
@@ -89,4 +91,19 @@ test("Risk creation labels founder text and status editor labels the complete st
   }
   expect(status).toContain('id="risk-rationale"');
   expect(status).toContain("A known Risk remains recorded when accepted.");
+  const acceptedRationale = status.match(rationaleTextareaPattern)?.[0];
+  expect(acceptedRationale).toBeDefined();
+  expect(acceptedRationale).not.toMatch(disabledAttributePattern);
+
+  const openStatus = renderToStaticMarkup(
+    <RiskEditor
+      changingStatus
+      onCancel={cancel}
+      onSave={save}
+      record={{ ...record, life: "Open" }}
+    />,
+  );
+  const openRationale = openStatus.match(rationaleTextareaPattern)?.[0];
+  expect(openRationale).toBeDefined();
+  expect(openRationale).toMatch(disabledAttributePattern);
 });
