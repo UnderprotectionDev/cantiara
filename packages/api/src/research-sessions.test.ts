@@ -139,7 +139,7 @@ test("snapshot selection is closed world, detached, and suppressed again after C
       id: "quote-allowed",
       kind: "Participant quote",
       text: "Use CSV",
-      speakerLabel: "Participant A",
+      speakerLabel: null,
       relationIds: [],
     },
   ]);
@@ -211,4 +211,109 @@ test("capture cannot accept client-supplied permission provenance", () => {
       consentAtCapture: "Allowed",
     }),
   ).toThrow();
+});
+
+test("Research Sessions captures Observation and Founder interpretation without turning them into participant words", () => {
+  for (const kind of ["Observation", "Founder interpretation"] as const) {
+    const captured = captureResearchSessionContent("Allowed", {
+      id: kind,
+      kind,
+      text: "The export flow needs fewer steps.",
+      containsPersonalInformation: true,
+    });
+    expect(captured.content).toEqual({
+      id: kind,
+      kind,
+      text: "The export flow needs fewer steps.",
+      containsPersonalInformation: true,
+      relationIds: [],
+    });
+    expect(() =>
+      captureResearchSessionContent("Allowed", {
+        ...captured.content,
+        speakerLabel: "Contact name",
+        sentiment: "positive",
+      }),
+    ).toThrow();
+  }
+});
+
+test.each(["Not asked", "Not allowed"] as const)(
+  "%s permits only explicitly nonpersonal observations and interpretations",
+  (consent) => {
+    for (const kind of ["Observation", "Founder interpretation"] as const) {
+      expect(() =>
+        captureResearchSessionContent(consent, {
+          id: kind,
+          kind,
+          text: "Private address",
+        }),
+      ).toThrow("Consent");
+      expect(() =>
+        captureResearchSessionContent(consent, {
+          id: kind,
+          kind,
+          text: "Private address",
+          containsPersonalInformation: true,
+        }),
+      ).toThrow("Consent");
+      expect(
+        captureResearchSessionContent(consent, {
+          id: kind,
+          kind,
+          text: "The button was hard to find",
+          containsPersonalInformation: false,
+        }),
+      ).toMatchObject({
+        content: { kind, containsPersonalInformation: false },
+        consentAtCapture: consent,
+      });
+    }
+    expect(() =>
+      captureResearchSessionContent(consent, {
+        id: "q",
+        kind: "Participant quote",
+        text: "Words",
+        containsPersonalInformation: false,
+      }),
+    ).toThrow();
+  },
+);
+
+test("new snapshot candidates never disclose a Speaker label even with participant selection", () => {
+  const session = researchSessionRecordSchema.parse({
+    ...sessionFields,
+    id: "s",
+    projectId: "p",
+    sourceType: "Research Session",
+    revision: 1,
+    createdAt: instant,
+    updatedAt: instant,
+    consentRecordedAt: instant,
+    consentRecordedBy: "founder",
+    consent: "Allowed",
+    participantContactId: "contact",
+    participantConsentAtLink: "Allowed",
+    content: [
+      captureResearchSessionContent("Allowed", {
+        id: "q",
+        kind: "Participant quote",
+        text: "Use CSV",
+        speakerLabel: "Private Contact email",
+      }),
+    ],
+  });
+  for (const participant of [true, false]) {
+    const preview = researchSessionSnapshotPreview(session, {
+      contentIds: ["q"],
+      participant,
+      consent: false,
+    });
+    expect(JSON.stringify(preview)).not.toContain("Private Contact email");
+    expect(preview[0]).toMatchObject({
+      kind: "Participant quote",
+      text: "Use CSV",
+      speakerLabel: null,
+    });
+  }
 });

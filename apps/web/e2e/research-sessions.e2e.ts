@@ -268,7 +268,7 @@ test("Kişisel veri research consent fixture enforces protected RPC capture and 
               id: contentId,
               kind: "Participant quote",
               text: "Use CSV",
-              speakerLabel: "Participant A",
+              speakerLabel: null,
               relationIds: [],
             },
           ]
@@ -332,4 +332,136 @@ test("Kişisel veri research consent fixture enforces protected RPC capture and 
     },
   );
   expect(denied.status()).toBe(401);
+});
+
+test("typed Research Session notes remain distinct through save, edit, retry and Consent refusal", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#project-area-discovery`);
+  const sessions = page.getByRole("region", {
+    name: "Research Sessions",
+    exact: true,
+  });
+  await sessions
+    .getByRole("button", { name: "Create Research Session", exact: true })
+    .click();
+  await sessions
+    .getByLabel("Title", { exact: true })
+    .fill("Typed export interview");
+  await sessions
+    .getByLabel("Purpose", { exact: true })
+    .fill("Understand export behavior");
+  await sessions.getByLabel("Consent", { exact: true }).selectOption("Allowed");
+  await sessions.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(sessions).toContainText("Research Session saved.");
+  const notes = page.getByRole("region", {
+    name: "Notes for Typed export interview",
+    exact: true,
+  });
+  for (const [kind, text] of [
+    ["Participant quote", "I need CSV exports"],
+    ["Observation", "The participant opened the menu three times"],
+    ["Founder interpretation", "A shorter menu may help"],
+  ]) {
+    await notes.getByRole("button", { name: "Add note", exact: true }).click();
+    await expect(notes.getByRole("textbox")).toHaveCount(0);
+    await notes.getByLabel("Note type", { exact: true }).selectOption(kind);
+    await notes.getByLabel(kind, { exact: true }).fill(text);
+    if (kind === "Participant quote") {
+      await notes
+        .getByLabel("Speaker label (optional)", { exact: true })
+        .fill("Participant A");
+      await page.route(
+        "**/rpc/saveResearchSessionNote",
+        (route) =>
+          route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+        { times: 1 },
+      );
+      await notes.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(notes.getByRole("alert")).toContainText(
+        "could not be saved",
+      );
+      await expect(notes.getByLabel(kind, { exact: true })).toHaveValue(text);
+      await notes.getByRole("button", { name: "Retry", exact: true }).focus();
+      await page.keyboard.press("Enter");
+    } else {
+      await notes.getByRole("button", { name: "Save", exact: true }).click();
+    }
+    await expect(
+      notes.getByRole("article", { name: kind, exact: true }),
+    ).toContainText(text);
+  }
+  await page.reload();
+  await expect(notes.getByRole("article")).toHaveCount(3);
+  const interpretation = notes.getByRole("article", {
+    name: "Founder interpretation",
+    exact: true,
+  });
+  await interpretation
+    .getByRole("button", { name: "Edit note", exact: true })
+    .click();
+  await expect(notes.getByLabel("Note type", { exact: true })).toBeDisabled();
+  await notes
+    .getByRole("textbox", { name: "Founder interpretation", exact: true })
+    .fill("An explicit export action may help");
+  await notes.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(interpretation).toContainText("A shorter menu may help");
+  await interpretation
+    .getByRole("button", { name: "Edit note", exact: true })
+    .click();
+  await notes
+    .getByRole("textbox", { name: "Founder interpretation", exact: true })
+    .fill("An explicit export action may help");
+  await notes.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(interpretation).toContainText(
+    "An explicit export action may help",
+  );
+  await sessions.getByRole("button", { name: "Edit", exact: true }).click();
+  await sessions
+    .getByLabel("Consent", { exact: true })
+    .selectOption("Not allowed");
+  await sessions.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(sessions).toContainText("Consent: Not allowed");
+  await notes.getByRole("button", { name: "Add note", exact: true }).click();
+  await notes
+    .getByLabel("Note type", { exact: true })
+    .selectOption("Participant quote");
+  await expect(
+    notes.getByRole("textbox", { name: "Participant quote", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    notes.getByRole("button", { name: "Save", exact: true }),
+  ).toBeDisabled();
+  await notes
+    .getByLabel("Note type", { exact: true })
+    .selectOption("Observation");
+  await notes
+    .getByRole("textbox", { name: "Observation", exact: true })
+    .fill("The menu took several attempts");
+  await expect(
+    notes.getByRole("button", { name: "Save", exact: true }),
+  ).toBeDisabled();
+  await notes
+    .getByLabel("Contains personal information", { exact: true })
+    .uncheck();
+  const audit = await new AxeBuilder({ page })
+    .include('[aria-label="Research Sessions"]')
+    .analyze();
+  expect(audit.violations).toEqual([]);
+  await notes.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(notes.getByRole("article")).toHaveCount(4);
+  await page.reload();
+  await expect(interpretation).toContainText(
+    "An explicit export action may help",
+  );
+  await expect(notes.getByRole("article")).toHaveCount(4);
+  await notes.screenshot({ path: "../../.context/research-notes.png" });
 });

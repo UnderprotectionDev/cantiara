@@ -279,6 +279,7 @@ import {
   researchSessionSnapshotPreview,
   researchSessionSnapshotPreviewInputSchema,
   saveResearchSessionInputSchema,
+  saveResearchSessionNoteInputSchema,
 } from "../research-sessions";
 import {
   returnContextInputSchema,
@@ -5229,6 +5230,21 @@ export const appRouter = {
       }
       try {
         return await context.researchSessions.save(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  saveResearchSessionNote: protectedProcedure
+    .input(saveResearchSessionNoteInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.saveNote(
           context.session.user.id,
           input,
         );

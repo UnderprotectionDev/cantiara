@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
+import { ResearchSessionNoteEditor } from "./research-session-notes";
 import { ResearchSessionEditor } from "./research-sessions-view";
 
 const cancel = () => undefined;
@@ -31,4 +32,19 @@ test("Research Sessions shows four Consent choices, separate context and a conse
     "Consent is context, not a legal compliance judgment.",
   );
   expect(html).not.toContain("required Contact");
+});
+
+test("Research Sessions requires an explicit note type and explains each kind without a mixed body", () => {
+  const html = renderToStaticMarkup(
+    <ResearchSessionNoteEditor
+      consent="Not allowed"
+      onCancel={cancel}
+      onSave={save}
+    />,
+  );
+  expect(html).toContain("Choose note type");
+  expect(html).toContain("Participant quote");
+  expect(html).toContain("Observation");
+  expect(html).toContain("Founder interpretation");
+  expect(html).not.toContain("<textarea");
 });
