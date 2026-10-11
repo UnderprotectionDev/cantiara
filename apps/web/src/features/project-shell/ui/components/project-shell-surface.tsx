@@ -177,6 +177,7 @@ function projectUncertaintySurface(
   accountId: string | undefined,
   activeHash: string,
   sourceRecordRoute: ReturnType<typeof projectSourceRecordFromHash>,
+  preferences: AccountPreferences,
 ) {
   const assumptionSourceId =
     sourceRecordRoute?.sourceType === "Assumption"
@@ -207,6 +208,7 @@ function projectUncertaintySurface(
       {["discovery", "project-area-discovery"].includes(activeHash) ? (
         <ProjectSourcesSurface
           key={`sources:${projectId}`}
+          preferences={preferences}
           projectId={projectId}
         />
       ) : null}
@@ -385,6 +387,7 @@ function ProjectShellContent({
     accountId,
     activeHash,
     sourceRecordRoute,
+    accountFormattingPreferences,
   );
   const projectSurface = (() => {
     if (isGoalsSurface) {

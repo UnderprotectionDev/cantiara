@@ -64,9 +64,11 @@ function loadYouTubeApi() {
 export function YouTubePreviewPlayer({
   videoId,
   available = true,
+  playerOrigin,
 }: {
   videoId: string;
   available?: boolean;
+  playerOrigin?: string;
 }) {
   const [requested, setRequested] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -92,6 +94,55 @@ export function YouTubePreviewPlayer({
       player = undefined;
       container.replaceChildren();
       setStatus("error");
+    }
+    if (playerOrigin) {
+      const frame = document.createElement("iframe");
+      frame.title = "YouTube live player";
+      frame.allow = "fullscreen; encrypted-media";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      frame.setAttribute(
+        "sandbox",
+        "allow-scripts allow-same-origin allow-presentation",
+      );
+      function receive(event: MessageEvent) {
+        if (
+          canceled ||
+          failed ||
+          event.origin !== playerOrigin ||
+          event.source !== frame.contentWindow
+        ) {
+          return;
+        }
+        const data: unknown = event.data;
+        if (
+          !data ||
+          typeof data !== "object" ||
+          !("type" in data) ||
+          data.type !== "cantiara-youtube-player" ||
+          !("videoId" in data) ||
+          data.videoId !== videoId ||
+          !("status" in data)
+        ) {
+          return;
+        }
+        if (data.status === "ready") {
+          clearTimeout(timeout);
+          setStatus("ready");
+        } else if (data.status === "error") {
+          fail();
+        }
+      }
+      frame.onerror = fail;
+      window.addEventListener("message", receive);
+      frame.src = `${playerOrigin}/smart-link/youtube/${encodeURIComponent(videoId)}`;
+      container.append(frame);
+      return () => {
+        canceled = true;
+        clearTimeout(timeout);
+        window.removeEventListener("message", receive);
+        container.replaceChildren();
+      };
     }
     loadYouTubeApi()
       .then((api) => {
@@ -126,7 +177,7 @@ export function YouTubePreviewPlayer({
       player?.destroy();
       container.replaceChildren();
     };
-  }, [requested, videoId]);
+  }, [requested, videoId, playerOrigin]);
   function load() {
     setStatus("loading");
     setRequested(true);

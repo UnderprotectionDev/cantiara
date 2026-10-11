@@ -1,5 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Composer controls capture current URL, request and save state.
 import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
+import {
   type SmartLinkPreview,
   type SmartLinkPreviewAccess,
   safePreviewLink,
@@ -8,16 +12,21 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { type ClipboardEvent, useRef, useState } from "react";
+import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import { YouTubePreviewPlayer } from "./youtube-preview-player";
 
 export function SmartLinkComposer({
   onPreview,
   onSave,
   readOnly = false,
+  preferences = DEFAULT_ACCOUNT_PREFERENCES,
+  youtubePlayerOrigin,
 }: {
   onPreview: SmartLinkPreviewAccess;
   onSave: (preview: SmartLinkPreview) => Promise<void>;
   readOnly?: boolean;
+  preferences?: AccountPreferences;
+  youtubePlayerOrigin?: string;
 }) {
   const [url, setUrl] = useState("");
   const [preview, setPreview] = useState<SmartLinkPreview | null>(null);
@@ -141,6 +150,7 @@ export function SmartLinkComposer({
             <YouTubePreviewPlayer
               available={preview.player !== null}
               key={videoId}
+              playerOrigin={youtubePlayerOrigin}
               videoId={videoId}
             />
           )}
@@ -154,7 +164,8 @@ export function SmartLinkComposer({
                   </p>
                 )}
                 <p className="text-muted-foreground text-sm">
-                  Save the title and captured text from {preview.accessedAt}.
+                  Save the title and captured text from{" "}
+                  {formatAccountDateTime(preview.accessedAt, preferences)}.
                   Later external changes will not update this snapshot.
                 </p>
                 <p className="max-h-48 overflow-auto whitespace-pre-wrap break-words text-sm">

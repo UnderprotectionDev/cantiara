@@ -134,6 +134,7 @@ import {
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
 import { WebCaptureError } from "./features/capture-triage/server/web-capture";
+import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
 import type { CreateSupportReferenceFailureOptions } from "./features/web-macos-client/server/support-reference";
 import {
   createDesktopApiUpdateRequiredResponse,
@@ -876,6 +877,7 @@ export function createApp(dependencies: AppDependencies) {
     ...dependencies.desktopOrigins,
   ];
   const app = new Hono<EvlogVariables>();
+  app.route("/smart-link/youtube", youtubePlayerRoutes);
 
   app.use("*", async (c, next) => {
     c.req.raw.headers.delete("x-request-id");

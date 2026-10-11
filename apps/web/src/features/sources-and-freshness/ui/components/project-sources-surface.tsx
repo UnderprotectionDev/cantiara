@@ -1,8 +1,15 @@
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import type { SmartLinkPreview } from "@cantiara/api/smart-link-preview";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import { env } from "@/env";
+import { isTauriRuntime } from "@/features/account-access/lib/tauri-session";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import { SmartLinkComposer } from "./smart-link-preview";
 
 function preview(url: string) {
@@ -10,8 +17,10 @@ function preview(url: string) {
 }
 export default function ProjectSourcesSurface({
   projectId,
+  preferences = DEFAULT_ACCOUNT_PREFERENCES,
 }: {
   projectId: string;
+  preferences?: AccountPreferences;
 }) {
   const options = orpc.projectSources.queryOptions({ input: { projectId } });
   const sources = useQuery(options);
@@ -64,7 +73,11 @@ export default function ProjectSourcesSurface({
       <SmartLinkComposer
         onPreview={preview}
         onSave={save}
+        preferences={preferences}
         readOnly={sources.data.readOnly}
+        youtubePlayerOrigin={
+          isTauriRuntime() ? new URL(env.VITE_SERVER_URL).origin : undefined
+        }
       />
       {sources.data.records.map((source) => (
         <article
@@ -82,7 +95,7 @@ export default function ProjectSourcesSurface({
             {source.version.url}
           </a>
           <p className="text-muted-foreground text-sm">
-            {source.version.accessedAt}
+            {formatAccountDateTime(source.version.accessedAt, preferences)}
           </p>
           <p className="whitespace-pre-wrap break-words text-sm">
             {source.version.capturedContent || "No text was captured."}
