@@ -1,5 +1,8 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Consent attempts are deliberately sequential at the same revision to prove rollback.
-import { researchSessionContentInputSchema } from "@cantiara/api/research-sessions";
+import {
+  researchSessionContentInputSchema,
+  researchSessionConvertPreview,
+} from "@cantiara/api/research-sessions";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -295,6 +298,153 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         }),
       ).rejects.toThrow();
     });
+    test("typed notes persist with atomic revisions, stable kinds, retry identity and immutable capture Consent", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const saved = await sessions.save(accountId, {
+        id: crypto.randomUUID(),
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: "Typed notes",
+          purpose: "Export",
+          consent: "Not allowed",
+        },
+      });
+      const command = {
+        id: saved.id,
+        projectId,
+        baseRevision: saved.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        create: true,
+        note: {
+          id: "observation",
+          kind: "Observation" as const,
+          text: "The menu took three attempts",
+          containsPersonalInformation: false,
+        },
+      };
+      const noted = await sessions.saveNote(accountId, command);
+      expect(await sessions.saveNote(accountId, command)).toEqual(noted);
+      expect(noted.sourceType).toBe("Research Session");
+      expect(noted.content[0]).toMatchObject({
+        consentAtCapture: "Not allowed",
+        content: { kind: "Observation", text: command.note.text },
+      });
+      await expect(
+        sessions.saveNote(accountId, {
+          ...command,
+          create: false,
+          baseRevision: noted.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          note: { ...command.note, containsPersonalInformation: true },
+        }),
+      ).rejects.toThrow();
+      const allowed = await sessions.save(accountId, {
+        id: saved.id,
+        projectId,
+        baseRevision: noted.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: { title: "Typed notes", purpose: "Export", consent: "Allowed" },
+      });
+      const edit = {
+        ...command,
+        create: false,
+        baseRevision: allowed.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        note: { ...command.note, text: "The menu took four attempts" },
+      };
+      const edited = await sessions.saveNote(accountId, edit);
+      expect(await sessions.saveNote(accountId, edit)).toEqual(edited);
+      expect(edited.content[0]).toMatchObject({
+        consentAtCapture: "Not allowed",
+        content: { text: edit.note.text },
+      });
+      await expect(
+        sessions.saveNote(accountId, {
+          ...edit,
+          baseRevision: edited.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          note: {
+            id: command.note.id,
+            kind: "Participant quote",
+            text: "Misattributed words",
+          },
+        }),
+      ).rejects.toThrow();
+      await expect(
+        sessions.saveNote(accountId, {
+          ...edit,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "STALE_BASE_REVISION" });
+      await expect(
+        sessions.saveNote("foreign-founder", {
+          ...edit,
+          baseRevision: edited.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        sessions.saveNote(accountId, {
+          ...edit,
+          note: { ...edit.note, id: "missing" },
+          baseRevision: edited.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toThrow();
+      const interpretation = await sessions.saveNote(accountId, {
+        ...command,
+        baseRevision: edited.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        note: {
+          id: "interpretation",
+          kind: "Founder interpretation",
+          text: "A shorter menu may help",
+          containsPersonalInformation: true,
+        },
+      });
+      expect(
+        (await sessions.list(accountId, projectId))?.records,
+      ).toContainEqual(interpretation);
+      expect(interpretation.content[1]).toMatchObject({
+        content: {
+          kind: "Founder interpretation",
+          text: "A shorter menu may help",
+        },
+      });
+      const preview = researchSessionConvertPreview(
+        interpretation,
+        "interpretation",
+      );
+      const rewritten = await sessions.saveNote(accountId, {
+        ...edit,
+        baseRevision: interpretation.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        note: {
+          id: "interpretation",
+          kind: "Founder interpretation",
+          text: "An explicit action may help",
+          containsPersonalInformation: true,
+        },
+      });
+      expect(preview).toMatchObject({
+        sessionRevision: interpretation.revision,
+        content: {
+          kind: "Founder interpretation",
+          text: "A shorter menu may help",
+        },
+      });
+      expect(rewritten.content[1]).toMatchObject({
+        content: {
+          kind: "Founder interpretation",
+          text: "An explicit action may help",
+        },
+      });
+    });
     test("foreign and archived Projects refuse new writes", async () => {
       if (!db) {
         throw new Error("Database required");
@@ -317,6 +467,21 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         sessions.save(accountId, {
           ...command,
           clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        sessions.saveNote(accountId, {
+          id: command.id,
+          projectId,
+          baseRevision: 0,
+          clientIdempotencyKey: crypto.randomUUID(),
+          create: true,
+          note: {
+            id: "archived-note",
+            kind: "Observation",
+            text: "Menu behavior",
+            containsPersonalInformation: false,
+          },
         }),
       ).rejects.toThrow();
     });

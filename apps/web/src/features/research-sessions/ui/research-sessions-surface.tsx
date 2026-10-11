@@ -1,5 +1,6 @@
 import type {
   ResearchSessionFields,
+  ResearchSessionNoteInput,
   ResearchSessionRecord,
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
@@ -22,6 +23,9 @@ export default function ResearchSessionsSurface({
   });
   const query = useQuery(options);
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
+  const notePending = useRef(
+    new Map<string, { fingerprint: string; key: string }>(),
+  );
   const pending = useRef<{
     fingerprint: string;
     id: string;
@@ -44,16 +48,52 @@ export default function ResearchSessionsSurface({
       };
     }
     const identity = pending.current;
+    await commit(() =>
+      client.saveResearchSession({
+        fields,
+        projectId,
+        id: identity.id,
+        baseRevision: record?.revision ?? 0,
+        clientIdempotencyKey: identity.key,
+      }),
+    );
+    pending.current = null;
+  }
+  async function saveNote(
+    note: ResearchSessionNoteInput,
+    record: ResearchSessionRecord,
+    create: boolean,
+  ) {
+    const fingerprint = JSON.stringify({
+      note,
+      id: record.id,
+      revision: record.revision,
+      create,
+    });
+    const draftId = JSON.stringify([record.id, note.id]);
+    let identity = notePending.current.get(draftId);
+    if (identity?.fingerprint !== fingerprint) {
+      identity = { fingerprint, key: crypto.randomUUID() };
+      notePending.current.set(draftId, identity);
+    }
+    const { key } = identity;
+    await commit(() =>
+      client.saveResearchSessionNote({
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        clientIdempotencyKey: key,
+        note,
+        create,
+      }),
+    );
+    if (notePending.current.get(draftId) === identity) {
+      notePending.current.delete(draftId);
+    }
+  }
+  async function commit(write: () => Promise<unknown>) {
     try {
-      await runOnlineOnlyWrite(() =>
-        client.saveResearchSession({
-          fields,
-          projectId,
-          id: identity.id,
-          baseRevision: record?.revision ?? 0,
-          clientIdempotencyKey: identity.key,
-        }),
-      );
+      await runOnlineOnlyWrite(write);
     } catch (error) {
       if (
         error instanceof Error &&
@@ -65,7 +105,6 @@ export default function ResearchSessionsSurface({
       throw error;
     }
     await queryClient.invalidateQueries({ queryKey: options.queryKey });
-    pending.current = null;
   }
   function retry() {
     query.refetch().catch(() => undefined);
@@ -88,6 +127,7 @@ export default function ResearchSessionsSurface({
   return (
     <ResearchSessionsView
       onSave={save}
+      onSaveNote={saveNote}
       onStartEditing={startEditing}
       readOnly={query.data.readOnly}
       records={query.data.records}
