@@ -68,6 +68,8 @@ import {
   customFieldDefinition,
   customFieldValue,
 } from "./schema/custom-fields";
+import { evidenceBinding, recordOrigin } from "./schema/evidence";
+import { feedback } from "./schema/feedback";
 import {
   mutationHistory,
   mutationReceipt,
@@ -86,7 +88,10 @@ import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "./schema/priority-metrics";
-import { researchSession } from "./schema/research-session";
+import {
+  researchSession,
+  researchSessionBindingPreview,
+} from "./schema/research-session";
 import { roadmapView } from "./schema/roadmap-horizon";
 import {
   smartCollection,
@@ -119,6 +124,10 @@ const schema = {
   projectBacklogOrder,
   roadmapView,
   researchSession,
+  researchSessionBindingPreview,
+  evidenceBinding,
+  recordOrigin,
+  feedback,
   fileAttachment,
   fileAttachmentMarking,
   fileAttachmentMarkingRelations,

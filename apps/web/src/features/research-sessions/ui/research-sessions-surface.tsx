@@ -5,9 +5,10 @@ import type {
 } from "@cantiara/api/research-sessions";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { accountPreferencesQueryOptions, client, orpc } from "@/utils/orpc";
+import type { ResearchBindingActions } from "./research-note-binding";
 import { ResearchSessionsView } from "./research-sessions-view";
 
 export default function ResearchSessionsSurface({
@@ -22,6 +23,43 @@ export default function ResearchSessionsSurface({
     input: { projectId },
   });
   const query = useQuery(options);
+  const bindingActions = useMemo<ResearchBindingActions>(
+    () => ({
+      targets: (record) =>
+        client.researchSessionBindingTargets({ id: record.id, projectId }),
+      list: (record) =>
+        client.projectResearchSessionBindings({ id: record.id, projectId }),
+      preview: async (input) => {
+        try {
+          return await runOnlineOnlyWrite(() =>
+            client.previewResearchSessionBinding(input),
+          );
+        } catch (error) {
+          await queryClient.invalidateQueries({ queryKey: options.queryKey });
+          throw error;
+        }
+      },
+      confirm: async (record, preview, key) => {
+        try {
+          const result = await runOnlineOnlyWrite(() =>
+            client.confirmResearchSessionBinding({
+              id: record.id,
+              projectId,
+              baseRevision: record.revision,
+              previewId: preview.previewId,
+              clientIdempotencyKey: key,
+            }),
+          );
+          await queryClient.invalidateQueries();
+          return result;
+        } catch (error) {
+          await queryClient.invalidateQueries({ queryKey: options.queryKey });
+          throw error;
+        }
+      },
+    }),
+    [projectId, queryClient, options.queryKey],
+  );
   const preferences = useQuery(accountPreferencesQueryOptions(accountId));
   const notePending = useRef(
     new Map<string, { fingerprint: string; key: string }>(),
@@ -126,6 +164,7 @@ export default function ResearchSessionsSurface({
   }
   return (
     <ResearchSessionsView
+      bindingActions={bindingActions}
       onSave={save}
       onSaveNote={saveNote}
       onStartEditing={startEditing}

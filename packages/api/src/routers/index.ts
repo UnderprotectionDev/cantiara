@@ -271,6 +271,10 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  confirmResearchSessionBindingInputSchema,
+  previewResearchSessionBindingInputSchema,
+} from "../research-session-bindings";
+import {
   captureResearchSessionInputSchema,
   ResearchSessionConsentError,
   researchSessionConvertPreview,
@@ -5264,6 +5268,70 @@ export const appRouter = {
       }
       try {
         return await context.researchSessions.capture(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  researchSessionBindingTargets: protectedProcedure
+    .input(
+      z
+        .object({ id: z.string().min(1), projectId: z.string().min(1) })
+        .strict(),
+    )
+    .handler(({ context, input }) => {
+      if (!context.researchSessions?.bindingTargets) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.researchSessions.bindingTargets(
+        context.session.user.id,
+        input,
+      );
+    }),
+  projectResearchSessionBindings: protectedProcedure
+    .input(
+      z
+        .object({ id: z.string().min(1), projectId: z.string().min(1) })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.listBindings) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.listBindings(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  previewResearchSessionBinding: protectedProcedure
+    .input(previewResearchSessionBindingInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.previewBinding) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.previewBinding(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  confirmResearchSessionBinding: protectedProcedure
+    .input(confirmResearchSessionBindingInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.confirmBinding) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.confirmBinding(
           context.session.user.id,
           input,
         );

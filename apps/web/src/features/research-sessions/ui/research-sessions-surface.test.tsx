@@ -16,11 +16,13 @@ const rpc = vi.hoisted(() => ({
   list: vi.fn(),
   save: vi.fn(),
   saveNote: vi.fn(),
+  bindings: vi.fn(),
 }));
 vi.mock("@/utils/orpc", () => ({
   client: {
     saveResearchSession: rpc.save,
     saveResearchSessionNote: rpc.saveNote,
+    projectResearchSessionBindings: rpc.bindings,
   },
   accountPreferencesQueryOptions: () => ({
     queryKey: ["preferences"],
@@ -37,6 +39,7 @@ vi.mock("@/utils/orpc", () => ({
 }));
 
 async function openSurface() {
+  rpc.bindings.mockResolvedValue([]);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type { ResearchSessionBindingsAccess } from "./research-session-bindings";
 
 const id = z.string().trim().min(1).max(255);
 const text = z.string().trim().min(1).max(20_000);
@@ -260,7 +261,8 @@ export function researchSessionSnapshotPreview(
   return structuredClone(result);
 }
 
-export interface ResearchSessionsAccess {
+export interface ResearchSessionsAccess
+  extends Partial<ResearchSessionBindingsAccess> {
   capture: (
     accountId: string,
     input: CaptureResearchSessionInput,
@@ -293,6 +295,9 @@ export function researchSessionConvertPreview(
     throw new Error("Research Session content is unavailable.");
   }
   assertResearchSessionConsent(item.consentAtCapture);
+  if (!researchSessionNoteInputSchema.safeParse(item.content).success) {
+    throw new Error("Choose a research note or quote.");
+  }
   return structuredClone({
     sessionId: session.id,
     sessionRevision: session.revision,

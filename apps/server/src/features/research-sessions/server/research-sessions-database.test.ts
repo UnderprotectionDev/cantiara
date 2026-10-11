@@ -11,7 +11,7 @@ import {
 } from "@cantiara/db/schema/file-attachments";
 import { project } from "@cantiara/db/schema/project";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { createDatabaseResearchSessions } from "./research-sessions-database";
 
 const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -483,6 +483,517 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
             containsPersonalInformation: false,
           },
         }),
+      ).rejects.toThrow();
+    });
+  },
+);
+
+(url ? describe : describe.skip)(
+  "Research Sessions — preview and pinned conversion",
+  () => {
+    const db = url ? createDb({ DATABASE_URL: url }) : undefined;
+    const accountId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    beforeAll(async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      await db.insert(user).values({
+        id: accountId,
+        name: "Founder",
+        email: `${accountId}@example.invalid`,
+      });
+      await db
+        .insert(workspace)
+        .values({ id: workspaceId, ownerAccountId: accountId });
+      await db.insert(project).values({
+        id: projectId,
+        workspaceId,
+        name: "Pinned research",
+        shortCode: `P${accountId.slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+    });
+    afterAll(async () => {
+      await db?.delete(user).where(eq(user.id, accountId));
+      await db?.$client.end();
+    });
+    test("preview creates no target; confirm creates one target and preserves the old pin after editing", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const { createDatabaseProjectSourceRecords } = await import(
+        "../../project-source-records/server/project-source-records-database"
+      );
+      const targets = createDatabaseProjectSourceRecords(db);
+      const saved = await sessions.save(accountId, {
+        id: crypto.randomUUID(),
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: "CSV interview",
+          purpose: "Export needs",
+          consent: "Allowed",
+        },
+      });
+      const noted = await sessions.saveNote(accountId, {
+        id: saved.id,
+        projectId,
+        baseRevision: saved.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        create: true,
+        note: {
+          id: "q1",
+          kind: "Participant quote",
+          text: "Please use CSV exports today.",
+        },
+      });
+      const { listAssumptions } = targets;
+      if (!listAssumptions) {
+        throw new Error("Assumption listing required");
+      }
+      const before = await listAssumptions(accountId, projectId);
+      const preview = await sessions.previewBinding(accountId, {
+        id: noted.id,
+        projectId,
+        baseRevision: noted.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        contentId: "q1",
+        start: 11,
+        end: 22,
+        target: {
+          mode: "create",
+          type: "Assumption",
+          projectId,
+          title: "CSV demand",
+        },
+      });
+      expect(await listAssumptions(accountId, projectId)).toEqual(before);
+      const command = {
+        id: noted.id,
+        projectId,
+        baseRevision: noted.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        previewId: preview.previewId,
+      };
+      const binding = await sessions.confirmBinding(accountId, command);
+      expect(await sessions.confirmBinding(accountId, command)).toEqual(
+        binding,
+      );
+      expect((await listAssumptions(accountId, projectId))?.records).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: binding.target.recordId,
+            statement: "CSV exports",
+          }),
+        ]),
+      );
+      const current = (await sessions.list(accountId, projectId))?.records.find(
+        (record) => record.id === noted.id,
+      );
+      if (!current) {
+        throw new Error("Session required");
+      }
+      expect(current.content[0]?.content).toMatchObject({
+        id: "q1",
+        text: "Please use CSV exports today.",
+      });
+      await sessions.saveNote(accountId, {
+        id: current.id,
+        projectId,
+        baseRevision: current.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        create: false,
+        note: { id: "q1", kind: "Participant quote", text: "PDF instead" },
+      });
+      expect(
+        await sessions.listBindings(accountId, { id: current.id, projectId }),
+      ).toEqual([binding]);
+      expect(binding.pin).toMatchObject({
+        excerpt: "CSV exports",
+        source: { revision: noted.revision, componentId: "q1" },
+      });
+    });
+
+    async function notedSession(
+      consent: "Allowed" | "Not allowed" = "Allowed",
+    ) {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const saved = await sessions.save(accountId, {
+        id: crypto.randomUUID(),
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: "Binding interview",
+          purpose: "CSV demand",
+          consent,
+          channel: "Interview",
+        },
+      });
+      return sessions.saveNote(accountId, {
+        id: saved.id,
+        projectId,
+        baseRevision: saved.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        create: true,
+        note: {
+          id: "note",
+          kind: "Observation",
+          text: "CSV exports",
+          containsPersonalInformation: false,
+        },
+      });
+    }
+    function previewInput(
+      record: { id: string; revision: number },
+      target: import("@cantiara/api/research-session-bindings").ResearchBindingPlan["target"],
+    ) {
+      return {
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        contentId: "note",
+        start: 0,
+        end: 11,
+        target,
+      };
+    }
+    test.each([
+      "Feedback",
+      "Assumption",
+      "Open Question",
+      "Work",
+      "Feature",
+      "Decision",
+    ] as const)(
+      "%s creates once and binds an existing target without creating another record",
+      async (type) => {
+        if (!db) {
+          throw new Error("Database required");
+        }
+        const sessions = createDatabaseResearchSessions(db);
+        const record = await notedSession();
+        const target = {
+          mode: "create" as const,
+          type,
+          projectId,
+          title: `CSV ${type}`,
+          ...(type === "Work" ? { workType: "Research" as const } : {}),
+        };
+        const before = await sessions.bindingTargets(accountId, {
+          id: record.id,
+          projectId,
+        });
+        const preview = await sessions.previewBinding(
+          accountId,
+          previewInput(record, target),
+        );
+        expect(
+          await sessions.bindingTargets(accountId, {
+            id: record.id,
+            projectId,
+          }),
+        ).toEqual(before);
+        const command = {
+          id: record.id,
+          projectId,
+          baseRevision: record.revision,
+          previewId: preview.previewId,
+          clientIdempotencyKey: crypto.randomUUID(),
+        };
+        const binding = await sessions.confirmBinding(accountId, command);
+        expect(await sessions.confirmBinding(accountId, command)).toEqual(
+          binding,
+        );
+        expect(binding.origin).toBe(true);
+        const after = await sessions.bindingTargets(accountId, {
+          id: record.id,
+          projectId,
+        });
+        expect(after.records.length).toBe(before.records.length + 1);
+        expect(after.records).toContainEqual({
+          id: binding.target.recordId,
+          projectId,
+          type,
+          title: target.title,
+        });
+        if (type === "Feedback") {
+          const { listFeedbackRecords } = await import(
+            "../../feedback/server/feedback-database"
+          );
+          expect(
+            await listFeedbackRecords(db, accountId, projectId),
+          ).toContainEqual(
+            expect.objectContaining({
+              id: binding.target.recordId,
+              originalMessage: "CSV exports",
+              channel: "Interview",
+              occurredAt: record.createdAt,
+              status: "New",
+            }),
+          );
+          expect(
+            await listFeedbackRecords(db, "foreign-account", projectId),
+          ).toEqual([]);
+        }
+        if (type === "Work" || type === "Feature") {
+          const { createDatabaseWorkLifecycle } = await import(
+            "../../work-lifecycle/server/work-lifecycle-database"
+          );
+          expect(
+            await createDatabaseWorkLifecycle(db).find(
+              accountId,
+              binding.target.recordId,
+            ),
+          ).toMatchObject({
+            type: type === "Work" ? "Research" : "Feature",
+            description: "CSV exports",
+            originPosition: {
+              ownerRecordId: record.id,
+              componentId: "note",
+              sourceVersion: String(record.revision),
+            },
+          });
+        }
+        const current = (
+          await sessions.list(accountId, projectId)
+        )?.records.find((item) => item.id === record.id);
+        if (!current) {
+          throw new Error("Session required");
+        }
+        const bindPreview = await sessions.previewBinding(
+          accountId,
+          previewInput(current, {
+            mode: "bind",
+            type,
+            projectId,
+            recordId: binding.target.recordId,
+          }),
+        );
+        const linked = await sessions.confirmBinding(accountId, {
+          ...command,
+          baseRevision: current.revision,
+          previewId: bindPreview.previewId,
+          clientIdempotencyKey: crypto.randomUUID(),
+        });
+        expect(linked.origin).toBe(false);
+        expect(linked.target.recordId).toBe(binding.target.recordId);
+        expect(
+          await sessions.bindingTargets(accountId, {
+            id: record.id,
+            projectId,
+          }),
+        ).toEqual(after);
+        expect(
+          await sessions.listBindings(accountId, { id: record.id, projectId }),
+        ).toHaveLength(2);
+        await expect(
+          sessions.confirmBinding(accountId, {
+            ...command,
+            clientIdempotencyKey: crypto.randomUUID(),
+          }),
+        ).rejects.toThrow();
+        await expect(
+          sessions.confirmBinding(accountId, {
+            ...command,
+            previewId: bindPreview.previewId,
+          }),
+        ).rejects.toThrow();
+      },
+    );
+    test("stale, revoked, capture-denied, invalid and foreign previews never produce a target", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const record = await notedSession();
+      const target = {
+        mode: "create" as const,
+        type: "Assumption" as const,
+        projectId,
+        title: "Must not exist",
+      };
+      const input = previewInput(record, target);
+      const preview = await sessions.previewBinding(accountId, input);
+      const before = await sessions.bindingTargets(accountId, record);
+      for (const change of [
+        { start: -1 },
+        { end: 12 },
+        { start: 11 },
+        { contentId: "missing" },
+        { target: { ...target, projectId: "foreign-project" } },
+      ]) {
+        await expect(
+          sessions.previewBinding(accountId, { ...input, ...change }),
+        ).rejects.toThrow();
+      }
+      await expect(
+        sessions.previewBinding("foreign-account", input),
+      ).rejects.toThrow();
+      await expect(
+        sessions.confirmBinding("foreign-account", {
+          id: record.id,
+          projectId,
+          baseRevision: record.revision,
+          previewId: preview.previewId,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toThrow();
+      const revoked = await sessions.save(accountId, {
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: record.title,
+          purpose: record.purpose,
+          consent: "Not allowed",
+        },
+      });
+      await expect(
+        sessions.confirmBinding(accountId, {
+          id: record.id,
+          projectId,
+          baseRevision: record.revision,
+          previewId: preview.previewId,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        sessions.previewBinding(accountId, previewInput(revoked, target)),
+      ).rejects.toThrow();
+      const denied = await notedSession("Not allowed");
+      const widened = await sessions.save(accountId, {
+        id: denied.id,
+        projectId,
+        baseRevision: denied.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: denied.title,
+          purpose: denied.purpose,
+          consent: "Allowed",
+        },
+      });
+      await expect(
+        sessions.previewBinding(accountId, previewInput(widened, target)),
+      ).rejects.toThrow();
+      expect(await sessions.bindingTargets(accountId, record)).toEqual(before);
+    });
+    test("a target archived after preview rolls back confirmation without consuming it", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const record = await notedSession();
+      const targetProjectId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: targetProjectId,
+        workspaceId,
+        name: "Target",
+        shortCode: `T${targetProjectId.slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      const preview = await sessions.previewBinding(
+        accountId,
+        previewInput(record, {
+          mode: "create",
+          type: "Decision",
+          projectId: targetProjectId,
+          title: "CSV decision",
+        }),
+      );
+      await db
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, targetProjectId));
+      const command = {
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        previewId: preview.previewId,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      await expect(
+        sessions.confirmBinding(accountId, command),
+      ).rejects.toThrow();
+      expect(await sessions.listBindings(accountId, record)).toEqual([]);
+      expect(
+        (await sessions.list(accountId, projectId))?.records,
+      ).toContainEqual(record);
+      await db
+        .update(project)
+        .set({ archivedAt: null })
+        .where(eq(project.id, targetProjectId));
+      expect(await sessions.confirmBinding(accountId, command)).toMatchObject({
+        target: { projectId: targetProjectId, type: "Decision" },
+      });
+    });
+
+    test("expired previews and revoked Evidence reads fail closed", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const record = await notedSession();
+      const input = previewInput(record, {
+        mode: "create",
+        type: "Assumption",
+        projectId,
+        title: "Expiry demand",
+      });
+      const expired = await sessions.previewBinding(accountId, input);
+      const command = {
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        previewId: expired.previewId,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      vi.setSystemTime(new Date(Date.now() + 16 * 60_000));
+      try {
+        await expect(
+          sessions.confirmBinding(accountId, command),
+        ).rejects.toThrow();
+      } finally {
+        vi.useRealTimers();
+      }
+      const preview = await sessions.previewBinding(accountId, input);
+      const confirmed = await sessions.confirmBinding(accountId, {
+        ...command,
+        previewId: preview.previewId,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+      expect(await sessions.listBindings(accountId, record)).toEqual([
+        confirmed,
+      ]);
+      const current = (await sessions.list(accountId, projectId))?.records.find(
+        (item) => item.id === record.id,
+      );
+      if (!current) {
+        throw new Error("Session required");
+      }
+      await sessions.save(accountId, {
+        id: record.id,
+        projectId,
+        baseRevision: current.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: current.title,
+          purpose: current.purpose,
+          consent: "Not allowed",
+        },
+      });
+      expect(await sessions.listBindings(accountId, record)).toEqual([]);
+      await expect(
+        sessions.listBindings("foreign-account", record),
       ).rejects.toThrow();
     });
   },
