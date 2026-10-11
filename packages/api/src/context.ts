@@ -54,6 +54,7 @@ import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SmartCollectionsAccess } from "./smart-collections";
 import type { SmartLinkPreviewAccess } from "./smart-link-preview";
+import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
@@ -193,6 +194,7 @@ export interface Context {
   >;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;

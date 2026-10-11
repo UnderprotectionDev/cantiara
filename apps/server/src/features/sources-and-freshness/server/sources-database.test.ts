@@ -392,3 +392,249 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
     );
   });
 });
+
+(url ? describe : describe.skip)("Source recheck approval", () => {
+  test("keeps a dated candidate across reload and approves it only after an explicit decision", async () => {
+    if (!url) {
+      throw new Error("Database required");
+    }
+    const db = createDb({ DATABASE_URL: url });
+    const accountId = crypto.randomUUID();
+    const workspaceId = crypto.randomUUID();
+    const projectId = crypto.randomUUID();
+    await db.insert(user).values({
+      id: accountId,
+      name: "Founder",
+      email: `${accountId}@example.invalid`,
+    });
+    await db
+      .insert(workspace)
+      .values({ id: workspaceId, ownerAccountId: accountId });
+    await db.insert(project).values({
+      id: projectId,
+      workspaceId,
+      name: "Recheck",
+      shortCode: `R${accountId.slice(0, 6).toUpperCase()}`,
+      starterConfiguration: "Blank Project",
+    });
+    try {
+      const sources = createDatabaseSourcesAndFreshness(db);
+      const id = crypto.randomUUID();
+      await sources.create(accountId, {
+        id,
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        url: "https://example.org/old",
+        title: "Original",
+        accessedAt: "2026-10-01T09:00:00Z",
+        capturedContent: "Original finding.",
+      });
+      const { createDatabaseSourceRecheck } = await import(
+        "./source-recheck-database"
+      );
+      const rechecks = createDatabaseSourceRecheck(
+        db,
+        createSmartLinkPreview({
+          resolve: async () => ["93.184.216.34"],
+          request: async (
+            targetUrl,
+          ): Promise<{
+            status: number;
+            headers: Record<string, string>;
+            body: Uint8Array;
+          }> =>
+            targetUrl.pathname === "/old"
+              ? {
+                  status: 302,
+                  headers: { location: "/new" },
+                  body: new Uint8Array(),
+                }
+              : {
+                  status: 200,
+                  headers: { "content-type": "text/plain" },
+                  body: new TextEncoder().encode("New finding."),
+                },
+        }),
+      );
+      const context = {
+        db,
+        sourcesAndFreshness: sources,
+        sourceRecheck: rechecks,
+        session: {
+          session: { id: "recheck-session" },
+          user: { id: accountId },
+        },
+      } as Context;
+      const client = createRouterClient(appRouter, { context });
+      const anonymous = createRouterClient(appRouter, {
+        context: { ...context, session: null },
+      });
+      const input = {
+        id: crypto.randomUUID(),
+        sourceId: id,
+        projectId,
+        expectedSourceRevision: 1,
+      };
+      await expect(anonymous.recheckSource(input)).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+      });
+      const check = await client.recheckSource(input);
+      expect(check).toMatchObject({
+        comparedRevision: 1,
+        decision: null,
+        candidate: {
+          url: "https://example.org/new",
+          capturedContent: "New finding.",
+        },
+        checkedBy: accountId,
+      });
+      expect(await rechecks.recheck(accountId, input)).toEqual(check);
+      expect(
+        await sources.find(accountId, { sourceId: id, projectId }),
+      ).toMatchObject({ record: { revision: 1 } });
+      expect(
+        await rechecks.list("other-account", { sourceId: id, projectId }),
+      ).toBeNull();
+      expect(
+        await rechecks.list(accountId, { sourceId: id, projectId }),
+      ).toEqual([check]);
+      const decision = {
+        sourceId: id,
+        projectId,
+        checkId: input.id,
+        baseRevision: 1,
+        expectedSourceRevision: 1,
+        clientIdempotencyKey: crypto.randomUUID(),
+        decision: "Save as new Source version" as const,
+      };
+      expect(await rechecks.decide(accountId, decision)).toMatchObject({
+        approvedRevision: 2,
+      });
+      expect(await rechecks.decide(accountId, decision)).toMatchObject({
+        approvedRevision: 2,
+      });
+      expect(
+        (await sources.find(accountId, { sourceId: id, projectId }))?.versions,
+      ).toMatchObject([
+        { revision: 1, capturedContent: "Original finding." },
+        { revision: 2, capturedContent: "New finding." },
+      ]);
+      await expect(
+        client.recheckSource({ ...input, id: crypto.randomUUID() }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      const failure = createDatabaseSourceRecheck(
+        db,
+        createSmartLinkPreview({
+          resolve: async () => ["93.184.216.34"],
+          request: async () => ({
+            status: 404,
+            headers: { "content-type": "text/html" },
+            body: new Uint8Array(),
+          }),
+        }),
+      );
+      const failed = await failure.recheck(accountId, {
+        ...input,
+        id: crypto.randomUUID(),
+        expectedSourceRevision: 2,
+      });
+      expect(failed).toMatchObject({
+        candidate: null,
+        error: expect.stringContaining("HTTP 404"),
+        comparedRevision: 2,
+        fingerprint: null,
+      });
+      if (!failed) {
+        throw new Error("Source Check required");
+      }
+      const failedDecision = {
+        ...decision,
+        checkId: failed.id,
+        expectedSourceRevision: 2,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      await expect(
+        failure.decide(accountId, failedDecision),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(
+        await failure.decide(accountId, {
+          ...failedDecision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          decision: "Keep current version",
+        }),
+      ).toMatchObject({
+        decision: "Keep current version",
+        approvedRevision: null,
+      });
+      expect(
+        (await sources.find(accountId, { sourceId: id, projectId }))?.versions,
+      ).toHaveLength(2);
+      const videoId = crypto.randomUUID();
+      const videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+      await sources.create(accountId, {
+        id: videoId,
+        projectId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        url: videoUrl,
+        title: "Original video",
+        accessedAt: "2026-10-01T09:00:00Z",
+        capturedContent: "Original video",
+        provider: "YouTube",
+      });
+      const videoChecks = createDatabaseSourceRecheck(
+        db,
+        createSmartLinkPreview({
+          resolve: async () => ["93.184.216.34"],
+          request: async () => ({
+            status: 200,
+            headers: { "content-type": "application/json" },
+            body: new TextEncoder().encode('{"title":"Updated video"}'),
+          }),
+        }),
+      );
+      const videoCheck = await videoChecks.recheck(accountId, {
+        id: crypto.randomUUID(),
+        sourceId: videoId,
+        projectId,
+        expectedSourceRevision: 1,
+      });
+      expect(videoCheck?.candidate?.url).toBe(videoUrl);
+      expect(videoCheck?.fetchResult?.finalUrl).toContain("/oembed?");
+      if (!videoCheck) {
+        throw new Error("Source Check required");
+      }
+      await videoChecks.decide(accountId, {
+        sourceId: videoId,
+        projectId,
+        checkId: videoCheck.id,
+        baseRevision: videoCheck.revision,
+        expectedSourceRevision: 1,
+        clientIdempotencyKey: crypto.randomUUID(),
+        decision: "Save as new Source version",
+      });
+      expect(
+        (await sources.find(accountId, { sourceId: videoId, projectId }))
+          ?.record.version.url,
+      ).toBe(videoUrl);
+      await db
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, projectId));
+      expect(
+        await failure.recheck(accountId, {
+          ...input,
+          id: crypto.randomUUID(),
+          expectedSourceRevision: 2,
+        }),
+      ).toBeNull();
+      expect(
+        await failure.list(accountId, { sourceId: id, projectId }),
+      ).toHaveLength(2);
+    } finally {
+      await db.delete(user).where(eq(user.id, accountId));
+      await db.$client.end();
+    }
+  });
+});

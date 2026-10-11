@@ -4,6 +4,7 @@ import { initLogger } from "evlog";
 import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
 import { createSmartLinkPreviewGateway } from "./features/sources-and-freshness/server/smart-link-preview-gateway";
+import { createDatabaseSourceRecheck } from "./features/sources-and-freshness/server/source-recheck-database";
 import {
   accountPreferences,
   accountPreferencesCompatibility,
@@ -94,6 +95,10 @@ setInterval(
 );
 
 const app = createApp({
+  sourceRecheck: createDatabaseSourceRecheck(
+    getDb(),
+    createSmartLinkPreviewGateway(env.SMART_LINK_EGRESS_URL),
+  ),
   smartLinkPreview: createSmartLinkPreviewGateway(env.SMART_LINK_EGRESS_URL),
   accountSessionAccess,
   accountPreferences,

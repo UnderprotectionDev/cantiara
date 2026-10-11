@@ -306,6 +306,10 @@ import {
   smartLinkPreviewSchema,
 } from "../smart-link-preview";
 import {
+  recheckSourceInputSchema,
+  sourceCheckDecisionInputSchema,
+} from "../source-recheck";
+import {
   createSourceInputSchema,
   SourceConflictError,
   saveSourceVersionInputSchema,
@@ -5374,6 +5378,36 @@ export const appRouter = {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
       return context.smartLinkPreview(input.url);
+    }),
+  recheckSource: protectedProcedure
+    .input(recheckSourceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceRecheck;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.recheck(context.session.user.id, input),
+      );
+    }),
+  sourceChecks: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      if (!context.sourceRecheck) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.sourceRecheck.list(context.session.user.id, input);
+    }),
+  decideSourceCheck: protectedProcedure
+    .input(sourceCheckDecisionInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceRecheck;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.decide(context.session.user.id, input),
+      );
     }),
   createSource: protectedProcedure
     .input(createSourceInputSchema)

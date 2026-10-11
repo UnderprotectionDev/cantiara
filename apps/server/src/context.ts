@@ -66,6 +66,7 @@ import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
+import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
@@ -129,6 +130,7 @@ export interface CreateContextOptions {
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
@@ -188,6 +190,7 @@ export async function createContext({
   projectShellMutationContracts,
   projectGoals,
   projectSourceRecords,
+  sourceRecheck,
   sourcesAndFreshness,
   smartLinkPreview,
   researchSessions,
@@ -262,6 +265,7 @@ export async function createContext({
     projectShellMutationContracts,
     projectGoals,
     projectSourceRecords,
+    sourceRecheck,
     sourcesAndFreshness,
     smartLinkPreview,
     researchSessions,

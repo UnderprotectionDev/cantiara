@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -71,5 +72,22 @@ export const sourceVersion = pgTable(
       "source_version_external_id_check",
       sql`${table.externalId} is null or length(btrim(${table.externalId})) between 1 and 255`,
     ),
+  ],
+);
+
+// Dated checks are Source-owned helpers; only an explicit decision can approve their capture.
+export const sourceCheck = pgTable(
+  "source_check",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => source.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    value: jsonb("value").$type<unknown>().notNull(),
+  },
+  (table) => [
+    index("source_check_source_idx").on(table.sourceId),
+    check("source_check_revision_check", sql`${table.revision} > 0`),
   ],
 );

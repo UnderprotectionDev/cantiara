@@ -3,8 +3,16 @@ import { z } from "zod";
 export const smartLinkPreviewInputSchema = z
   .object({ url: z.string().trim().min(1).max(8192) })
   .strict();
+export const sourceFetchResultSchema = z
+  .object({
+    finalUrl: z.url({ protocol: /^https?$/ }),
+    httpStatus: z.number().int().min(100).max(599).nullable(),
+    contentType: z.string().max(255).nullable(),
+  })
+  .strict();
 export const smartLinkPreviewSchema = z
   .object({
+    fetchResult: sourceFetchResultSchema.optional(),
     kind: z.enum(["preview", "link"]),
     url: z.string(),
     domain: z.string(),
