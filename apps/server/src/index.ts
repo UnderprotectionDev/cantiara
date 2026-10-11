@@ -1,9 +1,9 @@
 import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
 import { serve } from "bun";
 import { initLogger } from "evlog";
-
 import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
+import { createSmartLinkPreviewGateway } from "./features/sources-and-freshness/server/smart-link-preview-gateway";
 import {
   accountPreferences,
   accountPreferencesCompatibility,
@@ -94,6 +94,7 @@ setInterval(
 );
 
 const app = createApp({
+  smartLinkPreview: createSmartLinkPreviewGateway(env.SMART_LINK_EGRESS_URL),
   accountSessionAccess,
   accountPreferences,
   accountPreferencesCompatibility,

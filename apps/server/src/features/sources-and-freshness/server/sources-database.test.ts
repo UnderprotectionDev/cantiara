@@ -7,6 +7,7 @@ import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { createRouterClient } from "@orpc/server";
 import { and, eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { createSmartLinkPreview } from "./smart-link-preview";
 import { createDatabaseSourcesAndFreshness } from "./sources-database";
 
 const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
@@ -194,6 +195,63 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
     await expect(anonymous.saveSourceVersion(newVersion)).rejects.toMatchObject(
       { code: "UNAUTHORIZED" },
     );
+  });
+  test("keeps preview transient and preserves the saved snapshot after the outside page changes", async () => {
+    if (!db) {
+      throw new Error("Database required");
+    }
+    let content = "Original finding.";
+    const smartLinkPreview = createSmartLinkPreview({
+      resolve: async () => ["93.184.216.34"],
+      request: async () => ({
+        status: 200,
+        headers: { "content-type": "text/html" },
+        body: new TextEncoder().encode(
+          `<title>Research</title><p>${content}</p>`,
+        ),
+      }),
+    });
+    const sourcesAndFreshness = createDatabaseSourcesAndFreshness(db);
+    const context = {
+      db,
+      sourcesAndFreshness,
+      smartLinkPreview,
+      session: { session: { id: "preview-session" }, user: { id: accountId } },
+    } as Context;
+    const client = createRouterClient(appRouter, { context });
+    const before = await client.projectSources({ projectId });
+    const preview = await client.smartLinkPreview({
+      url: "https://example.org/research",
+    });
+    expect(await client.projectSources({ projectId })).toEqual(before);
+    const id = crypto.randomUUID();
+    await client.createSource({
+      id,
+      projectId,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      url: preview.url,
+      title: preview.title,
+      accessedAt: preview.accessedAt,
+      capturedContent: preview.capturedContent,
+    });
+    content = "Changed outside finding.";
+    expect(
+      (await client.smartLinkPreview({ url: preview.url })).capturedContent,
+    ).toBe("Changed outside finding.");
+    expect(await client.source({ sourceId: id, projectId })).toMatchObject({
+      record: {
+        revision: 1,
+        version: { capturedContent: "Original finding." },
+      },
+      versions: [{ revision: 1, capturedContent: "Original finding." }],
+    });
+    const anonymous = createRouterClient(appRouter, {
+      context: { ...context, session: null },
+    });
+    await expect(
+      anonymous.smartLinkPreview({ url: preview.url }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
   test("retries a committed capture once and rejects stale, duplicate and competing saves without losing history", async () => {
     if (!db) {

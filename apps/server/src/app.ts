@@ -76,6 +76,7 @@ import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
+import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
@@ -193,6 +194,7 @@ export interface AppDependencies {
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
+  smartLinkPreview?: SmartLinkPreviewAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
@@ -1195,6 +1197,7 @@ export function createApp(dependencies: AppDependencies) {
       projectGoals: dependencies.projectGoals,
       projectSourceRecords: dependencies.projectSourceRecords,
       sourcesAndFreshness: dependencies.sourcesAndFreshness,
+      smartLinkPreview: dependencies.smartLinkPreview,
       researchSessions: dependencies.researchSessions,
       recordTable: dependencies.recordTable,
       priorityMetricMutationContracts:

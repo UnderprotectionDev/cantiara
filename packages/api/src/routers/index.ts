@@ -301,6 +301,10 @@ import {
   setSmartCollectionSubscriptionInputSchema,
 } from "../smart-collections";
 import {
+  smartLinkPreviewInputSchema,
+  smartLinkPreviewSchema,
+} from "../smart-link-preview";
+import {
   createSourceInputSchema,
   SourceConflictError,
   saveSourceVersionInputSchema,
@@ -5346,6 +5350,15 @@ export const appRouter = {
         input.projectId,
       ),
     ),
+  smartLinkPreview: protectedProcedure
+    .input(smartLinkPreviewInputSchema)
+    .output(smartLinkPreviewSchema)
+    .handler(({ context, input }) => {
+      if (!context.smartLinkPreview) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.smartLinkPreview(input.url);
+    }),
   createSource: protectedProcedure
     .input(createSourceInputSchema)
     .handler(({ context, input }) =>

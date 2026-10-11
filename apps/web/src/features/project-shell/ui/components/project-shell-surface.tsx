@@ -71,6 +71,7 @@ import {
   smartCollectionWorkPrefillFromSearch,
   smartCollectionWorkPrefillWarning,
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
+import ProjectSourcesSurface from "@/features/sources-and-freshness/ui/components/project-sources-surface";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
@@ -203,6 +204,12 @@ function projectUncertaintySurface(
   }
   return (
     <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
+      {["discovery", "project-area-discovery"].includes(activeHash) ? (
+        <ProjectSourcesSurface
+          key={`sources:${projectId}`}
+          projectId={projectId}
+        />
+      ) : null}
       {["discovery", "project-area-discovery"].includes(activeHash) ? (
         <ResearchSessionsSurface
           accountId={accountId}

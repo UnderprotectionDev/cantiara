@@ -8,6 +8,8 @@ import { createEnv } from "@t3-oss/env-core";
 import ipaddr from "ipaddr.js";
 import { z } from "zod";
 
+const httpsProtocolPattern = /^https$/;
+
 const sensitiveEnvKeys = [
   "BETTER_AUTH_SECRET",
   "DATABASE_URL",
@@ -107,6 +109,13 @@ export function createServerEnv(
         .string()
         .refine((value) => Number.isFinite(Date.parse(value)))
         .default(DESKTOP_API_PUBLISHED_AT),
+      SMART_LINK_EGRESS_URL: z
+        .url({ protocol: httpsProtocolPattern })
+        .refine((value) => {
+          const url = new URL(value);
+          return !(url.username || url.password);
+        })
+        .optional(),
       DATABASE_URL: z.string().min(1),
       GITHUB_CLIENT_ID: z.string().min(1),
       GITHUB_CLIENT_SECRET: z.string().min(1),
