@@ -7,6 +7,7 @@ import {
   type ResearchSessionsAccess,
   researchSessionRecordSchema,
   saveResearchSessionInputSchema,
+  saveResearchSessionNoteInputSchema,
 } from "@cantiara/api/research-sessions";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -275,6 +276,59 @@ export function createDatabaseResearchSessions(
                   ? previous.participantConsentAtLink
                   : input.fields.consent,
               content: previous?.content ?? [],
+            }),
+          };
+        },
+      );
+      return researchSessionRecordSchema.parse(receipt.nextValue.session);
+    },
+    async saveNote(accountId, rawInput) {
+      const input = saveResearchSessionNoteInputSchema.parse(rawInput);
+      const receipt = await mutation(accountId).mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          kind: "human",
+          targetId: input.id,
+          baseRevision: input.baseRevision,
+          clientIdempotencyKey: input.clientIdempotencyKey,
+          payload: {
+            operation: "save-research-session-note",
+            projectId: input.projectId,
+            note: input.note,
+            create: input.create,
+          },
+        },
+        ({ currentValue, currentRevision, committedAt }) => {
+          const current = currentValue.session;
+          const previous = current?.content.find(
+            (item) => item.content.id === input.note.id,
+          );
+          if (
+            !current ||
+            (input.create ? !!previous : !previous) ||
+            (previous && previous.content.kind !== input.note.kind)
+          ) {
+            throw new MutationConflictError(input.id);
+          }
+          const captured = captureResearchSessionContent(
+            current.consent,
+            input.note,
+          );
+          // Editing never upgrades the capture-time permission of existing bytes.
+          if (previous) {
+            captured.consentAtCapture = previous.consentAtCapture;
+            captured.content.relationIds = previous.content.relationIds;
+          }
+          return {
+            session: researchSessionRecordSchema.parse({
+              ...current,
+              revision: currentRevision + 1,
+              updatedAt: committedAt,
+              content: input.create
+                ? [...current.content, captured]
+                : current.content.map((item) =>
+                    item.content.id === input.note.id ? captured : item,
+                  ),
             }),
           };
         },

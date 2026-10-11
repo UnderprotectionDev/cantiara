@@ -21,6 +21,11 @@ import {
   researchSessionTimestamp,
 } from "../lib/research-session-time";
 
+import {
+  ResearchSessionNotes,
+  type SaveResearchNote,
+} from "./research-session-notes";
+
 type Save = (
   fields: ResearchSessionFields,
   record?: ResearchSessionRecord,
@@ -291,12 +296,14 @@ export function ResearchSessionsView({
   readOnly,
   onSave,
   onStartEditing,
+  onSaveNote,
 }: {
   records: ResearchSessionRecord[];
   timeZone: string;
   readOnly: boolean;
   onSave: Save;
   onStartEditing: () => void;
+  onSaveNote: SaveResearchNote;
 }) {
   const [editing, setEditing] = useState<ResearchSessionRecord | "new" | null>(
     null,
@@ -365,6 +372,12 @@ export function ResearchSessionsView({
                 </Button>
               </div>
               <p className="whitespace-pre-wrap text-sm">{record.purpose}</p>
+              <ResearchSessionNotes
+                onSave={onSaveNote}
+                onStartEditing={onStartEditing}
+                readOnly={readOnly || editing !== null}
+                record={record}
+              />
             </li>
           ))}
         </ul>

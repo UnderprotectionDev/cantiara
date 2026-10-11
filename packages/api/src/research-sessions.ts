@@ -66,7 +66,12 @@ export const researchSessionProjectInputSchema = z
   .strict();
 
 const contentIdentity = { id, relationIds: z.array(id).max(100).default([]) };
-export const researchSessionContentInputSchema = z.discriminatedUnion("kind", [
+export const RESEARCH_SESSION_NOTE_KIND_OPTIONS = [
+  "Participant quote",
+  "Observation",
+  "Founder interpretation",
+] as const;
+export const researchSessionNoteInputSchema = z.discriminatedUnion("kind", [
   z
     .object({
       ...contentIdentity,
@@ -75,6 +80,28 @@ export const researchSessionContentInputSchema = z.discriminatedUnion("kind", [
       speakerLabel: optionalText,
     })
     .strict(),
+  z
+    .object({
+      ...contentIdentity,
+      kind: z.literal("Observation"),
+      text,
+      containsPersonalInformation: z.boolean().default(true),
+    })
+    .strict(),
+  z
+    .object({
+      ...contentIdentity,
+      kind: z.literal("Founder interpretation"),
+      text,
+      containsPersonalInformation: z.boolean().default(true),
+    })
+    .strict(),
+]);
+export type ResearchSessionNoteInput = z.infer<
+  typeof researchSessionNoteInputSchema
+>;
+export const researchSessionContentInputSchema = z.discriminatedUnion("kind", [
+  ...researchSessionNoteInputSchema.options,
   z
     .object({
       ...contentIdentity,
@@ -93,6 +120,17 @@ export const researchSessionContentInputSchema = z.discriminatedUnion("kind", [
 ]);
 export type ResearchSessionContentInput = z.infer<
   typeof researchSessionContentInputSchema
+>;
+export const saveResearchSessionNoteInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    id,
+    projectId: id,
+    note: researchSessionNoteInputSchema,
+    create: z.boolean(),
+  })
+  .strict();
+export type SaveResearchSessionNoteInput = z.input<
+  typeof saveResearchSessionNoteInputSchema
 >;
 const capturedContentSchema = z
   .object({
@@ -121,11 +159,15 @@ export function captureResearchSessionContent(
   consent: ResearchSessionConsent,
   rawInput: unknown,
 ): ResearchSessionCapturedContent {
-  assertResearchSessionConsent(consent);
-  return {
-    consentAtCapture: consent,
-    content: researchSessionContentInputSchema.parse(rawInput),
-  };
+  const content = researchSessionContentInputSchema.parse(rawInput);
+  const nonpersonal =
+    (content.kind === "Observation" ||
+      content.kind === "Founder interpretation") &&
+    !content.containsPersonalInformation;
+  if (!nonpersonal) {
+    assertResearchSessionConsent(consent);
+  }
+  return { consentAtCapture: consent, content };
 }
 
 export const researchSessionRecordSchema = researchSessionFieldsSchema
@@ -194,7 +236,11 @@ export function researchSessionSnapshotPreview(
       researchSessionConsentGates(item.consentAtCapture).share
     ) {
       const { relationIds: _relationIds, ...content } = item.content;
-      result.push({ ...content, relationIds: [] });
+      result.push(
+        content.kind === "Participant quote"
+          ? { ...content, speakerLabel: null, relationIds: [] }
+          : { ...content, relationIds: [] },
+      );
     }
   }
   if (
@@ -226,6 +272,10 @@ export interface ResearchSessionsAccess {
   save: (
     accountId: string,
     input: SaveResearchSessionInput,
+  ) => Promise<ResearchSessionRecord>;
+  saveNote: (
+    accountId: string,
+    input: SaveResearchSessionNoteInput,
   ) => Promise<ResearchSessionRecord>;
 }
 

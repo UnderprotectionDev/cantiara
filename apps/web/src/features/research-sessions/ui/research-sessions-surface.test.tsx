@@ -3,6 +3,7 @@ import {
   type ResearchSessionRecord,
   researchSessionRecordSchema,
   type SaveResearchSessionInput,
+  type SaveResearchSessionNoteInput,
 } from "@cantiara/api/research-sessions";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
@@ -11,9 +12,16 @@ import { expect, test, vi } from "vitest";
 import ResearchSessionsSurface from "./research-sessions-surface";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-const rpc = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn() }));
+const rpc = vi.hoisted(() => ({
+  list: vi.fn(),
+  save: vi.fn(),
+  saveNote: vi.fn(),
+}));
 vi.mock("@/utils/orpc", () => ({
-  client: { saveResearchSession: rpc.save },
+  client: {
+    saveResearchSession: rpc.save,
+    saveResearchSessionNote: rpc.saveNote,
+  },
   accountPreferencesQueryOptions: () => ({
     queryKey: ["preferences"],
     queryFn: async () => ({ timeZone: "Europe/Istanbul" }),
@@ -211,6 +219,94 @@ test("Research Session conflict retains the draft and reopens the current revisi
     expect(rpc.save).toHaveBeenLastCalledWith(
       expect.objectContaining({ baseRevision: 2 }),
     );
+  } finally {
+    await surface.close();
+  }
+});
+
+test("a lost note response retries the same identity, while an edited retry retains its draft through conflict", async () => {
+  let record = researchSessionRecordSchema.parse({
+    id: "session",
+    projectId: "p1",
+    title: "Typed interview",
+    purpose: "Export",
+    consent: "Allowed",
+    revision: 1,
+    sourceType: "Research Session",
+    createdAt: "2026-10-10T10:00:00.000Z",
+    updatedAt: "2026-10-10T10:00:00.000Z",
+    consentRecordedBy: "founder",
+    consentRecordedAt: "2026-10-10T10:00:00.000Z",
+  });
+  const receipts = new Map<string, ResearchSessionRecord>();
+  rpc.list.mockImplementation(async () => ({
+    records: [record],
+    readOnly: false,
+  }));
+  rpc.saveNote.mockImplementation((input: SaveResearchSessionNoteInput) => {
+    const receipt = receipts.get(input.clientIdempotencyKey);
+    if (receipt) {
+      return Promise.resolve(receipt);
+    }
+    if (input.baseRevision !== record.revision) {
+      return Promise.reject(
+        Object.assign(new Error("Changed"), { code: "CONFLICT" }),
+      );
+    }
+    record = researchSessionRecordSchema.parse({
+      ...record,
+      revision: record.revision + 1,
+      content: [
+        ...record.content,
+        { consentAtCapture: "Allowed", content: input.note },
+      ],
+    });
+    receipts.set(input.clientIdempotencyKey, record);
+    return Promise.reject(new Error("Committed response lost"));
+  });
+  const surface = await openSurface();
+  async function start() {
+    await act(async () => surface.button("Add note").click());
+    const select = surface.host.querySelector("select");
+    if (!select) {
+      throw new Error("Note type required");
+    }
+    await act(() => {
+      select.value = "Founder interpretation";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await surface.fill("Founder interpretation", "A shorter menu may help");
+    await act(async () => surface.button("Save").click());
+    await vi.waitFor(() =>
+      expect(surface.host.textContent).toContain("could not be saved"),
+    );
+  }
+  try {
+    await start();
+    // Opening another editor must not discard this note's committed receipt identity.
+    await act(async () => surface.button("Edit").click());
+    await act(async () => surface.button("Cancel").click());
+    await act(async () => surface.button("Retry").click());
+    await vi.waitFor(() =>
+      expect(surface.host.textContent).toContain("Note saved."),
+    );
+    expect(record.content).toHaveLength(1);
+    expect(rpc.saveNote.mock.calls[0]?.[0]).toEqual(
+      rpc.saveNote.mock.calls[1]?.[0],
+    );
+    await start();
+    await surface.fill("Founder interpretation", "Edited retry text");
+    await act(async () => surface.button("Retry").click());
+    await vi.waitFor(() =>
+      expect(surface.host.textContent).toContain("Cancel and reopen"),
+    );
+    expect(surface.host.querySelector("textarea")?.value).toBe(
+      "Edited retry text",
+    );
+    expect(record.content).toHaveLength(2);
+    await act(async () => surface.button("Cancel").click());
+    expect(surface.host.textContent).not.toContain("Edited retry text");
+    expect(surface.host.querySelectorAll("article")).toHaveLength(2);
   } finally {
     await surface.close();
   }
