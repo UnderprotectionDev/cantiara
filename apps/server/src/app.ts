@@ -76,6 +76,7 @@ import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
+import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
@@ -133,6 +134,7 @@ import {
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
 import { WebCaptureError } from "./features/capture-triage/server/web-capture";
+import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
 import type { CreateSupportReferenceFailureOptions } from "./features/web-macos-client/server/support-reference";
 import {
   createDesktopApiUpdateRequiredResponse,
@@ -193,6 +195,7 @@ export interface AppDependencies {
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
+  smartLinkPreview?: SmartLinkPreviewAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
@@ -874,6 +877,7 @@ export function createApp(dependencies: AppDependencies) {
     ...dependencies.desktopOrigins,
   ];
   const app = new Hono<EvlogVariables>();
+  app.route("/smart-link/youtube", youtubePlayerRoutes);
 
   app.use("*", async (c, next) => {
     c.req.raw.headers.delete("x-request-id");
@@ -1195,6 +1199,7 @@ export function createApp(dependencies: AppDependencies) {
       projectGoals: dependencies.projectGoals,
       projectSourceRecords: dependencies.projectSourceRecords,
       sourcesAndFreshness: dependencies.sourcesAndFreshness,
+      smartLinkPreview: dependencies.smartLinkPreview,
       researchSessions: dependencies.researchSessions,
       recordTable: dependencies.recordTable,
       priorityMetricMutationContracts:
