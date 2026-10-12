@@ -310,6 +310,11 @@ import {
   smartLinkPreviewSchema,
 } from "../smart-link-preview";
 import {
+  bindSourceEvidenceInputSchema,
+  reviewSourceEvidenceInputSchema,
+  sourceEvidencePreviewInputSchema,
+} from "../source-evidence";
+import {
   recheckSourceInputSchema,
   sourceCheckDecisionInputSchema,
 } from "../source-recheck";
@@ -5469,6 +5474,57 @@ export const appRouter = {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
       return context.smartLinkPreview(input.url);
+    }),
+  sourceEvidenceTargets: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.targets(context.session.user.id, input);
+    }),
+  sourceEvidenceUses: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.list(context.session.user.id, input);
+    }),
+  previewSourceEvidence: protectedProcedure
+    .input(sourceEvidencePreviewInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.preview(context.session.user.id, input),
+      );
+    }),
+  bindSourceEvidence: protectedProcedure
+    .input(bindSourceEvidenceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.bind(context.session.user.id, input),
+      );
+    }),
+  reviewSourceEvidence: protectedProcedure
+    .input(reviewSourceEvidenceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.review(context.session.user.id, input),
+      );
     }),
   recheckSource: protectedProcedure
     .input(recheckSourceInputSchema)

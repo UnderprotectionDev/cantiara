@@ -14,6 +14,9 @@ const rpc = vi.hoisted(() => ({
 vi.mock("@/utils/orpc", () => ({
   client: rpc,
   orpc: {
+    sourceEvidenceUses: {
+      queryOptions: () => ({ queryKey: ["uses"], queryFn: async () => null }),
+    },
     sourceChecks: {
       queryOptions: () => ({ queryKey: ["checks"], queryFn: async () => [] }),
     },

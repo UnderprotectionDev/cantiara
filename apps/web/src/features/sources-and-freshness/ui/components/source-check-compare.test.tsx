@@ -1,4 +1,5 @@
 import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
+import { pinEvidenceText } from "@cantiara/api/evidence";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { SourceCheckCompare } from "./source-check-compare";
@@ -43,6 +44,20 @@ test("compares the exact historical capture to the candidate without labeling th
   const html = renderToStaticMarkup(
     <SourceCheckCompare
       check={check}
+      pins={[
+        pinEvidenceText(
+          {
+            recordType: "Source",
+            recordId: "source-1",
+            projectId: "project-1",
+            revision: 1,
+            componentId: null,
+          },
+          version.capturedContent,
+          0,
+          17,
+        ),
+      ]}
       preferences={DEFAULT_ACCOUNT_PREFERENCES}
       version={version}
     />,
@@ -53,4 +68,5 @@ test("compares the exact historical capture to the candidate without labeling th
   expect(html).toContain("Removed");
   expect(html).toContain("Added");
   expect(html).toContain("https://example.org/new");
+  expect(html).toContain("No match in candidate version");
 });

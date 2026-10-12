@@ -77,6 +77,7 @@ import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
+import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
 import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
@@ -197,6 +198,7 @@ export interface AppDependencies {
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceEvidence?: SourceEvidenceAccess;
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
@@ -1200,6 +1202,7 @@ export function createApp(dependencies: AppDependencies) {
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       projectGoals: dependencies.projectGoals,
       projectSourceRecords: dependencies.projectSourceRecords,
+      sourceEvidence: dependencies.sourceEvidence,
       sourceRecheck: dependencies.sourceRecheck,
       sourcesAndFreshness: dependencies.sourcesAndFreshness,
       smartLinkPreview: dependencies.smartLinkPreview,

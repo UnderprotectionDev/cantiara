@@ -11,6 +11,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import { SmartLinkComposer } from "./smart-link-preview";
+import { SourceEvidenceControls } from "./source-evidence-controls";
 import { SourceRecheckControls } from "./source-recheck-controls";
 
 function preview(url: string) {
@@ -103,6 +104,11 @@ export default function ProjectSourcesSurface({
             {source.version.capturedContent || "No text was captured."}
           </p>
           <SourceRecheckControls
+            preferences={preferences}
+            readOnly={readOnly}
+            source={source}
+          />
+          <SourceEvidenceControls
             preferences={preferences}
             readOnly={readOnly}
             source={source}

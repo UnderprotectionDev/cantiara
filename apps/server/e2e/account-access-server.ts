@@ -5,6 +5,8 @@ import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
 import { account, session, user } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
+import { feedback } from "@cantiara/db/schema/feedback";
 import { project as projectTable } from "@cantiara/db/schema/project";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work as workTable } from "@cantiara/db/schema/work";
@@ -72,6 +74,7 @@ import { createDatabaseReturnToWork } from "../src/features/return-to-work/serve
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
 import { createSmartLinkPreview } from "../src/features/sources-and-freshness/server/smart-link-preview";
+import { createDatabaseSourceEvidence } from "../src/features/sources-and-freshness/server/source-evidence-database";
 import { createDatabaseSourceRecheck } from "../src/features/sources-and-freshness/server/source-recheck-database";
 import { createDatabaseSourcesAndFreshness } from "../src/features/sources-and-freshness/server/sources-database";
 import {
@@ -272,7 +275,7 @@ await accountSessionAccess.replaySessionRevocations();
 
 initLogger({ env: { service: "cantiara-e2e-server" } });
 
-let recheckCaptures = 0;
+const recheckCaptures = new Map<string, number>();
 const smartLinkPreview = createSmartLinkPreview({
   resolve: async () => ["93.184.216.34"],
   // biome-ignore lint/suspicious/useAwait: Deterministic egress double implements a promise-based transport.
@@ -284,9 +287,10 @@ const smartLinkPreview = createSmartLinkPreview({
     body: Uint8Array;
   }> => {
     if (url.pathname === "/recheck-journey") {
-      recheckCaptures += 1;
+      const captures = (recheckCaptures.get(url.href) ?? 0) + 1;
+      recheckCaptures.set(url.href, captures);
       const text =
-        recheckCaptures === 1
+        captures === 1
           ? "Original research finding."
           : "Revised research finding.";
       return {
@@ -322,6 +326,7 @@ const smartLinkPreview = createSmartLinkPreview({
 const app = createApp({
   sourcesAndFreshness: createDatabaseSourcesAndFreshness(database),
   smartLinkPreview,
+  sourceEvidence: createDatabaseSourceEvidence(database),
   sourceRecheck: createDatabaseSourceRecheck(database, smartLinkPreview),
   researchSessions,
   accountSessionAccess,
@@ -724,7 +729,11 @@ async function createResearchConsentFixture(
 
 async function createDocumentsFixture(fixtureKey: string, accountId: string) {
   const usesDocumentSkeletons = fixtureKey === "documents-skeletons";
-  if (fixtureKey !== "documents" && !usesDocumentSkeletons) {
+  if (
+    fixtureKey !== "documents" &&
+    fixtureKey !== "source-recheck" &&
+    !usesDocumentSkeletons
+  ) {
     return null;
   }
   const documentsProject = await projectShell.create(accountId, {
@@ -741,6 +750,21 @@ async function createDocumentsFixture(fixtureKey: string, accountId: string) {
       projectId: documentsProject.id,
       title: "Live Work source",
       type: "Task",
+    });
+  }
+  if (fixtureKey === "source-recheck") {
+    await database.insert(decision).values({
+      id: crypto.randomUUID(),
+      projectId: documentsProject.id,
+      title: "Freshness Decision",
+      decision: "Retain original evidence",
+    });
+    await database.insert(feedback).values({
+      id: crypto.randomUUID(),
+      projectId: documentsProject.id,
+      title: "Freshness Feedback",
+      originalMessage: "Customer finding",
+      occurredAt: new Date(),
     });
   }
   return documentsProject;

@@ -1,4 +1,6 @@
 import type { AccountPreferences } from "@cantiara/api/account-preferences";
+import type { VersionPinnedEvidence } from "@cantiara/api/evidence";
+import { findSourceEvidenceMatch } from "@cantiara/api/source-evidence";
 import type { SourceCheck } from "@cantiara/api/source-recheck";
 import type { SourceVersion } from "@cantiara/api/sources-and-freshness";
 import { diffLines } from "diff";
@@ -18,10 +20,12 @@ export function SourceCheckCompare({
   check,
   version,
   preferences,
+  pins = [],
 }: {
   check: SourceCheck;
   version: SourceVersion;
   preferences: AccountPreferences;
+  pins?: VersionPinnedEvidence[];
 }) {
   const parts = check.candidate
     ? diffLines(version.capturedContent, check.candidate.capturedContent, {
@@ -101,6 +105,19 @@ export function SourceCheckCompare({
           <p className="break-all text-muted-foreground text-xs">
             Fingerprint: {check.fingerprint}
           </p>
+          {pins.map((pin, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: Read-only captured pin comparisons.
+            <p key={index}>
+              Version {pin.source.revision} · Range {pin.start}–{pin.end}:{" "}
+              {pin.excerpt} ·{" "}
+              {findSourceEvidenceMatch(
+                pin.excerpt,
+                check.candidate?.capturedContent ?? "",
+              )
+                ? "Exact text match available for explicit preview"
+                : "No match in candidate version"}
+            </p>
+          ))}
         </>
       ) : null}
       {check.decision ? (
