@@ -1,5 +1,6 @@
 import type { VersionPinnedEvidence } from "@cantiara/api/evidence";
 import { evidenceBinding, recordOrigin } from "@cantiara/db/schema/evidence";
+import { and, eq } from "drizzle-orm";
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 /** Caller validates and locks both owned ends in this same transaction. */
@@ -37,4 +38,35 @@ export async function writeEvidenceBinding(
       location: input.pin.source,
     });
   }
+}
+
+/** Explicit single-bind rebind/review. Caller locks and validates both ends and the pin. */
+export async function reviewEvidenceBinding(
+  executor: MutationDatabaseExecutor,
+  input: {
+    id: string;
+    expectedRevision: number;
+    pin: VersionPinnedEvidence;
+    reviewedSourceRevision: number;
+    actorId: string;
+    committedAt: Date;
+  },
+) {
+  const rows = await executor
+    .update(evidenceBinding)
+    .set({
+      pin: input.pin,
+      revision: input.expectedRevision + 1,
+      reviewedSourceRevision: input.reviewedSourceRevision,
+      reviewedAt: input.committedAt,
+      reviewedBy: input.actorId,
+    })
+    .where(
+      and(
+        eq(evidenceBinding.id, input.id),
+        eq(evidenceBinding.revision, input.expectedRevision),
+      ),
+    )
+    .returning();
+  return rows[0] ?? null;
 }

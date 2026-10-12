@@ -54,6 +54,7 @@ import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SmartCollectionsAccess } from "./smart-collections";
 import type { SmartLinkPreviewAccess } from "./smart-link-preview";
+import type { SourceEvidenceAccess } from "./source-evidence";
 import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "./tags";
@@ -194,6 +195,7 @@ export interface Context {
   >;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceEvidence?: SourceEvidenceAccess;
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;

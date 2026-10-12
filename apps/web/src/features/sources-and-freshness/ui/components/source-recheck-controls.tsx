@@ -27,10 +27,13 @@ export function SourceRecheckControls({
   const selection = { sourceId: source.id, projectId: source.projectId };
   const checkOptions = orpc.sourceChecks.queryOptions({ input: selection });
   const versionOptions = orpc.source.queryOptions({ input: selection });
+  const useOptions = orpc.sourceEvidenceUses.queryOptions({ input: selection });
+  const uses = useQuery({ ...useOptions, enabled: open });
   const checks = useQuery({ ...checkOptions, enabled: open });
   const detail = useQuery({ ...versionOptions, enabled: open });
   async function refresh() {
     await Promise.all([
+      cache.invalidateQueries({ queryKey: useOptions.queryKey }),
       cache.invalidateQueries({ queryKey: checkOptions.queryKey }),
       cache.invalidateQueries({ queryKey: versionOptions.queryKey }),
       cache.invalidateQueries({
@@ -141,6 +144,7 @@ export function SourceRecheckControls({
               <div className="space-y-2" key={check.id}>
                 <SourceCheckCompare
                   check={check}
+                  pins={uses.data?.uses.map((use) => use.pin)}
                   preferences={preferences}
                   version={version}
                 />

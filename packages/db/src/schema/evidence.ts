@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -29,6 +30,10 @@ export const evidenceBinding = pgTable(
     targetRecordId: text("target_record_id").notNull(),
     targetRecordType: text("target_record_type").notNull(),
     pin: jsonb("pin").notNull(),
+    revision: integer("revision").default(1).notNull(),
+    reviewedSourceRevision: integer("reviewed_source_revision"),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedBy: text("reviewed_by"),
     role: text("role").default("Unspecified").notNull(),
     actorId: text("actor_id").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
