@@ -3,6 +3,7 @@ import {
   type PreviewResearchSessionBindingInput,
   previewResearchSessionBindingInputSchema,
   RESEARCH_BINDING_TARGET_TYPES,
+  type ResearchBindingFeedback,
   type ResearchBindingPreview,
   type ResearchBindingTargets,
   type ResearchEvidenceBinding,
@@ -422,6 +423,10 @@ export interface ResearchBindingActions {
     preview: ResearchBindingPreview,
     key: string,
   ) => Promise<ResearchEvidenceBinding>;
+  feedback?: (
+    record: ResearchSessionRecord,
+    bindingId: string,
+  ) => Promise<ResearchBindingFeedback>;
   list: (record: ResearchSessionRecord) => Promise<ResearchEvidenceBinding[]>;
   preview: (
     input: PreviewResearchSessionBindingInput,

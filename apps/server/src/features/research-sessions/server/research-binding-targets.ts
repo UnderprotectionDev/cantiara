@@ -2,6 +2,7 @@
 import type {
   ResearchBindingPlan,
   ResearchBindingTargets,
+  ResearchEvidenceBinding,
 } from "@cantiara/api/research-session-bindings";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -214,4 +215,83 @@ export async function listResearchBindingTargets(
     }
   }
   return { projects, records };
+}
+
+/** Resolve historical ends without applying the stricter new-binding write eligibility gate. */
+export async function readResearchBindingTarget(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  workspaceId: string,
+  target: Pick<
+    ResearchEvidenceBinding["target"],
+    "projectId" | "recordId" | "type"
+  >,
+): Promise<ResearchEvidenceBinding["target"]> {
+  function broken(
+    reason: NonNullable<ResearchEvidenceBinding["target"]["brokenReason"]>,
+  ): ResearchEvidenceBinding["target"] {
+    const canOpenSourceRecord = reason === "Archived" || reason === "In Trash";
+    return {
+      ...target,
+      projectId: canOpenSourceRecord ? target.projectId : null,
+      label: null,
+      brokenReason: reason,
+      canOpenSourceRecord,
+    };
+  }
+  if (!target.projectId) {
+    return broken("Permanently deleted");
+  }
+  const [owner] = await executor
+    .select({ project })
+    .from(project)
+    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+    .where(
+      and(
+        eq(project.id, target.projectId),
+        eq(workspace.id, workspaceId),
+        eq(workspace.ownerAccountId, accountId),
+      ),
+    );
+  if (!owner) {
+    return broken("No access");
+  }
+  const table = {
+    Decision: decision,
+    Assumption: assumption,
+    "Open Question": openQuestion,
+    Feedback: feedback,
+    Work: work,
+    Feature: work,
+  }[target.type];
+  const [record] = await executor
+    .select()
+    .from(table)
+    .where(
+      and(eq(table.id, target.recordId), eq(table.projectId, target.projectId)),
+    );
+  if (
+    !record ||
+    (target.type === "Feature" &&
+      (!("type" in record) || record.type !== "Feature")) ||
+    (target.type === "Work" && "type" in record && record.type === "Feature")
+  ) {
+    return broken("Permanently deleted");
+  }
+  if ("trashedAt" in record && record.trashedAt) {
+    return broken("In Trash");
+  }
+  if (
+    owner.project.archivedAt ||
+    ("archivedAt" in record && record.archivedAt) ||
+    ("status" in record && record.status === "Archived")
+  ) {
+    return broken("Archived");
+  }
+  return {
+    ...target,
+    label: record.title,
+    brokenReason: null,
+    canOpenSourceRecord: true,
+  };
 }

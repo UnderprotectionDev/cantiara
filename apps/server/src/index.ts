@@ -53,6 +53,7 @@ import {
   startSmartCollectionSubscriptionSignalWorker,
   sweepExpiredFileAttachmentUploads,
   sweepExpiredPriorityMetrics,
+  sweepExpiredResearchSessionBindingPreviews,
   tagMutationContracts,
   tags,
   tauriSessionAccess,
@@ -81,6 +82,10 @@ await Promise.all([
   startSmartCollectionSubscriptionSignalWorker(),
 ]);
 await sweepExpiredFileAttachmentUploads();
+await sweepExpiredResearchSessionBindingPreviews();
+setInterval(() => {
+  sweepExpiredResearchSessionBindingPreviews().catch(() => undefined);
+}, 15 * 60_000);
 setInterval(
   () => {
     sweepExpiredFileAttachmentUploads().catch(() => undefined);

@@ -1,6 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Note controls bind to the current session draft.
 
-import type { ResearchBindingTargets } from "@cantiara/api/research-session-bindings";
+import type {
+  ResearchBindingTargets,
+  ResearchEvidenceBinding,
+} from "@cantiara/api/research-session-bindings";
 import {
   RESEARCH_SESSION_NOTE_KIND_OPTIONS,
   type ResearchSessionConsent,
@@ -19,6 +22,11 @@ import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
+import { ResearchBindingFeedbackView } from "@/features/feedback/ui/research-binding-feedback";
+import {
+  projectSourceRecordHash,
+  workRecordHash,
+} from "@/features/project-shell/lib/project-shell-navigation";
 import {
   type ResearchBindingActions,
   ResearchNoteBindingEditor,
@@ -474,7 +482,7 @@ function ResearchSessionEvidence({
           Evidence is unavailable. Reopen this Research Session to retry.
         </p>
       ) : null}
-      {(query.data ?? []).map((binding) => (
+      {(query.isError ? [] : (query.data ?? [])).map((binding) => (
         <article
           aria-label="Version-pinned evidence"
           className="space-y-2 rounded-md border p-3"
@@ -482,8 +490,18 @@ function ResearchSessionEvidence({
         >
           <p className="font-medium">Version-pinned evidence</p>
           <p className="text-sm">
-            {binding.target.type}: {binding.target.label}
+            {binding.target.brokenReason ??
+              `${binding.target.type}: ${binding.target.label}`}
           </p>
+          <p className="text-muted-foreground text-sm">
+            Bound at{" "}
+            <time dateTime={binding.createdAt}>{binding.createdAt}</time>
+          </p>
+          <ResearchEvidenceTargetAction
+            actions={actions}
+            binding={binding}
+            record={record}
+          />
           <p className="text-sm">
             Research Session revision {binding.pin.source.revision} · range{" "}
             {binding.pin.start}–{binding.pin.end}
@@ -502,5 +520,43 @@ function ResearchSessionEvidence({
         </article>
       ))}
     </>
+  );
+}
+
+function ResearchEvidenceTargetAction({
+  binding,
+  record,
+  actions,
+}: {
+  binding: ResearchEvidenceBinding;
+  record: ResearchSessionRecord;
+  actions: ResearchBindingActions;
+}) {
+  const { target } = binding;
+  if (!(target.canOpenSourceRecord && target.projectId)) {
+    return null;
+  }
+  if (target.type === "Feedback") {
+    const read = actions.feedback;
+    return read ? (
+      <ResearchBindingFeedbackView
+        bindingId={binding.id}
+        read={() => read(record, binding.id)}
+        revision={record.revision}
+        sessionId={record.id}
+      />
+    ) : null;
+  }
+  const hash =
+    target.type === "Work" || target.type === "Feature"
+      ? workRecordHash(target.recordId)
+      : projectSourceRecordHash(target.type, target.recordId);
+  return (
+    <a
+      className="inline-block rounded-sm py-1 text-sm underline underline-offset-2 focus-visible:outline-2"
+      href={`/projects/${encodeURIComponent(target.projectId)}#${hash}`}
+    >
+      Open source record
+    </a>
   );
 }

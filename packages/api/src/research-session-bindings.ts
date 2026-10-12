@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { pinEvidenceText, versionPinnedEvidenceSchema } from "./evidence";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import { brokenReferenceReasonSchema } from "./relations";
 import {
   type ResearchSessionRecord,
   researchSessionConvertPreview,
@@ -82,7 +83,16 @@ export const researchEvidenceBindingSchema = z
   .object({
     id,
     pin: versionPinnedEvidenceSchema,
-    target: z.object({ recordId: id, projectId: id, type, label: id }).strict(),
+    target: z
+      .object({
+        recordId: id,
+        projectId: id.nullable(),
+        type,
+        label: id.nullable(),
+        brokenReason: brokenReferenceReasonSchema.nullable().default(null),
+        canOpenSourceRecord: z.boolean().default(true),
+      })
+      .strict(),
     origin: z.boolean(),
     createdAt: z.iso.datetime({ offset: true }),
     actorId: id,
@@ -100,6 +110,19 @@ export interface ResearchBindingTargets {
     title: string;
   }[];
 }
+export const researchBindingFeedbackSchema = z
+  .object({
+    id,
+    title: id,
+    status: z.enum(["New", "Reviewed", "Archived"]),
+    originalMessage: z.string(),
+    channel: z.string().nullable(),
+    occurredAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+export type ResearchBindingFeedback = z.infer<
+  typeof researchBindingFeedbackSchema
+>;
 export interface ResearchSessionBindingsAccess {
   bindingTargets: (
     accountId: string,
@@ -117,6 +140,10 @@ export interface ResearchSessionBindingsAccess {
     accountId: string,
     input: PreviewResearchSessionBindingInput,
   ) => Promise<ResearchBindingPreview>;
+  readBindingFeedback: (
+    accountId: string,
+    input: { id: string; projectId: string; bindingId: string },
+  ) => Promise<ResearchBindingFeedback>;
 }
 
 export function previewResearchSessionBinding(

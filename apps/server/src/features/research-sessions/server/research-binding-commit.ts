@@ -106,6 +106,7 @@ export async function commitResearchSessionBinding(
   });
   await writeEvidenceBinding(executor, {
     ...binding,
+    target: { recordId, projectId: target.project.id, type: plan.target.type },
     workspaceId: input.workspaceId,
     committedAt: input.committedAt,
   });

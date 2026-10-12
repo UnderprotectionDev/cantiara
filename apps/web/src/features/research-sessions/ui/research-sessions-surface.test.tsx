@@ -297,6 +297,11 @@ test("a lost note response retries the same identity, while an edited retry reta
     expect(rpc.saveNote.mock.calls[0]?.[0]).toEqual(
       rpc.saveNote.mock.calls[1]?.[0],
     );
+    // Wait for the persisted note to render before opening a new draft at its revision.
+    await vi.waitFor(async () => {
+      await act(async () => undefined);
+      expect(surface.host.querySelectorAll("article")).toHaveLength(1);
+    });
     await start();
     await surface.fill("Founder interpretation", "Edited retry text");
     await act(async () => surface.button("Retry").click());

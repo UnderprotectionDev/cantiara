@@ -49,6 +49,8 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 
 - **Research conversion collaborator (#329).** `packages/api/src/evidence.ts` owns the reusable exact-version UTF-16 text pin contract. `apps/server/src/features/evidence/server/evidence-database.ts` writes semantic Evidence and optional Origin in the consumer’s transaction, separately from derived usage links. `packages/db/src/schema/evidence.ts` persists both with an explicit default `Unspecified` role; no role inference, Evidence Flow or rebind UI is delivered here. The caller must validate and lock both owned ends, exact source version and permissions. Research Sessions is the first consumer.
 
+- **Historical endpoint deletion (#329 review).** Evidence's Project references are nullable `ON DELETE SET NULL`: deleting either Project preserves the surviving end's Evidence and Origin, original record identities, Origin Location and establishment time. Workspace deletion still removes its private history. Persisted historical pins do not authorize reads: the consuming adapter checks the live owned source and current Consent before returning pinned text, resolves target access/lifecycle separately and suppresses unavailable target labels and navigation. The new versioned migration changes only these two foreign keys/nullability; applied migrations are preserved. Testing Decisions: #329 lifecycle collaborator evidence below.
+
 ## Testing Decisions
 
 - **What a good test is.** Tests observe Evidence through bind, pin, role/comment, and Evidence Flow listing. They go red if `İlgili` appears in the flow, if a pin slides to a newer version, if role is inferred, or if Contradicting auto-opens a Decision. Expected roles are the closed catalog, not a classifier score. Ticket 02 locks the role matrix (`Supporting`, `Contradicting`, `Provides context`, `Inconclusive`, `Unspecified`), separate `Founder interpretation` history, target grouping by accessible counts, and share withholding of inaccessible role.
@@ -58,6 +60,8 @@ Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgil
 - **Required counterparts.** İlgili not in flow; pin stays on exact version; role not inferred; Contradicting does not auto-open Decision; flow does not invent rows; Origin Location does not retarget. Ticket 02: role not on Source; interpretation not an Insight; Feedback niteliği not derived into role; inaccessible share does not leak role.
 
 - **#329 collaborator evidence.** `apps/server/src/features/research-sessions/server/research-sessions-database.test.ts` observes this collaborator through the consuming Research Sessions seam: all supported target types, original exact version/range, retry identity and no silent rebind after note edit. This does not claim delivery of the full Evidence seam/Flow/role editor.
+
+- **#329 lifecycle collaborator evidence.** The Research Sessions database seam checks both Project deletion directions against native persistence, safe deleted-target presentation, archived/Trash reads with refused writes, lost workspace access and restoration. The preview cleanup test also verifies durable exactly-once receipts after temporary plans are removed. The consuming UI seam verifies broken-reference reason/time and accessible navigation. These tests cover the Historical endpoint deletion decision without claiming full Evidence Flow delivery.
 
 ## Out of Scope
 

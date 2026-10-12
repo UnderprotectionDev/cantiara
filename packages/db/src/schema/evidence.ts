@@ -18,13 +18,14 @@ export const evidenceBinding = pgTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
-    sourceProjectId: text("source_project_id")
-      .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+    // A deleted Project leaves a tombstone; the surviving end keeps its history.
+    sourceProjectId: text("source_project_id").references(() => project.id, {
+      onDelete: "set null",
+    }),
     sourceRecordId: text("source_record_id").notNull(),
-    targetProjectId: text("target_project_id")
-      .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+    targetProjectId: text("target_project_id").references(() => project.id, {
+      onDelete: "set null",
+    }),
     targetRecordId: text("target_record_id").notNull(),
     targetRecordType: text("target_record_type").notNull(),
     pin: jsonb("pin").notNull(),

@@ -5290,6 +5290,29 @@ export const appRouter = {
         input,
       );
     }),
+  researchSessionBindingFeedback: protectedProcedure
+    .input(
+      z
+        .object({
+          id: z.string().min(1),
+          projectId: z.string().min(1),
+          bindingId: z.string().min(1),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.readBindingFeedback) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.readBindingFeedback(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
   projectResearchSessionBindings: protectedProcedure
     .input(
       z

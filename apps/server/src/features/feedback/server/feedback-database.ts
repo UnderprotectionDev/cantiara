@@ -48,3 +48,34 @@ export async function listFeedbackRecords(
     updatedAt: record.updatedAt.toISOString(),
   }));
 }
+
+/** Current native record read; archived records remain accessible to their owner. */
+export async function findFeedbackRecord(
+  database: Database,
+  accountId: string,
+  projectId: string,
+  id: string,
+) {
+  const [row] = await database
+    .select({ record: feedback })
+    .from(feedback)
+    .innerJoin(project, eq(project.id, feedback.projectId))
+    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+    .where(
+      and(
+        eq(feedback.id, id),
+        eq(project.id, projectId),
+        eq(workspace.ownerAccountId, accountId),
+      ),
+    );
+  return row
+    ? {
+        id: row.record.id,
+        title: row.record.title,
+        status: row.record.status,
+        originalMessage: row.record.originalMessage,
+        channel: row.record.channel,
+        occurredAt: row.record.occurredAt.toISOString(),
+      }
+    : null;
+}

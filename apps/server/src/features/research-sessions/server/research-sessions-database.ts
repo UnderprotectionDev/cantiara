@@ -7,6 +7,7 @@ import {
   previewResearchSessionBindingInputSchema,
   type ResearchEvidenceBinding,
   type ResearchSessionBindingsAccess,
+  researchBindingFeedbackSchema,
   researchBindingPlanSchema,
   researchEvidenceBindingSchema,
 } from "@cantiara/api/research-session-bindings";
@@ -33,7 +34,8 @@ import {
   researchSessionBindingPreview,
 } from "@cantiara/db/schema/research-session";
 import { ORPCError } from "@orpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, lte } from "drizzle-orm";
+import { findFeedbackRecord } from "../../feedback/server/feedback-database";
 import { MutationConflictError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createDatabaseMutationContract,
@@ -43,6 +45,7 @@ import {
 import { commitResearchSessionBinding } from "./research-binding-commit";
 import {
   listResearchBindingTargets,
+  readResearchBindingTarget,
   researchBindingTarget,
 } from "./research-binding-targets";
 
@@ -284,6 +287,52 @@ export function createDatabaseResearchSessions(
     return { owner, session: researchSessionRecordSchema.parse(row.data) };
   }
   return {
+    async readBindingFeedback(accountId, input) {
+      const { session, owner } = await readSession(accountId, input);
+      const [row] = await database
+        .select()
+        .from(evidenceBinding)
+        .where(
+          and(
+            eq(evidenceBinding.id, input.bindingId),
+            eq(evidenceBinding.sourceRecordId, input.id),
+            eq(evidenceBinding.sourceProjectId, input.projectId),
+            eq(evidenceBinding.workspaceId, owner.workspaceId),
+            eq(evidenceBinding.targetRecordType, "Feedback"),
+          ),
+        );
+      if (!row) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      const pin = researchBindingPlanSchema.shape.pin.parse(row.pin);
+      if (!pin.source.componentId) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      researchSessionConvertPreview(session, pin.source.componentId);
+      const target = await readResearchBindingTarget(
+        database,
+        accountId,
+        owner.workspaceId,
+        {
+          type: "Feedback",
+          projectId: row.targetProjectId,
+          recordId: row.targetRecordId,
+        },
+      );
+      if (!(target.canOpenSourceRecord && target.projectId)) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      const record = await findFeedbackRecord(
+        database,
+        accountId,
+        target.projectId,
+        target.recordId,
+      );
+      if (!record) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return researchBindingFeedbackSchema.parse(record);
+    },
     async bindingTargets(accountId, input) {
       const { owner } = await readSession(accountId, input);
       return listResearchBindingTargets(database, owner.workspaceId);
@@ -325,30 +374,10 @@ export function createDatabaseResearchSessions(
     },
     async confirmBinding(accountId, rawInput) {
       const input = confirmResearchSessionBindingInputSchema.parse(rawInput);
-      const { session, owner } = await readSession(accountId, input);
+      const { owner } = await readSession(accountId, input);
       if (owner.archivedAt) {
         throw new ORPCError("FORBIDDEN");
       }
-      const [preview] = await database
-        .select()
-        .from(researchSessionBindingPreview)
-        .where(
-          and(
-            eq(researchSessionBindingPreview.id, input.previewId),
-            eq(researchSessionBindingPreview.accountId, accountId),
-            eq(researchSessionBindingPreview.sessionId, input.id),
-            eq(researchSessionBindingPreview.projectId, input.projectId),
-          ),
-        );
-      if (!preview) {
-        throw new ORPCError("NOT_FOUND");
-      }
-      const plan = researchBindingPlanSchema.parse(preview.plan);
-      const { componentId } = plan.pin.source;
-      if (!componentId) {
-        throw new MutationConflictError(input.id);
-      }
-      researchSessionConvertPreview(session, componentId);
       const receipt = await mutation(accountId).mutate(
         {
           actor: { actorId: accountId, type: "User" },
@@ -376,10 +405,45 @@ export function createDatabaseResearchSessions(
           };
         },
       );
-      return researchEvidenceBindingSchema.parse(receipt.nextValue.binding);
+      const binding = researchEvidenceBindingSchema.parse(
+        receipt.nextValue.binding,
+      );
+      // A retry resolves the durable receipt even after its temporary preview is swept.
+      // Recheck current permission before returning any pinned text from that receipt.
+      const { componentId } = binding.pin.source;
+      if (!componentId) {
+        throw new MutationConflictError(input.id);
+      }
+      const { session } = await readSession(accountId, input);
+      researchSessionConvertPreview(session, componentId);
+      const [current] = await database
+        .select()
+        .from(evidenceBinding)
+        .where(
+          and(
+            eq(evidenceBinding.id, binding.id),
+            eq(evidenceBinding.workspaceId, owner.workspaceId),
+            eq(evidenceBinding.sourceRecordId, input.id),
+            eq(evidenceBinding.sourceProjectId, input.projectId),
+          ),
+        );
+      if (!current) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      const target = await readResearchBindingTarget(
+        database,
+        accountId,
+        owner.workspaceId,
+        {
+          type: binding.target.type,
+          recordId: current.targetRecordId,
+          projectId: current.targetProjectId,
+        },
+      );
+      return researchEvidenceBindingSchema.parse({ ...binding, target });
     },
     async listBindings(accountId, input) {
-      const { session } = await readSession(accountId, input);
+      const { session, owner } = await readSession(accountId, input);
       const rows = await database
         .select({ evidence: evidenceBinding, origin: recordOrigin.id })
         .from(evidenceBinding)
@@ -397,40 +461,34 @@ export function createDatabaseResearchSessions(
       const bindings = await Promise.all(
         rows.map(async ({ evidence, origin }) => {
           const pin = researchBindingPlanSchema.shape.pin.parse(evidence.pin);
+          if (!pin.source.componentId) {
+            return null;
+          }
           try {
-            if (!pin.source.componentId) {
-              return null;
-            }
             researchSessionConvertPreview(session, pin.source.componentId);
-            const target = await researchBindingTarget(
-              database,
-              accountId,
-              {
-                mode: "bind",
-                type: researchEvidenceBindingSchema.shape.target.shape.type.parse(
-                  evidence.targetRecordType,
-                ),
-                projectId: evidence.targetProjectId,
-                recordId: evidence.targetRecordId,
-              },
-              false,
-            );
-            return researchEvidenceBindingSchema.parse({
-              id: evidence.id,
-              pin,
-              actorId: evidence.actorId,
-              createdAt: evidence.createdAt.toISOString(),
-              origin: !!origin,
-              target: {
-                recordId: evidence.targetRecordId,
-                projectId: evidence.targetProjectId,
-                type: evidence.targetRecordType,
-                label: target.label,
-              },
-            });
           } catch {
             return null;
           }
+          const target = await readResearchBindingTarget(
+            database,
+            accountId,
+            owner.workspaceId,
+            {
+              type: researchEvidenceBindingSchema.shape.target.shape.type.parse(
+                evidence.targetRecordType,
+              ),
+              projectId: evidence.targetProjectId,
+              recordId: evidence.targetRecordId,
+            },
+          );
+          return researchEvidenceBindingSchema.parse({
+            id: evidence.id,
+            pin,
+            actorId: evidence.actorId,
+            createdAt: evidence.createdAt.toISOString(),
+            origin: !!origin,
+            target,
+          });
         }),
       );
       return bindings.filter(
@@ -593,4 +651,16 @@ export function createDatabaseResearchSessions(
       return researchSessionRecordSchema.parse(receipt.nextValue.session);
     },
   };
+}
+
+/** Expiry applies to preparations; exactly-once receipts have their own durable lifetime. */
+export async function sweepExpiredResearchBindingPreviews(
+  database: Database,
+  now = new Date(),
+) {
+  const removed = await database
+    .delete(researchSessionBindingPreview)
+    .where(lte(researchSessionBindingPreview.expiresAt, now))
+    .returning({ id: researchSessionBindingPreview.id });
+  return removed.length;
 }

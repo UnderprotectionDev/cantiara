@@ -12,7 +12,10 @@ import {
 import { project } from "@cantiara/db/schema/project";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { createDatabaseResearchSessions } from "./research-sessions-database";
+import {
+  createDatabaseResearchSessions,
+  sweepExpiredResearchBindingPreviews,
+} from "./research-sessions-database";
 
 const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 (url ? describe : describe.skip)(
@@ -495,6 +498,7 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
     const accountId = crypto.randomUUID();
     const workspaceId = crypto.randomUUID();
     const projectId = crypto.randomUUID();
+    const foreignLifecycleAccounts: string[] = [];
     beforeAll(async () => {
       if (!db) {
         throw new Error("Database required");
@@ -516,6 +520,9 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
       });
     });
     afterAll(async () => {
+      for (const id of foreignLifecycleAccounts) {
+        await db?.delete(user).where(eq(user.id, id));
+      }
       await db?.delete(user).where(eq(user.id, accountId));
       await db?.$client.end();
     });
@@ -666,6 +673,366 @@ const url = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         target,
       };
     }
+    test("expired preparations are swept while confirmed retries keep their receipt and current consent gate", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const record = await notedSession();
+      const input = previewInput(record, {
+        mode: "create",
+        type: "Assumption",
+        projectId,
+        title: "Retained receipt",
+      });
+      const abandoned = await sessions.previewBinding(accountId, input);
+      const preview = await sessions.previewBinding(accountId, input);
+      const command = {
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        previewId: preview.previewId,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      const binding = await sessions.confirmBinding(accountId, command);
+      expect(
+        await sweepExpiredResearchBindingPreviews(
+          db,
+          new Date(Date.now() + 16 * 60_000),
+        ),
+      ).toBeGreaterThanOrEqual(2);
+      expect(await sessions.confirmBinding(accountId, command)).toEqual(
+        binding,
+      );
+      await expect(
+        sessions.confirmBinding(accountId, {
+          ...command,
+          previewId: abandoned.previewId,
+          clientIdempotencyKey: crypto.randomUUID(),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        sessions.confirmBinding(accountId, {
+          ...command,
+          previewId: abandoned.previewId,
+        }),
+      ).rejects.toThrow();
+      const current = (await sessions.list(accountId, projectId))?.records.find(
+        (item) => item.id === record.id,
+      );
+      if (!current) {
+        throw new Error("Session required");
+      }
+      await sessions.save(accountId, {
+        id: current.id,
+        projectId,
+        baseRevision: current.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        fields: {
+          title: current.title,
+          purpose: current.purpose,
+          consent: "Not allowed",
+        },
+      });
+      await expect(
+        sessions.confirmBinding(accountId, command),
+      ).rejects.toThrow();
+    });
+
+    test.each(["source", "target"] as const)(
+      "deleting the %s Project preserves Evidence and Origin for the surviving end",
+      async (deletedEnd) => {
+        if (!db) {
+          throw new Error("Database required");
+        }
+        const sessions = createDatabaseResearchSessions(db);
+        const sourceProjectId = crypto.randomUUID();
+        const targetProjectId = crypto.randomUUID();
+        for (const id of [sourceProjectId, targetProjectId]) {
+          await db.insert(project).values({
+            id,
+            workspaceId,
+            name: "Deletion fixture",
+            shortCode: `D${id.slice(0, 6).toUpperCase()}`,
+            starterConfiguration: "Blank Project",
+          });
+        }
+        const saved = await sessions.save(accountId, {
+          id: crypto.randomUUID(),
+          projectId: sourceProjectId,
+          baseRevision: 0,
+          clientIdempotencyKey: crypto.randomUUID(),
+          fields: {
+            title: "Historical research",
+            purpose: "Keep provenance",
+            consent: "Allowed",
+          },
+        });
+        const record = await sessions.saveNote(accountId, {
+          id: saved.id,
+          projectId: sourceProjectId,
+          baseRevision: saved.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          create: true,
+          note: {
+            id: "note",
+            kind: "Participant quote",
+            text: "Private quote",
+          },
+        });
+        const preview = await sessions.previewBinding(accountId, {
+          ...previewInput(record, {
+            mode: "create",
+            type: "Assumption",
+            projectId: targetProjectId,
+            title: "Surviving claim",
+          }),
+          projectId: sourceProjectId,
+        });
+        const binding = await sessions.confirmBinding(accountId, {
+          id: record.id,
+          projectId: sourceProjectId,
+          baseRevision: record.revision,
+          previewId: preview.previewId,
+          clientIdempotencyKey: crypto.randomUUID(),
+        });
+        await db
+          .delete(project)
+          .where(
+            eq(
+              project.id,
+              deletedEnd === "source" ? sourceProjectId : targetProjectId,
+            ),
+          );
+        // Persistence invariant: Project cascade must never remove a surviving end's historical relation.
+        const { evidenceBinding, recordOrigin } = await import(
+          "@cantiara/db/schema/evidence"
+        );
+        const [historical] = await db
+          .select()
+          .from(evidenceBinding)
+          .where(eq(evidenceBinding.id, binding.id));
+        expect(historical).toMatchObject({
+          sourceProjectId: deletedEnd === "source" ? null : sourceProjectId,
+          targetProjectId: deletedEnd === "target" ? null : targetProjectId,
+          sourceRecordId: record.id,
+          targetRecordId: binding.target.recordId,
+          createdAt: new Date(binding.createdAt),
+        });
+        const [origin] = await db
+          .select()
+          .from(recordOrigin)
+          .where(eq(recordOrigin.evidenceBindingId, binding.id));
+        expect(origin).toMatchObject({
+          sourceRecordId: record.id,
+          targetRecordId: binding.target.recordId,
+          location: binding.pin.source,
+        });
+        if (deletedEnd === "target") {
+          expect(
+            await sessions.listBindings(accountId, {
+              id: record.id,
+              projectId: sourceProjectId,
+            }),
+          ).toEqual([
+            {
+              ...binding,
+              target: {
+                ...binding.target,
+                projectId: null,
+                label: null,
+                brokenReason: "Permanently deleted",
+                canOpenSourceRecord: false,
+              },
+            },
+          ]);
+        } else {
+          await expect(
+            sessions.listBindings(accountId, {
+              id: record.id,
+              projectId: sourceProjectId,
+            }),
+          ).rejects.toThrow();
+          const { createDatabaseProjectSourceRecords } = await import(
+            "../../project-source-records/server/project-source-records-database"
+          );
+          const records = await createDatabaseProjectSourceRecords(
+            db,
+          ).listAssumptions?.(accountId, targetProjectId);
+          expect(records?.records).toEqual([
+            expect.objectContaining({ id: binding.target.recordId }),
+          ]);
+        }
+        await db
+          .delete(project)
+          .where(
+            eq(
+              project.id,
+              deletedEnd === "source" ? targetProjectId : sourceProjectId,
+            ),
+          );
+      },
+    );
+
+    test.each([
+      "Archived Project",
+      "Archived Work",
+      "In Trash",
+      "Archived Feedback",
+      "Permanently deleted",
+      "No access",
+    ] as const)("%s retains a safe binding row", async (state) => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const sessions = createDatabaseResearchSessions(db);
+      const record = await notedSession();
+      const targetProjectId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: targetProjectId,
+        workspaceId,
+        name: "Lifecycle target",
+        shortCode: `L${targetProjectId.slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      const type = state === "Archived Feedback" ? "Feedback" : "Work";
+      const preview = await sessions.previewBinding(
+        accountId,
+        previewInput(record, {
+          mode: "create",
+          type,
+          projectId: targetProjectId,
+          title: "Private target title",
+          ...(type === "Work" ? { workType: "Research" as const } : {}),
+        }),
+      );
+      const command = {
+        id: record.id,
+        projectId,
+        baseRevision: record.revision,
+        previewId: preview.previewId,
+        clientIdempotencyKey: crypto.randomUUID(),
+      };
+      const binding = await sessions.confirmBinding(accountId, command);
+      const { work } = await import("@cantiara/db/schema/work");
+      const { feedback } = await import("@cantiara/db/schema/feedback");
+      if (state === "No access") {
+        const otherWorkspaceId = crypto.randomUUID();
+        const foreignAccountId = crypto.randomUUID();
+        foreignLifecycleAccounts.push(foreignAccountId);
+        await db.insert(user).values({
+          id: foreignAccountId,
+          name: "Foreign owner",
+          email: `${foreignAccountId}@example.invalid`,
+        });
+        await db
+          .insert(workspace)
+          .values({ id: otherWorkspaceId, ownerAccountId: foreignAccountId });
+        await db
+          .update(project)
+          .set({ workspaceId: otherWorkspaceId })
+          .where(eq(project.id, targetProjectId));
+      } else if (state === "Archived Project") {
+        await db
+          .update(project)
+          .set({ archivedAt: new Date() })
+          .where(eq(project.id, targetProjectId));
+      } else if (state === "Archived Feedback") {
+        await db
+          .update(feedback)
+          .set({ status: "Archived" })
+          .where(eq(feedback.id, binding.target.recordId));
+      } else if (state === "Permanently deleted") {
+        await db.delete(work).where(eq(work.id, binding.target.recordId));
+      } else {
+        await db
+          .update(work)
+          .set(
+            state === "In Trash"
+              ? { trashedAt: new Date() }
+              : { archivedAt: new Date() },
+          )
+          .where(eq(work.id, binding.target.recordId));
+      }
+      if (state === "Archived Feedback") {
+        expect(
+          await sessions.readBindingFeedback(accountId, {
+            id: record.id,
+            projectId,
+            bindingId: binding.id,
+          }),
+        ).toMatchObject({
+          id: binding.target.recordId,
+          status: "Archived",
+          originalMessage: "CSV exports",
+        });
+        await expect(
+          sessions.readBindingFeedback("foreign-account", {
+            id: record.id,
+            projectId,
+            bindingId: binding.id,
+          }),
+        ).rejects.toThrow();
+      }
+      const rows = await sessions.listBindings(accountId, {
+        id: record.id,
+        projectId,
+      });
+      expect(rows).toEqual([
+        {
+          ...binding,
+          target: {
+            ...binding.target,
+            projectId:
+              state === "Permanently deleted" || state === "No access"
+                ? null
+                : targetProjectId,
+            label: null,
+            brokenReason:
+              state === "In Trash" ||
+              state === "Permanently deleted" ||
+              state === "No access"
+                ? state
+                : "Archived",
+            canOpenSourceRecord:
+              state !== "Permanently deleted" && state !== "No access",
+          },
+        },
+      ]);
+      expect(await sessions.confirmBinding(accountId, command)).toEqual(
+        rows[0],
+      );
+      if (state !== "Permanently deleted") {
+        const current = (
+          await sessions.list(accountId, projectId)
+        )?.records.find((item) => item.id === record.id);
+        if (!current) {
+          throw new Error("Session required");
+        }
+        await expect(
+          sessions.previewBinding(
+            accountId,
+            previewInput(current, {
+              mode: "bind",
+              type,
+              projectId: targetProjectId,
+              recordId: binding.target.recordId,
+            }),
+          ),
+        ).rejects.toThrow();
+      }
+      if (state === "Archived Work" || state === "In Trash") {
+        await db
+          .update(work)
+          .set({ archivedAt: null, trashedAt: null })
+          .where(eq(work.id, binding.target.recordId));
+        expect(
+          await sessions.listBindings(accountId, { id: record.id, projectId }),
+        ).toEqual([binding]);
+      }
+      await db.delete(project).where(eq(project.id, targetProjectId));
+    });
+
     test.each([
       "Feedback",
       "Assumption",

@@ -25,6 +25,12 @@ export default function ResearchSessionsSurface({
   const query = useQuery(options);
   const bindingActions = useMemo<ResearchBindingActions>(
     () => ({
+      feedback: (record, bindingId) =>
+        client.researchSessionBindingFeedback({
+          id: record.id,
+          projectId,
+          bindingId,
+        }),
       targets: (record) =>
         client.researchSessionBindingTargets({ id: record.id, projectId }),
       list: (record) =>

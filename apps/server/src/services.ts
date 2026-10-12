@@ -85,7 +85,10 @@ import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
-import { createDatabaseResearchSessions } from "./features/research-sessions/server/research-sessions-database";
+import {
+  createDatabaseResearchSessions,
+  sweepExpiredResearchBindingPreviews,
+} from "./features/research-sessions/server/research-sessions-database";
 import { createDatabaseReturnToWork } from "./features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
@@ -422,3 +425,6 @@ export const auth = createAuth(
   desktopOrigins,
   githubAvailability,
 );
+
+export const sweepExpiredResearchSessionBindingPreviews = () =>
+  sweepExpiredResearchBindingPreviews(db);
