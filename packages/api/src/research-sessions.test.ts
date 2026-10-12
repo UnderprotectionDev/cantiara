@@ -213,6 +213,32 @@ test("capture cannot accept client-supplied permission provenance", () => {
   ).toThrow();
 });
 
+test("convert preview refuses a File Attachment as research text evidence", () => {
+  const session = researchSessionRecordSchema.parse({
+    ...sessionFields,
+    id: "session-1",
+    projectId: "project-1",
+    sourceType: "Research Session",
+    revision: 3,
+    createdAt: instant,
+    updatedAt: instant,
+    consentRecordedBy: "founder-1",
+    consentRecordedAt: instant,
+    consent: "Allowed",
+    content: [
+      captureResearchSessionContent("Allowed", {
+        id: "attachment-1",
+        kind: "File Attachment",
+        fileId: "file-1",
+        fileVersionId: "version-1",
+      }),
+    ],
+  });
+  expect(() => researchSessionConvertPreview(session, "attachment-1")).toThrow(
+    "Choose a research note or quote.",
+  );
+});
+
 test("Research Sessions captures Observation and Founder interpretation without turning them into participant words", () => {
   for (const kind of ["Observation", "Founder interpretation"] as const) {
     const captured = captureResearchSessionContent("Allowed", {
@@ -316,4 +342,116 @@ test("new snapshot candidates never disclose a Speaker label even with participa
       speakerLabel: null,
     });
   }
+});
+
+test("Research Sessions previews an exact range, target fields and Origin without changing the note", async () => {
+  const { previewResearchSessionBinding } = await import(
+    "./research-session-bindings"
+  );
+  const session = researchSessionRecordSchema.parse({
+    ...sessionFields,
+    id: "session-1",
+    projectId: "project-1",
+    sourceType: "Research Session",
+    revision: 3,
+    createdAt: instant,
+    updatedAt: instant,
+    consentRecordedBy: "founder-1",
+    consentRecordedAt: instant,
+    consent: "Allowed",
+    content: [
+      captureResearchSessionContent("Allowed", {
+        id: "q1",
+        kind: "Participant quote",
+        text: "Please use CSV exports today.",
+      }),
+    ],
+  });
+  const plan = previewResearchSessionBinding(session, {
+    id: session.id,
+    projectId: session.projectId,
+    baseRevision: 3,
+    clientIdempotencyKey: "preview-1",
+    contentId: "q1",
+    start: 11,
+    end: 22,
+    target: {
+      mode: "create",
+      type: "Assumption",
+      projectId: "project-2",
+      title: "CSV demand",
+    },
+  });
+  expect(plan).toMatchObject({
+    pin: {
+      source: { recordId: "session-1", revision: 3, componentId: "q1" },
+      start: 11,
+      end: 22,
+      excerpt: "CSV exports",
+    },
+    target: {
+      mode: "create",
+      type: "Assumption",
+      projectId: "project-2",
+      title: "CSV demand",
+    },
+    fields: { title: "CSV demand", statement: "CSV exports" },
+    origin: { kind: "Origin", sourceRecordId: "session-1" },
+  });
+  const [original] = session.content;
+  if (!original) {
+    throw new Error("Note required");
+  }
+  original.content = {
+    id: "q1",
+    kind: "Observation",
+    text: "Changed",
+    relationIds: [],
+    containsPersonalInformation: false,
+  };
+  session.revision = 4;
+  expect(plan.pin.excerpt).toBe("CSV exports");
+  expect(plan.pin.source.revision).toBe(3);
+});
+
+test("research pin refuses whitespace-only selections before creating any preview", async () => {
+  const { previewResearchSessionBinding } = await import(
+    "./research-session-bindings"
+  );
+  const record = researchSessionRecordSchema.parse({
+    ...sessionFields,
+    id: "s",
+    projectId: "p",
+    sourceType: "Research Session",
+    revision: 1,
+    createdAt: instant,
+    updatedAt: instant,
+    consentRecordedBy: "founder",
+    consentRecordedAt: instant,
+    consent: "Allowed",
+    content: [
+      captureResearchSessionContent("Allowed", {
+        id: "n",
+        kind: "Participant quote",
+        text: "CSV   exports",
+      }),
+    ],
+  });
+  expect(() =>
+    previewResearchSessionBinding(record, {
+      id: "s",
+      projectId: "p",
+      baseRevision: 1,
+      clientIdempotencyKey: "preview",
+      contentId: "n",
+      start: 3,
+      end: 6,
+      target: {
+        mode: "create",
+        type: "Feedback",
+        projectId: "p",
+        title: "CSV",
+      },
+    }),
+  ).toThrow();
 });

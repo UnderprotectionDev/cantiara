@@ -14,6 +14,12 @@ vi.mock("@/env", () => ({
 vi.mock("@/utils/orpc", () => ({
   client: {},
   orpc: {
+    sourceChecks: {
+      queryOptions: () => ({ queryKey: ["checks"], queryFn: async () => [] }),
+    },
+    source: {
+      queryOptions: () => ({ queryKey: ["source"], queryFn: async () => null }),
+    },
     projectSources: {
       queryOptions: () => ({
         queryKey: ["sources"],

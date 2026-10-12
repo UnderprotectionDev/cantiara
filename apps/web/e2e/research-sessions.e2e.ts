@@ -465,3 +465,153 @@ test("typed Research Session notes remain distinct through save, edit, retry and
   await expect(notes.getByRole("article")).toHaveCount(4);
   await notes.screenshot({ path: "../../.context/research-notes.png" });
 });
+
+test("research conversion previews one record, cancels, retries and keeps a version-pinned excerpt after editing", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#project-area-discovery`);
+  const sessions = page.getByRole("region", {
+    name: "Research Sessions",
+    exact: true,
+  });
+  await sessions
+    .getByRole("button", { name: "Create Research Session", exact: true })
+    .click();
+  await sessions
+    .getByLabel("Title", { exact: true })
+    .fill("CSV evidence interview");
+  await sessions
+    .getByLabel("Purpose", { exact: true })
+    .fill("Understand exports");
+  await sessions.getByLabel("Consent", { exact: true }).selectOption("Allowed");
+  await sessions.getByRole("button", { name: "Save", exact: true }).click();
+  const notes = page.getByRole("region", {
+    name: "Notes for CSV evidence interview",
+    exact: true,
+  });
+  await notes.getByRole("button", { name: "Add note", exact: true }).click();
+  await notes
+    .getByLabel("Note type", { exact: true })
+    .selectOption("Participant quote");
+  await notes
+    .getByLabel("Participant quote", { exact: true })
+    .fill("Please use CSV exports today.");
+  await notes.getByRole("button", { name: "Save", exact: true }).click();
+  const quote = notes.getByRole("article", {
+    name: "Participant quote",
+    exact: true,
+  });
+  await quote
+    .getByRole("button", {
+      name: "Convert to new record and bind",
+      exact: true,
+    })
+    .click();
+  const editor = notes.getByRole("region", {
+    name: "Convert to new record and bind",
+    exact: true,
+  });
+  await expect(
+    editor.getByRole("combobox", { name: "Target type", exact: true }),
+  ).toHaveValue("");
+  await expect(
+    editor.getByRole("button", { name: "Preview", exact: true }),
+  ).toBeDisabled();
+  await editor
+    .getByRole("combobox", { name: "Target type", exact: true })
+    .selectOption("Assumption");
+  await editor.getByLabel("Title", { exact: true }).fill("CSV export demand");
+  await editor.getByLabel("Selection start", { exact: true }).fill("11");
+  await editor.getByLabel("Selection end", { exact: true }).fill("22");
+  await expect(editor).toContainText("Range 11–22: CSV exports");
+  await editor.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(editor).toContainText("range 11–22");
+  await expect(editor.getByRole("definition")).toContainText([
+    "CSV export demand",
+    "CSV exports",
+  ]);
+  const audit = await new AxeBuilder({ page })
+    .include('[aria-label="Research Sessions"]')
+    .analyze();
+  expect(audit.violations).toEqual([]);
+  await editor.screenshot({
+    path: "../../.context/research-conversion-preview.png",
+  });
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    notes.getByRole("article", {
+      name: "Version-pinned evidence",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await quote
+    .getByRole("button", {
+      name: "Convert to new record and bind",
+      exact: true,
+    })
+    .click();
+  await editor
+    .getByRole("combobox", { name: "Target type", exact: true })
+    .selectOption("Feedback");
+  await editor
+    .getByLabel("Title", { exact: true })
+    .fill("CSV original message");
+  await editor.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(editor).toContainText("Original message");
+  await page.route(
+    "**/rpc/confirmResearchSessionBinding",
+    (route) => route.fulfill({ status: 503, body: "Temporarily unavailable" }),
+    { times: 1 },
+  );
+  await editor.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(editor.getByRole("alert")).toContainText(
+    "could not be confirmed",
+  );
+  await editor.getByRole("button", { name: "Retry", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const evidence = notes.getByRole("article", {
+    name: "Version-pinned evidence",
+    exact: true,
+  });
+  await expect(evidence).toHaveCount(1);
+  await expect(evidence).toContainText("Feedback: CSV original message");
+  await quote.getByRole("button", { name: "Edit note", exact: true }).click();
+  await notes
+    .getByRole("textbox", { name: "Participant quote", exact: true })
+    .fill("PDF instead");
+  await notes.getByRole("button", { name: "Save", exact: true }).click();
+  await page.reload();
+  await expect(quote).toContainText("PDF instead");
+  await expect(evidence).toContainText("Please use CSV exports today.");
+  await expect(evidence).toContainText("Newer version exists");
+  await expect(evidence).toHaveCount(1);
+  await quote
+    .getByRole("button", {
+      name: "Bind as evidence to existing record",
+      exact: true,
+    })
+    .click();
+  const bind = notes.getByRole("region", {
+    name: "Bind as evidence to existing record",
+    exact: true,
+  });
+  await bind
+    .getByRole("combobox", { name: "Target type", exact: true })
+    .selectOption("Feedback");
+  await bind
+    .getByRole("combobox", { name: "Target record", exact: true })
+    .selectOption({ label: "CSV original message" });
+  await bind.getByRole("button", { name: "Preview", exact: true }).click();
+  await bind.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(evidence).toHaveCount(2);
+  await page.reload();
+  await expect(evidence).toHaveCount(2);
+});

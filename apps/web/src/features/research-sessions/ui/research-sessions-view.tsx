@@ -20,7 +20,7 @@ import {
   researchSessionTimeInput,
   researchSessionTimestamp,
 } from "../lib/research-session-time";
-
+import type { ResearchBindingActions } from "./research-note-binding";
 import {
   ResearchSessionNotes,
   type SaveResearchNote,
@@ -297,6 +297,7 @@ export function ResearchSessionsView({
   onSave,
   onStartEditing,
   onSaveNote,
+  bindingActions,
 }: {
   records: ResearchSessionRecord[];
   timeZone: string;
@@ -304,6 +305,7 @@ export function ResearchSessionsView({
   onSave: Save;
   onStartEditing: () => void;
   onSaveNote: SaveResearchNote;
+  bindingActions?: ResearchBindingActions;
 }) {
   const [editing, setEditing] = useState<ResearchSessionRecord | "new" | null>(
     null,
@@ -373,6 +375,7 @@ export function ResearchSessionsView({
               </div>
               <p className="whitespace-pre-wrap text-sm">{record.purpose}</p>
               <ResearchSessionNotes
+                bindingActions={bindingActions}
                 onSave={onSaveNote}
                 onStartEditing={onStartEditing}
                 readOnly={readOnly || editing !== null}

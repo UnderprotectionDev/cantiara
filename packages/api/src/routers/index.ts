@@ -271,6 +271,10 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  confirmResearchSessionBindingInputSchema,
+  previewResearchSessionBindingInputSchema,
+} from "../research-session-bindings";
+import {
   captureResearchSessionInputSchema,
   ResearchSessionConsentError,
   researchSessionConvertPreview,
@@ -305,6 +309,10 @@ import {
   smartLinkPreviewInputSchema,
   smartLinkPreviewSchema,
 } from "../smart-link-preview";
+import {
+  recheckSourceInputSchema,
+  sourceCheckDecisionInputSchema,
+} from "../source-recheck";
 import {
   createSourceInputSchema,
   SourceConflictError,
@@ -5267,6 +5275,93 @@ export const appRouter = {
         rethrowResearchSessionError(error);
       }
     }),
+  researchSessionBindingTargets: protectedProcedure
+    .input(
+      z
+        .object({ id: z.string().min(1), projectId: z.string().min(1) })
+        .strict(),
+    )
+    .handler(({ context, input }) => {
+      if (!context.researchSessions?.bindingTargets) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.researchSessions.bindingTargets(
+        context.session.user.id,
+        input,
+      );
+    }),
+  researchSessionBindingFeedback: protectedProcedure
+    .input(
+      z
+        .object({
+          id: z.string().min(1),
+          projectId: z.string().min(1),
+          bindingId: z.string().min(1),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.readBindingFeedback) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.readBindingFeedback(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  projectResearchSessionBindings: protectedProcedure
+    .input(
+      z
+        .object({ id: z.string().min(1), projectId: z.string().min(1) })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.listBindings) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.listBindings(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  previewResearchSessionBinding: protectedProcedure
+    .input(previewResearchSessionBindingInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.previewBinding) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.previewBinding(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  confirmResearchSessionBinding: protectedProcedure
+    .input(confirmResearchSessionBindingInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.confirmBinding) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.confirmBinding(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
   previewResearchSessionSnapshot: protectedProcedure
     .input(researchSessionSnapshotPreviewInputSchema)
     .handler(async ({ context, input }) => {
@@ -5374,6 +5469,36 @@ export const appRouter = {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
       return context.smartLinkPreview(input.url);
+    }),
+  recheckSource: protectedProcedure
+    .input(recheckSourceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceRecheck;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.recheck(context.session.user.id, input),
+      );
+    }),
+  sourceChecks: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      if (!context.sourceRecheck) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.sourceRecheck.list(context.session.user.id, input);
+    }),
+  decideSourceCheck: protectedProcedure
+    .input(sourceCheckDecisionInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceRecheck;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.decide(context.session.user.id, input),
+      );
     }),
   createSource: protectedProcedure
     .input(createSourceInputSchema)

@@ -11,6 +11,7 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import { formatAccountDateTime } from "../../../account-preferences/lib/account-preferences-format";
 import { SmartLinkComposer } from "./smart-link-preview";
+import { SourceRecheckControls } from "./source-recheck-controls";
 
 function preview(url: string) {
   return client.smartLinkPreview({ url });
@@ -64,28 +65,29 @@ export default function ProjectSourcesSurface({
       <p role="alert">Sources are unavailable. Try loading this page again.</p>
     );
   }
+  const { readOnly, records } = sources.data;
   return (
     <section className="space-y-5" id="sources">
       <h2 className="font-semibold text-xl">Source</h2>
-      {sources.data.readOnly ? (
-        <p>Archived Project. Sources are read-only.</p>
-      ) : null}
+      {readOnly ? <p>Archived Project. Sources are read-only.</p> : null}
       <SmartLinkComposer
         onPreview={preview}
         onSave={save}
         preferences={preferences}
-        readOnly={sources.data.readOnly}
+        readOnly={readOnly}
         youtubePlayerOrigin={
           isTauriRuntime() ? new URL(env.VITE_SERVER_URL).origin : undefined
         }
       />
-      {sources.data.records.map((source) => (
+      {records.map((source) => (
         <article
           className="space-y-2 rounded-lg border bg-card p-4"
           key={source.id}
         >
           <h3 className="font-medium">{source.version.title}</h3>
-          <p className="font-medium text-sm">Historical snapshot</p>
+          <p className="font-medium text-sm">
+            Historical snapshot · Version {source.revision}
+          </p>
           <a
             className="block break-all underline"
             href={source.version.url}
@@ -100,6 +102,11 @@ export default function ProjectSourcesSurface({
           <p className="whitespace-pre-wrap break-words text-sm">
             {source.version.capturedContent || "No text was captured."}
           </p>
+          <SourceRecheckControls
+            preferences={preferences}
+            readOnly={readOnly}
+            source={source}
+          />
         </article>
       ))}
     </section>

@@ -72,6 +72,7 @@ import { createDatabaseReturnToWork } from "../src/features/return-to-work/serve
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
 import { createSmartLinkPreview } from "../src/features/sources-and-freshness/server/smart-link-preview";
+import { createDatabaseSourceRecheck } from "../src/features/sources-and-freshness/server/source-recheck-database";
 import { createDatabaseSourcesAndFreshness } from "../src/features/sources-and-freshness/server/sources-database";
 import {
   createDatabaseTagMutationContracts,
@@ -271,41 +272,57 @@ await accountSessionAccess.replaySessionRevocations();
 
 initLogger({ env: { service: "cantiara-e2e-server" } });
 
-const app = createApp({
-  sourcesAndFreshness: createDatabaseSourcesAndFreshness(database),
-  smartLinkPreview: createSmartLinkPreview({
-    resolve: async () => ["93.184.216.34"],
-    // biome-ignore lint/suspicious/useAwait: Deterministic egress double implements a promise-based transport.
-    request: async (
-      url,
-    ): Promise<{
-      status: number;
-      headers: Record<string, string>;
-      body: Uint8Array;
-    }> => {
-      if (url.pathname === "/redirect-private") {
-        return {
-          status: 302,
-          headers: { location: "http://169.254.169.254/metadata" },
-          body: new Uint8Array(),
-        };
-      }
-      if (url.pathname === "/oembed") {
-        return {
-          status: 200,
-          headers: { "content-type": "application/json" },
-          body: new TextEncoder().encode('{"title":"Research video"}'),
-        };
-      }
+let recheckCaptures = 0;
+const smartLinkPreview = createSmartLinkPreview({
+  resolve: async () => ["93.184.216.34"],
+  // biome-ignore lint/suspicious/useAwait: Deterministic egress double implements a promise-based transport.
+  request: async (
+    url,
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: Uint8Array;
+  }> => {
+    if (url.pathname === "/recheck-journey") {
+      recheckCaptures += 1;
+      const text =
+        recheckCaptures === 1
+          ? "Original research finding."
+          : "Revised research finding.";
       return {
         status: 200,
-        headers: { "content-type": "text/html" },
-        body: new TextEncoder().encode(
-          "<title>Founder research</title><p>Original research finding.</p>",
-        ),
+        headers: { "content-type": "text/plain" },
+        body: new TextEncoder().encode(text),
       };
-    },
-  }),
+    }
+    if (url.pathname === "/redirect-private") {
+      return {
+        status: 302,
+        headers: { location: "http://169.254.169.254/metadata" },
+        body: new Uint8Array(),
+      };
+    }
+    if (url.pathname === "/oembed") {
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: new TextEncoder().encode('{"title":"Research video"}'),
+      };
+    }
+    return {
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "<title>Founder research</title><p>Original research finding.</p>",
+      ),
+    };
+  },
+});
+
+const app = createApp({
+  sourcesAndFreshness: createDatabaseSourcesAndFreshness(database),
+  smartLinkPreview,
+  sourceRecheck: createDatabaseSourceRecheck(database, smartLinkPreview),
   researchSessions,
   accountSessionAccess,
   accountPreferences,

@@ -26,11 +26,11 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 
-interface SourceMutationValue {
+export interface SourceMutationValue {
   record: SourceRecord | null;
 }
 
-async function ownedProject(
+export async function ownedProject(
   executor: MutationDatabaseExecutor,
   accountId: string,
   projectId: string,
@@ -66,7 +66,7 @@ function toRecord(
     version: toVersion(version),
   });
 }
-async function readRecord(
+export async function readRecord(
   executor: MutationDatabaseExecutor,
   sourceId: string,
   projectId: string,
@@ -85,7 +85,7 @@ async function readRecord(
   return row ? toRecord(row.source, row.source_version) : null;
 }
 
-function sourceTarget(
+export function sourceTarget(
   accountId: string,
   projectId: string,
 ): MutationDatabaseTargetAdapter<SourceMutationValue> {
@@ -172,7 +172,7 @@ function sourceTarget(
   };
 }
 
-function rethrowSourceError(error: unknown, targetId: string): never {
+export function rethrowSourceError(error: unknown, targetId: string): never {
   if (error instanceof MutationApplyFailedError) {
     return rethrowSourceError(error.cause, targetId);
   }

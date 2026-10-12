@@ -93,6 +93,7 @@ async function readPublic(
   network: PreviewTransport,
   signal: AbortSignal,
   budget: { remaining: number },
+  observe?: (result: NonNullable<SmartLinkPreview["fetchResult"]>) => void,
 ) {
   let next = value;
   for (let hop = 0; hop <= 3; hop += 1) {
@@ -105,6 +106,12 @@ async function readPublic(
       signal,
       budget.remaining,
     );
+    observe?.({
+      finalUrl: url.href,
+      httpStatus: response.status,
+      contentType:
+        (response.headers["content-type"] || "").slice(0, 255) || null,
+    });
     budget.remaining -= response.body.byteLength;
     if (
       budget.remaining < 0 ||
@@ -126,7 +133,7 @@ async function readPublic(
       continue;
     }
     if (response.status !== 200) {
-      throw new Error("Unavailable response");
+      throw new Error(`HTTP ${response.status}`);
     }
     return { ...response, finalUrl: url.href };
   }
@@ -240,6 +247,9 @@ async function youtubePreview(
       network,
       signal,
       budget,
+      (result) => {
+        fallback.fetchResult = result;
+      },
     );
     if (
       !response.headers["content-type"]?.startsWith("application/json") ||
@@ -271,6 +281,12 @@ async function youtubePreview(
       title,
       capturedContent: title,
       image,
+      fetchResult: {
+        finalUrl: response.finalUrl,
+        httpStatus: response.status,
+        contentType:
+          (response.headers["content-type"] || "").slice(0, 255) || null,
+      },
       player: { provider: "YouTube", videoId },
       error: null,
     };
@@ -289,7 +305,15 @@ export function createSmartLinkPreview(network: PreviewTransport) {
       return youtubePreview(value, videoId, network, signal, budget);
     }
     try {
-      const response = await readPublic(value, network, signal, budget);
+      const response = await readPublic(
+        value,
+        network,
+        signal,
+        budget,
+        (result) => {
+          fallback.fetchResult = result;
+        },
+      );
       const type = response.headers["content-type"]
         ?.split(";")[0]
         ?.trim()
@@ -298,7 +322,10 @@ export function createSmartLinkPreview(network: PreviewTransport) {
         !["text/html", "text/plain"].includes(type ?? "") ||
         response.body.byteLength > HTML_BYTES
       ) {
-        return fallback;
+        return {
+          ...fallback,
+          error: "Preview unavailable. Unsupported content type or size.",
+        };
       }
       const body = new TextDecoder("utf-8", { fatal: true }).decode(
         response.body,
@@ -328,8 +355,11 @@ export function createSmartLinkPreview(network: PreviewTransport) {
         image,
         error: null,
       };
-    } catch {
-      return fallback;
+    } catch (error) {
+      return {
+        ...fallback,
+        error: `Preview unavailable. ${error instanceof Error ? error.message : "Source unavailable."}`,
+      };
     }
   };
 }
