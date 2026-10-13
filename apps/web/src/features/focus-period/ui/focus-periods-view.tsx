@@ -532,6 +532,11 @@ function PeriodDetail({
               .map((item) => (
                 <li key={item.id}>
                   {item.title} · {item.key}
+                  {unavailableWorkIds.has(item.id) ? (
+                    <p className="text-muted-foreground text-sm">
+                      Work is unavailable.
+                    </p>
+                  ) : null}
                 </li>
               ))}
           </ul>

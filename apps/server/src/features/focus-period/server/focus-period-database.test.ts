@@ -483,6 +483,44 @@ describeDatabase("Focus Period working window", () => {
     ]);
   }, 30_000);
 
+  test("rejects leftover decisions when Work is archived or trashed after close", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-04-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Unavailable leftovers",
+      startDate: "2027-04-01",
+      endDate: "2027-04-07",
+    });
+    await periods.add(accountId, period.id, firstWorkId);
+    await periods.add(accountId, period.id, secondWorkId);
+    await periods.close(accountId, period.id);
+    await database
+      .update(work)
+      .set({ archivedAt: clock })
+      .where(eq(work.id, firstWorkId));
+    await database
+      .update(work)
+      .set({ trashedAt: clock })
+      .where(eq(work.id, secondWorkId));
+    await Promise.all(
+      [firstWorkId, secondWorkId].map((workId) =>
+        expect(
+          periods.decide(accountId, {
+            periodId: period.id,
+            workIds: [workId],
+            destination: "Backlog",
+          }),
+        ).rejects.toThrow("Work is unavailable."),
+      ),
+    );
+    expect(
+      (await periods.find(accountId, period.id))?.leftoverDecisions,
+    ).toEqual([]);
+  }, 30_000);
+
   test("keeps closing comparison records when their live Work is deleted", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

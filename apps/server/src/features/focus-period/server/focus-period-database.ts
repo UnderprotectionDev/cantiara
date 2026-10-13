@@ -761,16 +761,24 @@ export function createDatabaseFocusPeriod(
       throw new FocusPeriodConflictError("Work already has a close decision.");
     }
     const [current] = await database
-      .select({ status: work.status, closureResult: work.closureResult })
+      .select({
+        status: work.status,
+        closureResult: work.closureResult,
+        archivedAt: work.archivedAt,
+        trashedAt: work.trashedAt,
+      })
       .from(work)
       .innerJoin(project, eq(work.projectId, project.id))
       .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
       .limit(1);
+    if (!current || current.archivedAt || current.trashedAt) {
+      throw new FocusPeriodUnavailableError("Work is unavailable.");
+    }
     const matches =
       input.destination === "Abandon"
         ? current?.status === "Closed" && current.closureResult === "Abandoned"
         : current?.status !== "Closed";
-    if (!(current && matches)) {
+    if (!matches) {
       throw new FocusPeriodConflictError(
         "Work lifecycle does not match the close decision.",
       );

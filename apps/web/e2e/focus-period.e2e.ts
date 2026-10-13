@@ -285,4 +285,9 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
       name: "Open source record: FOC-1 Prepare Focus Period release",
     }),
   ).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("heading", { name: "Still-open Work", exact: true })
+      .locator(".."),
+  ).toContainText("Work is unavailable.");
 });
