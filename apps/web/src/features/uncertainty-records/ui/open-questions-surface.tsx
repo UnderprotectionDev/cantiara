@@ -178,15 +178,14 @@ export default function OpenQuestionsSurface({
           record={selected}
         />
       ) : null}
-      {editing !== undefined && !locked ? (
-        <QuestionEditorSurface
-          key={`${editing}:${selected?.id ?? "new"}`}
-          onCancel={cancel}
-          onSave={save}
-          projectId={projectId}
-          record={editing === "answer" ? selected : undefined}
-        />
-      ) : null}
+      <OpenQuestionEditing
+        cancel={cancel}
+        editing={editing}
+        locked={locked}
+        projectId={projectId}
+        save={save}
+        selected={selected}
+      />
     </section>
   );
 }
@@ -272,4 +271,33 @@ function QuestionEditorSurface({
       />
     </>
   );
+}
+
+function OpenQuestionEditing({
+  editing,
+  locked,
+  selected,
+  cancel,
+  save,
+  projectId,
+}: {
+  editing: "create" | "answer" | undefined;
+  locked: boolean;
+  selected: OpenQuestionRecord | undefined;
+  cancel: () => void;
+  save: (
+    draft: OpenQuestionDraft,
+    record?: OpenQuestionRecord,
+  ) => Promise<void>;
+  projectId: string;
+}) {
+  return editing !== undefined && !locked ? (
+    <QuestionEditorSurface
+      key={`${editing}:${selected?.id ?? "new"}`}
+      onCancel={cancel}
+      onSave={save}
+      projectId={projectId}
+      record={editing === "answer" ? selected : undefined}
+    />
+  ) : null;
 }

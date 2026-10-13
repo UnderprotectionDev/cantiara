@@ -9,6 +9,7 @@
     "desktop:build": "tauri build",
     "desktop:dev": "tauri dev",
     "dev": "vite dev",
+    "doctor": "bunx --bun react-doctor@latest",
     "serve": "vite preview",
     "start": "vite",
     "tauri": "tauri",

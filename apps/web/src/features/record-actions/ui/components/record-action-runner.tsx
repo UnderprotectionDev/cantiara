@@ -593,16 +593,12 @@ function RecordActionRunDialogFooter({
           Start again
         </Button>
       ) : null}
-      {isCommitted && !runner.undoReceipt ? (
-        <Button
-          disabled={isFinalizing || active.work.archivedAt !== null}
-          onClick={runner.undo}
-          type="button"
-          variant="outline"
-        >
-          {runner.undoError ? "Retry" : "Undo"}
-        </Button>
-      ) : null}
+      <RecordActionUndoButton
+        active={active}
+        isCommitted={isCommitted}
+        isFinalizing={isFinalizing}
+        runner={runner}
+      />
       {isFinalizing || isCommitted || isRolledBack ? null : (
         <Button onClick={runner.close} type="button" variant="outline">
           Cancel
@@ -688,47 +684,18 @@ export function RecordActionRunDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {isPreviewing ? (
-          <p className="text-muted-foreground text-sm" role="status">
-            Preparing preview…
-          </p>
-        ) : null}
-        {runner.needsRuntimeInput && !preview ? (
-          <RecordActionRuntimeInputForm
-            active={active}
-            draft={runtimeInputDraft}
-            onDraftChange={setRuntimeInputDraft}
-            runner={runner}
-          />
-        ) : null}
-        {preview ? (
-          <RecordActionRuntimeInputSummary preview={preview} runner={runner} />
-        ) : null}
-        {preview && runner.needsRuntimeInput ? (
-          <Button
-            disabled={isFinalizing || runner.isPreviewing}
-            onClick={runner.changeInputs}
-            type="button"
-            variant="outline"
-          >
-            Change inputs
-          </Button>
-        ) : null}
-        {preview ? <RecordActionChangeList preview={preview} /> : null}
-        {preview && currentValue ? (
-          <RecordActionCurrentValue current={currentValue} preview={preview} />
-        ) : null}
-        {statusMessage ? (
-          <p className="text-sm" role="status">
-            {statusMessage}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="text-destructive text-sm" role="alert">
-            {error}
-          </p>
-        ) : null}
-
+        <RecordActionPreviewContent
+          active={active}
+          currentValue={currentValue}
+          error={error}
+          isFinalizing={isFinalizing}
+          isPreviewing={isPreviewing}
+          preview={preview}
+          runner={runner}
+          runtimeInputDraft={runtimeInputDraft}
+          setRuntimeInputDraft={setRuntimeInputDraft}
+          statusMessage={statusMessage}
+        />
         <RecordActionRunDialogFooter
           active={active}
           isCommitted={isCommitted}
@@ -737,5 +704,103 @@ export function RecordActionRunDialog({
         />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function RecordActionUndoButton({
+  isCommitted,
+  runner,
+  isFinalizing,
+  active,
+}: {
+  isCommitted: boolean;
+  runner: RecordActionRunnerState;
+  isFinalizing: boolean;
+  active: NonNullable<RecordActionRunnerState["active"]>;
+}) {
+  return isCommitted && !runner.undoReceipt ? (
+    <Button
+      disabled={isFinalizing || active.work.archivedAt !== null}
+      onClick={runner.undo}
+      type="button"
+      variant="outline"
+    >
+      {runner.undoError ? "Retry" : "Undo"}
+    </Button>
+  ) : null;
+}
+
+function RecordActionPreviewContent({
+  isPreviewing,
+  runner,
+  preview,
+  active,
+  runtimeInputDraft,
+  setRuntimeInputDraft,
+  isFinalizing,
+  currentValue,
+  statusMessage,
+  error,
+}: {
+  isPreviewing: boolean;
+  runner: RecordActionRunnerState;
+  preview: RecordActionPreview | null;
+  active: NonNullable<RecordActionRunnerState["active"]>;
+  runtimeInputDraft: RuntimeInputDraft;
+  setRuntimeInputDraft: import("react").Dispatch<
+    import("react").SetStateAction<RuntimeInputDraft>
+  >;
+  isFinalizing: boolean;
+  currentValue:
+    | import("@cantiara/api/mutation-and-undo").MutationTarget<RecordActionMutationValue>
+    | null
+    | undefined;
+  statusMessage: string | null;
+  error: string | null;
+}) {
+  return (
+    <>
+      {" "}
+      {isPreviewing ? (
+        <p className="text-muted-foreground text-sm" role="status">
+          Preparing preview…
+        </p>
+      ) : null}
+      {runner.needsRuntimeInput && !preview ? (
+        <RecordActionRuntimeInputForm
+          active={active}
+          draft={runtimeInputDraft}
+          onDraftChange={setRuntimeInputDraft}
+          runner={runner}
+        />
+      ) : null}
+      {preview ? (
+        <RecordActionRuntimeInputSummary preview={preview} runner={runner} />
+      ) : null}
+      {preview && runner.needsRuntimeInput ? (
+        <Button
+          disabled={isFinalizing || runner.isPreviewing}
+          onClick={runner.changeInputs}
+          type="button"
+          variant="outline"
+        >
+          Change inputs
+        </Button>
+      ) : null}
+      {preview ? <RecordActionChangeList preview={preview} /> : null}
+      {preview && currentValue ? (
+        <RecordActionCurrentValue current={currentValue} preview={preview} />
+      ) : null}
+      {statusMessage ? (
+        <p className="text-sm" role="status">
+          {statusMessage}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-destructive text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </>
   );
 }

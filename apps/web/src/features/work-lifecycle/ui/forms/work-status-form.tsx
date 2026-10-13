@@ -374,19 +374,11 @@ export default function WorkStatusForm({
           ) : null}
         </div>
       ) : null}
-      {completionFeedback.noticeVisible ? (
-        <WorkCompletionFeedback
-          effectPlaying={completionFeedback.effect !== null}
-          onReopen={() => {
-            if (completionFeedback.reopenStatus) {
-              setReopenTarget(completionFeedback.reopenStatus);
-            }
-          }}
-          palette={completionFeedback.effect?.palette ?? "Haze"}
-          reopenDisabled={isPending}
-          theme={completionFeedback.effect?.theme ?? "Calm"}
-        />
-      ) : null}
+      <WorkCompletionNotice
+        completionFeedback={completionFeedback}
+        isPending={isPending}
+        setReopenTarget={setReopenTarget}
+      />
       {error ? (
         <p className="text-destructive text-xs" role="alert">
           {error}
@@ -523,4 +515,32 @@ export default function WorkStatusForm({
       ) : null}
     </div>
   );
+}
+
+function WorkCompletionNotice({
+  completionFeedback,
+  setReopenTarget,
+  isPending,
+}: {
+  completionFeedback: WorkCompletionFeedbackState;
+  setReopenTarget: import("react").Dispatch<
+    import("react").SetStateAction<
+      "Not Started" | "In Progress" | "Blocked" | null
+    >
+  >;
+  isPending: boolean;
+}) {
+  return completionFeedback.noticeVisible ? (
+    <WorkCompletionFeedback
+      effectPlaying={completionFeedback.effect !== null}
+      onReopen={() => {
+        if (completionFeedback.reopenStatus) {
+          setReopenTarget(completionFeedback.reopenStatus);
+        }
+      }}
+      palette={completionFeedback.effect?.palette ?? "Haze"}
+      reopenDisabled={isPending}
+      theme={completionFeedback.effect?.theme ?? "Calm"}
+    />
+  ) : null;
 }

@@ -38,7 +38,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CalendarDays, GripVertical } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { formatAccountDate } from "@/features/account-preferences/lib/account-preferences-format";
 import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 
@@ -431,6 +431,14 @@ function CalendarDaySection({
     data: { date: day },
     id: `calendar-day:${day}`,
   });
+  const weekdayFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(formattingPreferences.locale, {
+        timeZone: "UTC",
+        weekday: "short",
+      }),
+    [formattingPreferences.locale],
+  );
   const formattedDate = formatAccountDate(day, formattingPreferences);
 
   return (
@@ -443,11 +451,7 @@ function CalendarDaySection({
       ref={setNodeRef}
     >
       <h2 className="mb-2 border-border/60 border-b pb-2 font-medium text-sm">
-        {new Intl.DateTimeFormat(formattingPreferences.locale, {
-          timeZone: "UTC",
-          weekday: "short",
-        }).format(new Date(day))}{" "}
-        {formattedDate}
+        {weekdayFormatter.format(new Date(day))} {formattedDate}
       </h2>
       {ranges.map((work) => (
         <div

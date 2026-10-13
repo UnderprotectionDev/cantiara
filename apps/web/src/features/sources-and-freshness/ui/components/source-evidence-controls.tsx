@@ -168,55 +168,17 @@ function EvidenceSelection({
     >
       {error ? <p role="alert">{error}</p> : null}
       <legend>{use ? "Compare" : "Version-pinned evidence"}</legend>
-      {use ? (
-        <>
-          <p>
-            {use.target.type}: {use.targetTitle}
-          </p>
-          <p>
-            Historical snapshot · Version {use.pin.source.revision} ·{" "}
-            {formatAccountDateTime(use.accessedAt, preferences)} · Range{" "}
-            {use.pin.start}–{use.pin.end}
-          </p>
-          <p className="whitespace-pre-wrap break-words">{use.pin.excerpt}</p>
-          {findSourceEvidenceMatch(
-            use.pin.excerpt,
-            source.version.capturedContent,
-          ) ? null : (
-            <p>No match in candidate version</p>
-          )}
-        </>
-      ) : (
-        <>
-          <label className="block" htmlFor={`${fieldId}-target`}>
-            Evidence target
-          </label>
-          <select
-            className="w-full rounded-md border bg-background p-2"
-            disabled={pending}
-            id={`${fieldId}-target`}
-            onChange={(event) => {
-              setTargetId(event.target.value);
-              setPlan(null);
-            }}
-            value={targetId}
-          >
-            <option value="">Choose target</option>
-            {targets.data?.map((target) => (
-              <option
-                key={`${target.type}:${target.recordId}`}
-                value={`${target.type}:${target.projectId}:${target.recordId}`}
-              >
-                {target.type}: {target.title}
-              </option>
-            ))}
-          </select>
-          {targets.isPending ? <p role="status">Loading targets…</p> : null}
-          {targets.isError ? (
-            <p role="alert">Evidence targets are unavailable.</p>
-          ) : null}
-        </>
-      )}
+      <EvidenceTargetSelection
+        fieldId={fieldId}
+        pending={pending}
+        preferences={preferences}
+        setPlan={setPlan}
+        setTargetId={setTargetId}
+        source={source}
+        targetId={targetId}
+        targets={targets}
+        use={use}
+      />
       <p>
         Source · Version {source.revision} ·{" "}
         {formatAccountDateTime(source.version.accessedAt, preferences)}
@@ -252,30 +214,13 @@ function EvidenceSelection({
           Preview
         </Button>
       )}
-      {plan ? (
-        <fieldset
-          aria-label="Evidence preview"
-          className="space-y-2 border p-3"
-        >
-          <legend>Version-pinned evidence</legend>
-          <p>
-            {plan.target.type}: {plan.targetTitle} · Version{" "}
-            {plan.pin.source.revision} ·{" "}
-            {formatAccountDateTime(plan.accessedAt, preferences)} · Range{" "}
-            {plan.pin.start}–{plan.pin.end}
-          </p>
-          <p className="whitespace-pre-wrap break-words">{plan.pin.excerpt}</p>
-          <Button
-            disabled={pending}
-            onClick={() => plan && onSave(use, plan)}
-            type="button"
-          >
-            {use
-              ? "Rebind to new version"
-              : "Bind as evidence to existing record"}
-          </Button>
-        </fieldset>
-      ) : null}
+      <SourceEvidenceConfirmation
+        onSave={onSave}
+        pending={pending}
+        plan={plan}
+        preferences={preferences}
+        use={use}
+      />
       <Button
         disabled={pending}
         onClick={() => {
@@ -397,52 +342,255 @@ export function SourceEvidenceControls({
       >
         Version-pinned evidence
       </Button>
-      {open ? (
-        <>
-          {uses.isPending ? <p role="status">Loading evidence uses…</p> : null}
-          {unavailable ? (
-            <p role="alert">Evidence uses are unavailable. Reload this page.</p>
-          ) : null}
-          {error ? <p role="alert">{error}</p> : null}
-          {pending ? <p role="status">Saving evidence…</p> : null}
-          {message ? <p role="status">{message}</p> : null}
-          {uses.data?.signal ? (
-            <p role="status">
-              source-version-in-use · {uses.data.signal.useIds.length} uses to
-              review
-            </p>
-          ) : null}
-          {uses.data?.uses.map((use) => (
-            <EvidenceUse
-              key={use.id}
-              onCompare={begin}
-              onKeep={save}
-              pending={pending}
-              preferences={preferences}
-              readOnly={readOnly}
-              source={source}
-              use={use}
-            />
-          ))}
-          {editor || readOnly ? null : (
-            <Button disabled={pending} onClick={() => begin()} type="button">
-              Bind as evidence to existing record
-            </Button>
-          )}
-          {editor ? (
-            <EvidenceSelection
-              key={`${editor.use?.id ?? "new"}:${source.revision}`}
-              onCancel={() => setEditor(null)}
-              onSave={save}
-              preferences={preferences}
-              readOnly={readOnly}
-              saving={pending}
-              source={source}
-              use={editor.use}
-            />
-          ) : null}
-        </>
-      ) : null}
+      <SourceEvidenceUses
+        begin={begin}
+        editor={editor}
+        error={error}
+        message={message}
+        open={open}
+        pending={pending}
+        preferences={preferences}
+        readOnly={readOnly}
+        save={save}
+        setEditor={setEditor}
+        source={source}
+        unavailable={unavailable}
+        uses={uses}
+      />
     </div>
+  );
+}
+
+function SourceEvidenceUses({
+  open,
+  uses,
+  unavailable,
+  error,
+  pending,
+  message,
+  begin,
+  save,
+  preferences,
+  readOnly,
+  source,
+  editor,
+  setEditor,
+}: {
+  open: boolean;
+  uses: import("@tanstack/react-query").UseQueryResult<
+    import("@cantiara/api/source-evidence").SourceEvidenceListing | null,
+    Error
+  >;
+  unavailable: boolean;
+  error: string | null;
+  pending: boolean;
+  message: string | null;
+  begin: (use?: SourceEvidenceUse) => void;
+  save: (use?: SourceEvidenceUse, plan?: SourceEvidencePlan) => Promise<void>;
+  preferences: AccountPreferences;
+  readOnly: boolean;
+  source: SourceRecord;
+  editor: { use?: SourceEvidenceUse } | null;
+  setEditor: import("react").Dispatch<
+    import("react").SetStateAction<{ use?: SourceEvidenceUse } | null>
+  >;
+}) {
+  return open ? (
+    <>
+      <SourceEvidenceFeedback
+        error={error}
+        message={message}
+        pending={pending}
+        unavailable={unavailable}
+        uses={uses}
+      />{" "}
+      {uses.data?.uses.map((use) => (
+        <EvidenceUse
+          key={use.id}
+          onCompare={begin}
+          onKeep={save}
+          pending={pending}
+          preferences={preferences}
+          readOnly={readOnly}
+          source={source}
+          use={use}
+        />
+      ))}
+      {editor || readOnly ? null : (
+        <Button disabled={pending} onClick={() => begin()} type="button">
+          Bind as evidence to existing record
+        </Button>
+      )}
+      {editor ? (
+        <EvidenceSelection
+          key={`${editor.use?.id ?? "new"}:${source.revision}`}
+          onCancel={() => setEditor(null)}
+          onSave={save}
+          preferences={preferences}
+          readOnly={readOnly}
+          saving={pending}
+          source={source}
+          use={editor.use}
+        />
+      ) : null}
+    </>
+  ) : null;
+}
+
+function SourceEvidenceConfirmation({
+  plan,
+  preferences,
+  pending,
+  onSave,
+  use,
+}: {
+  plan: SourceEvidencePlan | null;
+  preferences: AccountPreferences;
+  pending: boolean;
+  onSave: (use?: SourceEvidenceUse, plan?: SourceEvidencePlan) => Promise<void>;
+  use: SourceEvidenceUse | undefined;
+}) {
+  return plan ? (
+    <fieldset aria-label="Evidence preview" className="space-y-2 border p-3">
+      <legend>Version-pinned evidence</legend>
+      <p>
+        {plan.target.type}: {plan.targetTitle} · Version{" "}
+        {plan.pin.source.revision} ·{" "}
+        {formatAccountDateTime(plan.accessedAt, preferences)} · Range{" "}
+        {plan.pin.start}–{plan.pin.end}
+      </p>
+      <p className="whitespace-pre-wrap break-words">{plan.pin.excerpt}</p>
+      <Button
+        disabled={pending}
+        onClick={() => plan && onSave(use, plan)}
+        type="button"
+      >
+        {use ? "Rebind to new version" : "Bind as evidence to existing record"}
+      </Button>
+    </fieldset>
+  ) : null;
+}
+
+function EvidenceTargetSelection({
+  use,
+  preferences,
+  source,
+  fieldId,
+  pending,
+  setTargetId,
+  setPlan,
+  targetId,
+  targets,
+}: {
+  use: SourceEvidenceUse | undefined;
+  preferences: AccountPreferences;
+  source: SourceRecord;
+  fieldId: string;
+  pending: boolean;
+  setTargetId: import("react").Dispatch<import("react").SetStateAction<string>>;
+  setPlan: import("react").Dispatch<
+    import("react").SetStateAction<SourceEvidencePlan | null>
+  >;
+  targetId: string;
+  targets: import("@tanstack/react-query").UseQueryResult<
+    | ({
+        projectId: string;
+        recordId: string;
+        type:
+          | "Work"
+          | "Feedback"
+          | "Risk"
+          | "Decision"
+          | "Assumption"
+          | "Open Question";
+      } & { title: string })[]
+    | null,
+    Error
+  >;
+}) {
+  return use ? (
+    <>
+      <p>
+        {use.target.type}: {use.targetTitle}
+      </p>
+      <p>
+        Historical snapshot · Version {use.pin.source.revision} ·{" "}
+        {formatAccountDateTime(use.accessedAt, preferences)} · Range{" "}
+        {use.pin.start}–{use.pin.end}
+      </p>
+      <p className="whitespace-pre-wrap break-words">{use.pin.excerpt}</p>
+      {findSourceEvidenceMatch(
+        use.pin.excerpt,
+        source.version.capturedContent,
+      ) ? null : (
+        <p>No match in candidate version</p>
+      )}
+    </>
+  ) : (
+    <>
+      <label className="block" htmlFor={`${fieldId}-target`}>
+        Evidence target
+      </label>
+      <select
+        className="w-full rounded-md border bg-background p-2"
+        disabled={pending}
+        id={`${fieldId}-target`}
+        onChange={(event) => {
+          setTargetId(event.target.value);
+          setPlan(null);
+        }}
+        value={targetId}
+      >
+        <option value="">Choose target</option>
+        {targets.data?.map((target) => (
+          <option
+            key={`${target.type}:${target.recordId}`}
+            value={`${target.type}:${target.projectId}:${target.recordId}`}
+          >
+            {target.type}: {target.title}
+          </option>
+        ))}
+      </select>
+      {targets.isPending ? <p role="status">Loading targets…</p> : null}
+      {targets.isError ? (
+        <p role="alert">Evidence targets are unavailable.</p>
+      ) : null}
+    </>
+  );
+}
+
+function SourceEvidenceFeedback({
+  uses,
+  unavailable,
+  error,
+  pending,
+  message,
+}: {
+  uses: import("@tanstack/react-query").UseQueryResult<
+    import("@cantiara/api/source-evidence").SourceEvidenceListing | null,
+    Error
+  >;
+  unavailable: boolean;
+  error: string | null;
+  pending: boolean;
+  message: string | null;
+}) {
+  return (
+    <>
+      {" "}
+      {uses.isPending ? <p role="status">Loading evidence uses…</p> : null}
+      {unavailable ? (
+        <p role="alert">Evidence uses are unavailable. Reload this page.</p>
+      ) : null}
+      {error ? <p role="alert">{error}</p> : null}
+      {pending ? <p role="status">Saving evidence…</p> : null}
+      {message ? <p role="status">{message}</p> : null}
+      {uses.data?.signal ? (
+        <p role="status">
+          source-version-in-use · {uses.data.signal.useIds.length} uses to
+          review
+        </p>
+      ) : null}
+    </>
   );
 }

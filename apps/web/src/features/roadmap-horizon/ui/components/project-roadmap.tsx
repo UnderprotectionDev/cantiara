@@ -234,18 +234,16 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
   }
 
   if (
-    worksQuery.isPending ||
-    viewsQuery.isPending ||
-    originsQuery.isPending ||
-    blockersQuery.isPending
+    [worksQuery, viewsQuery, originsQuery, blockersQuery].some(
+      (query) => query.isPending,
+    )
   ) {
     return <p role="status">Loading…</p>;
   }
   if (
-    worksQuery.isError ||
-    viewsQuery.isError ||
-    originsQuery.isError ||
-    blockersQuery.isError
+    [worksQuery, viewsQuery, originsQuery, blockersQuery].some(
+      (query) => query.isError,
+    )
   ) {
     return <p role="alert">Roadmap is unavailable. Reload and try again.</p>;
   }
@@ -280,75 +278,114 @@ export default function ProjectRoadmap({ projectId }: { projectId: string }) {
       ref={roadmapRef}
       tabIndex={presentationMode ? -1 : undefined}
     >
-      {presentationMode ? (
-        <div
-          aria-label="Roadmap"
-          aria-modal="true"
-          className="grid min-h-full content-start gap-6"
-          role="dialog"
-        >
-          <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
-            <div>
-              <h2 className="font-semibold text-2xl">Roadmap</h2>
-              <p className="text-muted-foreground text-sm">
-                {presentationViewName(selection, presentationView)}
-              </p>
-            </div>
-            <Button
-              onClick={exitPresentationMode}
-              ref={exitPresentationButtonRef}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Exit Presentation Mode
-            </Button>
-          </header>
-          {roadmapContent}
-        </div>
-      ) : (
-        <>
-          <header className="flex flex-wrap items-end justify-between gap-4">
-            <div className="space-y-2">
-              <h2 className="font-semibold text-2xl">Roadmap</h2>
-              <p className="text-muted-foreground text-sm">
-                Horizons describe direction. They do not start Work, set dates,
-                or promise a release.
-              </p>
-            </div>
-            <Button
-              onClick={enterPresentationMode}
-              ref={presentationButtonRef}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Presentation Mode
-            </Button>
-          </header>
-          <label className="grid max-w-sm gap-1 text-sm" htmlFor="roadmap-view">
-            Named view
-            <select
-              className="min-h-11 rounded-md border bg-background px-3"
-              id="roadmap-view"
-              onChange={(event) => setSelection(event.target.value)}
-              value={selection}
-            >
-              <option value="direction">Product direction</option>
-              <option value="all">All Work types</option>
-              {views.map((saved) => (
-                <option key={saved.id} value={saved.id}>
-                  {saved.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </>
-      )}
+      <RoadmapPresentation
+        enterPresentationMode={enterPresentationMode}
+        exitPresentationButtonRef={exitPresentationButtonRef}
+        exitPresentationMode={exitPresentationMode}
+        presentationButtonRef={presentationButtonRef}
+        presentationMode={presentationMode}
+        presentationView={presentationView}
+        roadmapContent={roadmapContent}
+        selection={selection}
+        setSelection={setSelection}
+        views={views}
+      />
       {!presentationMode && roadmapContent}
       {!presentationMode && (
         <ProjectMilestones projectId={projectId} works={works} />
       )}
     </section>
+  );
+}
+
+function RoadmapPresentation({
+  presentationMode,
+  selection,
+  presentationView,
+  exitPresentationMode,
+  exitPresentationButtonRef,
+  roadmapContent,
+  enterPresentationMode,
+  presentationButtonRef,
+  setSelection,
+  views,
+}: {
+  presentationMode: boolean;
+  selection: string;
+  presentationView: RoadmapView | null;
+  exitPresentationMode: () => void;
+  exitPresentationButtonRef: RefObject<HTMLButtonElement | null>;
+  roadmapContent: import("react").JSX.Element;
+  enterPresentationMode: () => void;
+  presentationButtonRef: RefObject<HTMLButtonElement | null>;
+  setSelection: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  views: RoadmapView[];
+}) {
+  return presentationMode ? (
+    <div
+      aria-label="Roadmap"
+      aria-modal="true"
+      className="grid min-h-full content-start gap-6"
+      role="dialog"
+    >
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
+        <div>
+          <h2 className="font-semibold text-2xl">Roadmap</h2>
+          <p className="text-muted-foreground text-sm">
+            {presentationViewName(selection, presentationView)}
+          </p>
+        </div>
+        <Button
+          onClick={exitPresentationMode}
+          ref={exitPresentationButtonRef}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Exit Presentation Mode
+        </Button>
+      </header>
+      {roadmapContent}
+    </div>
+  ) : (
+    <>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <h2 className="font-semibold text-2xl">Roadmap</h2>
+          <p className="text-muted-foreground text-sm">
+            Horizons describe direction. They do not start Work, set dates, or
+            promise a release.
+          </p>
+        </div>
+        <Button
+          onClick={enterPresentationMode}
+          ref={presentationButtonRef}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Presentation Mode
+        </Button>
+      </header>
+      <label className="grid max-w-sm gap-1 text-sm" htmlFor="roadmap-view">
+        Named view
+        <select
+          className="min-h-11 rounded-md border bg-background px-3"
+          id="roadmap-view"
+          onChange={(event) => setSelection(event.target.value)}
+          value={selection}
+        >
+          <option value="direction">Product direction</option>
+          <option value="all">All Work types</option>
+          {views.map((saved) => (
+            <option key={saved.id} value={saved.id}>
+              {saved.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
   );
 }

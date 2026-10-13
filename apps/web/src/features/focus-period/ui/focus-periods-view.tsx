@@ -359,16 +359,8 @@ function PeriodDetail({
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
     ) => Promise<unknown>;
   };
-  saveEvaluation: {
-    mutateAsync: (
-      input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
-    ) => Promise<unknown>;
-  };
-  createFollowUp: {
-    mutateAsync: (
-      input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
-    ) => Promise<unknown>;
-  };
+  saveEvaluation: FocusPeriodSaveEvaluation;
+  createFollowUp: FocusPeriodCreateFollowUp;
   act: (
     action: () => Promise<unknown>,
     conflictMessage?: string,
@@ -488,98 +480,23 @@ function PeriodDetail({
           </div>
         </section>
       ) : null}
-      {period.status === "Closed" && undecided.length ? (
-        <section
-          aria-label="Still-open Work decisions"
-          className="space-y-3 rounded-md border p-4"
-        >
-          <h3 className="font-semibold">Still-open Work</h3>
-          <p>
-            Select Work and choose where it goes. Nothing moves automatically.
-          </p>
-          <div className="space-y-2">
-            {undecided.map((item) => (
-              <label className="flex items-center gap-2" key={item.id}>
-                <input
-                  checked={selectedWorkIds.includes(item.id)}
-                  onChange={(event) =>
-                    setSelectedWorkIds((ids) =>
-                      event.target.checked
-                        ? [...ids, item.id]
-                        : ids.filter((id) => id !== item.id),
-                    )
-                  }
-                  type="checkbox"
-                />
-                {item.title} · {item.key}
-              </label>
-            ))}
-          </div>
-          <label className="flex flex-col gap-1">
-            Destination
-            <select
-              className="rounded-md border bg-background px-3 py-2"
-              onChange={(event) =>
-                setDestination(event.target.value as typeof destination)
-              }
-              value={destination}
-            >
-              <option>Next period</option>
-              <option>Backlog</option>
-              <option>Another period</option>
-              <option>Abandon</option>
-            </select>
-          </label>
-          {destination === "Another period" ? (
-            <label className="flex flex-col gap-1">
-              Another period
-              <select
-                className="rounded-md border bg-background px-3 py-2"
-                onChange={(event) => setTargetPeriodId(event.target.value)}
-                value={targetPeriodId}
-              >
-                <option value="">Select Focus Period</option>
-                {targets.map((target) => (
-                  <option key={target.id} value={target.id}>
-                    {target.purpose}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {destination === "Abandon" ? (
-            <div className="space-y-2">
-              <label className="flex items-center gap-2">
-                <input
-                  checked={confirmAbandon}
-                  onChange={(event) => setConfirmAbandon(event.target.checked)}
-                  type="checkbox"
-                />
-                Confirm Abandon selected Work
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  checked={closeAnyway}
-                  onChange={(event) => setCloseAnyway(event.target.checked)}
-                  type="checkbox"
-                />
-                Close anyway if closure checks remain
-              </label>
-            </div>
-          ) : null}
-          <Button
-            disabled={
-              !selectedWorkIds.length ||
-              (destination === "Another period" && !targetPeriodId) ||
-              (destination === "Abandon" && !confirmAbandon)
-            }
-            onClick={() => act(sendDecisions)}
-            type="button"
-          >
-            Send
-          </Button>
-        </section>
-      ) : null}
+      <PeriodLeftoverDecisions
+        act={act}
+        closeAnyway={closeAnyway}
+        confirmAbandon={confirmAbandon}
+        destination={destination}
+        period={period}
+        selectedWorkIds={selectedWorkIds}
+        sendDecisions={sendDecisions}
+        setCloseAnyway={setCloseAnyway}
+        setConfirmAbandon={setConfirmAbandon}
+        setDestination={setDestination}
+        setSelectedWorkIds={setSelectedWorkIds}
+        setTargetPeriodId={setTargetPeriodId}
+        targetPeriodId={targetPeriodId}
+        targets={targets}
+        undecided={undecided}
+      />
       {open ? (
         <FocusPeriodMembershipControl
           act={act}
@@ -1072,4 +989,144 @@ function FollowUpWorkSection({
       </section>
     </>
   );
+}
+
+function PeriodLeftoverDecisions({
+  period,
+  undecided,
+  selectedWorkIds,
+  setSelectedWorkIds,
+  setDestination,
+  destination,
+  setTargetPeriodId,
+  targetPeriodId,
+  targets,
+  confirmAbandon,
+  setConfirmAbandon,
+  closeAnyway,
+  setCloseAnyway,
+  act,
+  sendDecisions,
+}: {
+  period: FocusPeriodRecord;
+  undecided: import("@cantiara/api/focus-period").FocusPeriodSnapshotWork[];
+  selectedWorkIds: string[];
+  setSelectedWorkIds: import("react").Dispatch<
+    import("react").SetStateAction<string[]>
+  >;
+  setDestination: import("react").Dispatch<
+    import("react").SetStateAction<
+      "Next period" | "Another period" | "Backlog" | "Abandon"
+    >
+  >;
+  destination: "Next period" | "Another period" | "Backlog" | "Abandon";
+  setTargetPeriodId: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  targetPeriodId: string;
+  targets: FocusPeriodRecord[];
+  confirmAbandon: boolean;
+  setConfirmAbandon: import("react").Dispatch<
+    import("react").SetStateAction<boolean>
+  >;
+  closeAnyway: boolean;
+  setCloseAnyway: import("react").Dispatch<
+    import("react").SetStateAction<boolean>
+  >;
+  act: (
+    action: () => Promise<unknown>,
+    conflictMessage?: string,
+  ) => Promise<void>;
+  sendDecisions: () => Promise<void>;
+}) {
+  return period.status === "Closed" && undecided.length ? (
+    <section
+      aria-label="Still-open Work decisions"
+      className="space-y-3 rounded-md border p-4"
+    >
+      <h3 className="font-semibold">Still-open Work</h3>
+      <p>Select Work and choose where it goes. Nothing moves automatically.</p>
+      <div className="space-y-2">
+        {undecided.map((item) => (
+          <label className="flex items-center gap-2" key={item.id}>
+            <input
+              checked={selectedWorkIds.includes(item.id)}
+              onChange={(event) =>
+                setSelectedWorkIds((ids) =>
+                  event.target.checked
+                    ? [...ids, item.id]
+                    : ids.filter((id) => id !== item.id),
+                )
+              }
+              type="checkbox"
+            />
+            {item.title} · {item.key}
+          </label>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1">
+        Destination
+        <select
+          className="rounded-md border bg-background px-3 py-2"
+          onChange={(event) =>
+            setDestination(event.target.value as typeof destination)
+          }
+          value={destination}
+        >
+          <option>Next period</option>
+          <option>Backlog</option>
+          <option>Another period</option>
+          <option>Abandon</option>
+        </select>
+      </label>
+      {destination === "Another period" ? (
+        <label className="flex flex-col gap-1">
+          Another period
+          <select
+            className="rounded-md border bg-background px-3 py-2"
+            onChange={(event) => setTargetPeriodId(event.target.value)}
+            value={targetPeriodId}
+          >
+            <option value="">Select Focus Period</option>
+            {targets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.purpose}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {destination === "Abandon" ? (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2">
+            <input
+              checked={confirmAbandon}
+              onChange={(event) => setConfirmAbandon(event.target.checked)}
+              type="checkbox"
+            />
+            Confirm Abandon selected Work
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              checked={closeAnyway}
+              onChange={(event) => setCloseAnyway(event.target.checked)}
+              type="checkbox"
+            />
+            Close anyway if closure checks remain
+          </label>
+        </div>
+      ) : null}
+      <Button
+        disabled={
+          !selectedWorkIds.length ||
+          (destination === "Another period" && !targetPeriodId) ||
+          (destination === "Abandon" && !confirmAbandon)
+        }
+        onClick={() => act(sendDecisions)}
+        type="button"
+      >
+        Send
+      </Button>
+    </section>
+  ) : null;
 }

@@ -100,7 +100,6 @@ export function DocumentTransferPreviewPanel({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: the dialog coordinates mutually exclusive Move, Copy, attachment ownership and export states.
 export default function DocumentTransferControls({
   record,
   documents,
@@ -399,125 +398,25 @@ export default function DocumentTransferControls({
                 : `${action} Document`}
             </DialogTitle>
           </DialogHeader>
-          {action === "Move" || action === "Copy" ? (
-            <div className="space-y-2">
-              <Label htmlFor="document-target-scope">Target scope</Label>
-              <NativeSelect
-                disabled={busy}
-                id="document-target-scope"
-                onChange={handleTarget}
-                value={targetProjectId}
-              >
-                <NativeSelectOption value="">Personal Wiki</NativeSelectOption>
-                {projects.data
-                  ?.filter(
-                    (item) =>
-                      item.status === "Active" &&
-                      (action === "Copy" || item.id !== record.projectId),
-                  )
-                  .map((item) => (
-                    <NativeSelectOption key={item.id} value={item.id}>
-                      {item.name}
-                    </NativeSelectOption>
-                  ))}
-              </NativeSelect>
-            </div>
-          ) : null}
-          {action === "Assign File Attachments" ? (
-            <fieldset className="space-y-2" disabled={busy}>
-              <legend>File Attachments</legend>
-              <p>
-                Select File Attachments from this Project. Attachments already
-                owned by another Document cannot be reassigned.
-              </p>
-              {attachments.data
-                ?.filter(
-                  (item) =>
-                    !item.ownerDocumentId || item.ownerDocumentId === record.id,
-                )
-                .map((item) => (
-                  <Label className="flex gap-2" key={item.id}>
-                    <input
-                      checked={attachmentIds.includes(item.id)}
-                      onChange={handleAttachment}
-                      type="checkbox"
-                      value={item.id}
-                    />
-                    {item.name}
-                  </Label>
-                ))}
-            </fieldset>
-          ) : null}
-          {action === "Move" ? (
-            <fieldset className="space-y-2" disabled={busy}>
-              <legend>Child Documents</legend>
-              {childOptions.map((item) => (
-                <Label className="flex gap-2" key={item.id}>
-                  <input
-                    checked={children.includes(item.id)}
-                    onChange={handleChild}
-                    type="checkbox"
-                    value={item.id}
-                  />
-                  {item.title}
-                </Label>
-              ))}
-            </fieldset>
-          ) : null}
-          {action === "Copy" || action === "Export" ? (
-            <div className="space-y-2">
-              <Label htmlFor="document-transfer-version">Version</Label>
-              <NativeSelect
-                disabled={busy}
-                id="document-transfer-version"
-                onChange={handleVersion}
-                value={String(version)}
-              >
-                {(versions.data ?? [{ revision: record.revision }]).map(
-                  (item) => (
-                    <NativeSelectOption
-                      key={item.revision}
-                      value={String(item.revision)}
-                    >
-                      {item.revision}
-                    </NativeSelectOption>
-                  ),
-                )}
-              </NativeSelect>
-            </div>
-          ) : null}
-          {action === "Export" ? (
-            <div className="space-y-2">
-              <Label htmlFor="document-export-format">Format</Label>
-              <NativeSelect
-                disabled={busy}
-                id="document-export-format"
-                onChange={handleFormat}
-                value={format}
-              >
-                <NativeSelectOption value="Markdown">
-                  Markdown
-                </NativeSelectOption>
-                <NativeSelectOption value="PDF">PDF</NativeSelectOption>
-              </NativeSelect>
-              <p>
-                Live blocks become dated, read-only snapshots. No live external
-                copy is created.
-              </p>
-              {format === "PDF" ? (
-                <p>
-                  PDF export does not guarantee tagged PDF or WCAG compliance.
-                  Markdown is the accessible alternative.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-          {action === "Copy" ? (
-            <p>
-              Copy creates a new identity with source origin, without history,
-              children, File Attachments, relations or publication.
-            </p>
-          ) : null}
+          <DocumentTransferSelection
+            action={action}
+            attachmentIds={attachmentIds}
+            attachments={attachments}
+            busy={busy}
+            childOptions={childOptions}
+            format={format}
+            handleAttachment={handleAttachment}
+            handleChild={handleChild}
+            handleFormat={handleFormat}
+            handleTarget={handleTarget}
+            handleVersion={handleVersion}
+            projects={projects}
+            record={record}
+            selectedChildren={children}
+            targetProjectId={targetProjectId}
+            version={version}
+            versions={versions}
+          />{" "}
           {preview ? <DocumentTransferPreviewPanel preview={preview} /> : null}
           {exportPreview ? (
             <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-sm">
@@ -525,53 +424,272 @@ export default function DocumentTransferControls({
             </pre>
           ) : null}
           {error ? <p role="alert">{error}</p> : null}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              disabled={busy}
-              onClick={handlePreview}
-              type="button"
-              variant="outline"
-            >
-              Preview
-            </Button>
-            {action === "Move" && preview?.externalSurfaceIds.length ? (
-              <Button
-                disabled={busy}
-                onClick={handleCancelSurface}
-                type="button"
-                variant="outline"
-              >
-                Cancel External Surface
-              </Button>
-            ) : null}
-            {action === "Export" ? (
-              <Button
-                disabled={busy || !exportPreview}
-                onClick={handleDownload}
-                type="button"
-              >
-                Download
-              </Button>
-            ) : (
-              <Button
-                disabled={busy || !preview?.allowed}
-                onClick={handleApply}
-                type="button"
-              >
-                Apply
-              </Button>
-            )}
-            <Button
-              disabled={busy}
-              onClick={handleCancel}
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-          </div>
+          <DocumentTransferActions
+            action={action}
+            busy={busy}
+            exportPreview={exportPreview}
+            handleApply={handleApply}
+            handleCancel={handleCancel}
+            handleCancelSurface={handleCancelSurface}
+            handleDownload={handleDownload}
+            handlePreview={handlePreview}
+            preview={preview}
+          />
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+function DocumentTransferActions({
+  busy,
+  handlePreview,
+  action,
+  preview,
+  handleCancelSurface,
+  exportPreview,
+  handleDownload,
+  handleApply,
+  handleCancel,
+}: {
+  busy: boolean;
+  handlePreview: () => void;
+  action: "Copy" | "Move" | "Assign File Attachments" | "Export" | null;
+  preview: DocumentTransferPreview | null;
+  handleCancelSurface: () => void;
+  exportPreview: {
+    format: "Markdown" | "PDF";
+    content: string;
+    capturedAt: string;
+    documentId: string;
+    markdown: string;
+    revision: number;
+    title: string;
+  } | null;
+  handleDownload: () => void;
+  handleApply: () => void;
+  handleCancel: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        disabled={busy}
+        onClick={handlePreview}
+        type="button"
+        variant="outline"
+      >
+        Preview
+      </Button>
+      {action === "Move" && preview?.externalSurfaceIds.length ? (
+        <Button
+          disabled={busy}
+          onClick={handleCancelSurface}
+          type="button"
+          variant="outline"
+        >
+          Cancel External Surface
+        </Button>
+      ) : null}
+      {action === "Export" ? (
+        <Button
+          disabled={busy || !exportPreview}
+          onClick={handleDownload}
+          type="button"
+        >
+          Download
+        </Button>
+      ) : (
+        <Button
+          disabled={busy || !preview?.allowed}
+          onClick={handleApply}
+          type="button"
+        >
+          Apply
+        </Button>
+      )}
+      <Button
+        disabled={busy}
+        onClick={handleCancel}
+        type="button"
+        variant="outline"
+      >
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+function DocumentTransferSelection({
+  action,
+  busy,
+  handleTarget,
+  targetProjectId,
+  projects,
+  record,
+  attachments,
+  attachmentIds,
+  handleAttachment,
+  childOptions,
+  selectedChildren,
+  handleChild,
+  handleVersion,
+  version,
+  versions,
+  handleFormat,
+  format,
+}: {
+  action: "Move" | "Copy" | "Export" | "Assign File Attachments" | null;
+  busy: boolean;
+  handleTarget: (event: ChangeEvent<HTMLSelectElement>) => void;
+  targetProjectId: string;
+  projects: import("@tanstack/react-query").UseQueryResult<
+    import("@cantiara/api/project-shell").ProjectProfile[],
+    Error
+  >;
+  record: Document;
+  attachments: import("@tanstack/react-query").UseQueryResult<
+    Awaited<ReturnType<typeof client.fileAttachments>>,
+    Error
+  >;
+  attachmentIds: string[];
+  handleAttachment: (event: ChangeEvent<HTMLInputElement>) => void;
+  childOptions: { id: string; title: string; revision: number }[];
+  selectedChildren: string[];
+  handleChild: (event: ChangeEvent<HTMLInputElement>) => void;
+  handleVersion: (event: ChangeEvent<HTMLSelectElement>) => void;
+  version: number;
+  versions: import("@tanstack/react-query").UseQueryResult<
+    {
+      type: "Persona" | "General" | "PRD" | "Plan" | "Spec" | "Research Note";
+      id: string;
+      createdAt: string;
+      revision: number;
+      title: string;
+      updatedAt: string;
+    }[],
+    Error
+  >;
+  handleFormat: (event: ChangeEvent<HTMLSelectElement>) => void;
+  format: "Markdown" | "PDF";
+}) {
+  return (
+    <>
+      {" "}
+      {action === "Move" || action === "Copy" ? (
+        <div className="space-y-2">
+          <Label htmlFor="document-target-scope">Target scope</Label>
+          <NativeSelect
+            disabled={busy}
+            id="document-target-scope"
+            onChange={handleTarget}
+            value={targetProjectId}
+          >
+            <NativeSelectOption value="">Personal Wiki</NativeSelectOption>
+            {projects.data
+              ?.filter(
+                (item) =>
+                  item.status === "Active" &&
+                  (action === "Copy" || item.id !== record.projectId),
+              )
+              .map((item) => (
+                <NativeSelectOption key={item.id} value={item.id}>
+                  {item.name}
+                </NativeSelectOption>
+              ))}
+          </NativeSelect>
+        </div>
+      ) : null}
+      {action === "Assign File Attachments" ? (
+        <fieldset className="space-y-2" disabled={busy}>
+          <legend>File Attachments</legend>
+          <p>
+            Select File Attachments from this Project. Attachments already owned
+            by another Document cannot be reassigned.
+          </p>
+          {attachments.data
+            ?.filter(
+              (item) =>
+                !item.ownerDocumentId || item.ownerDocumentId === record.id,
+            )
+            .map((item) => (
+              <Label className="flex gap-2" key={item.id}>
+                <input
+                  checked={attachmentIds.includes(item.id)}
+                  onChange={handleAttachment}
+                  type="checkbox"
+                  value={item.id}
+                />
+                {item.name}
+              </Label>
+            ))}
+        </fieldset>
+      ) : null}
+      {action === "Move" ? (
+        <fieldset className="space-y-2" disabled={busy}>
+          <legend>Child Documents</legend>
+          {childOptions.map((item) => (
+            <Label className="flex gap-2" key={item.id}>
+              <input
+                checked={selectedChildren.includes(item.id)}
+                onChange={handleChild}
+                type="checkbox"
+                value={item.id}
+              />
+              {item.title}
+            </Label>
+          ))}
+        </fieldset>
+      ) : null}
+      {action === "Copy" || action === "Export" ? (
+        <div className="space-y-2">
+          <Label htmlFor="document-transfer-version">Version</Label>
+          <NativeSelect
+            disabled={busy}
+            id="document-transfer-version"
+            onChange={handleVersion}
+            value={String(version)}
+          >
+            {(versions.data ?? [{ revision: record.revision }]).map((item) => (
+              <NativeSelectOption
+                key={item.revision}
+                value={String(item.revision)}
+              >
+                {item.revision}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+      ) : null}
+      {action === "Export" ? (
+        <div className="space-y-2">
+          <Label htmlFor="document-export-format">Format</Label>
+          <NativeSelect
+            disabled={busy}
+            id="document-export-format"
+            onChange={handleFormat}
+            value={format}
+          >
+            <NativeSelectOption value="Markdown">Markdown</NativeSelectOption>
+            <NativeSelectOption value="PDF">PDF</NativeSelectOption>
+          </NativeSelect>
+          <p>
+            Live blocks become dated, read-only snapshots. No live external copy
+            is created.
+          </p>
+          {format === "PDF" ? (
+            <p>
+              PDF export does not guarantee tagged PDF or WCAG compliance.
+              Markdown is the accessible alternative.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {action === "Copy" ? (
+        <p>
+          Copy creates a new identity with source origin, without history,
+          children, File Attachments, relations or publication.
+        </p>
+      ) : null}
     </>
   );
 }

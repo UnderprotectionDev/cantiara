@@ -506,27 +506,16 @@ function CollectionViewCard({
       {preview?.viewId === view.id ? (
         <MembershipFieldChangePreview preview={preview} />
       ) : null}
-      {isWorkCollection && activePanel === "insights" ? (
-        <SmartCollectionInsights
-          now={now}
-          onSelectSlice={selectSlice}
-          onShowAllRecords={showAllRecords}
-          selectedSlices={selectedSlices}
-          works={selectedWorks ?? []}
-        />
-      ) : null}
-      {isWorkCollection &&
-      selectedSlices.length > 0 &&
-      activePanel === "records" ? (
-        <Button onClick={showAllRecords} type="button" variant="ghost">
-          Show all records
-        </Button>
-      ) : null}
-      {!isWorkCollection ||
-      activePanel === "records" ||
-      selectedSlices.length > 0 ? (
-        <CollectionMembers view={view} works={selectedWorks} />
-      ) : null}
+      <CollectionViewContent
+        activePanel={activePanel}
+        isWorkCollection={isWorkCollection}
+        now={now}
+        selectedSlices={selectedSlices}
+        selectedWorks={selectedWorks}
+        selectSlice={selectSlice}
+        showAllRecords={showAllRecords}
+        view={view}
+      />{" "}
     </section>
   );
 }
@@ -827,5 +816,65 @@ export default function ProjectSmartCollectionsSurface({
         </div>
       </DragDropProvider>
     </section>
+  );
+}
+
+function CollectionViewContent({
+  isWorkCollection,
+  activePanel,
+  now,
+  selectSlice,
+  showAllRecords,
+  selectedSlices,
+  selectedWorks,
+  view,
+}: {
+  isWorkCollection: boolean;
+  activePanel: "records" | "insights";
+  now: Date;
+  selectSlice: (selection: SmartCollectionInsightSelection) => void;
+  showAllRecords: () => void;
+  selectedSlices: SmartCollectionInsightSelection[];
+  selectedWorks:
+    | {
+        createdAt: string;
+        effort: string | null;
+        id: string;
+        key: string;
+        title: string;
+        status: string;
+        statusChangedAt: string;
+        type: string;
+        projectId: string;
+        membershipReasons: string[];
+      }[]
+    | undefined;
+  view: SmartCollectionViewSource;
+}) {
+  return (
+    <>
+      {" "}
+      {isWorkCollection && activePanel === "insights" ? (
+        <SmartCollectionInsights
+          now={now}
+          onSelectSlice={selectSlice}
+          onShowAllRecords={showAllRecords}
+          selectedSlices={selectedSlices}
+          works={selectedWorks ?? []}
+        />
+      ) : null}
+      {isWorkCollection &&
+      selectedSlices.length > 0 &&
+      activePanel === "records" ? (
+        <Button onClick={showAllRecords} type="button" variant="ghost">
+          Show all records
+        </Button>
+      ) : null}
+      {!isWorkCollection ||
+      activePanel === "records" ||
+      selectedSlices.length > 0 ? (
+        <CollectionMembers view={view} works={selectedWorks} />
+      ) : null}
+    </>
   );
 }

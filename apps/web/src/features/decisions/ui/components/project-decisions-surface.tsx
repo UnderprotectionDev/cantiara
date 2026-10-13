@@ -149,10 +149,43 @@ export default function ProjectDecisionsSurface({
         onStartEditing={startEditing}
         onWithdraw={withdraw}
         projectId={projectId}
-        readOnly={readOnly || records.data.readOnly}
+        readOnly={readOnly || Boolean(records.data?.readOnly)}
         savedMessage={savedMessage}
         selectedId={selectedId}
       />
+      <SelectedDecisionActions
+        graph={graph}
+        projectId={projectId}
+        readOnly={readOnly}
+        records={records}
+        selected={selected}
+      />{" "}
+    </div>
+  );
+}
+
+function SelectedDecisionActions({
+  selected,
+  graph,
+  projectId,
+  readOnly,
+  records,
+}: {
+  selected: DecisionRecord | undefined;
+  graph: import("@tanstack/react-query").UseQueryResult<
+    Awaited<ReturnType<typeof client.decisionSupersessionGraph>>,
+    Error
+  >;
+  projectId: string;
+  readOnly: boolean;
+  records: import("@tanstack/react-query").UseQueryResult<
+    Awaited<ReturnType<typeof client.projectDecisions>>,
+    Error
+  >;
+}) {
+  return (
+    <>
+      {" "}
       {selected && graph.isPending ? (
         <p role="status">Loading Decision chain…</p>
       ) : null}
@@ -162,7 +195,7 @@ export default function ProjectDecisionsSurface({
       {selected ? (
         <DecisionSupersessionControls
           projectId={projectId}
-          readOnly={readOnly || records.data.readOnly}
+          readOnly={readOnly || Boolean(records.data?.readOnly)}
           selectedId={selected.id}
         />
       ) : null}
@@ -172,7 +205,7 @@ export default function ProjectDecisionsSurface({
           sourceRecordType="Decision"
         />
       ) : null}
-      {selected && !(readOnly || records.data.readOnly) ? (
+      {selected && !(readOnly || records.data?.readOnly) ? (
         <PersonalReminderControl
           compact
           sourceRecordId={selected.id}
@@ -180,6 +213,6 @@ export default function ProjectDecisionsSurface({
           sourceTitle={selected.title}
         />
       ) : null}
-    </div>
+    </>
   );
 }

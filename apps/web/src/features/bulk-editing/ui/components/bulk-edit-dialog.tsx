@@ -960,45 +960,87 @@ export default function BulkEditDialog({
           queryClient={queryClient}
         />
 
-        <DialogFooter>
-          <Button
-            disabled={operation?.phase === "finalizing"}
-            onClick={() => handleOpenChange(false)}
-            type="button"
-            variant="outline"
-          >
-            {operation?.phase === "finalizing" ? "Finalizing" : "Cancel"}
-          </Button>
-          <Button
-            disabled={
-              connection === "offline" ||
-              isPreviewing ||
-              operation !== undefined ||
-              !targetStatus
-            }
-            onClick={buildPreview}
-            type="button"
-            variant="outline"
-          >
-            Preview
-          </Button>
-          {displayedPreview ? (
-            <Button
-              disabled={
-                connection === "offline" ||
-                operation !== undefined ||
-                isPreviewing ||
-                !previewMatchesCurrentInput ||
-                changedRecords.length === 0
-              }
-              onClick={apply}
-              type="button"
-            >
-              {hasWarnings ? "Close anyway" : "Apply"}
-            </Button>
-          ) : null}
-        </DialogFooter>
+        <BulkEditDialogActions
+          apply={apply}
+          buildPreview={buildPreview}
+          changedRecords={changedRecords}
+          connection={connection}
+          displayedPreview={displayedPreview}
+          handleOpenChange={handleOpenChange}
+          hasWarnings={hasWarnings}
+          isPreviewing={isPreviewing}
+          operation={operation}
+          previewMatchesCurrentInput={previewMatchesCurrentInput}
+          targetStatus={targetStatus}
+        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function BulkEditDialogActions({
+  operation,
+  handleOpenChange,
+  connection,
+  isPreviewing,
+  targetStatus,
+  buildPreview,
+  displayedPreview,
+  previewMatchesCurrentInput,
+  changedRecords,
+  apply,
+  hasWarnings,
+}: {
+  operation: BulkEditOperation | undefined;
+  handleOpenChange: (nextOpen: boolean) => void;
+  connection: import("@/features/web-macos-client/store/client-shell").ClientConnectionState;
+  isPreviewing: boolean;
+  targetStatus: "" | "Not Started" | "In Progress" | "Blocked" | "Closed";
+  buildPreview: () => Promise<void>;
+  displayedPreview: BulkEditPreview | null;
+  previewMatchesCurrentInput: boolean;
+  changedRecords: BulkEditRecordSnapshot[];
+  apply: () => void;
+  hasWarnings: boolean;
+}) {
+  return (
+    <DialogFooter>
+      <Button
+        disabled={operation?.phase === "finalizing"}
+        onClick={() => handleOpenChange(false)}
+        type="button"
+        variant="outline"
+      >
+        {operation?.phase === "finalizing" ? "Finalizing" : "Cancel"}
+      </Button>
+      <Button
+        disabled={
+          connection === "offline" ||
+          isPreviewing ||
+          operation !== undefined ||
+          !targetStatus
+        }
+        onClick={buildPreview}
+        type="button"
+        variant="outline"
+      >
+        Preview
+      </Button>
+      {displayedPreview ? (
+        <Button
+          disabled={
+            connection === "offline" ||
+            operation !== undefined ||
+            isPreviewing ||
+            !previewMatchesCurrentInput ||
+            changedRecords.length === 0
+          }
+          onClick={apply}
+          type="button"
+        >
+          {hasWarnings ? "Close anyway" : "Apply"}
+        </Button>
+      ) : null}
+    </DialogFooter>
   );
 }
