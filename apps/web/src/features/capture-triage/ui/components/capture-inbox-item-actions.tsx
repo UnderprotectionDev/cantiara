@@ -691,23 +691,20 @@ export function CaptureInboxItemActions({
     },
   });
 
-  const isPending =
-    previewConversion.isPending ||
-    convert.isPending ||
-    previewAttachment.isPending ||
-    attach.isPending ||
-    deleteCapture.isPending ||
-    suggestions.isPending;
+  const isPending = [
+    previewConversion,
+    convert,
+    previewAttachment,
+    attach,
+    deleteCapture,
+    suggestions,
+  ].some((mutation) => mutation.isPending);
   const isOnline = connection !== "offline";
   const suggestionPreview = mode === "suggestions" ? suggestionData : null;
-  const conversionPreview =
-    mode === "convert" && preview && "proposedRecord" in preview
-      ? preview
-      : null;
-  const attachPreview =
-    mode === "attach" && preview && "relationPreview" in preview
-      ? preview
-      : null;
+  const { conversionPreview, attachPreview } = capturePreviewsForMode(
+    mode,
+    preview,
+  );
 
   const startMode = useCallback((nextMode: Exclude<ActionMode, null>) => {
     setMode(nextMode);
@@ -789,46 +786,15 @@ export function CaptureInboxItemActions({
 
   return (
     <div className="space-y-3 border-t pt-3">
-      <div className="flex flex-wrap gap-2">
-        {triageAvailable ? (
-          <>
-            <Button
-              disabled={!isOnline || isPending}
-              onClick={openConvert}
-              type="button"
-              variant="outline"
-            >
-              Convert
-            </Button>
-            <Button
-              disabled={!isOnline || isPending}
-              onClick={openAttach}
-              type="button"
-              variant="outline"
-            >
-              Attach to existing
-            </Button>
-          </>
-        ) : null}
-        <Button
-          disabled={!isOnline || isPending}
-          onClick={handleDelete}
-          type="button"
-          variant="destructive"
-        >
-          Delete
-        </Button>
-        {triageAvailable ? (
-          <Button
-            disabled={!isOnline || isPending}
-            onClick={showSuggestions}
-            type="button"
-            variant="ghost"
-          >
-            Show suggestions
-          </Button>
-        ) : null}
-      </div>
+      <CaptureTriageActions
+        handleDelete={handleDelete}
+        isOnline={isOnline}
+        isPending={isPending}
+        openAttach={openAttach}
+        openConvert={openConvert}
+        showSuggestions={showSuggestions}
+        triageAvailable={triageAvailable}
+      />
       {actionMessage ? (
         <p
           className="border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive text-xs"
@@ -838,17 +804,17 @@ export function CaptureInboxItemActions({
         </p>
       ) : null}
       {mode === "convert" && !conversionPreview ? (
-        <CaptureConversionSetup
+        <CaptureConversionFlow
+          closeMode={closeMode}
+          conversionProjectId={conversionProjectId}
+          handlePreviewConversion={handlePreviewConversion}
+          handleProjectChange={handleProjectChange}
+          handleRecordTypeChange={handleRecordTypeChange}
           isOnline={isOnline}
-          onCancel={closeMode}
-          onPreview={handlePreviewConversion}
-          onProjectChange={handleProjectChange}
-          onRecordTypeChange={handleRecordTypeChange}
-          previewPending={previewConversion.isPending}
-          projectId={conversionProjectId}
-          projects={projects.data}
+          item={item}
+          previewConversion={previewConversion}
+          projects={projects}
           recordType={recordType}
-          sourceProjectId={item.projectId}
         />
       ) : null}
       {mode === "attach" && !attachPreview ? (
@@ -890,4 +856,125 @@ export function CaptureInboxItemActions({
       ) : null}
     </div>
   );
+}
+
+function CaptureConversionFlow({
+  isOnline,
+  closeMode,
+  handlePreviewConversion,
+  handleProjectChange,
+  handleRecordTypeChange,
+  previewConversion,
+  conversionProjectId,
+  projects,
+  recordType,
+  item,
+}: {
+  isOnline: boolean;
+  closeMode: () => void;
+  handlePreviewConversion: () => void;
+  handleProjectChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  handleRecordTypeChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  previewConversion: import("@tanstack/react-query").UseMutationResult<
+    CaptureConversionPreview,
+    Error,
+    void,
+    unknown
+  >;
+  conversionProjectId: string;
+  projects: import("@tanstack/react-query").UseQueryResult<
+    ProjectProfile[],
+    Error
+  >;
+  recordType: "" | "Work" | "Document";
+  item: CaptureInboxItem;
+}) {
+  return (
+    <CaptureConversionSetup
+      isOnline={isOnline}
+      onCancel={closeMode}
+      onPreview={handlePreviewConversion}
+      onProjectChange={handleProjectChange}
+      onRecordTypeChange={handleRecordTypeChange}
+      previewPending={previewConversion.isPending}
+      projectId={conversionProjectId}
+      projects={projects.data}
+      recordType={recordType}
+      sourceProjectId={item.projectId}
+    />
+  );
+}
+
+function CaptureTriageActions({
+  triageAvailable,
+  isOnline,
+  isPending,
+  openConvert,
+  openAttach,
+  handleDelete,
+  showSuggestions,
+}: {
+  triageAvailable: boolean;
+  isOnline: boolean;
+  isPending: boolean;
+  openConvert: () => void;
+  openAttach: () => void;
+  handleDelete: () => void;
+  showSuggestions: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {triageAvailable ? (
+        <>
+          <Button
+            disabled={!isOnline || isPending}
+            onClick={openConvert}
+            type="button"
+            variant="outline"
+          >
+            Convert
+          </Button>
+          <Button
+            disabled={!isOnline || isPending}
+            onClick={openAttach}
+            type="button"
+            variant="outline"
+          >
+            Attach to existing
+          </Button>
+        </>
+      ) : null}
+      <Button
+        disabled={!isOnline || isPending}
+        onClick={handleDelete}
+        type="button"
+        variant="destructive"
+      >
+        Delete
+      </Button>
+      {triageAvailable ? (
+        <Button
+          disabled={!isOnline || isPending}
+          onClick={showSuggestions}
+          type="button"
+          variant="ghost"
+        >
+          Show suggestions
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function capturePreviewsForMode(mode: ActionMode, preview: Preview | null) {
+  return {
+    conversionPreview:
+      mode === "convert" && preview && "proposedRecord" in preview
+        ? preview
+        : null,
+    attachPreview:
+      mode === "attach" && preview && "relationPreview" in preview
+        ? preview
+        : null,
+  };
 }

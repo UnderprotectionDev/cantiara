@@ -324,10 +324,10 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
 
   if (
     query.isPending ||
-    workProfilesQuery.isPending ||
-    orderQuery.isPending ||
-    presentationQuery.isPending ||
-    preferencesQuery.isPending
+    [workProfilesQuery, orderQuery, preferencesQuery].some(
+      (item) => item.isPending,
+    ) ||
+    presentationQuery.isPending
   ) {
     return (
       <p className="mt-5 text-muted-foreground text-sm" role="status">
@@ -337,10 +337,10 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
   }
   if (
     query.isError ||
-    workProfilesQuery.isError ||
-    orderQuery.isError ||
-    presentationQuery.isError ||
-    preferencesQuery.isError
+    [workProfilesQuery, orderQuery, preferencesQuery].some(
+      (item) => item.isError,
+    ) ||
+    presentationQuery.isError
   ) {
     return (
       <p className="mt-5 text-destructive text-sm" role="alert">
@@ -381,15 +381,12 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
     priorityByWorkId,
     field,
   );
-  const { current, deferred } =
-    presentation === "Manual order"
-      ? partitionDeferredBacklog(
-          displayedWorks,
-          preferencesQuery.data?.timeZone ??
-            DEFAULT_ACCOUNT_PREFERENCES.timeZone,
-          now,
-        )
-      : { current: displayedWorks, deferred: [] };
+  const { current, deferred } = backlogGroupsForPresentation(
+    displayedWorks,
+    presentation,
+    formattingPreferences.timeZone,
+    now,
+  );
   const currentSaved = toSavedPresentation(
     presentation,
     priorityMetricId,
@@ -444,6 +441,193 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
 
   return (
     <section className="mt-5 space-y-3">
+      <BacklogSortControls
+        enabledMetrics={enabledMetrics}
+        field={field}
+        presentation={presentation}
+        priorityMetricId={priorityMetricId}
+        setField={setField}
+        setPresentation={setPresentation}
+        setPriorityMetricId={setPriorityMetricId}
+      />{" "}
+      <BacklogSavedPresentationControls
+        currentSaved={currentSaved}
+        saved={saved}
+        savedDetail={savedDetail}
+        savePresentation={savePresentation}
+        selectSavedPresentation={selectSavedPresentation}
+      />
+      {savePresentation.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Backlog presentation could not be saved. Try again.
+        </p>
+      ) : null}
+      {updateOrder.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Backlog order could not be saved. Try again.
+        </p>
+      ) : null}
+      <DndContext
+        accessibility={{
+          announcements: {
+            onDragStart: ({ active }) => `Picked up ${workName(active.id)}.`,
+            onDragOver: ({ active, over }) =>
+              over
+                ? `${workName(active.id)} is over ${workName(over.id)}.`
+                : `${workName(active.id)} is outside the Backlog.`,
+            onDragEnd: ({ active, over }) =>
+              over
+                ? `${workName(active.id)} was dropped over ${workName(over.id)}.`
+                : `${workName(active.id)} was not moved.`,
+            onDragCancel: ({ active }) =>
+              `Moving ${workName(active.id)} was cancelled.`,
+          },
+        }}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+        sensors={sensors}
+      >
+        <SortableContext
+          items={current.map((work) => work.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <ol aria-label="Backlog" className="space-y-2">
+            {current.map((work) => (
+              <BacklogCard
+                canReorder={canReorder}
+                formattingPreferences={formattingPreferences}
+                key={work.id}
+                profile={profilesById.get(work.id)}
+                projectId={projectId}
+                work={work}
+              />
+            ))}
+          </ol>
+        </SortableContext>
+      </DndContext>
+      <DeferredBacklog
+        deferred={deferred}
+        formattingPreferences={formattingPreferences}
+        profilesById={profilesById}
+        projectId={projectId}
+      />
+    </section>
+  );
+}
+
+function BacklogSavedPresentationControls({
+  currentSaved,
+  savePresentation,
+  saved,
+  savedDetail,
+  selectSavedPresentation,
+}: {
+  currentSaved:
+    | { sort: "Priority"; metricId: string }
+    | { sort: "Date" }
+    | { sort: "Field"; field: "Title" | "Status" }
+    | null;
+  savePresentation: import("@tanstack/react-query").UseMutationResult<
+    {
+      projectId: string;
+      revision: number;
+      saved:
+        | { sort: "Priority"; metricId: string }
+        | { sort: "Date" }
+        | { sort: "Field"; field: "Title" | "Status" }
+        | null;
+    },
+    Error,
+    | { sort: "Priority"; metricId: string }
+    | { sort: "Date" }
+    | { sort: "Field"; field: "Title" | "Status" },
+    unknown
+  >;
+  saved:
+    | { sort: "Priority"; metricId: string }
+    | { sort: "Date" }
+    | { sort: "Field"; field: "Title" | "Status" }
+    | null;
+  savedDetail: string | null;
+  selectSavedPresentation: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm">
+      {currentSaved ? (
+        <Button
+          disabled={savePresentation.isPending}
+          onClick={() => savePresentation.mutate(currentSaved)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Save presentation
+        </Button>
+      ) : null}
+      {saved ? (
+        <>
+          <span className="text-muted-foreground">
+            Saved presentation: {saved.sort}
+            {savedDetail ? ` · ${savedDetail}` : ""}
+          </span>
+          <Button
+            disabled={savePresentation.isPending}
+            onClick={selectSavedPresentation}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Use saved presentation
+          </Button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function BacklogSortControls({
+  setPresentation,
+  presentation,
+  setPriorityMetricId,
+  priorityMetricId,
+  enabledMetrics,
+  setField,
+  field,
+}: {
+  setPresentation: import("react").Dispatch<
+    import("react").SetStateAction<BacklogPresentation>
+  >;
+  presentation: BacklogPresentation;
+  setPriorityMetricId: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  priorityMetricId: string;
+  enabledMetrics: {
+    createdAt: string;
+    enabled: boolean;
+    id: string;
+    name: string;
+    projectId: string;
+    rankDescriptions: {
+      High: string;
+      Low: string;
+      Medium: string;
+      "Very high": string;
+      "Very low": string;
+    };
+    revision: number;
+    shortDescription: string;
+    trashedAt: string | null;
+    updatedAt: string;
+  }[];
+  setField: import("react").Dispatch<
+    import("react").SetStateAction<BacklogSortField>
+  >;
+  field: BacklogSortField;
+}) {
+  return (
+    <>
+      {" "}
       <label className="flex items-center gap-2 text-sm">
         <span>Backlog sort</span>
         <select
@@ -494,101 +678,47 @@ export default function ProjectBacklog({ projectId }: { projectId: string }) {
           </select>
         </label>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        {currentSaved ? (
-          <Button
-            disabled={savePresentation.isPending}
-            onClick={() => savePresentation.mutate(currentSaved)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Save presentation
-          </Button>
-        ) : null}
-        {saved ? (
-          <>
-            <span className="text-muted-foreground">
-              Saved presentation: {saved.sort}
-              {savedDetail ? ` · ${savedDetail}` : ""}
-            </span>
-            <Button
-              disabled={savePresentation.isPending}
-              onClick={selectSavedPresentation}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Use saved presentation
-            </Button>
-          </>
-        ) : null}
-      </div>
-      {savePresentation.isError ? (
-        <p className="text-destructive text-sm" role="alert">
-          Backlog presentation could not be saved. Try again.
-        </p>
-      ) : null}
-      {updateOrder.isError ? (
-        <p className="text-destructive text-sm" role="alert">
-          Backlog order could not be saved. Try again.
-        </p>
-      ) : null}
-      <DndContext
-        accessibility={{
-          announcements: {
-            onDragStart: ({ active }) => `Picked up ${workName(active.id)}.`,
-            onDragOver: ({ active, over }) =>
-              over
-                ? `${workName(active.id)} is over ${workName(over.id)}.`
-                : `${workName(active.id)} is outside the Backlog.`,
-            onDragEnd: ({ active, over }) =>
-              over
-                ? `${workName(active.id)} was dropped over ${workName(over.id)}.`
-                : `${workName(active.id)} was not moved.`,
-            onDragCancel: ({ active }) =>
-              `Moving ${workName(active.id)} was cancelled.`,
-          },
-        }}
-        collisionDetection={closestCenter}
-        onDragEnd={onDragEnd}
-        sensors={sensors}
-      >
-        <SortableContext
-          items={current.map((work) => work.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <ol aria-label="Backlog" className="space-y-2">
-            {current.map((work) => (
-              <BacklogCard
-                canReorder={canReorder}
-                formattingPreferences={formattingPreferences}
-                key={work.id}
-                profile={profilesById.get(work.id)}
-                projectId={projectId}
-                work={work}
-              />
-            ))}
-          </ol>
-        </SortableContext>
-      </DndContext>
-      {deferred.length > 0 ? (
-        <section aria-label="Deferred" className="space-y-2">
-          <h3 className="font-semibold text-sm">Deferred</h3>
-          <ol aria-label="Deferred" className="space-y-2">
-            {deferred.map((work) => (
-              <BacklogCard
-                canReorder={false}
-                formattingPreferences={formattingPreferences}
-                key={work.id}
-                profile={profilesById.get(work.id)}
-                projectId={projectId}
-                work={work}
-              />
-            ))}
-          </ol>
-        </section>
-      ) : null}
-    </section>
+    </>
   );
+}
+
+function DeferredBacklog({
+  deferred,
+  formattingPreferences,
+  profilesById,
+  projectId,
+}: {
+  deferred: BacklogWork[];
+  formattingPreferences: AccountPreferences;
+  profilesById: Map<string, WorkProfile>;
+  projectId: string;
+}) {
+  return deferred.length > 0 ? (
+    <section aria-label="Deferred" className="space-y-2">
+      <h3 className="font-semibold text-sm">Deferred</h3>
+      <ol aria-label="Deferred" className="space-y-2">
+        {deferred.map((work) => (
+          <BacklogCard
+            canReorder={false}
+            formattingPreferences={formattingPreferences}
+            key={work.id}
+            profile={profilesById.get(work.id)}
+            projectId={projectId}
+            work={work}
+          />
+        ))}
+      </ol>
+    </section>
+  ) : null;
+}
+
+function backlogGroupsForPresentation(
+  works: BacklogWork[],
+  presentation: BacklogPresentation,
+  timeZone: string,
+  now: Date,
+) {
+  return presentation === "Manual order"
+    ? partitionDeferredBacklog(works, timeZone, now)
+    : { current: works, deferred: [] };
 }

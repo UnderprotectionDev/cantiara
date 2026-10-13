@@ -5,7 +5,7 @@ import { accountLocalDate } from "@cantiara/api/backlog";
 import { Button } from "@cantiara/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   projectSourceRecordHash,
   workRecordHash,
@@ -103,10 +103,14 @@ function DailyFocusCloseView({
   const closeQuery = useQuery(
     orpc.dailyFocusClose.queryOptions({ input: { focusDate } }),
   );
-  const selectedDay = new Intl.DateTimeFormat(locale, {
-    dateStyle: "long",
-    timeZone: "UTC",
-  }).format(new Date(`${focusDate}T12:00:00.000Z`));
+  const dayFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }),
+    [locale],
+  );
+  const selectedDay = dayFormatter.format(
+    new Date(`${focusDate}T12:00:00.000Z`),
+  );
 
   return (
     <main className="mx-auto w-full max-w-4xl px-5 py-9 sm:px-8">
@@ -225,6 +229,14 @@ function DailyFocusDayView({
   preferences: AccountPreferences;
 }) {
   const queryClient = useQueryClient();
+  const eventTimeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(preferences.locale, {
+        timeStyle: "short",
+        timeZone: preferences.timeZone,
+      }),
+    [preferences.locale, preferences.timeZone],
+  );
   const dailyFocus = useQuery(
     orpc.dailyFocusDay.queryOptions({ input: { focusDate } }),
   );
@@ -378,10 +390,7 @@ function DailyFocusDayView({
                   </p>
                   <p className="text-muted-foreground text-sm">
                     <time dateTime={event.occurredAt}>
-                      {new Intl.DateTimeFormat(preferences.locale, {
-                        timeStyle: "short",
-                        timeZone: preferences.timeZone,
-                      }).format(new Date(event.occurredAt))}
+                      {eventTimeFormatter.format(new Date(event.occurredAt))}
                     </time>
                     <span> · {event.projectName}</span>
                   </p>

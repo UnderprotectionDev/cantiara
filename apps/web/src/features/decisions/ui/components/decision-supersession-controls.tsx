@@ -142,16 +142,17 @@ export default function DecisionSupersessionControls({
           Supersede another decision
         </Button>
       ) : null}
-      {selection && !readOnly && !graph.data.readOnly && prepared ? (
-        <DecisionSupersessionPreviewView
-          conflict={conflict}
-          onCancel={cancel}
-          onConfirm={confirm}
-          pending={pending}
-          preview={prepared.preview}
-        />
-      ) : null}
-      {selection && !readOnly && !graph.data.readOnly && !prepared ? (
+      <SupersessionReview
+        cancel={cancel}
+        confirm={confirm}
+        conflict={conflict}
+        graph={graph}
+        pending={pending}
+        prepared={prepared}
+        readOnly={readOnly}
+        selection={selection}
+      />
+      {selection && !readOnly && !graph.data?.readOnly && !prepared ? (
         <SupersessionSelectionForm
           onCancel={cancel}
           onPreview={preview}
@@ -161,4 +162,37 @@ export default function DecisionSupersessionControls({
       ) : null}
     </section>
   );
+}
+
+function SupersessionReview({
+  selection,
+  readOnly,
+  graph,
+  prepared,
+  conflict,
+  cancel,
+  confirm,
+  pending,
+}: {
+  selection: DecisionSupersessionSelection | undefined;
+  readOnly: boolean;
+  graph: import("@tanstack/react-query").UseQueryResult<
+    Awaited<ReturnType<typeof client.decisionSupersessionGraph>>,
+    Error
+  >;
+  prepared: { preview: DecisionSupersessionPreview; key: string } | undefined;
+  conflict: boolean;
+  cancel: () => void;
+  confirm: () => Promise<void>;
+  pending: boolean;
+}) {
+  return selection && !readOnly && !graph.data?.readOnly && prepared ? (
+    <DecisionSupersessionPreviewView
+      conflict={conflict}
+      onCancel={cancel}
+      onConfirm={confirm}
+      pending={pending}
+      preview={prepared.preview}
+    />
+  ) : null;
 }

@@ -199,39 +199,19 @@ export function NotNowHistoryPanel({
           Supporting record links could not be loaded.
         </p>
       ) : null}
-      {!archived && (currentTrail || canStart) ? (
-        <div className="space-y-3 border-t pt-3">
-          {currentTrail ? (
-            <ReviewLaterHandlingField
-              name={`not-now-review-later-handling-${workId}`}
-              onChange={onReviewLaterHandlingChange}
-              pending={reconsiderPending || historyPending}
-              value={reviewLaterHandling}
-            />
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            {currentTrail ? (
-              <Button
-                disabled={
-                  reconsiderPending ||
-                  historyPending ||
-                  connection === "offline"
-                }
-                onClick={onReconsider}
-                type="button"
-                variant="outline"
-              >
-                Reconsidering
-              </Button>
-            ) : null}
-            {canStart ? (
-              <Button onClick={onStartNew} type="button">
-                Not now
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      <NotNowReconsideration
+        archived={archived}
+        canStart={canStart}
+        connection={connection}
+        currentTrail={currentTrail}
+        historyPending={historyPending}
+        onReconsider={onReconsider}
+        onReviewLaterHandlingChange={onReviewLaterHandlingChange}
+        onStartNew={onStartNew}
+        reconsiderPending={reconsiderPending}
+        reviewLaterHandling={reviewLaterHandling}
+        workId={workId}
+      />
     </div>
   );
 }
@@ -889,4 +869,64 @@ export default function WorkNotNowControl({
       ) : null}
     </>
   );
+}
+
+function NotNowReconsideration({
+  archived,
+  currentTrail,
+  canStart,
+  workId,
+  onReviewLaterHandlingChange,
+  reconsiderPending,
+  historyPending,
+  reviewLaterHandling,
+  connection,
+  onReconsider,
+  onStartNew,
+}: {
+  archived: boolean;
+  currentTrail: WorkNotNowTrail | null;
+  canStart: boolean;
+  workId: string;
+  onReviewLaterHandlingChange: (
+    handling: WorkNotNowReviewLaterHandling,
+  ) => void;
+  reconsiderPending: boolean;
+  historyPending: boolean;
+  reviewLaterHandling: "Keep Review later" | "Remove Review later";
+  connection: string;
+  onReconsider: () => void;
+  onStartNew: () => void;
+}) {
+  return !archived && (currentTrail || canStart) ? (
+    <div className="space-y-3 border-t pt-3">
+      {currentTrail ? (
+        <ReviewLaterHandlingField
+          name={`not-now-review-later-handling-${workId}`}
+          onChange={onReviewLaterHandlingChange}
+          pending={reconsiderPending || historyPending}
+          value={reviewLaterHandling}
+        />
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        {currentTrail ? (
+          <Button
+            disabled={
+              reconsiderPending || historyPending || connection === "offline"
+            }
+            onClick={onReconsider}
+            type="button"
+            variant="outline"
+          >
+            Reconsidering
+          </Button>
+        ) : null}
+        {canStart ? (
+          <Button onClick={onStartNew} type="button">
+            Not now
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  ) : null;
 }

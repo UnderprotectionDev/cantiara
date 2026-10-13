@@ -394,46 +394,14 @@ function CustomFieldInput({
     case "Multi select": {
       const selected = value?.kind === "options" ? value.options : [];
       return (
-        <fieldset className="space-y-2">
-          <legend className="font-medium text-sm">{definition.name}</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {definition.options.map((option) => {
-              const optionId = `${id}-${option}`;
-              return (
-                <label
-                  className="flex items-center gap-2 text-sm"
-                  htmlFor={optionId}
-                  key={option}
-                >
-                  <Checkbox
-                    checked={selected.includes(option)}
-                    disabled={disabled}
-                    id={optionId}
-                    onCheckedChange={(checked) => {
-                      const next = checked
-                        ? [...selected, option]
-                        : selected.filter((candidate) => candidate !== option);
-                      onChange(
-                        next.length > 0
-                          ? { kind: "options", options: next }
-                          : null,
-                      );
-                    }}
-                  />
-                  <span>{option}</span>
-                </label>
-              );
-            })}
-          </div>
-          {value ? (
-            <CustomFieldClearButton
-              disabled={disabled}
-              onClear={() => onChange(null)}
-            />
-          ) : (
-            <p className="text-muted-foreground text-xs">Not evaluated</p>
-          )}
-        </fieldset>
+        <DraftMultiSelectField
+          definition={definition}
+          disabled={disabled}
+          id={id}
+          onChange={onChange}
+          selected={selected}
+          value={value}
+        />
       );
     }
     default:
@@ -1156,5 +1124,69 @@ export default function WorkDraftForm({
         {draftsContent()}
       </section>
     </section>
+  );
+}
+
+function DraftMultiSelectField({
+  definition,
+  id,
+  selected,
+  disabled,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  id: string;
+  selected: string[];
+  disabled: boolean;
+  onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  value:
+    | { kind: "boolean"; boolean: boolean }
+    | { kind: "date"; date: string }
+    | { kind: "number"; number: number }
+    | { kind: "option"; option: string }
+    | { kind: "options"; options: string[] }
+    | { kind: "text"; text: string }
+    | undefined;
+}) {
+  return (
+    <fieldset className="space-y-2">
+      <legend className="font-medium text-sm">{definition.name}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {definition.options.map((option) => {
+          const optionId = `${id}-${option}`;
+          return (
+            <label
+              className="flex items-center gap-2 text-sm"
+              htmlFor={optionId}
+              key={option}
+            >
+              <Checkbox
+                checked={selected.includes(option)}
+                disabled={disabled}
+                id={optionId}
+                onCheckedChange={(checked) => {
+                  const next = checked
+                    ? [...selected, option]
+                    : selected.filter((candidate) => candidate !== option);
+                  onChange(
+                    next.length > 0 ? { kind: "options", options: next } : null,
+                  );
+                }}
+              />
+              <span>{option}</span>
+            </label>
+          );
+        })}
+      </div>
+      {value ? (
+        <CustomFieldClearButton
+          disabled={disabled}
+          onClear={() => onChange(null)}
+        />
+      ) : (
+        <p className="text-muted-foreground text-xs">Not evaluated</p>
+      )}
+    </fieldset>
   );
 }

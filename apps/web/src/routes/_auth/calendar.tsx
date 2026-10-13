@@ -145,15 +145,9 @@ function CalendarRoute() {
         }),
       ),
   });
-  const failed =
-    preferences.isError ||
-    projects.isError ||
-    workQueries.some((query) => query.isError);
-  const loading =
-    !failed &&
-    (preferences.isPending ||
-      projects.isPending ||
-      workQueries.some((query) => query.isPending));
+  const queries = [preferences, projects, ...workQueries];
+  const failed = queries.some((query) => query.isError);
+  const loading = !failed && queries.some((query) => query.isPending);
   const preferencesUnavailable = preferences.isPending || preferences.isError;
   const works = workQueries.flatMap((query) => query.data ?? []);
   async function handleCalendarDateError(error: unknown, fallback: string) {
@@ -223,6 +217,10 @@ function CalendarRoute() {
     },
   });
 
+  const saving = [updateCalendarDate, undoCalendarDate].some(
+    (mutation) => mutation.isPending,
+  );
+
   function updateSearch(next: Partial<typeof search>) {
     navigate({
       to: "/calendar",
@@ -273,92 +271,16 @@ function CalendarRoute() {
           </p>
         </header>
         {preferencesUnavailable ? null : (
-          <div className="mb-6 flex flex-wrap items-end gap-4">
-            <fieldset className="flex gap-1">
-              <legend className="sr-only">Calendar view</legend>
-              {VIEWS.map((option) => (
-                <Button
-                  aria-pressed={view === option}
-                  key={option}
-                  onClick={() => updateSearch({ view: option })}
-                  size="sm"
-                  type="button"
-                  variant={view === option ? "secondary" : "outline"}
-                >
-                  {option}
-                </Button>
-              ))}
-            </fieldset>
-            <fieldset className="grid gap-1.5">
-              <legend className="font-medium text-sm">Date kinds</legend>
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
-                {CALENDAR_DATE_KINDS.map(({ field, label }) => (
-                  <label
-                    className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
-                    htmlFor={`calendar-date-kind-${field}`}
-                    key={field}
-                  >
-                    <Checkbox
-                      checked={selectedDateKinds.includes(field)}
-                      id={`calendar-date-kind-${field}`}
-                      onCheckedChange={(checked) =>
-                        updateDateKind(field, checked === true)
-                      }
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <label className="grid gap-1 text-sm">
-              Selected day
-              <input
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                onChange={(event) =>
-                  updateSearch({ calendarDay: event.target.value })
-                }
-                type="date"
-                value={selectedDate}
-              />
-            </label>
-            <div className="grid gap-1 text-sm">
-              <label htmlFor="calendar-project">Project</label>
-              <NativeSelect
-                id="calendar-project"
-                onChange={(event) =>
-                  updateSearch({ projectId: event.target.value })
-                }
-                value={selectedProjectId}
-              >
-                <NativeSelectOption value="all">
-                  All Projects
-                </NativeSelectOption>
-                {projects.data?.map((project) => (
-                  <NativeSelectOption key={project.id} value={project.id}>
-                    {project.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                onClick={() => move(-1)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Previous
-              </Button>
-              <Button
-                onClick={() => move(1)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <CalendarViewControls
+            move={move}
+            projects={projects}
+            selectedDate={selectedDate}
+            selectedDateKinds={selectedDateKinds}
+            selectedProjectId={selectedProjectId}
+            updateDateKind={updateDateKind}
+            updateSearch={updateSearch}
+            view={view}
+          />
         )}
         {loading ? <p role="status">Loading Calendar…</p> : null}
         {failed ? (
@@ -369,9 +291,7 @@ function CalendarRoute() {
         {loading || failed ? null : (
           <>
             <UnifiedCalendar
-              disabled={
-                updateCalendarDate.isPending || undoCalendarDate.isPending
-              }
+              disabled={saving}
               onDateChange={(change) => {
                 setDateChangeError(null);
                 updateCalendarDate.mutate(change);
@@ -386,9 +306,7 @@ function CalendarRoute() {
             />
             <CalendarMutationFeedback
               dateChangeError={dateChangeError}
-              disabled={
-                updateCalendarDate.isPending || undoCalendarDate.isPending
-              }
+              disabled={saving}
               onUndo={() => undoCalendarDate.mutate()}
               showUndo={dateChangeUndo !== null}
             />
@@ -396,5 +314,120 @@ function CalendarRoute() {
         )}
       </main>
     </ClientShellContent>
+  );
+}
+
+function CalendarViewControls({
+  view,
+  updateSearch,
+  selectedDateKinds,
+  updateDateKind,
+  selectedDate,
+  selectedProjectId,
+  projects,
+  move,
+}: {
+  view: CalendarView;
+  updateSearch: (
+    next: Partial<{
+      calendarDay: string | undefined;
+      dateKinds: string | undefined;
+      projectId: string | undefined;
+      view: CalendarView | undefined;
+    }>,
+  ) => void;
+  selectedDateKinds: ("targetDate" | "reappearDate" | "plannedStartDate")[];
+  updateDateKind: (field: CalendarDateKind, checked: boolean) => void;
+  selectedDate: string;
+  selectedProjectId: string;
+  projects: import("@tanstack/react-query").UseQueryResult<
+    import("@cantiara/api/project-shell").ProjectProfile[],
+    Error
+  >;
+  move: (amount: number) => void;
+}) {
+  return (
+    <div className="mb-6 flex flex-wrap items-end gap-4">
+      <fieldset className="flex gap-1">
+        <legend className="sr-only">Calendar view</legend>
+        {VIEWS.map((option) => (
+          <Button
+            aria-pressed={view === option}
+            key={option}
+            onClick={() => updateSearch({ view: option })}
+            size="sm"
+            type="button"
+            variant={view === option ? "secondary" : "outline"}
+          >
+            {option}
+          </Button>
+        ))}
+      </fieldset>
+      <fieldset className="grid gap-1.5">
+        <legend className="font-medium text-sm">Date kinds</legend>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {CALENDAR_DATE_KINDS.map(({ field, label }) => (
+            <label
+              className="flex min-h-11 cursor-pointer items-center gap-2 text-sm"
+              htmlFor={`calendar-date-kind-${field}`}
+              key={field}
+            >
+              <Checkbox
+                checked={selectedDateKinds.includes(field)}
+                id={`calendar-date-kind-${field}`}
+                onCheckedChange={(checked) =>
+                  updateDateKind(field, checked === true)
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className="grid gap-1 text-sm">
+        Selected day
+        <input
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          onChange={(event) =>
+            updateSearch({ calendarDay: event.target.value })
+          }
+          type="date"
+          value={selectedDate}
+        />
+      </label>
+      <div className="grid gap-1 text-sm">
+        <label htmlFor="calendar-project">Project</label>
+        <NativeSelect
+          id="calendar-project"
+          onChange={(event) => updateSearch({ projectId: event.target.value })}
+          value={selectedProjectId}
+        >
+          <NativeSelectOption value="all">All Projects</NativeSelectOption>
+          {projects.data?.map((project) => (
+            <NativeSelectOption key={project.id} value={project.id}>
+              {project.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </div>
+      <div className="flex gap-1">
+        <Button
+          onClick={() => move(-1)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Previous
+        </Button>
+        <Button
+          onClick={() => move(1)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Next
+        </Button>
+      </div>
+    </div>
   );
 }

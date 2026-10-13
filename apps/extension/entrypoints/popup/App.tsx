@@ -86,14 +86,16 @@ function draftFor(
   };
 }
 
+const savedAtFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 function formatSavedAt(value: string | null) {
   if (!value) {
     return "Not yet";
   }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return savedAtFormatter.format(new Date(value));
 }
 
 export default function App() {
@@ -296,46 +298,16 @@ export default function App() {
         </div>
       </section>
 
-      {link ? null : (
-        <section aria-labelledby="pair-heading" className="capture-section">
-          <h2 id="pair-heading">Pair this browser</h2>
-          <p className="muted">
-            Generate a Pairing code in Cantiara, then enter it here. This
-            pairing code expires in five minutes and can be used once.
-          </p>
-          {browser ? (
-            <form className="pair-form" onSubmit={handlePair}>
-              <label>
-                Pairing code
-                <input
-                  autoComplete="one-time-code"
-                  onChange={(event) => setPairingCode(event.target.value)}
-                  placeholder="CANTIARA-AB12-CD34"
-                  value={pairingCode}
-                />
-              </label>
-              <label>
-                Device
-                <input
-                  maxLength={255}
-                  onChange={(event) => setDevice(event.target.value)}
-                  value={device}
-                />
-              </label>
-              <button
-                disabled={isPairing || pairingCode.trim().length === 0}
-                type="submit"
-              >
-                {isPairing ? "Pairing…" : "Pair"}
-              </button>
-            </form>
-          ) : (
-            <p className="warning">
-              This browser cannot pair with Web Capture.
-            </p>
-          )}
-        </section>
-      )}
+      <WebCapturePairing
+        browser={browser}
+        device={device}
+        handlePair={handlePair}
+        isPairing={isPairing}
+        link={link}
+        pairingCode={pairingCode}
+        setDevice={setDevice}
+        setPairingCode={setPairingCode}
+      />
 
       {draft ? (
         <section
@@ -411,5 +383,72 @@ export default function App() {
         </p>
       ) : null}
     </main>
+  );
+}
+
+function WebCapturePairing({
+  link,
+  browser,
+  handlePair,
+  setPairingCode,
+  pairingCode,
+  setDevice,
+  device,
+  isPairing,
+}: {
+  link: {
+    browser: WebCaptureBrowser;
+    device: string;
+    id: string;
+    lastSuccessfulSave: string | null;
+    token: string;
+  } | null;
+  browser: WebCaptureBrowser | null;
+  handlePair: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  setPairingCode: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  pairingCode: string;
+  setDevice: import("react").Dispatch<import("react").SetStateAction<string>>;
+  device: string;
+  isPairing: boolean;
+}) {
+  return link ? null : (
+    <section aria-labelledby="pair-heading" className="capture-section">
+      <h2 id="pair-heading">Pair this browser</h2>
+      <p className="muted">
+        Generate a Pairing code in Cantiara, then enter it here. This pairing
+        code expires in five minutes and can be used once.
+      </p>
+      {browser ? (
+        <form className="pair-form" onSubmit={handlePair}>
+          <label>
+            Pairing code
+            <input
+              autoComplete="one-time-code"
+              onChange={(event) => setPairingCode(event.target.value)}
+              placeholder="CANTIARA-AB12-CD34"
+              value={pairingCode}
+            />
+          </label>
+          <label>
+            Device
+            <input
+              maxLength={255}
+              onChange={(event) => setDevice(event.target.value)}
+              value={device}
+            />
+          </label>
+          <button
+            disabled={isPairing || pairingCode.trim().length === 0}
+            type="submit"
+          >
+            {isPairing ? "Pairing…" : "Pair"}
+          </button>
+        </form>
+      ) : (
+        <p className="warning">This browser cannot pair with Web Capture.</p>
+      )}
+    </section>
   );
 }

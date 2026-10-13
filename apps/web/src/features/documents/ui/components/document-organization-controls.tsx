@@ -239,66 +239,140 @@ export default function DocumentOrganizationControls({
           Save your changes before organizing or archiving this Document.
         </p>
       ) : null}
-      <Dialog onOpenChange={changeOpen} open={action !== null}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{label}</DialogTitle>
-            <DialogDescription>
-              Preview changes in the same Project. Document identity, content,
-              and child links are preserved.
-            </DialogDescription>
-          </DialogHeader>
-          <fieldset
-            className="space-y-3"
-            disabled={inspect.isPending || apply.isPending}
-          >
-            {action === "hierarchy" ? (
-              <DocumentHierarchyFields
-                documents={documents.filter(({ id }) => id !== record.id)}
-                folder={folder}
-                onFolderChange={changeFolder}
-                onParentChange={changeParent}
-                parentDocumentId={parentDocumentId}
-              />
-            ) : (
-              <p>
-                {archived
-                  ? "The Document will return to normal navigation."
-                  : "The Document will leave normal navigation and remain available through Archived."}
-              </p>
-            )}
-            <Button onClick={requestPreview} type="button" variant="outline">
-              Preview
-            </Button>
-          </fieldset>
-          {preview ? (
-            <DocumentOrganizationPreview
-              hierarchy={action === "hierarchy"}
-              preview={preview}
-            />
-          ) : null}
-          {error ? <p role="alert">{error}</p> : null}
-          <DialogFooter>
-            <Button
-              disabled={apply.isPending || inspect.isPending}
-              onClick={closeDialog}
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                !preview?.allowed || apply.isPending || inspect.isPending
-              }
-              onClick={applyChanges}
-              type="button"
-            >
-              Apply
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DocumentOrganizationDialog
+        action={action}
+        apply={apply}
+        applyChanges={applyChanges}
+        archived={archived}
+        changeFolder={changeFolder}
+        changeOpen={changeOpen}
+        changeParent={changeParent}
+        closeDialog={closeDialog}
+        documents={documents}
+        error={error}
+        folder={folder}
+        inspect={inspect}
+        label={label}
+        parentDocumentId={parentDocumentId}
+        preview={preview}
+        record={record}
+        requestPreview={requestPreview}
+      />
     </div>
+  );
+}
+
+function DocumentOrganizationDialog({
+  changeOpen,
+  action,
+  label,
+  inspect,
+  apply,
+  documents,
+  record,
+  folder,
+  changeFolder,
+  changeParent,
+  parentDocumentId,
+  archived,
+  requestPreview,
+  preview,
+  error,
+  closeDialog,
+  applyChanges,
+}: {
+  changeOpen: (openState: boolean) => void;
+  action: "hierarchy" | "archive" | null;
+  label: "Organize Document" | "Unarchive" | "Archive";
+  inspect: import("@tanstack/react-query").UseMutationResult<
+    DocumentHierarchyPreview,
+    Error,
+    | {
+        documentId: string;
+        folder: string | null;
+        parentDocumentId: string | null;
+        action: "hierarchy";
+      }
+    | { action: "archive"; documentId: string; archived: boolean },
+    unknown
+  >;
+  apply: import("@tanstack/react-query").UseMutationResult<
+    Document,
+    Error,
+    void,
+    unknown
+  >;
+  documents: Document[];
+  record: Document;
+  folder: string;
+  changeFolder: (event: ChangeEvent<HTMLInputElement>) => void;
+  changeParent: (event: ChangeEvent<HTMLSelectElement>) => void;
+  parentDocumentId: string;
+  archived: boolean;
+  requestPreview: () => void;
+  preview: DocumentHierarchyPreview | null;
+  error: string | null;
+  closeDialog: () => void;
+  applyChanges: () => void;
+}) {
+  return (
+    <Dialog onOpenChange={changeOpen} open={action !== null}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{label}</DialogTitle>
+          <DialogDescription>
+            Preview changes in the same Project. Document identity, content, and
+            child links are preserved.
+          </DialogDescription>
+        </DialogHeader>
+        <fieldset
+          className="space-y-3"
+          disabled={inspect.isPending || apply.isPending}
+        >
+          {action === "hierarchy" ? (
+            <DocumentHierarchyFields
+              documents={documents.filter(({ id }) => id !== record.id)}
+              folder={folder}
+              onFolderChange={changeFolder}
+              onParentChange={changeParent}
+              parentDocumentId={parentDocumentId}
+            />
+          ) : (
+            <p>
+              {archived
+                ? "The Document will return to normal navigation."
+                : "The Document will leave normal navigation and remain available through Archived."}
+            </p>
+          )}
+          <Button onClick={requestPreview} type="button" variant="outline">
+            Preview
+          </Button>
+        </fieldset>
+        {preview ? (
+          <DocumentOrganizationPreview
+            hierarchy={action === "hierarchy"}
+            preview={preview}
+          />
+        ) : null}
+        {error ? <p role="alert">{error}</p> : null}
+        <DialogFooter>
+          <Button
+            disabled={apply.isPending || inspect.isPending}
+            onClick={closeDialog}
+            type="button"
+            variant="outline"
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={!preview?.allowed || apply.isPending || inspect.isPending}
+            onClick={applyChanges}
+            type="button"
+          >
+            Apply
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

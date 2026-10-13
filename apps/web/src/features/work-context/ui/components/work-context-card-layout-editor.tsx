@@ -363,162 +363,23 @@ export default function WorkContextCardLayoutEditor({
         </ul>
       </section>
 
-      <form
-        aria-label="Add custom section"
-        className="space-y-3 border border-border/80 border-dashed p-3"
-        onSubmit={addCustomSection}
-      >
-        <h5 className="font-medium text-sm">Add custom section</h5>
-        <label
-          className="grid gap-1 text-xs"
-          htmlFor="work-context-custom-section-title"
-        >
-          Section name
-          <Input
-            disabled={busy}
-            id="work-context-custom-section-title"
-            onChange={(event) => setCustomTitle(event.target.value)}
-            value={customTitle}
-          />
-        </label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label
-            className="grid gap-1 text-xs"
-            htmlFor="work-context-condition-kind"
-          >
-            Condition
-            <NativeSelect
-              disabled={busy}
-              id="work-context-condition-kind"
-              onChange={(event) =>
-                setConditionKind(
-                  event.target
-                    .value as WorkContextCustomSectionCondition["kind"],
-                )
-              }
-              value={conditionKind}
-            >
-              <NativeSelectOption value="record-type">
-                Record type
-              </NativeSelectOption>
-              <NativeSelectOption value="relation">Relation</NativeSelectOption>
-              <NativeSelectOption value="evidence-role">
-                Evidence Role
-              </NativeSelectOption>
-            </NativeSelect>
-          </label>
-          {conditionKind === "record-type" ? (
-            <label
-              className="grid gap-1 text-xs"
-              htmlFor="work-context-record-type"
-            >
-              Record type
-              <NativeSelect
-                disabled={busy}
-                id="work-context-record-type"
-                onChange={(event) =>
-                  setRecordType(
-                    event.target
-                      .value as (typeof WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS)[number],
-                  )
-                }
-                value={recordType}
-              >
-                {WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS.map((option) => (
-                  <NativeSelectOption key={option} value={option}>
-                    {option}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </label>
-          ) : null}
-          {conditionKind === "relation" ? (
-            <label
-              className="grid gap-1 text-xs"
-              htmlFor="work-context-relation"
-            >
-              Relation
-              <NativeSelect
-                disabled={busy}
-                id="work-context-relation"
-                onChange={(event) =>
-                  setRelation(
-                    event.target
-                      .value as (typeof WORK_CONTEXT_CUSTOM_RELATION_OPTIONS)[number],
-                  )
-                }
-                value={relation}
-              >
-                {WORK_CONTEXT_CUSTOM_RELATION_OPTIONS.map((option) => (
-                  <NativeSelectOption key={option} value={option}>
-                    {option}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </label>
-          ) : null}
-          {conditionKind === "evidence-role" ? (
-            <label
-              className="grid gap-1 text-xs"
-              htmlFor="work-context-evidence-role"
-            >
-              Evidence Role
-              <NativeSelect
-                disabled={busy}
-                id="work-context-evidence-role"
-                onChange={(event) =>
-                  setEvidenceRole(event.target.value as WorkContextEvidenceRole)
-                }
-                value={evidenceRole}
-              >
-                {WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS.map((option) => (
-                  <NativeSelectOption key={option} value={option}>
-                    {option}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </label>
-          ) : null}
-        </div>
-        <label
-          className="grid max-w-xs gap-1 text-xs"
-          htmlFor="work-context-status-condition"
-        >
-          Status condition
-          <NativeSelect
-            disabled={busy}
-            id="work-context-status-condition"
-            onChange={(event) =>
-              setStatus(
-                event.target.value === EMPTY_STATUS
-                  ? null
-                  : (event.target
-                      .value as (typeof WORK_STATUS_OPTIONS)[number]),
-              )
-            }
-            value={status ?? EMPTY_STATUS}
-          >
-            <NativeSelectOption value={EMPTY_STATUS}>
-              Any status
-            </NativeSelectOption>
-            {WORK_STATUS_OPTIONS.map((option) => (
-              <NativeSelectOption key={option} value={option}>
-                {option}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </label>
-        <p className="text-muted-foreground text-xs">
-          Only records reachable from the open Work through the selected catalog
-          condition are shown.
-        </p>
-        <Button disabled={busy || !customTitle.trim()} size="xs" type="submit">
-          Add custom section
-        </Button>
-        <p className="text-muted-foreground text-xs">
-          Current status filter: {statusLabel}
-        </p>
-      </form>
+      <WorkContextCustomSectionForm
+        addCustomSection={addCustomSection}
+        busy={busy}
+        conditionKind={conditionKind}
+        customTitle={customTitle}
+        evidenceRole={evidenceRole}
+        recordType={recordType}
+        relation={relation}
+        setConditionKind={setConditionKind}
+        setCustomTitle={setCustomTitle}
+        setEvidenceRole={setEvidenceRole}
+        setRecordType={setRecordType}
+        setRelation={setRelation}
+        setStatus={setStatus}
+        status={status}
+        statusLabel={statusLabel}
+      />
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -628,4 +489,284 @@ function ConfigurationMutationError({ error }: { error: string | null }) {
       {error}
     </p>
   ) : null;
+}
+
+function WorkContextCustomSectionForm({
+  addCustomSection,
+  busy,
+  setCustomTitle,
+  customTitle,
+  setConditionKind,
+  conditionKind,
+  setRecordType,
+  recordType,
+  setRelation,
+  relation,
+  setEvidenceRole,
+  evidenceRole,
+  setStatus,
+  status,
+  statusLabel,
+}: {
+  addCustomSection: (event: FormEvent<HTMLFormElement>) => void;
+  busy: boolean;
+  setCustomTitle: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  customTitle: string;
+  setConditionKind: import("react").Dispatch<
+    import("react").SetStateAction<"record-type" | "relation" | "evidence-role">
+  >;
+  conditionKind: "record-type" | "relation" | "evidence-role";
+  setRecordType: import("react").Dispatch<
+    import("react").SetStateAction<
+      | "Feedback"
+      | "Risk"
+      | "Primary spec"
+      | "Source"
+      | "User Research Session"
+      | "Test Gap"
+      | "Decision"
+      | "Assumption"
+      | "Open Question"
+      | "Project Release"
+      | "Project Goal"
+      | "Experiment/Validation"
+      | "Session Test"
+      | "GitHub PR/check"
+      | "Origin Research"
+      | "Primary Feature"
+    >
+  >;
+  recordType:
+    | "Feedback"
+    | "Risk"
+    | "Primary spec"
+    | "Source"
+    | "User Research Session"
+    | "Test Gap"
+    | "Decision"
+    | "Assumption"
+    | "Open Question"
+    | "Project Release"
+    | "Project Goal"
+    | "Experiment/Validation"
+    | "Session Test"
+    | "GitHub PR/check"
+    | "Origin Research"
+    | "Primary Feature";
+  setRelation: import("react").Dispatch<
+    import("react").SetStateAction<
+      | "Primary spec"
+      | "Origin"
+      | "Evidence"
+      | "Related"
+      | "Contributes to Goal"
+      | "Blocks"
+      | "Includes"
+      | "Contributes to Milestone"
+      | "Supersedes"
+      | "Implements"
+      | "Derived"
+      | "Provides evidence"
+      | "Blocked by"
+      | "Included in"
+    >
+  >;
+  relation:
+    | "Primary spec"
+    | "Origin"
+    | "Evidence"
+    | "Related"
+    | "Contributes to Goal"
+    | "Blocks"
+    | "Includes"
+    | "Contributes to Milestone"
+    | "Supersedes"
+    | "Implements"
+    | "Derived"
+    | "Provides evidence"
+    | "Blocked by"
+    | "Included in";
+  setEvidenceRole: import("react").Dispatch<
+    import("react").SetStateAction<
+      | "Supports"
+      | "Contradicts"
+      | "Provides context"
+      | "Inconclusive"
+      | "Unspecified"
+    >
+  >;
+  evidenceRole:
+    | "Supports"
+    | "Contradicts"
+    | "Provides context"
+    | "Inconclusive"
+    | "Unspecified";
+  setStatus: import("react").Dispatch<
+    import("react").SetStateAction<
+      "Not Started" | "In Progress" | "Blocked" | "Closed" | null
+    >
+  >;
+  status: "Not Started" | "In Progress" | "Blocked" | "Closed" | null;
+  statusLabel:
+    | "Not Started"
+    | "In Progress"
+    | "Blocked"
+    | "Closed"
+    | "Any status";
+}) {
+  return (
+    <form
+      aria-label="Add custom section"
+      className="space-y-3 border border-border/80 border-dashed p-3"
+      onSubmit={addCustomSection}
+    >
+      <h5 className="font-medium text-sm">Add custom section</h5>
+      <label
+        className="grid gap-1 text-xs"
+        htmlFor="work-context-custom-section-title"
+      >
+        Section name
+        <Input
+          disabled={busy}
+          id="work-context-custom-section-title"
+          onChange={(event) => setCustomTitle(event.target.value)}
+          value={customTitle}
+        />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label
+          className="grid gap-1 text-xs"
+          htmlFor="work-context-condition-kind"
+        >
+          Condition
+          <NativeSelect
+            disabled={busy}
+            id="work-context-condition-kind"
+            onChange={(event) =>
+              setConditionKind(
+                event.target.value as WorkContextCustomSectionCondition["kind"],
+              )
+            }
+            value={conditionKind}
+          >
+            <NativeSelectOption value="record-type">
+              Record type
+            </NativeSelectOption>
+            <NativeSelectOption value="relation">Relation</NativeSelectOption>
+            <NativeSelectOption value="evidence-role">
+              Evidence Role
+            </NativeSelectOption>
+          </NativeSelect>
+        </label>
+        {conditionKind === "record-type" ? (
+          <label
+            className="grid gap-1 text-xs"
+            htmlFor="work-context-record-type"
+          >
+            Record type
+            <NativeSelect
+              disabled={busy}
+              id="work-context-record-type"
+              onChange={(event) =>
+                setRecordType(
+                  event.target
+                    .value as (typeof WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS)[number],
+                )
+              }
+              value={recordType}
+            >
+              {WORK_CONTEXT_CUSTOM_RECORD_TYPE_OPTIONS.map((option) => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </label>
+        ) : null}
+        {conditionKind === "relation" ? (
+          <label className="grid gap-1 text-xs" htmlFor="work-context-relation">
+            Relation
+            <NativeSelect
+              disabled={busy}
+              id="work-context-relation"
+              onChange={(event) =>
+                setRelation(
+                  event.target
+                    .value as (typeof WORK_CONTEXT_CUSTOM_RELATION_OPTIONS)[number],
+                )
+              }
+              value={relation}
+            >
+              {WORK_CONTEXT_CUSTOM_RELATION_OPTIONS.map((option) => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </label>
+        ) : null}
+        {conditionKind === "evidence-role" ? (
+          <label
+            className="grid gap-1 text-xs"
+            htmlFor="work-context-evidence-role"
+          >
+            Evidence Role
+            <NativeSelect
+              disabled={busy}
+              id="work-context-evidence-role"
+              onChange={(event) =>
+                setEvidenceRole(event.target.value as WorkContextEvidenceRole)
+              }
+              value={evidenceRole}
+            >
+              {WORK_CONTEXT_EVIDENCE_ROLE_OPTIONS.map((option) => (
+                <NativeSelectOption key={option} value={option}>
+                  {option}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </label>
+        ) : null}
+      </div>
+      <label
+        className="grid max-w-xs gap-1 text-xs"
+        htmlFor="work-context-status-condition"
+      >
+        Status condition
+        <NativeSelect
+          disabled={busy}
+          id="work-context-status-condition"
+          onChange={(event) =>
+            setStatus(
+              event.target.value === EMPTY_STATUS
+                ? null
+                : (event.target.value as (typeof WORK_STATUS_OPTIONS)[number]),
+            )
+          }
+          value={status ?? EMPTY_STATUS}
+        >
+          <NativeSelectOption value={EMPTY_STATUS}>
+            Any status
+          </NativeSelectOption>
+          {WORK_STATUS_OPTIONS.map((option) => (
+            <NativeSelectOption key={option} value={option}>
+              {option}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </label>
+      <p className="text-muted-foreground text-xs">
+        Only records reachable from the open Work through the selected catalog
+        condition are shown.
+      </p>
+      <Button disabled={busy || !customTitle.trim()} size="xs" type="submit">
+        Add custom section
+      </Button>
+      <p className="text-muted-foreground text-xs">
+        Current status filter: {statusLabel}
+      </p>
+    </form>
+  );
 }

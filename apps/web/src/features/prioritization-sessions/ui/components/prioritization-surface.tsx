@@ -90,18 +90,19 @@ export default function PrioritizationSurface({
     [scopedWorkIds, workContextQueries],
   );
 
-  const busy =
-    createSession.isPending ||
-    updateSessionOrder.isPending ||
-    updateBacklogOrder.isPending ||
-    closeSession.isPending ||
-    trashSession.isPending ||
-    restoreSession.isPending;
-  const pageError =
-    allWorkQuery.isError ||
-    backlogQuery.isError ||
-    sessionQuery.isError ||
-    priorityValues.isError;
+  const mutations = [
+    createSession,
+    updateSessionOrder,
+    updateBacklogOrder,
+    closeSession,
+    trashSession,
+    restoreSession,
+  ];
+  const queries = [allWorkQuery, backlogQuery, sessionQuery, priorityValues];
+  const busy = mutations.some((mutation) => mutation.isPending);
+  const pageError = queries.some((query) => query.isError);
+  const loading = queries.some((query) => query.isPending);
+  const saveError = mutations.find((mutation) => mutation.isError)?.error;
 
   function createPrioritizationSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -154,18 +155,11 @@ export default function PrioritizationSurface({
           Prioritization is unavailable. Try loading this page again.
         </p>
       ) : null}
-      {allWorkQuery.isPending ||
-      backlogQuery.isPending ||
-      sessionQuery.isPending ||
-      priorityValues.isPending ? (
+      {loading ? (
         <p className="text-muted-foreground text-sm">Loading Prioritization…</p>
       ) : null}
 
-      {pageError ||
-      allWorkQuery.isPending ||
-      backlogQuery.isPending ||
-      sessionQuery.isPending ||
-      priorityValues.isPending ? null : (
+      {pageError || loading ? null : (
         <>
           <BacklogOrderSection
             busy={busy}
@@ -175,176 +169,32 @@ export default function PrioritizationSurface({
             worksById={workById}
           />
 
-          <section
-            aria-labelledby="prioritization-sessions-heading"
-            className="space-y-4"
-          >
-            <div className="flex flex-wrap items-end justify-between gap-3 border-border/70 border-b pb-3">
-              <div>
-                <p className="surface-kicker">Project decision views</p>
-                <h4
-                  className="mt-1 font-medium text-base"
-                  id="prioritization-sessions-heading"
-                >
-                  Prioritization Sessions
-                </h4>
-              </div>
-              <span className="text-muted-foreground text-xs">
-                {activeSessions.length} open or closed
-              </span>
-            </div>
-
-            <form
-              className="space-y-3 rounded-lg border border-border/70 bg-card/40 p-4"
-              onSubmit={createPrioritizationSession}
-            >
-              <label
-                className="block space-y-1.5 text-sm"
-                htmlFor="session-name"
-              >
-                <span>Session name</span>
-                <Input
-                  id="session-name"
-                  maxLength={200}
-                  onChange={(event) =>
-                    setSessionName(event.currentTarget.value)
-                  }
-                  placeholder="For example, Q4 launch review"
-                  required
-                  value={sessionName}
-                />
-              </label>
-              <fieldset className="space-y-2">
-                <legend className="font-medium text-sm">Work scope</legend>
-                {activeWorks.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No active Work is available to select.
-                  </p>
-                ) : (
-                  <ul className="grid gap-2 sm:grid-cols-2">
-                    {activeWorks.map((work) => (
-                      <li key={work.id}>
-                        <label className="flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
-                          <input
-                            checked={selectedWorkIds.includes(work.id)}
-                            className="mt-0.5 accent-primary"
-                            onChange={(event) => {
-                              const isSelected = event.currentTarget.checked;
-                              setSelectedWorkIds((current) =>
-                                isSelected
-                                  ? [...current, work.id]
-                                  : current.filter((id) => id !== work.id),
-                              );
-                            }}
-                            type="checkbox"
-                          />
-                          <span>
-                            <span className="text-muted-foreground">
-                              {work.key}
-                            </span>{" "}
-                            {work.title}
-                          </span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </fieldset>
-              <Button disabled={busy || !sessionName.trim()} type="submit">
-                Create Prioritization Session
-              </Button>
-            </form>
-
-            {activeSessions.length === 0 ? (
-              <p className="rounded-md border border-border/70 border-dashed px-4 py-5 text-muted-foreground text-sm">
-                No Prioritization Sessions yet.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {activeSessions.map((session) => (
-                  <PrioritizationSessionCard
-                    backlogOrder={orderedBacklogIds}
-                    busy={busy}
-                    key={session.id}
-                    onAddWork={(workId) =>
-                      updateSessionOrder.mutate({
-                        session,
-                        workIds: [...session.workIds, workId],
-                      })
-                    }
-                    onClose={() => closeSession.mutate(session)}
-                    onRemoveWork={(workId) =>
-                      updateSessionOrder.mutate({
-                        session,
-                        workIds: session.workIds.filter((id) => id !== workId),
-                      })
-                    }
-                    onReorder={(workIds) =>
-                      updateSessionOrder.mutate({ session, workIds })
-                    }
-                    onTrash={() => trashSession.mutate(session)}
-                    priorityValues={priorityValues.data}
-                    session={session}
-                    workContextById={workContextById}
-                    works={activeWorks}
-                    worksById={workById}
-                  />
-                ))}
-              </div>
-            )}
-
-            {trashedSessions.length > 0 ? (
-              <section
-                aria-labelledby="prioritization-trash-heading"
-                className="space-y-3 rounded-lg border border-border/70 p-4"
-              >
-                <h5
-                  className="font-medium text-sm"
-                  id="prioritization-trash-heading"
-                >
-                  Trash
-                </h5>
-                <ul className="space-y-2">
-                  {trashedSessions.map((session) => (
-                    <li
-                      className="flex flex-wrap items-center justify-between gap-3 text-sm"
-                      key={session.id}
-                    >
-                      <span>
-                        {session.name} · Trashed {formatDate(session.trashedAt)}
-                      </span>
-                      <Button
-                        disabled={busy}
-                        onClick={() => restoreSession.mutate(session)}
-                        size="xs"
-                        type="button"
-                        variant="outline"
-                      >
-                        Restore
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-          </section>
+          <PrioritizationSessionCollection
+            activeSessions={activeSessions}
+            activeWorks={activeWorks}
+            busy={busy}
+            closeSession={closeSession}
+            createPrioritizationSession={createPrioritizationSession}
+            orderedBacklogIds={orderedBacklogIds}
+            priorityValues={priorityValues}
+            restoreSession={restoreSession}
+            selectedWorkIds={selectedWorkIds}
+            sessionName={sessionName}
+            setSelectedWorkIds={setSelectedWorkIds}
+            setSessionName={setSessionName}
+            trashedSessions={trashedSessions}
+            trashSession={trashSession}
+            updateSessionOrder={updateSessionOrder}
+            workById={workById}
+            workContextById={workContextById}
+          />
         </>
       )}
 
-      {createSession.isError ||
-      updateSessionOrder.isError ||
-      updateBacklogOrder.isError ||
-      closeSession.isError ||
-      trashSession.isError ||
-      restoreSession.isError ? (
+      {saveError ? (
         <p className="text-destructive text-sm" role="alert">
           {mutationErrorMessage(
-            createSession.error ??
-              updateSessionOrder.error ??
-              updateBacklogOrder.error ??
-              closeSession.error ??
-              trashSession.error ??
-              restoreSession.error,
+            saveError,
             "The Prioritization change could not be saved.",
           )}
         </p>
@@ -725,66 +575,310 @@ function PrioritizationSessionWork({
           )}
         </div>
       </div>
-      <div className="grid gap-3 text-xs sm:grid-cols-[minmax(0,1fr)_13rem]">
-        <div className="space-y-2">
-          <ul
-            aria-label={`${work.key} priority metrics`}
-            className="flex flex-wrap gap-2"
-          >
-            {metricValues.length === 0 ? (
-              <li className="text-muted-foreground">
-                No active priority metrics.
-              </li>
-            ) : (
-              metricValues.map((metric) => (
-                <li
-                  className="rounded-md bg-muted/60 px-2 py-1"
-                  key={metric.name}
-                >
-                  <span className="text-muted-foreground">{metric.name}:</span>{" "}
-                  {metric.rank}
-                </li>
-              ))
-            )}
-          </ul>
-          <p className="text-muted-foreground">
-            Target date: {work.targetDate ?? "Not set"}
-          </p>
-          {isContextError ? (
-            <p className="text-destructive" role="alert">
-              Risk and Evidence counts are unavailable.
-            </p>
-          ) : null}
-          {!isContextError && isContextPending ? (
-            <p className="text-muted-foreground">Loading live Work context…</p>
-          ) : null}
-          {isContextError || isContextPending ? null : (
-            <p className="text-muted-foreground">
-              Risk: {riskCount} · Evidence: {evidenceCount}
-            </p>
-          )}
-        </div>
-        <dl className="grid grid-cols-2 gap-2 rounded-md border border-border/60 p-2">
-          <div>
-            <dt className="text-muted-foreground">Session order</dt>
-            <dd className="mt-0.5 font-medium tabular-nums">{index + 1}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Backlog order</dt>
-            <dd className="mt-0.5 font-medium tabular-nums">
-              {backlogPosition ?? "Not in Backlog"}
-            </dd>
-          </div>
-        </dl>
-      </div>
+      <PrioritizationWorkContext
+        backlogPosition={backlogPosition}
+        evidenceCount={evidenceCount}
+        index={index}
+        isContextError={isContextError}
+        isContextPending={isContextPending}
+        metricValues={metricValues}
+        riskCount={riskCount}
+        work={work}
+      />
     </li>
   );
 }
 
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+});
+
 function formatDate(value: string | null) {
-  return value
-    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-        new Date(value),
-      )
-    : "Not set";
+  return value ? dateFormatter.format(new Date(value)) : "Not set";
+}
+
+function PrioritizationWorkContext({
+  work,
+  metricValues,
+  isContextError,
+  isContextPending,
+  riskCount,
+  evidenceCount,
+  index,
+  backlogPosition,
+}: {
+  work: WorkProfile;
+  metricValues: { name: string; rank: string }[];
+  isContextError: boolean;
+  isContextPending: boolean;
+  riskCount: number;
+  evidenceCount: number;
+  index: number;
+  backlogPosition: number | null;
+}) {
+  return (
+    <div className="grid gap-3 text-xs sm:grid-cols-[minmax(0,1fr)_13rem]">
+      <div className="space-y-2">
+        <ul
+          aria-label={`${work.key} priority metrics`}
+          className="flex flex-wrap gap-2"
+        >
+          {metricValues.length === 0 ? (
+            <li className="text-muted-foreground">
+              No active priority metrics.
+            </li>
+          ) : (
+            metricValues.map((metric) => (
+              <li
+                className="rounded-md bg-muted/60 px-2 py-1"
+                key={metric.name}
+              >
+                <span className="text-muted-foreground">{metric.name}:</span>{" "}
+                {metric.rank}
+              </li>
+            ))
+          )}
+        </ul>
+        <p className="text-muted-foreground">
+          Target date: {work.targetDate ?? "Not set"}
+        </p>
+        {isContextError ? (
+          <p className="text-destructive" role="alert">
+            Risk and Evidence counts are unavailable.
+          </p>
+        ) : null}
+        {!isContextError && isContextPending ? (
+          <p className="text-muted-foreground">Loading live Work context…</p>
+        ) : null}
+        {isContextError || isContextPending ? null : (
+          <p className="text-muted-foreground">
+            Risk: {riskCount} · Evidence: {evidenceCount}
+          </p>
+        )}
+      </div>
+      <dl className="grid grid-cols-2 gap-2 rounded-md border border-border/60 p-2">
+        <div>
+          <dt className="text-muted-foreground">Session order</dt>
+          <dd className="mt-0.5 font-medium tabular-nums">{index + 1}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Backlog order</dt>
+          <dd className="mt-0.5 font-medium tabular-nums">
+            {backlogPosition ?? "Not in Backlog"}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function PrioritizationSessionCollection({
+  activeSessions,
+  createPrioritizationSession,
+  setSessionName,
+  sessionName,
+  activeWorks,
+  selectedWorkIds,
+  setSelectedWorkIds,
+  busy,
+  orderedBacklogIds,
+  updateSessionOrder,
+  closeSession,
+  trashSession,
+  priorityValues,
+  workContextById,
+  workById,
+  trashedSessions,
+  restoreSession,
+}: {
+  activeSessions: PrioritizationSession[];
+  createPrioritizationSession: (event: FormEvent<HTMLFormElement>) => void;
+  setSessionName: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  sessionName: string;
+  activeWorks: WorkProfile[];
+  selectedWorkIds: string[];
+  setSelectedWorkIds: import("react").Dispatch<
+    import("react").SetStateAction<string[]>
+  >;
+  busy: boolean;
+  orderedBacklogIds: string[];
+  updateSessionOrder: import("@tanstack/react-query").UseMutationResult<
+    PrioritizationSession,
+    Error,
+    { session: PrioritizationSession; workIds: string[] },
+    unknown
+  >;
+  closeSession: import("@tanstack/react-query").UseMutationResult<
+    PrioritizationSession,
+    Error,
+    PrioritizationSession,
+    unknown
+  >;
+  trashSession: import("@tanstack/react-query").UseMutationResult<
+    PrioritizationSession,
+    Error,
+    PrioritizationSession,
+    unknown
+  >;
+  priorityValues: import("@tanstack/react-query").UseQueryResult<
+    PriorityMetricProjectValues,
+    Error
+  >;
+  workContextById: Map<string, UseQueryResult<WorkContextProjection, Error>>;
+  workById: Map<string, WorkProfile>;
+  trashedSessions: PrioritizationSession[];
+  restoreSession: import("@tanstack/react-query").UseMutationResult<
+    PrioritizationSession,
+    Error,
+    PrioritizationSession,
+    unknown
+  >;
+}) {
+  return (
+    <section
+      aria-labelledby="prioritization-sessions-heading"
+      className="space-y-4"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-3 border-border/70 border-b pb-3">
+        <div>
+          <p className="surface-kicker">Project decision views</p>
+          <h4
+            className="mt-1 font-medium text-base"
+            id="prioritization-sessions-heading"
+          >
+            Prioritization Sessions
+          </h4>
+        </div>
+        <span className="text-muted-foreground text-xs">
+          {activeSessions.length} open or closed
+        </span>
+      </div>
+
+      <form
+        className="space-y-3 rounded-lg border border-border/70 bg-card/40 p-4"
+        onSubmit={createPrioritizationSession}
+      >
+        <label className="block space-y-1.5 text-sm" htmlFor="session-name">
+          <span>Session name</span>
+          <Input
+            id="session-name"
+            maxLength={200}
+            onChange={(event) => setSessionName(event.currentTarget.value)}
+            placeholder="For example, Q4 launch review"
+            required
+            value={sessionName}
+          />
+        </label>
+        <fieldset className="space-y-2">
+          <legend className="font-medium text-sm">Work scope</legend>
+          {activeWorks.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No active Work is available to select.
+            </p>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {activeWorks.map((work) => (
+                <li key={work.id}>
+                  <label className="flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-sm">
+                    <input
+                      checked={selectedWorkIds.includes(work.id)}
+                      className="mt-0.5 accent-primary"
+                      onChange={(event) => {
+                        const isSelected = event.currentTarget.checked;
+                        setSelectedWorkIds((current) =>
+                          isSelected
+                            ? [...current, work.id]
+                            : current.filter((id) => id !== work.id),
+                        );
+                      }}
+                      type="checkbox"
+                    />
+                    <span>
+                      <span className="text-muted-foreground">{work.key}</span>{" "}
+                      {work.title}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </fieldset>
+        <Button disabled={busy || !sessionName.trim()} type="submit">
+          Create Prioritization Session
+        </Button>
+      </form>
+
+      {activeSessions.length === 0 ? (
+        <p className="rounded-md border border-border/70 border-dashed px-4 py-5 text-muted-foreground text-sm">
+          No Prioritization Sessions yet.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {activeSessions.map((session) => (
+            <PrioritizationSessionCard
+              backlogOrder={orderedBacklogIds}
+              busy={busy}
+              key={session.id}
+              onAddWork={(workId) =>
+                updateSessionOrder.mutate({
+                  session,
+                  workIds: [...session.workIds, workId],
+                })
+              }
+              onClose={() => closeSession.mutate(session)}
+              onRemoveWork={(workId) =>
+                updateSessionOrder.mutate({
+                  session,
+                  workIds: session.workIds.filter((id) => id !== workId),
+                })
+              }
+              onReorder={(workIds) =>
+                updateSessionOrder.mutate({ session, workIds })
+              }
+              onTrash={() => trashSession.mutate(session)}
+              priorityValues={priorityValues.data}
+              session={session}
+              workContextById={workContextById}
+              works={activeWorks}
+              worksById={workById}
+            />
+          ))}
+        </div>
+      )}
+
+      {trashedSessions.length > 0 ? (
+        <section
+          aria-labelledby="prioritization-trash-heading"
+          className="space-y-3 rounded-lg border border-border/70 p-4"
+        >
+          <h5 className="font-medium text-sm" id="prioritization-trash-heading">
+            Trash
+          </h5>
+          <ul className="space-y-2">
+            {trashedSessions.map((session) => (
+              <li
+                className="flex flex-wrap items-center justify-between gap-3 text-sm"
+                key={session.id}
+              >
+                <span>
+                  {session.name} · Trashed {formatDate(session.trashedAt)}
+                </span>
+                <Button
+                  disabled={busy}
+                  onClick={() => restoreSession.mutate(session)}
+                  size="xs"
+                  type="button"
+                  variant="outline"
+                >
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </section>
+  );
 }

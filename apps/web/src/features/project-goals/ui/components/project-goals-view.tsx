@@ -260,28 +260,14 @@ export function ProjectGoalsView({
       {selectedId ? null : (
         <ProjectGoalList goals={goals} projectId={projectId} />
       )}
-      {canEdit && editing ? (
-        <ProjectGoalEditor
-          goal={selected}
-          key={selected?.id ?? "new"}
-          onCancel={() => setEditing(false)}
-          onSave={async (draft, baseGoal) => {
-            await onSave(draft, baseGoal);
-            setEditing(false);
-          }}
-        />
-      ) : null}
-      {canEdit && !editing ? (
-        <Button
-          onClick={() => {
-            onStartEditing?.();
-            setEditing(true);
-          }}
-          type="button"
-        >
-          {selected ? "Edit Project Goal" : "New Project Goal"}
-        </Button>
-      ) : null}
+      <ProjectGoalEditControls
+        canEdit={canEdit}
+        editing={editing}
+        onSave={onSave}
+        onStartEditing={onStartEditing}
+        selected={selected}
+        setEditing={setEditing}
+      />{" "}
     </section>
   );
 }
@@ -326,5 +312,52 @@ function ProjectGoalValues({ goal }: { goal: ProjectGoalRecord }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function ProjectGoalEditControls({
+  canEdit,
+  editing,
+  selected,
+  setEditing,
+  onSave,
+  onStartEditing,
+}: {
+  canEdit: boolean;
+  editing: boolean;
+  selected: ProjectGoalRecord | undefined;
+  setEditing: import("react").Dispatch<import("react").SetStateAction<boolean>>;
+  onSave: (
+    draft: ProjectGoalDraft,
+    goal?: ProjectGoalRecord,
+  ) => Promise<unknown>;
+  onStartEditing: (() => void) | undefined;
+}) {
+  return (
+    <>
+      {" "}
+      {canEdit && editing ? (
+        <ProjectGoalEditor
+          goal={selected}
+          key={selected?.id ?? "new"}
+          onCancel={() => setEditing(false)}
+          onSave={async (draft, baseGoal) => {
+            await onSave(draft, baseGoal);
+            setEditing(false);
+          }}
+        />
+      ) : null}
+      {canEdit && !editing ? (
+        <Button
+          onClick={() => {
+            onStartEditing?.();
+            setEditing(true);
+          }}
+          type="button"
+        >
+          {selected ? "Edit Project Goal" : "New Project Goal"}
+        </Button>
+      ) : null}
+    </>
   );
 }

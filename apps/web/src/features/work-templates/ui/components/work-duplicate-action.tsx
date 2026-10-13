@@ -102,105 +102,139 @@ export default function WorkDuplicateAction({
         </p>
       ) : null}
       {open ? (
-        <form
-          aria-label="Duplicate Work"
-          className="w-full space-y-3 rounded-md border border-border/70 bg-background/80 p-3 text-left"
-          onSubmit={(event) => {
-            event.preventDefault();
-            duplicate.mutate();
-          }}
-        >
-          {preview.isPending ? (
-            <p className="text-muted-foreground text-xs" role="status">
-              Loading copy preview…
-            </p>
-          ) : null}
-          {preview.isError ? (
-            <p className="text-destructive text-xs" role="alert">
-              Copy preview could not be loaded. Try again.
-            </p>
-          ) : null}
-          {preview.data ? (
-            <>
-              <p className="text-muted-foreground text-xs">
-                Copies title, type, description, the checklist, and the selected
-                Custom fields into a new Work with a new key. History,
-                relations, close outcome, current status, and dates are not
-                copied.
-              </p>
-              <dl className="space-y-1 text-xs">
-                <div className="flex gap-2">
-                  <dt className="text-muted-foreground">Title</dt>
-                  <dd className="font-medium">{preview.data.title}</dd>
-                </div>
-                <div className="flex gap-2">
-                  <dt className="text-muted-foreground">Type</dt>
-                  <dd className="font-medium">{preview.data.type}</dd>
-                </div>
-                <div className="flex gap-2">
-                  <dt className="text-muted-foreground">Description</dt>
-                  <dd className="font-medium">
-                    {preview.data.description ?? "Not set"}
-                  </dd>
-                </div>
-                <div className="flex gap-2">
-                  <dt className="text-muted-foreground">Checklist</dt>
-                  <dd className="font-medium">
-                    {preview.data.checklist.length} item
-                    {preview.data.checklist.length === 1 ? "" : "s"}
-                  </dd>
-                </div>
-              </dl>
-              {preview.data.customFields.length > 0 ? (
-                <fieldset className="space-y-2">
-                  <legend className="text-muted-foreground text-xs">
-                    Selected field values
-                  </legend>
-                  {preview.data.customFields.map((field) => {
-                    const checkboxId = `work-duplicate-${work.id}-${field.definitionId}`;
-                    return (
-                      <label
-                        className="flex items-center gap-2 text-xs"
-                        htmlFor={checkboxId}
-                        key={field.definitionId}
-                      >
-                        <Checkbox
-                          checked={selectedDefinitionIds.includes(
-                            field.definitionId,
-                          )}
-                          disabled={pending}
-                          id={checkboxId}
-                          onCheckedChange={(checked) =>
-                            toggleDefinition(
-                              field.definitionId,
-                              checked === true,
-                            )
-                          }
-                        />
-                        {field.name}
-                      </label>
-                    );
-                  })}
-                </fieldset>
-              ) : null}
-              <div className="flex gap-2">
-                <Button disabled={pending} size="xs" type="submit">
-                  Duplicate Work
-                </Button>
-                <Button
-                  disabled={pending}
-                  onClick={() => setOpen(false)}
-                  size="xs"
-                  type="button"
-                  variant="ghost"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </>
-          ) : null}
-        </form>
+        <WorkDuplicateForm
+          duplicate={duplicate}
+          pending={pending}
+          preview={preview}
+          selectedDefinitionIds={selectedDefinitionIds}
+          setOpen={setOpen}
+          toggleDefinition={toggleDefinition}
+          work={work}
+        />
       ) : null}
     </div>
+  );
+}
+
+function WorkDuplicateForm({
+  duplicate,
+  preview,
+  work,
+  selectedDefinitionIds,
+  pending,
+  toggleDefinition,
+  setOpen,
+}: {
+  duplicate: import("@tanstack/react-query").UseMutationResult<
+    WorkProfile,
+    Error,
+    void,
+    unknown
+  >;
+  preview: import("@tanstack/react-query").UseQueryResult<
+    import("@cantiara/api/work-templates").DuplicateWorkPreview,
+    Error
+  >;
+  work: WorkProfile;
+  selectedDefinitionIds: string[];
+  pending: boolean;
+  toggleDefinition: (definitionId: string, checked: boolean) => void;
+  setOpen: import("react").Dispatch<import("react").SetStateAction<boolean>>;
+}) {
+  return (
+    <form
+      aria-label="Duplicate Work"
+      className="w-full space-y-3 rounded-md border border-border/70 bg-background/80 p-3 text-left"
+      onSubmit={(event) => {
+        event.preventDefault();
+        duplicate.mutate();
+      }}
+    >
+      {preview.isPending ? (
+        <p className="text-muted-foreground text-xs" role="status">
+          Loading copy preview…
+        </p>
+      ) : null}
+      {preview.isError ? (
+        <p className="text-destructive text-xs" role="alert">
+          Copy preview could not be loaded. Try again.
+        </p>
+      ) : null}
+      {preview.data ? (
+        <>
+          <p className="text-muted-foreground text-xs">
+            Copies title, type, description, the checklist, and the selected
+            Custom fields into a new Work with a new key. History, relations,
+            close outcome, current status, and dates are not copied.
+          </p>
+          <dl className="space-y-1 text-xs">
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Title</dt>
+              <dd className="font-medium">{preview.data.title}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Type</dt>
+              <dd className="font-medium">{preview.data.type}</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Description</dt>
+              <dd className="font-medium">
+                {preview.data.description ?? "Not set"}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-muted-foreground">Checklist</dt>
+              <dd className="font-medium">
+                {preview.data.checklist.length} item
+                {preview.data.checklist.length === 1 ? "" : "s"}
+              </dd>
+            </div>
+          </dl>
+          {preview.data.customFields.length > 0 ? (
+            <fieldset className="space-y-2">
+              <legend className="text-muted-foreground text-xs">
+                Selected field values
+              </legend>
+              {preview.data.customFields.map((field) => {
+                const checkboxId = `work-duplicate-${work.id}-${field.definitionId}`;
+                return (
+                  <label
+                    className="flex items-center gap-2 text-xs"
+                    htmlFor={checkboxId}
+                    key={field.definitionId}
+                  >
+                    <Checkbox
+                      checked={selectedDefinitionIds.includes(
+                        field.definitionId,
+                      )}
+                      disabled={pending}
+                      id={checkboxId}
+                      onCheckedChange={(checked) =>
+                        toggleDefinition(field.definitionId, checked === true)
+                      }
+                    />
+                    {field.name}
+                  </label>
+                );
+              })}
+            </fieldset>
+          ) : null}
+          <div className="flex gap-2">
+            <Button disabled={pending} size="xs" type="submit">
+              Duplicate Work
+            </Button>
+            <Button
+              disabled={pending}
+              onClick={() => setOpen(false)}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              Cancel
+            </Button>
+          </div>
+        </>
+      ) : null}
+    </form>
   );
 }

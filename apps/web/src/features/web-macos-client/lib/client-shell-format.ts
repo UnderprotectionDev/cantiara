@@ -8,6 +8,15 @@ export const DEFAULT_ACCOUNT_FORMATTING_PREFERENCES = {
   timeZone: "Europe/Istanbul",
 } as const satisfies AccountFormattingPreferences;
 
+const fallbackLastSavedFormatter = new Intl.DateTimeFormat(
+  DEFAULT_ACCOUNT_FORMATTING_PREFERENCES.locale,
+  {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: DEFAULT_ACCOUNT_FORMATTING_PREFERENCES.timeZone,
+  },
+);
+
 export function formatLastSaved(
   lastSavedAt: Date | null,
   accountFormattingPreferences: AccountFormattingPreferences = DEFAULT_ACCOUNT_FORMATTING_PREFERENCES,
@@ -23,13 +32,6 @@ export function formatLastSaved(
       timeZone: accountFormattingPreferences.timeZone,
     }).format(lastSavedAt);
   } catch {
-    return new Intl.DateTimeFormat(
-      DEFAULT_ACCOUNT_FORMATTING_PREFERENCES.locale,
-      {
-        dateStyle: "medium",
-        timeStyle: "short",
-        timeZone: DEFAULT_ACCOUNT_FORMATTING_PREFERENCES.timeZone,
-      },
-    ).format(lastSavedAt);
+    return fallbackLastSavedFormatter.format(lastSavedAt);
   }
 }

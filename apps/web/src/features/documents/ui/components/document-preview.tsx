@@ -847,77 +847,7 @@ export default function DocumentPreview({
       reference,
     ]),
   );
-  const parts: Array<{
-    kind:
-      | "markdown"
-      | "mermaid"
-      | "math"
-      | "live-work"
-      | "live-collection"
-      | "live-diagram"
-      | "live-section";
-    value: string;
-    start?: number;
-    end?: number;
-    viewId?: string;
-    sectionId?: string;
-  }> = [];
-  const directives = documentLiveDirectives(source);
-  function appendMarkdown(value: string, offset: number) {
-    let last = 0;
-    for (const directive of directives) {
-      if (directive.start < offset || directive.end > offset + value.length) {
-        continue;
-      }
-      const relativeStart = directive.start - offset;
-      if (relativeStart > last) {
-        parts.push({
-          kind: "markdown",
-          value: value.slice(last, relativeStart),
-        });
-      }
-      parts.push({
-        kind: livePartKind[directive.kind],
-        value: directive.id,
-        sectionId: directive.sectionId,
-        viewId: directive.viewId,
-      });
-      last = directive.end - offset;
-    }
-    if (last < value.length) {
-      parts.push({ kind: "markdown", value: value.slice(last) });
-    }
-  }
-  let cursor = 0;
-  for (const match of source.matchAll(previewPattern)) {
-    if (match[5] !== undefined) {
-      continue;
-    }
-    if (match[1] !== undefined && match[3].trim() !== "mermaid") {
-      continue;
-    }
-    const position = match.index ?? 0;
-    if (position > cursor) {
-      appendMarkdown(source.slice(cursor, position), cursor);
-    }
-    if (match[1] === undefined) {
-      parts.push({ kind: "math", value: match[7] ?? "" });
-    } else {
-      parts.push({
-        kind: "mermaid",
-        value: match[4] ?? "",
-        start: position,
-        end: position + match[0].length,
-      });
-    }
-    cursor = position + match[0].length;
-  }
-  if (cursor < source.length) {
-    appendMarkdown(source.slice(cursor), cursor);
-  }
-  if (parts.length === 0) {
-    parts.push({ kind: "markdown", value: source });
-  }
+  const parts = parseDocumentPreviewParts(source);
 
   return (
     <section
@@ -1061,4 +991,80 @@ export default function DocumentPreview({
       })}
     </section>
   );
+}
+
+function parseDocumentPreviewParts(source: string) {
+  const parts: Array<{
+    kind:
+      | "markdown"
+      | "mermaid"
+      | "math"
+      | "live-work"
+      | "live-collection"
+      | "live-diagram"
+      | "live-section";
+    value: string;
+    start?: number;
+    end?: number;
+    viewId?: string;
+    sectionId?: string;
+  }> = [];
+  const directives = documentLiveDirectives(source);
+  function appendMarkdown(value: string, offset: number) {
+    let last = 0;
+    for (const directive of directives) {
+      if (directive.start < offset || directive.end > offset + value.length) {
+        continue;
+      }
+      const relativeStart = directive.start - offset;
+      if (relativeStart > last) {
+        parts.push({
+          kind: "markdown",
+          value: value.slice(last, relativeStart),
+        });
+      }
+      parts.push({
+        kind: livePartKind[directive.kind],
+        value: directive.id,
+        sectionId: directive.sectionId,
+        viewId: directive.viewId,
+      });
+      last = directive.end - offset;
+    }
+    if (last < value.length) {
+      parts.push({ kind: "markdown", value: value.slice(last) });
+    }
+  }
+  let cursor = 0;
+  for (const match of source.matchAll(previewPattern)) {
+    if (match[5] !== undefined) {
+      continue;
+    }
+    if (match[1] !== undefined && match[3].trim() !== "mermaid") {
+      continue;
+    }
+    const position = match.index ?? 0;
+    if (position > cursor) {
+      appendMarkdown(source.slice(cursor, position), cursor);
+    }
+    if (match[1] === undefined) {
+      parts.push({ kind: "math", value: match[7] ?? "" });
+    } else {
+      parts.push({
+        kind: "mermaid",
+        value: match[4] ?? "",
+        start: position,
+        end: position + match[0].length,
+      });
+    }
+    cursor = position + match[0].length;
+  }
+  if (cursor < source.length) {
+    appendMarkdown(source.slice(cursor), cursor);
+  }
+  if (parts.length === 0) {
+    parts.push({ kind: "markdown", value: source });
+  }
+
+  return parts;
 }

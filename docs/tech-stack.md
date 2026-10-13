@@ -183,6 +183,7 @@ Return to Work calls the canvas owner's public viewport API through `packages/ap
 | --- | --- |
 | Biome | Lint ve formatlama |
 | Ultracite | Biome kalite preset'i |
+| React Doctor | React kodunda doğruluk, performans, erişilebilirlik ve mimari sorunları için tavsiye niteliğinde kalite taraması; yerelde Bun üzerinden, CI'da GitHub Actions ile çalışır ve mevcut kalite/test kontrollerinin yerine geçmez |
 | Lefthook | Git hook yönetimi |
 | Vitest | Unit ve integration testleri |
 | happy-dom | Vitest içindeki UI etkileşim testlerinde browser DOM API'lerini taklit etmek; gerçek tarayıcı E2E davranışı Playwright'ta kalır |

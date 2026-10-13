@@ -523,65 +523,14 @@ function ProjectShellContent({
 
   return (
     <>
-      <header className="surface-header">
-        <Link
-          className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3 min-h-11`}
-          to="/projects"
-        >
-          <ArrowLeft aria-hidden="true" />
-          Projects
-        </Link>
-        <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-10">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-balance font-semibold text-3xl tracking-tight">
-                {name}
-              </h1>
-              <Badge variant="secondary">{status}</Badge>
-            </div>
-            <p className="mt-2 max-w-xl text-muted-foreground text-sm/relaxed">
-              A durable home for this Project’s work and context.
-            </p>
-          </div>
-          <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
-            <div>
-              <dt className="text-muted-foreground text-xs">Short code</dt>
-              <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground text-xs">
-                Starter Configuration
-              </dt>
-              <dd className="mt-1 font-medium text-sm">
-                {starterConfiguration}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
-          <div>
-            <p className="text-muted-foreground text-xs/relaxed">
-              Separate Project structure from daily Work editing.
-            </p>
-          </div>
-          <Button
-            aria-pressed={configurationMode}
-            className="min-h-11"
-            onClick={toggleConfigurationMode}
-            type="button"
-            variant={configurationMode ? "default" : "outline"}
-          >
-            {configurationMode ? (
-              <X aria-hidden="true" />
-            ) : (
-              <Settings2 aria-hidden="true" />
-            )}
-            {configurationMode
-              ? "Exit Configuration Mode"
-              : "Configuration Mode"}
-          </Button>
-        </div>
-      </header>
+      <ProjectShellHeader
+        configurationMode={configurationMode}
+        name={name}
+        shortCode={shortCode}
+        starterConfiguration={starterConfiguration}
+        status={status}
+        toggleConfigurationMode={toggleConfigurationMode}
+      />
 
       {!configurationMode && showExplanation ? (
         <aside
@@ -1178,5 +1127,83 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+function ProjectShellHeader({
+  name,
+  status,
+  shortCode,
+  starterConfiguration,
+  configurationMode,
+  toggleConfigurationMode,
+}: {
+  name: string;
+  status: "Active" | "Pending" | "Completed" | "Abandoned";
+  shortCode: string;
+  starterConfiguration:
+    | "Blank Project"
+    | "Solo SaaS"
+    | "Open Source Library"
+    | "Mobile Application";
+  configurationMode: boolean;
+  toggleConfigurationMode: () => void;
+}) {
+  return (
+    <header className="surface-header">
+      <Link
+        className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3 min-h-11`}
+        to="/projects"
+      >
+        <ArrowLeft aria-hidden="true" />
+        Projects
+      </Link>
+      <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-10">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-balance font-semibold text-3xl tracking-tight">
+              {name}
+            </h1>
+            <Badge variant="secondary">{status}</Badge>
+          </div>
+          <p className="mt-2 max-w-xl text-muted-foreground text-sm/relaxed">
+            A durable home for this Project’s work and context.
+          </p>
+        </div>
+        <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
+          <div>
+            <dt className="text-muted-foreground text-xs">Short code</dt>
+            <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs">
+              Starter Configuration
+            </dt>
+            <dd className="mt-1 font-medium text-sm">{starterConfiguration}</dd>
+          </div>
+        </dl>
+      </div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
+        <div>
+          <p className="text-muted-foreground text-xs/relaxed">
+            Separate Project structure from daily Work editing.
+          </p>
+        </div>
+        <Button
+          aria-pressed={configurationMode}
+          className="min-h-11"
+          onClick={toggleConfigurationMode}
+          type="button"
+          variant={configurationMode ? "default" : "outline"}
+        >
+          {configurationMode ? (
+            <X aria-hidden="true" />
+          ) : (
+            <Settings2 aria-hidden="true" />
+          )}
+          {configurationMode ? "Exit Configuration Mode" : "Configuration Mode"}
+        </Button>
+      </div>
+    </header>
   );
 }
