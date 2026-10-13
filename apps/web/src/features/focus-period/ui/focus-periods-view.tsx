@@ -377,9 +377,15 @@ function PeriodDetail({
   const [closeAnyway, setCloseAnyway] = useState(false);
   const open = isOpenPeriod(period);
   const stillOpen = period.members.filter((item) => item.status !== "Closed");
+  const unavailableWorkIds = new Set(
+    period.closeComparison?.stillOpen
+      .filter((item) => item.sourceAvailable === false)
+      .map((item) => item.id),
+  );
   const undecided = (period.closeSnapshot ?? []).filter(
     (item) =>
       item.status !== "Closed" &&
+      !unavailableWorkIds.has(item.id) &&
       !period.leftoverDecisions.some((decision) => decision.workId === item.id),
   );
   const targets = periods.filter(
@@ -719,15 +725,26 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
               <ul aria-label={label} className="space-y-1">
                 {items.map((item) => (
                   <li className="break-words" key={item.id}>
-                    <Link
-                      aria-label={`Open source record: ${item.key} ${item.title}`}
-                      className="underline underline-offset-2"
-                      hash={workRecordHash(item.id)}
-                      params={{ projectId: item.projectId }}
-                      to="/projects/$projectId"
-                    >
-                      {item.title} · {item.key} · {item.status}
-                    </Link>
+                    {item.sourceAvailable === false ? (
+                      <>
+                        <span>
+                          {item.title} · {item.key} · {item.status}
+                        </span>
+                        <p className="text-muted-foreground text-sm">
+                          Work is unavailable.
+                        </p>
+                      </>
+                    ) : (
+                      <Link
+                        aria-label={`Open source record: ${item.key} ${item.title}`}
+                        className="underline underline-offset-2"
+                        hash={workRecordHash(item.id)}
+                        params={{ projectId: item.projectId }}
+                        to="/projects/$projectId"
+                      >
+                        {item.title} · {item.key} · {item.status}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -264,4 +264,25 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
       exact: true,
     }),
   ).toBeVisible();
+  const sourceRecord = page.locator(`#${new URL(page.url()).hash.slice(1)}`);
+  await sourceRecord
+    .getByRole("button", { name: "Archive", exact: true })
+    .click();
+  await expect(sourceRecord).toHaveCount(0);
+  await page.goto("/focus-periods");
+  await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
+  const unavailableSource = page.getByRole("region", {
+    name: "Close comparison",
+  });
+  await expect(
+    unavailableSource.getByRole("list", {
+      name: "Still-open Work",
+      exact: true,
+    }),
+  ).toContainText("Work is unavailable.");
+  await expect(
+    unavailableSource.getByRole("link", {
+      name: "Open source record: FOC-1 Prepare Focus Period release",
+    }),
+  ).toHaveCount(0);
 });

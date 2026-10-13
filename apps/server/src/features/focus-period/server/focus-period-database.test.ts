@@ -483,6 +483,72 @@ describeDatabase("Focus Period working window", () => {
     ]);
   }, 30_000);
 
+  test("keeps closing comparison records when their live Work is deleted", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const removedWorkId = `focus-retired-${crypto.randomUUID()}`;
+    const retainedWorkId = `focus-retained-${crypto.randomUUID()}`;
+    await database.insert(work).values([
+      {
+        id: removedWorkId,
+        projectId: firstProjectId,
+        key: "ALPHA-90",
+        number: 90,
+        title: "Removed historical Work",
+        type: "Task",
+        status: "In Progress",
+      },
+      {
+        id: retainedWorkId,
+        projectId: firstProjectId,
+        key: "ALPHA-91",
+        number: 91,
+        title: "Retained historical Work",
+        type: "Task",
+        status: "Not Started",
+      },
+    ]);
+    clock = new Date("2027-06-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Retired source comparison",
+      startDate: "2027-06-01",
+      endDate: "2027-06-07",
+    });
+    await periods.add(accountId, period.id, removedWorkId);
+    await periods.add(accountId, period.id, retainedWorkId);
+    await periods.remove(accountId, period.id, removedWorkId);
+    await periods.close(accountId, period.id);
+    await database
+      .delete(work)
+      .where(inArray(work.id, [removedWorkId, retainedWorkId]));
+    const closed = await periods.find(accountId, period.id);
+    expect(closed?.closeComparison?.addedLater).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: removedWorkId,
+          title: "Removed historical Work",
+          status: "In Progress",
+          sourceAvailable: false,
+        }),
+        expect.objectContaining({
+          id: retainedWorkId,
+          title: "Retained historical Work",
+          status: "Not Started",
+          sourceAvailable: false,
+        }),
+      ]),
+    );
+    expect(closed?.closeComparison?.addedLater).toHaveLength(2);
+    expect(closed?.closeComparison?.removed).toEqual([
+      expect.objectContaining({ id: removedWorkId, sourceAvailable: false }),
+    ]);
+    expect(closed?.closeComparison?.stillOpen).toEqual([
+      expect.objectContaining({ id: retainedWorkId, sourceAvailable: false }),
+    ]);
+  }, 30_000);
+
   test("keeps removed start-scope Work historical when live Work changes", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");

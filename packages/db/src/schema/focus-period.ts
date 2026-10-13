@@ -24,6 +24,7 @@ export interface FocusPeriodSnapshotWork {
 }
 
 export interface FocusPeriodCloseSnapshotWork extends FocusPeriodSnapshotWork {
+  addedLater?: boolean;
   inCloseScope?: false;
 }
 

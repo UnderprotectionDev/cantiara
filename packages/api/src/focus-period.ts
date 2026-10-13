@@ -109,12 +109,16 @@ export interface FocusPeriodSnapshotWork extends FocusPeriodWork {
   closureResult: string | null;
 }
 
+export interface FocusPeriodComparisonWork extends FocusPeriodWork {
+  sourceAvailable?: boolean;
+}
+
 export interface FocusPeriodCloseComparison {
-  addedLater: FocusPeriodWork[];
-  completed: FocusPeriodWork[];
-  inStartSnapshot: FocusPeriodWork[];
-  removed: FocusPeriodWork[];
-  stillOpen: FocusPeriodWork[];
+  addedLater: FocusPeriodComparisonWork[];
+  completed: FocusPeriodComparisonWork[];
+  inStartSnapshot: FocusPeriodComparisonWork[];
+  removed: FocusPeriodComparisonWork[];
+  stillOpen: FocusPeriodComparisonWork[];
 }
 
 export interface FocusPeriodEvaluation {
