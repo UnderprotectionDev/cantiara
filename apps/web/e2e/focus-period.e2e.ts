@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const FOCUS_PERIOD_WORK_NAME = /Prepare Focus Period release/;
 const ABANDON_WORK_NAME = /Retire Focus Period draft/;
+const REVIEW_WORK_NAME = /Review Focus Period release/;
 const SOURCE_PERIOD_NAME = /Ship the release/;
 const LATER_PERIOD_NAME = /Later window/;
 
@@ -57,6 +58,19 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
     }),
   ).toBeVisible();
 
+  await page.getByRole("link", { name: "Create", exact: true }).click();
+  await page.getByLabel("Title").fill("Review Focus Period release");
+  await page
+    .locator("#work-create")
+    .getByRole("button", { name: "Create", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Review Focus Period release",
+      exact: true,
+    }),
+  ).toBeVisible();
+
   await page.goto("/focus-periods");
   await expect(page.getByText("No Focus Period yet.")).toBeVisible();
   await page.getByLabel("Purpose").fill("Ship the release");
@@ -86,6 +100,11 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   ).toBeVisible();
   await expect(detail).toContainText("Prepare Focus Period release");
   await expect(detail).toContainText("Not Started");
+  await detail.getByLabel("Select Work", { exact: true }).selectOption({
+    label: "Focus Period Project · FOC-3 · Review Focus Period release",
+  });
+  await detail.getByRole("button", { name: "Add Work" }).click();
+  await expect(detail).toContainText("Review Focus Period release");
   await page.getByLabel("Purpose").fill("Later window");
   await page.getByLabel("Start date").fill(start);
   await page.getByLabel("End date").fill(end);
@@ -156,7 +175,14 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
       .getByText("Added later", { exact: true })
       .locator("..")
       .locator("dd"),
-  ).toHaveText("2");
+  ).toHaveText("3");
+  await expect(
+    closeComparison
+      .getByRole("link", {
+        name: "Open source record: FOC-1 Prepare Focus Period release",
+      })
+      .first(),
+  ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Ship the release" }),
   ).toContainText("Not Started");
@@ -193,10 +219,14 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await decisions
     .getByRole("checkbox", { name: FOCUS_PERIOD_WORK_NAME })
     .check();
+  await decisions.getByRole("checkbox", { name: REVIEW_WORK_NAME }).check();
   await decisions.getByLabel("Destination").selectOption("Backlog");
   await decisions.getByRole("button", { name: "Send" }).click();
   await expect(
     decisions.getByRole("checkbox", { name: FOCUS_PERIOD_WORK_NAME }),
+  ).toHaveCount(0);
+  await expect(
+    decisions.getByRole("checkbox", { name: REVIEW_WORK_NAME }),
   ).toHaveCount(0);
   await expect(decisions).toContainText("Retire Focus Period draft");
   await decisions.getByRole("checkbox", { name: ABANDON_WORK_NAME }).check();
@@ -213,4 +243,25 @@ test("creates a 1–8 week Focus Period and changes membership without changing 
   await expect(
     page.getByRole("region", { name: "Still-open Work decisions" }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: SOURCE_PERIOD_NAME }).click();
+  const historical = page.getByRole("region", { name: "Close comparison" });
+  await expect(
+    historical
+      .getByRole("list", { name: "Added later", exact: true })
+      .getByRole("link", {
+        name: "Open source record: FOC-2 Retire Focus Period draft",
+      }),
+  ).toContainText("Not Started");
+  await historical
+    .getByRole("list", { name: "Still-open Work", exact: true })
+    .getByRole("link", {
+      name: "Open source record: FOC-1 Prepare Focus Period release",
+    })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Prepare Focus Period release",
+      exact: true,
+    }),
+  ).toBeVisible();
 });
