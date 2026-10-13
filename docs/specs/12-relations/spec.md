@@ -1,7 +1,5 @@
 # İlişkiler ve Geri Bağlantılar
 
-Kaynak: [`docs/workflow/12-relations/phase-context.md`](../../workflow/12-relations/phase-context.md)
-
 ## Problem Statement
 
 Kurucu ana kayıtları kapalı tür kataloğuyla açıkça bağlamak, gömülü kullanımları ayrı izlemek ve bir kaydın nerede kullanıldığını kaydın kendisinden okumak ister. Bugün iskelette ilişki grafiği yoktur; belirsiz “ilgili” yığını, otomatik grafik çıkarımı veya kullanımın standart ilişki sayılması riski vardır. Kanıt bağı uzmanlığı, GitHub bağlantısı ve kapsam taşıma bu sorunun parçası değildir.

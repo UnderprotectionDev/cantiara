@@ -1,7 +1,5 @@
 # Kişisel Wiki
 
-Kaynak: [`docs/workflow/32-personal-wiki/phase-context.md`](../../workflow/32-personal-wiki/phase-context.md)
-
 ## Problem Statement
 
 Kurucu herhangi bir Projeye ait olmak zorunda olmayan kalıcı bilgiyi—kalıplar, yaklaşımlar, hata çözümleri, öğrenimler—kaybetmeden tutmak ister. Bugün bu bilgi yanlışlıkla bir Projeye yazılır veya ikinci bir belge sistemi / paralel doğruluk kaynağı olur. Belge yazarlığı yetenekleri 31’dedir; tekil Wiki yayını 74’tedir. Bu feature sahiplik sınırıdır.

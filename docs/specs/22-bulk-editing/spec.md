@@ -1,7 +1,5 @@
 # Toplu Düzenleme
 
-Kaynak: [`docs/workflow/22-bulk-editing/phase-context.md`](../../workflow/22-bulk-editing/phase-context.md)
-
 ## Problem Statement
 
 Kurucu liste, Kanban, Akıllı Koleksiyon ve benzeri çok kayıtlı yüzeylerde seçtiği İşlerin mevcut alanlarını güvenle güncellemek ister. Seçimsiz “bütün kayıtlar” yazması, sessiz kısmi başarı, şema göçü ve içe aktarma bu ihtiyacın yerine geçmez. Kullanıcı başlatmalı çok adımlı katalog eylemleri (21) toplu alan yazması değildir.

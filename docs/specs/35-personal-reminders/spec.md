@@ -1,7 +1,5 @@
 # Kişisel Hatırlatmalar ve Yeniden Bak
 
-Kaynak: [`docs/workflow/35-personal-reminders/phase-context.md`](../../workflow/35-personal-reminders/phase-context.md)
-
 ## Problem Statement
 
 Kurucu desteklenen bir kayda veya Belge bölümüne belirli bir zamanda dönmek ister. Bugün bu niyet İş durumuna, `Target date`’e, Yeniden görünme tarihine veya Günlük Odak üyeliğine yazılmadan duramaz; tetiklenince kaynak kapanmış veya planlama sırası değişmiş gibi davranma riski vardır. Dikkat sinyali merkezi, takvim Event’i ve kişisel kabuk bu sorunun parçası değildir; zamanı gelen `Review Later` öğesini kabuk açar, üyeliği yönetmez.

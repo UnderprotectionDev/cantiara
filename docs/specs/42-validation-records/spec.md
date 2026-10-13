@@ -1,7 +1,5 @@
 # Deney ve Doğrulama Kayıtları
 
-Kaynak: [`docs/workflow/42-validation-records/phase-context.md`](../../workflow/42-validation-records/phase-context.md)
-
 ## Problem Statement
 
 Kurucu ürün dışında yürüttüğü varsayım veya soru doğrulamasının yöntemini, sonucunu ve karar bağlamını kaybetmek istemez. Bu kayıt Test Oturumu, Planlı Test Senaryosu veya araştırma oturumu sayılırsa formal test ve görüşme semantiği bozulur. Sonuç Varsayım durumunu veya Kararı otomatik yazmamalıdır.

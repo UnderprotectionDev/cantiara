@@ -1,7 +1,5 @@
 # Belge Yazarlığı ve Sürümleri
 
-Kaynak: [`docs/workflow/31-documents/phase-context.md`](../../workflow/31-documents/phase-context.md)
-
 ## Problem Statement
 
 Kurucu veritabanındaki Markdown Belgeleri uygulama içinde yazmak, canlı bağlamla birleştirmek, sürümlendirmek ve çatışmayı tarihsel bütünlüğü bozmadan çözmek ister. Bugün belge dış `.md` dosyası, kayıt açıklaması veya Wiki motoru sanılır; yeniden bağlanma sessiz basar veya yazma kuyruğa alınır; şablon canlı bağlı kalır; iskelet örnek içerik üretir; `#etiket` ikinci sözlük olur; taşıma ile kopya kimliği karışır. Kişisel Wiki kapsamı, evrensel arama, Dosya Eki havuzu, Wiki yayını ve spec inceleme kuyruğu bu sorunun parçası değildir.

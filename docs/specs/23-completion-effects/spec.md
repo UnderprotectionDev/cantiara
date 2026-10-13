@@ -1,7 +1,5 @@
 # Bitiriş Efektleri
 
-Kaynak: [`docs/workflow/23-completion-effects/phase-context.md`](../../workflow/23-completion-effects/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir İşi kendi kararıyla Tamamlandı yaptığında bunu hissedilir bir kutlama ile görmek ister; otomasyon, Vazgeçildi veya dış olayın konfeti basmasını istemez. Lisanslı karakter, kullanıcı yüklemeli efekt ve açık uçlu tema pazarı ürünü hak ve güvenlik yüküne sokar. Azaltılmış hareket başarı geri bildirimini de kaldırmamalıdır. Hesap görünüm tercihi (locale, açık/koyu) efekt kataloğunun sahibi değildir.

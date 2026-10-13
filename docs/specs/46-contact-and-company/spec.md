@@ -1,7 +1,5 @@
 # Contact ve Company Kimliği
 
-Kaynak: [`docs/workflow/46-contact-and-company/phase-context.md`](../../workflow/46-contact-and-company/phase-context.md)
-
 ## Problem Statement
 
 Kurucu aynı kişiyi Geri Bildirimler boyunca tanımak ve kanıt geçmişini o kimlikten okumak ister. Bugün kimlik defteri yoktur; kopya Contact'lar dağılır, birleştirme ilişkili Geri Bildirimleri kaybettirebilir veya Kanıt Rolü ile önceliği sessizce yeniden yazabilir. Contact/Company bir CRM pipeline, ticari hesap veya kişisel veri silme yüzeyi değildir; silme 81'dir. Geri Bildirim kaydı ve feed 47'dedir.

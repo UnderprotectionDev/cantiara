@@ -1,7 +1,5 @@
 # Varsayımlar ve Açık Sorular
 
-Kaynak: [`docs/workflow/41-uncertainty-records/phase-context.md`](../../workflow/41-uncertainty-records/phase-context.md)
-
 ## Problem Statement
 
 Kurucu doğrulanmamış önermeyi yanıt bekleyen sorudan ayırarak tutmak ister. Tek kayıt türü onları karıştırır; sonuç otomatik İş, Risk veya Karar olursa belirsizlik gizlenir. Çürütülen Varsayım inceleme kuyruğu gelecek yönüdür (PRD 18 / ADR-0013), ilk ürün davranışı değildir. Deney kaydı ve araştırma oturumu yöntem veya görüşme tutar, önerme değildir.

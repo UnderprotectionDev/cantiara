@@ -1,7 +1,5 @@
 # Üretim Olayı Öğrenimi
 
-Kaynak: [`docs/workflow/66-production-incidents/phase-context.md`](../../workflow/66-production-incidents/phase-context.md)
-
 ## Problem Statement
 
 Kurucu yayımlanmış üründeki önemli operasyonel olayı Bug'dan ayrı, zaman çizgisi ve öğrenimle kaydetmek ve Bug, PR, Sürüm, Risk ve Karara bağlamak ister. Bugün bu ya pager/S1 işletim zinciri (85) ya da otomatik Bug/Risk olur. Takip İşi önizlemesiz doğar. Canlı incident müdahalesi bu sorunun parçası değildir.

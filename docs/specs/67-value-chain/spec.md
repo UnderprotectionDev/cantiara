@@ -1,7 +1,5 @@
 # Değer Zinciri
 
-Kaynak: [`docs/workflow/67-value-chain/phase-context.md`](../../workflow/67-value-chain/phase-context.md)
-
 ## Problem Statement
 
 Kurucu seçilen Proje Hedefinden problem, kanıt, Karar, İş, test, Proje Sürümü ve gözlenen sonuca uzanan hattı kopukluklarıyla okumak ister. Bugün zincir ana kayıt, sağlık skoru veya tahminî tamamlanmış izlenebilirlik belgesi gibi durur; hedefsiz parçalar gizlenir; Karar/kanıt/test genel `Related` ile Hedefe katkı sayılır. Proje Hedefi sahipliği 37'dedir; bu kart hedef yazmaz.

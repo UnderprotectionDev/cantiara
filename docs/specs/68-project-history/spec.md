@@ -1,7 +1,5 @@
 # Proje Hikâyesi ve Etkinlik Geçmişi
 
-Kaynak: [`docs/workflow/68-project-history/phase-context.md`](../../workflow/68-project-history/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Projede veya Özellik türündeki İşte neden-sonuç hikâyesini okumak ister: hangi Karar, tasarım, İş, Kilometre Taşı, sürüm ve öğrenimin sırayla gerçekleştiğini. Aynı anda kim hangi alanı değiştirdiğini, eski ve yeni değeri denetim izi olarak da incelemek ister. Bugün bu iki soru tek feed'de karışır; atomik alan diff'i hikâyeyi boğar, hikâye ise denetim izinin yerine geçmeye çalışır. Bildirim Merkezi, GitHub Activity, e-posta günlüğü, otomatik başarı anlatısı ve sürüm notu bu sorunun parçası değildir.

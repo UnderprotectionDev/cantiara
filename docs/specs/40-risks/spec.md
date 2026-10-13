@@ -1,7 +1,5 @@
 # Riskler
 
-Kaynak: [`docs/workflow/40-risks/phase-context.md`](../../workflow/40-risks/phase-context.md)
-
 ## Problem Statement
 
 Kurucu etki, olasılık, yanıt ve durumla belirsiz zararları izlemek ister. Kabul etmek İşleri kapatırsa veya gerçekleşmek sürümü başarısız ilan ederse Risk ikinci bir workflow olur. Bug, Test Açığı ve Üretim Olayı Risk değildir. Öncelik puanı olasılıktan üretilmemelidir.

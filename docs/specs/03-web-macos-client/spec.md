@@ -1,7 +1,5 @@
 # Çevrimiçi Web ve macOS İstemcisi
 
-Kaynak: [`docs/workflow/03-web-macos-client/phase-context.md`](../../workflow/03-web-macos-client/phase-context.md)
-
 ## Problem Statement
 
 Kurucu aynı ürünü online-only web uygulamasında ve imzalı macOS paketinde kullanmak ister. Bugün iskelet bir Vite web uygulaması ve Tauri sarmalayıcısıdır; bağlantı kesilince yazılmamış risk görünmez, paket imza/notarization/updater sözleşmesi yoktur, hata secret'siz destek referansı taşımaz ve masaüstünün ikinci bir yerel doğruluk kaynağı açmayacağı kanıtlanmamıştır. Operatör yedeği, AB bölge kullanıcı yüzeyi ve GitHub ile giriş bu sorunun parçası değildir.

@@ -1,7 +1,5 @@
 # İş Şablonları
 
-Kaynak: [`docs/workflow/17-work-templates/phase-context.md`](../../workflow/17-work-templates/phase-context.md)
-
 ## Problem Statement
 
 Kurucu tekrar eden İş başlangıç bağlamını her seferinde yeniden yazmadan kullanmak ve bazen mevcut bir İşi şablona dönüştürmeden aynı Projede bir kez kopyalamak ister. Şablona canlı bağlı bir filo, Belge şablonu, Başlangıç yapılandırması veya yakalama mini şablonu bu ihtiyacın yerine geçmez. Şablon güncellemesinin geçmiş İşleri sessizce değiştirmesi güveni kırar.

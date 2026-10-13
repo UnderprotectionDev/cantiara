@@ -1,7 +1,5 @@
 # Kullanıcı Başlatmalı Kayıt Eylemleri
 
-Kaynak: [`docs/workflow/21-record-actions/phase-context.md`](../../workflow/21-record-actions/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir kayıt üzerinde tekrarladığı birkaç alanı tek adlandırılmış eylemle değiştirmek ister; tehlikeli veya çok adımlı yazmanın gizli kısmi başarı bırakmasını istemez. Açık uçlu makro, betik pazarı, arka planda sessiz uygulama, toplu alan düzenleme ve içe aktarma bu ihtiyacın yerine geçmez. Eylem IDE, GitHub veya ajan başlatmamalıdır.

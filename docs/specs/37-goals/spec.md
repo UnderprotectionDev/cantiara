@@ -1,7 +1,5 @@
 # Proje Hedefleri
 
-Kaynak: [`docs/workflow/37-goals/phase-context.md`](../../workflow/37-goals/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Projenin ulaşmak istediği sonucu ve isteğe bağlı gözlenen öğrenimi kaybetmeden tutmak ister. Bugün bu niyet Kilometre Taşı, Proje Sürümü veya Key Result ile karışır; bağlı İşlerden yüzde veya sağlık hükmü üretilirse değerlendirme kullanıcıdan kaçar. Değer Zinciri görünümü zinciri okur, hedef kaydını burada sahiplenmez. Karar, kanıt veya test `İlgili` ile Hedefe bağlanıp katkı sayılmamalıdır.

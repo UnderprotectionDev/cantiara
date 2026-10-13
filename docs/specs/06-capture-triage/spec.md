@@ -1,7 +1,5 @@
 # Yakalama ve Triage
 
-Kaynak: [`docs/workflow/06-capture-triage/phase-context.md`](../../workflow/06-capture-triage/phase-context.md)
-
 ## Problem Statement
 
 Kurucu belirsiz girdiyi kaybetmeden geçici Yakalama Gelen Kutusuna almak ve her öğeyi üç açık çıkıştan tam biriyle tüketmek ister. Bugün iskelette Gelen Kutusu, mini şablon, triage, sıralı/toplu görünüm, staging ek ve tarayıcı uzantısı yoktur; girdi ya kaybolur ya da yanlışlıkla İş/Taslak/bookmark sayılır. Tamamlanmamış İş Taslağı, Belge yazarlığı, Dosya Eki yaşamı ve tarayıcının kalıcı clip arşivi bu sorunun parçası değildir.

@@ -1,7 +1,5 @@
 # Kullanıcı Akışı
 
-Kaynak: [`docs/workflow/49-user-flow/phase-context.md`](../../workflow/49-user-flow/phase-context.md)
-
 ## Problem Statement
 
 Kurucu kuşbakışı deneyim adımlarını canlı Ekran kayıtlarına bağlanan düşük detaylı yol olarak tutmak ister. Bugün düğüm kopya Ekran üretebilir, kırık hedef sessizce başka Ekrana kayabilir, semantik öğe kümesi şekle yüklenebilir, şablon kaynak projeye canlı bağlanabilir. Teknik Sıra 59'dadır. Wireframe belgesi 48'dedir. Moodboard ve Proje Duvarı akış değildir.

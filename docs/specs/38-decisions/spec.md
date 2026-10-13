@@ -1,7 +1,5 @@
 # Kararlar
 
-Kaynak: [`docs/workflow/38-decisions/phase-context.md`](../../workflow/38-decisions/phase-context.md)
-
 ## Problem Statement
 
 Kurucu alınmış ürün, tasarım ve geliştirme seçimini gerekçesi ve ilişkileriyle kaybetmeden tutmak ister. Bugün güncel hüküm ile yerine geçmiş gerekçe aramada ve dış görünürlükte karışır; çoklu halef veya döngü zinciri okunamaz kılar; İş kapanması Kararı sessizce geri çekmiş gibi durabilir. Spec inceleme kuyruğu, Risk ve Varsayım bu zinciri örtük yazmamalıdır.

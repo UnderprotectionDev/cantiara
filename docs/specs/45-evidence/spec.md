@@ -1,7 +1,5 @@
 # Kanıt İlişkileri ve Kanıt Akışı
 
-Kaynak: [`docs/workflow/45-evidence/phase-context.md`](../../workflow/45-evidence/phase-context.md)
-
 ## Problem Statement
 
 Kurucu kesin kaynak veya Belge sürümünü bir iddiaya bağlamak ister. `İlgili` kanıt sayılırsa provenance kaybolur; pin yeni sürüme kayarsa alıntı yalan söyler; rol yorumla karışırsa “çelişiyor” bir skor olur. Akış açık bağların dışında satır uydurmamalıdır. Hedefe katkı Karar/kanıt/testi Hedefe doğrudan bağlamaz. Kaynak tazeliği (44) ve araştırma dönüşümü (43) bu bağı kullanır, burada yeniden tanımlamaz.

@@ -1,7 +1,5 @@
 # Kullanıcı Araştırması Oturumları
 
-Kaynak: [`docs/workflow/43-research-sessions/phase-context.md`](../../workflow/43-research-sessions/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir görüşme veya yönlendirilmiş araştırma temasının amacını, izin bağlamını, türlenmiş notunu ve sürüme sabit kanıtını kişisel veri sınırını bozmadan tutmak ister. İzin yokken atıf, dosya veya paylaşım açılırsa kişisel veri kaçar; ifade, gözlem ve yorum tek paragrafta karışırsa kanıt yalan söyler. Dönüşüm oturum sürümüne bağlanmazsa sonraki not düzenlemesi eski kanıtı sessizce kaydırır. Kişisel veri paketi (81) ve Geri Bildirim (47) bu oturum değildir.

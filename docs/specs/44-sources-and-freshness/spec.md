@@ -1,7 +1,5 @@
 # Kaynaklar ve Kanıt Tazeliği
 
-Kaynak: [`docs/workflow/44-sources-and-freshness/phase-context.md`](../../workflow/44-sources-and-freshness/phase-context.md)
-
 ## Problem Statement
 
 Kurucu dış bilginin kimliğini, kökenini ve tarihli sürümünü canlı sayfa gibi kaybetmeden tutmak ister. Önizleme iç ağı açarsa veya HTML ikinci doğruluk kaynağı olursa ürün güvenilmez. Yeniden kontrol kullanımları sessizce yeni sürüme taşırsa eski kanıt yalan söyler. Uzun gövde feed’i Geri Bildirim feature’ındadır. Kaynağın varlığı otomatik Kanıt bağı değildir.

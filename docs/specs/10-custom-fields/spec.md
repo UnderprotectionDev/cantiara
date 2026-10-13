@@ -1,7 +1,5 @@
 # Proje Bazlı Özel Alanlar
 
-Kaynak: [`docs/workflow/10-custom-fields/phase-context.md`](../../workflow/10-custom-fields/phase-context.md)
-
 ## Problem Statement
 
 Kurucu yalnız bir Projede yaşayan Metin, Sayı, Boolean, Tarih, tek seçim veya çoklu seçim alanlarıyla yapılandırılmış sınıflandırma kurmak ister. Bugün iskelette Proje şeması yoktur; etiket hiyerarşisi veya Lookup/Formula ikinci doğruluk kaynağına kayabilir. Yapılandırma modunun kabuğu, etiketler, Akıllı Koleksiyon koşulları ve İş Bağlam Kartı düzeni bu sorunun parçası değildir.

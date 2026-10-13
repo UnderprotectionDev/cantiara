@@ -1,7 +1,5 @@
 # Önceliklendirme
 
-Kaynak: [`docs/workflow/20-priority/phase-context.md`](../../workflow/20-priority/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Projede İşleri çok eksenli karşılaştırmak, haritada görmek ve oturum içinde sıralamak ister; tek otomatik puan veya WSJF istemez. Haritanın Backlog sırası yazması, oturum sonucunun bütün Projeye kalıcı zorunlu sıra olması veya evrensel öncelik alanı bu ihtiyacı bozar. İş kaydında skaler `öncelik` alanı yoktur.

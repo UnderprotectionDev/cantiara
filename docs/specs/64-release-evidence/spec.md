@@ -1,7 +1,5 @@
 # Sürüm Kanıt Paketi
 
-Kaynak: [`docs/workflow/64-release-evidence/phase-context.md`](../../workflow/64-release-evidence/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Proje Sürümünün kapsam, PR/check, Karar, Risk, test, Test Açığı ve yayın farkını tek değerlendirme yüzeyinde kaynaklarına açarak görmek ister. Bugün bu kanıt dağılır veya paket skor/kapı/`publish` der. Düzeltmeler pakette ikinci form olur. Test özeti (57), PR kartı (61) ve sürüm planlama (63) kendi kayıtlarını taşır; paket onların yerine geçmez. ADR-0007: bildirilen Test Oturumu tek başına sürüm kabul kanıtı değildir.
