@@ -40,8 +40,7 @@ function postgresName(value: string) {
   return name;
 }
 
-async function compareExpressions(
-  client: Pick<Pool, "query">,
+function planExpressionComparisons(
   schema: string,
   table: string,
   comparisons: ExpressionComparison[],
@@ -64,43 +63,67 @@ async function compareExpressions(
           },
         ],
   );
-  if (pending.length === 0) {
-    return matches;
-  }
-
   const identifier = (value: string) => `"${value.replaceAll('"', '""')}"`;
   const comparisonBatchSize = 32;
+  const queries: Array<{
+    sql: string;
+    apply: (output: string[] | undefined) => void;
+  }> = [];
   for (let offset = 0; offset < pending.length; offset += comparisonBatchSize) {
     const batch = pending.slice(offset, offset + comparisonBatchSize);
     const expressions = batch.flatMap(({ expected, actual }) => [
       `(${expected})`,
       `(${actual})`,
     ]);
-    // biome-ignore lint/performance/noAwaitInLoops: Compare bounded batches on the same database inspection connection.
-    const plan = await client.query<{
+    queries.push({
+      sql: `EXPLAIN (VERBOSE, COSTS OFF, FORMAT JSON) SELECT ${expressions.join(", ")} FROM ${identifier(schema)}.${identifier(table)}`,
+      apply(output) {
+        if (!output || output.length !== expressions.length) {
+          throw new Error("Database expression could not be inspected");
+        }
+        for (const [batchIndex, comparison] of batch.entries()) {
+          const expectedOutput = output[batchIndex * 2];
+          const actualOutput = output[batchIndex * 2 + 1];
+          if (expectedOutput === undefined || actualOutput === undefined) {
+            throw new Error("Database expression could not be inspected");
+          }
+          const expectedPlan = [expectedOutput];
+          const actualPlan = [actualOutput];
+          matches[comparison.index] =
+            JSON.stringify(expectedPlan) === JSON.stringify(actualPlan) ||
+            (comparison.allowTextCheckExpansion &&
+              textCheckExpansion(expectedPlan, actualPlan));
+        }
+      },
+    });
+  }
+  return { matches, queries };
+}
+
+async function inspectExpressionPlans(
+  client: Pick<Pool, "query">,
+  plans: ReturnType<typeof planExpressionComparisons>[],
+) {
+  const queries = plans.flatMap((plan) => plan.queries);
+  const statementBatchSize = 32;
+  for (let offset = 0; offset < queries.length; offset += statementBatchSize) {
+    const batch = queries.slice(offset, offset + statementBatchSize);
+    // The driver's simple-query protocol returns one result per statement.
+    // Keep the same connection, read-only transaction and per-statement timeout.
+    // biome-ignore lint/performance/noAwaitInLoops: Bound network batches on the locked inspection connection.
+    const result = await client.query<{
       "QUERY PLAN": { Plan: { Output: string[] } }[];
-    }>(
-      `EXPLAIN (VERBOSE, COSTS OFF, FORMAT JSON) SELECT ${expressions.join(", ")} FROM ${identifier(schema)}.${identifier(table)}`,
-    );
-    const output = plan.rows[0]?.["QUERY PLAN"][0]?.Plan.Output;
-    if (!output || output.length !== expressions.length) {
+    }>(batch.map((query) => query.sql).join(";\n"));
+    const results: Array<{ rows: typeof result.rows }> = Array.isArray(result)
+      ? result
+      : [result];
+    if (results.length !== batch.length) {
       throw new Error("Database expression could not be inspected");
     }
-    for (const [batchIndex, comparison] of batch.entries()) {
-      const expectedOutput = output[batchIndex * 2];
-      const actualOutput = output[batchIndex * 2 + 1];
-      if (expectedOutput === undefined || actualOutput === undefined) {
-        throw new Error("Database expression could not be inspected");
-      }
-      const expectedPlan = [expectedOutput];
-      const actualPlan = [actualOutput];
-      matches[comparison.index] =
-        JSON.stringify(expectedPlan) === JSON.stringify(actualPlan) ||
-        (comparison.allowTextCheckExpansion &&
-          textCheckExpansion(expectedPlan, actualPlan));
+    for (const [index, query] of batch.entries()) {
+      query.apply(results[index]?.rows[0]?.["QUERY PLAN"]?.[0]?.Plan?.Output);
     }
   }
-  return matches;
 }
 
 // Only accept planner-normalized single-column text equality/membership.
@@ -291,34 +314,42 @@ export async function inspectDatabaseSchema(
       AND c.contype IN ('p', 'u')
     WHERE n.nspname = 'public'
   `);
-  const tableIssues = await Promise.all(
-    Object.values(snapshot.tables).map(async (table) => {
-      const actualConstraints = constraints.rows.filter(
-        (constraint) =>
-          constraint.schema_name === (table.schema || "public") &&
-          constraint.table_name === table.name,
-      );
-      const actualIndexes = indexes.rows.filter(
-        (index) =>
-          index.schema_name === (table.schema || "public") &&
-          index.table_name === table.name,
-      );
-      const detailIssues = await compareTableExpressions(
-        client,
-        table,
-        columns.rows,
-        actualConstraints,
-        actualIndexes,
-        development,
-      );
-      return [
+  const tableInspections = Object.values(snapshot.tables).map((table) => {
+    const actualConstraints = constraints.rows.filter(
+      (constraint) =>
+        constraint.schema_name === (table.schema || "public") &&
+        constraint.table_name === table.name,
+    );
+    const actualIndexes = indexes.rows.filter(
+      (index) =>
+        index.schema_name === (table.schema || "public") &&
+        index.table_name === table.name,
+    );
+    const details = planTableExpressions(
+      table,
+      columns.rows,
+      actualConstraints,
+      actualIndexes,
+      development,
+    );
+    return {
+      details,
+      keyIssues: [
         ...compareKeys(table, actualConstraints),
         ...compareUniqueConstraints(table, actualConstraints),
-        ...detailIssues,
-      ];
-    }),
+      ],
+    };
+  });
+  await inspectExpressionPlans(
+    client,
+    tableInspections.map(({ details }) => details.plan),
   );
-  issues.push(...tableIssues.flat());
+  issues.push(
+    ...tableInspections.flatMap(({ details, keyIssues }) => [
+      ...keyIssues,
+      ...details.issues(),
+    ]),
+  );
   const enumIssues = await Promise.all(
     Object.values(snapshot.enums).map(async (enumeration) => {
       const labels = await client.query<{ label: string }>(
@@ -420,8 +451,7 @@ function compareUniqueConstraints(
   return issues;
 }
 
-async function compareTableExpressions(
-  client: Pick<Pool, "query">,
+function planTableExpressions(
   table: MigrationTable,
   columns: DatabaseColumn[],
   constraints: DatabaseConstraint[],
@@ -525,40 +555,46 @@ async function compareTableExpressions(
     });
   }
 
-  const expressionMatches = await compareExpressions(
-    client,
+  const plan = planExpressionComparisons(
     table.schema || "public",
     table.name,
     comparisons,
   );
-  const defaultIssues = defaultChecks
-    .filter(({ comparisonIndex }) => !expressionMatches[comparisonIndex])
-    .map(({ issue }) => issue);
-  const checkIssues = checkChecks
-    .filter(
-      ({ comparisonIndex }) =>
-        comparisonIndex === undefined || !expressionMatches[comparisonIndex],
-    )
-    .map(({ issue }) => issue);
-  const indexIssues = indexChecks
-    .filter(
-      ({ comparisonIndexes, metadataMatches }) =>
-        !metadataMatches ||
-        comparisonIndexes.some((index) => !expressionMatches[index]),
-    )
-    .map(({ issue }) => issue);
-  const unexpectedUniqueIndexes = indexes
-    .filter(
-      (index) =>
-        index.is_unique &&
-        !index.is_constraint_backed &&
-        !expectedNames.has(index.name),
-    )
-    .map((index) => `Unexpected unique index: ${table.name}.${index.name}`);
-  return [
-    ...defaultIssues,
-    ...checkIssues,
-    ...indexIssues,
-    ...unexpectedUniqueIndexes,
-  ];
+  return {
+    plan,
+    issues() {
+      const expressionMatches = plan.matches;
+      const defaultIssues = defaultChecks
+        .filter(({ comparisonIndex }) => !expressionMatches[comparisonIndex])
+        .map(({ issue }) => issue);
+      const checkIssues = checkChecks
+        .filter(
+          ({ comparisonIndex }) =>
+            comparisonIndex === undefined ||
+            !expressionMatches[comparisonIndex],
+        )
+        .map(({ issue }) => issue);
+      const indexIssues = indexChecks
+        .filter(
+          ({ comparisonIndexes, metadataMatches }) =>
+            !metadataMatches ||
+            comparisonIndexes.some((index) => !expressionMatches[index]),
+        )
+        .map(({ issue }) => issue);
+      const unexpectedUniqueIndexes = indexes
+        .filter(
+          (index) =>
+            index.is_unique &&
+            !index.is_constraint_backed &&
+            !expectedNames.has(index.name),
+        )
+        .map((index) => `Unexpected unique index: ${table.name}.${index.name}`);
+      return [
+        ...defaultIssues,
+        ...checkIssues,
+        ...indexIssues,
+        ...unexpectedUniqueIndexes,
+      ];
+    },
+  };
 }

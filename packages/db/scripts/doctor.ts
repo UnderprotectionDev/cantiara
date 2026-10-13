@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { Pool } from "@neondatabase/serverless";
+import { type Client, Pool, type PoolClient } from "@neondatabase/serverless";
 import { checkMigrationSources } from "./check-migrations";
 import {
   MigrationHistoryError,
@@ -89,6 +89,27 @@ export async function inspectReadiness(
   };
 }
 
+async function closeInspectionClient(
+  client: Client | PoolClient,
+  inspectionFailed: boolean,
+) {
+  if (inspectionFailed) {
+    // A client timeout does not cancel server work. Do not queue cleanup
+    // behind the batch or return its active transaction to the pool.
+    if ("release" in client) {
+      client.release(true);
+    }
+    return;
+  }
+  try {
+    await client.query("ROLLBACK");
+  } finally {
+    if ("release" in client) {
+      client.release();
+    }
+  }
+}
+
 export async function diagnoseDatabase(
   environment: Record<string, string | undefined>,
   { securityEvents = false, deep = false, development = false } = {},
@@ -121,11 +142,12 @@ export async function diagnoseDatabase(
   }
   let database: Awaited<ReturnType<typeof connectMigrationTarget>> | undefined;
   try {
-    database = await connectMigrationTarget(target);
+    database = await connectMigrationTarget(target, { queryTimeoutMs: 10_000 });
     const client =
       database.$client instanceof Pool
         ? await database.$client.connect()
         : database.$client;
+    let inspectionFailed = false;
     try {
       await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
       await client.query("SET LOCAL statement_timeout = '10s'");
@@ -146,14 +168,11 @@ export async function diagnoseDatabase(
         deep,
         development,
       );
+    } catch (error) {
+      inspectionFailed = true;
+      throw error;
     } finally {
-      try {
-        await client.query("ROLLBACK");
-      } finally {
-        if ("release" in client) {
-          client.release();
-        }
-      }
+      await closeInspectionClient(client, inspectionFailed);
     }
   } catch (error) {
     if (error instanceof MigrationHistoryError) {
@@ -177,7 +196,15 @@ export async function diagnoseDatabase(
         "Check database access and local proxy availability. Raw connection errors are intentionally not printed.",
     };
   } finally {
-    await database?.$client.end();
+    if (database?.$client instanceof Pool) {
+      await database.$client.end();
+    } else if (database) {
+      const client = database.$client;
+      await new Promise<void>((resolve, reject) => {
+        client.once("end", resolve);
+        client.end().then(resolve, reject);
+      });
+    }
   }
 }
 

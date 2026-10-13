@@ -442,6 +442,36 @@ describeDatabase(
       expect(result.stdout).toContain("development lease released");
     });
 
+    test("deep diagnosis bounds the whole statement batch and its failure cleanup", () => {
+      const result = command(
+        "--eval",
+        `
+        const { Client } = await import(Bun.resolveSync("@neondatabase/serverless", process.cwd() + "/packages/db"));
+        const { diagnoseDatabase } = await import("./packages/db/scripts/doctor");
+        const query = Client.prototype.query;
+        let started;
+        Client.prototype.query = function (statement, ...args) {
+          if (typeof statement === "string" && statement.startsWith("EXPLAIN") && started === undefined) {
+            started = performance.now();
+            // Each statement is below the server's 10s limit, but the batch is not.
+            return query.call(this, "SELECT pg_sleep(4); SELECT pg_sleep(4); SELECT pg_sleep(4)", ...args);
+          }
+          return query.call(this, statement, ...args);
+        };
+        const diagnosis = await diagnoseDatabase(process.env, { deep: true });
+        console.log(JSON.stringify({ reason: diagnosis.reason, elapsedMs: performance.now() - started }));
+      `,
+      );
+      expect(result.status, result.stderr).toBe(0);
+      const diagnosis = JSON.parse(result.stdout.trim()) as {
+        reason: string;
+        elapsedMs: number;
+      };
+      expect(diagnosis.reason).toBe("connection");
+      expect(diagnosis.elapsedMs).toBeGreaterThanOrEqual(9500);
+      expect(diagnosis.elapsedMs).toBeLessThan(11_500);
+    }, 30_000);
+
     test("a disconnected development lease fails verification instead of leaving an unhandled connection error", async () => {
       const lease = await acquireDevelopmentLease(environment);
       try {

@@ -201,3 +201,125 @@ test.each<[string | null, boolean]>([
     );
   },
 );
+
+function expressionInspectionFixture(tableCount: number, columnCount = 1) {
+  const snapshot: MigrationSnapshot = {
+    dialect: "postgresql",
+    enums: {},
+    id: "expression-snapshot",
+    prevId: "previous",
+    tables: {},
+    version: "7",
+  };
+  for (let tableIndex = 0; tableIndex < tableCount; tableIndex += 1) {
+    const name = `item_${tableIndex}`;
+    snapshot.tables[`public.${name}`] = {
+      name,
+      schema: "public",
+      columns: Object.fromEntries(
+        Array.from({ length: columnCount }, (_, columnIndex) => [
+          `value_${columnIndex}`,
+          {
+            name: `value_${columnIndex}`,
+            type: "integer",
+            primaryKey: false,
+            notNull: true,
+            default: 0,
+          },
+        ]),
+      ),
+      compositePrimaryKeys: {},
+      foreignKeys: {},
+      uniqueConstraints: {},
+      checkConstraints: {},
+      indexes: {},
+    };
+  }
+  const explainCalls: string[][] = [];
+  const client = {
+    query(query: string) {
+      if (query.includes("FROM pg_class t")) {
+        return {
+          rows: Object.values(snapshot.tables).flatMap((table) =>
+            Object.values(table.columns).map((column) => ({
+              column_name: column.name,
+              data_type: "integer",
+              default_expression: "0::integer",
+              not_null: true,
+              schema_name: "public",
+              table_name: table.name,
+            })),
+          ),
+        };
+      }
+      if (query.startsWith("EXPLAIN")) {
+        const statements = query.split(";\n");
+        explainCalls.push(statements);
+        const results = statements.map((statement) => {
+          const expressions = statement
+            .split("SELECT ")[1]
+            ?.split(" FROM ")[0]
+            ?.split(", ");
+          if (!expressions) {
+            throw new Error("Missing EXPLAIN expressions");
+          }
+          return {
+            rows: [
+              {
+                "QUERY PLAN": [
+                  {
+                    Plan: {
+                      Output: expressions.map((_, index) =>
+                        statement.includes('"item_34"') && index % 2 === 1
+                          ? "1"
+                          : "0",
+                      ),
+                    },
+                  },
+                ],
+              },
+            ],
+          };
+        });
+        return results.length === 1 ? results[0] : results;
+      }
+      return { rows: [] };
+    },
+  } as unknown as Pick<Pool, "query">;
+  return { snapshot, client, explainCalls };
+}
+
+test("deep inspection batches table plans to avoid a network round trip per table", async () => {
+  const fixture = expressionInspectionFixture(70);
+  await expect(
+    inspectDatabaseSchema(fixture.client, fixture.snapshot, true),
+  ).resolves.toEqual(["Column default differs: item_34.value_0"]);
+  expect(fixture.explainCalls.map((statements) => statements.length)).toEqual([
+    32, 32, 6,
+  ]);
+  expect(fixture.explainCalls.flat()).toHaveLength(70);
+  expect(
+    fixture.explainCalls.flat().every((sql) => !sql.includes("ANALYZE")),
+  ).toBe(true);
+});
+
+test("batched inspection keeps each table's expression plans bounded", async () => {
+  const fixture = expressionInspectionFixture(1, 70);
+  await expect(
+    inspectDatabaseSchema(fixture.client, fixture.snapshot, true),
+  ).resolves.toEqual([]);
+  expect(fixture.explainCalls).toHaveLength(1);
+  expect(fixture.explainCalls[0]).toHaveLength(3);
+});
+
+test("batched inspection fails closed when a plan result is missing", async () => {
+  const fixture = expressionInspectionFixture(2);
+  const query = fixture.client.query.bind(fixture.client);
+  fixture.client.query = ((statement: string) =>
+    statement.startsWith("EXPLAIN")
+      ? { rows: [] }
+      : query(statement)) as typeof fixture.client.query;
+  await expect(
+    inspectDatabaseSchema(fixture.client, fixture.snapshot, true),
+  ).rejects.toThrow("Database expression could not be inspected");
+});
