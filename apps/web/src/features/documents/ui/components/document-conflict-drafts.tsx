@@ -168,6 +168,38 @@ export default function DocumentConflictDrafts({
   });
 
   const available = [...(drafts.data ?? [])];
+  const compare = useMutation({
+    mutationFn: async (
+      draft: DocumentConflictDraft,
+    ): Promise<DraftComparison> => {
+      const { data: document } = await current.refetch({
+        cancelRefetch: false,
+        throwOnError: true,
+      });
+      if (!document) {
+        throw new Error("The current Document could not be loaded.");
+      }
+      return {
+        draft,
+        current: document,
+        title: document.title,
+        body: document.body,
+        type: document.type,
+      };
+    },
+    onMutate: () => {
+      setComparison(null);
+      setError(null);
+    },
+    onSuccess: setComparison,
+    onError: (failure) => {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "The current Document could not be loaded.",
+      );
+    },
+  });
   if (rejected && !available.some((draft) => draft.id === rejected.id)) {
     available.push(rejected);
   }
@@ -175,15 +207,8 @@ export default function DocumentConflictDrafts({
     const draft = available.find(
       (item) => item.id === event.currentTarget.dataset.draftId,
     );
-    if (draft && current.data) {
-      setComparison({
-        draft,
-        current: current.data,
-        title: current.data.title,
-        body: current.data.body,
-        type: current.data.type,
-      });
-      setError(null);
+    if (draft) {
+      compare.mutate(draft);
     }
   }
   function changeResultTitle(event: ChangeEvent<HTMLInputElement>) {
@@ -284,7 +309,7 @@ export default function DocumentConflictDrafts({
           </span>
           <Button
             data-draft-id={draft.id}
-            disabled={disabled || !current.data || resolve.isPending}
+            disabled={disabled || compare.isPending || resolve.isPending}
             onClick={compareDraft}
             type="button"
             variant="outline"

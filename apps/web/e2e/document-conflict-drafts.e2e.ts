@@ -278,12 +278,51 @@ test("freezes disconnected edits and recovers a stale reconnect without silently
     type: "General",
   });
   await saveBody(otherPage, "Competing current text");
+  let releaseCurrentRead: () => void = () => undefined;
+  const currentReadGate = new Promise<void>((resolve) => {
+    releaseCurrentRead = resolve;
+  });
+  let currentReadRequests = 0;
+  await page.route("**/rpc/document", async (currentRead) => {
+    currentReadRequests += 1;
+    await currentReadGate;
+    await currentRead.continue();
+  });
   await context.setOffline(false);
   const drafts = page.getByRole("region", {
     name: "Conflict Drafts",
     exact: true,
   });
   await expect(drafts).toBeVisible();
+  try {
+    await expect.poll(() => currentReadRequests).toBeGreaterThan(0);
+    await drafts.getByRole("button", { name: "Compare", exact: true }).click();
+    await expect(
+      drafts.getByRole("button", { name: "Compare", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      drafts.getByRole("region", { name: "Compare", exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    releaseCurrentRead();
+  }
+  await expect(
+    drafts.getByRole("region", { name: "Compare", exact: true }),
+  ).toContainText("Unwritten reconnect text");
+  await expect(
+    drafts.getByRole("region", { name: "Compare", exact: true }),
+  ).toContainText("Competing current text");
+  await page.route("**/rpc/document", (currentRead) => currentRead.abort());
+  await drafts.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(
+    drafts.getByRole("alert").filter({
+      hasText: "Choose Compare again to review the current version.",
+    }),
+  ).toBeVisible();
+  await expect(
+    drafts.getByRole("region", { name: "Compare", exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("**/rpc/document");
   await drafts.getByRole("button", { name: "Compare", exact: true }).click();
   await expect(
     drafts.getByRole("region", { name: "Compare", exact: true }),
