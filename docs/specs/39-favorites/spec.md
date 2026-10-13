@@ -1,7 +1,5 @@
 # Favoriler
 
-Kaynak: [`docs/workflow/39-favorites/phase-context.md`](../../workflow/39-favorites/phase-context.md)
-
 ## Problem Statement
 
 Kurucu sık açtığı Proje, Belge, İş, Karar ve Akıllı Koleksiyonlara kişisel listeden dönmek ister. Favori olmak kaydın Projesini, türünü veya durumunu değiştirirse planlama bozulur; kabuk üyeliği sahiplenirsa ikinci bir Backlog doğar. Bookmark kuyruğu, Aktif Çalışma Seti ve Günlük Odak bu liste değildir.

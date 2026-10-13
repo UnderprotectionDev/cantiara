@@ -1,7 +1,5 @@
 # Test Açığı
 
-Kaynak: [`docs/workflow/55-test-gaps/phase-context.md`](../../workflow/55-test-gaps/phase-context.md)
-
 ## Problem Statement
 
 Kurucu henüz denenmediğini veya yetersiz doğrulandığını düşündüğü alanı başlık, gerekçe ve dayanaklarla kaydetmek ister. Bugün başarısız test, eksik senaryo, spec değişikliği veya benzerlik otomatik açık üretebilir; açık Bug, Risk veya Ürün Boşluğu sanılabilir; kapanış coverage yüzdesine indirgenebilir; Tests alanı bir faz veya test ürünü olabilir. Rapor kabulü 54, inceleme 57, değerlendirme 56'dadır.

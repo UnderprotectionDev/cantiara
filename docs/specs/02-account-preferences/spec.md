@@ -1,7 +1,5 @@
 # Hesap Tercihleri
 
-Kaynak: [`docs/workflow/02-account-preferences/phase-context.md`](../../workflow/02-account-preferences/phase-context.md)
-
 ## Problem Statement
 
 Kurucu locale, saat dilimi, tarih biçimi, haftanın ilk günü ve açık/koyu görünümü bütün Projelerde ortak yönetmek ister. Bugün iskelet görünümü `next-themes` ile cihazda `localStorage` anahtarında tutar, `System` seçeneği sunar ve Hesap kaydı yoktur; locale/saat dilimi ürün varsayılanı da tarayıcı önerisi de kaydedilmez. Arayüz çevirisi, Projeye özel locale, Bitiriş efekti teması ve tasarım token sistemi bu sorunun parçası değildir.

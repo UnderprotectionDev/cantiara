@@ -1,7 +1,5 @@
 # Çalışmaya Dön
 
-Kaynak: [`docs/workflow/36-return-to-work/phase-context.md`](../../workflow/36-return-to-work/phase-context.md)
-
 ## Problem Statement
 
 Kurucu ara verdiği Proje veya İşe dönerken bağlamı kaybetmek istemez. Bugün son açık sekme, filtre, sıralama, scroll veya yan panel geri yüklenirse planlama gerçeği gibi durur; eski snapshot güncel kayıt yerine geçebilir; hatırlatma yığını çalışma özeti sayılabilir. Canvas viewport’u tuval feature’ındadır. Kişisel hatırlatma, Günlük Odak ve Aktif Çalışma Seti bu özet değildir.

@@ -1,7 +1,5 @@
 # Dış Yürütme Devirleri
 
-Kaynak: [`docs/workflow/24-external-handoffs/phase-context.md`](../../workflow/24-external-handoffs/phase-context.md)
-
 ## Problem Statement
 
 Kurucu test-dışı kodlama veya başka yürütmeyi bir AI ajanına ya da harici araca götürüp dönen sonucu İş gerçeğine bağlamak ister. Bugün gidiş bağlamı ayrı bir Handoff ana kaydına, GitHub PR metnine veya formel Test Handoff paketine kayar; dönüş ise kaynak alanları sessizce ezer ya da hiç uzlaştırılmaz. Formel test, Dış Araca Kaçış olayı ve GitHub PR bu sorunun parçası değildir.

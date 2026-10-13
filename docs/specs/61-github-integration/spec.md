@@ -1,7 +1,5 @@
 # GitHub Bağlantısı ve Geliştirme Gerçeği
 
-Kaynak: [`docs/workflow/61-github-integration/phase-context.md`](../../workflow/61-github-integration/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Projeyi seçili GitHub Repository'leriyle bağlayıp issue, pull request, commit ve check gerçeğini salt okunur uzlaştırılabilir biçimde İşlere ilişkilendirmek ister. Bugün iskelet giriş OAuth'u kimliktir; App installation, kararlı repo kimliği, durable webhook inbox ve PR bağlam kartı yoktur. Login ile App karışır; check Test Oturumu sanılır; karttan review/merge yapılır; bağlantı İşi kapatır. Otomasyonun hazır PR-merge kuralı ve sürüm kanıtı bu sorunun parçası değildir.

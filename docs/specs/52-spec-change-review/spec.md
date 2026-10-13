@@ -1,7 +1,5 @@
 # Spec Değişikliği İnceleme Kuyruğu
 
-Kaynak: [`docs/workflow/52-spec-change-review/phase-context.md`](../../workflow/52-spec-change-review/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Özelliğin Birincil spec Belgesinde yeni kesin sürüm kaydedildiğinde neyin etkilenebileceğini görmek ister. Bugün fark serbest metin karşılaştırmasına, adaylar başlık benzerliğine veya AI tahminine kayabilir; inceleme sonucu hedef İşe, plana veya sürüme örtük yazılabilir; kuyruk satırı kendiliğinden İş olabilir. Çürütülen Varsayım İnceleme Kuyruğu gelecek yönüdür (18) ve bu kuyruk değildir. Test açıkları 55'tedir.

@@ -1,7 +1,5 @@
 # Kişisel Erişim Kabuğu
 
-Kaynak: [`docs/workflow/72-personal-shell/phase-context.md`](../../workflow/72-personal-shell/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Günlük Odak, Favoriler, Birleşik Bildirim Merkezi ve zamanı gelen Yeniden bak öğelerine, açık Proje ve kayıt konumunu kaybetmeden ulaşmak ister. Bugün bu yüzeyler ya ikinci bir workspace/dashboard olur ya da üyelik, planlama ve bildirim kaydını kabuğun kendisi yazmaya kalkar. Oturumluk çalışma seti kalıcı Favori veya Odak'a dönüşür; panel konumu recent-context olarak geri yüklenir; büyük canvas viewport'u da buraya yığılır. Kabuk bunların sahibi değildir.

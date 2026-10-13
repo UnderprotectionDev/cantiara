@@ -1,7 +1,5 @@
 # Proje Kapanış Özeti
 
-Kaynak: [`docs/workflow/70-project-closure-summary/phase-context.md`](../../workflow/70-project-closure-summary/phase-context.md)
-
 ## Problem Statement
 
 Kurucu tamamlanan veya vazgeçilen bir Proje için tarafsız bir kapanış yazısı ister. Boş bir Belge ile başlamak kaynakları kaybettirir; sistemin başarı anlatısı, retrospektifi veya kapanış ana kaydı yazması ise gerçeği çarpıtır. Başlangıç iskeleti (Persona / Retrospective / Launch Plan) bu iş değildir: o yeni Proje boş başlıklarıdır. Taslağın kaydedilmeden kalıcı Belge sayılması da yanlıştır.

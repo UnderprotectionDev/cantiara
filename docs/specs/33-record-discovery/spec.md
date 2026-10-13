@@ -1,7 +1,5 @@
 # Kayıt Keşfi
 
-Kaynak: [`docs/workflow/33-record-discovery/phase-context.md`](../../workflow/33-record-discovery/phase-context.md)
-
 ## Problem Statement
 
 Kurucu yetkili ana kayıtları, Belgeleri ve Dosya Eki üstverisini deterministik tam metinle, neden bulunduğunu görerek yerinde bulmak ister. Bugün arama AI sıralar, Taslak/yakalama/dış yüzey/secret indekslenir, Komut Paleti ile tek yüzey sanılır, önizleme ikinci kayıt olur, hazır dizin kurulumsuz değildir veya tablo satırı ayrı sistem olur. Akıllı Koleksiyon üyeliği ve palet komutları bu sorunun parçası değildir.

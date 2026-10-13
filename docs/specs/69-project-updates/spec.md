@@ -1,7 +1,5 @@
 # Manuel Proje Güncellemeleri
 
-Kaynak: [`docs/workflow/69-project-updates/phase-context.md`](../../workflow/69-project-updates/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir günde Projenin nasıl gittiğine dair kendi hükmünü tarihli bırakmak ister: kısa anlatı, öznel sağlık işareti ve o anda gördüğü bağlam. Bugün bu hüküm ya hiç kaydolmaz ya da canlı bir sağlık skoruna, genel bakış özetine veya kapanış/sürüm yazısına dönüşür. Eski hüküm silinip “proje sağlıklıdır” diye konuşan tek güncel skor bu sorunun çözümü değildir. Proje genel bakışı, kapanış özeti ve üretim olayı bu kaydın yerine geçmez.

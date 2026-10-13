@@ -1,7 +1,5 @@
 # Backlog
 
-Kaynak: [`docs/workflow/26-backlog/phase-context.md`](../../workflow/26-backlog/phase-context.md)
-
 ## Problem Statement
 
 Kurucu henüz planlanmamış İşler dahil değerlendirilecek aktif, arşiv ve çöp dışı İşleri durumdan bağımsız görmek ve hangisini önce ele alacağını kalıcılaştırmak ister. Bugün Backlog klasör, etiket, sprint veya ikinci İş listesi gibi durur; üyelik veya ele alma durum yazıyor sanılır; alternatif sıralama manuel sırayı yok eder; gelecek yeniden görünme tarihi otomatik durum geçişi veya varsayılan bildirim olur. Kanban sırası, Günlük Odak, önceliklendirme oturumu rank’i ve Akıllı Koleksiyon bu sorunun parçası değildir.

@@ -1,7 +1,5 @@
 # Ekranlar ve Wireframe Yüzeyi
 
-Kaynak: [`docs/workflow/48-screens-and-wireframes/phase-context.md`](../../workflow/48-screens-and-wireframes/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir ürün ekranını akışlar, arama ve yaşam döngüsünde görsel tasarımından bağımsız tutmak ve o ekranın düşük sadakatli düzenini sürümlü yüzey olarak çizmek ister. Bugün Ekran ile Wireframe aynı kayda sıkışır veya Wireframe bağımsız yaşam kazanır; tuval çıktısı kanonik belge sanılır; öğeden kayıt dönüşümü kökeni kaybettirir; viewport paylaşım veya ilişki sanılır. Kullanıcı Akışı 49'dadır. Moodboard ve Teknik Diyagram burada yoktur. Figma senkronu ve production UI kiti ilk ürünün parçası değildir.

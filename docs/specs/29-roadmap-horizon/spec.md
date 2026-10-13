@@ -1,7 +1,5 @@
 # Yol Haritası Ufku
 
-Kaynak: [`docs/workflow/29-roadmap-horizon/phase-context.md`](../../workflow/29-roadmap-horizon/phase-context.md)
-
 ## Problem Statement
 
 Kurucu aynı İş gerçeğini Roadmap, Kilometre Taşı ve `Not now` karar izinde anlatmak ister; yayın taahhüdü veya durum üretmeden. Bugün ufuk yerleşimi durum, öncelik veya Backlog sırası yazar; Kilometre Taşı Odak Dönemi veya Proje Sürümü yerine geçer; `Not now` kapanış sonucu olur; Sunum Kipi ikinci kopya üretir; herkese açık snapshot iç Roadmap’i canlı kopya sanılır. Kanban, Backlog ve Build in Public bu sorunun parçası değildir.

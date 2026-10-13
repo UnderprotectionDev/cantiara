@@ -1,7 +1,5 @@
 # Proje Genel Bakışı
 
-Kaynak: [`docs/workflow/08-project-overview/phase-context.md`](../../workflow/08-project-overview/phase-context.md)
-
 ## Problem Statement
 
 Kurucu tek Projenin amacını, yaşamını, işini, bilgisini, belirsizliğini, testini ve olaylarını nötr bir kaynak özetiyle görmek ister. Bugün iskelette Proje açılınca dashboard benzeri bir boş kabuk vardır; sayılar ikinci bir doğruluk kaynağına veya sağlık skoruna kayabilir. Çalışma Alanı genel bakışı, Değer Zinciri ve Manuel Proje Güncellemesi bu sorunun parçası değildir.

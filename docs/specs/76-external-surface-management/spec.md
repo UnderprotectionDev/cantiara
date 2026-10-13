@@ -1,7 +1,5 @@
 # Paylaşım ve Yayınları Yönetme
 
-Kaynak: [`docs/workflow/76-external-surface-management/phase-context.md`](../../workflow/76-external-surface-management/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Çalışma Alanı ve Proje düzeyinde hangi Dış yüzeylerin ayakta, süresi dolmuş veya iptal olduğunu unutmamak ister. Oluşturma 73/74/75'te kalır; bu kart bir oluşturma sihirbazı değildir. Kaldırılan yüzey içerik, varlık veya görüntülenme analitiği sızdırmamalıdır. Dizin CDN panosu veya analitik ürünü değildir.

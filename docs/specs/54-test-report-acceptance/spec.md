@@ -1,7 +1,5 @@
 # Test Raporu Kabulü
 
-Kaynak: [`docs/workflow/54-test-report-acceptance/phase-context.md`](../../workflow/54-test-report-acceptance/phase-context.md)
-
 ## Problem Statement
 
 Kurucu manuel form, yapılandırılmış dosya veya dar MCP ile gelen dış test sonucunu aynı tarihsel modele güvenle almak ister. Bugün üç yol ayrı kayıt türü açabilir; bozuk zarf kısmen yazılabilir; ham sonuç normalize dile ezilebilir; MCP genel yazma kanalı olabilir; secret sessizce maskelenip kabul edilebilir; bildirilen `Passed` sürüm kanıtı sanılabilir. İnceleme 57'dedir. Ürün testi koşturmaz. Handoff paketi 53'tedir.

@@ -1,7 +1,5 @@
 # Seçili Kayıt Dışa Aktarma
 
-Kaynak: [`docs/workflow/79-data-export/phase-context.md`](../../workflow/79-data-export/phase-context.md)
-
 ## Problem Statement
 
 Kurucu seçili Belge ve yapılandırılmış kayıtları açık biçimlerde, neyin çıktığını şaşırtmadan dışarı almak ister. Bugün tam Çalışma Alanı çıkışı, canlı senkron, secret sızıntısı veya formül çalıştıran CSV bu işi taklit edebilir. Dışa aktarma Avrupa Birliği veri bölgesindeki canlı yerleşimi taşımaz; yedek ürünü veya tek Belge Markdown/PDF yolu (31) değildir.

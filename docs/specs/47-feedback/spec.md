@@ -1,7 +1,5 @@
 # Geri Bildirim Kaydı ve Feed
 
-Kaynak: [`docs/workflow/47-feedback/phase-context.md`](../../workflow/47-feedback/phase-context.md)
-
 ## Problem Statement
 
 Kurucu gelen özgün mesajı kanal, zaman ve kimlik bağlamıyla kaybetmeden tutmak ve uzun içeriği yoğun okumak ister. Bugün Geri Bildirim Kaynak alt türüne, özellik isteğine veya destek ticket'ına kayabilir; özet aslının yerine geçebilir; İşe dönüşüm kaydı silebilir; feed Bildirim Merkezi veya sosyal yaşam döngüsü gibi davranabilir. Contact birleştirme ve kişisel veri silme bu kartın işi değildir. Kaynak tazeliği 44'tedir.

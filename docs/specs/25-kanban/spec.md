@@ -1,7 +1,5 @@
 # Kanban
 
-Kaynak: [`docs/workflow/25-kanban/phase-context.md`](../../workflow/25-kanban/phase-context.md)
-
 ## Problem Statement
 
 Kurucu aynı İş gerçeğini durum sütunlarında taramak ve kartı taşıyınca İş akışı durumunun yazılmasını ister. Bugün planlama yüzeyleri ile durum karışır; Backlog, Günlük Odak veya Takvim üyeliği durum yazıyor gibi durur, `Closed` kapanış adımını atlatır, soft WIP hareketi keser veya tahta ikinci bir İş listesi ile bağımsız sıra üretir. Liste görünümü ayrı kayıt sistemi değildir; Backlog manuel sırası, Tablo Görünümü ve kapanış sonucu bu sorunun parçası değildir.

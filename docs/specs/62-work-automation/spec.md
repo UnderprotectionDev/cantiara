@@ -1,7 +1,5 @@
 # Hafif İş Otomasyonları
 
-Kaynak: [`docs/workflow/62-work-automation/phase-context.md`](../../workflow/62-work-automation/phase-context.md)
-
 ## Problem Statement
 
 Kurucu tekrarlayan Proje işini kapalı tetikleyici, koşul ve eylem kurallarıyla unutmamak ister. Bugün kural yok; GitHub bağlantısı sessiz kapanış gibi durur; çakışmada son yazan kazanır; otomasyon bitiriş efekti veya yayın kapısı üretir. Toplu düzenleme, kayıt eylem kataloğu, GitHub check ve bitiriş efekti (23) bu kartın işi değildir. Hazır PR-merge kuralı 61'in `Required for completion` rolünü tüketir; bağlantı tek başına İşi kapatmaz.

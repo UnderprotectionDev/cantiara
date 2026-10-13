@@ -1,7 +1,5 @@
 # Komut Paleti
 
-Kaynak: [`docs/workflow/05-command-palette/phase-context.md`](../../workflow/05-command-palette/phase-context.md)
-
 ## Problem Statement
 
 Kurucu arama, Proje değiştirme, kayıt oluşturma ve desteklenen ortak eylemlere klavyeyle her bağlamdan ulaşmak ister. Bugün iskelette palet yoktur; fareye gitmeden işine dönemaz, kapsam dışı komutun açıkça başarısız olacağı bir yüzey yoktur ve ziyaretçi sayfası kurucu paletini açabilecek bir boşluk taşır. Evrensel Arama sonuç listesi, otomasyon kuralı ve yeniden eşlenebilir kısayol profili bu sorunun parçası değildir.

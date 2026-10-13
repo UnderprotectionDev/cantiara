@@ -1,7 +1,5 @@
 # Odak Dönemi
 
-Kaynak: [`docs/workflow/30-focus-period/phase-context.md`](../../workflow/30-focus-period/phase-context.md)
-
 ## Problem Statement
 
 Kurucu seçili İşlerle çalışmak için 1–8 haftalık geçici bir pencere açmak ister. Bugün bu pencere sprint, Kilometre Taşı, Proje Sürümü veya Günlük Odak sanılır; üyelik durum yazar; bir İş iki etkin dönemde durur; kapanış güncel İşlerin yerine geçer; açık İşler kurala bağlanıp sonraki döneme sessizce yuvarlanır. Kullanım zorunlu değildir.

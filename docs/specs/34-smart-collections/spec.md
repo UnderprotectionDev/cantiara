@@ -1,7 +1,5 @@
 # Akıllı Koleksiyonlar
 
-Kaynak: [`docs/workflow/34-smart-collections/phase-context.md`](../../workflow/34-smart-collections/phase-context.md)
-
 ## Problem Statement
 
 Kurucu desteklenen koşullardan canlı üyelik, görünüm ve açıklanabilir özetler oluşturmak ister. Bugün koleksiyon statik liste, klasör, etiket veya ikinci kayıt olur; görünüm değiştirmek durum veya sıra yazar; abonelik spam basar; içgörü skor veya yayın kapısı olur. Hazır tür dizinleri, Bildirim Merkezi kabuğu ve özel alan şeması bu sorunun parçası değildir.

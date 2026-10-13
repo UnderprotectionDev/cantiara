@@ -1,7 +1,5 @@
 # Sürüm İletişimi ve Sonuç Öğrenimi
 
-Kaynak: [`docs/workflow/65-release-communication/phase-context.md`](../../workflow/65-release-communication/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Proje Sürümü notunu ve değişiklik günlüğünü kaynak kapsama bağlayarak hazırlamak, yayımdan sonra hedef kitleye erişim ile gözlenen sonucu ayrı tarihli turlarda yeniden ele almak ister. Bugün not GitHub Release metniyle tek gerçek sanılır; erişim ve sonuç tek skora ezilir; yeni tur eski turu siler. Build in Public ve manuel Proje Güncellemesi bu kartın işi değildir.

@@ -1,7 +1,5 @@
 # Birleşik Takvim
 
-Kaynak: [`docs/workflow/28-unified-calendar/phase-context.md`](../../workflow/28-unified-calendar/phase-context.md)
-
 ## Problem Statement
 
 Kurucu desteklenen tarihli kayıtları gün, hafta, ay ve Agenda’da, hangi semantiği değiştirdiğini görerek düzenlemek ister. Bugün teslim, anımsatıcı ve pencere tarihleri karışır; kaydırma diğer tarih alanlarını veya İş durumunu örtük yazar; Agenda bağımsız Event kaydı veya ikinci takvim gerçeği olur; planlanan başlangıç işi gizler veya otomatik başlatır. Kişisel hatırlatma ve dış takvim senkronu bu sorunun parçası değildir.

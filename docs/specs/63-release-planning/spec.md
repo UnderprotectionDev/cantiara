@@ -1,7 +1,5 @@
 # Proje Sürümü Planlama
 
-Kaynak: [`docs/workflow/63-release-planning/phase-context.md`](../../workflow/63-release-planning/phase-context.md)
-
 ## Problem Statement
 
 Kurucu yayımlanacak kapsamı Proje Sürümünde yönetmek ister. Bugün sürüm Kilometre Taşı, Odak Dönemi veya GitHub Release etiketiyle karışır; dış yayın Cantiara sonucunu örtük tamamlar. Sürüm kanıtı, iletişim ve paylaşım yüzeyleri bu sorunun parçası değildir.
