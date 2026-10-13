@@ -377,9 +377,15 @@ function PeriodDetail({
   const [closeAnyway, setCloseAnyway] = useState(false);
   const open = isOpenPeriod(period);
   const stillOpen = period.members.filter((item) => item.status !== "Closed");
+  const unavailableWorkIds = new Set(
+    period.closeComparison?.stillOpen
+      .filter((item) => item.sourceAvailable === false)
+      .map((item) => item.id),
+  );
   const undecided = (period.closeSnapshot ?? []).filter(
     (item) =>
       item.status !== "Closed" &&
+      !unavailableWorkIds.has(item.id) &&
       !period.leftoverDecisions.some((decision) => decision.workId === item.id),
   );
   const targets = periods.filter(
@@ -526,6 +532,11 @@ function PeriodDetail({
               .map((item) => (
                 <li key={item.id}>
                   {item.title} · {item.key}
+                  {unavailableWorkIds.has(item.id) ? (
+                    <p className="text-muted-foreground text-sm">
+                      Work is unavailable.
+                    </p>
+                  ) : null}
                 </li>
               ))}
           </ul>
@@ -698,24 +709,54 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
   if (!comparison) {
     return null;
   }
-  const totals = [
-    ["In start snapshot", comparison.inStartSnapshot.length],
-    ["Added later", comparison.addedLater.length],
-    ["Removed", comparison.removed.length],
-    ["Completed", comparison.completed.length],
-    ["Still-open Work", comparison.stillOpen.length],
+  const groups = [
+    ["In start snapshot", comparison.inStartSnapshot],
+    ["Added later", comparison.addedLater],
+    ["Removed", comparison.removed],
+    ["Completed", comparison.completed],
+    ["Still-open Work", comparison.stillOpen],
   ] as const;
   return (
     <section aria-label="Close comparison" className="space-y-3">
       <h3 className="font-semibold">Close comparison</h3>
-      <dl className="grid gap-3 sm:grid-cols-2">
-        {totals.map(([label, count]) => (
-          <div key={label}>
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="font-medium">{count}</dd>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {groups.map(([label, items]) => (
+          <div className="min-w-0 space-y-2" key={label}>
+            <dl>
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="font-medium">{items.length}</dd>
+            </dl>
+            {items.length ? (
+              <ul aria-label={label} className="space-y-1">
+                {items.map((item) => (
+                  <li className="break-words" key={item.id}>
+                    {item.sourceAvailable === false ? (
+                      <>
+                        <span>
+                          {item.title} · {item.key} · {item.status}
+                        </span>
+                        <p className="text-muted-foreground text-sm">
+                          Work is unavailable.
+                        </p>
+                      </>
+                    ) : (
+                      <Link
+                        aria-label={`Open source record: ${item.key} ${item.title}`}
+                        className="underline underline-offset-2"
+                        hash={workRecordHash(item.id)}
+                        params={{ projectId: item.projectId }}
+                        to="/projects/$projectId"
+                      >
+                        {item.title} · {item.key} · {item.status}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ))}
-      </dl>
+      </div>
     </section>
   );
 }

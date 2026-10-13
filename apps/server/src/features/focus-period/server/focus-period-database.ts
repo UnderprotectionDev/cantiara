@@ -21,6 +21,7 @@ import {
 import type { Database } from "@cantiara/db";
 import { accountPreferences, workspace } from "@cantiara/db/schema/auth";
 import {
+  type FocusPeriodCloseSnapshotWork,
   focusPeriod,
   focusPeriodActiveWork,
   focusPeriodFollowUpWork,
@@ -37,6 +38,10 @@ type FocusPeriodMutationExecutor = Pick<
   Database,
   "execute" | "insert" | "select" | "update"
 >;
+
+function isInCloseScope(item: FocusPeriodCloseSnapshotWork) {
+  return item.inCloseScope !== false;
+}
 
 export function createDatabaseFocusPeriod(
   database: Database,
@@ -465,6 +470,7 @@ export function createDatabaseFocusPeriod(
     const selected = new Set(ids);
     const works = await worksFor(workspaceId, true);
     const availableWorks = await worksFor(workspaceId);
+    const availableWorkIds = new Set(availableWorks.map((item) => item.id));
     const members = works.filter((item) => selected.has(item.id));
     const memberById = new Map(members.map((item) => [item.id, item]));
     const relationRows = ids.length
@@ -561,31 +567,39 @@ export function createDatabaseFocusPeriod(
           .from(focusPeriodMembership)
           .where(eq(focusPeriodMembership.periodId, periodId))
       : [];
+    const closeSnapshot = period.closeSnapshot?.filter(isInCloseScope) ?? null;
     const closeComparison =
       period.status === "Closed" &&
       period.startSnapshot &&
-      period.closeSnapshot &&
+      closeSnapshot &&
       period.closedAt
         ? (() => {
             const startIds = new Set(
               period.startSnapshot?.map((item) => item.id),
             );
-            const closeIds = new Set(
-              period.closeSnapshot?.map((item) => item.id),
-            );
-            const addedIds = new Set(
-              membershipHistory
+            const closeIds = new Set(closeSnapshot.map((item) => item.id));
+            const addedIds = new Set([
+              ...membershipHistory
                 .filter(
                   (item) =>
                     period.startedAt && item.joinedAt >= period.startedAt,
                 )
                 .map((item) => item.workId),
-            );
-            const removedIds = new Set(
-              membershipHistory
+              ...(period.closeSnapshot ?? [])
+                .filter(
+                  (item) => !startIds.has(item.id) && item.addedLater !== false,
+                )
+                .map((item) => item.id),
+            ]);
+            const removedIds = new Set([
+              ...membershipHistory
                 .filter((item) => item.removedAt && !closeIds.has(item.workId))
                 .map((item) => item.workId),
-            );
+              ...(period.closeSnapshot ?? [])
+                .filter((item) => !isInCloseScope(item))
+                .map((item) => item.id),
+              ...[...startIds].filter((id) => !closeIds.has(id)),
+            ]);
             const historicalWorkById = new Map(
               works.map((item) => [item.id, item]),
             );
@@ -596,20 +610,36 @@ export function createDatabaseFocusPeriod(
               projectName: item.projectName,
               status: item.status,
               title: item.title,
+              sourceAvailable: availableWorkIds.has(item.id),
             });
             const memberForId = (id: string) => {
               const closed = period.closeSnapshot?.find(
                 (item) => item.id === id,
               );
+              const started = period.startSnapshot?.find(
+                (item) => item.id === id,
+              );
               const current = historicalWorkById.get(id);
-              return closed ? toWork(closed) : current;
+              const historical =
+                closed?.inCloseScope === false
+                  ? (started ?? closed)
+                  : (closed ?? started);
+              if (historical) {
+                return toWork(historical);
+              }
+              return current
+                ? {
+                    ...current,
+                    sourceAvailable: availableWorkIds.has(current.id),
+                  }
+                : undefined;
             };
             return {
               addedLater: [...addedIds]
                 .filter((id) => !startIds.has(id))
                 .map(memberForId)
                 .filter((item): item is NonNullable<typeof item> => !!item),
-              completed: period.closeSnapshot
+              completed: closeSnapshot
                 .filter(
                   (item) =>
                     item.closureResult === "Completed" &&
@@ -621,7 +651,7 @@ export function createDatabaseFocusPeriod(
               removed: [...removedIds]
                 .map(memberForId)
                 .filter((item): item is NonNullable<typeof item> => !!item),
-              stillOpen: period.closeSnapshot
+              stillOpen: closeSnapshot
                 .filter((item) => item.status !== "Closed")
                 .map(toWork),
             };
@@ -646,7 +676,7 @@ export function createDatabaseFocusPeriod(
       leftoverDecisions: decisions as FocusPeriodRecord["leftoverDecisions"],
       available: availableWorks.filter((item) => !selected.has(item.id)),
       startSnapshot: period.startSnapshot ?? null,
-      closeSnapshot: period.closeSnapshot ?? null,
+      closeSnapshot,
       closeComparison,
       dependencies,
       evaluation:
@@ -731,16 +761,24 @@ export function createDatabaseFocusPeriod(
       throw new FocusPeriodConflictError("Work already has a close decision.");
     }
     const [current] = await database
-      .select({ status: work.status, closureResult: work.closureResult })
+      .select({
+        status: work.status,
+        closureResult: work.closureResult,
+        archivedAt: work.archivedAt,
+        trashedAt: work.trashedAt,
+      })
       .from(work)
       .innerJoin(project, eq(work.projectId, project.id))
       .where(and(eq(work.id, workId), eq(project.workspaceId, workspaceId)))
       .limit(1);
+    if (!current || current.archivedAt || current.trashedAt) {
+      throw new FocusPeriodUnavailableError("Work is unavailable.");
+    }
     const matches =
       input.destination === "Abandon"
         ? current?.status === "Closed" && current.closureResult === "Abandoned"
         : current?.status !== "Closed";
-    if (!(current && matches)) {
+    if (!matches) {
       throw new FocusPeriodConflictError(
         "Work lifecycle does not match the close decision.",
       );
@@ -757,7 +795,7 @@ export function createDatabaseFocusPeriod(
       }
       const openAtClose = new Set(
         source.closeSnapshot
-          .filter((item) => item.status !== "Closed")
+          .filter((item) => isInCloseScope(item) && item.status !== "Closed")
           .map((item) => item.id),
       );
       if (
@@ -1035,19 +1073,50 @@ export function createDatabaseFocusPeriod(
           );
         }
         const memberships = await tx
-          .select({ workId: focusPeriodMembership.workId })
+          .select({
+            workId: focusPeriodMembership.workId,
+            removedAt: focusPeriodMembership.removedAt,
+            joinedAt: focusPeriodMembership.joinedAt,
+          })
           .from(focusPeriodMembership)
-          .where(
-            and(
-              eq(focusPeriodMembership.periodId, periodId),
-              isNull(focusPeriodMembership.removedAt),
-            ),
-          );
-        const ids = memberships.map(({ workId }) => workId);
+          .where(eq(focusPeriodMembership.periodId, periodId));
+        const ids = memberships
+          .filter((item) => item.removedAt === null)
+          .map(({ workId }) => workId);
+        const startIds = new Set(period.startSnapshot?.map((item) => item.id));
+        const closeScopeIds = new Set(ids);
+        const removedIds = [
+          ...new Set(
+            memberships
+              .filter(
+                (item) =>
+                  item.removedAt !== null &&
+                  !startIds.has(item.workId) &&
+                  !closeScopeIds.has(item.workId),
+              )
+              .map(({ workId }) => workId),
+          ),
+        ];
         const snapshot = await snapshotWorks(tx, workspaceId, ids);
+        const removedSnapshot = (
+          await snapshotWorks(tx, workspaceId, removedIds)
+        ).map((item) => ({
+          ...item,
+          inCloseScope: false as const,
+          addedLater: memberships.some(
+            (membership) =>
+              membership.workId === item.id &&
+              period.startedAt !== null &&
+              membership.joinedAt >= period.startedAt,
+          ),
+        }));
         await tx
           .update(focusPeriod)
-          .set({ status: "Closed", closedAt: now(), closeSnapshot: snapshot })
+          .set({
+            status: "Closed",
+            closedAt: now(),
+            closeSnapshot: [...snapshot, ...removedSnapshot],
+          })
           .where(eq(focusPeriod.id, periodId));
         await tx
           .delete(focusPeriodActiveWork)

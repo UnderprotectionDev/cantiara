@@ -23,6 +23,11 @@ export interface FocusPeriodSnapshotWork {
   title: string;
 }
 
+export interface FocusPeriodCloseSnapshotWork extends FocusPeriodSnapshotWork {
+  addedLater?: boolean;
+  inCloseScope?: false;
+}
+
 export const focusPeriod = pgTable(
   "focus_period",
   {
@@ -37,7 +42,8 @@ export const focusPeriod = pgTable(
     startedAt: timestamp("started_at"),
     closedAt: timestamp("closed_at"),
     startSnapshot: jsonb("start_snapshot").$type<FocusPeriodSnapshotWork[]>(),
-    closeSnapshot: jsonb("close_snapshot").$type<FocusPeriodSnapshotWork[]>(),
+    closeSnapshot:
+      jsonb("close_snapshot").$type<FocusPeriodCloseSnapshotWork[]>(),
     evaluationKeep: text("evaluation_keep"),
     evaluationChange: text("evaluation_change"),
     evaluationTryNext: text("evaluation_try_next"),

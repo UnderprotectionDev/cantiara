@@ -483,6 +483,148 @@ describeDatabase("Focus Period working window", () => {
     ]);
   }, 30_000);
 
+  test("rejects leftover decisions when Work is archived or trashed after close", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-04-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Unavailable leftovers",
+      startDate: "2027-04-01",
+      endDate: "2027-04-07",
+    });
+    await periods.add(accountId, period.id, firstWorkId);
+    await periods.add(accountId, period.id, secondWorkId);
+    await periods.close(accountId, period.id);
+    await database
+      .update(work)
+      .set({ archivedAt: clock })
+      .where(eq(work.id, firstWorkId));
+    await database
+      .update(work)
+      .set({ trashedAt: clock })
+      .where(eq(work.id, secondWorkId));
+    await Promise.all(
+      [firstWorkId, secondWorkId].map((workId) =>
+        expect(
+          periods.decide(accountId, {
+            periodId: period.id,
+            workIds: [workId],
+            destination: "Backlog",
+          }),
+        ).rejects.toThrow("Work is unavailable."),
+      ),
+    );
+    expect(
+      (await periods.find(accountId, period.id))?.leftoverDecisions,
+    ).toEqual([]);
+  }, 30_000);
+
+  test("keeps closing comparison records when their live Work is deleted", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const removedWorkId = `focus-retired-${crypto.randomUUID()}`;
+    const retainedWorkId = `focus-retained-${crypto.randomUUID()}`;
+    await database.insert(work).values([
+      {
+        id: removedWorkId,
+        projectId: firstProjectId,
+        key: "ALPHA-90",
+        number: 90,
+        title: "Removed historical Work",
+        type: "Task",
+        status: "In Progress",
+      },
+      {
+        id: retainedWorkId,
+        projectId: firstProjectId,
+        key: "ALPHA-91",
+        number: 91,
+        title: "Retained historical Work",
+        type: "Task",
+        status: "Not Started",
+      },
+    ]);
+    clock = new Date("2027-06-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Retired source comparison",
+      startDate: "2027-06-01",
+      endDate: "2027-06-07",
+    });
+    await periods.add(accountId, period.id, removedWorkId);
+    await periods.add(accountId, period.id, retainedWorkId);
+    await periods.remove(accountId, period.id, removedWorkId);
+    await periods.close(accountId, period.id);
+    await database
+      .delete(work)
+      .where(inArray(work.id, [removedWorkId, retainedWorkId]));
+    const closed = await periods.find(accountId, period.id);
+    expect(closed?.closeComparison?.addedLater).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: removedWorkId,
+          title: "Removed historical Work",
+          status: "In Progress",
+          sourceAvailable: false,
+        }),
+        expect.objectContaining({
+          id: retainedWorkId,
+          title: "Retained historical Work",
+          status: "Not Started",
+          sourceAvailable: false,
+        }),
+      ]),
+    );
+    expect(closed?.closeComparison?.addedLater).toHaveLength(2);
+    expect(closed?.closeComparison?.removed).toEqual([
+      expect.objectContaining({ id: removedWorkId, sourceAvailable: false }),
+    ]);
+    expect(closed?.closeComparison?.stillOpen).toEqual([
+      expect.objectContaining({ id: retainedWorkId, sourceAvailable: false }),
+    ]);
+  }, 30_000);
+
+  test("keeps removed start-scope Work historical when live Work changes", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    clock = new Date("2027-05-01T12:00:00.000Z");
+    const periods = createDatabaseFocusPeriod(database, () => clock);
+    const period = await periods.create(accountId, {
+      purpose: "Historical comparison",
+      startDate: "2027-05-02",
+      endDate: "2027-05-08",
+    });
+    await periods.add(accountId, period.id, secondWorkId);
+    clock = new Date("2027-05-02T12:00:00.000Z");
+    const active = await periods.find(accountId, period.id);
+    const historicalWork = active?.startSnapshot?.[0];
+    expect(historicalWork?.status).toBe("In Progress");
+    await periods.remove(accountId, period.id, secondWorkId);
+    await database
+      .update(work)
+      .set({
+        status: "Closed",
+        closureResult: "Completed",
+        title: "Changed after removal",
+      })
+      .where(eq(work.id, secondWorkId));
+    await periods.close(accountId, period.id);
+
+    const closed = await periods.find(accountId, period.id);
+    expect(closed?.closeSnapshot).toEqual([]);
+    expect(closed?.closeComparison?.removed).toEqual([
+      expect.objectContaining({
+        id: secondWorkId,
+        status: "In Progress",
+        title: historicalWork?.title,
+      }),
+    ]);
+  }, 30_000);
+
   test("includes a Work added at the start instant in the close comparison after removal", async () => {
     if (!database) {
       throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
@@ -500,6 +642,24 @@ describeDatabase("Focus Period working window", () => {
     await periods.remove(accountId, period.id, followUpWorkId);
     await periods.close(accountId, period.id);
 
+    const comparisonAtClose = (await periods.find(accountId, period.id))
+      ?.closeComparison;
+    await expect(
+      periods.decide(accountId, {
+        periodId: period.id,
+        workIds: [followUpWorkId],
+        destination: "Backlog",
+      }),
+    ).rejects.toThrow("Selected Work was not open at close.");
+    await database
+      .update(work)
+      .set({
+        title: "Changed after close",
+        status: "Closed",
+        closureResult: "Completed",
+      })
+      .where(eq(work.id, followUpWorkId));
+
     const closed = await periods.find(accountId, period.id);
     expect(closed?.closeSnapshot).toEqual([]);
     expect(closed?.closeComparison).toMatchObject({
@@ -507,6 +667,10 @@ describeDatabase("Focus Period working window", () => {
       inStartSnapshot: [],
       removed: [{ id: followUpWorkId }],
     });
+    expect(closed?.closeComparison).toEqual(comparisonAtClose);
+    expect(closed?.closeComparison?.stillOpen).toEqual([]);
+    expect(closed?.leftoverDecisions).toEqual([]);
+    expect(JSON.stringify(closed)).not.toContain("inCloseScope");
   }, 30_000);
 
   test("derives read-only Dependencies only from relations inside period scope", async () => {
