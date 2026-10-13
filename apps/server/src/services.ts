@@ -7,7 +7,6 @@ import {
   createLocalSecurityEventDb,
   createSecurityEventDb,
 } from "@cantiara/db/security-events";
-
 import { desktopOrigins, env } from "./env";
 import { createDatabaseAccountAdmission } from "./features/account-access/server/account-admission";
 import { createGitHubAvailability } from "./features/account-access/server/github-availability";
@@ -45,11 +44,15 @@ import {
   createDatabaseCustomFieldMutationContracts,
 } from "./features/custom-fields/server/custom-fields-mutation-database";
 import { createDatabaseDailyFocus } from "./features/daily-focus/server/daily-focus-database";
+import { createDatabaseDocumentSurfaceCancellations } from "./features/documents/server/document-surface-cancellations";
+import { createDatabaseDocumentTagRenameWriter } from "./features/documents/server/document-tag-rename-database";
+import { createDatabaseDocumentTransfers } from "./features/documents/server/document-transfers-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "./features/documents/server/documents-database";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
+import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
 import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
@@ -70,17 +73,30 @@ import {
   createDatabasePriorityMetricPermanentDeleteEvents,
   createDatabasePriorityMetricTrashMaintenance,
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
+import { createDatabaseProjectGoals } from "./features/project-goals/server/project-goals-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
+import { createDatabaseRecordTable } from "./features/record-discovery/server/record-table-database";
+import { createDatabaseUniversalSearch } from "./features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "./features/relations/server/relations";
 import {
   createDatabaseUsageLinkMutationContracts,
   createDatabaseUsageLinks,
 } from "./features/relations/server/usage-links-database";
+import {
+  createDatabaseResearchSessions,
+  sweepExpiredResearchBindingPreviews,
+} from "./features/research-sessions/server/research-sessions-database";
+import { createDatabaseReturnToWork } from "./features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
-import { createDatabaseSmartCollections } from "./features/smart-collections/server/smart-collections-database";
+import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
+import {
+  createDatabaseSmartCollections,
+  sweepSmartCollectionSubscriptionSignals,
+} from "./features/smart-collections/server/smart-collections-database";
+import { createDatabaseSourcesAndFreshness } from "./features/sources-and-freshness/server/sources-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -95,12 +111,28 @@ import { createDatabaseWorkspaceOverview } from "./features/workspace-overview/s
 const db = createDb(env);
 export const documents = createDatabaseDocuments(db);
 export const smartCollections = createDatabaseSmartCollections(db);
+const smartCollectionSubscriptionSignalWorker =
+  createSmartCollectionSubscriptionSignalWorker({
+    connectionString: env.DATABASE_URL,
+    // The sweep intentionally reconciles every subscription; membership transitions are
+    // only discoverable by recomputing each collection's live result, not by a due time.
+    process: () => sweepSmartCollectionSubscriptionSignals(db),
+  });
+export const startSmartCollectionSubscriptionSignalWorker =
+  smartCollectionSubscriptionSignalWorker.start;
+export const stopSmartCollectionSubscriptionSignalWorker =
+  smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
+export const universalSearch = createDatabaseUniversalSearch(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
+export const favorites = createDatabaseFavorites(db);
 export const dailyFocus = createDatabaseDailyFocus(db);
 export const focusPeriod = createDatabaseFocusPeriod(db);
+export const projectGoals = createDatabaseProjectGoals(db);
+export const researchSessions = createDatabaseResearchSessions(db);
 export const projectSourceRecords = createDatabaseProjectSourceRecords(db);
+export const sourcesAndFreshness = createDatabaseSourcesAndFreshness(db);
 const securityEventDb =
   env.SECURITY_EVENT_LOCAL === "true"
     ? await createLocalSecurityEventDb({
@@ -112,6 +144,11 @@ const securityEventDb =
       });
 const priorityMetricPermanentDeleteEvents =
   createDatabasePriorityMetricPermanentDeleteEvents(securityEventDb);
+export const documentTransfers = createDatabaseDocumentTransfers(
+  db,
+  documents,
+  createDatabaseDocumentSurfaceCancellations(securityEventDb),
+);
 const priorityMetricTrashMaintenance =
   createDatabasePriorityMetricTrashMaintenance(
     db,
@@ -151,11 +188,12 @@ export const startBacklogReappearSignalWorker =
 export const stopBacklogReappearSignalWorker = backlogReappearSignalWorker.stop;
 const personalReminderStore = createDatabasePersonalReminders(db);
 export const personalReminders = personalReminderStore;
-export const sweepDueWorkReviewLater = (now = new Date()) =>
-  personalReminderStore.fireDueWorkReviewLater(now);
+export const sweepDuePersonalReminders = (now = new Date()) =>
+  personalReminderStore.fireDuePersonalReminders(now);
+export const sweepDueWorkReviewLater = sweepDuePersonalReminders;
 const personalReminderWorker = createPersonalReminderWorker({
   connectionString: env.DATABASE_URL,
-  process: async () => (await sweepDueWorkReviewLater()).processedCount,
+  process: async () => (await sweepDuePersonalReminders()).processedCount,
 });
 export const startPersonalReminderWorker = personalReminderWorker.start;
 export const stopPersonalReminderWorker = personalReminderWorker.stop;
@@ -177,13 +215,31 @@ export const relations = createDatabaseRelations(db);
 export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
   createDatabaseUsageLinkMutationContracts(db);
-export const tags = createDatabaseTags(db);
-export const tagMutationContracts = createDatabaseTagMutationContracts(db);
+const documentTagRename = {
+  inlineRename: createDatabaseDocumentTagRenameWriter(),
+};
+export const tags = createDatabaseTags(db, documentTagRename);
+export const tagMutationContracts = createDatabaseTagMutationContracts(
+  db,
+  documentTagRename,
+);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);
+const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
 export const workLifecycle = createDatabaseWorkLifecycle(db, {
-  customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+  customFieldValueWriter,
+});
+export const returnToWork = createDatabaseReturnToWork(db, {
+  projectMutations: projectShellMutationContracts,
+  workLifecycle,
+});
+export const recordTable = createDatabaseRecordTable({
+  customFieldValueWriter,
+  database: db,
+  projectShell,
+  projectSourceRecords,
+  workLifecycle,
 });
 export const workTemplates = createDatabaseWorkTemplates(db, workLifecycle);
 export const workHandoffs = createDatabaseExternalExecutionHandoffs(db);
@@ -335,7 +391,10 @@ export function replaySecurityRevocations() {
     securityReplay = Promise.all([
       accountSessionAccess.replaySessionRevocations(),
       webCapture.replayRevocations(),
-      priorityMetricTrashMaintenance.replayPermanentDeletes(),
+      // Retention maintenance replays permanent deletes before sweeping. Include
+      // it in the startup barrier so the same event history is not replayed twice.
+      priorityMetricTrashMaintenance.sweepExpired(),
+      documentTransfers.replayCancellations(),
     ])
       .then(() => undefined)
       .catch((error) => {
@@ -366,3 +425,6 @@ export const auth = createAuth(
   desktopOrigins,
   githubAvailability,
 );
+
+export const sweepExpiredResearchSessionBindingPreviews = () =>
+  sweepExpiredResearchBindingPreviews(db);

@@ -1,7 +1,5 @@
 # Hafif İş Kontrol Listeleri
 
-Kaynak: [`docs/workflow/18-work-checklists/phase-context.md`](../../workflow/18-work-checklists/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir İşe ait küçük adımları ana kayıt kalabalığı üretmeden yönetmek ve gerektiğinde bir maddeyi kökeni korunan tam İşe dönüştürmek ister. Maddenin gizlice İş olması, alt görev hiyerarşisi, epic ağacı veya test senaryosu bu ihtiyacın yerine geçmez. Bütün maddelerin tamamlanması ana İşi otomatik kapatmamalıdır.

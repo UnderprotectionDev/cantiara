@@ -7,7 +7,11 @@ import {
   type ProjectArea,
   type ProjectShellConfiguration,
 } from "@cantiara/api/project-shell";
-import type { ScopeTree, WorkStatus } from "@cantiara/api/work-lifecycle";
+import type {
+  ScopeTree,
+  WorkStatus,
+  WorkType,
+} from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button, buttonVariants } from "@cantiara/ui/components/button";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -20,8 +24,10 @@ import {
 import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
+import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
+import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
 import ProjectOverviewSurface from "@/features/project-overview/ui/components/project-overview-surface";
 import {
   isProjectShellExplanationDismissed,
@@ -53,8 +59,23 @@ import {
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
+import ResearchSessionsSurface from "@/features/research-sessions/ui/research-sessions-surface";
+import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
+import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
+import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
+import {
+  clearSmartCollectionWorkPrefillSearch,
+  type SmartCollectionWorkPrefillSearch,
+  smartCollectionWorkPrefillClearsOnLeave,
+  smartCollectionWorkPrefillFromSearch,
+  smartCollectionWorkPrefillWarning,
+} from "@/features/smart-collections/lib/smart-collection-work-prefill";
+import ProjectSourcesSurface from "@/features/sources-and-freshness/ui/components/project-sources-surface";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
+import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
+import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
+import ValidationRecordsSurface from "@/features/validation-records/ui/validation-records-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
@@ -92,6 +113,17 @@ function decodedSourceId(value: string) {
 }
 
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
+  const source = projectSourceRecordFromHash(activeHash);
+  if (activeHash === "risks" || source?.sourceType === "Risk") {
+    return (
+      <ProjectRisksSurface
+        key={projectId}
+        projectId={projectId}
+        selectedId={source?.sourceId}
+      />
+    );
+  }
+
   const collectionPrefix = "smart-collection-view-";
   if (
     activeHash === "smart-collections" ||
@@ -130,7 +162,89 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
   return null;
 }
 
-export default function ProjectShellSurface({
+export default function ProjectShellSurface(
+  props: Parameters<typeof ProjectShellContent>[0],
+) {
+  return (
+    <RoadmapSessionProvider key={props.projectId}>
+      <ProjectShellContent {...props} />
+    </RoadmapSessionProvider>
+  );
+}
+
+function projectUncertaintySurface(
+  projectId: string,
+  accountId: string | undefined,
+  activeHash: string,
+  sourceRecordRoute: ReturnType<typeof projectSourceRecordFromHash>,
+  preferences: AccountPreferences,
+) {
+  const assumptionSourceId =
+    sourceRecordRoute?.sourceType === "Assumption"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isAssumptionSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    assumptionSourceId !== undefined;
+  const questionSourceId =
+    sourceRecordRoute?.sourceType === "Open Question"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isQuestionSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    questionSourceId !== undefined;
+  const validationSourceId =
+    sourceRecordRoute?.sourceType === "Validation Record"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isValidationSurface =
+    ["discovery", "project-area-discovery"].includes(activeHash) ||
+    validationSourceId !== undefined;
+  if (!(isAssumptionSurface || isQuestionSurface || isValidationSurface)) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-8" id={navigationHash("Discovery")}>
+      {["discovery", "project-area-discovery"].includes(activeHash) ? (
+        <ProjectSourcesSurface
+          key={`sources:${projectId}`}
+          preferences={preferences}
+          projectId={projectId}
+        />
+      ) : null}
+      {["discovery", "project-area-discovery"].includes(activeHash) ? (
+        <ResearchSessionsSurface
+          accountId={accountId}
+          key={`research:${projectId}`}
+          projectId={projectId}
+        />
+      ) : null}
+      {isValidationSurface ? (
+        <ValidationRecordsSurface
+          key={`validations:${projectId}`}
+          projectId={projectId}
+          selectedId={validationSourceId}
+        />
+      ) : null}
+      {isAssumptionSurface ? (
+        <ProjectAssumptionsSurface
+          key={`assumptions:${projectId}`}
+          projectId={projectId}
+          selectedId={assumptionSourceId}
+        />
+      ) : null}
+      {isQuestionSurface ? (
+        <OpenQuestionsSurface
+          key={`questions:${projectId}`}
+          projectId={projectId}
+          selectedId={questionSourceId}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectShellContent({
   accountId,
   accountFormattingPreferences,
   project,
@@ -147,6 +261,9 @@ export default function ProjectShellSurface({
   const configurationReturnHash = useLocation({
     select: ({ search }) => search.configurationReturn,
   });
+  const collectionWorkPrefill: SmartCollectionWorkPrefillSearch = useLocation({
+    select: ({ search }) => smartCollectionWorkPrefillFromSearch(search),
+  });
   const navigate = useNavigate();
   const configurationMode = activeHash === CONFIGURATION_MODE_HASH;
   const [showExplanation, setShowExplanation] = useState(
@@ -159,6 +276,25 @@ export default function ProjectShellSurface({
   const dailyAction = dailyActionFromHash(activeHash);
   const sourceRecordRoute = projectSourceRecordFromHash(activeHash);
   const documentRoute = documentRecordFromHash(activeHash);
+  const collectionWorkConditions = {
+    ...(collectionWorkPrefill.smartCollectionWorkStatus === undefined
+      ? {}
+      : { status: collectionWorkPrefill.smartCollectionWorkStatus }),
+    ...(collectionWorkPrefill.smartCollectionWorkType === undefined
+      ? {}
+      : { type: collectionWorkPrefill.smartCollectionWorkType }),
+  };
+  const hasCollectionWorkPrefill =
+    collectionWorkPrefill.smartCollectionWorkStatus !== undefined ||
+    collectionWorkPrefill.smartCollectionWorkType !== undefined;
+  const collectionWorkTypeWarning = hasCollectionWorkPrefill
+    ? (type: WorkType) =>
+        smartCollectionWorkPrefillWarning(collectionWorkConditions, type)
+    : undefined;
+  const clearCollectionWorkPrefill = smartCollectionWorkPrefillClearsOnLeave(
+    dailyAction,
+    collectionWorkPrefill,
+  );
 
   useEffect(() => {
     setShowExplanation(!isProjectShellExplanationDismissed(projectId));
@@ -182,6 +318,18 @@ export default function ProjectShellSurface({
 
     return () => window.cancelAnimationFrame(frame);
   }, [activeHash]);
+
+  useEffect(() => {
+    if (!clearCollectionWorkPrefill) {
+      return;
+    }
+
+    navigate({
+      to: ".",
+      search: (previous) => clearSmartCollectionWorkPrefillSearch(previous),
+      replace: true,
+    });
+  }, [clearCollectionWorkPrefill, navigate]);
 
   const {
     configuration,
@@ -223,7 +371,51 @@ export default function ProjectShellSurface({
     });
   }
 
+  const decisionSourceId =
+    sourceRecordRoute?.sourceType === "Decision"
+      ? sourceRecordRoute.sourceId
+      : undefined;
+  const isDecisionSurface =
+    ["decisions", "project-area-decisions"].includes(activeHash) ||
+    decisionSourceId !== undefined;
+  const isGoalsSurface =
+    activeHash === "goals" || activeHash.startsWith("project-goal-");
+  const isAreaCatalogSurface =
+    activeHash === "all-tools" || activeHash.startsWith("project-area-");
+  const uncertaintySurface = projectUncertaintySurface(
+    projectId,
+    accountId,
+    activeHash,
+    sourceRecordRoute,
+    accountFormattingPreferences,
+  );
   const projectSurface = (() => {
+    if (isGoalsSurface) {
+      return (
+        <ProjectGoalsRoute
+          hash={activeHash}
+          key={`${projectId}:${activeHash}`}
+          projectId={projectId}
+        />
+      );
+    }
+    if (uncertaintySurface) {
+      return uncertaintySurface;
+    }
+    if (isDecisionSurface) {
+      return (
+        <ProjectDecisionsSurface
+          accountFormattingPreferences={accountFormattingPreferences}
+          key={projectId}
+          projectId={projectId}
+          selectedId={decisionSourceId}
+        />
+      );
+    }
+    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
+    if (liveSourceRoute) {
+      return liveSourceRoute;
+    }
     if (sourceRecordRoute) {
       return (
         <ProjectSourceRecordView
@@ -238,7 +430,7 @@ export default function ProjectShellSurface({
       return <ProjectTagsSurface projectId={projectId} />;
     }
 
-    if (activeHash === "all-tools" || activeHash.startsWith("project-area-")) {
+    if (isAreaCatalogSurface) {
       return (
         <ProjectAreaCatalog
           baseRevision={revision}
@@ -257,28 +449,28 @@ export default function ProjectShellSurface({
           activeAction={dailyAction}
           activeHash={activeHash}
           configuration={configuration}
+          initialWorkType={collectionWorkPrefill.smartCollectionWorkType}
           key={projectId}
           projectId={projectId}
+          workTypeWarning={collectionWorkTypeWarning}
         />
       );
     }
 
-    const liveSourceRoute = liveSourceRouteForHash(activeHash, projectId);
-    if (liveSourceRoute) {
-      return liveSourceRoute;
-    }
-
     if (
-      (activeHash === "documents" || documentRoute !== null) &&
-      configuration.enabledAreas.includes("Documents") &&
-      !configuration.hiddenAreas.includes("Documents")
+      documentRoute !== null ||
+      (activeHash === "documents" &&
+        configuration.enabledAreas.includes("Documents") &&
+        !configuration.hiddenAreas.includes("Documents"))
     ) {
       return (
         <div className="space-y-8">
           <Suspense fallback={<p>Loading Documents…</p>}>
             <ProjectDocumentsSurface
+              accountFormattingPreferences={accountFormattingPreferences}
               projectId={projectId}
               selectedDocumentId={documentRoute?.documentId}
+              selectedSectionId={documentRoute?.sectionId}
               starterSkeletons={configuration.starterSkeletons}
             />
           </Suspense>
@@ -294,6 +486,7 @@ export default function ProjectShellSurface({
           project={project}
         />
 
+        <ReturnToWork key={projectId} projectId={projectId} />
         <ScopeTreeSection query={scopeTreeQuery} />
 
         <section
@@ -330,65 +523,14 @@ export default function ProjectShellSurface({
 
   return (
     <>
-      <header className="surface-header">
-        <Link
-          className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3 min-h-11`}
-          to="/projects"
-        >
-          <ArrowLeft aria-hidden="true" />
-          Projects
-        </Link>
-        <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-10">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-balance font-semibold text-3xl tracking-tight">
-                {name}
-              </h1>
-              <Badge variant="secondary">{status}</Badge>
-            </div>
-            <p className="mt-2 max-w-xl text-muted-foreground text-sm/relaxed">
-              A durable home for this Project’s work and context.
-            </p>
-          </div>
-          <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
-            <div>
-              <dt className="text-muted-foreground text-xs">Short code</dt>
-              <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground text-xs">
-                Starter Configuration
-              </dt>
-              <dd className="mt-1 font-medium text-sm">
-                {starterConfiguration}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
-          <div>
-            <p className="text-muted-foreground text-xs/relaxed">
-              Separate Project structure from daily Work editing.
-            </p>
-          </div>
-          <Button
-            aria-pressed={configurationMode}
-            className="min-h-11"
-            onClick={toggleConfigurationMode}
-            type="button"
-            variant={configurationMode ? "default" : "outline"}
-          >
-            {configurationMode ? (
-              <X aria-hidden="true" />
-            ) : (
-              <Settings2 aria-hidden="true" />
-            )}
-            {configurationMode
-              ? "Exit Configuration Mode"
-              : "Configuration Mode"}
-          </Button>
-        </div>
-      </header>
+      <ProjectShellHeader
+        configurationMode={configurationMode}
+        name={name}
+        shortCode={shortCode}
+        starterConfiguration={starterConfiguration}
+        status={status}
+        toggleConfigurationMode={toggleConfigurationMode}
+      />
 
       {!configurationMode && showExplanation ? (
         <aside
@@ -454,14 +596,18 @@ function ProjectWorkSurface({
   activeAction,
   accountFormattingPreferences,
   configuration,
+  initialWorkType,
   projectId,
+  workTypeWarning,
 }: {
   accountId?: string;
   activeHash: string;
   activeAction: DailyAction | null;
   accountFormattingPreferences: AccountPreferences;
   configuration: ProjectShellConfiguration;
+  initialWorkType?: WorkType;
   projectId: string;
+  workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const navigate = useNavigate();
   const [selectedWorkView, setSelectedWorkView] = useState<"Board" | "List">(
@@ -528,7 +674,9 @@ function ProjectWorkSurface({
         <DailyWorkActions
           accountFormattingPreferences={accountFormattingPreferences}
           activeAction={activeAction}
+          initialWorkType={initialWorkType}
           projectId={projectId}
+          workTypeWarning={workTypeWarning}
         />
         {showSourceWork ||
         !configuration.preparedWorkViews.includes("Board") ? (
@@ -698,11 +846,15 @@ function ScopeTreeSection({
 function DailyWorkActions({
   accountFormattingPreferences,
   activeAction,
+  initialWorkType,
   projectId,
+  workTypeWarning,
 }: {
   accountFormattingPreferences: AccountPreferences;
   activeAction: DailyAction | null;
+  initialWorkType?: WorkType;
   projectId: string;
+  workTypeWarning?: (type: WorkType) => string | null;
 }) {
   return (
     <section aria-labelledby="daily-actions-heading" className="mb-6">
@@ -722,7 +874,9 @@ function DailyWorkActions({
         <DailyActionHost
           accountFormattingPreferences={accountFormattingPreferences}
           action={activeAction}
+          initialWorkType={initialWorkType}
           projectId={projectId}
+          workTypeWarning={workTypeWarning}
         />
       ) : null}
     </section>
@@ -772,11 +926,15 @@ function dailyActionVariant(
 function DailyActionHost({
   accountFormattingPreferences,
   action,
+  initialWorkType,
   projectId,
+  workTypeWarning,
 }: {
   accountFormattingPreferences: AccountPreferences;
   action: DailyAction;
+  initialWorkType?: WorkType;
   projectId: string;
+  workTypeWarning?: (type: WorkType) => string | null;
 }) {
   const hostId = DAILY_ACTION_HASHES[action];
 
@@ -792,7 +950,9 @@ function DailyActionHost({
       {action === "Create" ? (
         <WorkDraftForm
           accountFormattingPreferences={accountFormattingPreferences}
+          initialType={initialWorkType}
           projectId={projectId}
+          typeWarning={workTypeWarning}
         />
       ) : (
         <p className="mt-1">{DAILY_ACTION_MESSAGES[action]}</p>
@@ -967,5 +1127,83 @@ function EnabledAreasList({ areas }: { areas: readonly ProjectArea[] }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+function ProjectShellHeader({
+  name,
+  status,
+  shortCode,
+  starterConfiguration,
+  configurationMode,
+  toggleConfigurationMode,
+}: {
+  name: string;
+  status: "Active" | "Pending" | "Completed" | "Abandoned";
+  shortCode: string;
+  starterConfiguration:
+    | "Blank Project"
+    | "Solo SaaS"
+    | "Open Source Library"
+    | "Mobile Application";
+  configurationMode: boolean;
+  toggleConfigurationMode: () => void;
+}) {
+  return (
+    <header className="surface-header">
+      <Link
+        className={`${buttonVariants({ variant: "ghost", size: "sm" })} mb-6 -ml-3 min-h-11`}
+        to="/projects"
+      >
+        <ArrowLeft aria-hidden="true" />
+        Projects
+      </Link>
+      <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:items-end sm:gap-10">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-balance font-semibold text-3xl tracking-tight">
+              {name}
+            </h1>
+            <Badge variant="secondary">{status}</Badge>
+          </div>
+          <p className="mt-2 max-w-xl text-muted-foreground text-sm/relaxed">
+            A durable home for this Project’s work and context.
+          </p>
+        </div>
+        <dl className="grid grid-cols-2 gap-5 border-t pt-4 sm:grid-cols-1 sm:gap-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6">
+          <div>
+            <dt className="text-muted-foreground text-xs">Short code</dt>
+            <dd className="mt-1 font-medium text-sm">{shortCode}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs">
+              Starter Configuration
+            </dt>
+            <dd className="mt-1 font-medium text-sm">{starterConfiguration}</dd>
+          </div>
+        </dl>
+      </div>
+      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-border/70 border-t pt-5">
+        <div>
+          <p className="text-muted-foreground text-xs/relaxed">
+            Separate Project structure from daily Work editing.
+          </p>
+        </div>
+        <Button
+          aria-pressed={configurationMode}
+          className="min-h-11"
+          onClick={toggleConfigurationMode}
+          type="button"
+          variant={configurationMode ? "default" : "outline"}
+        >
+          {configurationMode ? (
+            <X aria-hidden="true" />
+          ) : (
+            <Settings2 aria-hidden="true" />
+          )}
+          {configurationMode ? "Exit Configuration Mode" : "Configuration Mode"}
+        </Button>
+      </div>
+    </header>
   );
 }

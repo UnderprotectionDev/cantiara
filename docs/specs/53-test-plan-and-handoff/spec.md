@@ -1,7 +1,5 @@
 # Planlı Test ve Handoff
 
-Kaynak: [`docs/workflow/53-test-plan-and-handoff/phase-context.md`](../../workflow/53-test-plan-and-handoff/phase-context.md)
-
 ## Problem Statement
 
 Kurucu yeniden kullanılabilir test niyetini sürümlü tutmak ve dış yürütücüye donmuş bir paket vermek ister. Bugün senaryo Test Oturumu veya Handoff paketi sanılabilir; senaryo düzenlemek geçmiş oturumu yeniden yazabilir; Handoff CI orkestratörü veya test runner olabilir; paket İşteki dış yürütme devriyle karışabilir. Ürün testi başlatmaz. Rapor kabulü 54, inceleme 57, açık 55, değerlendirme 56'dadır. Dış yürütme devri 24'tedir.

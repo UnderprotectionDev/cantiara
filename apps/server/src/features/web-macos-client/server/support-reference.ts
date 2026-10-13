@@ -2,6 +2,7 @@ import {
   DESKTOP_API_UPDATE_REQUIRED_CODE,
   DESKTOP_API_UPDATE_REQUIRED_HEADER,
 } from "@cantiara/api/desktop-api-window";
+import { documentConflictDraftSchema } from "@cantiara/api/documents";
 import { MUTATION_UI_LABELS } from "@cantiara/api/mutation-and-undo";
 import {
   createSupportReference,
@@ -18,7 +19,7 @@ import {
 } from "@cantiara/api/support-reference";
 
 const SCHEMA_DRIFT_PATTERN =
-  /\b(?:42p01|42703)\b|(?:relation|column)\b[\s\S]{0,160}\bdoes not exist\b|\bcurrent[_ ]schema\b/i;
+  /\b(?:42p01|42703)\b|(?:relation|column)\b[\s\S]{0,160}\bdoes not exist\b/i;
 const UNMATCHED_RPC_PATTERN = /\b(?:404\s+not\s+found|not found)\b/i;
 const UPDATE_REQUIRED_PATTERN = /\b(?:update_required|update required)\b/i;
 const OFFLINE_PATTERN =
@@ -127,12 +128,11 @@ function safeSignals(
   const signals: string[] = [];
   if (value instanceof Error) {
     signals.push(value.name, value.message);
-  } else {
-    for (const key of ["code", "message", "status"]) {
-      const field = value[key];
-      if (typeof field === "string" || typeof field === "number") {
-        signals.push(String(field));
-      }
+  }
+  for (const key of ["code", "message", "status"]) {
+    const field = value[key];
+    if (typeof field === "string" || typeof field === "number") {
+      signals.push(String(field));
     }
   }
 
@@ -205,17 +205,23 @@ function preservedMutationResponseFrom(
     return;
   }
 
+  const parsedDraft = documentConflictDraftSchema.safeParse(data.conflictDraft);
+  const conflictDraft =
+    parsedDraft.success && parsedDraft.data.documentId === data.targetId
+      ? parsedDraft.data
+      : null;
   return {
     code: "PRECONDITION_FAILED",
     data: {
       code: "STALE_BASE_REVISION",
       currentRevision: data.currentRevision,
       currentValue: data.currentValue,
+      ...(conflictDraft ? { conflictDraft } : {}),
       label: MUTATION_UI_LABELS.currentValue,
       targetId: data.targetId,
     },
     defined: true,
-    message: MUTATION_UI_LABELS.currentValue,
+    message: conflictDraft ? "Conflict Draft" : MUTATION_UI_LABELS.currentValue,
   };
 }
 

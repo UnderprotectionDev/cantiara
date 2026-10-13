@@ -1,7 +1,5 @@
 # Proje Kabuğu
 
-Kaynak: [`docs/workflow/07-project-shell/phase-context.md`](../../workflow/07-project-shell/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Projeyi ad ve Başlangıç yapılandırmasıyla açıp kısa kod, alanlar, hazır görünümler ve boş iskelet kataloğunu aynı yapı kararından doğurmak ister. Bugün iskelette Proje kaydı, kısa kod sözleşmesi, dört yapılandırma tablosu, Yapılandırma modu ve yapıyı kopyalama yoktur. Proje genel bakışı, özel alan şeması, İş yaşam döngüsü ve yaşayan Belge/Duvar örnekleri bu sorunun parçası değildir.

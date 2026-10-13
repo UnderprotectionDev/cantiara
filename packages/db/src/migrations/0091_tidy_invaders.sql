@@ -1,0 +1,3 @@
+ALTER TABLE "smart_collection" DROP CONSTRAINT "smart_collection_source_type_check";--> statement-breakpoint
+ALTER TABLE "smart_collection" ADD COLUMN "scope" jsonb DEFAULT '{"projectIds":[]}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "smart_collection" ADD CONSTRAINT "smart_collection_source_type_check" CHECK ("smart_collection"."source_type" in ('Work', 'Document', 'Wiki Document', 'Decision', 'Risk', 'Assumption', 'Open Question', 'Milestone', 'Project Release', 'Production Incident'));

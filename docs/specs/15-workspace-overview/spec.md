@@ -1,7 +1,5 @@
 # Çalışma Alanı Genel Bakışı
 
-Kaynak: [`docs/workflow/15-workspace-overview/phase-context.md`](../../workflow/15-workspace-overview/phase-context.md)
-
 ## Problem Statement
 
 Kurucu tek Çalışma Alanındaki Projeleri ve kişisel dikkati dağılmış listeler yerine kaynak kayıtlardan türetilen bir ufukta görmek ve adlandırılmış çapraz Proje listelerini kaydetmek ister. Bugün Workspace dağılabilir: sayılar ikinci bir dashboard gerçeği, çapraz liste Portfolio veya statik üyelik, Kişisel Wiki bir Proje özeti gibi durabilir. Proje Genel Bakışı, kişisel kabuk ve Akıllı Koleksiyon bu ufkun yerine geçmez.

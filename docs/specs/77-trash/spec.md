@@ -1,7 +1,5 @@
 # Çöp Kutusu
 
-Kaynak: [`docs/workflow/77-trash/phase-context.md`](../../workflow/77-trash/phase-context.md)
-
 ## Problem Statement
 
 Kurucu desteklenen kaydı veya yapılandırma tanımını geri alınabilir biçimde kaldırmak, süre içinde aynı kimlikle geri yüklemek veya yüksek risk teyidiyle erken kalıcı silmek ister. Bugün Arşiv, gizleme filtresi, Proje kapanışı ve operasyonel yedek bu işi üstlenmiş gibi durabilir; Çöp Kutusu kimliği koruyan 30 günlük yaşam sınırı değildir. Dış yüzeyler sessizce yaşayabilir, Proje silme grubu çocuklara ayrı süre verebilir, erken kalıcı silme ayrı bir GitHub teyit kartı açabilir. Güvenlik redaksiyonu, Proje arşivi ve Hesap kapatma bu sorunun parçası değildir.

@@ -1,22 +1,8 @@
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  RouterContextProvider,
-} from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 
 import ScopeTreeView from "./scope-tree";
-
-const scopeTreeRootRoute = createRootRoute({});
-const scopeTreeRoute = createRoute({
-  component: () => null,
-  getParentRoute: () => scopeTreeRootRoute,
-  path: "/projects/$projectId",
-});
-const scopeTreeRouteTree = scopeTreeRootRoute.addChildren([scopeTreeRoute]);
 
 const scopeTree = {
   features: [
@@ -64,17 +50,11 @@ const scopeTree = {
 };
 
 describe("Scope Tree", () => {
-  test("renders a keyboard-walkable, read-only Project to Feature to Work tree", () => {
-    const router = createRouter({
-      history: createMemoryHistory({
-        initialEntries: ["/projects/project-1"],
-      }),
-      routeTree: scopeTreeRouteTree,
-    });
+  test("renders a keyboard-walkable tree with source preview actions", () => {
     const html = renderToStaticMarkup(
-      <RouterContextProvider router={router}>
+      <ContextRecordPreviewProvider>
         <ScopeTreeView scopeTree={scopeTree} />
-      </RouterContextProvider>,
+      </ContextRecordPreviewProvider>,
     );
 
     expect(html).toContain("Scope Tree");
@@ -89,8 +69,17 @@ describe("Scope Tree", () => {
     expect(html).toContain("Wait for provider access");
     expect(html).toContain("In Milestone");
     expect(html).toContain("Private beta");
-    expect(html).toContain('href="/projects/project-1#work-work-feature"');
-    expect(html).toContain('href="/projects/project-1#work-work-child"');
+    expect(html).toContain(
+      'aria-label="Open source record: PAY-1 · Checkout Feature"',
+    );
+    expect(html).toContain(
+      'aria-label="Open source record: PAY-2 · Verify provider callback"',
+    );
+    expect(html).toContain(
+      'aria-label="Open source record: PAY-3 · Wait for provider access"',
+    );
+    expect(html).not.toContain('href="/projects/project-1#work-work-feature"');
+    expect(html).not.toContain('href="/projects/project-1#work-work-child"');
     expect(html).toContain('draggable="false"');
     expect(html).toContain('data-scope-tree-read-only="true"');
     expect(html).toContain("open");

@@ -276,3 +276,10 @@ Bu belge Proje çalışma alanının, proje profilinin, kullanıcı yapılandır
 - **Kurucu Komut Paleti Dış yüzey şablonlarına ve Paylaşım erişim oturumuna yüklenmez.** Ziyaretçi belgesinde Çalışma Alanı komut listesi yoktur. Palet IDE pazarı, script çalıştırıcı veya otomasyon kuralı sunmaz.
 
 - **Yalnız klavye ile palet açılır, komutlar süzülür, bir komut çalıştırılır ve palet kapatılır.**
+
+| Return to Work control | English UI label |
+| --- | --- |
+| Visual tour start | `Tour the visual changes` |
+| Advance one existing event | `Next change` |
+| Close and restore viewport | `Close tour` |
+| Focus the first remaining existing row | `Open remaining changes in list` |

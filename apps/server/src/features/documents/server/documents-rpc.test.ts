@@ -1,4 +1,9 @@
 import type { Context } from "@cantiara/api/context";
+import {
+  type DocumentSnapshot,
+  DocumentTransferError,
+  type DocumentTransfersAccess,
+} from "@cantiara/api/document-transfer";
 import type {
   Document,
   DocumentMutationContracts,
@@ -17,7 +22,7 @@ import { appRouter } from "@cantiara/api/routers/index";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test, vi } from "vitest";
 
-const initialDocument: Document = {
+const initialDocument = {
   body: "# Architecture",
   createdAt: "2026-09-29T12:00:00.000Z",
   id: "document-1",
@@ -26,7 +31,7 @@ const initialDocument: Document = {
   title: "Architecture",
   type: "Spec",
   updatedAt: "2026-09-29T12:00:00.000Z",
-};
+} satisfies Document;
 
 const initialDocumentVersionSummary: DocumentVersionSummary = {
   createdAt: initialDocument.createdAt,
@@ -40,6 +45,7 @@ const initialDocumentVersionSummary: DocumentVersionSummary = {
 function createContext(
   documents: DocumentsAccess,
   documentMutationContracts: DocumentMutationContracts,
+  documentTransfers?: DocumentTransfersAccess,
 ): Context {
   return {
     accountAccess: {
@@ -54,6 +60,7 @@ function createContext(
     db: {} as Context["db"],
     documentMutationContracts,
     documents,
+    documentTransfers,
     githubAvailability: { getStatus: () => "available" },
     session: {
       session: { id: "session-1" },
@@ -133,6 +140,52 @@ function createFailingMutationContract(error: unknown) {
 }
 
 describe("Personal Wiki ownership boundary", () => {
+  test("requires a founder session for transfer previews and confirmations", async () => {
+    const context = createContext(createDocumentsAccess(), {
+      create: () => createMutationContract(null).contract,
+      update: () => createMutationContract(initialDocument).contract,
+    });
+    context.session = null;
+    const client = createRouterClient(appRouter, { context });
+    const input = {
+      action: "move" as const,
+      documentId: initialDocument.id,
+      documentRevision: 1,
+      targetProjectId: null,
+      children: [],
+    };
+    await expect(client.previewDocumentTransfer(input)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.transferDocument({
+        ...input,
+        baseRevision: 1,
+        previewFingerprint: "0".repeat(64),
+        clientIdempotencyKey: "wiki-transfer",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    const savedVersionInput = {
+      action: "Move" as const,
+      documentId: initialDocument.id,
+      sourceRevision: 1,
+      targetProjectId: null,
+      childDocumentIds: [],
+    };
+    await expect(
+      client.previewDocumentTransfer(savedVersionInput),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await expect(
+      client.transferDocument({
+        ...savedVersionInput,
+        baseRevision: 1,
+        previewFingerprint: "0".repeat(64),
+        clientIdempotencyKey: "saved-version-transfer",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
   test("Wiki evidence cannot use an unavailable target as Wiki ownership", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockImplementation(
@@ -187,7 +240,29 @@ describe("Personal Wiki ownership boundary", () => {
     expect(created).not.toHaveProperty("visitorUrl");
     expect(created).not.toHaveProperty("publicSlug");
     await client.documents({ projectId: null });
-    expect(documents.list).toHaveBeenCalledWith("account-1", null);
+    expect(documents.list).toHaveBeenCalledWith("account-1", null, undefined);
+  });
+  test("discovery uses the authenticated Account and rejects unauthenticated requests before reading results", async () => {
+    const documents = createDocumentsAccess();
+    const discover = vi.fn().mockResolvedValue([]);
+    documents.discovery = { discover };
+    const mutation = createMutationContract(null);
+    const context = createContext(documents, {
+      create: () => mutation.contract,
+      update: () => mutation.contract,
+    });
+    const client = createRouterClient(appRouter, { context });
+    await client.discoverDocuments({ query: "PostgreSQL" });
+    expect(discover).toHaveBeenCalledWith("account-1", {
+      query: "PostgreSQL",
+      scope: { kind: "all" },
+      archived: false,
+    });
+    context.session = null;
+    await expect(
+      client.discoverDocuments({ query: "PostgreSQL" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(discover).toHaveBeenCalledTimes(1);
   });
   test("rejects a second Wiki Document type", async () => {
     const mutation = createMutationContract(null);
@@ -291,6 +366,72 @@ describe("Documents RPC", () => {
     },
   );
 
+  test("archives a Document without changing identity, content, scope, or child links", async () => {
+    const record = {
+      ...initialDocument,
+      parentDocumentId: "parent-1",
+      folder: "Planning",
+    };
+    const mutation = createMutationContract(record);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => createMutationContract(null).contract,
+        update: () => mutation.contract,
+        organize: () => mutation.contract,
+      }),
+    });
+    const archived = await client.organizeDocument({
+      action: "archive",
+      archived: true,
+      documentId: record.id,
+      baseRevision: 1,
+      clientIdempotencyKey: "archive-document-1",
+    });
+    expect(archived).toMatchObject({
+      id: record.id,
+      projectId: record.projectId,
+      body: record.body,
+      parentDocumentId: "parent-1",
+      folder: "Planning",
+      archivedAt: "2026-09-29T12:01:00.000Z",
+    });
+  });
+  test("passes the Archive filter to the Documents seam", async () => {
+    const documents = createDocumentsAccess();
+    const client = createRouterClient(appRouter, {
+      context: createContext(documents, {
+        create: () => createMutationContract(null).contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    await client.documents({ projectId: "project-1", archived: true });
+    expect(documents.list).toHaveBeenCalledWith("account-1", "project-1", true);
+  });
+
+  test("creates an independent Personal Review in Personal Wiki only when requested", async () => {
+    const mutation = createMutationContract(null);
+    const client = createRouterClient(appRouter, {
+      context: createContext(createDocumentsAccess(), {
+        create: () => mutation.contract,
+        update: () => createMutationContract(initialDocument).contract,
+      }),
+    });
+    const created = await client.createDocumentFromTemplate({
+      baseRevision: 0,
+      clientIdempotencyKey: "review-create",
+      projectId: null,
+      templateId: "personal-review",
+      title: "September review",
+      values: {},
+    });
+    expect(created.id).not.toBe("personal-review");
+    expect(created.projectId).toBeNull();
+    expect(created.body).toBe(
+      "## Period\n\n## What changed?\n\n## What worked?\n\n## What was difficult?\n\n## Decisions and learnings\n\n## What will I change next?\n\n## Related records\n",
+    );
+    expect(created.type).toBe("General");
+    expect(mutation.commands).toHaveLength(1);
+  });
   test("resolves a live Work block from its current source and hides an unavailable target", async () => {
     const documents = createDocumentsAccess();
     vi.mocked(documents.get).mockResolvedValue({
@@ -545,5 +686,127 @@ describe("Documents RPC", () => {
       code: "CONFLICT",
       data: { code: "CONFLICT", targetId: "create-document-used" },
     });
+  });
+});
+
+describe("Documents export error mapping", () => {
+  const exportSnapshot: DocumentSnapshot = {
+    capturedAt: "2026-10-02T12:00:00.000Z",
+    documentId: initialDocument.id,
+    markdown: "# Architecture",
+    revision: initialDocument.revision,
+    title: initialDocument.title,
+  };
+
+  function createTransfers(
+    overrides: Partial<DocumentTransfersAccess>,
+  ): DocumentTransfersAccess {
+    return {
+      mutation: () => {
+        throw new Error("Not part of this test.");
+      },
+      pdf: async () => "cGRmLW1vY2s=",
+      preview: () => Promise.reject(new Error("Not part of this test.")),
+      replayCancellations: async () => undefined,
+      snapshot: async () => exportSnapshot,
+      ...overrides,
+    };
+  }
+
+  test("export size limits reach the client as BAD_REQUEST for both formats", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createDocumentsAccess(),
+        {
+          create: () => createMutationContract(null).contract,
+          update: () => createMutationContract(initialDocument).contract,
+        },
+        createTransfers({
+          snapshot: () =>
+            Promise.reject(
+              new DocumentTransferError(
+                "Document snapshot exceeds the export size limit.",
+              ),
+            ),
+        }),
+      ),
+    });
+    await expect(
+      client.exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "Markdown",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Document snapshot exceeds the export size limit.",
+    });
+    await expect(
+      client.exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "PDF",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Document snapshot exceeds the export size limit.",
+    });
+  });
+
+  test("a busy PDF renderer reaches the client as BAD_REQUEST", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createDocumentsAccess(),
+        {
+          create: () => createMutationContract(null).contract,
+          update: () => createMutationContract(initialDocument).contract,
+        },
+        createTransfers({
+          pdf: () =>
+            Promise.reject(
+              new DocumentTransferError(
+                "PDF export is busy. Try again shortly.",
+              ),
+            ),
+        }),
+      ),
+    });
+    await expect(
+      client.exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "PDF",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "PDF export is busy. Try again shortly.",
+    });
+  });
+
+  test("renderer faults stay unclassified raw errors", async () => {
+    const client = createRouterClient(appRouter, {
+      context: createContext(
+        createDocumentsAccess(),
+        {
+          create: () => createMutationContract(null).contract,
+          update: () => createMutationContract(initialDocument).contract,
+        },
+        createTransfers({
+          pdf: () => Promise.reject(new Error("Chromium failed to launch.")),
+        }),
+      ),
+    });
+    const failure = await client
+      .exportDocument({
+        documentId: initialDocument.id,
+        revision: 1,
+        format: "PDF",
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe("Chromium failed to launch.");
   });
 });

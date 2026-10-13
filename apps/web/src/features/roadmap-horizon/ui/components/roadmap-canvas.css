@@ -1,0 +1,7 @@
+.roadmap-canvas .react-flow__attribution {
+  background: var(--background);
+}
+
+.roadmap-canvas .react-flow__attribution a {
+  color: var(--foreground);
+}

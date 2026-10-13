@@ -35,17 +35,7 @@ export const focusPeriodMembershipInputSchema = focusPeriodIdInputSchema
   .strict();
 export const focusPeriodDecisionInputSchema = focusPeriodIdInputSchema
   .extend({
-    workIds: z
-      .array(id)
-      .min(1)
-      .superRefine((workIds, context) => {
-        if (new Set(workIds).size !== workIds.length) {
-          context.addIssue({
-            code: "custom",
-            message: "A Work can appear only once in a close decision.",
-          });
-        }
-      }),
+    workIds: z.array(id).length(1),
     destination: z.enum([
       "Next period",
       "Another period",

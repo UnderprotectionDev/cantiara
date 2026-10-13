@@ -694,6 +694,7 @@ export const fileAttachmentSchema = z
     lifecycleStatus: z.enum(FILE_ATTACHMENT_LIFECYCLE_STATUSES),
     name: fileNameSchema,
     revision: revisionSchema,
+    ownerDocumentId: identifierSchema.nullable().optional(),
     scope: fileAttachmentScopeSchema,
     updatedAt: z.string().datetime({ offset: true }),
   })

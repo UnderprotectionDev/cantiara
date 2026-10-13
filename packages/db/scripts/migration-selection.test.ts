@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  assertMigrationArgs,
   migrationRepairTagFromArgs,
   selectMigrations,
 } from "./migration-selection";
@@ -32,6 +33,14 @@ const migrations = [
 ];
 
 describe("selectMigrations", () => {
+  test("rejects a misspelled repair mode before running normal migrations", () => {
+    expect(() => assertMigrationArgs(["--repair-private-typo"])).toThrow(
+      "Invalid migration arguments",
+    );
+    expect(() =>
+      assertMigrationArgs(["--", "--security-events", "--deployment"]),
+    ).not.toThrow();
+  });
   test("keeps the full migration list for the normal migration path", () => {
     expect(
       selectMigrations(migrations, {

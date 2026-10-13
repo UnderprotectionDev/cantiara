@@ -1,7 +1,5 @@
 # Proje Arşivi ve Güvenli Silme
 
-Kaynak: [`docs/workflow/83-project-retirement/phase-context.md`](../../workflow/83-project-retirement/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Projeyi önce salt okunur arşive, sonra tek geri yüklenebilir silme grubuna almak ister. Bugün Çöp Kutusu, gizleme filtresi, Hesap kapatma veya kabuğu silip çocukları bağımsız bırakmak bu işi taklit edebilir. Geri yükleme örtük yeniden yayınlamamalıdır. `Keep approved surface` Proje silmede yasaktır. Arşiv 77'nin Trash'i değildir.

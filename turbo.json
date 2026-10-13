@@ -16,7 +16,11 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL_UNPOOLED",
+        "SECURITY_EVENT_DATABASE_URL_UNPOOLED"
+      ]
     },
     "db:push": {
       "cache": false,

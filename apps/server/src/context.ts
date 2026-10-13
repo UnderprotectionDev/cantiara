@@ -23,11 +23,13 @@ import type {
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
+import type { DocumentTransfersAccess } from "@cantiara/api/document-transfer";
 import type {
   DocumentMutationContracts,
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type {
@@ -43,6 +45,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
+import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -50,12 +53,22 @@ import type {
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
 import type {
+  RecordTableAccess,
+  UniversalSearchAccess,
+} from "@cantiara/api/record-discovery";
+import type {
   RelationsAccess,
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
+import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
+import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
+import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
+import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
+import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
@@ -94,6 +107,8 @@ export interface CreateContextOptions {
   database: Database;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
+  documentTransfers?: DocumentTransfersAccess;
+  favorites?: FavoritesAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
@@ -104,17 +119,26 @@ export interface CreateContextOptions {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
+  recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  researchSessions?: ResearchSessionsAccess;
+  returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
+  smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceEvidence?: SourceEvidenceAccess;
+  sourceRecheck?: SourceRecheckAccess;
+  sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
   trustedProxyIps: readonly string[];
+  universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
@@ -142,10 +166,14 @@ export async function createContext({
   backlog,
   backlogMutationContracts,
   dailyFocus,
+  favorites,
+  returnToWork,
   documentMutationContracts,
   documents,
+  documentTransfers,
   smartCollections,
   technicalDiagrams,
+  universalSearch,
   focusPeriod,
   roadmapHorizon,
   captureInbox,
@@ -162,7 +190,14 @@ export async function createContext({
   mutationContract,
   projectShell,
   projectShellMutationContracts,
+  projectGoals,
   projectSourceRecords,
+  sourceEvidence,
+  sourceRecheck,
+  sourcesAndFreshness,
+  smartLinkPreview,
+  researchSessions,
+  recordTable,
   priorityMetricMutationContracts,
   priorityMetrics,
   prioritizationSessionMutationContracts,
@@ -204,10 +239,14 @@ export async function createContext({
     backlog,
     backlogMutationContracts,
     dailyFocus,
+    favorites,
+    returnToWork,
     documentMutationContracts,
     documents,
+    documentTransfers,
     smartCollections,
     technicalDiagrams,
+    universalSearch,
     focusPeriod,
     roadmapHorizon,
     clientKey: requestClientIp(context.req.raw, context, trustedProxyIps),
@@ -227,7 +266,14 @@ export async function createContext({
     mutationContract,
     projectShell,
     projectShellMutationContracts,
+    projectGoals,
     projectSourceRecords,
+    sourceEvidence,
+    sourceRecheck,
+    sourcesAndFreshness,
+    smartLinkPreview,
+    researchSessions,
+    recordTable,
     priorityMetricMutationContracts,
     priorityMetrics,
     prioritizationSessionMutationContracts,

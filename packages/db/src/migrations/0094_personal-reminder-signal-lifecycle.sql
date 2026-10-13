@@ -1,0 +1,1 @@
+ALTER TABLE "personal_reminder_attention_signal" ADD COLUMN "dismissed_at" timestamp;

@@ -1,7 +1,5 @@
 # Dikkat Sinyalleri
 
-Kaynak: [`docs/workflow/71-attention-signals/phase-context.md`](../../workflow/71-attention-signals/phase-context.md)
-
 ## Problem Statement
 
 Kurucu, kapalı ve açıklanabilir kaynak olaylarından doğan dikkati tek merkezde görmek ister. Bugün serbest “bir şey oldu” mesajları, e-posta ürünü, Geri Bildirim feed'i ve Proje Etkinliği bu işi taklit eder; okumak kaynağı çözmüş sayılır; kopya olay çoğalır; kayıt dışı tür basılır. Üretici feature'lar (blokaj, koleksiyon, test raporu, GitHub, hatırlatma ve diğerleri) kendi tetiklerini sahiplenir. Bu feature'ın sorunu merkez ve registry'nin delinmesidir, her tetik kuralını yeniden yazmak değil. İşletim pager'ı ve e-posta bu sorunun parçası değildir.

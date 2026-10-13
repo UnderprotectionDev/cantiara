@@ -333,7 +333,6 @@ test("shows virtualized results for a large Work selection", async ({
     .getByRole("combobox", { name: "Status" })
     .selectOption("Not Started");
   await bulkEdit.getByRole("button", { name: "Preview", exact: true }).click();
-  await page.evaluate(() => performance.mark("bulk-edit-apply-start"));
   const applyButton = bulkEdit.getByRole("button", {
     name: "Apply",
     exact: true,
@@ -342,6 +341,28 @@ test("shows virtualized results for a large Work selection", async ({
     button.addEventListener(
       "click",
       () => {
+        performance.mark("bulk-edit-apply-start");
+        const dialog = button.closest('[role="dialog"]');
+        if (!dialog) {
+          throw new Error("Bulk Edit dialog was not found");
+        }
+        const markProgressVisible = () => {
+          const progressElement = dialog.querySelector<HTMLProgressElement>(
+            'progress[aria-label="Progress"]',
+          );
+          if (progressElement && progressElement.getClientRects().length > 0) {
+            performance.mark("bulk-edit-progress-visible");
+            progressObserver.disconnect();
+          }
+        };
+        const progressObserver = new MutationObserver(markProgressVisible);
+        progressObserver.observe(dialog, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+        });
+        markProgressVisible();
+
         const cancelAfterFirstProgressBatch = () => {
           window.setTimeout(() => {
             const progressElement = document.querySelector<HTMLProgressElement>(
@@ -372,7 +393,6 @@ test("shows virtualized results for a large Work selection", async ({
     await expect(progress).toBeVisible({
       timeout: BULK_EDIT_FIRST_PROGRESS_MAX_MS,
     });
-    await page.evaluate(() => performance.mark("bulk-edit-progress-visible"));
     const firstProgressDuration = await page.evaluate(
       () =>
         performance.measure(

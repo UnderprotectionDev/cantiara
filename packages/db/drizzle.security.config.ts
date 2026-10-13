@@ -1,4 +1,5 @@
 import { defineConfig } from "drizzle-kit";
+import { securitySchemaFiles } from "./schema-files";
 import { resolveSecurityEventDatabaseUrl } from "./src/security-event-database-url";
 
 const securityEventDatabaseUrl = resolveSecurityEventDatabaseUrl(process.env);
@@ -8,7 +9,7 @@ if (!securityEventDatabaseUrl) {
 }
 
 export default defineConfig({
-  schema: "./src/schema/security-event.ts",
+  schema: securitySchemaFiles,
   out: "./src/migrations/security-events",
   dialect: "postgresql",
   dbCredentials: {

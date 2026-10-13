@@ -1,7 +1,5 @@
 # İş Bağımlılıkları ve Blokajlar
 
-Kaynak: [`docs/workflow/19-blockers/phase-context.md`](../../workflow/19-blockers/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir İşin başka bir İş, Karar veya Açık Soru tarafından bekletildiğini açık ilişki ve geçmişle görmek ister. Kaynak kaydın kapanması engeli sessizce çözmemelidir. Sütun rengi, etiket veya öncelik puanı bu gerçeğin yerine geçmez. `Blokaj` dikkat sinyali her süre tikinde basılmamalı; merkez ve Özellik/Odak Dönemi `Dependencies` görünümü bu kartın feature'ı değildir.

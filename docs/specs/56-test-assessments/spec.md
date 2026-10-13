@@ -1,7 +1,5 @@
 # Test Değerlendirmesi
 
-Kaynak: [`docs/workflow/56-test-assessments/phase-context.md`](../../workflow/56-test-assessments/phase-context.md)
-
 ## Problem Statement
 
 Kurucu seçili Özellik, Handoff veya Proje Sürümü bağlamındaki test kayıtlarını belirli bir anda nasıl yorumladığını tarihli tutmak ister. Bugün değerlendirme yayın kapısı, kalite skoru veya Test Oturumu sonucu sanılabilir; yeni sonuç eski snapshot'ı sessizce güncelleyebilir veya yeni sürüme taşıyabilir. Test Açığı 55, inceleme 57, Sürüm Kanıt Paketi 64'tedir. Kullanıcı değerlendirme olmadan Sürüm yayımlayabilir.

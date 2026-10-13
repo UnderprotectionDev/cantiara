@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user, workspace } from "./auth";
+import { document } from "./document";
 import { project } from "./project";
 
 export const fileAttachment = pgTable(
@@ -22,6 +23,9 @@ export const fileAttachment = pgTable(
     id: text("id").primaryKey(),
     lifecycleStatus: text("lifecycle_status").default("Active").notNull(),
     name: text("name").notNull(),
+    ownerDocumentId: text("owner_document_id").references(() => document.id, {
+      onDelete: "set null",
+    }),
     personalWikiId: text("personal_wiki_id"),
     projectId: text("project_id").references(() => project.id, {
       onDelete: "cascade",

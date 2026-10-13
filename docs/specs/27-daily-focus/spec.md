@@ -1,7 +1,5 @@
 # Günlük Odak
 
-Kaynak: [`docs/workflow/27-daily-focus/phase-context.md`](../../workflow/27-daily-focus/phase-context.md)
-
 ## Problem Statement
 
 Kurucu farklı Projelerden bugün ele almak istediği İşleri kişisel bir günde toplamak ister. Bugün bu seçim Odak Dönemi, sprint, Takvim olayı veya Aktif Çalışma Seti ile karışır; üyelik durum veya Backlog sırası yazar; adaylar otomatik üye olur; `What happened today?` Daily Note üretir; `Close focus` zorunlu ritüel, puan veya kapanış yazımı olur. Seçili günün üyeliği ertesi güne yuvarlanmamalıdır.

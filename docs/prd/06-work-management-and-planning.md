@@ -319,7 +319,7 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 
 ### Kişisel hatırlatmalar
 
-- **Kullanıcı yaklaşan hedef tarihleri ve daha sonra ele almak istediği İşler için kişisel hatırlatma oluşturabilir.** Ayrıca Proje, Belge, İş, Karar, Risk, Tasarım, Kaynak, Kilometre Taşı, Proje Sürümü, Üretim Olayı ve Test Açığı kayıtlarında ortak `Yeniden bak` eylemiyle belirli bir zamanda aynı kaynağa dönmek üzere kişisel hatırlatma kurabilir.
+- **Kullanıcı yaklaşan hedef tarihleri ve daha sonra ele almak istediği İşler için kişisel hatırlatma oluşturabilir.** Aynı Hesap kapsamındaki Hatırlatma Proje, Belge, İş, Karar, Risk, Kilometre Taşı, Proje Sürümü ve Üretim Olayı kayıtlarında `Remind me` veya `Review Later` eylemiyle kurulabilir. Tasarım, Kaynak ve Test Açığı kalıcı ana kayıt modelleri olmadığından Hatırlatma kaynağı olarak kabul edilmez.
 
 - **Belge için oluşturulan `Yeniden bak`, isteğe bağlı olarak belgenin belirli bir Markdown başlık bölümünü hedefleyebilir.** Hedef keyfî paragraf veya değişken metin aralığı değil, kararlı bölüm kimliği taşıyan başlıktır. Başlık yeniden adlandırıldığında veya belge içinde taşındığında bağ aynı bölüm kimliğini izler. Bölüm silinir ya da güvenle çözümlenemezse hatırlatma belgeyi açar, kayıp bölüm hedefini açıkça gösterir ve sessizce başka başlığa yönelmez.
 
@@ -380,3 +380,9 @@ Bu belge İş türleri ve yaşam döngüsünün, planlama görünümlerinin, tar
 - **Kullanıcı arayüzü açıkken bir otomasyon kaynak kaydı değiştirdiğinde tek bir sonuç bildirimi açılır ve güvenli değişiklikler için `10 saniye içinde geri al` eylemi sunar; süre sonunda bildirim kendiliğinden kapanır.** Daha sonra geri alma, her kaynak kaydın normal değişiklik geçmişinden ayrı ayrı başlatılabilir. Önizleme otomasyonun yazdığı alanları ve o andan sonraki değişiklikleri gösterir; ilgisiz sonraki düzenlemeleri korur, aynı alandaki daha yeni değerle çatışıyorsa sessizce üzerine yazmak yerine işlemi durdurup çatışmayı açıklar.
 
 - **Her otomasyon değişikliği kaynak kaydın normal etkinlik/değişiklik geçmişinde ilgili kural, kural tanımı sürümü, tetikleyici, sağlanan koşullar ve uygulanan eylemle açıklanır.** Kural, tetikleyici ve etkilenen bütün kayıtları tek run altında birleştiren ayrı otomasyon çalıştırma günlüğü veya run bazlı toplu geri alma sistemi bulunmaz.
+
+| Roadmap viewport control | English UI label |
+| --- | --- |
+| Increase viewport zoom | `Zoom in` |
+| Decrease viewport zoom | `Zoom out` |
+| Fit current visible content | `Fit View` |

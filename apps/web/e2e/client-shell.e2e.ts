@@ -81,6 +81,8 @@ test("keeps Account Access while the session endpoint is unavailable and retries
   page,
   request,
 }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   const setupResponse = await request.get(
     `${E2E_SERVER_URL}/__e2e/setup?fixture=account-sessions`,
   );
@@ -104,6 +106,10 @@ test("keeps Account Access while the session endpoint is unavailable and retries
   await expect(unavailableState).toContainText("Data was not written.");
   await expect(unavailableState).toContainText("You can retry once.");
   await expect(
+    page.getByRole("button", { name: "Search", exact: true }),
+  ).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+  await expect(
     page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toHaveCount(0);
   await expect(page).not.toHaveURL(LOGIN_URL_PATTERN);
@@ -113,6 +119,10 @@ test("keeps Account Access while the session endpoint is unavailable and retries
   await expect(
     page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Search", exact: true }),
+  ).toBeVisible();
+  expect(pageErrors).toEqual([]);
 });
 
 test("routes the product entry into Account Access and skips app navigation by keyboard", async ({

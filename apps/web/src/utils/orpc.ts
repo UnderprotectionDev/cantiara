@@ -1,7 +1,13 @@
+import type {
+  documentDiscoveryInputSchema,
+  universalSearchInputSchema,
+} from "@cantiara/api/record-discovery";
 import type { AppRouterClient } from "@cantiara/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import type { QueryClient } from "@tanstack/react-query";
+import type { z } from "zod";
 import { env } from "../env";
 import { createTauriBearerHeaders } from "../features/account-access/lib/tauri-session";
 import { createClientShellQueryClient } from "../features/web-macos-client/lib/client-shell";
@@ -47,6 +53,30 @@ export const client: AppRouterClient = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);
 
+export function documentDiscoveryQueryOptions(
+  accountId: string | undefined,
+  input: z.input<typeof documentDiscoveryInputSchema>,
+) {
+  const options = orpc.discoverDocuments.queryOptions({ input });
+  return {
+    ...options,
+    enabled: Boolean(accountId),
+    queryKey: [...options.queryKey, accountId ?? "anonymous"] as const,
+  };
+}
+
+export function universalSearchQueryOptions(
+  accountId: string | undefined,
+  input: z.input<typeof universalSearchInputSchema>,
+) {
+  const options = orpc.searchRecords.queryOptions({ input });
+  return {
+    ...options,
+    enabled: Boolean(accountId),
+    queryKey: [...options.queryKey, accountId ?? "anonymous"] as const,
+  };
+}
+
 const accountPreferencesQueryPrefix =
   orpc.accountPreferences.queryOptions().queryKey;
 const completionEffectsPreferencesQueryPrefix =
@@ -57,6 +87,18 @@ export const workspaceOverviewQueryPrefix =
 export const projectWorksQueryPrefix = orpc.projectWorks
   .queryOptions({ input: { projectId: "" } })
   .queryKey.slice(0, 1);
+
+// Smart Collection live membership surfaces and embedded live-collection
+// document blocks resolve from these procedures; membership-affecting writes
+// must refresh both together.
+export function invalidateSmartCollectionMembership(
+  queries: QueryClient,
+): Promise<void>[] {
+  return [
+    orpc.smartCollectionViews.key(),
+    orpc.documentLiveOtherBlocks.key(),
+  ].map((queryKey) => queries.invalidateQueries({ queryKey }));
+}
 
 export function accountPreferencesQueryOptions(accountId?: string) {
   return {

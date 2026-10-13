@@ -1,7 +1,5 @@
 # Bağlantıyla Sınırlı Paylaşım
 
-Kaynak: [`docs/workflow/73-link-sharing/phase-context.md`](../../workflow/73-link-sharing/phase-context.md)
-
 ## Problem Statement
 
 Kurucu seçili bir kaydı kimlik vermeden salt okunur göstermek ister. Bearer bağlantı, isteğe bağlı parola ve süre gerekir; süre dolumu ile terminal iptal karışmamalıdır. Önizlenmeyen ilişki, secret, paylaşım token'ı veya parola kapsama sızmamalıdır. Ziyaretçi kurucu oturumunu, paleti veya aramayı devralmamalıdır. Cache veya CDN iptali ezmemelidir. YouTube kartı sayfa açılışında üçüncü tarafa istek atmamalıdır. Wiki yayını ve Build in Public bu bağlantının türü değildir.

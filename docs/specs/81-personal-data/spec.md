@@ -1,7 +1,5 @@
 # Kişisel Veri Dışa Aktarma ve Silme
 
-Kaynak: [`docs/workflow/81-personal-data/phase-context.md`](../../workflow/81-personal-data/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Contact için kişisel veriyi okunabilir pakette toplamak ve geri döndürülemez silmek ister. Bugün Çalışma Alanı çıkış paketi, Hesap kapatma, Çöp Kutusu veya seçili kayıt export'u bu hakkı taklit edebilir. Silme ayrı bir GitHub teyit kartı veya ikinci redaksiyon motoru açmamalıdır; 78'in sözleşmesi ve 01'in grant'i kullanılır.

@@ -76,6 +76,13 @@ export function parseDraftNumberText(text: string): DraftNumberText {
   return Number.isFinite(parsed) ? parsed : "invalid";
 }
 
+const datePartsFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "UTC",
+  year: "numeric",
+});
+
 /**
  * Renders a calendar date (YYYY-MM-DD) with the account's Date format and
  * Locale. The date is pinned to UTC so formatting never shifts the calendar
@@ -97,12 +104,7 @@ export function formatDraftCustomFieldDate(
       year: "numeric",
     }).format(date);
   }
-  const parts = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "UTC",
-    year: "numeric",
-  }).formatToParts(date);
+  const parts = datePartsFormatter.formatToParts(date);
   const byType = new Map(parts.map((part) => [part.type, part.value]));
   return preferences.dateFormat
     .replace("dd", byType.get("day") ?? "")

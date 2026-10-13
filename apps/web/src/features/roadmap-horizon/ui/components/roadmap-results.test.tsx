@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 
 import { RoadmapResults } from "./roadmap-results";
 
@@ -85,20 +86,22 @@ function renderResults(presentationMode = false) {
   return renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
       <RouterContextProvider router={router}>
-        <RoadmapResults
-          blockers={blockers}
-          origins={[]}
-          presentationMode={presentationMode}
-          view={view}
-          works={[candidate]}
-        />
+        <ContextRecordPreviewProvider>
+          <RoadmapResults
+            blockers={blockers}
+            origins={[]}
+            presentationMode={presentationMode}
+            view={view}
+            works={[candidate]}
+          />
+        </ContextRecordPreviewProvider>
       </RouterContextProvider>
     </QueryClientProvider>,
   );
 }
 
 describe("Roadmap Horizon presentation", () => {
-  test("shows filtered unplanned Work in a collapsed live section and opens both blocker records", () => {
+  test("shows filtered unplanned Work in a collapsed live section with source preview actions", () => {
     const html = renderResults();
 
     expect(html).toContain("Unplanned candidates");
@@ -109,8 +112,20 @@ describe("Roadmap Horizon presentation", () => {
     expect(html).toContain("Blocked Work");
     expect(html).toContain("Blocked by");
     expect(html).toContain("Get provider access");
-    expect(html).toContain('href="/projects/project-1#work-work-blocked-1"');
-    expect(html).toContain('href="/projects/project-1#work-work-blocker-1"');
+    expect(
+      html.match(
+        /aria-label="Open source record: RMP-1 · Confirm provider requirements"/g,
+      ),
+    ).toHaveLength(2);
+    expect(html).toContain(
+      'aria-label="Open source record: RMP-2 · Get provider access"',
+    );
+    expect(html).not.toContain(
+      'href="/projects/project-1#work-work-blocked-1"',
+    );
+    expect(html).not.toContain(
+      'href="/projects/project-1#work-work-blocker-1"',
+    );
     expect(html).not.toContain("Parked");
   });
 
@@ -119,7 +134,7 @@ describe("Roadmap Horizon presentation", () => {
 
     expect(html).toContain("Open source record");
     expect(html).toContain(
-      'aria-label="Open source record: RMP-2 Get provider access"',
+      'aria-label="Open source record: RMP-2 · Get provider access"',
     );
     expect(html).not.toContain("Place on plan");
     expect(html).not.toContain("Place on horizon");

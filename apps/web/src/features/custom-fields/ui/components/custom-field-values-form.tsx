@@ -332,13 +332,13 @@ export default function CustomFieldValuesForm({
     );
   }
 
-  const items = recordId
-    ? (recordItems ?? values.query.data ?? []).filter((item) =>
-        isAvailableOnRecord(item.definition, recordType),
-      )
-    : (definitionsQuery.data ?? [])
-        .filter((definition) => isAvailableOnRecord(definition, recordType))
-        .map((definition) => ({ definition, value: null }));
+  const items = availableCustomFieldItems(
+    recordId,
+    recordItems,
+    values.query.data,
+    definitionsQuery.data,
+    recordType,
+  );
   if (items.length === 0) {
     return null;
   }
@@ -384,111 +384,14 @@ export default function CustomFieldValuesForm({
   return (
     <section aria-label="Custom field" className="space-y-4">
       <h4 className="font-medium text-sm">Custom field</h4>
-      <FieldGroup>
-        {items.map((item) => {
-          const current = customFieldValue(item, draftValues, recordId);
-          const id = valueInputId(item.definition, recordId);
-          return (
-            <Field key={item.definition.id}>
-              <FieldLabel htmlFor={id}>{item.definition.name}</FieldLabel>
-              {item.definition.type === "Text" ? (
-                <TextValueInput
-                  current={current}
-                  disabled={busy}
-                  id={id}
-                  onCommit={(nextValue) =>
-                    commit(item, nextValue).catch(() => undefined)
-                  }
-                />
-              ) : null}
-              {item.definition.type === "Number" ? (
-                <NumberValueInput
-                  current={current}
-                  disabled={busy}
-                  id={id}
-                  onCommit={(nextValue) =>
-                    commit(item, nextValue).catch(() => undefined)
-                  }
-                />
-              ) : null}
-              {item.definition.type === "Boolean" ? (
-                <NativeSelect
-                  disabled={busy}
-                  id={id}
-                  onChange={(event) =>
-                    commit(
-                      item,
-                      event.target.value === ""
-                        ? null
-                        : {
-                            boolean: event.target.value === "true",
-                            kind: "boolean",
-                          },
-                    ).catch(() => undefined)
-                  }
-                  value={
-                    current?.kind === "boolean" ? String(current.boolean) : ""
-                  }
-                >
-                  <NativeSelectOption value="">
-                    Not evaluated
-                  </NativeSelectOption>
-                  <NativeSelectOption value="true">True</NativeSelectOption>
-                  <NativeSelectOption value="false">False</NativeSelectOption>
-                </NativeSelect>
-              ) : null}
-              {item.definition.type === "Date" ? (
-                <DateValueInput
-                  current={current}
-                  disabled={busy}
-                  formattingPreferences={formattingPreferences}
-                  id={id}
-                  label={item.definition.name}
-                  onCommit={(nextValue) =>
-                    commit(item, nextValue).catch(() => undefined)
-                  }
-                />
-              ) : null}
-              {item.definition.type === "Single select" ? (
-                <NativeSelect
-                  disabled={busy}
-                  id={id}
-                  onChange={(event) =>
-                    commit(
-                      item,
-                      event.target.value
-                        ? { kind: "option", option: event.target.value }
-                        : null,
-                    ).catch(() => undefined)
-                  }
-                  value={current?.kind === "option" ? current.option : ""}
-                >
-                  <NativeSelectOption value="">
-                    Not evaluated
-                  </NativeSelectOption>
-                  {item.definition.options.map((option) => (
-                    <NativeSelectOption key={option} value={option}>
-                      {option}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              ) : null}
-              {item.definition.type === "Multi select" ? (
-                <MultiSelectValueInput
-                  current={current}
-                  definition={item.definition}
-                  disabled={busy}
-                  id={id}
-                  onCommit={(nextValue) =>
-                    commit(item, nextValue).catch(() => undefined)
-                  }
-                />
-              ) : null}
-              <FieldDescription>{valueSummary(current)}</FieldDescription>
-            </Field>
-          );
-        })}
-      </FieldGroup>
+      <CustomFieldValueInputs
+        busy={busy}
+        commit={commit}
+        draftValues={draftValues}
+        formattingPreferences={formattingPreferences}
+        items={items}
+        recordId={recordId}
+      />
       {actionError ? (
         <p className="text-destructive text-sm" role="alert">
           {actionError}
@@ -496,4 +399,144 @@ export default function CustomFieldValuesForm({
       ) : null}
     </section>
   );
+}
+
+function CustomFieldValueInputs({
+  items,
+  draftValues,
+  recordId,
+  busy,
+  commit,
+  formattingPreferences,
+}: {
+  items: CustomFieldValueListItem[];
+  draftValues: CustomFieldDraftValues;
+  recordId: string | undefined;
+  busy: boolean;
+  commit: (
+    item: CustomFieldValueListItem,
+    nextValue: ParsedCustomFieldValuePayload | null,
+  ) => Promise<void>;
+  formattingPreferences: AccountPreferences;
+}) {
+  return (
+    <FieldGroup>
+      {items.map((item) => {
+        const current = customFieldValue(item, draftValues, recordId);
+        const id = valueInputId(item.definition, recordId);
+        return (
+          <Field key={item.definition.id}>
+            <FieldLabel htmlFor={id}>{item.definition.name}</FieldLabel>
+            {item.definition.type === "Text" ? (
+              <TextValueInput
+                current={current}
+                disabled={busy}
+                id={id}
+                onCommit={(nextValue) =>
+                  commit(item, nextValue).catch(() => undefined)
+                }
+              />
+            ) : null}
+            {item.definition.type === "Number" ? (
+              <NumberValueInput
+                current={current}
+                disabled={busy}
+                id={id}
+                onCommit={(nextValue) =>
+                  commit(item, nextValue).catch(() => undefined)
+                }
+              />
+            ) : null}
+            {item.definition.type === "Boolean" ? (
+              <NativeSelect
+                disabled={busy}
+                id={id}
+                onChange={(event) =>
+                  commit(
+                    item,
+                    event.target.value === ""
+                      ? null
+                      : {
+                          boolean: event.target.value === "true",
+                          kind: "boolean",
+                        },
+                  ).catch(() => undefined)
+                }
+                value={
+                  current?.kind === "boolean" ? String(current.boolean) : ""
+                }
+              >
+                <NativeSelectOption value="">Not evaluated</NativeSelectOption>
+                <NativeSelectOption value="true">True</NativeSelectOption>
+                <NativeSelectOption value="false">False</NativeSelectOption>
+              </NativeSelect>
+            ) : null}
+            {item.definition.type === "Date" ? (
+              <DateValueInput
+                current={current}
+                disabled={busy}
+                formattingPreferences={formattingPreferences}
+                id={id}
+                label={item.definition.name}
+                onCommit={(nextValue) =>
+                  commit(item, nextValue).catch(() => undefined)
+                }
+              />
+            ) : null}
+            {item.definition.type === "Single select" ? (
+              <NativeSelect
+                disabled={busy}
+                id={id}
+                onChange={(event) =>
+                  commit(
+                    item,
+                    event.target.value
+                      ? { kind: "option", option: event.target.value }
+                      : null,
+                  ).catch(() => undefined)
+                }
+                value={current?.kind === "option" ? current.option : ""}
+              >
+                <NativeSelectOption value="">Not evaluated</NativeSelectOption>
+                {item.definition.options.map((option) => (
+                  <NativeSelectOption key={option} value={option}>
+                    {option}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            ) : null}
+            {item.definition.type === "Multi select" ? (
+              <MultiSelectValueInput
+                current={current}
+                definition={item.definition}
+                disabled={busy}
+                id={id}
+                onCommit={(nextValue) =>
+                  commit(item, nextValue).catch(() => undefined)
+                }
+              />
+            ) : null}
+            <FieldDescription>{valueSummary(current)}</FieldDescription>
+          </Field>
+        );
+      })}
+    </FieldGroup>
+  );
+}
+
+function availableCustomFieldItems(
+  recordId: string | undefined,
+  recordItems: CustomFieldValueListItem[] | undefined,
+  storedItems: CustomFieldValueListItem[] | undefined,
+  definitions: CustomFieldDefinition[] | undefined,
+  recordType: CustomFieldRecordType,
+): CustomFieldValueListItem[] {
+  if (recordId) {
+    return (recordItems ?? storedItems ?? []).filter((item) =>
+      isAvailableOnRecord(item.definition, recordType),
+    );
+  }
+  return (definitions ?? [])
+    .filter((definition) => isAvailableOnRecord(definition, recordType))
+    .map((definition) => ({ definition, value: null }));
 }

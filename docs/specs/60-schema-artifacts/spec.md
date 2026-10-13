@@ -1,7 +1,5 @@
 # PostgreSQL Şeması ve Migration Artefaktları
 
-Kaynak: [`docs/workflow/60-schema-artifacts/phase-context.md`](../../workflow/60-schema-artifacts/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Veri Modeli Diyagramının kesin sürümünden incelenebilir PostgreSQL DDL ve iki sürüm arasındaki schema-only Migration Artefaktını statik olarak doğrulamak ister. Bugün şema ya yalnız resimdir ya da ürün canlı veritabanına bağlanıp migrate ediyor gibi durur. Güvensiz Down uydurulur; uygulanmışlık checkbox'ı yalan söyler; modelleme bu kartta tekrar edilir. Canlı migrate, Drizzle runtime ve veri backfill bu sorunun parçası değildir.

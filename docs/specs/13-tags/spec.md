@@ -1,7 +1,5 @@
 # Etiketler
 
-Kaynak: [`docs/workflow/13-tags/phase-context.md`](../../workflow/13-tags/phase-context.md)
-
 ## Problem Statement
 
 Kurucu içerikleri Proje alanından bağımsız sınıflandırıp aynı kimlikle süzmek, aramak ve taşımak ister. Bugün Çalışma Alanı genelinde tek etiket ad alanı yoktur; görünen ada göre ikinci sözlük, Proje-yerel etiket veya Belge içi `#etiket` tokenı ayrı bir sözlük gibi davranabilir. Yeniden adlandırma kullanımları atomik güncellemezse filtre, Akıllı Koleksiyon koşulu ve export sessizce ayrışır. Klasör, Akıllı Koleksiyon, ilişki türü ve Kanıt bağı bu sınıflandırmanın yerine geçmez.

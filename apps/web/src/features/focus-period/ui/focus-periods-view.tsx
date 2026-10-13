@@ -14,7 +14,11 @@ import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+} from "@/utils/orpc";
 import { FocusPeriodDependencies } from "./focus-period-dependencies";
 
 async function abandonSelectedWork(
@@ -49,23 +53,11 @@ async function abandonSelectedWork(
     } else if (current.closureResult !== "Abandoned") {
       throw new Error("Work was already completed.");
     }
-    try {
-      await decide({
-        periodId,
-        workIds: [selectedWorkId],
-        destination: "Abandon",
-      });
-    } catch (decisionError) {
-      const savedPeriod = await client.focusPeriod({ periodId });
-      const savedDecision = savedPeriod?.leftoverDecisions.some(
-        (decision) =>
-          decision.workId === selectedWorkId &&
-          decision.destination === "Abandon",
-      );
-      if (!savedDecision) {
-        throw decisionError;
-      }
-    }
+    await decide({
+      periodId,
+      workIds: [selectedWorkId],
+      destination: "Abandon",
+    });
     afterEach(selectedWorkId);
   }
 }
@@ -122,7 +114,6 @@ export default function FocusPeriodsView() {
     mutationFn: (
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
     ) => runOnlineOnlyWrite(() => client.decideFocusPeriodLeftovers(input)),
-    onError: refresh,
     onSuccess: refresh,
   });
   const saveEvaluation = useMutation({
@@ -368,21 +359,14 @@ function PeriodDetail({
       input: Parameters<typeof client.decideFocusPeriodLeftovers>[0],
     ) => Promise<unknown>;
   };
-  saveEvaluation: {
-    mutateAsync: (
-      input: Parameters<typeof client.saveFocusPeriodEvaluation>[0],
-    ) => Promise<unknown>;
-  };
-  createFollowUp: {
-    mutateAsync: (
-      input: Parameters<typeof client.createFocusPeriodFollowUpWork>[0],
-    ) => Promise<unknown>;
-  };
+  saveEvaluation: FocusPeriodSaveEvaluation;
+  createFollowUp: FocusPeriodCreateFollowUp;
   act: (
     action: () => Promise<unknown>,
     conflictMessage?: string,
   ) => Promise<void>;
 }) {
+  const queryClient = useQueryClient();
   const [showCloseReview, setShowCloseReview] = useState(false);
   const [selectedWorkIds, setSelectedWorkIds] = useState<string[]>([]);
   const [destination, setDestination] = useState<
@@ -417,13 +401,18 @@ function PeriodDetail({
         (decidedWorkId) =>
           setSelectedWorkIds((ids) => ids.filter((id) => id !== decidedWorkId)),
       );
+      await Promise.all(invalidateSmartCollectionMembership(queryClient));
     } else {
-      await decide.mutateAsync({
-        periodId: period.id,
-        workIds: selectedWorkIds,
-        destination,
-        ...(destination === "Another period" ? { targetPeriodId } : {}),
-      });
+      for (const selectedWorkId of selectedWorkIds) {
+        // biome-ignore lint/performance/noAwaitInLoops: Each selected Work is recorded independently for recoverable partial sends.
+        await decide.mutateAsync({
+          periodId: period.id,
+          workIds: [selectedWorkId],
+          destination,
+          ...(destination === "Another period" ? { targetPeriodId } : {}),
+        });
+        setSelectedWorkIds((ids) => ids.filter((id) => id !== selectedWorkId));
+      }
     }
     setSelectedWorkIds([]);
   }
@@ -491,98 +480,23 @@ function PeriodDetail({
           </div>
         </section>
       ) : null}
-      {period.status === "Closed" && undecided.length ? (
-        <section
-          aria-label="Still-open Work decisions"
-          className="space-y-3 rounded-md border p-4"
-        >
-          <h3 className="font-semibold">Still-open Work</h3>
-          <p>
-            Select Work and choose where it goes. Nothing moves automatically.
-          </p>
-          <div className="space-y-2">
-            {undecided.map((item) => (
-              <label className="flex items-center gap-2" key={item.id}>
-                <input
-                  checked={selectedWorkIds.includes(item.id)}
-                  onChange={(event) =>
-                    setSelectedWorkIds((ids) =>
-                      event.target.checked
-                        ? [...ids, item.id]
-                        : ids.filter((id) => id !== item.id),
-                    )
-                  }
-                  type="checkbox"
-                />
-                {item.title} · {item.key}
-              </label>
-            ))}
-          </div>
-          <label className="flex flex-col gap-1">
-            Destination
-            <select
-              className="rounded-md border bg-background px-3 py-2"
-              onChange={(event) =>
-                setDestination(event.target.value as typeof destination)
-              }
-              value={destination}
-            >
-              <option>Next period</option>
-              <option>Backlog</option>
-              <option>Another period</option>
-              <option>Abandon</option>
-            </select>
-          </label>
-          {destination === "Another period" ? (
-            <label className="flex flex-col gap-1">
-              Another period
-              <select
-                className="rounded-md border bg-background px-3 py-2"
-                onChange={(event) => setTargetPeriodId(event.target.value)}
-                value={targetPeriodId}
-              >
-                <option value="">Select Focus Period</option>
-                {targets.map((target) => (
-                  <option key={target.id} value={target.id}>
-                    {target.purpose}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {destination === "Abandon" ? (
-            <div className="space-y-2">
-              <label className="flex items-center gap-2">
-                <input
-                  checked={confirmAbandon}
-                  onChange={(event) => setConfirmAbandon(event.target.checked)}
-                  type="checkbox"
-                />
-                Confirm Abandon selected Work
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  checked={closeAnyway}
-                  onChange={(event) => setCloseAnyway(event.target.checked)}
-                  type="checkbox"
-                />
-                Close anyway if closure checks remain
-              </label>
-            </div>
-          ) : null}
-          <Button
-            disabled={
-              !selectedWorkIds.length ||
-              (destination === "Another period" && !targetPeriodId) ||
-              (destination === "Abandon" && !confirmAbandon)
-            }
-            onClick={() => act(sendDecisions)}
-            type="button"
-          >
-            Send
-          </Button>
-        </section>
-      ) : null}
+      <PeriodLeftoverDecisions
+        act={act}
+        closeAnyway={closeAnyway}
+        confirmAbandon={confirmAbandon}
+        destination={destination}
+        period={period}
+        selectedWorkIds={selectedWorkIds}
+        sendDecisions={sendDecisions}
+        setCloseAnyway={setCloseAnyway}
+        setConfirmAbandon={setConfirmAbandon}
+        setDestination={setDestination}
+        setSelectedWorkIds={setSelectedWorkIds}
+        setTargetPeriodId={setTargetPeriodId}
+        targetPeriodId={targetPeriodId}
+        targets={targets}
+        undecided={undecided}
+      />
       {open ? (
         <FocusPeriodMembershipControl
           act={act}
@@ -784,43 +698,24 @@ function CloseComparisonSection({ period }: { period: FocusPeriodRecord }) {
   if (!comparison) {
     return null;
   }
-  const groups = [
-    ["In start snapshot", comparison.inStartSnapshot],
-    ["Added later", comparison.addedLater],
-    ["Removed", comparison.removed],
-    ["Completed", comparison.completed],
-    ["Still-open Work", comparison.stillOpen],
+  const totals = [
+    ["In start snapshot", comparison.inStartSnapshot.length],
+    ["Added later", comparison.addedLater.length],
+    ["Removed", comparison.removed.length],
+    ["Completed", comparison.completed.length],
+    ["Still-open Work", comparison.stillOpen.length],
   ] as const;
   return (
     <section aria-label="Close comparison" className="space-y-3">
       <h3 className="font-semibold">Close comparison</h3>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {groups.map(([label, items]) => (
-          <fieldset aria-label={label} className="min-w-0" key={label}>
-            <dl>
-              <dt className="text-muted-foreground">{label}</dt>
-              <dd className="font-medium">{items.length}</dd>
-            </dl>
-            {items.length ? (
-              <ul className="mt-2 space-y-1">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      aria-label={`Open source record: ${item.key} ${item.title}`}
-                      className="underline-offset-2 hover:underline"
-                      hash={workRecordHash(item.id)}
-                      params={{ projectId: item.projectId }}
-                      to="/projects/$projectId"
-                    >
-                      {item.title} · {item.key} · {item.status}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </fieldset>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {totals.map(([label, count]) => (
+          <div key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-medium">{count}</dd>
+          </div>
         ))}
-      </div>
+      </dl>
     </section>
   );
 }
@@ -1060,7 +955,7 @@ function FollowUpWorkSection({
                 type="button"
                 variant="outline"
               >
-                Cancel
+                Change
               </Button>
             </div>
           </section>
@@ -1083,9 +978,6 @@ function FollowUpWorkSection({
                 <p className="text-muted-foreground text-sm">
                   {item.learning}: {item.learningText}
                 </p>
-                <p className="text-muted-foreground text-sm">
-                  Source Focus Period: {period.purpose}
-                </p>
               </li>
             ))}
           </ul>
@@ -1097,4 +989,144 @@ function FollowUpWorkSection({
       </section>
     </>
   );
+}
+
+function PeriodLeftoverDecisions({
+  period,
+  undecided,
+  selectedWorkIds,
+  setSelectedWorkIds,
+  setDestination,
+  destination,
+  setTargetPeriodId,
+  targetPeriodId,
+  targets,
+  confirmAbandon,
+  setConfirmAbandon,
+  closeAnyway,
+  setCloseAnyway,
+  act,
+  sendDecisions,
+}: {
+  period: FocusPeriodRecord;
+  undecided: import("@cantiara/api/focus-period").FocusPeriodSnapshotWork[];
+  selectedWorkIds: string[];
+  setSelectedWorkIds: import("react").Dispatch<
+    import("react").SetStateAction<string[]>
+  >;
+  setDestination: import("react").Dispatch<
+    import("react").SetStateAction<
+      "Next period" | "Another period" | "Backlog" | "Abandon"
+    >
+  >;
+  destination: "Next period" | "Another period" | "Backlog" | "Abandon";
+  setTargetPeriodId: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  targetPeriodId: string;
+  targets: FocusPeriodRecord[];
+  confirmAbandon: boolean;
+  setConfirmAbandon: import("react").Dispatch<
+    import("react").SetStateAction<boolean>
+  >;
+  closeAnyway: boolean;
+  setCloseAnyway: import("react").Dispatch<
+    import("react").SetStateAction<boolean>
+  >;
+  act: (
+    action: () => Promise<unknown>,
+    conflictMessage?: string,
+  ) => Promise<void>;
+  sendDecisions: () => Promise<void>;
+}) {
+  return period.status === "Closed" && undecided.length ? (
+    <section
+      aria-label="Still-open Work decisions"
+      className="space-y-3 rounded-md border p-4"
+    >
+      <h3 className="font-semibold">Still-open Work</h3>
+      <p>Select Work and choose where it goes. Nothing moves automatically.</p>
+      <div className="space-y-2">
+        {undecided.map((item) => (
+          <label className="flex items-center gap-2" key={item.id}>
+            <input
+              checked={selectedWorkIds.includes(item.id)}
+              onChange={(event) =>
+                setSelectedWorkIds((ids) =>
+                  event.target.checked
+                    ? [...ids, item.id]
+                    : ids.filter((id) => id !== item.id),
+                )
+              }
+              type="checkbox"
+            />
+            {item.title} · {item.key}
+          </label>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1">
+        Destination
+        <select
+          className="rounded-md border bg-background px-3 py-2"
+          onChange={(event) =>
+            setDestination(event.target.value as typeof destination)
+          }
+          value={destination}
+        >
+          <option>Next period</option>
+          <option>Backlog</option>
+          <option>Another period</option>
+          <option>Abandon</option>
+        </select>
+      </label>
+      {destination === "Another period" ? (
+        <label className="flex flex-col gap-1">
+          Another period
+          <select
+            className="rounded-md border bg-background px-3 py-2"
+            onChange={(event) => setTargetPeriodId(event.target.value)}
+            value={targetPeriodId}
+          >
+            <option value="">Select Focus Period</option>
+            {targets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.purpose}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {destination === "Abandon" ? (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2">
+            <input
+              checked={confirmAbandon}
+              onChange={(event) => setConfirmAbandon(event.target.checked)}
+              type="checkbox"
+            />
+            Confirm Abandon selected Work
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              checked={closeAnyway}
+              onChange={(event) => setCloseAnyway(event.target.checked)}
+              type="checkbox"
+            />
+            Close anyway if closure checks remain
+          </label>
+        </div>
+      ) : null}
+      <Button
+        disabled={
+          !selectedWorkIds.length ||
+          (destination === "Another period" && !targetPeriodId) ||
+          (destination === "Abandon" && !confirmAbandon)
+        }
+        onClick={() => act(sendDecisions)}
+        type="button"
+      >
+        Send
+      </Button>
+    </section>
+  ) : null;
 }

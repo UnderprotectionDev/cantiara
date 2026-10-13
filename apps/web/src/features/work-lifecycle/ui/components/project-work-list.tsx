@@ -32,6 +32,7 @@ import useUserInitiatedWorkSuccess, {
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
+import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
 import {
   priorityMetricItemsForWork,
@@ -54,6 +55,7 @@ import { mutationErrorMessage } from "@/lib/mutation-messages";
 import {
   client,
   completionEffectsPreferencesQueryOptions,
+  invalidateSmartCollectionMembership,
   orpc,
   projectWorksQueryPrefix,
 } from "@/utils/orpc";
@@ -279,7 +281,7 @@ export default function ProjectWorkList({
               id={`work-${encodeURIComponent(work.id)}`}
               key={work.id}
             >
-              <div className="flex min-w-0 items-start justify-between gap-4">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <WorkSelectionCheckbox
                     selection={bulkWorkSelection}
@@ -291,7 +293,11 @@ export default function ProjectWorkList({
                     {work.title}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <FavoriteControl
+                    sourceRecordId={work.id}
+                    sourceRecordType="Work"
+                  />
                   <WorkReviewLaterControl work={work} />
                   <WorkNotNowControl work={work} />
                 </div>
@@ -623,6 +629,7 @@ function WorkTypeEditor({ work }: { work: WorkProfile }) {
         queryClient.invalidateQueries({ queryKey: worksQueryKey }),
         queryClient.invalidateQueries({ queryKey: workQueryKey }),
         queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+        ...invalidateSmartCollectionMembership(queryClient),
       ]);
     },
   });

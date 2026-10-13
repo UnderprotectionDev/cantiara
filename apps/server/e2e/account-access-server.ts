@@ -1,9 +1,12 @@
+// biome-ignore-all lint/performance/noAwaitInLoops: Fixture Research Session consent rows are committed sequentially.
 import type { CompletionEffectsPreferences } from "@cantiara/api/completion-effects";
 import { DESKTOP_API_PUBLISHED_AT } from "@cantiara/api/desktop-api-window";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import { createAuthOptions } from "@cantiara/auth";
 import { createDb } from "@cantiara/db";
 import { account, session, user } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
+import { feedback } from "@cantiara/db/schema/feedback";
 import { project as projectTable } from "@cantiara/db/schema/project";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work as workTable } from "@cantiara/db/schema/work";
@@ -13,7 +16,6 @@ import { testUtils } from "better-auth/plugins";
 import { serve } from "bun";
 import { eq } from "drizzle-orm";
 import { initLogger } from "evlog";
-
 import { createApp } from "../src/app";
 import { createDatabaseAccountAdmission } from "../src/features/account-access/server/account-admission";
 import { createGitHubAvailability } from "../src/features/account-access/server/github-availability";
@@ -42,24 +44,39 @@ import {
   createDatabaseCustomFieldFinalizationWriter,
   createDatabaseCustomFieldMutationContracts,
 } from "../src/features/custom-fields/server/custom-fields-mutation-database";
+import { createDatabaseDocumentSurfaceCancellations } from "../src/features/documents/server/document-surface-cancellations";
+import { createDatabaseDocumentTagRenameWriter } from "../src/features/documents/server/document-tag-rename-database";
+import { createDatabaseDocumentTransfers } from "../src/features/documents/server/document-transfers-database";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "../src/features/documents/server/documents-database";
+import { createDatabaseFavorites } from "../src/features/favorites/server/favorites-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
+import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "../src/features/prioritization-sessions/server/prioritization-sessions-database";
 import { createDatabasePrioritizationSessionMutationContracts } from "../src/features/prioritization-sessions/server/prioritization-sessions-mutation-database";
 import { createPriorityMetricsAccess } from "../src/features/priority-metrics/server/priority-metrics";
 import { createDatabasePriorityMetrics } from "../src/features/priority-metrics/server/priority-metrics-database";
 import { createDatabasePriorityMetricMutationContracts } from "../src/features/priority-metrics/server/priority-metrics-mutation-database";
+import { createDatabaseProjectGoals } from "../src/features/project-goals/server/project-goals-database";
 import { createDatabaseProjectShell } from "../src/features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "../src/features/project-shell/server/project-shell-mutation-database";
+import { createDatabaseProjectSourceRecords } from "../src/features/project-source-records/server/project-source-records-database";
 import { createDatabaseRecordActions } from "../src/features/record-actions/server/record-actions-database";
+import { createDatabaseRecordTable } from "../src/features/record-discovery/server/record-table-database";
+import { createDatabaseUniversalSearch } from "../src/features/record-discovery/server/universal-search-database";
 import { createDatabaseRelations } from "../src/features/relations/server/relations";
+import { createDatabaseResearchSessions } from "../src/features/research-sessions/server/research-sessions-database";
+import { createDatabaseReturnToWork } from "../src/features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
+import { createSmartLinkPreview } from "../src/features/sources-and-freshness/server/smart-link-preview";
+import { createDatabaseSourceEvidence } from "../src/features/sources-and-freshness/server/source-evidence-database";
+import { createDatabaseSourceRecheck } from "../src/features/sources-and-freshness/server/source-recheck-database";
+import { createDatabaseSourcesAndFreshness } from "../src/features/sources-and-freshness/server/sources-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -69,6 +86,10 @@ import { createWorkContextAccess } from "../src/features/work-context/server/wor
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
 import { createDatabaseWorkTemplates } from "../src/features/work-templates/server/work-templates-database";
+import {
+  deleteStaleFavoriteSource,
+  prepareFavoritesFixture,
+} from "./favorites-fixture";
 
 const serverPort = Number(process.env.E2E_SERVER_PORT ?? "3100");
 const serverOrigin = `http://127.0.0.1:${serverPort}`;
@@ -87,6 +108,7 @@ if (!(databaseUrl && securityEventDatabaseUrl && secret)) {
 
 const database = createDb({ DATABASE_URL: databaseUrl });
 const documents = createDatabaseDocuments(database);
+const universalSearch = createDatabaseUniversalSearch(database);
 const smartCollections = createDatabaseSmartCollections(database);
 const technicalDiagrams = createDatabaseTechnicalDiagrams(database);
 const documentMutationContracts =
@@ -128,19 +150,36 @@ const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(database);
 const priorityMetricMutationContracts =
   createDatabasePriorityMetricMutationContracts(database);
-const tags = createDatabaseTags(database);
-const tagMutationContracts = createDatabaseTagMutationContracts(database);
+const documentTagRename = {
+  inlineRename: createDatabaseDocumentTagRenameWriter(),
+};
+const tags = createDatabaseTags(database, documentTagRename);
+const tagMutationContracts = createDatabaseTagMutationContracts(
+  database,
+  documentTagRename,
+);
 const customFields = createDatabaseCustomFields(database);
 const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(database);
+const customFieldValueWriter = createDatabaseCustomFieldFinalizationWriter();
 const workLifecycle = createDatabaseWorkLifecycle(database, {
-  customFieldValueWriter: createDatabaseCustomFieldFinalizationWriter(),
+  customFieldValueWriter,
+});
+const researchSessions = createDatabaseResearchSessions(database);
+const projectSourceRecords = createDatabaseProjectSourceRecords(database);
+const recordTable = createDatabaseRecordTable({
+  customFieldValueWriter,
+  database,
+  projectShell,
+  projectSourceRecords,
+  workLifecycle,
 });
 const focusPeriod = createDatabaseFocusPeriod(database);
 const workTemplates = createDatabaseWorkTemplates(database, workLifecycle);
 const recordActions = createDatabaseRecordActions(database);
 const relations = createDatabaseRelations(database);
 const roadmapHorizon = createDatabaseRoadmapHorizon(database);
+const personalReminders = createDatabasePersonalReminders(database);
 const workContext = createWorkContextAccess(workLifecycle, relations, {
   priorityValues: async (accountId, work) => {
     const values = await priorityMetrics.values(accountId, work.id);
@@ -236,7 +275,60 @@ await accountSessionAccess.replaySessionRevocations();
 
 initLogger({ env: { service: "cantiara-e2e-server" } });
 
+const recheckCaptures = new Map<string, number>();
+const smartLinkPreview = createSmartLinkPreview({
+  resolve: async () => ["93.184.216.34"],
+  // biome-ignore lint/suspicious/useAwait: Deterministic egress double implements a promise-based transport.
+  request: async (
+    url,
+  ): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: Uint8Array;
+  }> => {
+    if (url.pathname === "/recheck-journey") {
+      const captures = (recheckCaptures.get(url.href) ?? 0) + 1;
+      recheckCaptures.set(url.href, captures);
+      const text =
+        captures === 1
+          ? "Original research finding."
+          : "Revised research finding.";
+      return {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+        body: new TextEncoder().encode(text),
+      };
+    }
+    if (url.pathname === "/redirect-private") {
+      return {
+        status: 302,
+        headers: { location: "http://169.254.169.254/metadata" },
+        body: new Uint8Array(),
+      };
+    }
+    if (url.pathname === "/oembed") {
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: new TextEncoder().encode('{"title":"Research video"}'),
+      };
+    }
+    return {
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: new TextEncoder().encode(
+        "<title>Founder research</title><p>Original research finding.</p>",
+      ),
+    };
+  },
+});
+
 const app = createApp({
+  sourcesAndFreshness: createDatabaseSourcesAndFreshness(database),
+  smartLinkPreview,
+  sourceEvidence: createDatabaseSourceEvidence(database),
+  sourceRecheck: createDatabaseSourceRecheck(database, smartLinkPreview),
+  researchSessions,
   accountSessionAccess,
   accountPreferences,
   accountPreferencesCompatibility: accountPreferences,
@@ -253,8 +345,14 @@ const app = createApp({
   database,
   documentMutationContracts,
   documents,
+  documentTransfers: createDatabaseDocumentTransfers(
+    database,
+    documents,
+    createDatabaseDocumentSurfaceCancellations(securityEventDatabase),
+  ),
   smartCollections,
   technicalDiagrams,
+  universalSearch,
   // Keep integration coverage inside the API window regardless of CI date.
   desktopApiNow: () => new Date(DESKTOP_API_PUBLISHED_AT),
   desktopOrigins: [],
@@ -263,13 +361,22 @@ const app = createApp({
   githubAvailability,
   githubIdentityConfirmation,
   nodeEnv: "test",
+  projectGoals: createDatabaseProjectGoals(database),
+  projectSourceRecords,
+  personalReminders,
+  favorites: createDatabaseFavorites(database),
   priorityMetricMutationContracts,
   priorityMetrics,
   projectShell,
   projectShellMutationContracts,
+  returnToWork: createDatabaseReturnToWork(database, {
+    projectMutations: projectShellMutationContracts,
+    workLifecycle,
+  }),
   prioritizationSessionMutationContracts,
   prioritizationSessions,
   recordActions,
+  recordTable,
   relations,
   roadmapHorizon,
   tags,
@@ -306,6 +413,29 @@ async function createUnifiedCalendarFixture(accountId: string) {
     workId: work.id,
   });
   return project;
+}
+
+async function createLongStatusFixture(fixtureKey: string, accountId: string) {
+  if (fixtureKey !== "long-status") {
+    return null;
+  }
+  const longStatusProject = await projectShell.create(accountId, {
+    name: "Return Status Project",
+    shortCode: "RETURN",
+    starterConfiguration: "Blank Project",
+  });
+  const candidate = await workLifecycle.create(accountId, {
+    projectId: longStatusProject.id,
+    type: "Task",
+    title: "Review payment retries",
+    baseRevision: 0,
+    clientIdempotencyKey: crypto.randomUUID(),
+  });
+  await database
+    .update(workTable)
+    .set({ statusChangedAt: new Date("2025-01-01T00:00:00.000Z") })
+    .where(eq(workTable.id, candidate.id));
+  return longStatusProject;
 }
 
 async function createE2EFixture(fixtureKey: string) {
@@ -346,6 +476,11 @@ async function createE2EFixture(fixtureKey: string) {
     throw new Error("Better Auth did not create an E2E session cookie");
   }
 
+  const longStatusProject = await createLongStatusFixture(
+    fixtureKey,
+    founder.id,
+  );
+
   const captureProject =
     fixtureKey === "capture-inbox"
       ? await projectShell.create(founder.id, {
@@ -360,7 +495,9 @@ async function createE2EFixture(fixtureKey: string) {
       : null;
 
   const isScopeTreeFixture =
-    fixtureKey === "scope-tree" || fixtureKey === "command-palette-scope-tree";
+    fixtureKey === "scope-tree" ||
+    fixtureKey === "favorites-decisions" ||
+    fixtureKey === "command-palette-scope-tree";
   const scopeTreeProject = isScopeTreeFixture
     ? await projectShell.create(founder.id, {
         name: "Scope Tree Project",
@@ -513,7 +650,25 @@ async function createE2EFixture(fixtureKey: string) {
     usedInSourceWorkId = source.id;
   }
 
+  const favoritesFixture = await prepareFavoritesFixture(
+    database,
+    fixtureKey,
+    founder.id,
+    () =>
+      projectShell.create(founder.id, {
+        name: "Favorite Project",
+        shortCode: "FAV",
+        starterConfiguration: "Blank Project",
+      }),
+  );
+
+  const personalDataProject = await createResearchConsentFixture(
+    fixtureKey,
+    founder.id,
+  );
   const projectId =
+    personalDataProject?.id ??
+    longStatusProject?.id ??
     usedInTargetProject?.id ??
     captureProject?.id ??
     calendarProject?.id ??
@@ -523,6 +678,7 @@ async function createE2EFixture(fixtureKey: string) {
     bulkEditProgressFixture?.projectId;
 
   return {
+    ...favoritesFixture,
     currentCookie,
     otherCookie,
     ...(fixtureKey === "completion-effects"
@@ -538,9 +694,46 @@ async function createE2EFixture(fixtureKey: string) {
   };
 }
 
+async function createResearchConsentFixture(
+  fixtureKey: string,
+  accountId: string,
+) {
+  if (fixtureKey !== "personal-data") {
+    return null;
+  }
+  const project = await projectShell.create(accountId, {
+    name: "Kişisel veri",
+    shortCode: "PD",
+    starterConfiguration: "Blank Project",
+  });
+  for (const consent of [
+    "Not asked",
+    "Allowed",
+    "Not allowed",
+    "Not applicable",
+  ] as const) {
+    await researchSessions.save(accountId, {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      baseRevision: 0,
+      clientIdempotencyKey: crypto.randomUUID(),
+      fields: {
+        title: `Research consent: ${consent}`,
+        purpose: "Verify personal-data consent boundaries",
+        consent,
+      },
+    });
+  }
+  return project;
+}
+
 async function createDocumentsFixture(fixtureKey: string, accountId: string) {
   const usesDocumentSkeletons = fixtureKey === "documents-skeletons";
-  if (fixtureKey !== "documents" && !usesDocumentSkeletons) {
+  if (
+    fixtureKey !== "documents" &&
+    fixtureKey !== "source-recheck" &&
+    !usesDocumentSkeletons
+  ) {
     return null;
   }
   const documentsProject = await projectShell.create(accountId, {
@@ -557,6 +750,21 @@ async function createDocumentsFixture(fixtureKey: string, accountId: string) {
       projectId: documentsProject.id,
       title: "Live Work source",
       type: "Task",
+    });
+  }
+  if (fixtureKey === "source-recheck") {
+    await database.insert(decision).values({
+      id: crypto.randomUUID(),
+      projectId: documentsProject.id,
+      title: "Freshness Decision",
+      decision: "Retain original evidence",
+    });
+    await database.insert(feedback).values({
+      id: crypto.randomUUID(),
+      projectId: documentsProject.id,
+      title: "Freshness Feedback",
+      originalMessage: "Customer finding",
+      occurredAt: new Date(),
     });
   }
   return documentsProject;
@@ -598,8 +806,20 @@ async function createBulkEditProgressFixture(accountId: string) {
 serve({
   hostname: "127.0.0.1",
   port: serverPort,
+  // Fixture creation can exceed Bun's 10s idle timeout on shared CI machines.
+  idleTimeout: 60,
   async fetch(request, server) {
     const url = new URL(request.url);
+    if (
+      url.pathname === "/__e2e/favorites-delete-source" &&
+      request.method === "POST"
+    ) {
+      await deleteStaleFavoriteSource(
+        database,
+        url.searchParams.get("documentId") ?? "",
+      );
+      return Response.json({ status: true });
+    }
     if (url.pathname === "/__e2e/setup") {
       const fixtureKey = url.searchParams.get("fixture");
       if (!(fixtureKey && E2E_FIXTURE_KEY_PATTERN.test(fixtureKey))) {
@@ -611,6 +831,7 @@ serve({
 
       const {
         bulkEditProgressWorkCount,
+        favoritesFixture,
         currentCookie,
         otherCookie,
         projectId,
@@ -619,6 +840,7 @@ serve({
         usedInSourceWorkId,
       } = await createE2EFixture(fixtureKey);
       return Response.json({
+        ...(favoritesFixture ? { favorites: favoritesFixture } : {}),
         cookie: currentCookie,
         otherCookie,
         ...(tauriBearerToken ? { tauriBearerToken } : {}),

@@ -1,7 +1,5 @@
 # Tamamlanmamış İş Taslakları
 
-Kaynak: [`docs/workflow/11-work-drafts/phase-context.md`](../../workflow/11-work-drafts/phase-context.md)
-
 ## Problem Statement
 
 Kurucu ayrıntılı İş formunu yarıda bırakınca kaybetmemek ister. Bugün iskelette Taslak yoktur; yarı form ya kaybolur ya da yanlışlıkla İş, Yakalama veya Belge taslağı sayılır. Yakalama Gelen Kutusu, kesinleşmiş İş yaşamı ve Belge taslağı bu sorunun parçası değildir.

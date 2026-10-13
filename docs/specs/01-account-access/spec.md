@@ -1,7 +1,5 @@
 # Hesap Erişimi ve Oturum Güvenliği
 
-Kaynak: [`docs/workflow/01-account-access/phase-context.md`](../../workflow/01-account-access/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Cantiara'ya GitHub kimliğiyle güvenli girmek, tek Çalışma Alanında kalmak ve hangi cihazların yazabildiğini denetlemek ister. Bugün iskelet e-posta/şifre girişine ve `SameSite=none` çerezine yaslanır; GitHub kimliği Hesaba bağlanmaz, Çalışma Alanı oluşmaz, oturum listesi/iptali ve yüksek risk teyidi yoktur. Repository yetkisi, ziyaretçi paylaşımı ve hesap kapatma bu sorunun parçası değildir; kapatma ve redaksiyon ise bu feature'ın teyidini bekler.

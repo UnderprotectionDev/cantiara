@@ -82,6 +82,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── capture-triage/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── favorites/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── daily-focus/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── file-attachments/
@@ -94,6 +96,8 @@
 │   │   │   │   │   └── server/
 │   │   │   │   ├── project-shell/
 │   │   │   │   │   └── server/
+│   │   │   │   ├── project-goals/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── project-source-records/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── priority-metrics/
@@ -104,6 +108,8 @@
 │   │   │   │   │       ├── personal-reminder-worker.ts
 │   │   │   │   │       ├── personal-reminders-database.test.ts
 │   │   │   │   │       └── personal-reminders-database.ts
+│   │   │   │   ├── return-to-work/
+│   │   │   │   │   └── server/
 │   │   │   │   ├── roadmap-horizon/
 │   │   │   │   │   └── server/
 │   │   │   │   ├── record-actions/
@@ -133,6 +139,10 @@
 │   │   └── tsdown.config.ts
 │   └── web/
 │       ├── e2e/
+│       │   ├── open-questions.e2e.ts
+│       │   ├── validation-records.e2e.ts
+│       │   ├── uncertainty-records.e2e.ts
+│       │   ├── favorites.e2e.ts
 │       │   ├── bulk-editing.e2e.ts
 │       │   ├── account-preferences.e2e.ts
 │       │   ├── completion-effects.e2e.ts
@@ -143,7 +153,9 @@
 │       │   ├── command-palette.e2e.ts
 │       │   ├── custom-fields.e2e.ts
 │       │   ├── kanban.e2e.ts
+│       │   ├── project-goals.e2e.ts
 │       │   ├── project-shell.e2e.ts
+│       │   ├── return-to-work.e2e.ts
 │       │   ├── record-actions.e2e.ts
 │       │   ├── web-capture-extension.e2e.ts
 │       │   ├── work-blockers.e2e.ts
@@ -160,6 +172,12 @@
 │       │   │   ├── theme-provider.tsx
 │       │   │   └── user-menu.tsx
 │       │   ├── features/
+│       │   │   ├── return-to-work/
+│       │   │   │   └── ui/
+│       │   │   ├── favorites/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           └── favorite-control.tsx
 │       │   │   ├── daily-focus/
 │       │   │   │   └── ui/
 │       │   │   │       ├── daily-focus-view.test.tsx
@@ -172,6 +190,20 @@
 │       │   │   │   └── ui/
 │       │   │   │       └── components/
 │       │   │   │           └── bulk-edit-dialog.tsx
+│       │   │   ├── validation-records/
+│       │   │   │   └── ui/
+│       │   │   │       ├── validation-records-surface.tsx
+│       │   │   │       ├── validation-records-view.tsx
+│       │   │   │       └── validation-records-view.test.tsx
+│       │   │   ├── uncertainty-records/
+│       │   │   │   └── ui/
+│       │   │   │       ├── components/
+│       │   │   │       │   ├── project-assumptions-surface.tsx
+│       │   │   │       │   ├── project-assumptions-view.tsx
+│       │   │   │       │   └── project-assumptions-view.test.tsx
+│       │   │   │       ├── open-question-view.tsx
+│       │   │   │       ├── open-question-view.test.tsx
+│       │   │   │       └── open-questions-surface.tsx
 │       │   │   ├── account-access/
 │       │   │   │   ├── hooks/
 │       │   │   │   │   └── use-account-sessions.ts
@@ -302,6 +334,12 @@
 │       │   │   │       └── components/
 │       │   │   │           ├── work-relations.test.tsx
 │       │   │   │           └── work-relations.tsx
+│       │   │   ├── project-goals/
+│       │   │   │   └── ui/
+│       │   │   │       └── components/
+│       │   │   │           ├── project-goals-surface.tsx
+│       │   │   │           ├── project-goals-view.test.tsx
+│       │   │   │           └── project-goals-view.tsx
 │       │   │   ├── project-overview/
 │       │   │   │   ├── lib/
 │       │   │   │   │   └── project-overview.ts
@@ -500,6 +538,8 @@
 │   │   │   ├── completion-effects.test.ts
 │   │   │   ├── completion-effects.ts
 │   │   │   ├── capture-triage.ts
+│   │   │   ├── favorites.ts
+│   │   │   ├── favorites.test.ts
 │   │   │   ├── daily-focus.test.ts
 │   │   │   ├── daily-focus.ts
 │   │   │   ├── context.ts
@@ -515,6 +555,7 @@
 │   │   │   ├── prioritization-sessions.ts
 │   │   │   ├── personal-reminders.ts
 │   │   │   ├── roadmap-horizon.test.ts
+│   │   │   ├── return-to-work.ts
 │   │   │   ├── roadmap-horizon.ts
 │   │   │   ├── desktop-api-window.test.ts
 │   │   │   ├── desktop-api-window.ts
@@ -526,6 +567,7 @@
 │   │   │   ├── project-shell.ts
 │   │   │   ├── project-source-records.test.ts
 │   │   │   ├── project-source-records.ts
+│   │   │   ├── validation-records.test.ts
 │   │   │   ├── record-actions.test.ts
 │   │   │   ├── record-actions.ts
 │   │   │   ├── relations.ts
@@ -552,14 +594,28 @@
 │   │   └── tsconfig.base.json
 │   ├── db/
 │   │   ├── scripts/
+│   │   │   ├── check-migrations.test.ts
+│   │   │   ├── check-migrations.ts
+│   │   │   ├── development-lease.ts
+│   │   │   ├── doctor.test.ts
+│   │   │   ├── doctor.ts
+│   │   │   ├── migrate.ts
 │   │   │   ├── migration-connection.test.ts
 │   │   │   ├── migration-connection.ts
 │   │   │   ├── migration-history.test.ts
 │   │   │   ├── migration-history.ts
+│   │   │   ├── migration-repository.test.ts
+│   │   │   ├── migration-repository.ts
 │   │   │   ├── migration-selection.test.ts
 │   │   │   ├── migration-selection.ts
-│   │   │   ├── migrate.ts
-│   │   │   └── push-local.ts
+│   │   │   ├── migration-target.ts
+│   │   │   ├── migrations.integration.test.ts
+│   │   │   ├── prepare.integration.test.ts
+│   │   │   ├── prepare.test.ts
+│   │   │   ├── prepare.ts
+│   │   │   ├── push-local.ts
+│   │   │   ├── schema-inspection.test.ts
+│   │   │   └── schema-inspection.ts
 │   │   ├── src/
 │   │   │   ├── migrations/
 │   │   │   │   └── security-events/
@@ -568,6 +624,7 @@
 │   │   │   │   ├── capture-triage.ts
 │   │   │   │   ├── completion-effects.ts
 │   │   │   │   ├── custom-fields.ts
+│   │   │   │   ├── favorites.ts
 │   │   │   │   ├── daily-focus.ts
 │   │   │   │   ├── decision.ts
 │   │   │   │   ├── file-attachments.ts
@@ -584,6 +641,7 @@
 │   │   │   │   ├── roadmap-horizon.ts
 │   │   │   │   ├── record-action.ts
 │   │   │   │   ├── relation.ts
+│   │   │   │   ├── return-to-work.ts
 │   │   │   │   ├── security-event.ts
 │   │   │   │   ├── work-external-handoff.ts
 │   │   │   │   ├── work-draft.ts
@@ -612,11 +670,19 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
+│   ├── ci-workflow.test.ts
 │   ├── dev-database-mode.test.ts
 │   ├── dev-database-mode.ts
+│   ├── dev-server.ts
+│   ├── development-session.test.ts
+│   ├── development-session.ts
 │   ├── install-hooks.ts
+│   ├── local-dev-command.test.ts
+│   ├── local-dev-command.ts
+│   ├── local-dev.test.ts
 │   ├── local-dev.ts
-│   └── neon-local-proxy.ts
+│   ├── neon-local-proxy.ts
+│   └── tsconfig.json
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock
@@ -628,9 +694,17 @@
 
 Tags source ownership is split across the API contract (`packages/api/src/tags.ts`), the PostgreSQL schema (`packages/db/src/schema/tags.ts`), the server boundary (`apps/server/src/features/tags/server/`), and the web surface (`apps/web/src/features/tags/`).
 
-Documents source ownership is split across the API contract (`packages/api/src/documents.ts`), the empty-heading starter skeleton catalog shared with Project Shell (`packages/api/src/document-skeletons.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/document.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`).
+Documents source ownership is split across the API contracts (`packages/api/src/documents.ts`, `packages/api/src/document-templates.ts`, `packages/api/src/document-transfers.ts`), the empty-heading starter skeleton catalog shared with Project Shell (`packages/api/src/document-skeletons.ts`), the PostgreSQL schemas and versioned migrations (`packages/db/src/schema/document.ts`, `packages/db/src/schema/document-template.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/documents/server/`), and the Project Documents surface (`apps/web/src/features/documents/`). Document Templates use the Documents mutation boundary, not Work Templates or a template marketplace. Project/Wiki transfers reuse that boundary in `document-transfer-database.ts`, the shared row converter `document-row.ts`, and the shared `document-transfer-controls.tsx`; they do not introduce another Document store.
+
+Documents owns the dictionary-rename counterpart in `apps/server/src/features/documents/server/document-tag-rename-database.ts`; Tags calls it in the same transaction without owning Markdown parsing. Folder/parent navigation and previewed organization/Archive controls live in `document-navigation.tsx` and `document-organization-controls.tsx` beside the Project Documents surface.
+
+Migration infrastructure is owned by `packages/db/scripts/`: `migration-repository.ts` validates canonical metadata, `check-migrations.ts` compares configured source schemas, `migration-target.ts` resolves and connects the application-aligned target, `migration-history.ts` verifies applied history, `schema-inspection.ts` reads physical catalog shape, `doctor.ts` exposes strict read-only readiness and explicit development compatibility, `development-lease.ts` holds and monitors shared runtime migration locks, and `migrate.ts` is the controlled write boundary. `prepare.ts` orchestrates issue database readiness through source checks, deep checks of both targets, and sequential canonical migrations; `prepare.test.ts` owns its orchestration and CLI seam. `packages/db/schema-files.ts` is the schema-file manifest shared by both Drizzle configs and source checks. Script type checking lives in `packages/db/tsconfig.scripts.json`; command integration tests use disposable databases in `packages/db/scripts/migrations.integration.test.ts` and `packages/db/scripts/prepare.integration.test.ts`. `scripts/local-dev.ts` owns Conductor/root task startup and the optional local PostgreSQL proxy; `scripts/local-dev-command.ts` owns task/help forwarding. The direct server `dev` command uses `scripts/dev-server.ts` to acquire the lease and `scripts/development-session.ts` to supervise and stop the API when verification fails. The contract and testing decisions live in `docs/tech-stack.md`, not a product feature spec.
 
 Personal Wiki owns the authenticated ownership shell under `apps/web/src/features/personal-wiki/` and `apps/web/src/routes/_auth/personal-wiki.tsx`. It consumes the same Documents surface, contract, schema, server access, and mutations; Wiki Documents have Workspace ownership and no Project. Publishing remains a separate feature.
+
+Personal Wiki's scope-selection and badge counterpart lives in `apps/web/src/features/personal-wiki/document-scope.ts` and `ui/components/document-scope-badge.tsx`. Documents navigation consumes it to keep mixed results in separate ownership groups before Folder/hierarchy navigation; scope filters never create a new home. Record Discovery consumes it through `apps/web/src/features/record-discovery/ui/components/` for the founder chrome's `Search` and `All Documents` views. `packages/api/src/record-discovery.ts` owns the Document discovery and Universal Search contracts plus match context; `apps/server/src/features/record-discovery/server/document-discovery-database.ts` queries authorized canonical Documents through the Documents access counterpart, while `universal-search-database.ts` queries the canonical Work, Project source record, Technical Diagram, Document, and File Attachment tables under Account ownership. `universal-search-results.tsx` renders the mixed-record Search results, and `context-record-preview.tsx` owns the shared `Open source record` action and session-only preview panel consumed by the current Kanban, Unified Calendar, Roadmap, Scope Tree, and Smart Collection surfaces. Discovery is not a Wiki-owned index or a new storage home.
+
+The Documents in-memory edit session lives in `apps/web/src/features/documents/store/`; its Conflict Draft comparison and resolution surface lives in `apps/web/src/features/documents/ui/components/document-conflict-drafts.tsx`. The session consumes Client Shell connection state without creating persistent storage or a write queue. Client Shell's server support-response boundary preserves the validated Documents conflict payload while retaining its no-retry policy.
 
 Smart Collections source ownership is split across the API contract (`packages/api/src/smart-collections.ts`), the PostgreSQL schema and versioned migration (`packages/db/src/schema/smart-collection.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/smart-collections/server/`), and the Project Smart Collections surface (`apps/web/src/features/smart-collections/`).
 
@@ -638,11 +712,15 @@ Technical Diagrams source ownership is split across the API contract (`packages/
 
 File Attachments source ownership is split across the API contract (`packages/api/src/file-attachments.ts`), the PostgreSQL schema (`packages/db/src/schema/file-attachments.ts`), the server boundary (`apps/server/src/features/file-attachments/server/`), and the authenticated multipart/RPC routes (`apps/server/src/app.ts`, `packages/api/src/routers/index.ts`).
 
+Document-owned File Attachments reuse `ownerDocumentId` in that schema and reader; the existing Project/Wiki command contract is `packages/api/src/document-transfers.ts`, backed by `document-transfer-database.ts`. Both transfer command shapes are validated and dispatched by the same authenticated RPC in `packages/api/src/routers/index.ts`. The shared live-section cycle guard lives in `document-live-section-database.ts` and is called by normal Document writes and Copy. `packages/db/src/schema/external-surface.ts` and its canonical applied `0090` migration represent publication ownership used to block Move while a surface is active; publishing UI remains outside this module.
+
+Document scope transfer, attachment ownership selection, independent copies and single-Document snapshots are owned by `packages/api/src/document-transfer.ts`, `apps/server/src/features/documents/server/document-transfers-database.ts` and `apps/web/src/features/documents/ui/components/document-transfer-controls.tsx`. Isolated HTML-to-PDF rendering lives in `apps/server/src/features/documents/server/document-pdf.ts`. The narrow External Surface/history counterpart lives in `packages/db/src/schema/external-surface.ts`; its irreversible cancellation journal adapter is `document-surface-cancellations.ts` under the Documents server boundary and is included in startup security replay. Publishing UI, URLs and tokens remain outside this module.
+
 Priority metrics source ownership is split across the API contract (`packages/api/src/priority-metrics.ts`), the PostgreSQL schema (`packages/db/src/schema/priority-metrics.ts`), the server boundary (`apps/server/src/features/priority-metrics/server/`), and the web surface (`apps/web/src/features/priority-metrics/`).
 
-Personal Reminder lifecycle is owned by the account-scoped schema (`packages/db/src/schema/personal-reminders.ts`) and server boundary (`apps/server/src/features/personal-reminders/server/`). Roadmap Horizon calls its Work `Review Later` handling adapter in the same database transaction as replacing or reconsidering a `Not now` trail.
+Personal Reminder source ownership is split across the API contract (`packages/api/src/personal-reminders.ts`), the Account-scoped schema and versioned migrations (`packages/db/src/schema/personal-reminders.ts`, `packages/db/src/migrations/`), the server boundary (`apps/server/src/features/personal-reminders/server/`), and the shared record control (`apps/web/src/features/personal-reminders/ui/components/personal-reminder-control.tsx`). The control is consumed by Project, Document, Work, and Project source-record surfaces. Roadmap Horizon calls the Work `Review Later` adapter in the same database transaction as replacing or reconsidering a `Not now` trail.
 
-The Work `Review Later` surface lives at `apps/web/src/features/personal-reminders/ui/components/work-review-later-control.tsx`; it is consumed on Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
+The Work-specific `Review Later` adapter lives at `apps/web/src/features/personal-reminders/ui/components/work-review-later-control.tsx`; it is consumed on Work detail/List, Backlog, Roadmap, Priority Map, and Prioritization Sessions.
 
 External Execution Handoff source ownership is split across the API contract (`packages/api/src/external-handoffs.ts`), the PostgreSQL schema and versioned migrations (`packages/db/src/schema/work-external-handoff.ts`, `packages/db/src/migrations/`), the Work-owned server boundary (`apps/server/src/features/external-handoffs/server/`), and the Work-list surface (`apps/web/src/features/external-handoffs/`).
 
@@ -662,4 +740,42 @@ Focus Period owns its workspace-scoped working window, historical membership, an
 
 Decision, Risk, Assumption, Open Question, Milestone, Project Release, and Production Incident source records are owned by `packages/api/src/project-source-records.ts`, their PostgreSQL schemas in `packages/db/src/schema/`, versioned migrations in `packages/db/src/migrations/`, and the Account-scoped lifecycle access layer under `apps/server/src/features/project-source-records/server/`. The read-only detail surface lives under `apps/web/src/features/project-source-records/`; Documents references and conversion use the same stable source identity, while `apps/server/src/features/daily-focus/server/` derives timeline events from its supported source records and mutation history.
 
+Source identity and dated capture versions are owned separately by `packages/api/src/sources-and-freshness.ts`, `packages/db/src/schema/source.ts`, versioned migrations in `packages/db/src/migrations/`, and `apps/server/src/features/sources-and-freshness/server/`. The Sources and Freshness seam uses authenticated Source create/save/read/list RPCs and the shared atomic mutation contract. The Source foundation has no browser surface; Feed, preview/recheck and evidence bind consumers keep their own ownership.
+
 Completion Effects preferences are an Account-scoped catalog owned by `packages/api/src/completion-effects.ts`, persisted in `packages/db/src/schema/completion-effects.ts`, served from `apps/server/src/features/completion-effects/server/`, and configured through `apps/web/src/features/completion-effects/`.
+
+Project Goals membership is owned by `packages/api/src/project-goals.ts`, `packages/db/src/schema/project-goal-relation.ts`, and versioned migrations. Its Project ownership helper and typed relation adapter live in `apps/server/src/features/project-goals/server/project-goal-access.ts` and `project-goal-membership-database.ts`; `project-goal-membership-database.test.ts` verifies the same Project Goals seam. Goal detail consumes `apps/web/src/features/project-goals/ui/components/project-goal-membership.tsx` and `project-goal-membership-view.tsx`. The browser journey is `apps/web/e2e/project-goal-membership.e2e.ts`. The adapter reuses the closed Relations catalog; endpoint deletion preserves its historical pair, while the Project remains the cleanup owner.
+
+Favorites membership, list, and source opening are owned by `packages/api/src/favorites.ts`, `packages/db/src/schema/favorites.ts`, and `apps/server/src/features/favorites/server/`. Source screens consume the shared control in `apps/web/src/features/favorites/ui/components/`; the personal shell does not own a membership store. `favorites-sources-database.ts` resolves current source summaries in batches without persisted copies. The header hosts `apps/web/src/features/favorites/ui/components/favorites-panel.tsx` and `favorites-list.tsx`; `lib/favorite-preview-target.ts` delegates to the shared Record Discovery preview. `apps/server/e2e/favorites-fixture.ts` prepares the Favorites browser journey only in the isolated E2E server.
+
+Decision lifecycle editing is owned by `apps/web/src/features/decisions/ui/components/`: `project-decisions-surface.tsx` consumes the existing Project source-record owner through `projectDecisions`, create/update and transition RPCs; `project-decisions-view.tsx` owns TanStack Form editing and explicit withdrawal. Project Shell opens the Project area and existing Decision source hashes; preview consumers retain the shared read-only source-record detail. The Decisions seam browser journey is `apps/web/e2e/decisions.e2e.ts`. Withdrawal metadata is part of `packages/db/src/schema/decision.ts` and the versioned migration; supersession is owned by the adjacent `decision-supersession-controls.tsx` and `decision-supersession-view.tsx`, the `packages/api/src/decision-supersession.ts` contract, and the `decision-supersession-database.ts` adapter under the same server owner. `decision_supersession` in the Decision schema represents the single-successor graph. Its browser journey is `apps/web/e2e/decision-supersession.e2e.ts`; `decision-chain-view.tsx` renders historical generations and final current navigation using `packages/api/src/decision-chain.ts`; that contract also exposes detached Decision snapshot candidates for sharing/public counterparts. Record Discovery owns Search/All Decisions status selection in `document-discovery.tsx` and `universal-search-database.ts`. The combined chain/default browser journey is `apps/web/e2e/decision-chain.e2e.ts`.
+
+Return to Work derives Since you last looked at the same summary boundary. `apps/server/src/features/return-to-work/server/return-events-database.ts` owns the existing source/history read adapter; `apps/web/src/features/return-to-work/ui/since-last-looked.tsx` owns grouped event presentation and its adjacent presentation test.
+
+Return to Work's optional exact visual-target contract lives in `packages/api/src/return-to-work.ts`. Its transient visual tour driver and canvas viewport adapter contract live in `packages/api/src/return-visual-tour.ts`; `return-visual-tour.test.ts` observes the same Return to Work seam through a canvas viewport double. Actual canvas target resolution, highlight/pan, meaningful viewport restore and session persistence remain with the owning surface features. Browser controls live in `apps/web/src/features/return-to-work/ui/visual-changes-tour.tsx` and `visual-tour-panel.tsx`; the existing list owns remainder focus. The existing Work event adapter emits exact Roadmap Work targets. Roadmap owns the React Flow renderer under `ui/components/roadmap-canvas.tsx`, live queries under `live-roadmap-canvas.tsx`, shared list/canvas membership under `lib/roadmap-projection.ts`, public viewport resolution under `lib/roadmap-viewport.ts`, and Project-scoped transient state under `store/roadmap-session.tsx`.
+
+Return to Work status-age thresholds use the existing Project configuration in `packages/api/src/project-shell.ts` and its `Saved views` configuration form. `packages/api/src/return-to-work.ts` owns the shared neutral candidate predicate. `apps/server/src/features/smart-collections/server/smart-collections-database.ts` evaluates the prepared view through its existing Work membership reader. No persisted membership or new schema is introduced.
+
+Uncertainty Records uses the existing Project source-record mutation owner: `packages/api/src/project-source-records.ts` carries Assumption commands, `packages/api/src/uncertainty-records.ts` carries its evidence context, and `apps/server/src/features/project-source-records/server/uncertainty-records-database.ts` reads canonical Assumptions and existing pinned Document/Work evidence. `apps/web/src/features/uncertainty-records/ui/components/` owns the TanStack Form editor and Query surface consumed by Project Discovery and Assumption source hashes. The Assumption schema remains in `packages/db/src/schema/assumption.ts`; no new storage or lifecycle owner is introduced. The Uncertainty Records seam journey is `apps/web/e2e/uncertainty-records.e2e.ts`.
+
+Uncertainty Records also uses `apps/server/src/features/relations/server/usage-links-database.ts` for atomic exact Document pin validation. `readUncertaintyDocumentPins` in the Project source-record read adapter resolves current and legacy version ownership for both types. Open Question presentation remains in `apps/web/src/features/uncertainty-records/ui/open-question-view.tsx` and `open-questions-surface.tsx`; its browser journey is `apps/web/e2e/open-questions.e2e.ts`.
+
+Risk editing is owned by `apps/web/src/features/risks/ui/components/`, using the Project source-record API and PostgreSQL owner above. `project-risks-surface.tsx` binds Account-scoped `projectRisks`, create/update and explicit transitions; `project-risks-view.tsx` owns TanStack Form drafts and the five-status UI. Project Overview opens `#risks` and existing `#source-risk-` identities; preview consumers retain the read-only source view. The Risks seam browser journey is `apps/web/e2e/risks.e2e.ts`. No schema change or score store is introduced.
+
+Risk context relations and `open-risk` event production are owned by `packages/api/src/risk-signals.ts`, the `riskContextRelation` and `riskAttentionSignal` tables in `packages/db/src/schema/risk.ts`, and `apps/server/src/features/project-source-records/server/risk-signals-database.ts`. Project source-record mutations emit entered-Open events in their existing atomic commit. The Account-scoped `relateRiskContext` and `projectRiskSignals` RPCs expose the Risks record and signal-production seam; the Attention Signals center remains a separate consumer.
+
+Validation Records uses the shared Project source record API and mutation owner (`packages/api/src/project-source-records.ts`, `apps/server/src/features/project-source-records/server/project-source-records-database.ts`). The schema is `packages/db/src/schema/validation-record.ts`; seam tests are `packages/api/src/validation-records.test.ts`, `apps/server/src/features/project-source-records/server/validation-records-database.test.ts`, and `apps/web/e2e/validation-records.e2e.ts`.
+
+Research Sessions Consent Context Gates is owned by `packages/api/src/research-sessions.ts`, `packages/db/src/schema/research-session.ts`, versioned migrations, and `apps/server/src/features/research-sessions/server/research-sessions-database.ts`. The atomic Project-owned session row carries server-recorded Consent and immutable capture/link permission provenance. Project Discovery consumes `apps/web/src/features/research-sessions/ui/`, with account-zone time entry in `apps/web/src/features/research-sessions/lib/research-session-time.ts`; its browser journey is `apps/web/e2e/research-sessions.e2e.ts`. Contact identity is an explicit collaborator; unavailable identities fail closed. Snapshot and convert preview helpers are consent counterparts for their later owning surfaces.
+
+Smart Link Preview is owned by `packages/api/src/smart-link-preview.ts`, `apps/server/src/features/sources-and-freshness/server/` (gateway, isolated worker and public-network policy), and `apps/web/src/features/sources-and-freshness/ui/components/` (Project Discovery composer and saved Source snapshots). The standalone `apps/server/src/smart-link-egress.ts` entrypoint is deployed separately from the product API; it must not import product services, auth, environment or database modules. Its build emits the worker as a separate entrypoint.
+
+The Sources and Freshness server owner also provides `youtube-player-page.ts`, a static public Hono player document for the local macOS WebView. `app.ts` registers it before account/context middleware because it has no account access. Its adjacent route/provider-browser test and the composer/saved-snapshot UI tests observe spec 44’s Sources and Freshness seam.
+
+Research Sessions owns the typed note contract in `packages/api/src/research-sessions.ts`, the Project-owned atomic PostgreSQL adapter in `apps/server/src/features/research-sessions/server/`, and the account-zone form and note surface in `apps/web/src/features/research-sessions/`. `ui/research-session-notes.tsx` owns explicit note-kind authoring and display; `research-sessions-surface.tsx` binds it to the authenticated RPC. Notes use the existing `packages/db/src/schema/research-session.ts` JSON content and Mutation Contract, with no separate Feedback or Test Session record.
+
+Source Check history and explicit candidate approval are Source-owned helpers in `packages/api/src/source-recheck.ts`, `packages/db/src/schema/source.ts` (`source_check`), and `apps/server/src/features/sources-and-freshness/server/source-recheck-database.ts`. Project Discovery consumes `source-recheck-controls.tsx` and `source-check-compare.tsx` under the same Sources and Freshness UI owner. Evidence pin/rebind stays with spec 45; this helper does not create or relocate evidence links.
+
+Research conversion preview/commit is owned by `packages/api/src/research-session-bindings.ts`, `apps/server/src/features/research-sessions/server/research-binding-commit.ts` and `research-binding-targets.ts`, and `apps/web/src/features/research-sessions/ui/research-note-binding.tsx`. Preparation rows share `packages/db/src/schema/research-session.ts`. The reusable pin contract lives in `packages/api/src/evidence.ts`; semantic Evidence/Origin persistence is owned by `packages/db/src/schema/evidence.ts` and `apps/server/src/features/evidence/server/evidence-database.ts`. Minimal Feedback existing-source intake and owner-scoped original-message reading are owned by `packages/db/src/schema/feedback.ts` and `apps/server/src/features/feedback/server/feedback-database.ts`. Expired Research conversion plans are swept by `research-sessions-database.ts` via `services.ts` and the server startup/maintenance interval; mutation receipts remain durable. Historical target reads in `research-binding-targets.ts` are separate from write eligibility. The minimal Feedback read-only dialog lives in `apps/web/src/features/feedback/ui/research-binding-feedback.tsx`, opened by the Research Sessions Evidence consumer through its authenticated binding reader. These collaborators are tested through the consuming Research Sessions seam; they do not deliver the full Evidence Flow or Feedback Feed.
+
+Source evidence preview, per-use decisions and grouped freshness signal reads are owned by `packages/api/src/source-evidence.ts`, `apps/server/src/features/sources-and-freshness/server/source-evidence-database.ts` and its adjacent Sources and Freshness seam tests. Project Discovery consumes `source-evidence-controls.tsx`. Exact pin replacement and target ownership stay in the Evidence server owner (`evidence-database.ts`, `evidence-targets.ts`); Evidence revision/review fields stay in `packages/db/src/schema/evidence.ts`. Source approval never relocates a pin.

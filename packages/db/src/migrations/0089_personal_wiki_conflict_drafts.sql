@@ -1,0 +1,4 @@
+ALTER TABLE "document_conflict_draft" ALTER COLUMN "project_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "document_conflict_draft" ADD COLUMN "workspace_id" text;--> statement-breakpoint
+ALTER TABLE "document_conflict_draft" ADD CONSTRAINT "document_conflict_draft_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "document_conflict_draft" ADD CONSTRAINT "document_conflict_draft_ownership_check" CHECK (("document_conflict_draft"."project_id" IS NOT NULL AND "document_conflict_draft"."workspace_id" IS NULL) OR ("document_conflict_draft"."project_id" IS NULL AND "document_conflict_draft"."workspace_id" IS NOT NULL));

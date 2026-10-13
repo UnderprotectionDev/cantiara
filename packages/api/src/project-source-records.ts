@@ -1,6 +1,9 @@
 import { z } from "zod";
+import type { DecisionSupersessionAccess } from "./decision-supersession";
 import { documentEvidenceSelectionSchema } from "./documents";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type { RiskSignalsAccess } from "./risk-signals";
+import type { AssumptionsContext } from "./uncertainty-records";
 
 const identifier = z.string().trim().min(1).max(255);
 const text255 = z.string().trim().min(1).max(255);
@@ -75,11 +78,44 @@ const sourceRecordIdentity = {
   updatedAt: timestamp,
 };
 
+export const validationContextSchema = z
+  .array(
+    z
+      .object({
+        sourceType: z.enum(["Assumption", "Open Question", "Decision"]),
+        sourceId: identifier,
+      })
+      .strict(),
+  )
+  .max(100)
+  .refine(
+    (links) =>
+      new Set(links.map((link) => `${link.sourceType}:${link.sourceId}`))
+        .size === links.length,
+    "Choose each context record once.",
+  );
+const validationFields = {
+  title: text255,
+  method: longText,
+  result: optionalLongText,
+  context: validationContextSchema,
+  sourceType: z.literal("Validation Record"),
+};
+export const validationRecordSchema = z
+  .object({
+    ...sourceRecordIdentity,
+    ...validationFields,
+    status: z.enum(["Active", "Archived", "Trash"]),
+  })
+  .strict();
+
 export const decisionRecordSchema = z
   .object({
     ...sourceRecordIdentity,
     decision: z.string().trim().min(1).max(20_000),
-    life: decisionLifeSchema,
+    life: decisionLifeSchema.default("Valid"),
+    withdrawnAt: timestamp.nullable().optional(),
+    withdrawalRationale: optionalText.optional(),
     rationale: optionalText,
     sourceType: z.literal("Decision"),
     title: text255,
@@ -153,6 +189,7 @@ export const openQuestionRecordSchema = z
   .object({
     ...sourceRecordIdentity,
     answer: optionalLongText,
+    rationale: optionalLongText.optional().default(null),
     context: optionalLongText,
     life: openQuestionLifeSchema,
     question: longText,
@@ -162,6 +199,7 @@ export const openQuestionRecordSchema = z
   .strict();
 
 export const projectSourceRecordSchema = z.discriminatedUnion("sourceType", [
+  validationRecordSchema,
   assumptionRecordSchema,
   decisionRecordSchema,
   milestoneRecordSchema,
@@ -263,6 +301,9 @@ const createOpenQuestionInputSchema = humanMutationEnvelopeSchema
 const createProjectSourceRecordInputBaseSchema = z.discriminatedUnion(
   "sourceType",
   [
+    humanMutationEnvelopeSchema
+      .extend({ ...validationFields, id: identifier, projectId: identifier })
+      .strict(),
     createDecisionInputSchema,
     createMilestoneInputSchema,
     createRiskInputSchema,
@@ -281,11 +322,52 @@ export const updateProjectSourceRecordInputSchema = z.discriminatedUnion(
   [
     humanMutationEnvelopeSchema
       .extend({
+        ...validationFields,
+        sourceId: identifier,
+        projectId: identifier,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
         decision: z.string().trim().min(1).max(20_000),
         projectId: identifier,
         rationale: optionalText,
         sourceId: identifier,
         sourceType: z.literal("Decision"),
+        title: text255,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
+        description: optionalLongText,
+        impact: optionalLongText,
+        probability: optionalLongText,
+        projectId: identifier,
+        rationale: optionalLongText,
+        response: optionalLongText,
+        sourceId: identifier,
+        sourceType: z.literal("Risk"),
+        title: text255,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
+        projectId: identifier,
+        rationale: optionalLongText,
+        sourceId: identifier,
+        sourceType: z.literal("Assumption"),
+        statement: longText,
+        title: text255,
+      })
+      .strict(),
+    humanMutationEnvelopeSchema
+      .extend({
+        answer: optionalLongText,
+        context: optionalLongText,
+        projectId: identifier,
+        question: longText,
+        sourceId: identifier,
+        sourceType: z.literal("Open Question"),
         title: text255,
       })
       .strict(),
@@ -331,7 +413,74 @@ export const transitionProjectSourceRecordInputSchema = z.discriminatedUnion(
   [
     humanMutationEnvelopeSchema
       .extend({
+        sourceType: z.literal("Validation Record"),
+        sourceId: identifier,
+        projectId: identifier,
+        status: z.enum(["Active", "Archived", "Trash"]),
+      })
+      .strict(),
+    z.discriminatedUnion("life", [
+      humanMutationEnvelopeSchema
+        .extend({
+          projectId: identifier,
+          sourceId: identifier,
+          sourceType: z.literal("Open Question"),
+          life: z.literal("Answered"),
+          answer: longText,
+          rationale: optionalLongText.optional(),
+          documentEvidence: documentEvidenceSelectionSchema.optional(),
+        })
+        .strict(),
+      humanMutationEnvelopeSchema
+        .extend({
+          projectId: identifier,
+          sourceId: identifier,
+          sourceType: z.literal("Open Question"),
+          life: z.literal("No longer applicable"),
+        })
+        .strict(),
+    ]),
+    humanMutationEnvelopeSchema
+      .extend({
+        projectId: identifier,
+        sourceId: identifier,
+        sourceType: z.literal("Assumption"),
+        life: assumptionLifeSchema,
+        rationale: optionalLongText.optional(),
+        documentEvidence: documentEvidenceSelectionSchema.optional(),
+      })
+      .strict()
+      .refine(
+        (input) =>
+          input.life === "Confirmed" ||
+          input.life === "Refuted" ||
+          (input.rationale === undefined &&
+            input.documentEvidence === undefined),
+        {
+          message: "New evidence or rationale belongs to Confirmed or Refuted.",
+        },
+      ),
+    humanMutationEnvelopeSchema
+      .extend({
+        life: riskLifeSchema,
+        rationale: optionalLongText.optional(),
+        projectId: identifier,
+        sourceId: identifier,
+        sourceType: z.literal("Risk"),
+      })
+      .strict()
+      .refine(
+        (input) =>
+          input.life !== "Accepted" || Boolean(input.rationale?.trim()),
+        {
+          message: "Enter a Rationale before accepting a Risk.",
+          path: ["rationale"],
+        },
+      ),
+    humanMutationEnvelopeSchema
+      .extend({
         life: z.enum(["Valid", "Withdrawn"]),
+        rationale: optionalText.optional(),
         projectId: identifier,
         sourceId: identifier,
         sourceType: z.literal("Decision"),
@@ -368,6 +517,7 @@ export const projectSourceRecordInputSchema = z
   .object({
     sourceId: identifier,
     sourceType: z.enum([
+      "Validation Record",
       "Decision",
       "Risk",
       "Assumption",
@@ -397,6 +547,47 @@ export interface ProjectSourceRecordsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<ProjectSourceRecord[] | null>;
+  listAssumptions?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<AssumptionsContext | null>;
+  listDecisions: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof decisionRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  listOpenQuestions?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof openQuestionRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  listRisks: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof riskRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  listValidationRecords?: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{
+    records: z.infer<typeof validationRecordSchema>[];
+    readOnly: boolean;
+  } | null>;
+  openQuestionContext?: (
+    accountId: string,
+    sourceId: string,
+  ) => Promise<{
+    evidence: z.infer<typeof documentEvidenceSelectionSchema>[];
+    readOnly: boolean;
+  } | null>;
+  riskSignals?: RiskSignalsAccess;
+  supersession?: DecisionSupersessionAccess;
   transition: (
     accountId: string,
     input: z.input<typeof transitionProjectSourceRecordInputSchema>,
@@ -409,12 +600,16 @@ export interface ProjectSourceRecordsAccess {
 
 export class ProjectSourceRecordConflictError extends Error {
   readonly code = "CONFLICT" as const;
+  readonly sourceId: string;
+  readonly targetId: string;
 
-  constructor(sourceId: string, options?: ErrorOptions) {
+  constructor(targetId: string, options?: ErrorOptions) {
     super(
-      `Project source record ${sourceId} changed before this write.`,
+      `Project source record ${targetId} changed before this write.`,
       options,
     );
+    this.targetId = targetId;
     this.name = "ProjectSourceRecordConflictError";
+    this.sourceId = targetId;
   }
 }

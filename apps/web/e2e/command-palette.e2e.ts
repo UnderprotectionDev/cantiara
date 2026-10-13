@@ -10,6 +10,7 @@ import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
 
 const PROJECTS_URL_PATTERN = /\/projects$/;
 const PREFERENCES_URL_PATTERN = /\/account\/preferences$/;
+const PROJECT_COUNT_PATTERN = /^\d+ Projects?$/;
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const COMMAND_PALETTE_VISIBLE_BUDGET_MS = {
   p95: 150,
@@ -108,6 +109,43 @@ function measureVisibilitySamples(
   );
 }
 
+async function preparePerformancePage(page: Page) {
+  // Wait for the startup queries to settle and their UI to render. The reference
+  // command source is created synchronously when the founder shell mounts;
+  // waiting for a quiet network adds 500 ms to every sample without warming it.
+  const startupResponses = Promise.all(
+    ["projects", "workspaceOverview", "accountPreferences"].map((procedure) =>
+      page.waitForResponse(
+        (response) => new URL(response.url()).pathname === `/rpc/${procedure}`,
+      ),
+    ),
+  );
+  await page.goto("/projects", { waitUntil: "domcontentloaded" });
+  const responses = await startupResponses;
+  await Promise.all(responses.map((response) => response.finished()));
+  await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Projects", level: 1 }),
+  ).toBeVisible();
+  // This fixture owns the palette source, not Workspace overview availability.
+  // Both a loaded overview and its explicit failure are settled startup states.
+  await expect(
+    page
+      .getByRole("heading", { name: "Workspace overview", level: 2 })
+      .or(
+        page.getByText("Workspace overview is unavailable.", { exact: true }),
+      ),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Your Projects" })
+      .getByText(PROJECT_COUNT_PATTERN),
+  ).toBeVisible();
+  const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toBeEnabled();
+}
+
 async function measureColdCacheSamples(context: BrowserContext, count: number) {
   // A fresh page resets the application command/query state without multiplying
   // the reference workspace startup cost across isolated browser contexts.
@@ -130,14 +168,7 @@ async function measureColdCacheSamples(context: BrowserContext, count: number) {
         await page.setExtraHTTPHeaders({
           "x-forwarded-for": `198.51.100.${offset + pageIndex + 1}`,
         });
-        await page.goto("/projects", { waitUntil: "domcontentloaded" });
-        await expect(page).toHaveURL(PROJECTS_URL_PATTERN);
-        await expect(
-          page.getByRole("heading", { name: "Projects", level: 1 }),
-        ).toBeVisible();
-        await expect(
-          page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR),
-        ).toBeVisible();
+        await preparePerformancePage(page);
         return page;
       }),
     );
@@ -172,6 +203,27 @@ function percentile(samples: readonly number[], rank: number) {
     sortedSamples[Math.ceil(sortedSamples.length * rank) - 1] ??
     Number.POSITIVE_INFINITY
   );
+}
+
+function assertVisibilityBudget(
+  samples: readonly number[],
+  count: number,
+  cache: string,
+) {
+  expect(samples).toHaveLength(count);
+  const p95 = percentile(samples, 0.95);
+  const p99 = percentile(samples, 0.99);
+  console.info(
+    `Command Palette visibility (ms): ${cache} p95=${p95.toFixed(1)}, p99=${p99.toFixed(1)}`,
+  );
+  expect(
+    p95,
+    `${cache} Command Palette p95 visibility budget`,
+  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
+  expect(
+    p99,
+    `${cache} Command Palette p99 visibility budget`,
+  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
 }
 
 test("opens the founder Command Palette across contexts and keeps it off public pages", async ({
@@ -441,70 +493,49 @@ test("completes the Command Palette journey with keyboard input only", async ({
   await expect(palette).toHaveCount(0);
 });
 
-test("measures Command Palette visibility at the reference workspace scale", async ({
+test("measures Command Palette visibility at the reference workspace scale: hot-cache", async ({
   context,
   page,
   request,
 }) => {
   test.setTimeout(300_000);
   await establishFounderSession(page, context, request);
-  await page.goto("/projects");
+  await preparePerformancePage(page);
 
   const trigger = page.locator(COMMAND_PALETTE_TRIGGER_SELECTOR);
   const palette = page.getByRole("dialog", { name: "Command Palette" });
-  await expect(trigger).toBeVisible();
-
   await trigger.focus();
   await page.keyboard.press("Control+k");
   await expect(palette).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
 
-  const hotCacheMeasurementStartedAt = performance.now();
-  const hotCacheSamples =
+  const startedAt = performance.now();
+  const samples =
     await test.step("Measure hot-cache Command Palette visibility", () =>
       measureVisibilitySamples(page, HOT_CACHE_SAMPLES));
-  const hotCacheMeasurementDurationMs =
-    performance.now() - hotCacheMeasurementStartedAt;
-  const coldCacheMeasurement =
+  console.info(
+    `Command Palette durations (ms): hot visibility sampling=${(performance.now() - startedAt).toFixed(1)}`,
+  );
+  assertVisibilityBudget(samples, HOT_CACHE_SAMPLES, "Hot-cache");
+});
+
+test("measures Command Palette visibility at the reference workspace scale: cold-cache", async ({
+  context,
+  page,
+  request,
+}) => {
+  test.setTimeout(300_000);
+  await establishFounderSession(page, context, request);
+  // Only the new pages below are sampled; none opens the palette beforehand.
+  await page.close();
+  const measurement =
     await test.step("Measure cold-cache Command Palette visibility", () =>
       measureColdCacheSamples(context, COLD_CACHE_SAMPLES));
-  const {
-    pagePreparationDurationMs,
-    samples: coldCacheSamples,
-    visibilityMeasurementDurationMs: coldCacheMeasurementDurationMs,
-  } = coldCacheMeasurement;
-
-  expect(hotCacheSamples).toHaveLength(HOT_CACHE_SAMPLES);
-  expect(coldCacheSamples).toHaveLength(COLD_CACHE_SAMPLES);
-
-  const hotCacheP95 = percentile(hotCacheSamples, 0.95);
-  const hotCacheP99 = percentile(hotCacheSamples, 0.99);
-  const coldCacheP95 = percentile(coldCacheSamples, 0.95);
-  const coldCacheP99 = percentile(coldCacheSamples, 0.99);
   console.info(
-    `Command Palette visibility (ms): hot p95=${hotCacheP95.toFixed(1)}, p99=${hotCacheP99.toFixed(1)}; cold p95=${coldCacheP95.toFixed(1)}, p99=${coldCacheP99.toFixed(1)}`,
+    `Command Palette durations (ms): cold page preparation=${measurement.pagePreparationDurationMs.toFixed(1)}, cold visibility sampling=${measurement.visibilityMeasurementDurationMs.toFixed(1)}`,
   );
-  console.info(
-    `Command Palette durations (ms): hot visibility sampling=${hotCacheMeasurementDurationMs.toFixed(1)}, cold page preparation=${pagePreparationDurationMs.toFixed(1)}, cold visibility sampling=${coldCacheMeasurementDurationMs.toFixed(1)}`,
-  );
-
-  expect(
-    hotCacheP95,
-    "Hot-cache Command Palette p95 visibility budget",
-  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
-  expect(
-    hotCacheP99,
-    "Hot-cache Command Palette p99 visibility budget",
-  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
-  expect(
-    coldCacheP95,
-    "Cold-cache Command Palette p95 visibility budget",
-  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p95);
-  expect(
-    coldCacheP99,
-    "Cold-cache Command Palette p99 visibility budget",
-  ).toBeLessThanOrEqual(COMMAND_PALETTE_VISIBLE_BUDGET_MS.p99);
+  assertVisibilityBudget(measurement.samples, COLD_CACHE_SAMPLES, "Cold-cache");
 });
 
 test("keeps the Command Palette accessible to keyboard and assistive technology", async ({

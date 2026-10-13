@@ -60,7 +60,7 @@ export const personalReminder = pgTable(
     ),
     check(
       "personal_reminder_source_type_check",
-      sql`${table.sourceRecordType} in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Design', 'Source', 'Milestone', 'Project Release', 'Production Incident', 'Test Gap')`,
+      sql`${table.sourceRecordType} in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Milestone', 'Project Release', 'Production Incident')`,
     ),
     check(
       "personal_reminder_section_check",
@@ -84,6 +84,7 @@ export const personalReminder = pgTable(
 export const personalReminderAttentionSignal = pgTable(
   "personal_reminder_attention_signal",
   {
+    dismissedAt: timestamp("dismissed_at"),
     evaluationNote: text("evaluation_note"),
     occurredAt: timestamp("occurred_at").notNull(),
     ownerAccountId: text("owner_account_id")
@@ -100,9 +101,9 @@ export const personalReminderAttentionSignal = pgTable(
     sourceRecordType: text("source_record_type").notNull(),
   },
   (table) => [
-    uniqueIndex("personal_reminder_attention_signal_reminder_uidx").on(
-      table.personalReminderId,
-    ),
+    uniqueIndex("personal_reminder_attention_signal_reminder_uidx")
+      .on(table.personalReminderId)
+      .where(sql`${table.dismissedAt} is null`),
     index("personal_reminder_attention_signal_owner_idx").on(
       table.ownerAccountId,
       table.occurredAt,

@@ -1,7 +1,5 @@
 # Proje Duvarı
 
-Kaynak: [`docs/workflow/51-project-wall/phase-context.md`](../../workflow/51-project-wall/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Proje anlatısını canlı kayıt kartları ve uzamsal yerleşimle kurmak ister. Bugün duvar konumu ilişki, durum veya öncelik sanılabilir; kart kopya kayıt üretebilir; görsel çizgi sessizce bağ yazabilir; Sitemap/Customer Journey iskeleti örnek içerik doldurabilir; sunum snapshot'ı paylaşım kapsamını genişletebilir. Wireframe, Moodboard, Belge ve Wiki kendi yüzeylerindedir. Dışarı açmak 73/75'tedir.

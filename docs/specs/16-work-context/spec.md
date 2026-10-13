@@ -1,7 +1,5 @@
 # İş Bağlam Kartı
 
-Kaynak: [`docs/workflow/16-work-context/phase-context.md`](../../workflow/16-work-context/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir İşin nedenini, beklenen sonucunu, kanıtını ve ilişkili proje gerçeğini tek yerde, aşamalı ve yapılandırılabilir biçimde görmek ister. Bugün Karar, Risk, Varsayım, Açık Soru ve araştırma ayrı İş yüzeyleri gibi durabilir; kart kopya, serbest sorgu veya durum kapısı olabilir; Başlangıç yapılandırması aynı İş türüne farklı anlam verebilir. Paylaşım kapsamı bölüm sırasından türemez. Öncelik dayanakları skor üretmemelidir.

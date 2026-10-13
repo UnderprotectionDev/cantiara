@@ -8,9 +8,15 @@ import {
   usageLinkSchema,
 } from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
+import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
+import { document } from "@cantiara/db/schema/document";
+import { openQuestion } from "@cantiara/db/schema/open-question";
+import { project } from "@cantiara/db/schema/project";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { and, asc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { MutationConflictError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createDatabaseMutationContract,
   type MutationDatabaseExecutor,
@@ -74,6 +80,78 @@ async function findOwnedUsageLink(
   return records[0]?.link ?? null;
 }
 
+const uncertaintyPinLocation = z.object({
+  documentVersion: z.object({
+    documentId: z.string(),
+    revision: z.number().int().positive(),
+  }),
+  start: z.number().int().nonnegative(),
+  end: z.number().int().positive(),
+  excerpt: z.string().min(1),
+});
+
+async function validatedUncertaintyPinLocation(
+  executor: MutationDatabaseExecutor,
+  workspaceId: string,
+  link: UsageLink,
+) {
+  if (
+    !(
+      link.kind === "Pinned bind" &&
+      link.source.recordType === "Document" &&
+      (link.surface.recordType === "Assumption" ||
+        link.surface.recordType === "Open Question")
+    )
+  ) {
+    return link.location;
+  }
+  const target =
+    link.surface.recordType === "Assumption" ? assumption : openQuestion;
+  const [destination] = await executor
+    .select({ projectId: project.id, archivedAt: project.archivedAt })
+    .from(target)
+    .innerJoin(project, eq(target.projectId, project.id))
+    .where(
+      and(
+        eq(target.id, link.surface.recordId),
+        eq(project.workspaceId, workspaceId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  const location = uncertaintyPinLocation.safeParse(link.location);
+  if (
+    !destination ||
+    destination.archivedAt !== null ||
+    !location.success ||
+    location.data.documentVersion.documentId !== link.source.recordId
+  ) {
+    throw new MutationConflictError(link.id);
+  }
+  const [source] = await executor
+    .select({ body: document.body, revision: document.revision })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, link.source.recordId),
+        eq(document.projectId, destination.projectId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  const pin = location.data;
+  if (
+    !source ||
+    source.revision !== pin.documentVersion.revision ||
+    pin.start >= pin.end ||
+    pin.end > source.body.length ||
+    source.body.slice(pin.start, pin.end) !== pin.excerpt
+  ) {
+    throw new MutationConflictError(link.id);
+  }
+  return { ...pin, projectId: destination.projectId };
+}
+
 async function insertUsageLink(
   executor: MutationDatabaseExecutor,
   workspaceId: string,
@@ -83,13 +161,18 @@ async function insertUsageLink(
     payload: UsageLink;
   },
 ) {
+  const location = await validatedUncertaintyPinLocation(
+    executor,
+    workspaceId,
+    input.payload,
+  );
   const [created] = await executor
     .insert(usageLink)
     .values({
       createdAt: input.committedAt,
       id: input.id,
       kind: input.payload.kind,
-      location: input.payload.location ?? null,
+      location: location ?? null,
       revision: input.payload.revision,
       sourceRecordId: input.payload.source.recordId,
       sourceRecordType: input.payload.source.recordType,
@@ -109,26 +192,23 @@ export function createDatabaseUsageLinks(database: Database): UsageLinksAccess {
         throw new Error("Workspace is unavailable.");
       }
       const payload = usageLinkPayloadSchema.parse(input);
-      const timestamp = new Date();
-      const [created] = await database
-        .insert(usageLink)
-        .values({
-          createdAt: timestamp,
-          id: crypto.randomUUID(),
-          kind: payload.kind,
-          location: payload.location ?? null,
-          revision: 1,
-          sourceRecordId: payload.source.recordId,
-          sourceRecordType: payload.source.recordType,
-          surfaceRecordId: payload.surface.recordId,
-          surfaceRecordType: payload.surface.recordType,
-          workspaceId,
-        })
-        .returning();
+      const id = crypto.randomUUID();
+      const created = await database.transaction((executor) =>
+        insertUsageLink(executor, workspaceId, {
+          committedAt: new Date(),
+          id,
+          payload: usageLinkSchema.parse({
+            ...payload,
+            id,
+            revision: 1,
+            createdAt: new Date().toISOString(),
+          }),
+        }),
+      );
       if (!created) {
         throw new Error("Usage link could not be created.");
       }
-      return toUsageLink(created);
+      return created;
     },
 
     async find(accountId, usageLinkId) {
@@ -193,6 +273,9 @@ function createUsageLinkCreateTarget(
   accountId: string,
 ): MutationDatabaseTargetAdapter<UsageLinkMutationValue> {
   return {
+    committedValue(target) {
+      return target.value;
+    },
     async find(executor, targetId, _lock, context) {
       const parsed = usageLinkPayloadSchema.safeParse(context?.payload);
       if (!(parsed.success && (await findWorkspaceId(executor, accountId)))) {

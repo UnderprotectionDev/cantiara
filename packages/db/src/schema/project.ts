@@ -33,6 +33,8 @@ export const project = pgTable(
     revision: integer("revision").default(0).notNull(),
     workCount: integer("work_count").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    nextConcreteStep: text("next_concrete_step"),
+    nextConcreteStepUpdatedAt: timestamp("next_concrete_step_updated_at"),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())

@@ -1,7 +1,5 @@
 # Tekil Wiki Yayını
 
-Kaynak: [`docs/workflow/74-wiki-publishing/phase-context.md`](../../workflow/74-wiki-publishing/phase-context.md)
-
 ## Problem Statement
 
 Kurucu tek bir Wiki Belgesini, seçtiği gömülerle, Proje Build in Public sayfasından bağımsız herkese açık bir snapshot olarak yayımlamak ister. Canlı Kişisel Wiki kopyası, çok sayfalı bilgi tabanı veya bağlantıyla sınırlı bearer paylaşımı bu ihtiyaç değildir. Önizlenmeyen çocuk belge, geri bağlantı veya canlı blok sızmamalıdır. İptal ve redaksiyon cache'den sonra gelmemelidir. Yer tutucu ve anlık erişim kapısı ayrı teslim kartı değildir; aynı kapalı dünya sözleşmesidir.

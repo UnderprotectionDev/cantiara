@@ -23,6 +23,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | PDF | `PDF` | Tek belge dışa aktarma biçimi |
 | Dış yüzeyi iptal et | `Cancel External Surface` | Taşımadan önce etkin Dış yüzeyi iptal etme onayı |
 | Belge klasörü | `Folder` | Aynı sahiplik kapsamında gezinme üstverisi; Akıllı Koleksiyon veya sahiplik kapsamı değildir |
+| Belge düzenleme | `Organize Document` | Aynı Projede klasör ve üst Belgeyi önizlemeyle düzenleme; kapsam taşıması değildir |
+| Üst Belgeyi kaldır | `No Parent Document` | Belgeyi aynı kapsamda kök seviyeye alma; çocuk bağları korunur |
 | Üst belge | `Parent Document` | Aynı kapsamdaki en fazla bir üst Belge; çapraz kapsam ebeveyn yoktur |
 | Çocuk Belge kartı | `Card` | Üst Belgedeki otomatik çocuk önizlemesi; ayrı kapak kaydı değildir |
 | Belge içi etiket | `#tag` | Belge düz yazısındaki tokenın aynı Çalışma Alanı Etiket kimliğine bağlanması; ikinci sözlük değildir |
@@ -145,7 +147,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Başlangıç snapshot’ında | `In start snapshot` | Kapanış karşılaştırmasında başlangıç kapsamında bulunan İş |
 | Sonradan eklenen | `Added later` | Başlangıçtan sonra kapanış kapsamına giren İş |
 | Kapsamdan çıkan | `Removed` | Başlangıç kapsamındayken kapanışta bulunmayan İş |
-| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılar ve salt okunur tarihsel kayıtlarla karşılaştırma; kaynak bağlantısı güncel İşi açar |
+| Kapanış karşılaştırması | `Close comparison` | Başlangıç ve kapanış kapsamını, sonradan eklenen, çıkarılan, tamamlanan ve açık kalan işleri tarafsız sayılarla karşılaştırma |
 | Dönem değerlendirmesi | `Period evaluation` | Kapanışta atlanabilir öğrenim metni |
 | Değerlendirmeyi kaydet | `Save evaluation` | İsteğe bağlı dönem öğrenim metinlerini kaydetme |
 | Atla | `Skip` | Dönem değerlendirmesini atlama |
@@ -242,6 +244,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Atla | `Skip` | Turda bir sonraki görsel hedefe geçer |
 | Kalanı listede aç | `Open remainder in the list` | Üst sınırı aşan görsel değişiklikleri normal Son baktığından beri listesinde açar |
 | Uzun süredir aynı durumda | `Long in the same status` | İsteğe bağlı Proje durum yaşı eşiğini aşan aktif İş için nötr geri dönüş gerekçesi ve hazır Akıllı Koleksiyon üyeliği; varsayılan bildirim veya sağlık puanı değildir |
+| Durum yaşı eşiğini kaydet | `Save Long in the same status` | İsteğe bağlı Proje durum yaşı eşiğini mevcut yapılandırma mutasyonuyla kaydetme |
 | Tüm İşler | `All Work` | Sıfır kurulum hazır tür dizini; İş ana kayıtlarını toplar, saklı sorgu veya yeni sahiplik değildir |
 | Tüm Belgeler | `All Documents` | Sıfır kurulum hazır tür dizini; Belgeleri kapsam, tür, klasör ve üstveriyle gezer |
 | Tüm Kararlar | `All Decisions` | Sıfır kurulum hazır tür dizini; Karar ana kayıtlarını toplar ve varsayılan `Valid` öne çıkarır |
@@ -283,6 +286,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Şablona dönüştür | `Convert to template` | Mevcut Belgeden iskelet çıkarma; kaynak Belgeyi taşımaz, arşivlemez veya değiştirmez |
 | Şablondan oluştur | `Create from template` | Şablondan bağımsız kimlikli Belge açma; sonraki şablon düzeni eski örnekleri güncellemez |
 | Belge şablonu ekle | `Add Document Template` | Proje veya Kişisel Wiki kapsamında yeni Belge şablonu oluşturma |
+| Belge şablonunu düzenle | `Edit Document Template` | İskeletin ve yer tutucuların sonraki Belgeler için değiştirilmesi; hazır Personal Review düzenlemesi bağımsız kullanıcı şablonu oluşturur |
 | İskelet | `Skeleton` | Belge şablonunun başlangıç gövdesi; canlı bağ veya örnek kayıt değildir |
 | Yer tutucular | `Placeholders` | Şablon iskeletindeki `{{field_name}}` alanları |
 | Personal Review | `Personal Review` | İsteğe bağlı hazır Belge şablonu; toplantı türü veya zorunlu kullanım sıklığı değildir |
@@ -306,7 +310,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Hafta görünümü | `Week` | Birleşik Takvimde hafta penceresindeki konumlar ve başlangıç–hedef aralığı; Hesap tercihindeki hafta önizlemesi değildir |
 | Agenda | `Agenda` | Birleşik Takvimde seçili ayın kayıtlarını kapsam ve tarih türü filtreleriyle kronolojik yoğun listede sunan görünüm; Event kaydı, üyelik veya ikinci takvim gerçeği değildir |
 | Tarih türleri | `Date kinds` | Birleşik Takvimde Planned start, Target date ve Reappear date filtre grubu; seçimi Day, Week, Month ve Agenda boyunca korunur |
-| Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının bütün Projeleri kapsayan seçeneği |
+| Bütün Projeler | `All Projects` | Birleşik Takvim kapsamının ve Table proje filtresinin bütün yetkili Projeleri kapsayan seçeneği |
 | Takvimde tarihli İş yok | `No dated Work in this Calendar view.` | Seçili görünüm penceresinde tarihli İş olmadığında boş durum |
 | Seçili gün | `Selected day` | Günlük Odak görünümünün profil saat dilimindeki takvim günü seçici etiketi |
 | Seçili gün (Birleşik Takvim) | `Selected day` | Birleşik Takvim `/calendar` `calendarDay` sorgusu; Gün yalnız o günün konumları, Hafta o günü içeren hesap haftası, Ay o günün ayı, Agenda o ayın konumlarını kronolojik yoğun listede. Günlük Odak üyelik günü değildir |
@@ -318,6 +322,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Karar kaydı olayı | `Recorded` | `What happened today?` içinde kaynak Kararın oluşturulduğu günü gösterir |
 | Kaynak kaydı yükleniyor | `Loading source record…` | Proje kabuğunda seçilen kaynak kaydı okunurken erişilebilir yüklenme durumu |
 | Kaynak kaydı kullanılamıyor | `Source record is unavailable.` | Kaynak kaydı bulunamadığında veya geçerli Projeye ait olmadığında salt okunur hata durumu |
+| Favoriler yükleniyor | `Loading Favorites…` | Favoriler listesinin geçici yükleme durumu |
+| Favoriler boş | `No Favorites yet.` | Henüz kişisel favori bulunmadığında gösterilen durum |
+| Favoriler kullanılamıyor | `Favorites are unavailable.` | Favoriler listesinin okunamadığını bildiren hata durumu |
 | Kaynak açıklaması | `Description` | Kilometre Taşı veya Proje Sürümünün isteğe bağlı açıklama alanı; İş açıklamasıyla aynı gövde alanı değildir |
 | Sürüm etiketi | `Version label` | Proje Sürümünde isteğe bağlı kullanıcı tanımlı sürüm metni |
 | Olay zamanı | `Occurred at` | Üretim Olayının gerçekleşme zamanı; Geri Bildirim özgün mesaj zamanıyla aynı etiketi bağlamında kullanır |
@@ -346,11 +353,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Deferred | `Deferred` | Varsayılan Backlog görünümünde gelecek yeniden görünme tarihi taşıyan İşlerin bölümü; durum değildir |
 | Yeniden görünme bildirimi | `Notify on Reappear date` | Proje bazında varsayılan kapalı opt-in; tarih gelince `reappear-date` Dikkat sinyali üretir |
 | Akıllı Koleksiyon | `Smart Collection` | Koşullardan canlı üyelik türeten adlandırılmış görünüm; statik liste veya klasör değildir |
+| Üyelik nedeni | `Membership reason` | Kaydın Akıllı Koleksiyona kapsam ve eşleşen filtre koşullarıyla neden girdiğini açıklayan, canlı üyelik sonucundan türetilen metin |
+| Koleksiyon kaydını sürükle | `Drag {record name}` | Üyeyi başka bir Akıllı Koleksiyon görünümüne sürüklemek için erişilebilir eylem adı |
+| Alan değişikliği önizlemesi | `Field change preview` | Doğrudan eşitlik koşulunu karşılamak için gereken alan değerini sürükleme sırasında gösteren, yazma yapmayan önizleme |
+| Önizleme üyelik yazmaz | `No membership is written by this preview.` | Önizlemenin manuel üyelik veya pin oluşturmadığını açıklar |
+| Akıllı Koleksiyon kaynak türü | `Source type` | Koleksiyonun filtrelediği kayıt türü; yalnız kapalı tür matrisindeki kaynaklar seçilebilir |
+| İş türü | `Work type` | İş kaynaklı koleksiyonda üyeliği belirleyen doğrudan İş türü eşitliği |
+| Belge türü | `Document type` | Belge kaynaklı koleksiyonda yapılandırılmış Belge türü eşitliği |
+| Çalışma Alanı kapsamı | `Workspace scope` | Wiki Belgesi koleksiyonunun aynı Çalışma Alanındaki Belgelerle sınırlı canlı kapsamı |
+| Proje kapsamı kullanılamıyor | `Project scope is unavailable.` | Proje kapsamı seçimi yüklenemediğinde gösterilen hata durumu |
+| Görünümde eşleşen kayıt yok | `No {source type} matches this view.` | Canlı koşullar kaynak türünde kayıt bulamadığında gösterilen boş durum |
 | Abone ol | `Subscribe` | Kaydın Akıllı Koleksiyona ilk girişinde `smart-collection-entry` Dikkat sinyali açma |
 | Ayrılınca bildir | `Notify on leave` | Aboneliğe ek, kaydın koleksiyondan çıkışında aynı sinyal kimliğiyle ayrılma nedeni |
 | Önce Abone ol | `Turn on Subscribe first.` | `Subscribe` kapalıyken `Notify on leave` neden tıklanamadığını söyleyen ipucu |
+| Akıllı Koleksiyon aboneliği güncellenemedi | `Smart Collection subscription could not be updated.` | Abonelik ayarı kaydedilemediğinde gösterilen hata iletisi |
 | Etiket | `Tags` | Çalışma Alanı genelinde düz sınıflandırma kimliği; klasör, Akıllı Koleksiyon, Favori veya ilişki değildir |
 | Hafif İçgörüler | `Insights` | İş koleksiyonunun mevcut filtre sonucundan sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir |
+| Koleksiyon panel grubu | `Collection view` | Ekran okuyucu için `Records` ve `Insights` panel seçimlerini adlandıran grup etiketi |
+| İçgörü kapsamındaki kayıtlar | `Records` | İş koleksiyonunun mevcut filtre veya seçili Insights dilimiyle eşleşen kayıt listesini gösterme |
+| İçgörü kayıt sayısı | `Count` | Insights özetindeki geçerli yetkili kayıt adedi; skor değildir |
 | Kayıt yaşı | `Age` | İş kaydının oluşturulmasından bu yana geçen süre özeti; skor değildir |
 | Tüm kayıtları göster | `Show all records` | Insights dilimini kaldırıp koleksiyonun mevcut koşul sonucuna dönme |
 | Ayarlanmadı | `Not set` | Eforu boş kaydın Insights dilimi; skor değildir |
@@ -612,6 +633,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine geçildi | `Superseded` | Yalnız açık yerine-geçme ilişkisiyle oluşan Karar yaşamı |
 | Geri çekildi | `Withdrawn` | Halef gerektirmeyen açık geri çekme yaşamı |
 | Geri çek | `Withdraw` | Kararı `Withdrawn` yapan açık eylem |
+| Başka kararın yerine geçir | `Supersede another decision` | Önizleme üzerinden tam yerine-geçme eylemi |
+| Yerine geçilecek Kararlar | `Decisions to supersede` | Bir veya birden fazla eski Kararın açık seçimi |
+| Yerine geçmeyi onayla | `Confirm supersession` | Önizlenen yönlü ilişki ve yaşamları atomik kesinleştirme |
+| Yerine geçmeyi kaldır | `Remove supersession` | İlişkiyi ve eski Kararın yaşamını önizleme |
+| Kaldırmayı onayla | `Confirm removal` | Eski Kararı açık onayla yeniden `Valid` yapma |
+| Geçiş gerekçesi | `Transition rationale` | Yerine-geçme veya kaldırma olayının isteğe bağlı gerekçesi |
+| Yerine-geçme bölümü | `Supersession` | Decision detayındaki ilişki ve işlem bölgesi |
+| Yerine-geçme önizlemesi | `Supersession preview` | Yaşam değişikliklerinin onay öncesi bölgesi |
+| Yerine-geçme yükleniyor | `Loading supersession…` | İlişki okuması beklenirken görünür durum |
+| Yerine-geçme kullanılamıyor | `Supersession is unavailable.` | İlişki okuması hatası |
 | Güncel kararı aç | `Open current decision` | Yerine geçilmiş Karardan nihai `Valid` kaydı açma |
 | Karar yok | `No Decisions yet.` | Projede henüz Karar olmadığını söyleyen boş durum |
 | Design | `Design` | Duvar, Ekran ve akış kayıtlarını toplayan Proje alanı veya hazır aşama adı |
@@ -650,7 +681,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Akıllı Koleksiyon kaydedilemedi | `Smart Collection could not be saved.` | Yeni koleksiyon ve ilk adlandırılmış görünüm birlikte kaydedilemediğinde hata durumu |
 | Akıllı Koleksiyon kullanılamıyor | `Smart Collection is unavailable.` | Kaynak görünüm çözümlenemediğinde salt okunur hata durumu |
 | Yok | `None` | Adlandırılmış görünümde sıra alanı seçilmedi |
-| Yeni iş | `New work` | İş koleksiyonunda doğrudan tekil alan eşitliğini dolduran oluşturma; tarih aralığı veya olumsuz koşul uygulamaz |
+| Yeni iş | `New work` | İş koleksiyonundaki doğrudan `Work type` eşitliğini `Type` alanında önceden dolduran oluşturma; diğer koşulları yeni İşe uygulamaz |
+| Yeni İş eşleşmeme uyarısı | `This Work may not appear in this Smart Collection.` | Seçili `Type` veya varsayılan `Status` koleksiyon koşullarını karşılamadığında gösterilen uyarı |
 | Kaydedilmemiş değişiklikler | `Unsaved changes` | Adlandırılmış görünümde henüz kaydedilmemiş sunum; üyelik koşulunu yazmaz |
 | Yeni görünüm olarak kaydet | `Save as` | Kirli sunumu yeni adlandırılmış görünüme yazma |
 | Geri dön | `Revert` | Kirli sunumu kayıtlı adlandırılmış görünüme döndürme |
@@ -692,17 +724,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yerine konmuş | `Replaced` | Önceki etkin `Not now` izini yeni bir iz ile kapatan geçmiş durumu |
 | Geçmiş | `History` | Önceki `Not now` izlerinin gerekçe, koşul, dayanak, yazar ve zaman kayıtları |
 | Yeniden bak | `Review Later` | Kaynak bağlantılı kişisel hatırlatma; `Not now` sessiz silmez; `Review later` aynı etikettir |
-| Yeniden bak hatırlatması yok | `No Review Later reminders.` | Work için henüz `Review Later` hatırlatması bulunmadığını bildiren boş durum |
+| Hatırlatma yok | `No reminders.` | Kaynak kayıtta henüz Hatırlatma bulunmadığını bildiren boş durum |
 | Hatırlat | `Remind me` | Desteklenen kayda Hesap kapsamında kişisel zaman bağlama eylemi; `Target date` yazmaz |
 | Hatırlatma yaşamı | `Planned`, `Triggered`, `Cancelled` | Hatırlatmanın İngilizce yaşam etiketleri; kaynak İş akışı durumu değildir |
 | Hatırlatma zamanı | `When` | Hatırlatmanın kişisel zaman alanı; İş `Target date` değildir |
 | Hatırlatma koşulu | `Condition` | Zamanı gelince açık/çözülmüş kaynak yaşamını değerlendirme seçimi |
 | Hatırlatmayı iptal et | `Cancel` | `Planned` Hatırlatmayı `Cancelled` yapan açık eylem |
-| Yeniden bak oluştur | `Set Review Later` | İşe kaynak bağlantılı `Review Later` Hatırlatması kurma eylemi |
+| Hatırlatma oluştur | `Set reminder` | Desteklenen kayda kaynak bağlantılı Hatırlatma kurma eylemi |
 | Hatırlatmayı kapat | `Dismiss` | Tetiklenmiş Hatırlatma sinyalini kapatan açık eylem; İş veya kopya üretmez |
 | Her durumda | `In any case` | Hatırlatmanın varsayılan koşulsuz açık kalma koşulu |
 | Yalnız hâlâ açıksa | `Only if still open` | Zamanı gelince kaynağın açık/çözülmüş yaşamını okuyan kapalı koşul; genel sorgu değildir |
 | Bölüm | `Section` | Belge `Review Later` hedefinin kararlı Markdown başlık kimliği |
+| Tüm Belge | `Entire document` | Belge hatırlatmasında bölüm hedefi olmayan seçim |
 | Bu bölüm yok | `This section is missing.` | Silinmiş veya çözülemeyen bölüm hedefinin açıklaması; sessiz başka başlık yoktur |
 | Yeniden bakı koru | `Keep Review later` | İz kapanınca bağlı hatırlatmayı bırakma |
 | Yeniden bakı kaldır | `Remove Review later` | İz kapanınca bağlı hatırlatmayı açıkça kaldırma |
@@ -1105,7 +1138,54 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yetkili kayıt ara | `Type to search authorized records.` | Boş sorgu yönlendirmesi |
 | Eşleşen kayıt yok | `No matching records.` | Süzgecin yetkili sonuç döndürmediği durum |
 | Arama kullanılamıyor | `Search is unavailable.` | Arama yüzeyinin yüklenemediği durum |
+| Tablo Görünümü | `Table` | Tek kayıt türü üzerinde mevcut ana kayıt sahibinin izinli alanlarını sıralama, süzme, düzenleme ve çok satırlı yapıştırma yüzeyi |
+| Satırları süz | `Filter rows` | Yalnızca geçerli Table satırlarını geçici metin süzgeciyle daraltma |
+| Satır yapıştır | `Paste rows` | Başlık ve veri satırlarından oluşan sekmeyle ayrılmış çok satırlı giriş alanı |
+| Yapıştırmayı önizle | `Preview paste` | Sütun eşlemesi ve satır sonuçlarını herhangi bir kayıt yazmadan inceleme |
+| Sütun eşlemesi | `Column mapping` | Yapıştırılan her sütunu aynı tür Table alanına veya atlama seçeneğine bağlama |
+| Sütunu atla | `Skip column` | Yapıştırılan sütunu yazmalardan çıkarma |
+| Kayıt kimliği | `Record ID` | Mevcut satırı güncellemek için kullanılan ana kayıt kimliği; yeni kayıt oluşturmaz |
+| Yapıştırmayı gözden geçir | `Review paste` | Eşlenen satırları, doğrulama hatalarını ve dahil edilme durumunu yazma öncesi inceleme |
+| Satırı düzelt | `Correct row` | Hatalı yapıştırma satırını açıkça düzeltme denetimi |
+| Satırı dışla | `Exclude row` | Yapıştırma uygulanırken satırı atlama |
+| Satırı dahil et | `Include row` | Önceden dışlanan satırı yapıştırma kapsamına döndürme |
+| Değişiklikleri uygula | `Apply changes` | Önizlemedeki geçerli ve dahil edilen satırları tek atomik, idempotent yazma olarak uygulama |
+| Değer seç | `Select a value` | Seçenekli düzeltme alanında geçerli değere geçmeden önceki boş seçenek |
+| Satır numarası | `Row <n>` | Yapıştırma önizlemesinde kaynağın sırasını koruyan satır göstergesi |
+| Kayıt oluşturma eylemi | `Create` | Yapıştırma önizlemesinde yeni ana kayıt satırını belirtir |
+| Kayıt güncelleme eylemi | `Update` | Yapıştırma önizlemesinde mevcut ana kayıt satırını belirtir |
+| Planlanan başlangıç tarihi | `Planned start date` | İşin isteğe bağlı başlangıç günü |
+| Karar alanı | `Decision` | Karar ana kaydının yürürlükteki seçim metni |
+| Karar yaşamı | `Life` | Table'da düzenlenebilen Kararın `Valid` veya `Withdrawn` yaşamı; `Superseded` açık yerine-geçme ilişkisiyle oluşur |
+| Risk olasılığı | `Probability` | Risk ana kaydının olasılık alanı |
+| Risk yanıtı | `Response` | Risk ana kaydının yanıt/azaltma alanı |
+| Varsayım ifadesi | `Statement` | Varsayım ana kaydının kullanıcı tarafından doğrulanacak ifadesi |
+| Açık soru | `Question` | Açık Soru ana kaydındaki kullanıcı sorusu |
+| Soru bağlamı | `Context` | Açık Soru ana kaydının isteğe bağlı bağlamı |
+| Soru yanıtı | `Answer` | Açık Soru ana kaydının isteğe bağlı yanıtı |
+| Sıralama alanı | `Sort by <field>` | Table sütununu artan veya azalan biçimde sıralayan erişilebilir başlık eylemi |
+| Yapıştırma sütunu eşleme denetimi | `Map column <header>` | Belirtilen yapıştırma başlığının hedef alanını seçen erişilebilir denetim |
+| Satır düzeltme alanı | `Correct <field> in row <n>` | Belirtilen önizleme satırındaki alan değerini düzeltmeye yönelik erişilebilir denetim |
+| Kayıt kimliği eşleşme hatası | `Record ID must match a row in this Table.` | Güncelleme kimliği geçerli Table satırıyla eşleşmediğinde gösterilir |
+| Proje seçme hatası | `Select a Project before creating rows.` | Proje kapsamlı yeni satır oluşturmadan önce hedef Proje seçilmesi gerektiğini belirtir |
+| Satır değerlerini gözden geçir | `Review this row's values.` | Satır önizlemesinde alan doğrulaması başarısız olduğunda gösterilen genel hata |
+| Başlık ve veri satırı gerekli | `Paste a header row and at least one data row.` | Yapıştırma girişi sütun eşleme ve önizleme için yetersiz olduğunda gösterilen hata |
+| Seçili satırları gözden geçir | `Review the selected rows.` | Uygulama önizlemesinde dahil edilen satırlar geçersiz kaldığında gösterilen hata |
+| Hücre kaydedilemedi | `Could not save this cell.` | Hücre düzenlemesi başarısız olduğunda gösterilen genel hata |
+| Yapıştırma uygulanamadı | `Could not apply these changes.` | Çok satırlı yazma başarısız olduğunda gösterilen genel hata |
+| Değişiklikler uygulandı | `Changes applied.` | Çok satırlı yazmanın başarıyla tamamlandığını belirtir |
+| Değişiklikler uygulanıyor | `Applying changes…` | Çok satırlı yazma sürerken gösterilen durum |
+| Tablo kullanılamıyor | `Table is unavailable.` | Table verisi yüklenemediğinde gösterilen hata durumu |
+| Kilometre Taşıının Planned'a dönüşü yok | `A Milestone cannot return to Planned.` | Milestone Reached veya Abandoned olduktan sonra Table'dan `Planned` durumuna geçişi reddeden doğrulama hatası |
+| Keşif görünümü | `Discovery view` | Aynı geçici keşif yüzeyinde Search ile hazır tür dizini arasında seçim |
+| Bütün sahiplik kapsamları | `All scopes` | Yetkili Proje ve Kişisel Wiki kayıtlarının kapsamlarını değiştirmeden birlikte gösterilmesi |
+| Bütün Belge türleri | `All types` | Belge keşfindeki geçici tür filtresini kaldırır |
+| Bütün Belge klasörleri | `All folders` | Belge keşfindeki geçici klasör filtresini kaldırır; yeni sahiplik oluşturmaz |
+| Belge araması açıklaması | `Find Documents in their Project or Personal Wiki scope.` | Search içindeki teslim edilmiş Belge türü karşılığını açıklar |
+| Kayıt eşleşme sayısı | `<count> matches` | Yetkili Belge başlık/gövdesindeki eşleşen terimlerin toplam sayısı |
 | Tam sayfa aç | `Open full page` | Derin çalışma için kaynağı tam sayfada açma; geçici önizleme paneli veya kalıcı yerleşim değildir |
+| Belge önizlemesi yükleniyor | `Loading document preview…` | Belge önizlemesi yüklenirken gösterilen durum metni |
+| Geçici önizleme açıklaması | `Temporary preview that keeps the current source view in place.` | Geçici önizlemenin mevcut kaynak görünümünü koruduğunu açıklayan panel metni |
 | Yakalama Gelen Kutusu öğesi | `Capture Inbox item` | Henüz ana kayda dönüşmemiş geçici girdi; Evrensel Arama sonucu değildir |
 | GitHub dış kaydı | `GitHub external record` | GitHub kaynak kimliğini taşıyan salt okunur Proje ana kaydı; Evrensel Arama sonucu değildir |
 | Secret | `Secret` | Kapalı alandan gelen gizli değer; arama, export, paylaşım ve yayın kapsamına girmez |

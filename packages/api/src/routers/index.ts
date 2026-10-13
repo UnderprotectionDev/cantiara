@@ -1,6 +1,5 @@
 import { ORPCError, type RouterClient } from "@orpc/server";
 import { z } from "zod";
-
 import {
   type AccountPreferences,
   type AccountPreferencesSnapshot,
@@ -63,18 +62,48 @@ import {
   dailyFocusMembershipInputSchema,
 } from "../daily-focus";
 import {
+  decisionSupersessionCommandSchema,
+  decisionSupersessionSelectionSchema,
+} from "../decision-supersession";
+import {
+  createDocumentFromTemplateInputSchema,
+  createDocumentTemplateInputSchema,
+  documentTemplateDefinitionSchema,
+  documentTemplateSchema,
+  documentTemplateScopeSchema,
+  documentTemplateSkeleton,
+  personalReviewTemplate,
+  renderDocumentTemplate,
+  updateDocumentTemplateInputSchema,
+} from "../document-templates";
+import {
+  DocumentTransferError,
+  documentTransferInputSchema,
+  documentTransferMutationInputSchema,
+} from "../document-transfer";
+import {
+  transferDocumentMutationInputSchema,
+  type DocumentTransferInput as WikiDocumentTransferInput,
+  documentTransferInputSchema as wikiDocumentTransferInputSchema,
+} from "../document-transfers";
+import {
   createDocumentMutationInputSchema,
+  DocumentConflictDraftError,
+  DocumentHierarchyError,
   type DocumentMutationValue,
   DocumentSectionCycleError,
   DocumentUnavailableError,
+  discardDocumentConflictDraftInputSchema,
   documentBodySchema,
   documentCreationFields,
   documentCreationInputSchema,
   documentIdSchema,
   documentLiveDirectives,
   documentLiveWorkIds,
+  documentOrganizationInputSchema,
   documentSchema,
   documentVersionInputSchema,
+  organizeDocumentMutationInputSchema,
   documentRecordReferences as parseDocumentRecordReferences,
   pinDocumentEvidenceInputSchema,
   projectIdSchema,
@@ -93,6 +122,10 @@ import {
   recordExternalExecutionHandoffReturnInputSchema,
   startExternalExecutionHandoffMutationInputSchema,
 } from "../external-handoffs";
+import {
+  FavoriteSourceUnavailableError,
+  favoriteSourceSchema,
+} from "../favorites";
 import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
@@ -125,8 +158,13 @@ import {
   type MutationReceipt,
 } from "../mutation-and-undo";
 import {
+  cancelPersonalReminderInputSchema,
   cancelWorkReviewLaterInputSchema,
+  createPersonalReminderInputSchema,
   createWorkReviewLaterInputSchema,
+  personalReminderSignalInputSchema,
+  personalRemindersInputSchema,
+  reschedulePersonalReminderSignalInputSchema,
   workReviewLaterInputSchema,
 } from "../personal-reminders";
 import {
@@ -166,6 +204,14 @@ import {
   updatePriorityMetricMutationInputSchema,
 } from "../priority-metrics";
 import {
+  createProjectGoalInputSchema,
+  ProjectGoalConflictError,
+  projectGoalInputSchema,
+  projectGoalRelationInputSchema,
+  projectGoalsProjectInputSchema,
+  updateProjectGoalInputSchema,
+} from "../project-goals";
+import {
   applyProjectShellConfigurationChange,
   createProjectInputSchema,
   createProjectMutationInputSchema,
@@ -203,6 +249,13 @@ import {
   updateRecordActionMutationInputSchema,
 } from "../record-actions";
 import {
+  documentDiscoveryInputSchema,
+  recordTableCellUpdateInputSchema,
+  recordTableInputSchema,
+  recordTablePasteInputSchema,
+  universalSearchInputSchema,
+} from "../record-discovery";
+import {
   createUsageLinkMutationInputSchema,
   listUsageLinksInputSchema,
   reactivateBlockerInputSchema,
@@ -218,6 +271,26 @@ import {
   usageLinkSchema,
 } from "../relations";
 import {
+  confirmResearchSessionBindingInputSchema,
+  previewResearchSessionBindingInputSchema,
+} from "../research-session-bindings";
+import {
+  captureResearchSessionInputSchema,
+  ResearchSessionConsentError,
+  researchSessionConvertPreview,
+  researchSessionConvertPreviewInputSchema,
+  researchSessionProjectInputSchema,
+  researchSessionSnapshotPreview,
+  researchSessionSnapshotPreviewInputSchema,
+  saveResearchSessionInputSchema,
+  saveResearchSessionNoteInputSchema,
+} from "../research-sessions";
+import {
+  returnContextInputSchema,
+  saveNextConcreteStepInputSchema,
+} from "../return-to-work";
+import { riskContextRelationInputSchema } from "../risk-signals";
+import {
   createMilestoneInputSchema,
   projectRoadmapInputSchema,
   saveRoadmapViewInputSchema,
@@ -230,7 +303,28 @@ import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
   SmartCollectionUnavailableError,
+  setSmartCollectionSubscriptionInputSchema,
 } from "../smart-collections";
+import {
+  smartLinkPreviewInputSchema,
+  smartLinkPreviewSchema,
+} from "../smart-link-preview";
+import {
+  bindSourceEvidenceInputSchema,
+  reviewSourceEvidenceInputSchema,
+  sourceEvidencePreviewInputSchema,
+} from "../source-evidence";
+import {
+  recheckSourceInputSchema,
+  sourceCheckDecisionInputSchema,
+} from "../source-recheck";
+import {
+  createSourceInputSchema,
+  SourceConflictError,
+  saveSourceVersionInputSchema,
+  sourceProjectInputSchema,
+  sourceSelectionSchema,
+} from "../sources-and-freshness";
 import {
   applyTagInputSchema,
   createTagInputSchema,
@@ -312,6 +406,45 @@ import {
   type WorkspaceOverviewAccess,
   workspaceOverviewPresentationSchema,
 } from "../workspace-overview";
+
+async function readOwnedResearchSession(
+  context: Context,
+  input: { id: string; projectId: string },
+) {
+  if (!context.session) {
+    throw new ORPCError("UNAUTHORIZED");
+  }
+  if (!context.researchSessions) {
+    throw new ORPCError("NOT_IMPLEMENTED");
+  }
+  const sessions = await context.researchSessions.list(
+    context.session.user.id,
+    input.projectId,
+  );
+  const session = sessions?.records.find((record) => record.id === input.id);
+  if (!session) {
+    throw new ORPCError("NOT_FOUND");
+  }
+  return session;
+}
+
+function rethrowResearchSessionError(error: unknown): never {
+  if (error instanceof ResearchSessionConsentError) {
+    throw new ORPCError("FORBIDDEN", { message: error.message, cause: error });
+  }
+  if (error instanceof Error && "code" in error) {
+    if (error.code === "CONFLICT" || error.code === "STALE_BASE_REVISION") {
+      throw new ORPCError("CONFLICT", {
+        message: "Research Session changed. Reload before saving.",
+        cause: error,
+      });
+    }
+    if (error.code === "TARGET_NOT_FOUND") {
+      throw new ORPCError("NOT_FOUND", { cause: error });
+    }
+  }
+  throw error;
+}
 
 function sessionPrincipal(session: NonNullable<Context["session"]>) {
   return {
@@ -444,6 +577,20 @@ function requireBacklog(context: Context) {
   return context.backlog;
 }
 
+function requireReturnToWork(context: Context) {
+  if (!context.returnToWork) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.returnToWork;
+}
+
+function requireFavorites(context: Context) {
+  if (!context.favorites) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.favorites;
+}
+
 function requireDailyFocus(context: Context) {
   if (!context.dailyFocus) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -484,9 +631,49 @@ function requireProjectSourceRecords(context: Context) {
   return context.projectSourceRecords;
 }
 
+function requireSourcesAndFreshness(context: Context) {
+  if (!context.sourcesAndFreshness) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.sourcesAndFreshness;
+}
+
+async function sourceSaveResult<T>(
+  operation: () => Promise<T | null>,
+): Promise<T> {
+  try {
+    const record = await operation();
+    if (!record) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return record;
+  } catch (error) {
+    if (error instanceof SourceConflictError) {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: {
+          code: error.code,
+          label: MUTATION_UI_LABELS.conflict,
+          targetId: error.targetId,
+        },
+      });
+    }
+    throw error;
+  }
+}
+
 function rethrowProjectSourceRecordError(error: unknown): never {
   if (error instanceof ProjectSourceRecordConflictError) {
-    throw new ORPCError("CONFLICT", { cause: error });
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: {
+        code: error.code,
+        label: MUTATION_UI_LABELS.conflict,
+        targetId: error.targetId,
+      },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
   }
   throw error;
 }
@@ -876,7 +1063,11 @@ async function documentReferenceSource(
         reference.recordId,
       );
       return record
-        ? { id: record.id, projectId: record.projectId, title: record.title }
+        ? {
+            id: record.id,
+            projectId: record.projectId,
+            title: record.title,
+          }
         : null;
     }
     case "Technical Diagram": {
@@ -1653,20 +1844,26 @@ async function runPersonalReminderOperation<T>(operation: () => Promise<T>) {
     return await operation();
   } catch (error) {
     if (isRecord(error)) {
-      if (error.code === "WORK_REVIEW_LATER_FIRE_AT_MUST_BE_FUTURE") {
+      if (
+        error.code === "PERSONAL_REMINDER_FIRE_AT_MUST_BE_FUTURE" ||
+        error.code === "WORK_REVIEW_LATER_FIRE_AT_MUST_BE_FUTURE"
+      ) {
         throw new ORPCError("BAD_REQUEST", {
           cause: error,
           data: { code: error.code },
           defined: true,
-          message: "Review Later must be scheduled for a future time.",
+          message: "Reminder must be scheduled for a future time.",
         });
       }
-      if (error.code === "WORK_REVIEW_LATER_IDEMPOTENCY_CONFLICT") {
+      if (
+        error.code === "PERSONAL_REMINDER_IDEMPOTENCY_CONFLICT" ||
+        error.code === "WORK_REVIEW_LATER_IDEMPOTENCY_CONFLICT"
+      ) {
         throw new ORPCError("CONFLICT", {
           cause: error,
           data: { code: error.code },
           defined: true,
-          message: "This Review Later request key was already used.",
+          message: "This reminder request key was already used.",
         });
       }
     }
@@ -2217,6 +2414,24 @@ function rethrowUsageLinkMutationError(
 }
 
 function rethrowDocumentMutationError(error: unknown, targetId: string): never {
+  if (error instanceof DocumentTransferError) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: error.message,
+      cause: error,
+    });
+  }
+  if (error instanceof DocumentConflictDraftError) {
+    throw new ORPCError("CONFLICT", { defined: true, message: error.message });
+  }
+  if (error instanceof DocumentUnavailableError) {
+    throw new ORPCError("NOT_FOUND", { cause: error });
+  }
+  if (error instanceof DocumentHierarchyError) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: error.message,
+      cause: error,
+    });
+  }
   if (error instanceof DocumentSectionCycleError) {
     throw new ORPCError("CONFLICT", {
       defined: true,
@@ -2292,9 +2507,480 @@ function nullableProjectValue(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
+async function previewWikiDocumentTransfer(
+  context: Context,
+  accountId: string,
+  input: WikiDocumentTransferInput,
+) {
+  if (!context.documents?.previewTransfer) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  try {
+    const preview = await context.documents.previewTransfer(accountId, input);
+    return {
+      ...preview,
+      references: await Promise.all(
+        preview.references.map(async (reference) => {
+          let source: { projectId: string | null } | null = null;
+          let title: string | null = null;
+          if (reference.directive?.kind === "Work") {
+            const resolved = await documentReferenceSource(context, accountId, {
+              recordType: "Work",
+              recordId: reference.directive.id,
+              label: reference.title,
+              start: reference.directive.start,
+              end: reference.directive.end,
+            });
+            source = resolved;
+            title = resolved?.title ?? null;
+          } else if (reference.directive) {
+            const block = await liveDocumentBlockSource(
+              context,
+              accountId,
+              reference.directive,
+            );
+            source = block;
+            title =
+              block && "title" in block ? block.title : (block?.name ?? null);
+          } else if (reference.reference) {
+            const resolved = await documentReferenceSource(
+              context,
+              accountId,
+              reference.reference,
+            );
+            source = resolved;
+            title = resolved ? resolved.title : null;
+          }
+          return {
+            ...reference,
+            available: source !== null,
+            projectId: source?.projectId ?? null,
+            title: title ?? reference.title,
+          };
+        }),
+      ),
+    };
+  } catch (error) {
+    rethrowDocumentMutationError(error, input.documentId);
+  }
+}
+
+async function transferWikiDocument(
+  context: Context,
+  accountId: string,
+  input: z.infer<typeof transferDocumentMutationInputSchema>,
+) {
+  const { baseRevision, clientIdempotencyKey, previewFingerprint, ...fields } =
+    input;
+  const payload = wikiDocumentTransferInputSchema.parse(fields);
+  if (
+    baseRevision !== (payload.action === "copy" ? 0 : payload.documentRevision)
+  ) {
+    throw new ORPCError("BAD_REQUEST");
+  }
+  const mutation = requireDocumentMutationContracts(context).transfer?.(
+    accountId,
+    payload,
+    previewFingerprint,
+  );
+  if (!mutation) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  try {
+    const receipt = await mutation.mutate(
+      {
+        actor: { actorId: accountId, type: "User" },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human",
+        payload: { ...payload, previewFingerprint },
+        targetId:
+          payload.action === "copy"
+            ? payload.copyDocumentId
+            : payload.documentId,
+      },
+      ({ committedAt, currentRevision, currentValue }) => {
+        const source =
+          payload.action === "copy"
+            ? currentValue.sourceDocument
+            : currentValue.document;
+        if (!source) {
+          throw new DocumentUnavailableError();
+        }
+        return {
+          document: documentSchema.parse({
+            ...source,
+            id: payload.action === "copy" ? payload.copyDocumentId : source.id,
+            projectId: payload.targetProjectId,
+            parentDocumentId: null,
+            folder: null,
+            ...(payload.action === "copy"
+              ? {
+                  archivedAt: null,
+                  createdAt: committedAt,
+                  origin: {
+                    documentId: source.id,
+                    revision: source.revision,
+                  },
+                }
+              : {}),
+            revision: currentRevision + 1,
+            updatedAt: committedAt,
+          }),
+        } satisfies DocumentMutationValue;
+      },
+    );
+    if (!receipt.nextValue.document) {
+      throw new ORPCError("NOT_FOUND");
+    }
+    return receipt.nextValue.document;
+  } catch (error) {
+    rethrowDocumentMutationError(error, input.documentId);
+  }
+}
+
+function requireProjectGoals(context: Context) {
+  if (!context.projectGoals) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectGoals;
+}
+function rethrowProjectGoalError(error: unknown, targetId: string): never {
+  if (error instanceof ProjectGoalConflictError) {
+    throw new ORPCError("CONFLICT", {
+      cause: error,
+      data: { code: "CONFLICT", targetId },
+      defined: true,
+      message: "Conflict",
+    });
+  }
+  throw error;
+}
 export const appRouter = {
+  projectGoalDetail: protectedProcedure
+    .input(projectGoalInputSchema)
+    .handler(({ context, input }) => {
+      const { membership } = requireProjectGoals(context);
+      if (!membership) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return membership.detail(context.session.user.id, input);
+    }),
+  setProjectGoalRelation: protectedProcedure
+    .input(projectGoalRelationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { membership } = requireProjectGoals(context);
+      if (!membership) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const relation = await membership.setRelation(
+          context.session.user.id,
+          input,
+        );
+        if (!relation) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return relation;
+      } catch (error) {
+        rethrowProjectGoalError(error, input.goalId);
+      }
+    }),
+  projectGoals: protectedProcedure
+    .input(projectGoalsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectGoals(context).list(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  projectGoal: protectedProcedure
+    .input(projectGoalInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectGoals(context).find(context.session.user.id, input),
+    ),
+  createProjectGoal: protectedProcedure
+    .input(createProjectGoalInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectGoals(context).create(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectGoalError(error, input.id);
+      }
+    }),
+  updateProjectGoal: protectedProcedure
+    .input(updateProjectGoalInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const record = await requireProjectGoals(context).update(
+          context.session.user.id,
+          input,
+        );
+        if (!record) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return record;
+      } catch (error) {
+        rethrowProjectGoalError(error, input.id);
+      }
+    }),
+  documentTemplates: protectedProcedure
+    .input(documentTemplateScopeSchema)
+    .handler(async ({ context, input }) => {
+      const templates = context.documents?.templates;
+      if (!templates) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await templates.list(context.session.user.id, input.projectId);
+      } catch (error) {
+        rethrowDocumentMutationError(error, "document-templates");
+      }
+    }),
+  previewDocumentTemplate: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      const source = await context.documents?.get(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!source) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return {
+        body: documentTemplateSkeleton(source.body),
+        name: source.title,
+        projectId: source.projectId,
+        sourceDocumentId: source.id,
+        sourceRevision: source.revision,
+        type: source.type,
+      };
+    }),
+  createDocumentTemplate: protectedProcedure
+    .input(createDocumentTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const contracts = context.documentMutationContracts?.templates;
+      if (!contracts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      try {
+        const receipt = await contracts.create(context.session.user.id).mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: clientIdempotencyKey,
+          },
+          ({ committedAt }) => ({
+            template: documentTemplateSchema.parse({
+              ...documentTemplateDefinitionSchema.parse({
+                projectId: payload.projectId,
+                name: payload.name,
+                body: documentTemplateSkeleton(payload.body),
+                type: payload.type,
+              }),
+              id: crypto.randomUUID(),
+              revision: 1,
+              createdAt: committedAt,
+              updatedAt: committedAt,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.template) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.template;
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+    }),
+  updateDocumentTemplate: protectedProcedure
+    .input(updateDocumentTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const contracts = context.documentMutationContracts?.templates;
+      if (!contracts) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...payload } = input;
+      try {
+        const receipt = await contracts.update(context.session.user.id).mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.templateId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => ({
+            template: currentValue.template
+              ? documentTemplateSchema.parse({
+                  ...currentValue.template,
+                  name: payload.name,
+                  body: documentTemplateSkeleton(payload.body),
+                  type: payload.type,
+                  revision: currentRevision + 1,
+                  updatedAt: committedAt,
+                })
+              : null,
+          }),
+        );
+        if (!receipt.nextValue.template) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.template;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.templateId);
+      }
+    }),
+  createDocumentFromTemplate: protectedProcedure
+    .input(createDocumentFromTemplateInputSchema)
+    .handler(async ({ context, input }) => {
+      const accountId = context.session.user.id;
+      const { baseRevision, clientIdempotencyKey, ...templatePayload } = input;
+      const contract =
+        requireDocumentMutationContracts(context).create(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human" as const,
+        payload: templatePayload,
+        targetId: clientIdempotencyKey,
+      };
+      try {
+        const replay = await contract.replay(command);
+        if (replay?.nextValue.document) {
+          return replay.nextValue.document;
+        }
+      } catch (error) {
+        rethrowDocumentMutationError(error, clientIdempotencyKey);
+      }
+      const template =
+        input.templateId === personalReviewTemplate.id
+          ? personalReviewTemplate
+          : await context.documents?.templates?.get(
+              accountId,
+              input.templateId,
+            );
+      if (
+        !template ||
+        ("projectId" in template && template.projectId !== input.projectId)
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      if (
+        "revision" in template &&
+        template.revision !== input.templateRevision
+      ) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          message:
+            "Document Template changed. Reload it before creating a Document.",
+        });
+      }
+      let body: string;
+      try {
+        body = renderDocumentTemplate(template.body, input.values);
+      } catch (error) {
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Document Template values are invalid.",
+        });
+      }
+      const payload = documentCreationInputSchema.parse({
+        projectId: input.projectId,
+        title: input.title,
+        type: template.type,
+        body,
+      });
+      try {
+        const receipt = await contract.mutate(
+          command,
+          ({ committedAt, currentRevision }) => ({
+            document: documentSchema.parse({
+              ...payload,
+              id: crypto.randomUUID(),
+              revision: currentRevision + 1,
+              createdAt: committedAt,
+              updatedAt: committedAt,
+            }),
+          }),
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.clientIdempotencyKey);
+      }
+    }),
+  discoverDocuments: protectedProcedure
+    .input(documentDiscoveryInputSchema)
+    .handler(({ context, input }) => {
+      const discovery = context.documents?.discovery;
+      if (!discovery) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return discovery.discover(context.session.user.id, input);
+    }),
+  searchRecords: protectedProcedure
+    .input(universalSearchInputSchema)
+    .handler(({ context, input }) => {
+      const search = context.universalSearch;
+      if (!search) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return search.search(context.session.user.id, input);
+    }),
+  tableRecords: protectedProcedure
+    .input(recordTableInputSchema)
+    .handler(({ context, input }) => {
+      const table = context.recordTable;
+      if (!table) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return table.list(context.session.user.id, input);
+    }),
+  updateTableCell: protectedProcedure
+    .input(recordTableCellUpdateInputSchema)
+    .handler(({ context, input }) => {
+      const table = context.recordTable;
+      if (!table) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return table.updateCell(context.session.user.id, input);
+    }),
+  applyTablePaste: protectedProcedure
+    .input(recordTablePasteInputSchema)
+    .handler(({ context, input }) => {
+      const table = context.recordTable;
+      if (!table) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      return table.applyPaste(context.session.user.id, input);
+    }),
   documents: protectedProcedure
-    .input(z.object({ projectId: projectIdSchema.nullable() }).strict())
+    .input(
+      z
+        .object({
+          projectId: projectIdSchema.nullable(),
+          archived: z.boolean().optional(),
+        })
+        .strict(),
+    )
     .handler(async ({ context, input }) => {
       if (!context.documents) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -2303,6 +2989,7 @@ export const appRouter = {
         return await context.documents.list(
           context.session.user.id,
           input.projectId,
+          input.archived,
         );
       } catch (error) {
         if (error instanceof DocumentUnavailableError) {
@@ -2325,6 +3012,34 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return result;
+    }),
+  documentConflictDrafts: protectedProcedure
+    .input(z.object({ documentId: documentIdSchema }).strict())
+    .handler(async ({ context, input }) => {
+      const drafts = await context.documents?.conflictDrafts?.(
+        context.session.user.id,
+        input.documentId,
+      );
+      if (!drafts) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return drafts;
+    }),
+  discardDocumentConflictDraft: protectedProcedure
+    .input(discardDocumentConflictDraftInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents?.discardConflictDraft) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        await context.documents.discardConflictDraft(
+          context.session.user.id,
+          input.documentId,
+          input.conflictDraftId,
+        );
+      } catch (error) {
+        rethrowDocumentMutationError(error, input.documentId);
+      }
     }),
   documentLiveWorkBlocks: protectedProcedure
     .input(
@@ -2409,6 +3124,9 @@ export const appRouter = {
       const payload = usageLinkPayloadSchema.parse({
         kind: "Pinned bind",
         location: {
+          ...(input.targetRecordType === "Assumption"
+            ? { projectId: targetProjectId }
+            : {}),
           documentVersion: {
             documentId: documentRecord.id,
             revision: documentRecord.revision,
@@ -2555,8 +3273,30 @@ export const appRouter = {
         input.projectId,
       );
     }),
+  setSmartCollectionSubscription: protectedProcedure
+    .input(setSmartCollectionSubscriptionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.smartCollections) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.smartCollections.setSubscription(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof SmartCollectionUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
   smartCollectionView: protectedProcedure
-    .input(z.object({ viewId: z.string().min(1) }).strict())
+    .input(
+      z
+        .object({ viewId: z.string().min(1), readOnly: z.boolean().optional() })
+        .strict(),
+    )
     .handler(async ({ context, input }) => {
       if (!context.smartCollections) {
         throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -2564,6 +3304,7 @@ export const appRouter = {
       const view = await context.smartCollections.getView(
         context.session.user.id,
         input.viewId,
+        { readOnly: input.readOnly },
       );
       if (!view) {
         throw new ORPCError("NOT_FOUND");
@@ -2755,6 +3496,7 @@ export const appRouter = {
                     ...currentValue.document,
                     title: selected.title,
                     body: selected.body,
+                    inlineTags: selected.inlineTags,
                     type: selected.type,
                     revision: currentRevision + 1,
                     updatedAt: committedAt,
@@ -2770,11 +3512,241 @@ export const appRouter = {
         rethrowDocumentMutationError(error, input.documentId);
       }
     }),
+  previewDocumentTransfer: protectedProcedure
+    .input(
+      z.union([documentTransferInputSchema, wikiDocumentTransferInputSchema]),
+    )
+    .handler(async ({ context, input }) => {
+      if (input.action === "move" || input.action === "copy") {
+        return previewWikiDocumentTransfer(
+          context,
+          context.session.user.id,
+          input,
+        );
+      }
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const preview = await context.documentTransfers.preview(
+          context.session.user.id,
+          input,
+        );
+        if (
+          context.documents?.previewTransfer &&
+          (input.action === "Move" || input.action === "Copy")
+        ) {
+          const source = await context.documents.get(
+            context.session.user.id,
+            input.documentId,
+          );
+          if (!source) {
+            throw new DocumentUnavailableError();
+          }
+          if (input.action === "Copy" && !input.newDocumentId) {
+            throw new ORPCError("BAD_REQUEST");
+          }
+          const selection: WikiDocumentTransferInput =
+            input.action === "Move"
+              ? {
+                  action: "move",
+                  documentId: input.documentId,
+                  documentRevision: input.sourceRevision,
+                  targetProjectId: input.targetProjectId,
+                  children: preview.documents
+                    .filter((item) => item.id !== input.documentId)
+                    .map(({ id, revision }) => ({ id, revision })),
+                }
+              : {
+                  action: "copy",
+                  documentId: input.documentId,
+                  documentRevision: source.revision,
+                  targetProjectId: input.targetProjectId,
+                  sourceRevision: input.sourceRevision,
+                  copyDocumentId: input.newDocumentId ?? "",
+                };
+          const scopePreview = await previewWikiDocumentTransfer(
+            context,
+            context.session.user.id,
+            selection,
+          );
+          return {
+            ...preview,
+            descendants: scopePreview.descendants,
+            detachedChildren: scopePreview.detachedChildren,
+            references: scopePreview.references,
+          };
+        }
+        return preview;
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw new ORPCError("BAD_REQUEST", {
+          cause: error,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Document selection is unavailable.",
+        });
+      }
+    }),
+  transferDocument: protectedProcedure
+    .input(
+      z.union([
+        documentTransferMutationInputSchema,
+        transferDocumentMutationInputSchema,
+      ]),
+    )
+    .handler(async ({ context, input }) => {
+      if (input.action === "move" || input.action === "copy") {
+        return transferWikiDocument(context, context.session.user.id, input);
+      }
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const { baseRevision, clientIdempotencyKey, ...command } = input;
+      try {
+        const receipt = await context.documentTransfers
+          .mutation(context.session.user.id)
+          .mutate(
+            {
+              actor: { actorId: context.session.user.id, type: "User" },
+              kind: "human",
+              clientIdempotencyKey,
+              baseRevision,
+              targetId:
+                command.action === "Copy"
+                  ? (command.newDocumentId ?? "")
+                  : command.documentId,
+              payload: command,
+            },
+            ({ currentValue }) => ({ ...currentValue, command }),
+          );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, command.documentId);
+      }
+    }),
+  exportDocument: protectedProcedure
+    .input(
+      z
+        .object({
+          documentId: documentIdSchema,
+          revision: z.number().int().positive(),
+          format: z.enum(["Markdown", "PDF"]),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.documentTransfers) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const snapshot = await context.documentTransfers.snapshot(
+          context.session.user.id,
+          input.documentId,
+          input.revision,
+        );
+        return {
+          ...snapshot,
+          format: input.format,
+          content:
+            input.format === "PDF"
+              ? await context.documentTransfers.pdf(snapshot)
+              : snapshot.markdown,
+        };
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        if (error instanceof DocumentTransferError) {
+          throw new ORPCError("BAD_REQUEST", {
+            message: error.message,
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    }),
+  previewDocumentOrganization: protectedProcedure
+    .input(documentOrganizationInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.documents?.previewOrganization) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        return await context.documents.previewOrganization(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof DocumentUnavailableError) {
+          throw new ORPCError("NOT_FOUND", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  organizeDocument: protectedProcedure
+    .input(organizeDocumentMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = documentOrganizationInputSchema.parse(payloadInput);
+      const mutation = requireDocumentMutationContracts(context).organize?.(
+        context.session.user.id,
+      );
+      if (!mutation) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId: payload.documentId,
+          },
+          ({ committedAt, currentRevision, currentValue }) => {
+            const current = currentValue.document;
+            return {
+              document: current
+                ? documentSchema.parse({
+                    ...current,
+                    ...(payload.action === "archive"
+                      ? { archivedAt: payload.archived ? committedAt : null }
+                      : {
+                          folder: payload.folder,
+                          parentDocumentId: payload.parentDocumentId,
+                        }),
+                    revision: currentRevision + 1,
+                    updatedAt: committedAt,
+                  })
+                : null,
+            } satisfies DocumentMutationValue;
+          },
+        );
+        if (!receipt.nextValue.document) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.document;
+      } catch (error) {
+        rethrowDocumentMutationError(error, payload.documentId);
+      }
+    }),
   createDocument: protectedProcedure
     .input(createDocumentMutationInputSchema)
     .handler(async ({ context, input }) => {
       const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
-      const payload = documentCreationInputSchema.parse(payloadInput);
+      const payloadSource: Record<string, unknown> = payloadInput;
+      const { conflictDraftId, ...creationSource } = payloadSource;
+      const payload = documentCreationInputSchema.parse(creationSource);
+      const conflictDraftOwnerId =
+        typeof conflictDraftId === "string" ? conflictDraftId : undefined;
       const mutation = requireDocumentMutationContracts(context).create(
         context.session.user.id,
       );
@@ -2788,17 +3760,18 @@ export const appRouter = {
             payload,
             targetId: clientIdempotencyKey,
           },
-          ({ committedAt, currentRevision, payload: mutationPayload }) =>
+          ({ committedAt, currentRevision }) =>
             ({
               document: documentSchema.parse({
-                ...documentCreationFields(
-                  documentCreationInputSchema.parse(mutationPayload),
-                ),
+                ...documentCreationFields(payload),
                 createdAt: committedAt,
                 id: crypto.randomUUID(),
                 revision: currentRevision + 1,
                 updatedAt: committedAt,
               }),
+              ...(conflictDraftOwnerId
+                ? { conflictDraftId: conflictDraftOwnerId }
+                : {}),
             }) satisfies DocumentMutationValue,
         );
         if (!receipt.nextValue.document) {
@@ -2830,6 +3803,9 @@ export const appRouter = {
           ({ committedAt, currentRevision, currentValue }) => {
             const current = currentValue.document;
             return {
+              ...(payload.conflictDraftId
+                ? { conflictDraftId: payload.conflictDraftId }
+                : {}),
               document: current
                 ? documentSchema.parse({
                     ...current,
@@ -2854,6 +3830,38 @@ export const appRouter = {
         }
         return receipt.nextValue.document;
       } catch (error) {
+        if (
+          isRecord(error) &&
+          error.code === "STALE_BASE_REVISION" &&
+          context.documents?.captureConflictDraft &&
+          !payload.conflictDraftId
+        ) {
+          let conflictDraft: Awaited<
+            ReturnType<
+              NonNullable<typeof context.documents.captureConflictDraft>
+            >
+          >;
+          try {
+            conflictDraft = await context.documents.captureConflictDraft(
+              context.session.user.id,
+              input,
+            );
+          } catch (captureError) {
+            rethrowDocumentMutationError(captureError, payload.documentId);
+          }
+          throw new ORPCError("PRECONDITION_FAILED", {
+            cause: error,
+            defined: true,
+            message: "Conflict Draft",
+            data: {
+              code: "STALE_BASE_REVISION",
+              conflictDraft,
+              currentRevision: error.currentRevision,
+              currentValue: error.currentValue,
+              targetId: payload.documentId,
+            },
+          });
+        }
         rethrowDocumentMutationError(error, payload.documentId);
       }
     }),
@@ -4129,10 +5137,326 @@ export const appRouter = {
         rethrowFocusPeriodError(error);
       }
     }),
+  returnToWork: protectedProcedure
+    .input(returnContextInputSchema)
+    .handler(({ context, input }) =>
+      requireReturnToWork(context).read(context.session.user.id, input),
+    ),
+  markReturnContextViewed: protectedProcedure
+    .input(returnContextInputSchema)
+    .handler(async ({ context, input }) => {
+      await requireReturnToWork(context).markViewed(
+        context.session.user.id,
+        input,
+      );
+      return { status: true };
+    }),
+  saveNextConcreteStep: protectedProcedure
+    .input(saveNextConcreteStepInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireReturnToWork(context).saveNextStep(
+          context.session.user.id,
+          input,
+        );
+        return { status: true };
+      } catch (error) {
+        if (input.workId) {
+          rethrowWorkLifecycleError(error);
+        }
+        rethrowProjectShellMutationError(error, input.projectId);
+      }
+    }),
   dailyFocusDay: protectedProcedure
     .input(dailyFocusDayInputSchema)
     .handler(({ context, input }) =>
       requireDailyFocus(context).list(context.session.user.id, input.focusDate),
+    ),
+  decisionSupersessionGraph: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).supersession;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.read(context.session.user.id, input.projectId);
+    }),
+  decisionSupersessionHistory: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).supersession;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.history(context.session.user.id, input.projectId);
+    }),
+  previewDecisionSupersession: protectedProcedure
+    .input(decisionSupersessionSelectionSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const access = requireProjectSourceRecords(context).supersession;
+        if (!access) {
+          throw new ORPCError("NOT_IMPLEMENTED");
+        }
+        const result = await access.preview(context.session.user.id, input);
+        if (!result) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return result;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
+  commitDecisionSupersession: protectedProcedure
+    .input(decisionSupersessionCommandSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const access = requireProjectSourceRecords(context).supersession;
+        if (!access) {
+          throw new ORPCError("NOT_IMPLEMENTED");
+        }
+        const result = await access.commit(context.session.user.id, input);
+        if (!result) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return result;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
+  projectResearchSessions: protectedProcedure
+    .input(researchSessionProjectInputSchema)
+    .handler(({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.researchSessions.list(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  saveResearchSession: protectedProcedure
+    .input(saveResearchSessionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.save(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  saveResearchSessionNote: protectedProcedure
+    .input(saveResearchSessionNoteInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.saveNote(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  captureResearchSessionContent: protectedProcedure
+    .input(captureResearchSessionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.capture(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  researchSessionBindingTargets: protectedProcedure
+    .input(
+      z
+        .object({ id: z.string().min(1), projectId: z.string().min(1) })
+        .strict(),
+    )
+    .handler(({ context, input }) => {
+      if (!context.researchSessions?.bindingTargets) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.researchSessions.bindingTargets(
+        context.session.user.id,
+        input,
+      );
+    }),
+  researchSessionBindingFeedback: protectedProcedure
+    .input(
+      z
+        .object({
+          id: z.string().min(1),
+          projectId: z.string().min(1),
+          bindingId: z.string().min(1),
+        })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.readBindingFeedback) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.readBindingFeedback(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  projectResearchSessionBindings: protectedProcedure
+    .input(
+      z
+        .object({ id: z.string().min(1), projectId: z.string().min(1) })
+        .strict(),
+    )
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.listBindings) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.listBindings(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  previewResearchSessionBinding: protectedProcedure
+    .input(previewResearchSessionBindingInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.previewBinding) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.previewBinding(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  confirmResearchSessionBinding: protectedProcedure
+    .input(confirmResearchSessionBindingInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.researchSessions?.confirmBinding) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      try {
+        return await context.researchSessions.confirmBinding(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  previewResearchSessionSnapshot: protectedProcedure
+    .input(researchSessionSnapshotPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const session = await readOwnedResearchSession(context, input);
+      return researchSessionSnapshotPreview(session, input.selection);
+    }),
+  previewResearchSessionConvert: protectedProcedure
+    .input(researchSessionConvertPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      const session = await readOwnedResearchSession(context, input);
+      if (
+        !session.content.some((item) => item.content.id === input.contentId)
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      try {
+        return researchSessionConvertPreview(session, input.contentId);
+      } catch (error) {
+        rethrowResearchSessionError(error);
+      }
+    }),
+  projectValidationRecords: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context);
+      if (!access.listValidationRecords) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.listValidationRecords(
+        context.session.user.id,
+        input.projectId,
+      );
+    }),
+  projectAssumptions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).listAssumptions;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access(context.session.user.id, input.projectId);
+    }),
+  projectRiskSignals: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const access = requireProjectSourceRecords(context).riskSignals;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      const result = await access.list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return result;
+    }),
+  relateRiskContext: protectedProcedure
+    .input(riskContextRelationInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const access = requireProjectSourceRecords(context).riskSignals;
+        if (!access) {
+          throw new ORPCError("NOT_IMPLEMENTED");
+        }
+        const result = await access.relate(context.session.user.id, input);
+        if (!result) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return result;
+      } catch (error) {
+        rethrowProjectSourceRecordError(error);
+      }
+    }),
+  projectRisks: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).listRisks(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  projectDecisions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireProjectSourceRecords(context).listDecisions(
+        context.session.user.id,
+        input.projectId,
+      ),
     ),
   projectSourceRecords: protectedProcedure
     .input(projectSourceRecordsProjectInputSchema)
@@ -4142,6 +5466,150 @@ export const appRouter = {
         input.projectId,
       ),
     ),
+  smartLinkPreview: protectedProcedure
+    .input(smartLinkPreviewInputSchema)
+    .output(smartLinkPreviewSchema)
+    .handler(({ context, input }) => {
+      if (!context.smartLinkPreview) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.smartLinkPreview(input.url);
+    }),
+  sourceEvidenceTargets: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.targets(context.session.user.id, input);
+    }),
+  sourceEvidenceUses: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.list(context.session.user.id, input);
+    }),
+  previewSourceEvidence: protectedProcedure
+    .input(sourceEvidencePreviewInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.preview(context.session.user.id, input),
+      );
+    }),
+  bindSourceEvidence: protectedProcedure
+    .input(bindSourceEvidenceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.bind(context.session.user.id, input),
+      );
+    }),
+  reviewSourceEvidence: protectedProcedure
+    .input(reviewSourceEvidenceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.review(context.session.user.id, input),
+      );
+    }),
+  recheckSource: protectedProcedure
+    .input(recheckSourceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceRecheck;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.recheck(context.session.user.id, input),
+      );
+    }),
+  sourceChecks: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) => {
+      if (!context.sourceRecheck) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return context.sourceRecheck.list(context.session.user.id, input);
+    }),
+  decideSourceCheck: protectedProcedure
+    .input(sourceCheckDecisionInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.sourceRecheck;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.decide(context.session.user.id, input),
+      );
+    }),
+  createSource: protectedProcedure
+    .input(createSourceInputSchema)
+    .handler(({ context, input }) =>
+      sourceSaveResult(() =>
+        requireSourcesAndFreshness(context).create(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  saveSourceVersion: protectedProcedure
+    .input(saveSourceVersionInputSchema)
+    .handler(({ context, input }) =>
+      sourceSaveResult(() =>
+        requireSourcesAndFreshness(context).saveVersion(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  source: protectedProcedure
+    .input(sourceSelectionSchema)
+    .handler(({ context, input }) =>
+      requireSourcesAndFreshness(context).find(context.session.user.id, input),
+    ),
+  projectSources: protectedProcedure
+    .input(sourceProjectInputSchema)
+    .handler(({ context, input }) =>
+      requireSourcesAndFreshness(context).list(
+        context.session.user.id,
+        input.projectId,
+      ),
+    ),
+  openQuestions: protectedProcedure
+    .input(projectSourceRecordsProjectInputSchema)
+    .handler(({ context, input }) => {
+      const access = requireProjectSourceRecords(context).listOpenQuestions;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access(context.session.user.id, input.projectId);
+    }),
+  openQuestionContext: protectedProcedure
+    .input(projectSourceRecordInputSchema)
+    .handler(({ context, input }) => {
+      if (input.sourceType !== "Open Question") {
+        throw new ORPCError("BAD_REQUEST");
+      }
+      const access = requireProjectSourceRecords(context).openQuestionContext;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access(context.session.user.id, input.sourceId);
+    }),
   projectSourceRecord: protectedProcedure
     .input(projectSourceRecordInputSchema)
     .handler(({ context, input }) =>
@@ -4207,6 +5675,58 @@ export const appRouter = {
         input.focusDate,
       ),
     ),
+  favoritesList: protectedProcedure.handler(({ context }) =>
+    requireFavorites(context).list(context.session.user.id),
+  ),
+  openFavoriteSource: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        return await requireFavorites(context).open(
+          context.session.user.id,
+          input,
+        );
+      } catch (error) {
+        if (error instanceof FavoriteSourceUnavailableError) {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            message: "Source record is unavailable.",
+          });
+        }
+        throw error;
+      }
+    }),
+  favoriteMembership: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => ({
+      isFavorite: await requireFavorites(context).contains(
+        context.session.user.id,
+        input,
+      ),
+    })),
+  addToFavorites: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        await requireFavorites(context).add(context.session.user.id, input);
+      } catch (error) {
+        if (error instanceof FavoriteSourceUnavailableError) {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            defined: true,
+            message: "Source record is unavailable.",
+          });
+        }
+        throw error;
+      }
+      return { status: true };
+    }),
+  removeFromFavorites: protectedProcedure
+    .input(favoriteSourceSchema)
+    .handler(async ({ context, input }) => {
+      await requireFavorites(context).remove(context.session.user.id, input);
+      return { status: true };
+    }),
   addToDailyFocus: protectedProcedure
     .input(dailyFocusMembershipInputSchema)
     .handler(async ({ context, input }) => {
@@ -4307,27 +5827,117 @@ export const appRouter = {
       }
       return blockers;
     }),
+  personalReminderSignals: protectedProcedure.handler(({ context }) =>
+    requirePersonalReminders(context).listSignals(context.session.user.id),
+  ),
+  dismissPersonalReminderSignal: protectedProcedure
+    .input(personalReminderSignalInputSchema)
+    .handler(async ({ context, input }) => {
+      const signal = await requirePersonalReminders(context).dismissSignal(
+        context.session.user.id,
+        input.signalId,
+      );
+      if (!signal) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Reminder signal is unavailable.",
+        });
+      }
+      return signal;
+    }),
+  reschedulePersonalReminderSignal: protectedProcedure
+    .input(reschedulePersonalReminderSignalInputSchema)
+    .handler(({ context, input }) =>
+      runPersonalReminderOperation(async () => {
+        const reminder = await requirePersonalReminders(
+          context,
+        ).rescheduleSignal(context.session.user.id, input);
+        if (!reminder) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Reminder signal is unavailable.",
+          });
+        }
+        return reminder;
+      }),
+    ),
+  personalReminders: protectedProcedure
+    .input(personalRemindersInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminders = await requirePersonalReminders(context).list(
+        context.session.user.id,
+        input,
+      );
+      if (!reminders) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Reminders are unavailable for this source.",
+        });
+      }
+      return reminders;
+    }),
+  createPersonalReminder: protectedProcedure
+    .input(createPersonalReminderInputSchema)
+    .handler(({ context, input }) =>
+      runPersonalReminderOperation(async () => {
+        const reminder = await requirePersonalReminders(context).create(
+          context.session.user.id,
+          input,
+        );
+        if (!reminder) {
+          throw new ORPCError("NOT_FOUND", {
+            defined: true,
+            message: "Reminder is unavailable for this source.",
+          });
+        }
+        return reminder;
+      }),
+    ),
+  cancelPersonalReminder: protectedProcedure
+    .input(cancelPersonalReminderInputSchema)
+    .handler(async ({ context, input }) => {
+      const reminder = await requirePersonalReminders(context).cancel(
+        context.session.user.id,
+        input.reminderId,
+      );
+      if (!reminder) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Planned reminder is unavailable.",
+        });
+      }
+      return reminder;
+    }),
   workReviewLater: protectedProcedure
     .input(workReviewLaterInputSchema)
     .handler(async ({ context, input }) => {
-      const reminders = await requirePersonalReminders(
-        context,
-      ).listWorkReviewLater(context.session.user.id, input.workId);
+      const reminders = await requirePersonalReminders(context).list(
+        context.session.user.id,
+        { sourceRecordId: input.workId, sourceRecordType: "Work" },
+      );
       if (!reminders) {
         throw new ORPCError("NOT_FOUND", {
           defined: true,
           message: "Work reminders are unavailable.",
         });
       }
-      return reminders;
+      return reminders.filter((reminder) => reminder.action === "Review Later");
     }),
   createWorkReviewLater: protectedProcedure
     .input(createWorkReviewLaterInputSchema)
     .handler(({ context, input }) =>
       runPersonalReminderOperation(async () => {
-        const reminder = await requirePersonalReminders(
-          context,
-        ).createWorkReviewLater(context.session.user.id, input);
+        const reminder = await requirePersonalReminders(context).create(
+          context.session.user.id,
+          {
+            action: "Review Later",
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            condition: input.condition,
+            fireAt: input.fireAt,
+            sourceRecordId: input.workId,
+            sourceRecordType: "Work",
+          },
+        );
         if (!reminder) {
           throw new ORPCError("NOT_FOUND", {
             defined: true,
@@ -4340,9 +5950,11 @@ export const appRouter = {
   cancelWorkReviewLater: protectedProcedure
     .input(cancelWorkReviewLaterInputSchema)
     .handler(async ({ context, input }) => {
-      const reminder = await requirePersonalReminders(
-        context,
-      ).cancelWorkReviewLater(context.session.user.id, input.reminderId);
+      const reminder = await requirePersonalReminders(context).cancel(
+        context.session.user.id,
+        input.reminderId,
+        { action: "Review Later", sourceRecordType: "Work" },
+      );
       if (!reminder) {
         throw new ORPCError("NOT_FOUND", {
           defined: true,

@@ -1,7 +1,5 @@
 # Dosya Ekleri ve Görsel Kanıt
 
-Kaynak: [`docs/workflow/14-file-attachments/phase-context.md`](../../workflow/14-file-attachments/phase-context.md)
-
 ## Problem Statement
 
 Kurucu PDF, görsel, log ve benzeri dosyaları kayıtlara eklemek, güvenle önizlemek ve görsel üzerinde not düşmek ister; kaynak dosyanın bozulmasını, kotasız yüklemeyi veya yarım kalmış görünür eki istemez. Bugün iskelet nesne depolaması ürün finalize sözleşmesini taşımaz: tür/MIME uyuşmazlığı sessizce düzelebilir, yakalama staging'i kalıcı Dosya Eki gibi görünebilir, işaretleme özgün sürümü ezebilir. Belge gövdesi, Kaynak kaydı, Yakalama Gelen Kutusu ve ham R2/CDN adresi ikinci içerik kaynağı değildir.

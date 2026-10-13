@@ -33,6 +33,7 @@ import type {
   DocumentsAccess,
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
+import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import {
   FILE_ATTACHMENT_UPLOAD_BODY_LIMIT,
@@ -54,6 +55,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
+import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -61,13 +63,23 @@ import type {
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
 import type {
+  RecordTableAccess,
+  UniversalSearchAccess,
+} from "@cantiara/api/record-discovery";
+import type {
   RelationsAccess,
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "@cantiara/api/relations";
+import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
+import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
 import { appRouter } from "@cantiara/api/routers/index";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
+import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
+import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
+import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
+import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
@@ -124,6 +136,7 @@ import {
   type TauriSessionAccess,
 } from "./features/account-access/server/tauri-session";
 import { WebCaptureError } from "./features/capture-triage/server/web-capture";
+import { youtubePlayerRoutes } from "./features/sources-and-freshness/server/youtube-player-page";
 import type { CreateSupportReferenceFailureOptions } from "./features/web-macos-client/server/support-reference";
 import {
   createDesktopApiUpdateRequiredResponse,
@@ -156,6 +169,8 @@ export interface AppDependencies {
   desktopOrigins: readonly string[];
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
+  documentTransfers?: import("@cantiara/api/document-transfer").DocumentTransfersAccess;
+  favorites?: FavoritesAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: Pick<
@@ -170,19 +185,28 @@ export interface AppDependencies {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
+  recordTable?: RecordTableAccess;
   redactSecrets: (value: unknown) => unknown;
   relations?: RelationsAccess;
+  researchSessions?: ResearchSessionsAccess;
+  returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   smartCollections?: SmartCollectionsAccess;
+  smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceEvidence?: SourceEvidenceAccess;
+  sourceRecheck?: SourceRecheckAccess;
+  sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   tauriSessionAccess?: TauriSessionAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
   trustedProxyIps: readonly string[];
+  universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;
@@ -857,6 +881,7 @@ export function createApp(dependencies: AppDependencies) {
     ...dependencies.desktopOrigins,
   ];
   const app = new Hono<EvlogVariables>();
+  app.route("/smart-link/youtube", youtubePlayerRoutes);
 
   app.use("*", async (c, next) => {
     c.req.raw.headers.delete("x-request-id");
@@ -1150,10 +1175,14 @@ export function createApp(dependencies: AppDependencies) {
       backlog: dependencies.backlog,
       backlogMutationContracts: dependencies.backlogMutationContracts,
       dailyFocus: dependencies.dailyFocus,
+      favorites: dependencies.favorites,
+      returnToWork: dependencies.returnToWork,
       documentMutationContracts: dependencies.documentMutationContracts,
       documents: dependencies.documents,
+      documentTransfers: dependencies.documentTransfers,
       smartCollections: dependencies.smartCollections,
       technicalDiagrams: dependencies.technicalDiagrams,
+      universalSearch: dependencies.universalSearch,
       focusPeriod: dependencies.focusPeriod,
       roadmapHorizon: dependencies.roadmapHorizon,
       captureInbox: dependencies.captureInbox,
@@ -1171,7 +1200,14 @@ export function createApp(dependencies: AppDependencies) {
       mutationContract: dependencies.mutationContract,
       projectShell: dependencies.projectShell,
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
+      projectGoals: dependencies.projectGoals,
       projectSourceRecords: dependencies.projectSourceRecords,
+      sourceEvidence: dependencies.sourceEvidence,
+      sourceRecheck: dependencies.sourceRecheck,
+      sourcesAndFreshness: dependencies.sourcesAndFreshness,
+      smartLinkPreview: dependencies.smartLinkPreview,
+      researchSessions: dependencies.researchSessions,
+      recordTable: dependencies.recordTable,
       priorityMetricMutationContracts:
         dependencies.priorityMetricMutationContracts,
       priorityMetrics: dependencies.priorityMetrics,

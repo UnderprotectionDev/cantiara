@@ -1,7 +1,5 @@
 # Teknik Diyagramlar
 
-Kaynak: [`docs/workflow/59-technical-diagrams/phase-context.md`](../../workflow/59-technical-diagrams/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Teknik Mimari, Veri Modeli ve Teknik Sıra Diyagramlarını proje kayıtlarıyla aynı doğruluk kaynağında, değişmez otorite kipi ve kesin sürümlerle yönetmek ister. Bugün diyagram ya Belge içi Mermaid bloğu olarak kimliksiz yaşar ya da dış dosyayla ikinci canlı kaynak olur. Görünüm kanonik model sanılır; Mermaid dönüşümü bloğu siler veya round-trip kurar; viewport paylaşım veya içerik sayılır. Şema SQL'i ve Wireframe bu sorunun parçası değildir.

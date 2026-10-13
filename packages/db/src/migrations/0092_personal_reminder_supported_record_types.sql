@@ -1,0 +1,2 @@
+ALTER TABLE "personal_reminder" DROP CONSTRAINT "personal_reminder_source_type_check";--> statement-breakpoint
+ALTER TABLE "personal_reminder" ADD CONSTRAINT "personal_reminder_source_type_check" CHECK ("personal_reminder"."source_record_type" in ('Project', 'Document', 'Work', 'Decision', 'Risk', 'Milestone', 'Project Release', 'Production Incident'));

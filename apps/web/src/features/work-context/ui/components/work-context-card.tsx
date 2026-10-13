@@ -20,7 +20,7 @@ import {
 import type { WorkProfile, WorkType } from "@cantiara/api/work-lifecycle";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { useLinkProps, useNavigate } from "@tanstack/react-router";
+import { useLinkProps, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   type MouseEvent,
   useCallback,
@@ -29,13 +29,13 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
   workRecordHash,
   workRecordHref,
   workRelationsHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
+import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import {
@@ -63,6 +63,7 @@ export default function WorkContextCard({
   workContextLayouts?: Partial<WorkContextLayouts>;
   workStatusLabels: readonly WorkStatusLabel[];
 }) {
+  const activeHash = useLocation({ select: ({ hash }) => hash });
   const relationsQuery = useQuery(
     orpc.relations.queryOptions({
       input: { recordId: work.id, recordType: "Work" },
@@ -282,6 +283,14 @@ export default function WorkContextCard({
           />
         ))}
       </dl>
+
+      {activeHash === workRecordHash(work.id) && (
+        <ReturnToWork
+          key={work.id}
+          projectId={work.projectId}
+          workId={work.id}
+        />
+      )}
 
       <PriorityFoundations
         foundations={contextModel.priorityFoundations}

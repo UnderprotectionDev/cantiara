@@ -1,7 +1,5 @@
 # Standart Dosyalardan İçe Aktarma
 
-Kaynak: [`docs/workflow/80-data-import/phase-context.md`](../../workflow/80-data-import/phase-context.md)
-
 ## Problem Statement
 
 Kurucu desteklenen Markdown, JSON ve CSV dosyalarını şaşırtmadan içeri almak ister. Bugün kısmi satır yazma, silinmiş kimliği diriltme, test-raporu zarfını Belge sayma veya yedekten restore bu işi taklit edebilir. Dış dosya canlı bağlantı değildir. Mapping ve fark görünmeden yazmak mevcut Çalışma Alanını bozar.

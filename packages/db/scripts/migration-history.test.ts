@@ -1,6 +1,10 @@
+import { fileURLToPath } from "node:url";
+import type { Pool } from "@neondatabase/serverless";
 import { describe, expect, test } from "vitest";
-
-import { assertMigrationHistory } from "./migration-history";
+import {
+  assertMigrationHistory,
+  verifyMigrationHistory,
+} from "./migration-history";
 
 const expected = [
   { folderMillis: 1000, hash: "first" },
@@ -24,6 +28,16 @@ describe("assertMigrationHistory", () => {
     ).toThrow("ahead of this Git branch");
   });
 
+  test("reports divergence before ahead when the known prefix is also invalid", () => {
+    expect(() =>
+      assertMigrationHistory(expected, [
+        { created_at: "1000", hash: "changed" },
+        { created_at: "2000", hash: "second" },
+        { created_at: "3000", hash: "third" },
+      ]),
+    ).toThrow("migration history diverged at 1000");
+  });
+
   test("rejects an applied migration whose SQL changed", () => {
     expect(() =>
       assertMigrationHistory(expected, [
@@ -39,4 +53,25 @@ describe("assertMigrationHistory", () => {
       ]),
     ).toThrow("migration history diverged at 1000");
   });
+});
+
+test("rejects an empty migration ledger when public tables already exist", async () => {
+  const client = {
+    query: <Row>(query: string) => {
+      if (query.includes("to_regclass('drizzle.__drizzle_migrations')")) {
+        return { rows: [{ has_history: true, public_tables: "1" }] as Row[] };
+      }
+      if (query.includes("FROM drizzle.__drizzle_migrations")) {
+        return { rows: [] as Row[] };
+      }
+      throw new Error(`Unexpected migration history query: ${query}`);
+    },
+  } as unknown as Pick<Pool, "query">;
+
+  await expect(
+    verifyMigrationHistory(
+      client,
+      fileURLToPath(new URL("../src/migrations/", import.meta.url)),
+    ),
+  ).rejects.toMatchObject({ reason: "history-mismatch" });
 });

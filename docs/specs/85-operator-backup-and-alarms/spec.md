@@ -1,7 +1,5 @@
 # Operasyonel Yedek, Kurtarma ve Alarm
 
-Kaynak: [`docs/workflow/85-operator-backup-and-alarms/phase-context.md`](../../workflow/85-operator-backup-and-alarms/phase-context.md)
-
 ## Problem Statement
 
 Kurucu aynı zamanda hizmet operatörüdür. Hizmetin `RPO ≤ 5 dakika` ve `RTO ≤ 8 saat` ile kurtarılması, restore sonrası irreversible güvenlik olaylarının yeniden uygulanması ve S1 alarmının tespitten en fazla beş dakikada üretilmesi Ürün sürüm adayının son kapısıdır. Bugün Çöp Kutusu, çıkış paketi veya kullanıcı restore-point'i bu kapıyı taklit edemez. Avrupa Birliği veri bölgesi kullanıcı yüzeyi veya bölge seçici değildir. Destek referansı 03 istemcisindedir. Üretim Olayı öğrenimi 66'dadır.

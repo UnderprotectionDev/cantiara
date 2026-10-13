@@ -162,10 +162,10 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     .getByRole("link", { name: "Work", exact: true })
     .click();
   await openWorkRecordFromKanbanList(page, "Prepare the October release");
-  const createdWork = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem")
-    .filter({ hasText: "Prepare the October release" });
+  const workList = page.locator('ul[aria-label="Work list"] > li');
+  const createdWork = workList.filter({
+    hasText: "Prepare the October release",
+  });
   await expect(createdWork).toBeVisible();
   await expect(createdWork.getByLabel(TYPE_FIELD_PATTERN)).toHaveValue("Task");
   await expect(createdWork.getByLabel(STATUS_FIELD_PATTERN)).toHaveValue(
@@ -183,10 +183,7 @@ test("defines, previews, edits, and trashes a Project Work Template", async ({
     .getByRole("button", { name: "Duplicate Work", exact: true })
     .click();
   await expect(
-    page
-      .getByRole("list", { name: "Work list" })
-      .getByRole("listitem")
-      .filter({ hasText: "Prepare the October release" }),
+    workList.filter({ hasText: "Prepare the October release" }),
   ).toHaveCount(2);
   const duplicatedWork = createdWork.nth(1);
   await expect(duplicatedWork.getByLabel(TYPE_FIELD_PATTERN)).toHaveValue(

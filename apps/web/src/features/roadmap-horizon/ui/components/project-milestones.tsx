@@ -21,7 +21,12 @@ import { CalendarDays } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 interface MilestoneDraft {
   description: string;
@@ -298,7 +303,12 @@ function MilestoneCard({
           status,
         }),
       ),
-    onSuccess: () => invalidateMilestones(queryClient, projectId),
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateMilestones(queryClient, projectId),
+        ...invalidateSmartCollectionMembership(queryClient),
+      ]);
+    },
   });
   const relationPreviewMutation = useMutation({
     mutationFn: () =>
@@ -428,111 +438,20 @@ function MilestoneCard({
         </p>
       ) : null}
 
-      <section
-        aria-label={`Work in ${milestone.title}`}
-        className="grid gap-2 border-t pt-4"
-      >
-        <h4 className="font-medium text-sm">In Milestone</h4>
-        {relationsQuery.isPending ? (
-          <p role="status">Loading relations…</p>
-        ) : null}
-        {relationsQuery.isError ? (
-          <p role="alert">
-            Relations could not be loaded. Try loading this page again.
-          </p>
-        ) : null}
-        {!(relationsQuery.isPending || relationsQuery.isError) &&
-        linkedWorks.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No relations yet.</p>
-        ) : null}
-        {linkedWorks.map((relation: RelationView) => (
-          <Link
-            className="text-sm underline-offset-4 hover:underline"
-            hash={workRecordHash(relation.source.recordId)}
-            key={relation.id}
-            params={{ projectId }}
-            to="/projects/$projectId"
-          >
-            {relation.source.title} · {relation.label}
-          </Link>
-        ))}
-        {works.length ? (
-          <div className="flex flex-wrap items-end gap-2">
-            <label
-              className="grid gap-1 text-xs"
-              htmlFor={`milestone-work-${milestone.id}`}
-            >
-              Work
-              <select
-                className="min-h-10 rounded-md border bg-background px-2 text-sm"
-                disabled={
-                  relationPreviewMutation.isPending ||
-                  relationCreateMutation.isPending
-                }
-                id={`milestone-work-${milestone.id}`}
-                onChange={(event) => {
-                  setSelectedWorkId(event.target.value);
-                  setPreview(null);
-                  setRelationIdempotencyKey(null);
-                }}
-                value={selectedWorkId}
-              >
-                {works.map((work) => (
-                  <option key={work.id} value={work.id}>
-                    {work.key} · {work.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              disabled={
-                !selectedWorkId ||
-                relationPreviewMutation.isPending ||
-                relationCreateMutation.isPending
-              }
-              onClick={() => relationPreviewMutation.mutate()}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Preview relation
-            </Button>
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm">No Work yet.</p>
-        )}
-        {preview ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted p-3 text-sm">
-            <p>
-              {preview.source.label} · {preview.kind} · {preview.target.label}
-            </p>
-            <Button
-              disabled={relationCreateMutation.isPending}
-              onClick={() => relationCreateMutation.mutate()}
-              size="sm"
-              type="button"
-            >
-              Confirm relation
-            </Button>
-            <Button
-              onClick={() => {
-                setPreview(null);
-                setRelationIdempotencyKey(null);
-              }}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : null}
-        {relationPreviewMutation.isError || relationCreateMutation.isError ? (
-          <p className="text-destructive text-sm" role="alert">
-            This action could not be completed.
-          </p>
-        ) : null}
-      </section>
+      <MilestoneWorkRelations
+        linkedWorks={linkedWorks}
+        milestone={milestone}
+        preview={preview}
+        projectId={projectId}
+        relationCreateMutation={relationCreateMutation}
+        relationPreviewMutation={relationPreviewMutation}
+        relationsQuery={relationsQuery}
+        selectedWorkId={selectedWorkId}
+        setPreview={setPreview}
+        setRelationIdempotencyKey={setRelationIdempotencyKey}
+        setSelectedWorkId={setSelectedWorkId}
+        works={works}
+      />
     </article>
   );
 }
@@ -604,6 +523,161 @@ export default function ProjectMilestones({
       ) : (
         <p className="text-muted-foreground text-sm">No Milestone yet.</p>
       )}
+    </section>
+  );
+}
+
+function MilestoneWorkRelations({
+  projectId,
+  milestone,
+  relationsQuery,
+  linkedWorks,
+  works,
+  relationPreviewMutation,
+  relationCreateMutation,
+  setSelectedWorkId,
+  setPreview,
+  setRelationIdempotencyKey,
+  selectedWorkId,
+  preview,
+}: {
+  projectId: string;
+  milestone: Milestone;
+  relationsQuery: import("@tanstack/react-query").UseQueryResult<
+    RelationView[],
+    Error
+  >;
+  linkedWorks: RelationView[];
+  works: WorkProfile[];
+  relationPreviewMutation: import("@tanstack/react-query").UseMutationResult<
+    RelationPreview,
+    Error,
+    void,
+    unknown
+  >;
+  relationCreateMutation: import("@tanstack/react-query").UseMutationResult<
+    import("@cantiara/api/relations").RelationMutationResult,
+    Error,
+    void,
+    unknown
+  >;
+  setSelectedWorkId: import("react").Dispatch<
+    import("react").SetStateAction<string>
+  >;
+  setPreview: import("react").Dispatch<
+    import("react").SetStateAction<RelationPreview | null>
+  >;
+  setRelationIdempotencyKey: import("react").Dispatch<
+    import("react").SetStateAction<string | null>
+  >;
+  selectedWorkId: string;
+  preview: RelationPreview | null;
+}) {
+  return (
+    <section
+      aria-label={`Work in ${milestone.title}`}
+      className="grid gap-2 border-t pt-4"
+    >
+      <h4 className="font-medium text-sm">In Milestone</h4>
+      {relationsQuery.isPending ? (
+        <p role="status">Loading relations…</p>
+      ) : null}
+      {relationsQuery.isError ? (
+        <p role="alert">
+          Relations could not be loaded. Try loading this page again.
+        </p>
+      ) : null}
+      {!(relationsQuery.isPending || relationsQuery.isError) &&
+      linkedWorks.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No relations yet.</p>
+      ) : null}
+      {linkedWorks.map((relation: RelationView) => (
+        <Link
+          className="text-sm underline-offset-4 hover:underline"
+          hash={workRecordHash(relation.source.recordId)}
+          key={relation.id}
+          params={{ projectId }}
+          to="/projects/$projectId"
+        >
+          {relation.source.title} · {relation.label}
+        </Link>
+      ))}
+      {works.length ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <label
+            className="grid gap-1 text-xs"
+            htmlFor={`milestone-work-${milestone.id}`}
+          >
+            Work
+            <select
+              className="min-h-10 rounded-md border bg-background px-2 text-sm"
+              disabled={
+                relationPreviewMutation.isPending ||
+                relationCreateMutation.isPending
+              }
+              id={`milestone-work-${milestone.id}`}
+              onChange={(event) => {
+                setSelectedWorkId(event.target.value);
+                setPreview(null);
+                setRelationIdempotencyKey(null);
+              }}
+              value={selectedWorkId}
+            >
+              {works.map((work) => (
+                <option key={work.id} value={work.id}>
+                  {work.key} · {work.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            disabled={
+              !selectedWorkId ||
+              relationPreviewMutation.isPending ||
+              relationCreateMutation.isPending
+            }
+            onClick={() => relationPreviewMutation.mutate()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Preview relation
+          </Button>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">No Work yet.</p>
+      )}
+      {preview ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted p-3 text-sm">
+          <p>
+            {preview.source.label} · {preview.kind} · {preview.target.label}
+          </p>
+          <Button
+            disabled={relationCreateMutation.isPending}
+            onClick={() => relationCreateMutation.mutate()}
+            size="sm"
+            type="button"
+          >
+            Confirm relation
+          </Button>
+          <Button
+            onClick={() => {
+              setPreview(null);
+              setRelationIdempotencyKey(null);
+            }}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+      {relationPreviewMutation.isError || relationCreateMutation.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          This action could not be completed.
+        </p>
+      ) : null}
     </section>
   );
 }

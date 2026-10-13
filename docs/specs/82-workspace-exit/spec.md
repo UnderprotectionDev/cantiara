@@ -1,7 +1,5 @@
 # Çalışma Alanı Çıkış Paketi
 
-Kaynak: [`docs/workflow/82-workspace-exit/phase-context.md`](../../workflow/82-workspace-exit/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bütün Çalışma Alanını, uygulamaya kilitlenmeden ve yedek ürünü olmadan, elinde kalacak biçimde almak ister. Bugün seçili CSV/JSON, operatör yedeği veya şifresiz arşiv bu vaadi taklit edebilir. Unutulan parola okunamaz kalmalıdır. Hesap kalıcı silmek en az bir başarılı paketi bekler (84); paket restore vaadi taşımaz ve AB yerleşimini taşımaz.

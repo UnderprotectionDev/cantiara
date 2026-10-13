@@ -9,12 +9,13 @@ import {
 import { priorityMetricDefinition } from "@cantiara/db/schema/priority-metrics";
 import { securityEvent } from "@cantiara/db/schema/security-event";
 import type { SecurityEventDatabase } from "@cantiara/db/security-events";
-import { and, asc, eq, like, lte, ne, or } from "drizzle-orm";
+import { and, asc, eq, inArray, like, lte, ne, or } from "drizzle-orm";
 import type { MutationIdempotencyKey } from "../../mutation-and-undo/server/mutation-contract";
 
 export const PRIORITY_METRIC_PERMANENT_DELETE_EVENT_TYPE =
   "priority-metric.permanently-deleted";
 export const PRIORITY_METRIC_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const PRIORITY_METRIC_DELETE_REPLAY_BATCH_SIZE = 1000;
 const PRIORITY_METRIC_DELETE_REVISION_PATTERN = /^r(0|[1-9]\d*):p[a-f\d]{64}$/;
 
 export async function priorityMetricPermanentDeleteEventKeyPrefix(
@@ -210,7 +211,36 @@ export function createDatabasePriorityMetricTrashMaintenance(
 ) {
   async function replayPermanentDeletes() {
     const eventsToReplay = await events.list();
+    const targetIds = Array.from(
+      new Set(eventsToReplay.map((event) => event.targetAlias)),
+    );
+    const restoredMetricIds = new Set<string>();
+
+    // A restore before a delete brings its metric row back; a consistent restore after the delete does not.
+    // Bound each IN list so a long-lived security log cannot exceed PostgreSQL's parameter limit.
+    for (
+      let offset = 0;
+      offset < targetIds.length;
+      offset += PRIORITY_METRIC_DELETE_REPLAY_BATCH_SIZE
+    ) {
+      const batch = targetIds.slice(
+        offset,
+        offset + PRIORITY_METRIC_DELETE_REPLAY_BATCH_SIZE,
+      );
+      // biome-ignore lint/performance/noAwaitInLoops: Bound sequential lookups instead of opening a transaction for every historical event.
+      const metrics = await database
+        .select({ id: priorityMetricDefinition.id })
+        .from(priorityMetricDefinition)
+        .where(inArray(priorityMetricDefinition.id, batch));
+      for (const metric of metrics) {
+        restoredMetricIds.add(metric.id);
+      }
+    }
+
     for (const event of eventsToReplay) {
+      if (!restoredMetricIds.has(event.targetAlias)) {
+        continue;
+      }
       // biome-ignore lint/performance/noAwaitInLoops: Apply the protected replay in event order before the server accepts writes.
       await database.transaction(async (transaction) => {
         await erasePriorityMetricContent(transaction, {

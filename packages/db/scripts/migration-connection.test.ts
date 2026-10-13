@@ -36,6 +36,29 @@ describe("migrationConnectionString", () => {
     ).toBe("postgres://app:secret@ep-example.us-east-2.aws.neon.tech/cantiara");
   });
 
+  test("rejects an unpooled override targeting another database", () => {
+    expect(() =>
+      migrationConnectionString(
+        "postgres://app:secret@ep-example-pooler.neon.tech/cantiara",
+        "postgres://app:secret@ep-other.neon.tech/cantiara",
+      ),
+    ).toThrow("Application and migration targets differ");
+  });
+
+  test("rejects unpooled overrides with a different database or role", () => {
+    const application =
+      "postgres://app:secret@ep-example-pooler.neon.tech/cantiara";
+    for (const override of [
+      "postgres://app:secret@ep-example.neon.tech/other",
+      "postgres://other:secret@ep-example.neon.tech/cantiara",
+      "postgres://app:secret@ep-example.neon.tech:5433/cantiara",
+    ]) {
+      expect(() => migrationConnectionString(application, override)).toThrow(
+        "Application and migration targets differ",
+      );
+    }
+  });
+
   test("derives the direct Neon endpoint when only a pooled URL is configured", () => {
     expect(
       migrationConnectionString(

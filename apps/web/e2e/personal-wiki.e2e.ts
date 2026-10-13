@@ -55,6 +55,11 @@ test("Personal Wiki reuses Documents without entering a Project and exposes no p
     .getByRole("navigation", { name: "Documents", exact: true })
     .getByRole("button", { name: "PostgreSQL troubleshooting", exact: true })
     .click();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Documents", exact: true })
+      .getByRole("button", { name: "PostgreSQL troubleshooting", exact: true }),
+  ).toHaveAccessibleDescription("Personal Wiki");
   await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
   await expect(
     editor.getByRole("textbox", { name: "Markdown source", exact: true }),

@@ -44,6 +44,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
 import {
+  type ChangeEvent,
   type FormEvent,
   type ReactNode,
   useEffect,
@@ -57,7 +58,12 @@ import {
   useClientShellConnection,
 } from "@/features/web-macos-client/hooks/use-client-shell";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 import {
   activeDraftCustomFieldValues,
   formatDraftCustomFieldDate,
@@ -99,7 +105,13 @@ function serializeValues(values: WorkDraftFormValues) {
   return JSON.stringify(values);
 }
 
-function draftValues(draft: WorkDraft): WorkDraftFormValues {
+export function workDraftInitialValues(
+  initialType?: WorkType,
+): WorkDraftFormValues {
+  return { ...EMPTY_VALUES, type: initialType ?? EMPTY_VALUES.type };
+}
+
+export function draftValues(draft: WorkDraft): WorkDraftFormValues {
   return {
     customFieldValues: draft.customFieldValues,
     description: draft.description ?? "",
@@ -382,46 +394,14 @@ function CustomFieldInput({
     case "Multi select": {
       const selected = value?.kind === "options" ? value.options : [];
       return (
-        <fieldset className="space-y-2">
-          <legend className="font-medium text-sm">{definition.name}</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {definition.options.map((option) => {
-              const optionId = `${id}-${option}`;
-              return (
-                <label
-                  className="flex items-center gap-2 text-sm"
-                  htmlFor={optionId}
-                  key={option}
-                >
-                  <Checkbox
-                    checked={selected.includes(option)}
-                    disabled={disabled}
-                    id={optionId}
-                    onCheckedChange={(checked) => {
-                      const next = checked
-                        ? [...selected, option]
-                        : selected.filter((candidate) => candidate !== option);
-                      onChange(
-                        next.length > 0
-                          ? { kind: "options", options: next }
-                          : null,
-                      );
-                    }}
-                  />
-                  <span>{option}</span>
-                </label>
-              );
-            })}
-          </div>
-          {value ? (
-            <CustomFieldClearButton
-              disabled={disabled}
-              onClear={() => onChange(null)}
-            />
-          ) : (
-            <p className="text-muted-foreground text-xs">Not evaluated</p>
-          )}
-        </fieldset>
+        <DraftMultiSelectField
+          definition={definition}
+          disabled={disabled}
+          id={id}
+          onChange={onChange}
+          selected={selected}
+          value={value}
+        />
       );
     }
     default:
@@ -508,12 +488,57 @@ function WorkCustomFields({
   );
 }
 
+export function WorkTypeField({
+  disabled,
+  onChange,
+  value,
+  warning,
+}: {
+  disabled: boolean;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  value: WorkType;
+  warning: string | null;
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor="work-draft-type">Type</FieldLabel>
+      <NativeSelect
+        aria-describedby={warning ? "work-draft-type-warning" : undefined}
+        disabled={disabled}
+        id="work-draft-type"
+        name="type"
+        onChange={onChange}
+        value={value}
+      >
+        {WORK_TYPE_OPTIONS.map((type) => (
+          <NativeSelectOption key={type} value={type}>
+            {type}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      {warning ? (
+        <FieldDescription
+          className="text-amber-800 dark:text-amber-300"
+          id="work-draft-type-warning"
+          role="status"
+        >
+          {warning}
+        </FieldDescription>
+      ) : null}
+    </Field>
+  );
+}
+
 export default function WorkDraftForm({
   accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
+  initialType,
   projectId,
+  typeWarning,
 }: {
   accountFormattingPreferences?: AccountPreferences;
+  initialType?: WorkType;
   projectId: string;
+  typeWarning?: (type: WorkType) => string | null;
 }) {
   const shell = useClientShell();
   const connection = useClientShellConnection();
@@ -529,6 +554,10 @@ export default function WorkDraftForm({
   // The Draft editor's target Project follows the resumed Draft; new Drafts
   // target the Project whose surface opened the form.
   const [targetProjectId, setTargetProjectId] = useState(projectId);
+  const initialValues = useMemo(
+    () => workDraftInitialValues(initialType),
+    [initialType],
+  );
   const draftIdRef = useRef<string>(activeDraftId);
   const revisionRef = useRef(0);
   const saveSequenceRef = useRef(Promise.resolve());
@@ -580,7 +609,7 @@ export default function WorkDraftForm({
   }, [projectId]);
 
   const form = useForm({
-    defaultValues: EMPTY_VALUES,
+    defaultValues: initialValues,
     onSubmit: async () => undefined,
   });
 
@@ -598,7 +627,7 @@ export default function WorkDraftForm({
     revisionRef.current = 0;
     setActiveDraftId(nextDraftId);
     setTargetProjectId(projectId);
-    form.reset(EMPTY_VALUES);
+    form.reset(initialValues);
     shell.markUnsavedChanges(false);
   }
 
@@ -804,6 +833,7 @@ export default function WorkDraftForm({
         queryClient.invalidateQueries({
           queryKey: customFieldProjectValuesQueryKey,
         }),
+        ...invalidateSmartCollectionMembership(queryClient),
         ...(work.projectId === projectId
           ? []
           : [
@@ -1018,26 +1048,16 @@ export default function WorkDraftForm({
           </form.Field>
           <form.Field name="type">
             {(field) => (
-              <Field>
-                <FieldLabel htmlFor="work-draft-type">Type</FieldLabel>
-                <NativeSelect
-                  disabled={isBusy}
-                  id="work-draft-type"
-                  name={field.name}
-                  onChange={(event) => {
-                    const type = event.target.value as WorkType;
-                    field.handleChange(type);
-                    queueAutosave({ ...form.state.values, type });
-                  }}
-                  value={field.state.value}
-                >
-                  {WORK_TYPE_OPTIONS.map((type) => (
-                    <NativeSelectOption key={type} value={type}>
-                      {type}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
+              <WorkTypeField
+                disabled={isBusy}
+                onChange={(event) => {
+                  const type = event.target.value as WorkType;
+                  field.handleChange(type);
+                  queueAutosave({ ...form.state.values, type });
+                }}
+                value={field.state.value}
+                warning={typeWarning?.(field.state.value) ?? null}
+              />
             )}
           </form.Field>
         </FieldGroup>
@@ -1104,5 +1124,69 @@ export default function WorkDraftForm({
         {draftsContent()}
       </section>
     </section>
+  );
+}
+
+function DraftMultiSelectField({
+  definition,
+  id,
+  selected,
+  disabled,
+  onChange,
+  value,
+}: {
+  definition: CustomFieldDefinition;
+  id: string;
+  selected: string[];
+  disabled: boolean;
+  onChange: (value: ParsedCustomFieldValuePayload | null) => void;
+  value:
+    | { kind: "boolean"; boolean: boolean }
+    | { kind: "date"; date: string }
+    | { kind: "number"; number: number }
+    | { kind: "option"; option: string }
+    | { kind: "options"; options: string[] }
+    | { kind: "text"; text: string }
+    | undefined;
+}) {
+  return (
+    <fieldset className="space-y-2">
+      <legend className="font-medium text-sm">{definition.name}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {definition.options.map((option) => {
+          const optionId = `${id}-${option}`;
+          return (
+            <label
+              className="flex items-center gap-2 text-sm"
+              htmlFor={optionId}
+              key={option}
+            >
+              <Checkbox
+                checked={selected.includes(option)}
+                disabled={disabled}
+                id={optionId}
+                onCheckedChange={(checked) => {
+                  const next = checked
+                    ? [...selected, option]
+                    : selected.filter((candidate) => candidate !== option);
+                  onChange(
+                    next.length > 0 ? { kind: "options", options: next } : null,
+                  );
+                }}
+              />
+              <span>{option}</span>
+            </label>
+          );
+        })}
+      </div>
+      {value ? (
+        <CustomFieldClearButton
+          disabled={disabled}
+          onClear={() => onChange(null)}
+        />
+      ) : (
+        <p className="text-muted-foreground text-xs">Not evaluated</p>
+      )}
+    </fieldset>
   );
 }

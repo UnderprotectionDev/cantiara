@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   createDocumentInputSchema,
   createDocumentMutationInputSchema,
+  documentInlineTagTokens,
   documentLiveDirectives,
   documentTypeSchema,
+  previewDocumentHierarchy,
+  renameDocumentInlineTag,
+  resolveDocumentInlineTags,
   updateDocumentInputSchema,
   updateDocumentMutationInputSchema,
 } from "./documents";
@@ -40,6 +44,147 @@ describe("Documents", () => {
     }
   });
 
+  it("keeps slash names flat and uses escaped brackets for names not representable as a bare token", () => {
+    const renamed = renameDocumentInlineTag(
+      "#release and `#release`",
+      [{ tagId: "tag-1", name: "release", start: 0, end: 8 }],
+      "tag-1",
+      "Release planning",
+    );
+    expect(renamed.body).toBe("#[Release planning] and `#release`");
+    expect(
+      resolveDocumentInlineTags(renamed.body, [
+        { id: "tag-1", name: "Release planning" },
+      ]),
+    ).toEqual([
+      { tagId: "tag-1", name: "Release planning", start: 0, end: 19 },
+    ]);
+    expect(
+      resolveDocumentInlineTags("#release/stable", [
+        { id: "flat-tag", name: "release/stable" },
+        { id: "other", name: "release" },
+      ])[0]?.tagId,
+    ).toBe("flat-tag");
+  });
+  it("resolves recognized tokens to existing Workspace identities without minting unknown tags", () => {
+    expect(
+      resolveDocumentInlineTags("#Release #unknown #release", [
+        { id: "tag-1", name: "release" },
+      ]),
+    ).toEqual([
+      { start: 0, end: 8, name: "Release", tagId: "tag-1" },
+      { start: 18, end: 26, name: "release", tagId: "tag-1" },
+    ]);
+  });
+  it("blocks a move whose descendants would exceed three Document levels without flattening", () => {
+    const documents = [
+      { id: "root", projectId: "project-1", parentDocumentId: null },
+      { id: "child", projectId: "project-1", parentDocumentId: "root" },
+      { id: "grandchild", projectId: "project-1", parentDocumentId: "child" },
+      { id: "other", projectId: "project-1", parentDocumentId: null },
+    ];
+    expect(
+      previewDocumentHierarchy(documents, {
+        documentId: "root",
+        parentDocumentId: "other",
+        folder: null,
+      }),
+    ).toMatchObject({
+      allowed: false,
+      reason: "Document hierarchy is limited to three levels.",
+      descendantIds: ["child", "grandchild"],
+    });
+    expect(
+      previewDocumentHierarchy(documents, {
+        documentId: "grandchild",
+        parentDocumentId: "root",
+        folder: "Planning",
+      }),
+    ).toMatchObject({ allowed: true, depth: 2, descendantIds: [] });
+    expect(documents).toContainEqual({
+      id: "child",
+      projectId: "project-1",
+      parentDocumentId: "root",
+    });
+  });
+  it("rejects cycles and cross-scope parents", () => {
+    const documents = [
+      { id: "root", projectId: "project-1", parentDocumentId: null },
+      { id: "child", projectId: "project-1", parentDocumentId: "root" },
+      { id: "foreign", projectId: "project-2", parentDocumentId: null },
+    ];
+    expect(
+      previewDocumentHierarchy(documents, {
+        documentId: "root",
+        parentDocumentId: "child",
+        folder: null,
+      }).allowed,
+    ).toBe(false);
+    expect(
+      previewDocumentHierarchy(documents, {
+        documentId: "root",
+        parentDocumentId: "foreign",
+        folder: null,
+      }).allowed,
+    ).toBe(false);
+  });
+  it("recognizes Workspace tag tokens only in normal Markdown prose", () => {
+    const body = [
+      "# Planning #release",
+      "- **#release** and #unknown",
+      "`#code` https://example.test/#url \\#escaped",
+      "[source](https://example.test/#destination)",
+      "```md",
+      "#fenced",
+      "```",
+      "    #indented",
+    ].join("\n");
+    expect(documentInlineTagTokens(body).map((token) => token.name)).toEqual([
+      "release",
+      "release",
+      "unknown",
+    ]);
+  });
+  it("keeps Markdown reference destinations unchanged when a tag is renamed", () => {
+    const body = [
+      "[docs]: #release",
+      "[guide]: <#release>",
+      "[continued]:",
+      "  #release",
+      "#release in prose",
+    ].join("\n");
+    const inlineTags = resolveDocumentInlineTags(body, [
+      { id: "release-tag", name: "release" },
+    ]);
+
+    expect(inlineTags).toEqual([
+      {
+        start: body.lastIndexOf("#release"),
+        end: body.lastIndexOf("#release") + "#release".length,
+        name: "release",
+        tagId: "release-tag",
+      },
+    ]);
+    expect(
+      renameDocumentInlineTag(
+        body,
+        inlineTags,
+        "release-tag",
+        "Release planning",
+      ).body,
+    ).toBe(
+      "[docs]: #release\n[guide]: <#release>\n[continued]:\n  #release\n#[Release planning] in prose",
+    );
+  });
+  it("scans malformed inline destinations without rescanning the remaining body", () => {
+    const body = `${"](".repeat(20_000)}#release`;
+    const startedAt = performance.now();
+
+    expect(documentInlineTagTokens(body)).toEqual([
+      { start: 40_000, end: 40_008, name: "release" },
+    ]);
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
   it("accepts one Markdown body containing a table, fenced code, Mermaid, and LaTeX", () => {
     const body = [
       "| Name | Value |",

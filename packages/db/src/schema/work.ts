@@ -59,6 +59,8 @@ export const work = pgTable(
     title: text("title").notNull(),
     type: text("type").notNull(),
     trashedAt: timestamp("trashed_at"),
+    nextConcreteStep: text("next_concrete_step"),
+    nextConcreteStepUpdatedAt: timestamp("next_concrete_step_updated_at"),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())

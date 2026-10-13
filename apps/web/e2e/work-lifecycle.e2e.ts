@@ -1,5 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
-import { openWorkRecordFromKanbanList } from "./kanban-test-helpers";
+import {
+  OPEN_SOURCE_RECORD_BUTTON_NAME,
+  openWorkRecordFromKanbanList,
+} from "./kanban-test-helpers";
 
 const E2E_SERVER_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_SERVER_PORT ?? "3100"}`;
 const PROJECTS_URL_PATTERN = /\/projects$/;
@@ -724,15 +727,24 @@ test("walks the read-only Scope Tree and opens a source record", async ({
     scopeTree.getByText("Verify provider callback", { exact: true }),
   ).toBeHidden();
   await featureDetails.locator("summary").click();
-  const sourceRecordLink = scopeTree
-    .getByRole("link", { name: "Open source record" })
+  const sourceViewUrl = page.url();
+  const sourceRecordButton = scopeTree
+    .getByRole("button", { name: OPEN_SOURCE_RECORD_BUTTON_NAME })
     .last();
-  const sourceRecordHref = await sourceRecordLink.getAttribute("href");
+  await sourceRecordButton.click();
+  const sourcePreview = page.getByRole("dialog");
+  await expect(sourcePreview).toBeVisible();
+  await expect(page).toHaveURL(sourceViewUrl);
+  const fullPageLink = sourcePreview.getByRole("link", {
+    exact: true,
+    name: "Open full page",
+  });
+  const sourceRecordHref = await fullPageLink.getAttribute("href");
   if (!sourceRecordHref) {
-    throw new Error("The Scope Tree source record link has no destination.");
+    throw new Error("The source record preview has no full-page destination.");
   }
-  const sourceRecordHash = new URL(sourceRecordHref, page.url()).hash;
-  await sourceRecordLink.click();
+  const sourceRecordHash = new URL(sourceRecordHref, sourceViewUrl).hash;
+  await fullPageLink.click();
   await expect(page).toHaveURL(WORK_HASH_PATTERN);
   await expect(page.locator(sourceRecordHash)).toBeVisible();
 });

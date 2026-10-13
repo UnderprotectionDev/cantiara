@@ -302,9 +302,7 @@ test("renders bound Custom field values on Work create and edit surfaces", async
   await expect(
     page.getByText("Work CUS-1 created.", { exact: true }),
   ).toBeVisible({ timeout: 60_000 });
-  const work = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem");
+  const work = page.locator('ul[aria-label="Work list"] > li');
   await expect(work.getByLabel("Audience", { exact: true })).toHaveValue(
     "Founders",
   );
@@ -349,9 +347,7 @@ test("renders bound Custom field values on Work create and edit surfaces", async
   await setReviewStateResponse;
 
   await page.reload();
-  const reloadedWork = page
-    .getByRole("list", { name: "Work list" })
-    .getByRole("listitem");
+  const reloadedWork = page.locator('ul[aria-label="Work list"] > li');
   await expect(
     reloadedWork.getByLabel("Audience", { exact: true }),
   ).toHaveValue("Operators");

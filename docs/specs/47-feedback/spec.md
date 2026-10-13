@@ -1,7 +1,5 @@
 # Geri Bildirim Kaydı ve Feed
 
-Kaynak: [`docs/workflow/47-feedback/phase-context.md`](../../workflow/47-feedback/phase-context.md)
-
 ## Problem Statement
 
 Kurucu gelen özgün mesajı kanal, zaman ve kimlik bağlamıyla kaybetmeden tutmak ve uzun içeriği yoğun okumak ister. Bugün Geri Bildirim Kaynak alt türüne, özellik isteğine veya destek ticket'ına kayabilir; özet aslının yerine geçebilir; İşe dönüşüm kaydı silebilir; feed Bildirim Merkezi veya sosyal yaşam döngüsü gibi davranabilir. Contact birleştirme ve kişisel veri silme bu kartın işi değildir. Kaynak tazeliği 44'tedir.
@@ -56,6 +54,10 @@ Kurucu Geri Bildirimi ayrı uzman ana kayıt olarak tutar: özgün mesaj, kanal,
 - **English UI labels.** `Feedback`, `Feed`, `Convert to Work`, `Open Source Record`, `New`, `Reviewed`, `Archived`, `Follow up`, `Followed up`, `Outcome verified`. Missing labels join the PRD term table in the same change. No Turkish UI.
 - **Classification.** Private Feedback bodies are hassas kişisel veri. Original message is not replaced by summary in export or share previews this feature might show; sharing itself is 73.
 
+- **Minimal Research Session intake (#329).** `packages/db/src/schema/feedback.ts` and `apps/server/src/features/feedback/server/feedback-database.ts` provide original message, channel, occurrence time, title, Project and `New` status for exactly one confirmed research conversion. The intake is invoked only inside the consumer’s authorized atomic transaction; its reader scopes originals to the Project owner. Contact is optional and no identity is invented. Feed, Quick Capture, lifecycle editing, niteliği/follow-up and Feedback → Work remain later deliveries.
+
+- **Research Evidence record opening (#329 review).** Research Sessions can explicitly open a linked native Feedback record through an owner-scoped read-only collaborator. Archived Feedback remains readable in that dialog; the historical Evidence row itself contains no old target title/body. The caller validates the source's current Consent, binding identity and both ends' workspace access. Failed or pending reads hide cached bodies. This supplies `Open source record` on the consuming Evidence surface without introducing Feed, classification or Feedback editing. Testing Decisions: the consuming seam evidence below.
+
 ## Testing Decisions
 
 - **What a good test is.** Tests observe Feedback through the public record-and-feed interface: create Feedback with original message/channel/time, optional Contact, convert-to-Work preview/commit, status independence from Work, niteliği vs original, Feed listing the same ids, Feed sort not writing status. They do not assert Drizzle shapes. Expected values are product rules (record remains after convert, unknown sender allowed, no social actions).
@@ -63,6 +65,10 @@ Kurucu Geri Bildirimi ayrı uzman ana kayıt olarak tutar: özgün mesaj, kanal,
 - **Modules under test.** Feedback only. Contact merge, personal-data erase, Kanıt Akışı, Notification Center, and Source recheck are counterparts (“absent / not redefined”).
 - **Prior art.** Same single-seam contract style as Account Access. Bind to [Kanıt akışı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari). Cloud tests must not use production message bodies.
 - **Required counterparts.** Source-subtype behavior absent; Feedback is not a feature request, Work record, or social post; convert does not delete Feedback; Feed row is not a notification or universal-search hit type; likes/comments absent; Contact not required; Kanıt Rolü not derived from niteliği; Feed does not write Source version; Contact merge and personal-data erase absent.
+
+- **#329 intake counterpart evidence.** `apps/server/src/features/research-sessions/server/research-sessions-database.test.ts` observes original message/channel/time, `New` status and owner-scoped reading from a Research Session conversion, preview without targets and same-key retry without duplicates. Feedback is a counterpart at that consuming seam; the full Feedback/Feed seam remains undelivered.
+
+- **Research Evidence record-opening evidence.** `apps/server/src/features/research-sessions/server/research-sessions-database.test.ts` observes the owned archived original-message reader and foreign-account refusal through the consuming Research Sessions seam. `apps/web/src/features/research-sessions/ui/research-sessions-view.test.tsx` verifies explicit opening and cache suppression after a failed fresh read. These cover the Research Evidence record opening collaborator decision.
 
 ## Out of Scope
 

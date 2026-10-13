@@ -3,12 +3,16 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { focusPeriod } from "./focus-period";
 import { project } from "./project";
+import { projectRelease } from "./project-release";
 
 export const risk = pgTable(
   "project_risk",
@@ -55,3 +59,85 @@ export const riskRelations = relations(risk, ({ one }) => ({
     references: [project.id],
   }),
 }));
+
+export const riskAttentionSignal = pgTable(
+  "risk_attention_signal",
+  {
+    signalId: text("signal_id").primaryKey(),
+    sourceRiskId: text("source_risk_id")
+      .notNull()
+      .references(() => risk.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    signalType: text("signal_type").default("open-risk").notNull(),
+    presentation: text("presentation").default("Action Required").notNull(),
+    sourceEvent: jsonb("source_event")
+      .$type<
+        | { type: "entered-open"; id: string }
+        | {
+            type: "related-context";
+            id: string;
+            targetType: "Project Release" | "Focus Period";
+            targetId: string;
+          }
+      >()
+      .notNull(),
+    impact: text("impact"),
+    probability: text("probability"),
+    sourcePath: text("source_path").notNull(),
+    occurredAt: timestamp("occurred_at").notNull(),
+  },
+  (table) => [
+    index("risk_attention_signal_project_idx").on(
+      table.projectId,
+      table.occurredAt,
+    ),
+    check(
+      "risk_attention_signal_type_check",
+      sql`${table.signalType} = 'open-risk'`,
+    ),
+    check(
+      "risk_attention_signal_presentation_check",
+      sql`${table.presentation} = 'Action Required'`,
+    ),
+    check(
+      "risk_attention_signal_event_check",
+      sql`${table.sourceEvent}->>'type' in ('entered-open', 'related-context')`,
+    ),
+  ],
+);
+
+export const riskContextRelation = pgTable(
+  "risk_context_relation",
+  {
+    id: text("id").primaryKey(),
+    riskId: text("risk_id")
+      .notNull()
+      .references(() => risk.id, { onDelete: "cascade" }),
+    projectReleaseId: text("project_release_id").references(
+      () => projectRelease.id,
+      { onDelete: "cascade" },
+    ),
+    focusPeriodId: text("focus_period_id").references(() => focusPeriod.id, {
+      onDelete: "cascade",
+    }),
+    revision: integer("revision").default(1).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("risk_context_relation_release_uidx").on(
+      table.riskId,
+      table.projectReleaseId,
+    ),
+    uniqueIndex("risk_context_relation_period_uidx").on(
+      table.riskId,
+      table.focusPeriodId,
+    ),
+    check(
+      "risk_context_relation_target_check",
+      sql`num_nonnulls(${table.projectReleaseId}, ${table.focusPeriodId}) = 1`,
+    ),
+    check("risk_context_relation_revision_check", sql`${table.revision} >= 1`),
+  ],
+);

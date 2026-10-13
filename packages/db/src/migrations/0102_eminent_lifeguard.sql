@@ -1,0 +1,1 @@
+ALTER TABLE "project_open_question" ADD COLUMN "rationale" text;

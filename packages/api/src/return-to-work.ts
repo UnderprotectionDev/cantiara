@@ -1,0 +1,286 @@
+import { addDays, formatISO, parseISO } from "date-fns";
+import { z } from "zod";
+
+const identifier = z.string().trim().min(1).max(255);
+export const returnContextInputSchema = z
+  .object({
+    projectId: identifier,
+    workId: identifier.optional(),
+  })
+  .strict();
+export const nextConcreteStepSchema = z.string().trim().max(4000).nullable();
+export const saveNextConcreteStepInputSchema = returnContextInputSchema
+  .extend({
+    baseRevision: z.number().int().nonnegative().safe(),
+    clientIdempotencyKey: identifier,
+    nextConcreteStep: nextConcreteStepSchema.transform(
+      (value) => value || null,
+    ),
+  })
+  .strict();
+export type ReturnContext = z.infer<typeof returnContextInputSchema>;
+export type SaveNextConcreteStepInput = z.input<
+  typeof saveNextConcreteStepInputSchema
+>;
+export const statusAgeThresholdDaysSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(10_000)
+  .nullable();
+
+export const RETURN_CARD_REASONS = [
+  "Long in the same status",
+  "Recently edited",
+  "Recently viewed",
+  "Upcoming date",
+  "Open risk",
+  "Pending GitHub development signal",
+] as const;
+export interface WorkStatusAge {
+  active: boolean;
+  changedAt: string;
+}
+
+export function isLongInSameStatus(
+  age: WorkStatusAge | undefined,
+  thresholdDays: number | null,
+  now: Date,
+): boolean {
+  return (
+    thresholdDays !== null &&
+    age?.active === true &&
+    now.getTime() - Date.parse(age.changedAt) > thresholdDays * 86_400_000
+  );
+}
+
+export interface ReturnSource {
+  id: string;
+  lastViewedAt: string | null;
+  nextConcreteStep: string | null;
+  nextConcreteStepUpdatedAt: string | null;
+  openRisk: boolean;
+  pendingGitHubSignal: boolean;
+  projectId: string;
+  recordType: "Project" | "Work" | "Risk";
+  revision: number;
+  sourcePath: string;
+  statusAge?: WorkStatusAge;
+  targetDate: string | null;
+  title: string;
+  updatedAt: string;
+}
+export type ReturnCard = Omit<
+  ReturnSource,
+  "openRisk" | "pendingGitHubSignal" | "lastViewedAt" | "statusAge"
+> & {
+  reasons: (typeof RETURN_CARD_REASONS)[number][];
+};
+export const RETURN_EVENT_GROUPS = {
+  Work: ["Work created", "Work updated"],
+  Decisions: ["Decision recorded", "Decision updated"],
+  Risks: ["Risk recorded", "Risk updated"],
+  Documents: ["Document created", "Document updated"],
+  GitHub: ["GitHub development signal"],
+  Publish: ["Project Release published"],
+} as const;
+export type ReturnEventKind =
+  (typeof RETURN_EVENT_GROUPS)[keyof typeof RETURN_EVENT_GROUPS][number];
+export type ReturnEventSource = Pick<
+  ReturnSource,
+  "id" | "projectId" | "title" | "sourcePath"
+>;
+export type ReturnVisualTarget =
+  | {
+      surface: "Project Wall" | "User Flow" | "Screen Wireframe" | "Moodboard";
+      surfaceId: string;
+      elementId: string;
+    }
+  | {
+      surface: "Roadmap";
+      surfaceId: string;
+      recordType: "Work" | "Milestone";
+      recordId: string;
+    };
+export interface ReturnEvent {
+  id: string;
+  kind: ReturnEventKind;
+  occurredAt: string;
+  source: ReturnEventSource;
+  visualTarget?: ReturnVisualTarget;
+}
+export type ReturnEventCandidate = Omit<ReturnEvent, "kind"> & { kind: string };
+export interface ReturnChanges {
+  events: ReturnEventCandidate[];
+  lastViewedAt: string | null;
+}
+export interface SinceLastLooked {
+  groups: { name: keyof typeof RETURN_EVENT_GROUPS; events: ReturnEvent[] }[];
+  lastViewedAt: string | null;
+}
+export function sinceLastLooked(
+  changes: ReturnChanges,
+  now: Date,
+): SinceLastLooked {
+  const lastViewedAt = Date.parse(changes.lastViewedAt ?? "");
+  const events =
+    changes.lastViewedAt === null
+      ? []
+      : changes.events
+          .filter(isReturnEvent)
+          .filter(
+            (event) =>
+              Date.parse(event.occurredAt) > lastViewedAt &&
+              Date.parse(event.occurredAt) <= now.getTime(),
+          )
+          .sort(
+            (a, b) =>
+              a.occurredAt.localeCompare(b.occurredAt) ||
+              a.id.localeCompare(b.id),
+          );
+  const groups: SinceLastLooked["groups"] = [];
+  for (const name of Object.keys(
+    RETURN_EVENT_GROUPS,
+  ) as (keyof typeof RETURN_EVENT_GROUPS)[]) {
+    const kinds: readonly string[] = RETURN_EVENT_GROUPS[name];
+    const grouped = events.filter((event) => kinds.includes(event.kind));
+    if (grouped.length > 0) {
+      groups.push({ name, events: grouped });
+    }
+  }
+  return { lastViewedAt: changes.lastViewedAt, groups };
+}
+function isReturnEvent(event: ReturnEventCandidate): event is ReturnEvent {
+  return Object.values(RETURN_EVENT_GROUPS).some((kinds) => {
+    const allowedKinds: readonly string[] = kinds;
+    return allowedKinds.includes(event.kind);
+  });
+}
+export interface ReturnToWorkSummary {
+  cards: ReturnCard[];
+  readOnly: boolean;
+  sinceLastLooked: SinceLastLooked;
+  source: ReturnSource | null;
+}
+export interface ReturnToWorkAccess {
+  markViewed: (accountId: string, context: ReturnContext) => Promise<void>;
+  read: (
+    accountId: string,
+    context: ReturnContext,
+  ) => Promise<ReturnToWorkSummary>;
+  saveNextStep: (
+    accountId: string,
+    input: SaveNextConcreteStepInput,
+  ) => Promise<void>;
+}
+
+export function cardsForSources(
+  sources: ReturnSource[],
+  now: Date,
+  timeZone: string,
+  statusAgeThresholdDays: number | null = null,
+): ReturnCard[] {
+  const recent = addDays(now, -7).getTime();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone,
+  }).formatToParts(now);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  const today = `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+  const upcoming = formatISO(addDays(parseISO(today), 7), {
+    representation: "date",
+  });
+  const cards = sources
+    .map(
+      ({
+        lastViewedAt,
+        openRisk,
+        pendingGitHubSignal,
+        statusAge,
+        ...source
+      }) => {
+        const reasons: ReturnCard["reasons"] = [];
+        if (
+          source.recordType === "Work" &&
+          isLongInSameStatus(statusAge, statusAgeThresholdDays, now)
+        ) {
+          reasons.push("Long in the same status");
+        }
+        if (
+          Date.parse(source.updatedAt) >= recent &&
+          Date.parse(source.updatedAt) <= now.getTime()
+        ) {
+          reasons.push("Recently edited");
+        }
+        if (
+          lastViewedAt &&
+          Date.parse(lastViewedAt) >= recent &&
+          Date.parse(lastViewedAt) <= now.getTime()
+        ) {
+          reasons.push("Recently viewed");
+        }
+        if (
+          source.targetDate &&
+          source.targetDate >= today &&
+          source.targetDate <= upcoming
+        ) {
+          reasons.push("Upcoming date");
+        }
+        if (openRisk) {
+          reasons.push("Open risk");
+        }
+        if (pendingGitHubSignal) {
+          reasons.push("Pending GitHub development signal");
+        }
+        return { ...source, reasons };
+      },
+    )
+    .filter((card) => card.reasons.length > 0);
+  cards.sort(
+    (a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id),
+  );
+  // Reserve a place for each available reason before filling from recent edits.
+  const visits = new Map(
+    sources.map((source) => [source.id, source.lastViewedAt ?? ""]),
+  );
+  const selected = new Set<ReturnCard>();
+  for (const reason of RETURN_CARD_REASONS) {
+    if (selected.size === 5) {
+      break;
+    }
+    const candidates = cards.filter(
+      (candidate) =>
+        candidate.reasons.includes(reason) && !selected.has(candidate),
+    );
+    if (reason === "Recently viewed") {
+      candidates.sort(
+        (a, b) =>
+          (visits.get(b.id) ?? "").localeCompare(visits.get(a.id) ?? "") ||
+          a.id.localeCompare(b.id),
+      );
+    }
+    if (reason === "Upcoming date") {
+      candidates.sort(
+        (a, b) =>
+          (a.targetDate ?? "").localeCompare(b.targetDate ?? "") ||
+          a.id.localeCompare(b.id),
+      );
+    }
+    const [card] = candidates;
+    if (card) {
+      selected.add(card);
+    }
+  }
+  for (const card of cards) {
+    if (selected.size === 5) {
+      break;
+    }
+    if (card.reasons.includes("Recently edited")) {
+      selected.add(card);
+    }
+  }
+  return [...selected];
+}

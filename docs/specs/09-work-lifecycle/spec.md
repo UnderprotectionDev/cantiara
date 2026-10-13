@@ -1,7 +1,5 @@
 # İş Yaşam Döngüsü
 
-Kaynak: [`docs/workflow/09-work-lifecycle/phase-context.md`](../../workflow/09-work-lifecycle/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Özellik, Bug, Görev, Araştırma ve İyileştirmeyi değişmez Proje anahtarı, açık durum ve kapanış sonucu ile yönetmek ister. Bugün iskelette İş ana kaydı yoktur; durum ile kapanış sonucu karışabilir, planlama yüzeyi yaşamı örtük kapatabilir, yanlış Proje “taşıma” ile düzeltilmeye çalışılabilir. Planlama yüzeyleri, İş Bağlam Kartı düzeni ve Taslak bu sorunun parçası değildir — Taslak kesinleşmesi ve yakalama dönüşümü bu seam’e İş bırakabilir.

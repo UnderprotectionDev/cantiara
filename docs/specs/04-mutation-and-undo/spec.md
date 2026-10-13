@@ -1,7 +1,5 @@
 # Yazma Sözleşmesi ve Güvenli Geri Alma
 
-Kaynak: [`docs/workflow/04-mutation-and-undo/phase-context.md`](../../workflow/04-mutation-and-undo/phase-context.md)
-
 ## Problem Statement
 
 Kurucunun başlattığı her durum değiştiren komutun kaybolmadan, sessizce ezilmeden ve kısmi kayıt bırakmadan kesinleşmesini ister. Bugün iskelet isteğe taban revizyonu veya istemci idempotency anahtarı koymaz; çok adımlı yazma atomik bariyer taşımaz; güvenli geri alma ilgisiz sonraki değişikliği sarmadan duracağını kanıtlamaz. Çöp Kutusu, güvenlik redaksiyonu ve Hesap kapatma bu sorunun parçası değildir.

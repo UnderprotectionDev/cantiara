@@ -374,6 +374,45 @@ describe("Project Shell RPC", () => {
     },
   );
 
+  test("saves, clears and validates the optional Project status-age threshold through configuration", async () => {
+    let currentProject = { ...project };
+    const projectShell: ProjectShellAccess = {
+      create: async () => currentProject,
+      find: async () => currentProject,
+      list: async () => [currentProject],
+      recordFirstWork: async () => currentProject,
+      updateShortCode: async () => currentProject,
+    };
+    const mutation = createProjectUpdateMutation(
+      () => currentProject,
+      (next) => {
+        currentProject = next;
+      },
+    );
+    const client = createRouterClient(appRouter, {
+      context: createContext(projectShell, {
+        create: () => mutation,
+        update: () => mutation,
+      }),
+    });
+    const update = (thresholdDays: number | null) =>
+      client.updateProjectConfiguration({
+        projectId: project.id,
+        baseRevision: currentProject.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        change: { kind: "set-status-age-threshold", thresholdDays },
+      });
+    expect(currentProject.configuration.statusAgeThresholdDays).toBeNull();
+    expect((await update(7)).configuration.statusAgeThresholdDays).toBe(7);
+    await expect(update(0)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(update(1.5)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(update(10_001)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(currentProject.configuration.statusAgeThresholdDays).toBe(7);
+    expect(
+      (await update(null)).configuration.statusAgeThresholdDays,
+    ).toBeNull();
+  });
+
   test("configures stages, area visibility, and status labels without changing semantics", async () => {
     let currentProject: ProjectProfile = {
       ...project,

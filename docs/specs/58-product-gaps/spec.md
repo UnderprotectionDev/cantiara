@@ -1,7 +1,5 @@
 # Ürün Boşlukları ve Dış Araca Kaçışlar
 
-Kaynak: [`docs/workflow/58-product-gaps/phase-context.md`](../../workflow/58-product-gaps/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Cantiara kapsamında gördüğü işi başka bir araçta bitirdiğinde bunu tarihli kanıtla kaydetmek ve karşılanmayan ihtiyacı Çalışma Alanında yönetmek ister. Bugün kaçış telemetry, özellik isteği kuyruğu veya GitHub issue'su gibi durur; tekrar sayısı öncelik üretir; yüksek etkili kaçış "hata düzeldi" notuyla kapanır. Dış yürütme devri, GitHub bağlantısı ve test Handoff'u bu kaydın yerine geçmemelidir. Ürünün durduğu yer görünür kalmalıdır.

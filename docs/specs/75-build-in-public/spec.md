@@ -1,7 +1,5 @@
 # Build in Public
 
-Kaynak: [`docs/workflow/75-build-in-public/phase-context.md`](../../workflow/75-build-in-public/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir Projenin seçili Roadmap, sürüm iletişimi ve gelişim bağlamını herkese açık göstermek ister. İç Kanban adları, özel ilişkiler ve onaysız canlı Roadmap kopyası sızmamalıdır. Kaynak değişikliği yeni onay olmadan public olmamalıdır. Görüntülenme sayacı, yorum ve abonelik ilk üründe yoktur. Ziyaretçi ilk içerik yavaşsa veya cache iptali ezerse yüzey dürüst değildir.

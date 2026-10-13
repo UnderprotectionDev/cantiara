@@ -1,7 +1,5 @@
 # Güvenlik Redaksiyonu
 
-Kaynak: [`docs/workflow/78-security-redaction/phase-context.md`](../../workflow/78-security-redaction/phase-context.md)
-
 ## Problem Statement
 
 Kurucu hassas bir değeri güncel içerikten ve onu taşıyan her kopyadan geri döndürülemez kaldırmak ister. Bugün olağan düzenleme, Çöp Kutusu, istemci gizleme veya geçmiş satırını silmek bu işi taklit edebilir; restore ve Dış yüzey snapshot'ı değeri diriltebilir. Redaksiyon kaydın kimliğini durdurmak zorunda değildir. Kişisel veri silme ve Hesap kapatma bu sözleşmeyi bekler; ayrı bir GitHub teyit kartı veya ikinci redaksiyon motoru açmamalıdır.

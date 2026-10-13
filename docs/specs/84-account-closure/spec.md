@@ -1,7 +1,5 @@
 # Hesap Kapatma
 
-Kaynak: [`docs/workflow/84-account-closure/phase-context.md`](../../workflow/84-account-closure/phase-context.md)
-
 ## Problem Statement
 
 Kurucu Hesabı ve tek Çalışma Alanını, geri dönüş penceresi içinde durdurulabilir, sonunda geri döndürülemez biçimde kapatmak ister. Bugün Proje silme, oturum iptali, kişi paketi veya çıkış paketini atlamak bu işi taklit edebilir. Başlatma ayrı bir GitHub teyit kartı açmamalıdır. `Kapanış tamamlanıyor` fail-closed biter; 30 günlük dondurma sabit güvenlik olay sınırıdır. Kalıcı silme 78 sözleşmesini kullanır, 82'den en az bir başarılı paketi bekler. Çıkış paketi AB yerleşimini taşımaz; canlı üretim ve özel içerik kalıcı silmeye kadar AB bölgesinde kalır.

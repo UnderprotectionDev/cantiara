@@ -34,7 +34,12 @@ import type {
 import WorkCompletionFeedback from "@/features/completion-effects/ui/components/work-completion-feedback";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import {
+  client,
+  invalidateSmartCollectionMembership,
+  orpc,
+  projectWorksQueryPrefix,
+} from "@/utils/orpc";
 
 function mutationErrorMessage(error: unknown) {
   return error instanceof Error && error.message
@@ -121,6 +126,7 @@ export default function WorkStatusForm({
       queryClient.invalidateQueries({ queryKey: worksQueryKey }),
       queryClient.invalidateQueries({ queryKey: workQueryKey }),
       queryClient.invalidateQueries({ queryKey: scopeTreeQueryKey }),
+      ...invalidateSmartCollectionMembership(queryClient),
     ]);
   }
 
@@ -368,19 +374,11 @@ export default function WorkStatusForm({
           ) : null}
         </div>
       ) : null}
-      {completionFeedback.noticeVisible ? (
-        <WorkCompletionFeedback
-          effectPlaying={completionFeedback.effect !== null}
-          onReopen={() => {
-            if (completionFeedback.reopenStatus) {
-              setReopenTarget(completionFeedback.reopenStatus);
-            }
-          }}
-          palette={completionFeedback.effect?.palette ?? "Haze"}
-          reopenDisabled={isPending}
-          theme={completionFeedback.effect?.theme ?? "Calm"}
-        />
-      ) : null}
+      <WorkCompletionNotice
+        completionFeedback={completionFeedback}
+        isPending={isPending}
+        setReopenTarget={setReopenTarget}
+      />
       {error ? (
         <p className="text-destructive text-xs" role="alert">
           {error}
@@ -517,4 +515,32 @@ export default function WorkStatusForm({
       ) : null}
     </div>
   );
+}
+
+function WorkCompletionNotice({
+  completionFeedback,
+  setReopenTarget,
+  isPending,
+}: {
+  completionFeedback: WorkCompletionFeedbackState;
+  setReopenTarget: import("react").Dispatch<
+    import("react").SetStateAction<
+      "Not Started" | "In Progress" | "Blocked" | null
+    >
+  >;
+  isPending: boolean;
+}) {
+  return completionFeedback.noticeVisible ? (
+    <WorkCompletionFeedback
+      effectPlaying={completionFeedback.effect !== null}
+      onReopen={() => {
+        if (completionFeedback.reopenStatus) {
+          setReopenTarget(completionFeedback.reopenStatus);
+        }
+      }}
+      palette={completionFeedback.effect?.palette ?? "Haze"}
+      reopenDisabled={isPending}
+      theme={completionFeedback.effect?.theme ?? "Calm"}
+    />
+  ) : null;
 }

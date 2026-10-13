@@ -479,7 +479,7 @@ Kaydın Projesini, türünü veya durumunu değiştirmeden kişisel sık erişim
 _Avoid_: Bookmark kuyruğu, Aktif Çalışma Seti, planlama üyeliği
 
 **Hatırlatma**:
-Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Planned`, `Triggered`, `Cancelled`, `When`, `Cancel`, `Dismiss`, `In any case`, `Only if still open`, `Section`.
+Desteklenen kayda Hesap kapsamında kişisel zaman bağlayan ana kayıt; kaynak sahiplik değil köken referansıdır ve kaynak yaşamı veya planlama üyeliği yazmaz ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Remind me`, `Review Later`, `Set reminder`, `Planned`, `Triggered`, `Cancelled`, `When`, `Cancel`, `Dismiss`, `History`, `No reminders.`, `In any case`, `Only if still open`, `Section`.
 _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for Later kuyruğu
 
 **Açık kalma koşulu**:
@@ -487,12 +487,16 @@ _Avoid_: Target date, Yeniden görünme tarihi, standalone reminder, Save for La
 _Avoid_: genel koşul oluşturucu, Target date kuralı, Yeniden görünme tarihi
 
 **Belge bölüm hedefi**:
-`Review Later`'ın isteğe bağlı kararlı Markdown başlık kimliği; yeniden adlandırma ve taşıma aynı kimliği izler, silinmiş başlığa sessiz yönelme yoktur ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Section`, `This section is missing.`
+`Review Later`'ın isteğe bağlı kararlı Markdown başlık kimliği; yeniden adlandırma ve taşıma aynı kimliği izler, silinmiş başlığa sessiz yönelme yoktur ([kişisel hatırlatmalar](docs/prd/06-work-management-and-planning.md#kişisel-hatırlatmalar)). UI: `Section`, `Entire document`, `This section is missing.`
 _Avoid_: paragraf aralığı, kayan metin aralığı, sessiz başka başlık
 
 **Akıllı Koleksiyon**:
 Üyeliği kayıtlar üzerindeki açık filtrelerden canlı türetilen, adlandırılmış görünüm; manuel üyelik listesi, klasör veya ayrı içerik kaydı değildir.
 _Avoid_: Statik liste, klasör, etiket
+
+**Üyelik nedeni**:
+Kaydın Akıllı Koleksiyona kapsamı ve eşleşen filtre koşulları nedeniyle neden girdiğini, canlı üyelik sonucundan türetilen metinle açıklar. UI: `Membership reason`.
+_Avoid_: manuel üyelik açıklaması, sabit açıklama
 
 **Hafif İçgörüler**:
 İş koleksiyonunun mevcut filtre sonucundan türetilen sayı ve dağılım özeti; skor, coverage veya yayın kapısı değildir ([Hafif İçgörüler](docs/prd/08-search-relations-and-evidence.md#hafif-içgörüler)). UI: `Insights`.
@@ -652,7 +656,7 @@ Yerine-geçme onayında isteğe bağlı gerekçe; Karar gerekçesi alanı veya k
 _Avoid_: Reason, oy gerekçesi
 
 **Karar zinciri**:
-En eski Karar kaydından güncel `Valid` Karara giden nesil sırası; değişiklik geçmişi satırları değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)).
+En eski Karar kaydından güncel `Valid` Karara giden nesil sırası; değişiklik geçmişi satırları değildir ([Karar kayıtları](docs/prd/09-discovery-decisions-and-design.md#karar-kayıtları)). UI: `Decision chain`.
 _Avoid_: changelog, event log, version history rows
 
 **Güncel kararı aç**:

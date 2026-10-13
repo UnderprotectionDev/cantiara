@@ -1,12 +1,10 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Roadmap controls bind to the selected Work and view.
-import {
-  listUnplannedRoadmapCandidates,
-  presentRoadmap,
-  type RoadmapBlocker,
-  type RoadmapBlockerSource,
-  type RoadmapHorizon,
-  type RoadmapOriginLink,
-  type RoadmapView,
+import type {
+  RoadmapBlocker,
+  RoadmapBlockerSource,
+  RoadmapHorizon,
+  RoadmapOriginLink,
+  RoadmapView,
 } from "@cantiara/api/roadmap-horizon";
 import {
   WORK_TYPE_OPTIONS,
@@ -14,14 +12,16 @@ import {
 } from "@cantiara/api/work-lifecycle";
 import { Badge } from "@cantiara/ui/components/badge";
 import { Button } from "@cantiara/ui/components/button";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
-import { workRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
+import { OpenSourceRecordButton } from "@/features/record-discovery/ui/components/context-record-preview";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
-import { client, orpc, projectWorksQueryPrefix } from "@/utils/orpc";
+import { client, projectWorksQueryPrefix } from "@/utils/orpc";
+import { projectRoadmapWorks } from "../../lib/roadmap-projection";
+import { useRoadmapSession } from "../../store/roadmap-session";
+import LiveRoadmapCanvas from "./live-roadmap-canvas";
 import ResearchDirection from "./research-direction";
 import RoadmapPlacementEditor from "./roadmap-placement";
 
@@ -33,13 +33,6 @@ const MARK_COLORS = [
   "bg-chart-4/20",
   "bg-chart-5/20",
 ] as const;
-type RoadmapDetailSource = RoadmapBlockerSource &
-  Partial<
-    Pick<
-      WorkProfile,
-      "description" | "plannedStartDate" | "roadmapHorizon" | "targetDate"
-    >
-  >;
 type RoadmapRole = "Primary" | "Secondary";
 
 function roadmapRole(secondary: boolean): RoadmapRole {
@@ -130,17 +123,13 @@ function HorizonControl({ work }: { work: WorkProfile }) {
   );
 }
 
-function roadmapBlockerSource(work: WorkProfile): RoadmapDetailSource {
+function roadmapBlockerSource(work: WorkProfile): RoadmapBlockerSource {
   return {
     archivedAt: work.archivedAt,
-    description: work.description,
     id: work.id,
     key: work.key,
-    plannedStartDate: work.plannedStartDate ?? null,
     projectId: work.projectId,
-    roadmapHorizon: work.roadmapHorizon ?? null,
     status: work.status,
-    targetDate: work.targetDate,
     title: work.title,
     type: work.type,
   };
@@ -156,142 +145,30 @@ function findResearchTitleForWork(
 }
 
 function SourceAction({
-  onOpen,
-  presentationMode,
+  className,
   record,
-  workTitle = false,
 }: {
-  onOpen: (record: RoadmapBlockerSource) => void;
-  presentationMode: boolean;
+  className?: string;
   record: RoadmapBlockerSource;
-  workTitle?: boolean;
 }) {
-  if (presentationMode) {
-    return (
-      <Button
-        aria-label={`Open source record: ${record.key} ${record.title}`}
-        className={
-          workTitle ? "h-auto px-0 py-0 font-medium text-foreground" : "px-0"
-        }
-        onClick={() => onOpen(record)}
-        size="sm"
-        type="button"
-        variant="link"
-      >
-        {workTitle ? record.title : "Open source record"}
-      </Button>
-    );
-  }
   return (
-    <Link
-      className="underline-offset-4 hover:underline"
-      hash={workRecordHash(record.id)}
-      params={{ projectId: record.projectId }}
-      to="/projects/$projectId"
-    >
-      {workTitle ? record.title : "Open source record"}
-    </Link>
-  );
-}
-
-function RoadmapWorkDetails({
-  onClose,
-  work,
-}: {
-  onClose: () => void;
-  work: RoadmapDetailSource;
-}) {
-  const detailsQuery = useQuery({
-    ...orpc.work.queryOptions({ input: { workId: work.id } }),
-    enabled: work.description === undefined,
-  });
-  const details = detailsQuery.data ?? work;
-
-  return (
-    <section
-      aria-label={`Work details: ${details.key}`}
-      className="mt-4 space-y-3 rounded-md border bg-muted/20 p-4"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-muted-foreground text-xs">
-            {details.key} · {details.type} · {details.status}
-            {details.archivedAt ? " · Archived" : ""}
-          </p>
-          <h4 className="font-medium text-base">{details.title}</h4>
-        </div>
-        <Button onClick={onClose} size="sm" type="button" variant="outline">
-          Close details
-        </Button>
-      </div>
-      {work.description === undefined && detailsQuery.isPending ? (
-        <p className="text-muted-foreground text-sm" role="status">
-          Loading Work details…
-        </p>
-      ) : null}
-      {work.description === undefined && detailsQuery.isError ? (
-        <p className="text-destructive text-sm" role="alert">
-          Work details could not be loaded.
-        </p>
-      ) : null}
-      <RoadmapWorkDescription description={details.description} />
-      {details.roadmapHorizon !== undefined ||
-      details.plannedStartDate !== undefined ||
-      details.targetDate !== undefined ? (
-        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-          {details.roadmapHorizon === undefined ? null : (
-            <div>
-              <dt className="text-muted-foreground">Horizon</dt>
-              <dd>{details.roadmapHorizon ?? "No horizon"}</dd>
-            </div>
-          )}
-          {details.plannedStartDate === undefined ? null : (
-            <div>
-              <dt className="text-muted-foreground">Planned start date</dt>
-              <dd>{details.plannedStartDate ?? "No date"}</dd>
-            </div>
-          )}
-          {details.targetDate === undefined ? null : (
-            <div>
-              <dt className="text-muted-foreground">Target date</dt>
-              <dd>{details.targetDate ?? "No date"}</dd>
-            </div>
-          )}
-        </dl>
-      ) : null}
-    </section>
-  );
-}
-
-function RoadmapWorkDescription({
-  description,
-}: {
-  description: string | null | undefined;
-}) {
-  if (description === undefined) {
-    return null;
-  }
-  if (!description) {
-    return (
-      <p className="text-muted-foreground text-sm">No description recorded.</p>
-    );
-  }
-  return (
-    <p className="max-w-3xl whitespace-pre-wrap text-sm/relaxed">
-      {description}
-    </p>
+    <OpenSourceRecordButton
+      className={className}
+      target={{
+        kind: "work",
+        label: `${record.key} · ${record.title}`,
+        projectId: record.projectId,
+        workId: record.id,
+      }}
+    />
   );
 }
 
 function BlockerBadge({
   blockers,
-  onOpen,
-  presentationMode,
   work,
 }: {
   blockers: RoadmapBlockerSource[];
-  onOpen: (record: RoadmapBlockerSource) => void;
-  presentationMode: boolean;
   work: RoadmapBlockerSource;
 }) {
   if (!blockers.length) {
@@ -313,11 +190,7 @@ function BlockerBadge({
           <span className="text-muted-foreground">
             {work.key} · {work.title}
           </span>
-          <SourceAction
-            onOpen={onOpen}
-            presentationMode={presentationMode}
-            record={work}
-          />
+          <SourceAction className="h-8 px-0" record={work} />
         </div>
         <ul className="grid gap-2">
           {blockers.map((blocker) => (
@@ -329,11 +202,7 @@ function BlockerBadge({
               <span className="text-muted-foreground">
                 {blocker.key} · {blocker.title}
               </span>
-              <SourceAction
-                onOpen={onOpen}
-                presentationMode={presentationMode}
-                record={blocker}
-              />
+              <SourceAction className="h-8 px-0" record={blocker} />
             </li>
           ))}
         </ul>
@@ -344,7 +213,6 @@ function BlockerBadge({
 
 function RoadmapWorkSummary({
   mark,
-  onOpen,
   presentationMode,
   record,
   role,
@@ -352,9 +220,8 @@ function RoadmapWorkSummary({
   work,
 }: {
   mark: string;
-  onOpen: (record: RoadmapBlockerSource) => void;
   presentationMode: boolean;
-  record: RoadmapDetailSource;
+  record: RoadmapBlockerSource;
   role: RoadmapRole;
   researchOriginTitle: string | undefined;
   work: WorkProfile;
@@ -373,14 +240,10 @@ function RoadmapWorkSummary({
         </Badge>
         {role === "Secondary" ? " · Feature" : ""}
       </p>
-      <h3 className="font-medium">
-        <SourceAction
-          onOpen={onOpen}
-          presentationMode={presentationMode}
-          record={record}
-          workTitle
-        />
-      </h3>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-medium">{record.title}</h3>
+        <SourceAction className="h-8 px-0 font-normal" record={record} />
+      </div>
       {role === "Secondary" ? (
         <p className="text-muted-foreground text-xs">
           Research · {researchOriginTitle}
@@ -446,12 +309,8 @@ function RoadmapWorkItem({
   view: RoadmapView | null;
   work: WorkProfile;
 }) {
-  const [openedRecord, setOpenedRecord] = useState<RoadmapDetailSource | null>(
-    null,
-  );
   const record = roadmapBlockerSource(work);
   const mark = roadmapFieldValue(work, view?.markBy ?? "Type");
-  const onOpen = (source: RoadmapBlockerSource) => setOpenedRecord(source);
 
   return (
     <article
@@ -460,7 +319,6 @@ function RoadmapWorkItem({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <RoadmapWorkSummary
           mark={mark}
-          onOpen={onOpen}
           presentationMode={presentationMode}
           record={record}
           researchOriginTitle={researchOriginTitle}
@@ -482,18 +340,7 @@ function RoadmapWorkItem({
           )}
         </div>
       </div>
-      <BlockerBadge
-        blockers={activeBlockers}
-        onOpen={onOpen}
-        presentationMode={presentationMode}
-        work={record}
-      />
-      {openedRecord ? (
-        <RoadmapWorkDetails
-          onClose={() => setOpenedRecord(null)}
-          work={openedRecord}
-        />
-      ) : null}
+      <BlockerBadge blockers={activeBlockers} work={record} />
       <CandidatePlacement
         candidate={candidate && !presentationMode}
         work={work}
@@ -503,32 +350,30 @@ function RoadmapWorkItem({
 }
 
 export function RoadmapResults({
+  projectId,
   blockers,
   origins,
   presentationMode,
   view,
   works,
 }: {
+  projectId?: string;
   blockers: RoadmapBlocker[];
   origins: RoadmapOriginLink[];
   presentationMode: boolean;
   view: RoadmapView | null;
   works: WorkProfile[];
 }) {
-  const roadmapWorks = works.map((work) => ({
-    ...work,
-    horizon: work.roadmapHorizon ?? null,
-    originResearchIds: origins
-      .filter((origin) => origin.targetFeatureId === work.id)
-      .map((origin) => origin.sourceResearchId),
-    plannedStartDate: work.plannedStartDate ?? null,
-    targetDate: work.targetDate,
-  }));
-  const candidates = listUnplannedRoadmapCandidates(roadmapWorks, view);
-  const candidateIds = new Set(candidates.map(({ work }) => work.id));
-  const shown = presentRoadmap(roadmapWorks, view).filter(
-    ({ work }) => !candidateIds.has(work.id),
-  );
+  const session = useRoadmapSession();
+  useEffect(() => {
+    if (
+      session &&
+      JSON.stringify(session.state.view) !== JSON.stringify(view)
+    ) {
+      session.setState((state) => ({ ...state, view }));
+    }
+  }, [session, view]);
+  const { candidates, shown } = projectRoadmapWorks(works, origins, view);
   const blockersByWork = new Map<string, RoadmapBlockerSource[]>();
   for (const { blockedWorkId, blocker } of blockers) {
     const current = blockersByWork.get(blockedWorkId) ?? [];
@@ -545,6 +390,9 @@ export function RoadmapResults({
 
   return (
     <div className="grid gap-6">
+      {Boolean(projectId) && (
+        <LiveRoadmapCanvas projectId={projectId ?? ""} view={view} />
+      )}
       <div className="grid gap-6">
         {shown.length ? (
           Array.from(groups, ([group, items]) => (

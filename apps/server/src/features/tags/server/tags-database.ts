@@ -80,12 +80,14 @@ function toTagRecord(
 async function findWorkspaceId(
   database: Pick<Database, "select">,
   accountId: string,
+  lock = false,
 ) {
-  const [record] = await database
+  const query = database
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.ownerAccountId, accountId))
     .limit(1);
+  const [record] = lock ? await query.for("update") : await query;
   return record?.id ?? null;
 }
 
@@ -197,7 +199,7 @@ function createTagRenameMutationTarget(
 ): MutationDatabaseTargetAdapter<TagMutationValue> {
   return {
     async find(executor, targetId, lock) {
-      const workspaceId = await findWorkspaceId(executor, accountId);
+      const workspaceId = await findWorkspaceId(executor, accountId, lock);
       if (!workspaceId) {
         throw new TagWorkspaceNotFoundError();
       }
@@ -211,7 +213,7 @@ function createTagRenameMutationTarget(
     },
 
     async update(executor, input) {
-      const workspaceId = await findWorkspaceId(executor, accountId);
+      const workspaceId = await findWorkspaceId(executor, accountId, true);
       if (!workspaceId) {
         throw new TagWorkspaceNotFoundError();
       }

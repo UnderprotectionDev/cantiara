@@ -10,9 +10,32 @@ export function migrationConnectionString(
     return null;
   }
 
-  const url = new URL(configuredUrl);
+  const url = directDatabaseUrl(configuredUrl);
+  if (databaseUrl && !useLocalPostgres) {
+    const application = directDatabaseUrl(databaseUrl);
+    if (
+      application.hostname !== url.hostname ||
+      (application.port || "5432") !== (url.port || "5432") ||
+      application.pathname !== url.pathname ||
+      application.username !== url.username
+    ) {
+      throw new Error("Application and migration targets differ");
+    }
+  }
+
+  return url.toString();
+}
+
+function directDatabaseUrl(value: string) {
+  if (!URL.canParse(value)) {
+    throw new Error("Database connection URL is invalid");
+  }
+  const url = new URL(value);
+  if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+    throw new Error("Database connection must use PostgreSQL");
+  }
   if (url.hostname.endsWith(".neon.tech")) {
-    const [endpoint, ...domain] = url.hostname.split(".");
+    const [endpoint = "", ...domain] = url.hostname.split(".");
     if (endpoint.endsWith("-pooler")) {
       url.hostname = [
         endpoint.slice(0, endpoint.length - "-pooler".length),
@@ -21,20 +44,17 @@ export function migrationConnectionString(
     }
   }
 
-  return url.toString();
+  return url;
 }
 
 export function assertLocalPostgresTarget(value: string | undefined) {
   if (!value) {
     throw new Error("Local PostgreSQL URL is required");
   }
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    // biome-ignore lint/style/useErrorCause: URL parser errors may expose credentials.
+  if (!URL.canParse(value)) {
     throw new Error("Local PostgreSQL URL is invalid");
   }
+  const url = new URL(value);
   if (
     !(
       ["postgres:", "postgresql:"].includes(url.protocol) &&
@@ -46,13 +66,10 @@ export function assertLocalPostgresTarget(value: string | undefined) {
 }
 
 export function assertNeonMigrationTarget(value: string | undefined) {
-  let url: URL;
-  try {
-    url = new URL(value ?? "");
-  } catch {
-    // biome-ignore lint/style/useErrorCause: URL parser errors may expose credentials.
+  if (!URL.canParse(value ?? "")) {
     throw new Error("Migration target must be Neon");
   }
+  const url = new URL(value ?? "");
   if (
     !(
       ["postgres:", "postgresql:"].includes(url.protocol) &&

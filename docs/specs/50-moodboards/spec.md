@@ -1,7 +1,5 @@
 # Moodboard ve Görsel Yön
 
-Kaynak: [`docs/workflow/50-moodboards/phase-context.md`](../../workflow/50-moodboards/phase-context.md)
-
 ## Problem Statement
 
 Kurucu bir özellik veya proje için görsel referans, altyazı, renk örneği ve sunum sırasını kaybetmeden tutmak ister. Bugün yön dağınık klasörde kaybolur; palet Hesap teması veya Bitiriş efektine yazılabilir; kırpma/döndürme özgün Dosya Eki sürümünü mutasyona uğratabilir; snapshot kaynak görselleri değiştirebilir. Moodboard Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir. Hesap görünüm teması ve Dosya Eki işaretleme ayrıdır.

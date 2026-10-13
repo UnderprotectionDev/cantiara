@@ -3,6 +3,7 @@ import type { WorkProfile } from "@cantiara/api/work-lifecycle";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
+import { ContextRecordPreviewProvider } from "@/features/record-discovery/ui/components/context-record-preview";
 import { orpc } from "@/utils/orpc";
 import KanbanList from "./kanban-list";
 
@@ -44,17 +45,21 @@ describe("Kanban List", () => {
   test("keeps one source-record action per Work row", () => {
     const html = renderToStaticMarkup(
       <QueryClientProvider client={new QueryClient()}>
-        <KanbanList
-          focusThreshold={null}
-          projectId="project-1"
-          workStatusLabels={workStatusLabels}
-          works={[work]}
-        />
+        <ContextRecordPreviewProvider>
+          <KanbanList
+            focusThreshold={null}
+            projectId="project-1"
+            workStatusLabels={workStatusLabels}
+            works={[work]}
+          />
+        </ContextRecordPreviewProvider>
       </QueryClientProvider>,
     );
 
-    expect(html.match(/<a /g)).toHaveLength(1);
-    expect(html).toContain('href="/projects/project-1#work-work-1"');
+    expect(html).toContain(
+      'aria-label="Open source record: CAN-1 · Work in progress"',
+    );
+    expect(html).not.toContain('href="/projects/project-1#work-work-1"');
     expect(html).toContain("Open source record");
     expect(html).toContain("CAN-1");
     expect(html).toContain("Work in progress");
@@ -69,12 +74,14 @@ describe("Kanban List", () => {
 
     const html = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
-        <KanbanList
-          focusThreshold={0}
-          projectId="project-1"
-          workStatusLabels={workStatusLabels}
-          works={[work]}
-        />
+        <ContextRecordPreviewProvider>
+          <KanbanList
+            focusThreshold={0}
+            projectId="project-1"
+            workStatusLabels={workStatusLabels}
+            works={[work]}
+          />
+        </ContextRecordPreviewProvider>
       </QueryClientProvider>,
     );
 

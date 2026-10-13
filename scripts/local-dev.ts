@@ -1,29 +1,23 @@
+import { applicationEnvironment } from "./application-environment";
 import { developmentDatabaseMode } from "./dev-database-mode";
+import { developmentCommand } from "./local-dev-command";
 
-const task = process.argv[2] ?? "dev";
-const commands: Record<string, string[]> = {
-  dev: [
-    "./node_modules/.bin/turbo",
-    "run",
-    "dev",
-    "--ui=tui",
-    "--filter=fumadocs",
-    "--filter=server",
-    "--filter=web",
-    "--filter=extension",
-    "--filter=@cantiara/api",
-  ],
-  server: ["bun", "run", "dev:server"],
-};
-const command = commands[task];
-if (!command) {
-  throw new Error("Expected dev or server task");
+const { command, requiresDatabase } = developmentCommand(process.argv.slice(2));
+const environment = applicationEnvironment(process.env);
+if (!requiresDatabase) {
+  const help = Bun.spawn(command, {
+    env: environment,
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  process.exit(await help.exited);
 }
-const { startLocalProxy } = developmentDatabaseMode(process.env);
+const { startLocalProxy } = developmentDatabaseMode(environment);
 
 const proxy = startLocalProxy
   ? Bun.spawn(["bun", "scripts/neon-local-proxy.ts"], {
-      env: process.env,
+      env: environment,
       stdout: "inherit",
       stderr: "inherit",
     })
@@ -35,20 +29,24 @@ if (proxy) {
   }
 }
 
-const development = Bun.spawn(command, {
-  env: process.env,
-  stdin: "inherit",
-  stdout: "inherit",
-  stderr: "inherit",
-});
+let development: ReturnType<typeof Bun.spawn> | undefined;
+let stopped = false;
 const stop = () => {
-  development.kill();
+  stopped = true;
+  development?.kill();
   proxy?.kill();
 };
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 try {
-  process.exitCode = await development.exited;
+  development = Bun.spawn(command, {
+    env: environment,
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const status = await development.exited;
+  process.exitCode = stopped ? 130 : status;
 } finally {
   stop();
   if (proxy) {

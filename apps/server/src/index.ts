@@ -1,9 +1,11 @@
 import { FILE_ATTACHMENT_UPLOAD_BODY_LIMIT } from "@cantiara/api/file-attachments";
 import { serve } from "bun";
 import { initLogger } from "evlog";
-
 import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
+import { createSmartLinkPreviewGateway } from "./features/sources-and-freshness/server/smart-link-preview-gateway";
+import { createDatabaseSourceEvidence } from "./features/sources-and-freshness/server/source-evidence-database";
+import { createDatabaseSourceRecheck } from "./features/sources-and-freshness/server/source-recheck-database";
 import {
   accountPreferences,
   accountPreferencesCompatibility,
@@ -20,6 +22,8 @@ import {
   dailyFocus,
   documentMutationContracts,
   documents,
+  documentTransfers,
+  favorites,
   fileAttachments,
   focusPeriod,
   getDb,
@@ -31,23 +35,31 @@ import {
   prioritizationSessions,
   priorityMetricMutationContracts,
   priorityMetrics,
+  projectGoals,
   projectShell,
   projectShellMutationContracts,
   projectSourceRecords,
   recordActions,
+  recordTable,
   relations,
   replaySecurityRevocations,
+  researchSessions,
+  returnToWork,
   roadmapHorizon,
   smartCollections,
+  sourcesAndFreshness,
   startBacklogReappearSignalWorker,
   startFileAttachmentPreviewWorker,
   startPersonalReminderWorker,
+  startSmartCollectionSubscriptionSignalWorker,
   sweepExpiredFileAttachmentUploads,
   sweepExpiredPriorityMetrics,
+  sweepExpiredResearchSessionBindingPreviews,
   tagMutationContracts,
   tags,
   tauriSessionAccess,
   technicalDiagrams,
+  universalSearch,
   usageLinkMutationContracts,
   usageLinks,
   webCapture,
@@ -64,11 +76,17 @@ initLogger({
 });
 
 await replaySecurityRevocations();
-await startFileAttachmentPreviewWorker();
-await startBacklogReappearSignalWorker();
-await startPersonalReminderWorker();
+await Promise.all([
+  startFileAttachmentPreviewWorker(),
+  startBacklogReappearSignalWorker(),
+  startPersonalReminderWorker(),
+  startSmartCollectionSubscriptionSignalWorker(),
+]);
 await sweepExpiredFileAttachmentUploads();
-await sweepExpiredPriorityMetrics();
+await sweepExpiredResearchSessionBindingPreviews();
+setInterval(() => {
+  sweepExpiredResearchSessionBindingPreviews().catch(() => undefined);
+}, 15 * 60_000);
 setInterval(
   () => {
     sweepExpiredFileAttachmentUploads().catch(() => undefined);
@@ -83,6 +101,12 @@ setInterval(
 );
 
 const app = createApp({
+  sourceEvidence: createDatabaseSourceEvidence(getDb()),
+  sourceRecheck: createDatabaseSourceRecheck(
+    getDb(),
+    createSmartLinkPreviewGateway(env.SMART_LINK_EGRESS_URL),
+  ),
+  smartLinkPreview: createSmartLinkPreviewGateway(env.SMART_LINK_EGRESS_URL),
   accountSessionAccess,
   accountPreferences,
   accountPreferencesCompatibility,
@@ -96,10 +120,14 @@ const app = createApp({
   customFields,
   customFieldMutationContracts,
   dailyFocus,
+  favorites,
+  returnToWork,
   documentMutationContracts,
   documents,
+  documentTransfers,
   smartCollections,
   technicalDiagrams,
+  universalSearch,
   focusPeriod,
   desktopApiWindow: {
     currentContract: env.CANTIARA_DESKTOP_API_CURRENT_CONTRACT,
@@ -120,7 +148,11 @@ const app = createApp({
   prioritizationSessions,
   projectShell,
   projectShellMutationContracts,
+  projectGoals,
   projectSourceRecords,
+  sourcesAndFreshness,
+  researchSessions,
+  recordTable,
   recordActions,
   roadmapHorizon,
   tags,

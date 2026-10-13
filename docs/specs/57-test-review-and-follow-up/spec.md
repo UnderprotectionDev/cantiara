@@ -1,7 +1,5 @@
 # Test İnceleme ve Takip
 
-Kaynak: [`docs/workflow/57-test-review-and-follow-up/phase-context.md`](../../workflow/57-test-review-and-follow-up/phase-context.md)
-
 ## Problem Statement
 
 Kurucu ürün dışında koşulmuş testlerin incelemesini, düzeltmesini ve takipini Test Oturumu ile Oturum Testi üzerinde ayrı ayrı yönetmek ister. Bugün rapor kabulü tarihsel bildirimi kaydeder ama inceleme hükmü, düzeltme/geri çekme/redaksiyon olayı, yerine-geçme, çelişki ve Özellik/Proje Sürümü özeti yoktur. Yeni olay geçmiş sonucu siler gibi görünür; oturumu kapatmak alt maddeleri örtük bitirir; çelişki son yazanı kazandırır; özet coverage veya yayın kapısı gibi okunur. Test Açığı, Test değerlendirmesi ve rapor kabulü bu sorunun parçası değildir.

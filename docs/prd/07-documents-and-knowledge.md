@@ -58,13 +58,49 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 ### Belge kapsamı, taşıma ve kopyalama
 
+Bu paketin İngilizce UI metinleri:
+
+| UI metni | Anlam |
+| --- | --- |
+| `Move Document`, `Copy Document`, `Export Document` | Tek Belge işleminin önizleme penceresi. |
+| `Target scope` | Kullanıcının açıkça seçtiği etkin Proje veya `Personal Wiki`; kopya kaynak kapsamını kendiliğinden devralmaz. |
+| `Child Documents` | Taşınacak çocukların tek tek seçildiği alan; seçilmeyen grafik taşınmaz. |
+| `File Attachments`, `Assign File Attachments` | Aynı Projenin Dosya Eklerini bir Belgeye açıkça sahiplik bağlama; başka Belgenin eki sessizce devralınmaz. |
+| `Format`, `Download` | Önizlenen tarihli statik çıktının biçimi ve indirme eylemi. |
+| `Cancel External Surface` | Taşıma öncesinde açık yüzey iptali; tarihsel kapsam ve snapshot zinciri korunur. |
+
+Dosya Eki sahipliği `File Attachments` düğmesinin açtığı `Assign File Attachments` penceresinde `Preview` ve `Apply` ile onaylanır. Yükleme ve Proje kapsamlı Dosya Eki kaydı mevcut ek yüzeyine aittir; bu seçim yeni bir global dosya havuzu oluşturmaz.
+
 - **Her Belge tam olarak bir ana kapsamda yaşar:** bir Proje veya Kişisel Wiki. `Taşı` yalnız kaynak Proje etkin durumdayken başlatılabilir. Kullanıcı kök Belgeyi, açıkça seçtiği çocuk Belgeleri ve yalnız bu kaynakların sahip olduğu Dosya Eklerini aynı iç kimlik, sürüm geçmişi ve arşiv durumuyla hedef kapsama taşır. Seçilmeyen çocuklar, başka kapsamın sahip olduğu ekler ve ilişki grafiğindeki diğer kayıtlar sürüklenmez; ilişkiler korunabiliyorsa kapsamlar arası ilişki olarak kalır, aksi durumda etki önizlemesinde çözüm ister.
 
 - **İşlemden önce hedef kapsam, seçimin tamamı, görünürlük, çözülemeyecek referanslar ve dış yayın etkisi gösterilir.** Etkin bir Dış yüzeyi bulunan Belge taşınmadan önce yüzey açıkça iptal edilmelidir. İptal edilen eski yüzey ve revizyon zinciri özgün kapsamda tarihsel kalır; hedef kapsamda paylaşım/yayın yeni Dış yüzey, URL, token ve revizyon zinciri oluşturur. Taşıma hiçbir içeriği kendiliğinden herkese açık yapmaz.
 
 - **`Kopyala` ayrı ve açık bir eylemdir.** Yeni iç kimliğe sahip bağımsız bir belge üretir, kaynak belgeyi köken olarak kaydeder ve başlangıç içeriğini kopyalama anındaki seçili sürümden alır. Sonraki düzenlemeler iki belge arasında eşzamanlanmaz; sürüm geçmişi, ilişkiler, geri bağlantılar, paylaşım/yayın durumu ve proje kapsamı yeni belgeye kopyalanmaz.
 
+Taşıma ve kopyalama arayüzü aynı Belge kimliği sözleşmesini kullanır:
+
+| Terim | English UI label |
+| --- | --- |
+| Belgeyi taşı | `Move` |
+| Bağımsız Belge kopyası oluştur | `Copy` |
+| Hedef kapsam | `Target scope` |
+| Açıkça seçilebilen çocuk Belgeler | `Child Documents` |
+| Kopyanın kaynak kökeni | `Copy origin` |
+| Çözümlenebilir kayıt referansı | `Available` |
+| Kırık veya erişilemez kayıt referansı | `Unavailable` |
+| Etkiyi önizle | `Preview` |
+| Önizlenen işlemi uygula | `Apply` |
+| Yazmadan iptal et | `Cancel` |
+
 ### Belge şablonları
+
+Şablon kaydetme yüzeyinin İngilizce UI metinleri:
+
+| UI metni | Anlam |
+| --- | --- |
+| `Personal Review copy` | Hazır şablon düzenlenirken kullanıcıya ait kopyanın değiştirilebilir başlangıç adı; hazır `Personal Review` değişmez. |
+| `Saving…` | Kaydetme sürerken devre dışı onay düğmesinin metni. |
+| `Document Template saved. Existing Documents are unchanged.` | Başarılı şablon kaydı sonrası erişilebilir onay; mevcut Belgelerin değişmediğini açıklar. |
 
 - **Kullanıcı proje veya Kişisel Wiki kapsamında sıfırdan yeniden kullanılabilir belge şablonu oluşturabilir ya da mevcut belge üzerinde açık `Şablona dönüştür` eylemini başlatabilir.** Dönüşüm önizlemesi şablona alınacak içerik iskeletini ve basit metin yer tutucularını gösterir; kaynak belgeyi taşımaz, arşivlemez veya değiştirmez. Yer tutucular şablondan belge oluşturulurken kullanıcıdan değer ister, ancak özel alan, form şeması, formül veya canlı bağlantı oluşturmaz.
 
@@ -94,6 +130,22 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 - **Belge PDF çıktısının erişilebilirlik sınırı ortak export sözleşmesini izler.** Etiketli PDF/WCAG garantisi, kullanıcıya gösterilecek uyarı ve erişilebilir Markdown alternatifi yalnız [standart dışa aktarma sözleşmesinde](13-data-security-and-portability.md#standart-biçimlerde-seçili-kayıt-dışa-aktarma) tanımlanır.
 
 ### Belge sürüm geçmişi
+
+Çatışma ve bağlantı kurtarma arayüzünün English UI etiketleri:
+
+| Terim | English UI label |
+| --- | --- |
+| Çakışma Taslağı | `Conflict Draft` |
+| Güncel sürümle karşılaştır | `Compare` |
+| Seçilen parçaları uygula | `Apply parts` |
+| Bağımsız Belge oluştur | `Create Document` |
+| Taslağı sil | `Delete` |
+| Yeni Belge oluşturmayı iptal et | `Cancel` |
+| Tamponu kopyala | `Copy` |
+| Tamponu indir | `Download` |
+| Bağlantı kesildi | `Offline` |
+| Son başarılı kayıt | `Last successful save` |
+| Kaynak Belgeyi aç | `Open source record` |
 
 - **Kullanıcı bir Belgenin önceki sürümlerini karşılaştırabilir ve seçtiği sürümü geri yükleyebilir.** Sürüm geçmişi veritabanı içindeki uygulama değişikliklerine dayanır; harici editör senkronizasyonu veya eşzamanlı ortak düzenleme sunmaz.
 
@@ -200,7 +252,16 @@ Bu belge Markdown Belgesi, belge sürümü, metnin belge sürümüne sabitlenmes
 
 ### Kişisel Wiki
 
+Wiki Belge düzenleyicisinin İngilizce UI metinleri:
+
+| UI metni | Anlam |
+| --- | --- |
+| `A newer Document version is available.` | Başka bir yerde daha yeni sürüm kaydedildiğinde yerel taslağı koruyan uyarı. |
+| `Reload latest version` | Yerel taslağı açıkça en yeni Belge sürümüyle değiştiren eylem. |
+
 - **Kişisel Wiki, herhangi bir projeye ait olmak zorunda olmayan kontrol listeleri, geliştirme kalıpları, yaklaşımlar, hata çözümleri, araştırmalar ve kalıcı öğrenimler için tam bir belge alanıdır.** Proje belgeleriyle aynı editörü, ana belge modelini, sürüm geçmişini, referans ve geri bağlantıları, belge hiyerarşisini, klasörleri, şablonları, arşivi, aramayı ve dışa aktarma davranışını kullanır; ikinci bir belge türü veya ayrı doğruluk kaynağı oluşturmaz.
+
+- **Wiki Belgesi düzenleyicisi açıkken başka bir yerde daha yeni sürüm kaydedilirse, yerel başlık, tür ve gövde taslağı korunur; `A newer Document version is available.` uyarısı gösterilir ve `Save` devre dışı kalır.** Kullanıcı `Reload latest version` eylemini seçtiğinde yerel taslak açıkça en yeni sürümle değiştirilir.
 
 - **Wiki kişisel erişim kabuğunda birinci sınıf hedef olarak bulunur ve proje seçmeden belge oluşturmayı destekler.** Çalışma alanı genelindeki `Tüm Belgeler` dizini ve Evrensel Arama kapsam rozetleriyle proje belgeleri ile Wiki belgelerini birlikte bulabilir; geçici görünüm bunları aynı yere aitmiş gibi göstermez.
 

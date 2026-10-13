@@ -97,13 +97,13 @@ describe("Focus Period RPC", () => {
     await expect(
       client.decideFocusPeriodLeftovers({
         periodId: "period-1",
-        workIds: ["work-1", "work-2"],
+        workIds: ["work-1"],
         destination: "Backlog",
       }),
     ).resolves.toEqual({ status: true });
     expect(focusPeriod.decide).toHaveBeenCalledExactlyOnceWith("founder", {
       periodId: "period-1",
-      workIds: ["work-1", "work-2"],
+      workIds: ["work-1"],
       destination: "Backlog",
     });
   });
@@ -141,7 +141,7 @@ describe("Focus Period RPC", () => {
     await expect(
       authenticated.client.decideFocusPeriodLeftovers({
         periodId: "period-1",
-        workIds: [],
+        workIds: ["work-1", "work-2"],
         destination: "Backlog",
       }),
     ).rejects.toThrow();

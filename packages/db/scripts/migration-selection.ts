@@ -19,6 +19,20 @@ const compatibilityRepairTags = {
   "--repair-prioritization-schema": "0054_repair_prioritization_schema",
 } as const;
 
+export function assertMigrationArgs(args: readonly string[]) {
+  const supported = new Set([
+    "--",
+    "--security-events",
+    "--deployment",
+    ...Object.keys(compatibilityRepairTags),
+  ]);
+  if (args.some((argument) => !supported.has(argument))) {
+    throw new Error(
+      "Invalid migration arguments; use the canonical migration commands and supported repair flags",
+    );
+  }
+}
+
 export function migrationRepairTagFromArgs(args: readonly string[]) {
   const selectedTags = Object.entries(compatibilityRepairTags)
     .filter(([flag]) => args.includes(flag))

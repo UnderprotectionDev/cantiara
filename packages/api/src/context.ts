@@ -1,6 +1,5 @@
 import type { createAuth } from "@cantiara/auth";
 import type { Database } from "@cantiara/db";
-
 import type {
   AccountPreferences,
   AccountPreferencesAccess,
@@ -18,8 +17,10 @@ import type {
   CustomFieldsAccess,
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
+import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
+import type { FavoritesAccess } from "./favorites";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
@@ -32,6 +33,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "./priority-metrics";
+import type { ProjectGoalsAccess } from "./project-goals";
 import type {
   ProjectShellAccess,
   ProjectShellMutationContracts,
@@ -39,12 +41,22 @@ import type {
 import type { ProjectSourceRecordsAccess } from "./project-source-records";
 import type { RecordActionsAccess } from "./record-actions";
 import type {
+  RecordTableAccess,
+  UniversalSearchAccess,
+} from "./record-discovery";
+import type {
   RelationsAccess,
   UsageLinkMutationContracts,
   UsageLinksAccess,
 } from "./relations";
+import type { ResearchSessionsAccess } from "./research-sessions";
+import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
 import type { SmartCollectionsAccess } from "./smart-collections";
+import type { SmartLinkPreviewAccess } from "./smart-link-preview";
+import type { SourceEvidenceAccess } from "./source-evidence";
+import type { SourceRecheckAccess } from "./source-recheck";
+import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { WebCaptureAccess } from "./web-capture";
@@ -156,6 +168,8 @@ export interface Context {
   desktopApiContract?: string;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
+  documentTransfers?: DocumentTransfersAccess;
+  favorites?: FavoritesAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
@@ -166,19 +180,28 @@ export interface Context {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
   recordActions?: RecordActionsAccess;
+  recordTable?: RecordTableAccess;
   relations?: RelationsAccess;
+  researchSessions?: ResearchSessionsAccess;
+  returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;
   smartCollections?: SmartCollectionsAccess;
+  smartLinkPreview?: SmartLinkPreviewAccess;
+  sourceEvidence?: SourceEvidenceAccess;
+  sourceRecheck?: SourceRecheckAccess;
+  sourcesAndFreshness?: SourcesAndFreshnessAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
+  universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
   webCapture?: WebCaptureAccess;

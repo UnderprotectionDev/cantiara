@@ -15,6 +15,7 @@ import {
   decision,
   decisionRelations,
   document,
+  favoriteMembership,
   fileAttachment,
   fileAttachmentMarking,
   fileAttachmentMarkingRelations,
@@ -25,6 +26,9 @@ import {
   productionIncident,
   productionIncidentRelations,
   project,
+  projectGoal,
+  projectGoalRelations,
+  projectLastVisit,
   projectMilestone,
   projectMilestoneRelations,
   projectRelations,
@@ -45,6 +49,7 @@ import {
   workDraft,
   workKeyAllocation,
   workKeyAllocationRelations,
+  workLastVisit,
   workRelation,
   workRelationRelations,
   workRelations,
@@ -63,6 +68,8 @@ import {
   customFieldDefinition,
   customFieldValue,
 } from "./schema/custom-fields";
+import { evidenceBinding, recordOrigin } from "./schema/evidence";
+import { feedback } from "./schema/feedback";
 import {
   mutationHistory,
   mutationReceipt,
@@ -81,7 +88,19 @@ import {
   priorityMetricDefinition,
   workPriorityMetricValue,
 } from "./schema/priority-metrics";
+import {
+  researchSession,
+  researchSessionBindingPreview,
+} from "./schema/research-session";
 import { roadmapView } from "./schema/roadmap-horizon";
+import {
+  smartCollection,
+  smartCollectionAttentionSignal,
+  smartCollectionSubscription,
+  smartCollectionSubscriptionMembership,
+  smartCollectionView,
+} from "./schema/smart-collection";
+import { source, sourceVersion } from "./schema/source";
 import {
   workspaceTag,
   workspaceTagAssignment,
@@ -94,6 +113,8 @@ import {
 } from "./schema/work-external-handoff";
 
 const schema = {
+  source,
+  sourceVersion,
   account,
   accountPreferences,
   accountPreferencesRelations,
@@ -102,6 +123,11 @@ const schema = {
   completionEffectPreferences,
   projectBacklogOrder,
   roadmapView,
+  researchSession,
+  researchSessionBindingPreview,
+  evidenceBinding,
+  recordOrigin,
+  feedback,
   fileAttachment,
   fileAttachmentMarking,
   fileAttachmentMarkingRelations,
@@ -115,6 +141,7 @@ const schema = {
   captureExtensionLink,
   captureExtensionPairingCode,
   dailyFocusMembership,
+  favoriteMembership,
   decision,
   decisionRelations,
   document,
@@ -129,18 +156,27 @@ const schema = {
   mutationStaging,
   mutationTarget,
   project,
+  projectGoal,
+  projectGoalRelations,
   projectMilestone,
   projectMilestoneRelations,
   projectRelease,
   projectReleaseRelations,
   projectRelations,
   projectShortCode,
+  projectLastVisit,
+  workLastVisit,
   projectShortCodeRelations,
   priorityMetricDefinition,
   personalReminder,
   personalReminderAttentionSignal,
   prioritizationSession,
   prioritizationSessionWork,
+  smartCollection,
+  smartCollectionView,
+  smartCollectionSubscription,
+  smartCollectionSubscriptionMembership,
+  smartCollectionAttentionSignal,
   productionIncident,
   productionIncidentRelations,
   rateLimit,

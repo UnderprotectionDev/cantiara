@@ -69,30 +69,14 @@ export function ProjectAreaAvailability({
 
   return (
     <div className="flex flex-wrap justify-end gap-1">
-      {pinned ? (
-        <>
-          <Button
-            aria-label={`Move ${area} up`}
-            disabled={disabled || pinnedIndex <= 0}
-            onClick={() => onReorder(area, -1)}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            ↑
-          </Button>
-          <Button
-            aria-label={`Move ${area} down`}
-            disabled={disabled || pinnedIndex >= pinnedCount - 1}
-            onClick={() => onReorder(area, 1)}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            ↓
-          </Button>
-        </>
-      ) : null}
+      <ProjectAreaOrderControls
+        area={area}
+        disabled={disabled}
+        onReorder={onReorder}
+        pinned={pinned}
+        pinnedCount={pinnedCount}
+        pinnedIndex={pinnedIndex}
+      />
       <Button
         aria-label={`${hidden ? "Show" : "Hide"} ${area}`}
         disabled={disabled}
@@ -148,4 +132,55 @@ function EnableProjectAreaButton({
       Enable
     </Button>
   );
+}
+
+function ProjectAreaOrderControls({
+  pinned,
+  area,
+  disabled,
+  pinnedIndex,
+  onReorder,
+  pinnedCount,
+}: {
+  pinned: boolean;
+  area:
+    | "Work"
+    | "Documents"
+    | "Discovery"
+    | "Decisions"
+    | "Design"
+    | "Technical Diagrams"
+    | "Tests"
+    | "Releases"
+    | "Production"
+    | "GitHub";
+  disabled: boolean;
+  pinnedIndex: number;
+  onReorder: (area: ProjectArea, direction: -1 | 1) => void;
+  pinnedCount: number;
+}) {
+  return pinned ? (
+    <>
+      <Button
+        aria-label={`Move ${area} up`}
+        disabled={disabled || pinnedIndex <= 0}
+        onClick={() => onReorder(area, -1)}
+        size="xs"
+        type="button"
+        variant="ghost"
+      >
+        ↑
+      </Button>
+      <Button
+        aria-label={`Move ${area} down`}
+        disabled={disabled || pinnedIndex >= pinnedCount - 1}
+        onClick={() => onReorder(area, 1)}
+        size="xs"
+        type="button"
+        variant="ghost"
+      >
+        ↓
+      </Button>
+    </>
+  ) : null;
 }
