@@ -98,6 +98,6 @@ export async function createEvidenceRecord(
       return;
     }
     default:
-      return;
+      throw new Error("Unsupported evidence record type.");
   }
 }
