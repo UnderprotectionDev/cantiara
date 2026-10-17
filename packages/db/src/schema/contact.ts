@@ -13,6 +13,7 @@ import {
 
 import { workspace } from "./auth";
 import { document } from "./document";
+import { feedback } from "./feedback";
 
 export const workspaceCompany = pgTable(
   "workspace_company",
@@ -167,5 +168,90 @@ export const workspaceContactPersona = pgTable(
       table.documentId,
     ),
     index("workspace_contact_persona_document_idx").on(table.documentId),
+  ],
+);
+
+/**
+ * Contact–Feedback link. Feedback capture (47) decides how links are
+ * created; merge only moves them onto the survivor.
+ */
+export const workspaceContactFeedback = pgTable(
+  "workspace_contact_feedback",
+  {
+    contactId: text("contact_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    feedbackId: text("feedback_id")
+      .notNull()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.contactId, table.workspaceId],
+      foreignColumns: [workspaceContact.id, workspaceContact.workspaceId],
+      name: "workspace_contact_feedback_contact_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("workspace_contact_feedback_contact_feedback_uidx").on(
+      table.contactId,
+      table.feedbackId,
+    ),
+    index("workspace_contact_feedback_feedback_idx").on(table.feedbackId),
+  ],
+);
+
+/**
+ * A merged Contact no longer remains a live row. Its immutable id stays here
+ * as a contentless redirect to the survivor: no name, email or Company. It is
+ * not a Contact, so it is never listed, searched or reused as a new key.
+ */
+export const workspaceContactRetiredIdentity = pgTable(
+  "workspace_contact_retired_identity",
+  {
+    id: text("id").primaryKey(),
+    mergeId: text("merge_id").notNull(),
+    retiredAt: timestamp("retired_at").defaultNow().notNull(),
+    survivingContactId: text("surviving_contact_id").notNull(),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.survivingContactId, table.workspaceId],
+      foreignColumns: [workspaceContact.id, workspaceContact.workspaceId],
+      name: "workspace_contact_retired_survivor_fk",
+    }).onDelete("cascade"),
+    index("workspace_contact_retired_survivor_idx").on(
+      table.survivingContactId,
+    ),
+  ],
+);
+
+/**
+ * Denetim kaydı for identity changes. It holds opaque Contact ids and the
+ * actor account id only, never an email address or a display name.
+ */
+export const workspaceContactAuditEvent = pgTable(
+  "workspace_contact_audit_event",
+  {
+    actorAccountId: text("actor_account_id").notNull(),
+    eventType: text("event_type").notNull(),
+    id: text("id").primaryKey(),
+    mergeId: text("merge_id").notNull(),
+    occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+    retiredContactId: text("retired_contact_id").notNull(),
+    survivingContactId: text("surviving_contact_id").notNull(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("workspace_contact_audit_workspace_idx").on(
+      table.workspaceId,
+      table.occurredAt,
+    ),
+    check(
+      "workspace_contact_audit_event_type_check",
+      sql`${table.eventType} in ('contact.merged')`,
+    ),
   ],
 );

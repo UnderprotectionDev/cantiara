@@ -16,8 +16,12 @@ import { describe, expect, test } from "vitest";
 import { orpc } from "@/utils/orpc";
 
 import ContactsView from "./contacts-view";
+import MergePreviewPanel from "./merge-preview-panel";
 
-const mergePattern = /merge/i;
+function noop() {
+  // Presentational test: the handlers are never called.
+}
+
 const timestamp = "2026-09-20T09:00:00.000Z";
 
 const company: Company = {
@@ -119,7 +123,7 @@ describe("Contact and Company surface", () => {
     expect(html).toContain("No duplicate candidates.");
   });
 
-  test("shows strong and weak Duplicate candidates without a merge action", () => {
+  test("shows strong and weak Duplicate candidates and offers Merge Contacts only for the strong one", () => {
     const other: Contact = { ...contact, id: "contact-2" };
     const html = renderView(
       [contact, other],
@@ -141,7 +145,49 @@ describe("Contact and Company surface", () => {
     expect(html).toContain("Duplicate candidates");
     expect(html).toContain("Strong copy candidate");
     expect(html).toContain("Weak suggestion");
-    expect(html).not.toMatch(mergePattern);
+    expect(html.match(/Merge Contacts/g)).toHaveLength(1);
+    expect(html).not.toContain("Confirm Merge");
+  });
+
+  test("shows the Merge Preview with conflicts and moved links before confirming", () => {
+    const retired: Contact = {
+      ...contact,
+      displayName: "Ada L.",
+      emails: ["ada@work.example"],
+      id: "contact-2",
+    };
+    const html = renderToStaticMarkup(
+      <MergePreviewPanel
+        onCancel={noop}
+        onConfirm={noop}
+        pending={false}
+        preview={{
+          addedEmails: ["ada@work.example"],
+          companyOutcome: "Keep survivor",
+          feedbackIds: ["feedback-1", "feedback-2"],
+          fieldConflicts: [
+            {
+              field: "Display name",
+              retiredValue: "Ada L.",
+              survivorValue: "Ada Lovelace",
+            },
+          ],
+          personaDocuments: withPersona.personaDocuments,
+          retired,
+          survivor: contact,
+        }}
+      />,
+    );
+
+    expect(html).toContain("Merge Preview");
+    expect(html).toContain("Surviving Contact");
+    expect(html).toContain("Display name: keeps Ada Lovelace, drops Ada L.");
+    expect(html).toContain("ada@work.example");
+    expect(html).toContain("Maker Mia");
+    expect(html).toContain("Confirm Merge");
+    for (const label of ["Kanıt", "Evidence role", "Priority"]) {
+      expect(html).not.toContain(label);
+    }
   });
 
   test("offers no CRM fields or Persona assignment", () => {

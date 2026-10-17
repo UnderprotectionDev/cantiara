@@ -1,5 +1,6 @@
 import {
   type Contact,
+  type ContactMergeInputs,
   type ContactStore,
   type ContactsAccess,
   contactIdentityInputSchema,
@@ -7,6 +8,11 @@ import {
   createCompanyInputSchema,
   createContactInputSchema,
   type DuplicateCandidate,
+  linkContactFeedbackInputSchema,
+  type MergeFieldConflict,
+  type MergePreview,
+  mergeContactsInputSchema,
+  mergePreviewInputSchema,
   setContactCompanyInputSchema,
   updateContactInputSchema,
 } from "@cantiara/api/contacts";
@@ -35,6 +41,15 @@ export class CompanyNotFoundError extends Error {
   constructor(companyId: string) {
     super(`Company ${companyId} was not found.`);
     this.name = "CompanyNotFoundError";
+  }
+}
+
+export class ContactFeedbackNotFoundError extends Error {
+  readonly code = "CONTACT_FEEDBACK_NOT_FOUND" as const;
+
+  constructor(feedbackId: string) {
+    super(`Feedback ${feedbackId} was not found.`);
+    this.name = "ContactFeedbackNotFoundError";
   }
 }
 
@@ -147,6 +162,69 @@ export function findDuplicateCandidates(
   return candidates;
 }
 
+function describeContactCompany(contact: Contact) {
+  return contact.company?.name ?? "";
+}
+
+/**
+ * Read-only: what `mergeContacts` will do with the survivor and the retired
+ * copy. The survivor's own values win; the retired copy only fills what the
+ * survivor leaves empty and adds its aliases, Feedback and Persona links.
+ */
+export function buildMergePreview({
+  retired,
+  retiredFeedbackIds,
+  survivor,
+  survivorFeedbackIds,
+}: ContactMergeInputs): MergePreview {
+  const fieldConflicts: MergeFieldConflict[] = [];
+  if (
+    survivor.displayName !== null &&
+    retired.displayName !== null &&
+    survivor.displayName !== retired.displayName
+  ) {
+    fieldConflicts.push({
+      field: "Display name",
+      retiredValue: retired.displayName,
+      survivorValue: survivor.displayName,
+    });
+  }
+  if (
+    survivor.company !== null &&
+    retired.company !== null &&
+    survivor.company.id !== retired.company.id
+  ) {
+    fieldConflicts.push({
+      field: "Company",
+      retiredValue: describeContactCompany(retired),
+      survivorValue: describeContactCompany(survivor),
+    });
+  }
+  let companyOutcome: MergePreview["companyOutcome"] = "None";
+  if (survivor.company) {
+    companyOutcome = "Keep survivor";
+  } else if (retired.company) {
+    companyOutcome = "Adopt retired";
+  }
+  const survivorPersonas = new Set(
+    survivor.personaDocuments.map((persona) => persona.documentId),
+  );
+  const survivorFeedback = new Set(survivorFeedbackIds);
+  return {
+    addedEmails: retired.emails.filter(
+      (email) => !survivor.emails.includes(email),
+    ),
+    companyOutcome,
+    feedbackIds: retiredFeedbackIds.filter((id) => !survivorFeedback.has(id)),
+    fieldConflicts,
+    personaDocuments: retired.personaDocuments.filter(
+      (persona) => !survivorPersonas.has(persona.documentId),
+    ),
+    retired,
+    survivor,
+  };
+}
+
 export function createContacts({
   store,
 }: {
@@ -182,6 +260,35 @@ export function createContacts({
     async listDuplicateCandidates(accountId) {
       return findDuplicateCandidates(
         await store.listContacts(await workspaceIdFor(accountId)),
+      );
+    },
+
+    async linkFeedback(accountId, input) {
+      const parsed = linkContactFeedbackInputSchema.parse(input);
+      return store.linkFeedback(await workspaceIdFor(accountId), parsed);
+    },
+
+    async mergeContacts(accountId, input) {
+      const parsed = mergeContactsInputSchema.parse(input);
+      return store.mergeContacts(
+        await workspaceIdFor(accountId),
+        parsed,
+        accountId,
+      );
+    },
+
+    async previewMerge(accountId, input) {
+      const parsed = mergePreviewInputSchema.parse(input);
+      return buildMergePreview(
+        await store.readMergeInputs(await workspaceIdFor(accountId), parsed),
+      );
+    },
+
+    async resolveContact(accountId, input) {
+      const parsed = contactIdentityInputSchema.parse(input);
+      return store.resolveContact(
+        await workspaceIdFor(accountId),
+        parsed.contactId,
       );
     },
 

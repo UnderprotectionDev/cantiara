@@ -181,6 +181,108 @@ export const duplicateCandidateSchema = z
 
 export type DuplicateCandidate = z.infer<typeof duplicateCandidateSchema>;
 
+/**
+ * `survivorId` is the Contact the founder keeps; `retiredId` is the copy that
+ * ends as a contentless redirect. Nothing is written until `mergeContacts`.
+ */
+export const mergeContactsInputSchema = z
+  .object({
+    expectedRetiredRevision: revisionSchema.optional(),
+    expectedSurvivorRevision: revisionSchema.optional(),
+    retiredId: identifierSchema,
+    survivorId: identifierSchema,
+  })
+  .strict()
+  .refine((input) => input.retiredId !== input.survivorId, {
+    message: "Choose two different Contacts to merge.",
+    path: ["retiredId"],
+  });
+
+export type MergeContactsInput = z.input<typeof mergeContactsInputSchema>;
+export type ParsedMergeContactsInput = z.output<
+  typeof mergeContactsInputSchema
+>;
+
+export const mergePreviewInputSchema = z
+  .object({ retiredId: identifierSchema, survivorId: identifierSchema })
+  .strict()
+  .refine((input) => input.retiredId !== input.survivorId, {
+    message: "Choose two different Contacts to merge.",
+    path: ["retiredId"],
+  });
+
+export type MergePreviewInput = z.input<typeof mergePreviewInputSchema>;
+export type ParsedMergePreviewInput = z.output<typeof mergePreviewInputSchema>;
+
+/** A field both Contacts fill differently; the survivor's value is kept. */
+export const mergeFieldConflictSchema = z
+  .object({
+    field: z.enum(["Display name", "Company"]),
+    retiredValue: z.string(),
+    survivorValue: z.string(),
+  })
+  .strict();
+
+export type MergeFieldConflict = z.infer<typeof mergeFieldConflictSchema>;
+
+/**
+ * Everything `mergeContacts` will rewrite onto the survivor. Kanıt Rolü,
+ * user comments, evidence quality and priority criteria are deliberately not
+ * part of it.
+ */
+export const mergePreviewSchema = z
+  .object({
+    addedEmails: z.array(z.string()),
+    companyOutcome: z.enum(["Keep survivor", "Adopt retired", "None"]),
+    feedbackIds: z.array(identifierSchema),
+    fieldConflicts: z.array(mergeFieldConflictSchema),
+    personaDocuments: z.array(contactPersonaDocumentSchema),
+    retired: contactSchema,
+    survivor: contactSchema,
+  })
+  .strict();
+
+export type MergePreview = z.infer<typeof mergePreviewSchema>;
+
+export const mergeResultSchema = z
+  .object({
+    mergeId: identifierSchema,
+    retiredId: identifierSchema,
+    survivor: contactSchema,
+  })
+  .strict();
+
+export type MergeResult = z.infer<typeof mergeResultSchema>;
+
+/**
+ * A Contact opened by id. A retired id resolves to its survivor with the
+ * origin visible in `redirectedFrom`; the retired id is never a Contact.
+ */
+export const contactResolutionSchema = z
+  .object({
+    contact: contactSchema,
+    feedbackIds: z.array(identifierSchema),
+    redirectedFrom: identifierSchema.nullable(),
+  })
+  .strict();
+
+export type ContactResolution = z.infer<typeof contactResolutionSchema>;
+
+export const linkContactFeedbackInputSchema = z
+  .object({ contactId: identifierSchema, feedbackId: identifierSchema })
+  .strict();
+
+export type LinkContactFeedbackInput = z.input<
+  typeof linkContactFeedbackInputSchema
+>;
+
+export interface ContactMergeInputs {
+  retired: Contact;
+  retiredFeedbackIds: string[];
+  survivor: Contact;
+  survivorFeedbackIds: string[];
+}
+
 export interface ContactStore {
   createCompany: (
     workspaceId: string,
@@ -192,12 +294,29 @@ export interface ContactStore {
   ) => Promise<Contact>;
   findWorkspaceId: (accountId: string) => Promise<string | null>;
   getContact: (workspaceId: string, contactId: string) => Promise<Contact>;
+  linkFeedback: (
+    workspaceId: string,
+    input: z.output<typeof linkContactFeedbackInputSchema>,
+  ) => Promise<string[]>;
   linkPersona: (
     workspaceId: string,
     input: z.output<typeof contactPersonaInputSchema>,
   ) => Promise<Contact>;
   listCompanies: (workspaceId: string) => Promise<Company[]>;
   listContacts: (workspaceId: string) => Promise<Contact[]>;
+  mergeContacts: (
+    workspaceId: string,
+    input: ParsedMergeContactsInput,
+    actorAccountId: string,
+  ) => Promise<MergeResult>;
+  readMergeInputs: (
+    workspaceId: string,
+    input: ParsedMergePreviewInput,
+  ) => Promise<ContactMergeInputs>;
+  resolveContact: (
+    workspaceId: string,
+    contactId: string,
+  ) => Promise<ContactResolution>;
   setCompany: (
     workspaceId: string,
     input: ParsedSetContactCompanyInput,
@@ -225,6 +344,10 @@ export interface ContactsAccess {
     accountId: string,
     input: ContactIdentityInput,
   ) => Promise<Contact>;
+  linkFeedback: (
+    accountId: string,
+    input: LinkContactFeedbackInput,
+  ) => Promise<string[]>;
   linkPersona: (
     accountId: string,
     input: ContactPersonaInput,
@@ -232,6 +355,18 @@ export interface ContactsAccess {
   listCompanies: (accountId: string) => Promise<Company[]>;
   listContacts: (accountId: string) => Promise<Contact[]>;
   listDuplicateCandidates: (accountId: string) => Promise<DuplicateCandidate[]>;
+  mergeContacts: (
+    accountId: string,
+    input: MergeContactsInput,
+  ) => Promise<MergeResult>;
+  previewMerge: (
+    accountId: string,
+    input: MergePreviewInput,
+  ) => Promise<MergePreview>;
+  resolveContact: (
+    accountId: string,
+    input: ContactIdentityInput,
+  ) => Promise<ContactResolution>;
   setCompany: (
     accountId: string,
     input: SetContactCompanyInput,
