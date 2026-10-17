@@ -51,6 +51,7 @@ import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
 } from "../src/features/documents/server/documents-database";
+import { createDatabaseDocumentEvidence } from "../src/features/evidence/server/document-evidence-database";
 import { createDatabaseFavorites } from "../src/features/favorites/server/favorites-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
@@ -324,6 +325,7 @@ const smartLinkPreview = createSmartLinkPreview({
 });
 
 const app = createApp({
+  documentEvidence: createDatabaseDocumentEvidence(database),
   sourcesAndFreshness: createDatabaseSourcesAndFreshness(database),
   smartLinkPreview,
   sourceEvidence: createDatabaseSourceEvidence(database),

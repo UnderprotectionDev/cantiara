@@ -29,6 +29,7 @@ import {
   type DesktopApiCompatibilityWindow,
   evaluateDesktopApiCompatibility,
 } from "@cantiara/api/desktop-api-window";
+import type { DocumentEvidenceAccess } from "@cantiara/api/document-evidence";
 import type {
   DocumentMutationContracts,
   DocumentsAccess,
@@ -169,6 +170,7 @@ export interface AppDependencies {
   desktopApiNow?: () => Date;
   desktopApiWindow?: DesktopApiCompatibilityWindow;
   desktopOrigins: readonly string[];
+  documentEvidence?: DocumentEvidenceAccess;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: import("@cantiara/api/document-transfer").DocumentTransfersAccess;
@@ -1204,6 +1206,7 @@ export function createApp(dependencies: AppDependencies) {
       projectShellMutationContracts: dependencies.projectShellMutationContracts,
       projectGoals: dependencies.projectGoals,
       projectSourceRecords: dependencies.projectSourceRecords,
+      documentEvidence: dependencies.documentEvidence,
       sourceEvidence: dependencies.sourceEvidence,
       sourceRecheck: dependencies.sourceRecheck,
       sourcesAndFreshness: dependencies.sourcesAndFreshness,

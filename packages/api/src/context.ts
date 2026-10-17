@@ -18,6 +18,7 @@ import type {
   CustomFieldsAccess,
 } from "./custom-fields";
 import type { DailyFocusAccess } from "./daily-focus";
+import type { DocumentEvidenceAccess } from "./document-evidence";
 import type { DocumentTransfersAccess } from "./document-transfer";
 import type { DocumentMutationContracts, DocumentsAccess } from "./documents";
 import type { ExternalExecutionHandoffsAccess } from "./external-handoffs";
@@ -168,6 +169,7 @@ export interface Context {
   dailyFocus?: DailyFocusAccess;
   db: Database;
   desktopApiContract?: string;
+  documentEvidence?: DocumentEvidenceAccess;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;

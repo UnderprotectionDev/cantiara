@@ -60,6 +60,7 @@ import {
 import WorkStatusForm from "../../../work-lifecycle/ui/forms/work-status-form";
 import { createDocumentEditSession } from "../../store/document-edit-session";
 import DocumentConflictDrafts from "./document-conflict-drafts";
+import DocumentEvidenceControls from "./document-evidence-controls";
 import DocumentFormattingToolbar from "./document-formatting-toolbar";
 import DocumentInlineTags from "./document-inline-tags";
 import DocumentNavigation from "./document-navigation";
@@ -1112,6 +1113,15 @@ function DocumentEditor({
               </form.Subscribe>
             </TabsContent>
           </Tabs>
+          <form.Subscribe selector={(state) => state.values.body}>
+            {(body) => (
+              <DocumentEvidenceControls
+                canPin={body === savedBody}
+                range={selectedTextRange}
+                record={{ ...record, revision }}
+              />
+            )}
+          </form.Subscribe>
           <DocumentVersionHistory
             form={form}
             record={record}
