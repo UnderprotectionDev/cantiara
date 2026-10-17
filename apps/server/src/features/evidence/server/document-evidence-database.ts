@@ -770,7 +770,17 @@ export function createDatabaseDocumentEvidence(
             false,
           );
           const row = owner ? await binding(executor, input.id, input) : null;
-          if (!row) {
+          if (!(owner && row)) {
+            return null;
+          }
+          // History carries role and interpretation, so it follows the same source access as the target read.
+          const live = await liveSource(
+            executor,
+            accountId,
+            owner.workspaceId,
+            versionPinnedEvidenceSchema.parse(row.pin),
+          );
+          if (live.brokenReason !== null && live.brokenReason !== "Archived") {
             return null;
           }
           const entries = await executor

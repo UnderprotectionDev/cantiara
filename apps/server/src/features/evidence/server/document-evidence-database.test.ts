@@ -394,6 +394,12 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         interpretation: "Private note",
       });
       await db?.delete(document).where(eq(document.id, source.id));
+      expect(
+        await api.documentEvidenceHistory({
+          ...selection,
+          id: bound?.id ?? "",
+        }),
+      ).toBeNull();
       expect((await api.documentEvidenceForTarget(target))?.[0]).toMatchObject({
         pin: null,
         role: null,
