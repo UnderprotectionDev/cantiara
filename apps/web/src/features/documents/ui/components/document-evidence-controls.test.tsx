@@ -7,7 +7,11 @@ import { expect, test } from "vitest";
 
 const noop = () => undefined;
 
-import { EvidencePreview, EvidenceRow } from "./document-evidence-controls";
+import {
+  EvidencePreview,
+  EvidenceRoleHistory,
+  EvidenceRow,
+} from "./document-evidence-controls";
 
 const source = {
   recordType: "Document",
@@ -52,6 +56,7 @@ test("shows Newer version exists without moving the old pin, plus the source and
     revision: 1,
     pin,
     role: "Unspecified",
+    interpretation: null,
     target: {
       type: "Decision",
       recordId: "decision",
@@ -86,6 +91,7 @@ test("does not offer a link or a rebind for an unavailable archived target", () 
         revision: 1,
         pin,
         role: "Unspecified",
+        interpretation: null,
         target: {
           type: "Risk",
           recordId: "risk",
@@ -107,4 +113,55 @@ test("does not offer a link or a rebind for an unavailable archived target", () 
   expect(html).toContain("Permanently deleted");
   expect(html).not.toContain("Open target record");
   expect(html).not.toContain("Rebind to new version");
+});
+
+test("shows Evidence Role and Founder interpretation apart from the source text, with the editor and history", () => {
+  const binding: DocumentEvidenceBinding = {
+    id: "bind",
+    revision: 2,
+    pin,
+    role: "Contradicting",
+    interpretation: "Customers asked for cloud sync",
+    target: {
+      type: "Decision",
+      recordId: "decision",
+      projectId: "project",
+      label: "Keep exports local",
+      brokenReason: null,
+      canOpenSourceRecord: true,
+    },
+    origin: false,
+    newerVersionExists: false,
+    currentRevision: 1,
+    readOnly: false,
+    createdAt: "2026-10-17T09:00:00.000Z",
+    actorId: "account",
+  };
+  const html = renderToStaticMarkup(
+    <EvidenceRow
+      binding={binding}
+      editor={
+        <EvidenceRoleHistory
+          entries={[
+            {
+              revision: 2,
+              previousRole: "Unspecified",
+              previousInterpretation: null,
+              role: "Contradicting",
+              interpretation: "Customers asked for cloud sync",
+              actorId: "account",
+              changedAt: "2026-10-17T10:00:00.000Z",
+            },
+          ]}
+        />
+      }
+      onRebind={noop}
+    />,
+  );
+  expect(html).toContain("Contradicting");
+  expect(html).toContain(
+    "Founder interpretation: Customers asked for cloud sync",
+  );
+  expect(html).toContain("<mark>local</mark>");
+  expect(html).toContain("Unspecified → Contradicting");
 });

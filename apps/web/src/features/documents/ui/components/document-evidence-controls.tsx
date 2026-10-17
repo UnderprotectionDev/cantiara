@@ -2,7 +2,10 @@
 import {
   DOCUMENT_EVIDENCE_TARGET_TYPES,
   type DocumentEvidenceBinding,
+  type DocumentEvidenceHistoryEntry,
   type DocumentEvidencePlan,
+  EVIDENCE_ROLES,
+  type EvidenceRole,
 } from "@cantiara/api/document-evidence";
 import type { Document } from "@cantiara/api/documents";
 import { Button } from "@cantiara/ui/components/button";
@@ -20,8 +23,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
+import { Textarea } from "@cantiara/ui/components/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import {
   projectSourceRecordHash,
   workRecordHref,
@@ -346,11 +350,143 @@ function EvidenceDialog({
   );
 }
 
+/** Role is the founder's own choice on the relation; interpretation is separate from the source text. */
+function EvidenceRoleEditor({
+  binding,
+  record,
+}: {
+  binding: DocumentEvidenceBinding;
+  record: Document;
+}) {
+  const cache = useQueryClient();
+  const [role, setRole] = useState<EvidenceRole>(binding.role);
+  const [interpretation, setInterpretation] = useState(
+    binding.interpretation ?? "",
+  );
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const command = useRef<string | null>(null);
+  const selection = {
+    documentId: record.id,
+    projectId: record.projectId ?? "",
+  };
+  const history = useQuery({
+    ...orpc.documentEvidenceHistory.queryOptions({
+      input: { ...selection, id: binding.id },
+    }),
+    enabled: Boolean(record.projectId),
+  });
+  const dirty =
+    role !== binding.role || interpretation !== (binding.interpretation ?? "");
+
+  async function save() {
+    if (pending || !dirty) {
+      return;
+    }
+    command.current ??= crypto.randomUUID();
+    setPending(true);
+    setError(null);
+    try {
+      await runOnlineOnlyWrite(() =>
+        client.setDocumentEvidenceRole({
+          ...selection,
+          id: binding.id,
+          baseRevision: binding.revision,
+          clientIdempotencyKey: command.current ?? crypto.randomUUID(),
+          role,
+          interpretation,
+        }),
+      );
+      command.current = null;
+      await cache.invalidateQueries({
+        queryKey: orpc.documentEvidenceBindings.key(),
+      });
+      await cache.invalidateQueries({
+        queryKey: orpc.documentEvidenceHistory.key(),
+      });
+    } catch {
+      command.current = null;
+      setError("Evidence Role could not be saved. Reload and try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`evidence-role-${binding.id}`}>Evidence Role</Label>
+      <NativeSelect
+        id={`evidence-role-${binding.id}`}
+        onChange={(event) => {
+          setRole(event.target.value as EvidenceRole);
+          command.current = null;
+        }}
+        value={role}
+      >
+        {EVIDENCE_ROLES.map((value) => (
+          <NativeSelectOption key={value} value={value}>
+            {value}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <Label htmlFor={`evidence-interpretation-${binding.id}`}>
+        Founder interpretation
+      </Label>
+      <Textarea
+        id={`evidence-interpretation-${binding.id}`}
+        maxLength={5000}
+        onChange={(event) => {
+          setInterpretation(event.target.value);
+          command.current = null;
+        }}
+        value={interpretation}
+      />
+      <Button
+        disabled={!dirty || pending}
+        onClick={save}
+        type="button"
+        variant="outline"
+      >
+        Save Evidence Role
+      </Button>
+      {error ? <p role="alert">{error}</p> : null}
+      <EvidenceRoleHistory entries={history.data ?? []} />
+    </div>
+  );
+}
+
+export function EvidenceRoleHistory({
+  entries,
+}: {
+  entries: DocumentEvidenceHistoryEntry[];
+}) {
+  if (!entries.length) {
+    return null;
+  }
+  return (
+    <section aria-label="Evidence Role history">
+      <h5 className="font-medium">Evidence Role history</h5>
+      <ul>
+        {entries.map((entry) => (
+          <li key={entry.revision}>
+            {entry.previousRole} → {entry.role} · {entry.changedAt}
+            {entry.previousInterpretation === entry.interpretation
+              ? null
+              : ` · Previous interpretation: ${entry.previousInterpretation ?? "none"}`}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function EvidenceRow({
   binding,
+  editor,
   onRebind,
 }: {
   binding: DocumentEvidenceBinding;
+  /** Role and Founder interpretation editor; omitted in read-only presentations. */
+  editor?: ReactNode;
   onRebind: (binding: DocumentEvidenceBinding) => void;
 }) {
   const href = targetHref(binding.target);
@@ -366,6 +502,11 @@ export function EvidenceRow({
         Version {binding.pin.source.revision} · Range {binding.pin.start}–
         {binding.pin.end} · {binding.role}
       </p>
+      {binding.interpretation ? (
+        <p className="whitespace-pre-wrap break-words">
+          Founder interpretation: {binding.interpretation}
+        </p>
+      ) : null}
       <p className="whitespace-pre-wrap break-words">
         {binding.pin.before}
         <mark>{binding.pin.excerpt}</mark>
@@ -387,6 +528,7 @@ export function EvidenceRow({
         </p>
       ) : null}
       {href ? <a href={href}>Open target record</a> : null}
+      {editor}
     </li>
   );
 }
@@ -442,7 +584,12 @@ export default function DocumentEvidenceControls({
         {(bindings.data ?? []).map((binding) => (
           <EvidenceRow
             binding={binding}
-            key={binding.id}
+            editor={
+              binding.readOnly ? null : (
+                <EvidenceRoleEditor binding={binding} record={record} />
+              )
+            }
+            key={`${binding.id}:${binding.revision}`}
             onRebind={(value) => {
               // A rebind pins the currently selected saved text; the old pin is never moved.
               if (!enabled) {

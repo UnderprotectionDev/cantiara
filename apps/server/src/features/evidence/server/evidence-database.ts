@@ -1,5 +1,9 @@
 import type { VersionPinnedEvidence } from "@cantiara/api/evidence";
-import { evidenceBinding, recordOrigin } from "@cantiara/db/schema/evidence";
+import {
+  evidenceBinding,
+  evidenceBindingHistory,
+  recordOrigin,
+} from "@cantiara/db/schema/evidence";
 import { and, eq } from "drizzle-orm";
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
@@ -69,4 +73,48 @@ export async function reviewEvidenceBinding(
     )
     .returning();
   return rows[0] ?? null;
+}
+
+/** Sets role and Founder interpretation; the previous values stay in the relation history. */
+export async function updateEvidenceRole(
+  executor: MutationDatabaseExecutor,
+  input: {
+    id: string;
+    expectedRevision: number;
+    role: string;
+    interpretation: string | null;
+    actorId: string;
+    committedAt: Date;
+  },
+) {
+  const [previous] = await executor
+    .select()
+    .from(evidenceBinding)
+    .where(
+      and(
+        eq(evidenceBinding.id, input.id),
+        eq(evidenceBinding.revision, input.expectedRevision),
+      ),
+    );
+  if (!previous) {
+    return null;
+  }
+  const revision = input.expectedRevision + 1;
+  const [row] = await executor
+    .update(evidenceBinding)
+    .set({ role: input.role, interpretation: input.interpretation, revision })
+    .where(eq(evidenceBinding.id, input.id))
+    .returning();
+  await executor.insert(evidenceBindingHistory).values({
+    id: crypto.randomUUID(),
+    evidenceBindingId: input.id,
+    bindingRevision: revision,
+    previousRole: previous.role,
+    previousInterpretation: previous.interpretation,
+    role: input.role,
+    interpretation: input.interpretation,
+    actorId: input.actorId,
+    changedAt: input.committedAt,
+  });
+  return row ?? null;
 }
