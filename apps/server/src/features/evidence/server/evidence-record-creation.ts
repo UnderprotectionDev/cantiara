@@ -61,43 +61,83 @@ export async function createEvidenceRecord(
       if (!newRecord.workType) {
         throw new Error("Choose a Work type.");
       }
-      // Same locked Project/key allocation boundary as Document → Work creation.
-      const number = owner.workCount + 1;
-      const key = `${owner.shortCode}-${number}`;
-      await executor
-        .update(project)
-        .set({
-          workCount: number,
-          revision: owner.revision + 1,
-          updatedAt: input.committedAt,
-        })
-        .where(eq(project.id, owner.id));
-      await executor.insert(workKeyAllocation).values({
-        id: crypto.randomUUID(),
-        projectId: owner.id,
-        clientIdempotencyKey: input.idempotencyKey,
-        key,
-        number,
-        payloadFingerprint: input.payloadFingerprint,
-        shortCode: owner.shortCode,
-        workId: input.recordId,
-        reservedAt: input.committedAt,
-      });
-      await executor.insert(work).values({
-        ...base,
-        key,
-        number,
+      await insertWorkWithKeyAllocation(executor, owner, {
+        committedAt: input.committedAt,
         description: excerpt,
-        type: newRecord.workType,
-        status: "Not Started",
-        originOwnerRecordId: plan.pin.source.recordId,
+        idempotencyKey: input.idempotencyKey,
         originComponentId: plan.pin.source.componentId,
+        originOwnerRecordId: plan.pin.source.recordId,
         originSourceVersion: String(plan.pin.source.revision),
-        originLocation: null,
+        payloadFingerprint: input.payloadFingerprint,
+        title: newRecord.title,
+        type: newRecord.workType,
+        workId: input.recordId,
       });
       return;
     }
     default:
       throw new Error("Unsupported evidence record type.");
   }
+}
+
+/**
+ * The one Work insertion boundary for conversions from another record: the
+ * caller holds the owning Project row lock and passes that locked row. It
+ * allocates the next Project key exactly like Work creation and returns it.
+ */
+export async function insertWorkWithKeyAllocation(
+  executor: MutationDatabaseExecutor,
+  owner: typeof project.$inferSelect,
+  input: {
+    committedAt: Date;
+    description: string | null;
+    idempotencyKey: string;
+    originComponentId?: string | null;
+    originOwnerRecordId?: string | null;
+    originSourceVersion?: string | null;
+    payloadFingerprint: string;
+    title: string;
+    type: string;
+    workId: string;
+  },
+) {
+  const number = owner.workCount + 1;
+  const key = `${owner.shortCode}-${number}`;
+  await executor
+    .update(project)
+    .set({
+      workCount: number,
+      revision: owner.revision + 1,
+      updatedAt: input.committedAt,
+    })
+    .where(eq(project.id, owner.id));
+  await executor.insert(workKeyAllocation).values({
+    id: crypto.randomUUID(),
+    projectId: owner.id,
+    clientIdempotencyKey: input.idempotencyKey,
+    key,
+    number,
+    payloadFingerprint: input.payloadFingerprint,
+    shortCode: owner.shortCode,
+    workId: input.workId,
+    reservedAt: input.committedAt,
+  });
+  await executor.insert(work).values({
+    id: input.workId,
+    projectId: owner.id,
+    title: input.title,
+    createdAt: input.committedAt,
+    updatedAt: input.committedAt,
+    revision: 1,
+    key,
+    number,
+    description: input.description,
+    type: input.type,
+    status: "Not Started",
+    originOwnerRecordId: input.originOwnerRecordId ?? null,
+    originComponentId: input.originComponentId ?? null,
+    originSourceVersion: input.originSourceVersion ?? null,
+    originLocation: null,
+  });
+  return key;
 }
