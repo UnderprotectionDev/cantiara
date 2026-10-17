@@ -10,8 +10,8 @@ import { evidenceBinding, recordOrigin } from "@cantiara/db/schema/evidence";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -199,6 +199,212 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         revision: 2,
         newerVersionExists: false,
         pin: { source: { revision: edited.revision } },
+      });
+    });
+
+    test("sets the Evidence Role as a user choice on the relation, keeps Founder interpretation and history apart, and never derives a verdict", async () => {
+      const api = client();
+      const source = await createDocument("Founders want local exports. Done.");
+      const selection = { documentId: source.id, projectId };
+      const [riskId, secondId] = [crypto.randomUUID(), crypto.randomUUID()];
+      await db?.insert(decision).values([
+        { id: riskId, projectId, title: "Role target A", decision: "A" },
+        { id: secondId, projectId, title: "Role target B", decision: "B" },
+      ]);
+      async function bind(recordId: string) {
+        const plan = await api.previewDocumentEvidence({
+          ...selection,
+          versionRevision: source.revision,
+          start: 0,
+          end: 27,
+          target: { type: "Decision", projectId, recordId },
+        });
+        return await api.confirmDocumentEvidence({
+          ...selection,
+          id: crypto.randomUUID(),
+          baseRevision: 0,
+          clientIdempotencyKey: crypto.randomUUID(),
+          plan,
+        });
+      }
+      const first = await bind(riskId);
+      const second = await bind(secondId);
+      // A bind without a role is allowed and stays Unspecified.
+      expect(first).toMatchObject({
+        role: "Unspecified",
+        interpretation: null,
+      });
+
+      const decisionsBefore = await db?.select().from(decision);
+      const roleInput = {
+        ...selection,
+        id: first?.id ?? "",
+        baseRevision: first?.revision ?? 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        role: "Contradicting" as const,
+        interpretation: "  Customers asked for hosted sync  ",
+      };
+      const set = await api.setDocumentEvidenceRole(roleInput);
+      expect(await api.setDocumentEvidenceRole(roleInput)).toEqual(set);
+      expect(set).toMatchObject({
+        revision: 2,
+        role: "Contradicting",
+        interpretation: "Customers asked for hosted sync",
+        // The pinned source text is untouched by role and interpretation.
+        pin: { excerpt: "Founders want local exports" },
+      });
+      // The role stays on this relation: the other relation and the Source are unchanged.
+      const listed = await api.documentEvidenceBindings(selection);
+      expect(listed?.find((item) => item.id === second?.id)).toMatchObject({
+        role: "Unspecified",
+        interpretation: null,
+      });
+      const [stored] =
+        (await db
+          ?.select({ revision: document.revision, body: document.body })
+          .from(document)
+          .where(eq(document.id, source.id))) ?? [];
+      expect(stored).toEqual({
+        revision: source.revision,
+        body: "Founders want local exports. Done.",
+      });
+      // Contradicting spawns no Decision/Risk/Work state.
+      expect(await db?.select().from(decision)).toEqual(decisionsBefore);
+
+      // Editing keeps the previous values with actor and time.
+      await api.setDocumentEvidenceRole({
+        ...selection,
+        id: first?.id ?? "",
+        baseRevision: 2,
+        clientIdempotencyKey: crypto.randomUUID(),
+        role: "Inconclusive",
+        interpretation: null,
+      });
+      const history = await api.documentEvidenceHistory({
+        ...selection,
+        id: first?.id ?? "",
+      });
+      expect(history).toMatchObject([
+        {
+          revision: 2,
+          previousRole: "Unspecified",
+          previousInterpretation: null,
+          role: "Contradicting",
+          interpretation: "Customers asked for hosted sync",
+          actorId: accountId,
+        },
+        {
+          revision: 3,
+          previousRole: "Contradicting",
+          previousInterpretation: "Customers asked for hosted sync",
+          role: "Inconclusive",
+          interpretation: null,
+          actorId: accountId,
+        },
+      ]);
+
+      // A new Source version does not reinterpret the role.
+      await api.updateDocument({
+        documentId: source.id,
+        body: "Founders now want hosted exports. Done.",
+        baseRevision: source.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+      const [kept] =
+        (await api.documentEvidenceBindings(selection))?.filter(
+          (item) => item.id === first?.id,
+        ) ?? [];
+      expect(kept).toMatchObject({
+        role: "Inconclusive",
+        newerVersionExists: true,
+      });
+      // A stale base revision conflicts instead of overwriting.
+      await expect(
+        api.setDocumentEvidenceRole({
+          ...selection,
+          id: first?.id ?? "",
+          baseRevision: 2,
+          clientIdempotencyKey: crypto.randomUUID(),
+          role: "Supporting",
+          interpretation: null,
+        }),
+      ).rejects.toThrow();
+      // Another Account can neither set nor read the role or history.
+      const other = client(strangerId);
+      expect(
+        await other
+          .setDocumentEvidenceRole({
+            ...selection,
+            id: first?.id ?? "",
+            baseRevision: 3,
+            clientIdempotencyKey: crypto.randomUUID(),
+            role: "Supporting",
+            interpretation: null,
+          })
+          .catch(() => null),
+      ).toBeNull();
+      expect(
+        await other.documentEvidenceHistory({
+          ...selection,
+          id: first?.id ?? "",
+        }),
+      ).toBeNull();
+    });
+
+    test("withholds the role and interpretation of evidence whose source is gone", async () => {
+      const api = client();
+      const source = await createDocument("Founders want local exports. Done.");
+      const selection = { documentId: source.id, projectId };
+      const targetId = crypto.randomUUID();
+      await db?.insert(decision).values({
+        id: targetId,
+        projectId,
+        title: "Withheld target",
+        decision: "W",
+      });
+      const plan = await api.previewDocumentEvidence({
+        ...selection,
+        versionRevision: source.revision,
+        start: 0,
+        end: 27,
+        target: { type: "Decision", projectId, recordId: targetId },
+      });
+      const bound = await api.confirmDocumentEvidence({
+        ...selection,
+        id: crypto.randomUUID(),
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        plan,
+      });
+      await api.setDocumentEvidenceRole({
+        ...selection,
+        id: bound?.id ?? "",
+        baseRevision: 1,
+        clientIdempotencyKey: crypto.randomUUID(),
+        role: "Supporting",
+        interpretation: "Private note",
+      });
+      const target = {
+        type: "Decision" as const,
+        projectId,
+        recordId: targetId,
+      };
+      expect((await api.documentEvidenceForTarget(target))?.[0]).toMatchObject({
+        role: "Supporting",
+        interpretation: "Private note",
+      });
+      await db?.delete(document).where(eq(document.id, source.id));
+      expect(
+        await api.documentEvidenceHistory({
+          ...selection,
+          id: bound?.id ?? "",
+        }),
+      ).toBeNull();
+      expect((await api.documentEvidenceForTarget(target))?.[0]).toMatchObject({
+        pin: null,
+        role: null,
+        interpretation: null,
+        source: { brokenReason: "Permanently deleted" },
       });
     });
 
@@ -451,5 +657,105 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         }),
       ).rejects.toMatchObject({ code: "CONFLICT" });
     });
+
+    test("serializes an Evidence Role write behind a concurrent lifecycle write on the target Project", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const source = await createDocument("Founders want local exports. Done.");
+      const selection = { documentId: source.id, projectId };
+      const lifecycleProjectId = crypto.randomUUID();
+      const targetId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: lifecycleProjectId,
+        workspaceId,
+        name: "Lifecycle target",
+        shortCode: `L${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      await db.insert(decision).values({
+        id: targetId,
+        projectId: lifecycleProjectId,
+        title: "Cross-Project target",
+        decision: "Archive me",
+      });
+      const plan = await api.previewDocumentEvidence({
+        ...selection,
+        versionRevision: source.revision,
+        start: 0,
+        end: 27,
+        target: {
+          type: "Decision",
+          projectId: lifecycleProjectId,
+          recordId: targetId,
+        },
+      });
+      const bound = await api.confirmDocumentEvidence({
+        ...selection,
+        id: crypto.randomUUID(),
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        plan,
+      });
+      const bindingId = bound?.id ?? "";
+
+      // Hold the target Project's row lock in an archive transaction until the role write is queued behind it.
+      let release: () => void = () => undefined;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let markLocked: () => void = () => undefined;
+      const locked = new Promise<void>((resolve) => {
+        markLocked = resolve;
+      });
+      const lifecycle = db.transaction(async (tx) => {
+        await tx
+          .update(project)
+          .set({ archivedAt: new Date() })
+          .where(eq(project.id, lifecycleProjectId));
+        markLocked();
+        await released;
+      });
+      try {
+        await locked;
+        const outcome = api
+          .setDocumentEvidenceRole({
+            ...selection,
+            id: bindingId,
+            baseRevision: bound?.revision ?? 1,
+            clientIdempotencyKey: crypto.randomUUID(),
+            role: "Supporting",
+            interpretation: null,
+          })
+          .then(
+            () => "written",
+            (error: unknown) => error,
+          );
+        // The write must wait on the Project lock rather than read the target before the archive commits.
+        await vi.waitFor(
+          async () => {
+            const waiting = await db?.execute(sql`
+              select count(*)::int as count
+              from pg_stat_activity
+              where datname = current_database() and wait_event_type = 'Lock'
+            `);
+            expect(Number(waiting?.rows[0]?.count)).toBeGreaterThan(0);
+          },
+          { timeout: 3000 },
+        );
+        release();
+        await lifecycle;
+        expect(await outcome).toMatchObject({ code: "CONFLICT" });
+      } finally {
+        release();
+        await lifecycle.catch(() => undefined);
+      }
+      const [stored] = await db
+        .select({ role: evidenceBinding.role })
+        .from(evidenceBinding)
+        .where(eq(evidenceBinding.id, bindingId));
+      expect(stored?.role).toBe("Unspecified");
+    }, 15_000);
   },
 );

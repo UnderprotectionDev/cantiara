@@ -75,9 +75,11 @@ import {
 } from "../decision-supersession";
 import {
   confirmDocumentEvidenceInputSchema,
+  documentEvidenceHistoryInputSchema,
   documentEvidenceTargetSchema,
   documentSelectionSchema,
   previewDocumentEvidenceInputSchema,
+  setDocumentEvidenceRoleInputSchema,
 } from "../document-evidence";
 import {
   createDocumentFromTemplateInputSchema,
@@ -5639,6 +5641,26 @@ export const appRouter = {
       return sourceSaveResult(() =>
         access.confirm(context.session.user.id, input),
       );
+    }),
+  setDocumentEvidenceRole: protectedProcedure
+    .input(setDocumentEvidenceRoleInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.setRole(context.session.user.id, input),
+      );
+    }),
+  documentEvidenceHistory: protectedProcedure
+    .input(documentEvidenceHistoryInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.history(context.session.user.id, input);
     }),
   sourceEvidenceTargets: protectedProcedure
     .input(sourceSelectionSchema)

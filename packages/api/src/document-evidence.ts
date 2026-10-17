@@ -43,6 +43,23 @@ export type DocumentEvidenceNewRecord = z.infer<
   typeof documentEvidenceNewRecordSchema
 >;
 
+/** Closed Evidence Role catalog; `Unspecified` is the empty role and never blocks a bind. */
+export const EVIDENCE_ROLES = [
+  "Supporting",
+  "Contradicting",
+  "Provides context",
+  "Inconclusive",
+  "Unspecified",
+] as const;
+export const evidenceRoleSchema = z.enum(EVIDENCE_ROLES);
+export type EvidenceRole = z.infer<typeof evidenceRoleSchema>;
+export const founderInterpretationSchema = z
+  .string()
+  .trim()
+  .max(5000)
+  .transform((value) => (value.length ? value : null))
+  .nullable();
+
 export const documentSelectionSchema = z
   .object({ documentId: id, projectId: id })
   .strict();
@@ -102,7 +119,8 @@ export const documentEvidenceBindingSchema = z
     id,
     revision: z.number().int().positive(),
     pin: versionPinnedEvidenceSchema,
-    role: z.string(),
+    role: evidenceRoleSchema,
+    interpretation: z.string().nullable(),
     target: z
       .object({
         type: documentEvidenceTargetTypeSchema,
@@ -131,7 +149,9 @@ export const documentEvidenceForTargetSchema = z
   .object({
     id,
     pin: versionPinnedEvidenceSchema.nullable(),
-    role: z.string(),
+    /** Withheld (null) with the interpretation while the source content is inaccessible. */
+    role: evidenceRoleSchema.nullable(),
+    interpretation: z.string().nullable(),
     source: z
       .object({
         documentId: id,
@@ -149,6 +169,57 @@ export type DocumentEvidenceForTarget = z.infer<
   typeof documentEvidenceForTargetSchema
 >;
 
+/** A user choice only: no text inference, no reinterpretation on a new Source version. */
+export const setDocumentEvidenceRoleInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    ...documentSelectionSchema.shape,
+    id,
+    role: evidenceRoleSchema,
+    interpretation: founderInterpretationSchema,
+  })
+  .strict();
+export type SetDocumentEvidenceRoleInput = z.infer<
+  typeof setDocumentEvidenceRoleInputSchema
+>;
+
+export const documentEvidenceHistoryInputSchema = documentSelectionSchema
+  .extend({ id })
+  .strict();
+export type DocumentEvidenceHistoryInput = z.infer<
+  typeof documentEvidenceHistoryInputSchema
+>;
+export const documentEvidenceHistoryEntrySchema = z
+  .object({
+    revision: z.number().int().positive(),
+    previousRole: evidenceRoleSchema,
+    previousInterpretation: z.string().nullable(),
+    role: evidenceRoleSchema,
+    interpretation: z.string().nullable(),
+    actorId: id,
+    changedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+export type DocumentEvidenceHistoryEntry = z.infer<
+  typeof documentEvidenceHistoryEntrySchema
+>;
+
+export interface EvidenceRoleGroup<Item> {
+  /** The exact accessible relation set the count opens. */
+  items: Item[];
+  role: EvidenceRole;
+}
+
+/** Groups by the stored role in catalog order; no score, majority or suggested decision. */
+export function groupEvidenceByRole<Item extends { role: EvidenceRole | null }>(
+  items: Item[],
+): { groups: EvidenceRoleGroup<Item>[]; withheld: number } {
+  const groups = EVIDENCE_ROLES.map((role) => ({
+    role,
+    items: items.filter((item) => item.role === role),
+  })).filter((group) => group.items.length > 0);
+  return { groups, withheld: items.filter((item) => !item.role).length };
+}
+
 export const documentEvidenceTargetOptionSchema =
   documentEvidenceTargetSchema.extend({ title: id });
 export type DocumentEvidenceTargetOption = z.infer<
@@ -164,6 +235,10 @@ export interface DocumentEvidenceAccess {
     accountId: string,
     input: DocumentEvidenceTarget,
   ) => Promise<DocumentEvidenceForTarget[] | null>;
+  history: (
+    accountId: string,
+    input: DocumentEvidenceHistoryInput,
+  ) => Promise<DocumentEvidenceHistoryEntry[] | null>;
   list: (
     accountId: string,
     input: DocumentSelection,
@@ -172,6 +247,10 @@ export interface DocumentEvidenceAccess {
     accountId: string,
     input: PreviewDocumentEvidenceInput,
   ) => Promise<DocumentEvidencePlan | null>;
+  setRole: (
+    accountId: string,
+    input: SetDocumentEvidenceRoleInput,
+  ) => Promise<DocumentEvidenceBinding | null>;
   targets: (
     accountId: string,
     input: DocumentSelection,

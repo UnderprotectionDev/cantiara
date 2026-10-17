@@ -35,6 +35,8 @@ export const evidenceBinding = pgTable(
     reviewedAt: timestamp("reviewed_at"),
     reviewedBy: text("reviewed_by"),
     role: text("role").default("Unspecified").notNull(),
+    // Founder interpretation is separate from role and from the pinned source text.
+    interpretation: text("interpretation"),
     actorId: text("actor_id").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -62,3 +64,27 @@ export const recordOrigin = pgTable("record_origin", {
   targetRecordId: text("target_record_id").notNull(),
   location: jsonb("location").notNull(),
 });
+
+/** Each role or Founder interpretation change keeps the previous values with actor and time. */
+export const evidenceBindingHistory = pgTable(
+  "evidence_binding_history",
+  {
+    id: text("id").primaryKey(),
+    evidenceBindingId: text("evidence_binding_id")
+      .notNull()
+      .references(() => evidenceBinding.id, { onDelete: "cascade" }),
+    bindingRevision: integer("binding_revision").notNull(),
+    previousRole: text("previous_role").notNull(),
+    previousInterpretation: text("previous_interpretation"),
+    role: text("role").notNull(),
+    interpretation: text("interpretation"),
+    actorId: text("actor_id").notNull(),
+    changedAt: timestamp("changed_at").notNull(),
+  },
+  (table) => [
+    index("evidence_binding_history_binding_idx").on(
+      table.evidenceBindingId,
+      table.bindingRevision,
+    ),
+  ],
+);

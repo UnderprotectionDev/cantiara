@@ -8,12 +8,16 @@ import {
   type DocumentEvidenceTarget,
   type DocumentSelection,
   documentEvidenceBindingSchema,
+  documentEvidenceHistoryEntrySchema,
+  documentEvidenceHistoryInputSchema,
   documentEvidencePlanSchema,
   documentEvidenceRecordFields,
   documentEvidenceTargetSchema,
   documentSelectionSchema,
+  evidenceRoleSchema,
   type PreviewDocumentEvidenceInput,
   previewDocumentEvidenceInputSchema,
+  setDocumentEvidenceRoleInputSchema,
 } from "@cantiara/api/document-evidence";
 import { documentSchema } from "@cantiara/api/documents";
 import {
@@ -29,7 +33,11 @@ import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
-import { evidenceBinding, recordOrigin } from "@cantiara/db/schema/evidence";
+import {
+  evidenceBinding,
+  evidenceBindingHistory,
+  recordOrigin,
+} from "@cantiara/db/schema/evidence";
 import { mutationHistory } from "@cantiara/db/schema/mutation";
 import { openQuestion } from "@cantiara/db/schema/open-question";
 import { project } from "@cantiara/db/schema/project";
@@ -48,6 +56,7 @@ import {
 import { rethrowSourceError } from "../../sources-and-freshness/server/sources-database";
 import {
   reviewEvidenceBinding,
+  updateEvidenceRole,
   writeEvidenceBinding,
 } from "./evidence-database";
 import { createEvidenceRecord } from "./evidence-record-creation";
@@ -193,6 +202,25 @@ async function ownedEnds(
   };
 }
 
+/** Role writes lock the source and target Projects in canonical id order, then the target record, before lifecycle is read. */
+async function lockRoleEnds(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  id: string,
+  selection: DocumentSelection,
+) {
+  const row = await binding(executor, id, selection);
+  const target = row ? targetOf(row) : null;
+  if (!target) {
+    return;
+  }
+  const projectIds = [...new Set([selection.projectId, target.projectId])];
+  for (const projectId of projectIds.sort()) {
+    await evidenceProject(executor, accountId, projectId, true);
+  }
+  await evidenceTarget(executor, target, true);
+}
+
 const targetTables = {
   Work: work,
   Decision: decision,
@@ -292,6 +320,7 @@ async function view(
     revision: row.revision,
     pin,
     role: row.role,
+    interpretation: row.interpretation,
     target: {
       type: row.targetRecordType,
       recordId: row.targetRecordId,
@@ -535,7 +564,9 @@ function targetEvidence(
   return {
     id: row.id,
     pin: readable ? pin : null,
-    role: row.role,
+    // Role and interpretation never leak past inaccessible source content.
+    role: readable ? evidenceRoleSchema.parse(row.role) : null,
+    interpretation: readable ? row.interpretation : null,
     source: {
       documentId: pin.source.recordId,
       projectId: source ? pin.source.projectId : null,
@@ -620,7 +651,181 @@ export function createDatabaseDocumentEvidence(
     };
   }
 
+  /** Role edits write only the relation, never the Source, and need a writable source and target. */
+  function roleAdapter(
+    accountId: string,
+    selection: DocumentSelection,
+  ): MutationDatabaseTargetAdapter<Value> {
+    async function current(
+      executor: MutationDatabaseExecutor,
+      id: string,
+      lock: boolean,
+    ) {
+      const owner = await evidenceProject(
+        executor,
+        accountId,
+        selection.projectId,
+        lock,
+      );
+      if (!owner) {
+        return null;
+      }
+      const [source] = await executor
+        .select({
+          revision: document.revision,
+          archivedAt: document.archivedAt,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.id, selection.documentId),
+            eq(document.projectId, selection.projectId),
+          ),
+        );
+      const row = source ? await binding(executor, id, selection) : null;
+      if (!(source && row)) {
+        return null;
+      }
+      const item = await view(
+        executor,
+        accountId,
+        row,
+        source.revision,
+        source.archivedAt !== null || owner.archivedAt !== null,
+      );
+      return item ? { item, row } : null;
+    }
+    return {
+      async find(executor, id, lock) {
+        if (lock) {
+          await lockRoleEnds(executor, accountId, id, selection);
+        }
+        const found = await current(executor, id, lock);
+        return found
+          ? {
+              id,
+              revision: found.row.revision,
+              value: { binding: found.item },
+            }
+          : null;
+      },
+      async update(executor, input) {
+        await lockRoleEnds(executor, accountId, input.targetId, selection);
+        const found = await current(executor, input.targetId, true);
+        if (!found || found.item.readOnly) {
+          throw new MutationConflictError(input.targetId);
+        }
+        const next = input.nextValue.binding;
+        const row = next
+          ? await updateEvidenceRole(executor, {
+              id: input.targetId,
+              expectedRevision: input.expectedRevision,
+              role: next.role,
+              interpretation: next.interpretation,
+              actorId: accountId,
+              committedAt: input.committedAt,
+            })
+          : null;
+        if (!row) {
+          throw new MutationConflictError(input.targetId);
+        }
+        return {
+          id: input.targetId,
+          revision: row.revision,
+          value: input.nextValue,
+        };
+      },
+    };
+  }
+
   return {
+    async setRole(accountId, raw) {
+      const input = setDocumentEvidenceRoleInputSchema.parse(raw);
+      const mutation = createDatabaseMutationContract<Value>(database, {
+        target: roleAdapter(accountId, {
+          documentId: input.documentId,
+          projectId: input.projectId,
+        }),
+      });
+      try {
+        const receipt = await mutation.mutate(
+          {
+            kind: "human",
+            actor: { type: "User", actorId: accountId },
+            targetId: input.id,
+            baseRevision: input.baseRevision,
+            clientIdempotencyKey: input.clientIdempotencyKey,
+            payload: {
+              operation: "setDocumentEvidenceRole",
+              ...input,
+            } as MutationPayload,
+          },
+          ({ currentValue }) => {
+            if (!currentValue.binding) {
+              throw new MutationConflictError(input.id);
+            }
+            return {
+              binding: documentEvidenceBindingSchema.parse({
+                ...currentValue.binding,
+                revision: input.baseRevision + 1,
+                role: input.role,
+                interpretation: input.interpretation,
+              }),
+            };
+          },
+        );
+        return receipt.nextValue.binding;
+      } catch (error) {
+        if (error instanceof MutationTargetNotFoundError) {
+          return null;
+        }
+        return rethrowSourceError(error, input.id);
+      }
+    },
+    history(accountId, raw) {
+      const input = documentEvidenceHistoryInputSchema.parse(raw);
+      return database.transaction(
+        async (executor) => {
+          const owner = await evidenceProject(
+            executor,
+            accountId,
+            input.projectId,
+            false,
+          );
+          const row = owner ? await binding(executor, input.id, input) : null;
+          if (!(owner && row)) {
+            return null;
+          }
+          // History carries role and interpretation, so it follows the same source access as the target read.
+          const live = await liveSource(
+            executor,
+            accountId,
+            owner.workspaceId,
+            versionPinnedEvidenceSchema.parse(row.pin),
+          );
+          if (live.brokenReason !== null && live.brokenReason !== "Archived") {
+            return null;
+          }
+          const entries = await executor
+            .select()
+            .from(evidenceBindingHistory)
+            .where(eq(evidenceBindingHistory.evidenceBindingId, input.id))
+            .orderBy(asc(evidenceBindingHistory.bindingRevision));
+          return entries.map((entry) =>
+            documentEvidenceHistoryEntrySchema.parse({
+              revision: entry.bindingRevision,
+              previousRole: entry.previousRole,
+              previousInterpretation: entry.previousInterpretation,
+              role: entry.role,
+              interpretation: entry.interpretation,
+              actorId: entry.actorId,
+              changedAt: entry.changedAt.toISOString(),
+            }),
+          );
+        },
+        { isolationLevel: "repeatable read", accessMode: "read only" },
+      );
+    },
     targets(accountId, raw) {
       const selection = documentSelectionSchema.parse(raw);
       return database.transaction(
@@ -716,6 +921,7 @@ export function createDatabaseDocumentEvidence(
                 revision: input.baseRevision + 1,
                 pin: plan.pin,
                 role: currentValue.binding?.role ?? "Unspecified",
+                interpretation: currentValue.binding?.interpretation ?? null,
                 target: {
                   type,
                   recordId,
