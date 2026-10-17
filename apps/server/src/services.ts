@@ -38,6 +38,7 @@ import {
   completionEffectsPreferencesMutationTarget,
   createDatabaseCompletionEffectsPreferences,
 } from "./features/completion-effects/server/completion-effects-database";
+import { createDatabaseContacts } from "./features/contacts/server/contacts-database";
 import { createDatabaseCustomFields } from "./features/custom-fields/server/custom-fields-database";
 import {
   createDatabaseCustomFieldFinalizationWriter,
@@ -223,6 +224,7 @@ export const tagMutationContracts = createDatabaseTagMutationContracts(
   db,
   documentTagRename,
 );
+export const contacts = createDatabaseContacts(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

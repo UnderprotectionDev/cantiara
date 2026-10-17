@@ -11,6 +11,7 @@ import type {
   CompletionEffectsPreferences,
   CompletionEffectsPreferencesAccess,
 } from "@cantiara/api/completion-effects";
+import type { ContactsAccess } from "@cantiara/api/contacts";
 import type {
   AccountAccessClient,
   AccountPreferencesCompatibilityAccess,
@@ -100,6 +101,7 @@ export interface CreateContextOptions {
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
+  contacts?: ContactsAccess;
   context: HonoContext;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
@@ -206,6 +208,7 @@ export async function createContext({
   recordActions,
   workspaceOverview,
   tags,
+  contacts,
   relations,
   tagMutationContracts,
   trustedProxyIps,
@@ -282,6 +285,7 @@ export async function createContext({
     recordActions,
     workspaceOverview,
     tags,
+    contacts,
     relations,
     auth: null,
     session,

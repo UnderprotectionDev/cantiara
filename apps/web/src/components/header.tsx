@@ -58,6 +58,7 @@ export default function Header() {
               <ShellNavLink to="/focus-periods">Focus Period</ShellNavLink>
               <ShellNavLink to="/calendar">Calendar</ShellNavLink>
               <ShellNavLink to="/capture">Capture Inbox</ShellNavLink>
+              <ShellNavLink to="/contacts">Contact</ShellNavLink>
             </nav>
           </div>
           <div className="ml-auto flex min-w-0 items-center justify-end gap-1 sm:gap-1.5">
@@ -96,6 +97,7 @@ function ShellNavLink({
   to:
     | "/calendar"
     | "/capture"
+    | "/contacts"
     | "/daily-focus"
     | "/focus-periods"
     | "/personal-wiki"
