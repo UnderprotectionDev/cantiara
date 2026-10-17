@@ -319,6 +319,80 @@ test("keeps Workspace tag identity in Document prose across dictionary rename", 
   ).toHaveAttribute("data-tag-id", tagId ?? "");
 });
 
+test("shows a renamed Workspace tag in a Document opened before its list refresh arrives", async ({
+  context,
+  page,
+  request,
+}) => {
+  const response = await request.get(
+    `${serverUrl}/__e2e/setup?fixture=documents`,
+  );
+  expect(response.ok()).toBe(true);
+  const setup = await response.json();
+  await context.addCookies([setup.cookie]);
+  await page.goto(`/projects/${setup.projectId}#tags`);
+  await page.getByLabel("Name", { exact: true }).fill("release/test");
+  await page.getByRole("button", { name: "Create tag" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Tag to rename" }),
+  ).toContainText("release/test");
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  const surface = page.getByRole("region", { name: "Documents", exact: true });
+  await surface
+    .getByRole("button", { name: "Create Document", exact: true })
+    .click();
+  const create = page.getByRole("dialog", { name: "Create Document" });
+  await create.getByLabel("Title").fill("Tagged release notes");
+  await create.getByRole("button", { name: "Create Document" }).click();
+  const editor = page.getByRole("region", { name: "Document", exact: true });
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await editor
+    .getByRole("textbox", { name: "Markdown source" })
+    .fill("#release/test #unknown `#release/test`");
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  const token = editor.getByRole("button", {
+    name: "#release/test",
+    exact: true,
+  });
+  await expect(token).toBeVisible();
+  const tagId = await token.getAttribute("data-tag-id");
+  expect(tagId).toBeTruthy();
+  await page.getByRole("link", { name: "Tags", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Tag to rename" })
+    .selectOption({ label: "release/test" });
+  await page.getByLabel("New name").fill("Release planning");
+  await page.getByRole("button", { name: "Rename Tag" }).click();
+  await expect(page.getByText("Tag renamed.")).toBeVisible();
+
+  // Hold the Documents list refresh so the editor opens from the cached
+  // revision and receives the renamed revision while it is already mounted.
+  let releaseDocumentsList: () => void = () => undefined;
+  const documentsListReleased = new Promise<void>((resolve) => {
+    releaseDocumentsList = () => resolve();
+  });
+  await page.route("**/rpc/documents", async (route) => {
+    await documentsListReleased;
+    await route.continue();
+  });
+  await page.getByRole("link", { name: "Documents", exact: true }).click();
+  await surface
+    .getByRole("navigation", { name: "Documents" })
+    .getByRole("button", { name: "Tagged release notes", exact: true })
+    .click();
+  await editor.getByRole("tab", { name: "Markdown", exact: true }).click();
+  await expect(
+    editor.getByRole("textbox", { name: "Markdown source" }),
+  ).toHaveValue("#release/test #unknown `#release/test`");
+  releaseDocumentsList();
+  await expect(
+    editor.getByRole("textbox", { name: "Markdown source" }),
+  ).toHaveValue("#[Release planning] #unknown `#release/test`");
+  await expect(
+    editor.getByRole("button", { name: "#Release planning", exact: true }),
+  ).toHaveAttribute("data-tag-id", tagId ?? "");
+});
+
 test("creates and edits a database-backed Document while preserving technical Markdown source", async ({
   context,
   page,
