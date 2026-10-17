@@ -12,6 +12,7 @@ import type {
   CompletionEffectsPreferences,
   CompletionEffectsPreferencesAccess,
 } from "./completion-effects";
+import type { ContactsAccess } from "./contacts";
 import type {
   CustomFieldMutationContracts,
   CustomFieldsAccess,
@@ -162,6 +163,7 @@ export interface Context {
   clientPlatform?: AccountAccessClient;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
+  contacts?: ContactsAccess;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
   dailyFocus?: DailyFocusAccess;

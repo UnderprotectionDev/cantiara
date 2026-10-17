@@ -72,6 +72,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | E-posta | `Email` | Contact'ta isteğe bağlı e-posta takma değeri |
 | Yok | `None` | Contact'ın güncel Company bağının olmaması |
 | Contact yok | `No Contacts yet.` | Henüz Contact açılmamış boş durum |
+| Geçmiş Company'ler | `Past Companies` | Contact profilinde `Belongs to Company` değişikliğinde korunan kapanmış Company bağları |
+| Adsız Contact | `Unnamed Contact` | Görünen adı ve e-postası olmayan Contact'ın liste etiketi |
+| Contact kaydet | `Save Contact` | Contact görünen adını düzenleyen ve yeni e-posta takma değeri ekleyen eylem |
 | Ekran | `Screen` | Proje kapsamında bağımsız kimlik, geçmiş, ilişki ve yaşam döngüsü taşıyan ana kayıt; görsel tasarım olmadan yalnız başlıkla var olabilir |
 | Ekran oluştur | `Create Screen` | Yalnız başlıkla Proje kapsamında Ekran açma |
 | Ekran yok | `No Screens yet.` | Henüz Ekran açılmamış boş durum |

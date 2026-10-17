@@ -33,6 +33,14 @@ import {
   completionEffectsPreferencesSchema,
 } from "../completion-effects";
 import {
+  contactIdentityInputSchema,
+  contactPersonaInputSchema,
+  createCompanyInputSchema,
+  createContactInputSchema,
+  setContactCompanyInputSchema,
+  updateContactInputSchema,
+} from "../contacts";
+import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
   type Context,
 } from "../context";
@@ -935,6 +943,13 @@ function requireCustomFieldMutationContracts(context: Context) {
   return context.customFieldMutationContracts;
 }
 
+function requireContacts(context: Context) {
+  if (!context.contacts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.contacts;
+}
+
 function requireTags(context: Context) {
   if (!context.tags) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -1157,6 +1172,7 @@ function rethrowFileAttachmentError(error: unknown): never {
     case "FILE_ATTACHMENT_TARGET_NOT_FOUND":
     case "FILE_ATTACHMENT_UPLOAD_NOT_FOUND":
       throw new ORPCError("NOT_FOUND", {
+        cause: error,
         data: { code: error.code },
         defined: true,
         message,
@@ -2486,6 +2502,41 @@ function rethrowDocumentMutationError(error: unknown, targetId: string): never {
   }
 
   throw error;
+}
+
+const CONTACT_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  COMPANY_NOT_FOUND: "Company is unavailable.",
+  CONTACT_NOT_FOUND: "Contact is unavailable.",
+  CONTACT_PERSONA_DOCUMENT_NOT_FOUND: "Persona Document is unavailable.",
+  CONTACT_WORKSPACE_NOT_FOUND: "Workspace is unavailable.",
+};
+
+async function runContactOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "CONTACT_REVISION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Contact changed since it was loaded. Reload and try again.",
+      });
+    }
+    const message = CONTACT_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
 }
 
 async function runTagOperation<T>(operation: () => Promise<T>): Promise<T> {
@@ -4305,6 +4356,65 @@ export const appRouter = {
       }
       return project;
     }),
+  contacts: protectedProcedure.handler(({ context }) =>
+    runContactOperation(() =>
+      requireContacts(context).listContacts(context.session.user.id),
+    ),
+  ),
+  contact: protectedProcedure
+    .input(contactIdentityInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).getContact(context.session.user.id, input),
+      ),
+    ),
+  companies: protectedProcedure.handler(({ context }) =>
+    runContactOperation(() =>
+      requireContacts(context).listCompanies(context.session.user.id),
+    ),
+  ),
+  createContact: protectedProcedure
+    .input(createContactInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).createContact(context.session.user.id, input),
+      ),
+    ),
+  createCompany: protectedProcedure
+    .input(createCompanyInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).createCompany(context.session.user.id, input),
+      ),
+    ),
+  setContactCompany: protectedProcedure
+    .input(setContactCompanyInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).setCompany(context.session.user.id, input),
+      ),
+    ),
+  linkContactPersona: protectedProcedure
+    .input(contactPersonaInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).linkPersona(context.session.user.id, input),
+      ),
+    ),
+  unlinkContactPersona: protectedProcedure
+    .input(contactPersonaInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).unlinkPersona(context.session.user.id, input),
+      ),
+    ),
+  updateContact: protectedProcedure
+    .input(updateContactInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).updateContact(context.session.user.id, input),
+      ),
+    ),
   tags: protectedProcedure
     .input(tagsInputSchema)
     .handler(({ context, input }) =>

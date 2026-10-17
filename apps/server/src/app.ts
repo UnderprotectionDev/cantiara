@@ -11,6 +11,7 @@ import type {
   CompletionEffectsPreferences,
   CompletionEffectsPreferencesAccess,
 } from "@cantiara/api/completion-effects";
+import type { ContactsAccess } from "@cantiara/api/contacts";
 import {
   type AccountPreferencesCompatibilityAccess,
   CONFIRM_GITHUB_IDENTITY_HANDOFF_EXCHANGE_PATH,
@@ -160,6 +161,7 @@ export interface AppDependencies {
   captureInbox?: CaptureInboxAccess;
   completionEffectsPreferences?: CompletionEffectsPreferencesAccess;
   completionEffectsPreferencesMutationContract?: MutationContract<CompletionEffectsPreferences>;
+  contacts?: ContactsAccess;
   corsOrigin: string;
   customFieldMutationContracts?: CustomFieldMutationContracts;
   customFields?: CustomFieldsAccess;
@@ -1221,6 +1223,7 @@ export function createApp(dependencies: AppDependencies) {
       recordActions: dependencies.recordActions,
       tagMutationContracts: dependencies.tagMutationContracts,
       tags: dependencies.tags,
+      contacts: dependencies.contacts,
       relations: dependencies.relations,
       trustedProxyIps: dependencies.trustedProxyIps,
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,
