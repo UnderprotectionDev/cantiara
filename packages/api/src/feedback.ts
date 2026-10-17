@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { FeedbackFeedAccess } from "./feedback-feed";
+
 const identifierSchema = z.string().trim().min(1).max(255);
 const revisionSchema = z.number().int().nonnegative().safe();
 const timestampSchema = z.string().datetime({ offset: true });
@@ -144,6 +146,8 @@ export interface FeedbackAccess {
     accountId: string,
     input: CreateFeedbackInput,
   ) => Promise<FeedbackRecord>;
+  /** Read-only Feed over Feedback and long-body Source master records. */
+  feed?: FeedbackFeedAccess["feed"];
   list: (accountId: string, projectId: string) => Promise<FeedbackList>;
   setStatus: (
     accountId: string,

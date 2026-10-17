@@ -83,7 +83,9 @@ export default function ProjectSourcesSurface({
       {records.map((source) => (
         <article
           className="space-y-2 rounded-lg border bg-card p-4"
+          id={`source-record-${source.id}`}
           key={source.id}
+          tabIndex={-1}
         >
           <h3 className="font-medium">{source.version.title}</h3>
           <p className="font-medium text-sm">

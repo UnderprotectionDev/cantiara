@@ -92,9 +92,9 @@ export async function findFeedbackRecord(
     : null;
 }
 
-type FeedbackExecutor = Pick<Database, "insert" | "select" | "update">;
+export type FeedbackExecutor = Pick<Database, "insert" | "select" | "update">;
 
-async function findOwnedProject(
+export async function findOwnedProject(
   executor: FeedbackExecutor,
   accountId: string,
   projectId: string,
@@ -110,7 +110,7 @@ async function findOwnedProject(
   return owned ?? null;
 }
 
-async function toRecords(
+export async function toRecords(
   executor: FeedbackExecutor,
   rows: (typeof feedback.$inferSelect)[],
 ): Promise<FeedbackRecord[]> {

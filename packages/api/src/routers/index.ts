@@ -152,6 +152,7 @@ import {
   feedbackProjectInputSchema,
   setFeedbackStatusInputSchema,
 } from "../feedback";
+import { feedInputSchema } from "../feedback-feed";
 import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
@@ -4455,6 +4456,15 @@ export const appRouter = {
         requireFeedback(context).list(context.session.user.id, input.projectId),
       ),
     ),
+  feedbackFeed: protectedProcedure
+    .input(feedInputSchema)
+    .handler(({ context, input }) => {
+      const { feed } = requireFeedback(context);
+      if (!feed) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return runFeedbackOperation(() => feed(context.session.user.id, input));
+    }),
   createFeedback: protectedProcedure
     .input(createFeedbackInputSchema)
     .handler(({ context, input }) =>

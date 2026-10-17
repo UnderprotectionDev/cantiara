@@ -16,6 +16,9 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
   );
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: options.queryKey });
+    await queryClient.invalidateQueries({
+      queryKey: orpc.feedbackFeed.key(),
+    });
   }
   async function create(draft: FeedbackDraft) {
     await runOnlineOnlyWrite(() =>
