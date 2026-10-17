@@ -1063,6 +1063,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri dönülecek | `Follow up` | Yalnız İş–Geri Bildirim kanıt bağındaki takip niyeti |
 | Geri dönüldü | `Followed up` | Yalnız o kanıt bağındaki takip niyeti |
 | Sonuç doğrulandı | `Outcome verified` | Yalnız o kanıt bağındaki takip niyeti |
+| Takip niyeti alanı | `Follow-up` | İş–Geri Bildirim kanıt bağında `Follow up` / `Followed up` / `Outcome verified` seçen isteğe bağlı alan; boş bırakılabilir |
+| Kanıt niteliğini kaydet | `Save Evidence quality` | İş–Geri Bildirim bağındaki nitelik, rol ve takip niyetini yalnız o bağa yazar |
 | Kanıt olarak bağla | `Bind as evidence to existing record` | Geri Bildirimi mevcut İşe kanıt olarak bağlama; Kanıt Akışı değildir |
 | İletişim (yakalama alanı) | `Contact` | Feedback Capture isteğe bağlı yönlendirici alanı; Contact ana kaydı oluşturmaz |
 | Geri bildirim (yakalama alanı) | `Feedback` | Feedback Capture yönlendirici alanı |

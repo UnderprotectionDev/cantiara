@@ -1,6 +1,10 @@
 // @vitest-environment happy-dom
 
-import type { FeedbackRecord } from "@cantiara/api/feedback";
+import {
+  emptyLinkEvidence,
+  type FeedbackRecord,
+  type FeedbackWorkOrigin,
+} from "@cantiara/api/feedback";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { ConvertToWorkPreview } from "./convert-to-work-dialog";
@@ -26,6 +30,18 @@ const record: FeedbackRecord = {
 const noop = async () => undefined;
 const confirmConvert = () => noop;
 const previewConvert = () => () => Promise.reject(new Error("unused"));
+const saveEvidence = () => noop;
+const FOLLOWED_UP_SELECTED = /<option[^>]*value="Followed up"[^>]*selected/;
+const CONTRADICTING_SELECTED = /<option[^>]*value="Contradicting"[^>]*selected/;
+
+const origin: FeedbackWorkOrigin = {
+  createdAt: "2026-10-02T09:00:00.000Z",
+  evidence: emptyLinkEvidence(),
+  id: "o1",
+  workId: "w1",
+  workKey: "FBK-1",
+  workTitle: "Fix export",
+};
 
 function render(overrides: { readOnly?: boolean; records?: FeedbackRecord[] }) {
   return renderToStaticMarkup(
@@ -36,6 +52,7 @@ function render(overrides: { readOnly?: boolean; records?: FeedbackRecord[] }) {
       onConfirmConvert={confirmConvert}
       onCreate={noop}
       onPreviewConvert={previewConvert}
+      onSaveEvidence={saveEvidence}
       onSetIdentity={noop}
       onSetStatus={noop}
       readOnly={overrides.readOnly ?? false}
@@ -124,15 +141,7 @@ test("several origin-linked Work records are listed as provenance, not a count",
     records: [
       {
         ...record,
-        workOrigins: [
-          {
-            createdAt: "2026-10-02T09:00:00.000Z",
-            id: "o1",
-            workId: "w1",
-            workKey: "FBK-1",
-            workTitle: "Fix export",
-          },
-        ],
+        workOrigins: [origin],
       },
     ],
   });
@@ -174,4 +183,78 @@ test("Convert to Work preview shows one Work, the Target Project, the mapping an
     expect(html).toContain(expected);
   }
   expect(html).not.toContain("AI");
+});
+
+function renderLinked(evidence = emptyLinkEvidence(), readOnly = false) {
+  return render({
+    readOnly,
+    records: [{ ...record, workOrigins: [{ ...origin, evidence }] }],
+  });
+}
+
+test("Evidence quality offers seven separate optional fields, Unknown and the original message stays separate text", () => {
+  const html = renderLinked();
+  for (const label of [
+    "Evidence quality",
+    "Reported problem",
+    "Suggested solution",
+    "Current workaround",
+    "Impact severity",
+    "Usage frequency",
+    "Independence",
+    "Audience fit",
+    "Unknown",
+    "Founder interpretation",
+    "Evidence Role",
+    "Follow-up",
+    "Follow up",
+    "Followed up",
+    "Outcome verified",
+  ]) {
+    expect(html).toContain(label);
+  }
+  expect(html).toContain("Export keeps failing\nfor large files.");
+  // Fields start blank: nothing is extracted from the message.
+  expect(html).not.toContain('value="Export');
+  for (const absent of ["Score", "Weight", "Rank", "Confidence"]) {
+    expect(html).not.toContain(absent);
+  }
+});
+
+test("an interpreted value shows Founder interpretation with author and time", () => {
+  const evidence = emptyLinkEvidence();
+  evidence.quality.impactSeverity = {
+    author: "alias-1",
+    founderInterpretation: true,
+    recordedAt: "2026-10-03T08:00:00.000Z",
+    value: "High",
+  };
+  const html = renderLinked(evidence);
+  expect(html).toContain("Founder interpretation by alias-1");
+  expect(html).toContain("2026-10-03T08:00:00.000Z");
+  expect(html).toContain('value="High"');
+});
+
+test("the role and follow-up are separate controls with the closed labels", () => {
+  const evidence = emptyLinkEvidence();
+  evidence.role = "Contradicting";
+  evidence.followUp = "Followed up";
+  const html = renderLinked(evidence);
+  for (const role of [
+    "Supporting",
+    "Contradicting",
+    "Provides context",
+    "Inconclusive",
+    "Unspecified",
+  ]) {
+    expect(html).toContain(role);
+  }
+  expect(html).toMatch(FOLLOWED_UP_SELECTED);
+  expect(html).toMatch(CONTRADICTING_SELECTED);
+});
+
+test("archived Projects show Evidence quality without a save control", () => {
+  const html = renderLinked(emptyLinkEvidence(), true);
+  expect(html).toContain("Reported problem");
+  expect(html).not.toContain("Save Evidence quality");
 });
