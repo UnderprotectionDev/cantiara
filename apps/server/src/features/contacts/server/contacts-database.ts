@@ -5,8 +5,12 @@ import {
   companySchema,
   contactResolutionSchema,
   contactSchema,
+  type MergeUndoPreview,
   mergeResultSchema,
+  mergeUndoPreviewSchema,
   type ParsedMergeContactsInput,
+  type ParsedUndoMergeInput,
+  undoMergeResultSchema,
 } from "@cantiara/api/contacts";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -17,6 +21,8 @@ import {
   workspaceContactCompanyAffiliation,
   workspaceContactEmail,
   workspaceContactFeedback,
+  workspaceContactMerge,
+  workspaceContactMergeLink,
   workspaceContactPersona,
   workspaceContactRetiredIdentity,
 } from "@cantiara/db/schema/contact";
@@ -30,6 +36,9 @@ import { accountActorAlias } from "../../account-access/server/github-identity-c
 import {
   CompanyNotFoundError,
   ContactFeedbackNotFoundError,
+  ContactMergeNotFoundError,
+  ContactMergeUndoBlockedError,
+  ContactMergeUndoConflictError,
   ContactNotFoundError,
   ContactPersonaDocumentNotFoundError,
   ContactRevisionConflictError,
@@ -244,6 +253,23 @@ async function readFeedbackIds(
   return rows.map((row) => row.feedbackId);
 }
 
+type MergeLinkKind =
+  | "affiliation"
+  | "email"
+  | "feedback"
+  | "persona"
+  | "redirect";
+
+interface MergeLink {
+  attributed: boolean;
+  kind: MergeLinkKind;
+  value: string;
+}
+
+/**
+ * Moves the copy's values onto the survivor and returns what it did, so the
+ * merge can be undone: `attributed` marks what only this merge put there.
+ */
 async function mergeIntoSurvivor(
   executor: ContactExecutor,
   workspaceId: string,
@@ -251,34 +277,55 @@ async function mergeIntoSurvivor(
   retired: typeof workspaceContact.$inferSelect,
   now: Date,
 ) {
-  const [retiredEmails, retiredPersonas, retiredFeedback, survivorCurrent] =
-    await Promise.all([
-      executor
-        .select()
-        .from(workspaceContactEmail)
-        .where(eq(workspaceContactEmail.contactId, retired.id)),
-      executor
-        .select()
-        .from(workspaceContactPersona)
-        .where(eq(workspaceContactPersona.contactId, retired.id)),
-      executor
-        .select()
-        .from(workspaceContactFeedback)
-        .where(eq(workspaceContactFeedback.contactId, retired.id)),
-      executor
-        .select({ id: workspaceContactCompanyAffiliation.id })
-        .from(workspaceContactCompanyAffiliation)
-        .where(
-          and(
-            eq(workspaceContactCompanyAffiliation.contactId, survivor.id),
-            isNull(workspaceContactCompanyAffiliation.endedAt),
-          ),
-        )
-        .limit(1),
-    ]);
+  const [
+    retiredEmails,
+    retiredPersonas,
+    retiredFeedback,
+    retiredAffiliations,
+    survivorCurrent,
+    redirects,
+  ] = await Promise.all([
+    executor
+      .select()
+      .from(workspaceContactEmail)
+      .where(eq(workspaceContactEmail.contactId, retired.id)),
+    executor
+      .select()
+      .from(workspaceContactPersona)
+      .where(eq(workspaceContactPersona.contactId, retired.id)),
+    executor
+      .select()
+      .from(workspaceContactFeedback)
+      .where(eq(workspaceContactFeedback.contactId, retired.id)),
+    executor
+      .select({
+        endedAt: workspaceContactCompanyAffiliation.endedAt,
+        id: workspaceContactCompanyAffiliation.id,
+      })
+      .from(workspaceContactCompanyAffiliation)
+      .where(eq(workspaceContactCompanyAffiliation.contactId, retired.id)),
+    executor
+      .select({ id: workspaceContactCompanyAffiliation.id })
+      .from(workspaceContactCompanyAffiliation)
+      .where(
+        and(
+          eq(workspaceContactCompanyAffiliation.contactId, survivor.id),
+          isNull(workspaceContactCompanyAffiliation.endedAt),
+        ),
+      )
+      .limit(1),
+    executor
+      .select({ id: workspaceContactRetiredIdentity.id })
+      .from(workspaceContactRetiredIdentity)
+      .where(
+        eq(workspaceContactRetiredIdentity.survivingContactId, retired.id),
+      ),
+  ]);
+
+  const links: MergeLink[] = [];
 
   if (retiredEmails.length > 0) {
-    await executor
+    const added = await executor
       .insert(workspaceContactEmail)
       .values(
         retiredEmails.map((email) => ({
@@ -288,10 +335,19 @@ async function mergeIntoSurvivor(
           workspaceId,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ email: workspaceContactEmail.normalizedEmail });
+    const addedEmails = new Set(added.map(({ email }) => email));
+    for (const { normalizedEmail } of retiredEmails) {
+      links.push({
+        attributed: addedEmails.has(normalizedEmail),
+        kind: "email",
+        value: normalizedEmail,
+      });
+    }
   }
   if (retiredPersonas.length > 0) {
-    await executor
+    const added = await executor
       .insert(workspaceContactPersona)
       .values(
         retiredPersonas.map((persona) => ({
@@ -301,10 +357,19 @@ async function mergeIntoSurvivor(
           workspaceId,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ documentId: workspaceContactPersona.documentId });
+    const addedDocuments = new Set(added.map(({ documentId }) => documentId));
+    for (const { documentId } of retiredPersonas) {
+      links.push({
+        attributed: addedDocuments.has(documentId),
+        kind: "persona",
+        value: documentId,
+      });
+    }
   }
   if (retiredFeedback.length > 0) {
-    await executor
+    const added = await executor
       .insert(workspaceContactFeedback)
       .values(
         retiredFeedback.map((link) => ({
@@ -314,11 +379,21 @@ async function mergeIntoSurvivor(
           workspaceId,
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ feedbackId: workspaceContactFeedback.feedbackId });
+    const addedFeedback = new Set(added.map(({ feedbackId }) => feedbackId));
+    for (const { feedbackId } of retiredFeedback) {
+      links.push({
+        attributed: addedFeedback.has(feedbackId),
+        kind: "feedback",
+        value: feedbackId,
+      });
+    }
   }
 
   // The survivor's current Company wins; the copy's affiliation history moves
-  // over, with its open row closed so one current link remains.
+  // over, with its open row closed so one current link remains. The copy's
+  // current row is the attributed one: undo gives it back as current.
   if (survivorCurrent.length > 0) {
     await closeCurrentAffiliation(executor, retired.id, now);
   }
@@ -326,13 +401,26 @@ async function mergeIntoSurvivor(
     .update(workspaceContactCompanyAffiliation)
     .set({ contactId: survivor.id })
     .where(eq(workspaceContactCompanyAffiliation.contactId, retired.id));
+  for (const affiliation of retiredAffiliations) {
+    links.push({
+      attributed: affiliation.endedAt === null,
+      kind: "affiliation",
+      value: affiliation.id,
+    });
+  }
+  for (const redirect of redirects) {
+    links.push({ attributed: true, kind: "redirect", value: redirect.id });
+  }
 
+  let adoptedDisplayName: string | null = null;
   if (survivor.displayName === null && retired.displayName !== null) {
+    adoptedDisplayName = retired.displayName;
     await executor
       .update(workspaceContact)
       .set({ displayName: retired.displayName })
       .where(eq(workspaceContact.id, survivor.id));
   }
+  return { adoptedDisplayName, links };
 }
 
 /**
@@ -439,6 +527,406 @@ async function requirePersonaDocument(
   if (!record) {
     throw new ContactPersonaDocumentNotFoundError(documentId);
   }
+}
+
+interface UndoPlan {
+  conflicts: MergeUndoPreview["conflicts"];
+  links: (typeof workspaceContactMergeLink.$inferSelect)[];
+  merge: typeof workspaceContactMerge.$inferSelect;
+  restorableAffiliationIds: string[];
+  restorableFeedbackIds: string[];
+  restorablePersonaDocuments: MergeUndoPreview["restoredPersonaDocuments"];
+  restoredCompany: string | null;
+  survivor: typeof workspaceContact.$inferSelect;
+  unrestorable: MergeUndoPreview["unrestorable"];
+}
+
+async function findOpenMerge(
+  executor: Pick<Database, "select">,
+  workspaceId: string,
+  retiredId: string,
+) {
+  const [identity] = await executor
+    .select({ mergeId: workspaceContactRetiredIdentity.mergeId })
+    .from(workspaceContactRetiredIdentity)
+    .where(
+      and(
+        eq(workspaceContactRetiredIdentity.id, retiredId),
+        eq(workspaceContactRetiredIdentity.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+  if (!identity) {
+    return null;
+  }
+  const [merge] = await executor
+    .select()
+    .from(workspaceContactMerge)
+    .where(
+      and(
+        eq(workspaceContactMerge.id, identity.mergeId),
+        eq(workspaceContactMerge.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+  return merge ?? null;
+}
+
+/**
+ * Reads what undo can give back and what no longer exists. A link whose
+ * Feedback, Persona Document or Company row is gone (redaction or permanent
+ * delete) is counted as unrestorable rather than silently dropped.
+ */
+async function planUndo(
+  executor: Pick<Database, "select">,
+  workspaceId: string,
+  merge: typeof workspaceContactMerge.$inferSelect,
+  survivor: typeof workspaceContact.$inferSelect,
+): Promise<UndoPlan> {
+  const links = await executor
+    .select()
+    .from(workspaceContactMergeLink)
+    .where(eq(workspaceContactMergeLink.mergeId, merge.id));
+  const valuesOf = (kind: MergeLinkKind) =>
+    links.filter((link) => link.kind === kind).map((link) => link.value);
+  const feedbackIds = valuesOf("feedback");
+  const documentIds = valuesOf("persona");
+  const affiliationIds = valuesOf("affiliation");
+
+  const [feedbackRows, documentRows, affiliationRows] = await Promise.all([
+    feedbackIds.length === 0
+      ? []
+      : executor
+          .select({ id: feedback.id })
+          .from(feedback)
+          .innerJoin(project, eq(project.id, feedback.projectId))
+          .where(
+            and(
+              inArray(feedback.id, feedbackIds),
+              eq(project.workspaceId, workspaceId),
+            ),
+          ),
+    documentIds.length === 0
+      ? []
+      : executor
+          .select({
+            archivedAt: document.archivedAt,
+            id: document.id,
+            projectId: document.projectId,
+            title: document.title,
+          })
+          .from(document)
+          .where(inArray(document.id, documentIds)),
+    affiliationIds.length === 0
+      ? []
+      : executor
+          .select({
+            companyName: workspaceCompany.name,
+            id: workspaceContactCompanyAffiliation.id,
+          })
+          .from(workspaceContactCompanyAffiliation)
+          .innerJoin(
+            workspaceCompany,
+            eq(
+              workspaceCompany.id,
+              workspaceContactCompanyAffiliation.companyId,
+            ),
+          )
+          .where(
+            and(
+              inArray(workspaceContactCompanyAffiliation.id, affiliationIds),
+              eq(workspaceContactCompanyAffiliation.contactId, survivor.id),
+            ),
+          ),
+  ]);
+
+  const restorablePersonaDocuments = documentRows.flatMap((row) =>
+    row.projectId === null
+      ? []
+      : [
+          {
+            archivedAt: row.archivedAt?.toISOString() ?? null,
+            documentId: row.id,
+            projectId: row.projectId,
+            title: row.title,
+          },
+        ],
+  );
+  const attributedAffiliation = new Set(
+    links
+      .filter((link) => link.kind === "affiliation" && link.attributed)
+      .map((link) => link.value),
+  );
+  const currentRow = affiliationRows.find((row) =>
+    attributedAffiliation.has(row.id),
+  );
+  const missing = [
+    ["Feedback link", feedbackIds.length - feedbackRows.length],
+    ["Persona link", documentIds.length - restorablePersonaDocuments.length],
+    ["Company link", affiliationIds.length - affiliationRows.length],
+  ] as const;
+  const adopted = merge.adoptedDisplayName;
+  return {
+    conflicts:
+      adopted !== null && survivor.displayName !== adopted
+        ? [
+            {
+              currentValue: survivor.displayName,
+              field: "Display name",
+              previousValue: null,
+            },
+          ]
+        : [],
+    links,
+    merge,
+    restorableAffiliationIds: affiliationRows.map((row) => row.id),
+    restorableFeedbackIds: feedbackRows.map((row) => row.id),
+    restorablePersonaDocuments,
+    restoredCompany: currentRow?.companyName ?? null,
+    survivor,
+    unrestorable: missing.flatMap(([kind, total]) =>
+      total > 0 ? [{ count: total, kind }] : [],
+    ),
+  };
+}
+
+function toUndoPreview(plan: UndoPlan, survivor: Contact): MergeUndoPreview {
+  return mergeUndoPreviewSchema.parse({
+    conflicts: plan.conflicts,
+    mergeId: plan.merge.id,
+    restoredCompany: plan.restoredCompany,
+    restoredDisplayName: plan.merge.retiredDisplayName,
+    restoredEmails: plan.links
+      .filter((link) => link.kind === "email")
+      .map((link) => link.value),
+    restoredFeedbackIds: plan.restorableFeedbackIds,
+    restoredPersonaDocuments: plan.restorablePersonaDocuments,
+    retiredId: plan.merge.retiredContactId,
+    survivor,
+    unrestorable: plan.unrestorable,
+  });
+}
+
+/** A repeated confirm after undo returns the restored Contact. */
+async function replayUndo(
+  executor: ContactExecutor,
+  workspaceId: string,
+  retiredId: string,
+) {
+  const [merge] = await executor
+    .select()
+    .from(workspaceContactMerge)
+    .where(
+      and(
+        eq(workspaceContactMerge.retiredContactId, retiredId),
+        eq(workspaceContactMerge.workspaceId, workspaceId),
+      ),
+    )
+    .orderBy(desc(workspaceContactMerge.mergedAt))
+    .limit(1);
+  const [live] = await readContacts(executor, workspaceId, [retiredId]);
+  if (!(merge?.undoneAt && live)) {
+    throw new ContactMergeNotFoundError(retiredId);
+  }
+  return undoMergeResultSchema.parse({
+    mergeId: merge.id,
+    restored: live,
+    survivor: await readContact(
+      executor,
+      workspaceId,
+      merge.survivingContactId,
+    ),
+    unrestorable: [],
+  });
+}
+
+async function undoMergeInTransaction(
+  executor: ContactExecutor,
+  workspaceId: string,
+  input: ParsedUndoMergeInput,
+  actorAccountId: string,
+) {
+  const merge = await findOpenMerge(executor, workspaceId, input.retiredId);
+  if (!merge) {
+    return replayUndo(executor, workspaceId, input.retiredId);
+  }
+  const survivor = await findLockedContact(
+    executor,
+    workspaceId,
+    merge.survivingContactId,
+  );
+  if (!survivor) {
+    throw new ContactMergeUndoBlockedError(merge.survivingContactId);
+  }
+  if (
+    input.expectedSurvivorRevision !== undefined &&
+    input.expectedSurvivorRevision !== survivor.revision
+  ) {
+    throw new ContactRevisionConflictError(survivor.id);
+  }
+  const plan = await planUndo(executor, workspaceId, merge, survivor);
+  if (plan.conflicts.length > 0 && !input.resolutions?.displayName) {
+    throw new ContactMergeUndoConflictError(
+      plan.conflicts.map((conflict) => conflict.field),
+    );
+  }
+
+  const retiredId = merge.retiredContactId;
+  const now = new Date();
+  const attributed = (kind: MergeLinkKind) =>
+    plan.links
+      .filter((link) => link.kind === kind && link.attributed)
+      .map((link) => link.value);
+  const all = (kind: MergeLinkKind) =>
+    plan.links.filter((link) => link.kind === kind).map((link) => link.value);
+
+  await executor
+    .delete(workspaceContactRetiredIdentity)
+    .where(eq(workspaceContactRetiredIdentity.id, retiredId));
+  await executor.insert(workspaceContact).values({
+    archivedAt: merge.retiredArchivedAt,
+    createdAt: merge.retiredCreatedAt,
+    displayName: merge.retiredDisplayName,
+    id: retiredId,
+    revision: merge.retiredRevision + 1,
+    updatedAt: now,
+    workspaceId,
+  });
+
+  const emails = all("email");
+  if (emails.length > 0) {
+    await executor.insert(workspaceContactEmail).values(
+      emails.map((normalizedEmail) => ({
+        contactId: retiredId,
+        id: crypto.randomUUID(),
+        normalizedEmail,
+        workspaceId,
+      })),
+    );
+  }
+  const attributedEmails = attributed("email");
+  if (attributedEmails.length > 0) {
+    await executor
+      .delete(workspaceContactEmail)
+      .where(
+        and(
+          eq(workspaceContactEmail.contactId, survivor.id),
+          inArray(workspaceContactEmail.normalizedEmail, attributedEmails),
+        ),
+      );
+  }
+
+  if (plan.restorableFeedbackIds.length > 0) {
+    await executor.insert(workspaceContactFeedback).values(
+      plan.restorableFeedbackIds.map((feedbackId) => ({
+        contactId: retiredId,
+        feedbackId,
+        id: crypto.randomUUID(),
+        workspaceId,
+      })),
+    );
+  }
+  const attributedFeedback = attributed("feedback");
+  if (attributedFeedback.length > 0) {
+    await executor
+      .delete(workspaceContactFeedback)
+      .where(
+        and(
+          eq(workspaceContactFeedback.contactId, survivor.id),
+          inArray(workspaceContactFeedback.feedbackId, attributedFeedback),
+        ),
+      );
+  }
+
+  if (plan.restorablePersonaDocuments.length > 0) {
+    await executor.insert(workspaceContactPersona).values(
+      plan.restorablePersonaDocuments.map((persona) => ({
+        contactId: retiredId,
+        documentId: persona.documentId,
+        id: crypto.randomUUID(),
+        workspaceId,
+      })),
+    );
+  }
+  const attributedPersonas = attributed("persona");
+  if (attributedPersonas.length > 0) {
+    await executor
+      .delete(workspaceContactPersona)
+      .where(
+        and(
+          eq(workspaceContactPersona.contactId, survivor.id),
+          inArray(workspaceContactPersona.documentId, attributedPersonas),
+        ),
+      );
+  }
+
+  // History rows go home; the copy's own current Company is reopened. The
+  // survivor's later Company changes are separate rows and stay.
+  const attributedAffiliations = new Set(attributed("affiliation"));
+  const closedHistory = plan.restorableAffiliationIds.filter(
+    (id) => !attributedAffiliations.has(id),
+  );
+  const current = plan.restorableAffiliationIds.filter((id) =>
+    attributedAffiliations.has(id),
+  );
+  if (closedHistory.length > 0) {
+    await executor
+      .update(workspaceContactCompanyAffiliation)
+      .set({ contactId: retiredId })
+      .where(inArray(workspaceContactCompanyAffiliation.id, closedHistory));
+  }
+  if (current.length > 0) {
+    await executor
+      .update(workspaceContactCompanyAffiliation)
+      .set({ contactId: retiredId, endedAt: null })
+      .where(inArray(workspaceContactCompanyAffiliation.id, current));
+  }
+
+  const redirects = all("redirect");
+  if (redirects.length > 0) {
+    await executor
+      .update(workspaceContactRetiredIdentity)
+      .set({ survivingContactId: retiredId })
+      .where(
+        and(
+          inArray(workspaceContactRetiredIdentity.id, redirects),
+          eq(workspaceContactRetiredIdentity.survivingContactId, survivor.id),
+        ),
+      );
+  }
+
+  const adopted = merge.adoptedDisplayName;
+  if (
+    adopted !== null &&
+    (plan.conflicts.length === 0 ||
+      input.resolutions?.displayName === "Restore previous value")
+  ) {
+    await executor
+      .update(workspaceContact)
+      .set({ displayName: null })
+      .where(eq(workspaceContact.id, survivor.id));
+  }
+  await bumpRevision(executor, survivor, undefined);
+  await executor
+    .update(workspaceContactMerge)
+    .set({ undoneAt: now })
+    .where(eq(workspaceContactMerge.id, merge.id));
+  await executor.insert(workspaceContactAuditEvent).values({
+    actorAlias: await accountActorAlias(actorAccountId),
+    eventType: "contact.merge_undone",
+    id: crypto.randomUUID(),
+    mergeId: merge.id,
+    occurredAt: now,
+    retiredContactId: retiredId,
+    survivingContactId: survivor.id,
+    workspaceId,
+  });
+  return undoMergeResultSchema.parse({
+    mergeId: merge.id,
+    restored: await readContact(executor, workspaceId, retiredId),
+    survivor: await readContact(executor, workspaceId, survivor.id),
+    unrestorable: plan.unrestorable,
+  });
 }
 
 export function createDatabaseContactStore(database: Database): ContactStore {
@@ -559,7 +1047,34 @@ export function createDatabaseContactStore(database: Database): ContactStore {
 
         const now = new Date();
         const mergeId = crypto.randomUUID();
-        await mergeIntoSurvivor(executor, workspaceId, survivor, retired, now);
+        const { adoptedDisplayName, links } = await mergeIntoSurvivor(
+          executor,
+          workspaceId,
+          survivor,
+          retired,
+          now,
+        );
+        await executor.insert(workspaceContactMerge).values({
+          adoptedDisplayName,
+          id: mergeId,
+          mergedAt: now,
+          retiredArchivedAt: retired.archivedAt,
+          retiredContactId: retired.id,
+          retiredCreatedAt: retired.createdAt,
+          retiredDisplayName: retired.displayName,
+          retiredRevision: retired.revision,
+          survivingContactId: survivor.id,
+          workspaceId,
+        });
+        if (links.length > 0) {
+          await executor.insert(workspaceContactMergeLink).values(
+            links.map((link) => ({
+              ...link,
+              id: crypto.randomUUID(),
+              mergeId,
+            })),
+          );
+        }
         // Redirects that already pointed at the copy follow the survivor.
         await executor
           .update(workspaceContactRetiredIdentity)
@@ -594,6 +1109,30 @@ export function createDatabaseContactStore(database: Database): ContactStore {
           survivor: await readContact(executor, workspaceId, survivor.id),
         });
       });
+    },
+
+    async previewMergeUndo(workspaceId, input) {
+      const merge = await findOpenMerge(database, workspaceId, input.retiredId);
+      if (!merge) {
+        throw new ContactMergeNotFoundError(input.retiredId);
+      }
+      const [survivor] = await database
+        .select()
+        .from(workspaceContact)
+        .where(
+          and(
+            eq(workspaceContact.id, merge.survivingContactId),
+            eq(workspaceContact.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      if (!survivor) {
+        throw new ContactMergeUndoBlockedError(merge.survivingContactId);
+      }
+      return toUndoPreview(
+        await planUndo(database, workspaceId, merge, survivor),
+        await readContact(database, workspaceId, survivor.id),
+      );
     },
 
     async readMergeInputs(workspaceId, input) {
@@ -723,6 +1262,12 @@ export function createDatabaseContactStore(database: Database): ContactStore {
         }
         return readContact(executor, workspaceId, contact.id);
       });
+    },
+
+    undoMerge(workspaceId, input, actorAccountId) {
+      return database.transaction((executor) =>
+        undoMergeInTransaction(executor, workspaceId, input, actorAccountId),
+      );
     },
 
     unlinkPersona(workspaceId, input) {

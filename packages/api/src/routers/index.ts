@@ -39,7 +39,9 @@ import {
   createContactInputSchema,
   mergeContactsInputSchema,
   mergePreviewInputSchema,
+  mergeUndoPreviewInputSchema,
   setContactCompanyInputSchema,
+  undoMergeInputSchema,
   updateContactInputSchema,
 } from "../contacts";
 import {
@@ -2512,6 +2514,7 @@ function rethrowDocumentMutationError(error: unknown, targetId: string): never {
 const CONTACT_UNAVAILABLE_MESSAGES: Record<string, string> = {
   COMPANY_NOT_FOUND: "Company is unavailable.",
   CONTACT_FEEDBACK_NOT_FOUND: "Feedback is unavailable.",
+  CONTACT_MERGE_NOT_FOUND: "Merge is unavailable.",
   CONTACT_NOT_FOUND: "Contact is unavailable.",
   CONTACT_PERSONA_DOCUMENT_NOT_FOUND: "Persona Document is unavailable.",
   CONTACT_WORKSPACE_NOT_FOUND: "Workspace is unavailable.",
@@ -2530,6 +2533,20 @@ async function runContactOperation<T>(operation: () => Promise<T>): Promise<T> {
         data: { code: error.code },
         defined: true,
         message: "Contact changed since it was loaded. Reload and try again.",
+      });
+    }
+    if (
+      error.code === "CONTACT_MERGE_UNDO_BLOCKED" ||
+      error.code === "CONTACT_MERGE_UNDO_CONFLICT"
+    ) {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message:
+          error.code === "CONTACT_MERGE_UNDO_BLOCKED"
+            ? "The surviving Contact was merged away. Undo that merge first."
+            : "Undo Merge needs a decision. Review the Undo Merge Preview and try again.",
       });
     }
     const message = CONTACT_UNAVAILABLE_MESSAGES[error.code];
@@ -4386,6 +4403,23 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runContactOperation(() =>
         requireContacts(context).previewMerge(context.session.user.id, input),
+      ),
+    ),
+  contactMergeUndoPreview: protectedProcedure
+    .input(mergeUndoPreviewInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).previewMergeUndo(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  undoMerge: protectedProcedure
+    .input(undoMergeInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).undoMerge(context.session.user.id, input),
       ),
     ),
   mergeContacts: protectedProcedure

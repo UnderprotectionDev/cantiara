@@ -22,6 +22,9 @@ import {
 
 import {
   CompanyNotFoundError,
+  ContactMergeNotFoundError,
+  ContactMergeUndoBlockedError,
+  ContactMergeUndoConflictError,
   ContactNotFoundError,
   ContactPersonaDocumentNotFoundError,
   ContactRevisionConflictError,
@@ -586,5 +589,326 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         survivorId: other.id,
       }),
     ).rejects.toBeInstanceOf(ContactNotFoundError);
+  });
+
+  describe("Merge undo", () => {
+    test("restores the retired identity and splits back only merge-attributed values", async () => {
+      const { access, acme, feedbackId, personaId, retired, survivor } =
+        await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+
+      const result = await access.undoMerge(accountId, {
+        retiredId: retired.id,
+      });
+
+      expect(result.unrestorable).toEqual([]);
+      expect(result.restored).toMatchObject({
+        company: { id: acme.id },
+        displayName: "Ada L.",
+        emails: ["ada@example.com", "ada@work.example"],
+        id: retired.id,
+      });
+      expect(result.restored.personaDocuments.map((p) => p.documentId)).toEqual(
+        [personaId],
+      );
+      expect(result.survivor).toMatchObject({
+        company: null,
+        displayName: "Ada",
+        emails: ["ada@example.com"],
+        personaDocuments: [],
+      });
+      const live = await access.listContacts(accountId);
+      expect(live.map(({ id }) => id).sort()).toEqual(
+        [retired.id, survivor.id].sort(),
+      );
+      const reopened = await access.resolveContact(accountId, {
+        contactId: retired.id,
+      });
+      expect(reopened).toMatchObject({
+        contact: { id: retired.id },
+        feedbackIds: [feedbackId],
+        redirectedFrom: null,
+      });
+      expect(
+        (await access.resolveContact(accountId, { contactId: survivor.id }))
+          .feedbackIds,
+      ).toEqual([]);
+      expect(
+        await requireDatabase()
+          .select()
+          .from(workspaceContactRetiredIdentity)
+          .where(eq(workspaceContactRetiredIdentity.workspaceId, workspaceId)),
+      ).toEqual([]);
+      const events = await requireDatabase()
+        .select()
+        .from(workspaceContactAuditEvent)
+        .where(eq(workspaceContactAuditEvent.workspaceId, workspaceId));
+      expect(events.map((event) => event.eventType).sort()).toEqual([
+        "contact.merge_undone",
+        "contact.merged",
+      ]);
+      expect(JSON.stringify(events)).not.toContain("ada@");
+    });
+
+    test("does not rewind unrelated edits made after the merge", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      await access.updateContact(accountId, {
+        contactId: survivor.id,
+        displayName: "Ada Lovelace",
+        email: "late@example.com",
+      });
+      const lateFeedback = await insertFeedback(projectId, "Late feedback");
+      await access.linkFeedback(accountId, {
+        contactId: survivor.id,
+        feedbackId: lateFeedback,
+      });
+      const lateCompany = await access.createCompany(accountId, {
+        name: "Late Co",
+      });
+      await access.setCompany(accountId, {
+        companyId: lateCompany.id,
+        contactId: survivor.id,
+      });
+
+      const result = await access.undoMerge(accountId, {
+        retiredId: retired.id,
+      });
+
+      expect(result.survivor).toMatchObject({
+        company: { id: lateCompany.id },
+        displayName: "Ada Lovelace",
+        emails: ["ada@example.com", "late@example.com"],
+      });
+      expect(
+        (await access.resolveContact(accountId, { contactId: survivor.id }))
+          .feedbackIds,
+      ).toEqual([lateFeedback]);
+      expect(result.restored.company?.name).toBe("Acme");
+    });
+
+    async function seedAdoptedName() {
+      const access = createDatabaseContacts(requireDatabase());
+      const survivor = await access.createContact(accountId, {});
+      const retired = await access.createContact(accountId, {
+        displayName: "Grace",
+      });
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      return { access, retired, survivor };
+    }
+
+    test("stops for a user decision when the adopted value was edited later", async () => {
+      const { access, retired, survivor } = await seedAdoptedName();
+      await access.updateContact(accountId, {
+        contactId: survivor.id,
+        displayName: "Grace Hopper",
+      });
+
+      const preview = await access.previewMergeUndo(accountId, {
+        retiredId: retired.id,
+      });
+      expect(preview.conflicts).toEqual([
+        {
+          currentValue: "Grace Hopper",
+          field: "Display name",
+          previousValue: null,
+        },
+      ]);
+      await expect(
+        access.undoMerge(accountId, { retiredId: retired.id }),
+      ).rejects.toBeInstanceOf(ContactMergeUndoConflictError);
+      // Nothing was written: the copy is still a redirect.
+      await expect(
+        access.getContact(accountId, { contactId: retired.id }),
+      ).rejects.toBeInstanceOf(ContactNotFoundError);
+
+      const kept = await access.undoMerge(accountId, {
+        resolutions: { displayName: "Keep current value" },
+        retiredId: retired.id,
+      });
+      expect(kept.survivor.displayName).toBe("Grace Hopper");
+      expect(kept.restored.displayName).toBe("Grace");
+    });
+
+    test("restores the previous value when the founder chooses it", async () => {
+      const { access, retired, survivor } = await seedAdoptedName();
+      await access.updateContact(accountId, {
+        contactId: survivor.id,
+        displayName: "Grace Hopper",
+      });
+
+      const result = await access.undoMerge(accountId, {
+        resolutions: { displayName: "Restore previous value" },
+        retiredId: retired.id,
+      });
+
+      expect(result.survivor.displayName).toBeNull();
+      expect(result.restored.displayName).toBe("Grace");
+    });
+
+    test("removes an unedited adopted value without asking", async () => {
+      const { access, retired } = await seedAdoptedName();
+
+      const result = await access.undoMerge(accountId, {
+        retiredId: retired.id,
+      });
+
+      expect(result.survivor.displayName).toBeNull();
+      expect(result.restored.displayName).toBe("Grace");
+    });
+
+    test("states redacted or permanently deleted content as unrestorable instead of a full undo", async () => {
+      const { access, feedbackId, personaId, retired, survivor } =
+        await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      const db = requireDatabase();
+      await db.delete(feedback).where(eq(feedback.id, feedbackId));
+      await db.delete(document).where(eq(document.id, personaId));
+
+      const preview = await access.previewMergeUndo(accountId, {
+        retiredId: retired.id,
+      });
+      expect(preview.unrestorable).toEqual([
+        { count: 1, kind: "Feedback link" },
+        { count: 1, kind: "Persona link" },
+      ]);
+      expect(preview.restoredFeedbackIds).toEqual([]);
+      expect(preview.restoredPersonaDocuments).toEqual([]);
+      expect(preview.restoredEmails).toEqual([
+        "ada@example.com",
+        "ada@work.example",
+      ]);
+
+      const result = await access.undoMerge(accountId, {
+        retiredId: retired.id,
+      });
+      expect(result.unrestorable).toEqual(preview.unrestorable);
+      expect(result.restored.personaDocuments).toEqual([]);
+      expect(result.restored.emails).toHaveLength(2);
+    });
+
+    test("previews without writing and rejects a Contact that was never merged away", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      const before = await access.listContacts(accountId);
+
+      await access.previewMergeUndo(accountId, { retiredId: retired.id });
+
+      expect(await access.listContacts(accountId)).toEqual(before);
+      await expect(
+        access.previewMergeUndo(accountId, { retiredId: survivor.id }),
+      ).rejects.toBeInstanceOf(ContactMergeNotFoundError);
+      await expect(
+        access.undoMerge(accountId, { retiredId: survivor.id }),
+      ).rejects.toBeInstanceOf(ContactMergeNotFoundError);
+    });
+
+    test("undoes chained merges newest first and restores the older redirect", async () => {
+      const access = createDatabaseContacts(requireDatabase());
+      const first = await access.createContact(accountId, {
+        email: "a@x.test",
+      });
+      const second = await access.createContact(accountId, {
+        email: "b@x.test",
+      });
+      const third = await access.createContact(accountId, {
+        email: "c@x.test",
+      });
+      await access.mergeContacts(accountId, {
+        retiredId: first.id,
+        survivorId: second.id,
+      });
+      await access.mergeContacts(accountId, {
+        retiredId: second.id,
+        survivorId: third.id,
+      });
+
+      await expect(
+        access.undoMerge(accountId, { retiredId: first.id }),
+      ).rejects.toBeInstanceOf(ContactMergeUndoBlockedError);
+
+      await access.undoMerge(accountId, { retiredId: second.id });
+      expect(
+        (await access.resolveContact(accountId, { contactId: first.id }))
+          .contact.id,
+      ).toBe(second.id);
+
+      const result = await access.undoMerge(accountId, {
+        retiredId: first.id,
+      });
+      expect(result.restored.emails).toEqual(["a@x.test"]);
+      expect(result.survivor.emails).toEqual(["b@x.test"]);
+    });
+
+    test("returns the restored Contact when undo is confirmed twice", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      const first = await access.undoMerge(accountId, {
+        retiredId: retired.id,
+      });
+
+      const replay = await access.undoMerge(accountId, {
+        retiredId: retired.id,
+      });
+
+      expect(replay.mergeId).toBe(first.mergeId);
+      expect(replay.restored.id).toBe(retired.id);
+      expect(
+        await requireDatabase()
+          .select()
+          .from(workspaceContactAuditEvent)
+          .where(eq(workspaceContactAuditEvent.workspaceId, workspaceId)),
+      ).toHaveLength(2);
+    });
+
+    test("can merge the restored Contact again", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      await access.undoMerge(accountId, { retiredId: retired.id });
+
+      const again = await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+
+      expect(again.survivor.emails).toContain("ada@work.example");
+      expect(
+        (await access.undoMerge(accountId, { retiredId: retired.id })).restored
+          .id,
+      ).toBe(retired.id);
+    });
+
+    test("stays inside the Workspace", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+
+      await expect(
+        access.undoMerge(otherAccountId, { retiredId: retired.id }),
+      ).rejects.toBeInstanceOf(ContactMergeNotFoundError);
+    });
   });
 });

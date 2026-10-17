@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -252,7 +253,63 @@ export const workspaceContactAuditEvent = pgTable(
     ),
     check(
       "workspace_contact_audit_event_type_check",
-      sql`${table.eventType} in ('contact.merged')`,
+      sql`${table.eventType} in ('contact.merged', 'contact.merge_undone')`,
+    ),
+  ],
+);
+
+/**
+ * What one merge took from the retired Contact, kept so the merge can be
+ * undone. The retired identity itself stays contentless; this is merge
+ * history ("kept original records"), not a live Contact.
+ */
+export const workspaceContactMerge = pgTable(
+  "workspace_contact_merge",
+  {
+    adoptedDisplayName: text("adopted_display_name"),
+    id: text("id").primaryKey(),
+    mergedAt: timestamp("merged_at").defaultNow().notNull(),
+    retiredArchivedAt: timestamp("retired_archived_at"),
+    retiredContactId: text("retired_contact_id").notNull(),
+    retiredCreatedAt: timestamp("retired_created_at").notNull(),
+    retiredDisplayName: text("retired_display_name"),
+    retiredRevision: integer("retired_revision").notNull(),
+    survivingContactId: text("surviving_contact_id").notNull(),
+    undoneAt: timestamp("undone_at"),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("workspace_contact_merge_retired_idx").on(
+      table.workspaceId,
+      table.retiredContactId,
+    ),
+  ],
+);
+
+/**
+ * One value or relation of a merge. `attributed` is true when the merge
+ * itself created the survivor's copy (email, feedback, persona), closed the
+ * moved affiliation, or repointed an older redirect; only those are split
+ * back. A link the survivor already had stays on the survivor.
+ */
+export const workspaceContactMergeLink = pgTable(
+  "workspace_contact_merge_link",
+  {
+    attributed: boolean("attributed").notNull(),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    mergeId: text("merge_id")
+      .notNull()
+      .references(() => workspaceContactMerge.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+  },
+  (table) => [
+    index("workspace_contact_merge_link_merge_idx").on(table.mergeId),
+    check(
+      "workspace_contact_merge_link_kind_check",
+      sql`${table.kind} in ('email', 'feedback', 'persona', 'affiliation', 'redirect')`,
     ),
   ],
 );

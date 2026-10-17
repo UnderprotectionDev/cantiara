@@ -15,6 +15,7 @@ import { documentRecordHash } from "@/features/project-shell/lib/project-shell-n
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import MergePreviewPanel, { mergeContactsRequest } from "./merge-preview-panel";
+import MergeUndoPanel, { undoMergeRequest } from "./merge-undo-panel";
 
 const NO_COMPANY = "";
 
@@ -87,6 +88,30 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       setMergePair(null);
       setSelectedId(result.survivor.id);
       await refresh();
+    },
+  });
+  const [undoRetiredId, setUndoRetiredId] = useState<string | null>(null);
+  const undoPreview = useQuery({
+    ...orpc.contactMergeUndoPreview.queryOptions({
+      input: { retiredId: undoRetiredId ?? "" },
+    }),
+    enabled: undoRetiredId !== null,
+    retry: false,
+  });
+  const undoMerge = useMutation({
+    mutationFn: (input: Parameters<typeof client.undoMerge>[0]) =>
+      runOnlineOnlyWrite(() => client.undoMerge(input)),
+    onSuccess: async (result) => {
+      setUndoRetiredId(null);
+      setSelectedId(result.restored.id);
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({
+          queryKey: orpc.resolveContact.queryOptions({
+            input: { contactId: contactId ?? "" },
+          }).queryKey,
+        }),
+      ]);
     },
   });
   const updateContact = useMutation({
@@ -311,6 +336,32 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           preview={mergePreview.data}
         />
       ) : null}
+      {undoRetiredId && undoPreview.data ? (
+        <MergeUndoPanel
+          key={undoPreview.data.mergeId}
+          onCancel={() => setUndoRetiredId(null)}
+          onConfirm={async (resolution) => {
+            setError(null);
+            try {
+              await undoMerge.mutateAsync(
+                undoMergeRequest(undoPreview.data, resolution),
+              );
+            } catch {
+              setError(
+                "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.",
+              );
+              await undoPreview.refetch();
+            }
+          }}
+          pending={undoMerge.isPending}
+          preview={undoPreview.data}
+        />
+      ) : null}
+      {undoRetiredId && undoPreview.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          This merge can no longer be undone from here.
+        </p>
+      ) : null}
       {opened.isError ? (
         <p className="text-destructive text-sm" role="alert">
           Contact is unavailable.
@@ -319,7 +370,14 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       {opened.data?.redirectedFrom &&
       selected?.id === opened.data.contact.id ? (
         <p className="text-muted-foreground text-sm" role="status">
-          Redirected from <code>{opened.data.redirectedFrom}</code>
+          Redirected from <code>{opened.data.redirectedFrom}</code>{" "}
+          <button
+            className="rounded-md border px-2 py-1"
+            onClick={() => setUndoRetiredId(opened.data.redirectedFrom)}
+            type="button"
+          >
+            Undo Merge
+          </button>
         </p>
       ) : null}
       {selected ? (

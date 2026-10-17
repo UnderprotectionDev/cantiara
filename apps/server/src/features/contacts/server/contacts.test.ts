@@ -94,7 +94,9 @@ function createMemoryStore() {
         survivorFeedbackIds: feedbackByContact.get(input.survivorId) ?? [],
       };
     },
+    previewMergeUndo: () => Promise.reject(new Error("Not part of this test.")),
     resolveContact: () => Promise.reject(new Error("Not part of this test.")),
+    undoMerge: () => Promise.reject(new Error("Not part of this test.")),
     listCompanies: async () => {
       await Promise.resolve();
       return [...companies.values()];
@@ -474,7 +476,12 @@ describe("Contact and Company", () => {
       Object.keys(access)
         .filter((key) => mergeKeyPattern.test(key))
         .sort(),
-    ).toEqual(["mergeContacts", "previewMerge"]);
+    ).toEqual([
+      "mergeContacts",
+      "previewMerge",
+      "previewMergeUndo",
+      "undoMerge",
+    ]);
   });
 
   test("previews the survivor, conflicts, aliases, Feedback and Persona links without writing", async () => {
