@@ -20,6 +20,7 @@ const timestamp = "2026-09-20T09:00:00.000Z";
 function createMemoryStore() {
   const contacts = new Map<string, Contact>();
   const companies = new Map<string, Company>();
+  const feedbackByContact = new Map<string, string[]>();
   let sequence = 0;
 
   function contactFor(contactId: string) {
@@ -81,7 +82,19 @@ function createMemoryStore() {
       await Promise.resolve();
       return contactFor(contactId);
     },
+    linkFeedback: () => Promise.reject(new Error("Not part of this test.")),
     linkPersona: () => Promise.reject(new Error("Not part of this test.")),
+    mergeContacts: () => Promise.reject(new Error("Not part of this test.")),
+    readMergeInputs: async (_workspaceId, input) => {
+      await Promise.resolve();
+      return {
+        retired: contactFor(input.retiredId),
+        retiredFeedbackIds: feedbackByContact.get(input.retiredId) ?? [],
+        survivor: contactFor(input.survivorId),
+        survivorFeedbackIds: feedbackByContact.get(input.survivorId) ?? [],
+      };
+    },
+    resolveContact: () => Promise.reject(new Error("Not part of this test.")),
     listCompanies: async () => {
       await Promise.resolve();
       return [...companies.values()];
@@ -139,7 +152,7 @@ function createMemoryStore() {
     unlinkPersona: () => Promise.reject(new Error("Not part of this test.")),
   };
 
-  return store;
+  return Object.assign(store, { feedbackByContact });
 }
 
 describe("Contact and Company", () => {
@@ -454,12 +467,114 @@ describe("Contact and Company", () => {
     ]);
   });
 
-  test("exposes no merge path, including Company-to-Company", () => {
+  test("merges only Contacts, never Companies", () => {
     const access = createContacts({ store: createMemoryStore() });
 
     expect(
-      Object.keys(access).filter((key) => mergeKeyPattern.test(key)),
-    ).toEqual([]);
+      Object.keys(access)
+        .filter((key) => mergeKeyPattern.test(key))
+        .sort(),
+    ).toEqual(["mergeContacts", "previewMerge"]);
+  });
+
+  test("previews the survivor, conflicts, aliases, Feedback and Persona links without writing", async () => {
+    const store = createMemoryStore();
+    const access = createContacts({ store });
+    const acme = await access.createCompany("account-1", { name: "Acme" });
+    const globex = await access.createCompany("account-1", { name: "Globex" });
+    const survivor = await access.createContact("account-1", {
+      companyId: acme.id,
+      displayName: "Ada",
+      email: "ada@example.com",
+    });
+    const retired = await access.createContact("account-1", {
+      companyId: globex.id,
+      displayName: "Ada L.",
+      email: "ada@work.example",
+    });
+    store.feedbackByContact.set(survivor.id, ["feedback-1"]);
+    store.feedbackByContact.set(retired.id, ["feedback-1", "feedback-2"]);
+    const before = await access.listContacts("account-1");
+
+    const preview = await access.previewMerge("account-1", {
+      retiredId: retired.id,
+      survivorId: survivor.id,
+    });
+
+    expect(preview.survivor.id).toBe(survivor.id);
+    expect(preview.retired.id).toBe(retired.id);
+    expect(preview.fieldConflicts).toEqual([
+      {
+        field: "Display name",
+        retiredValue: "Ada L.",
+        survivorValue: "Ada",
+      },
+      { field: "Company", retiredValue: "Globex", survivorValue: "Acme" },
+    ]);
+    expect(preview.addedEmails).toEqual(["ada@work.example"]);
+    expect(preview.feedbackIds).toEqual(["feedback-2"]);
+    expect(preview.companyOutcome).toBe("Keep survivor");
+    expect(await access.listContacts("account-1")).toEqual(before);
+  });
+
+  test("adopts the copy's Company only when the survivor has none", async () => {
+    const store = createMemoryStore();
+    const access = createContacts({ store });
+    const acme = await access.createCompany("account-1", { name: "Acme" });
+    const survivor = await access.createContact("account-1", {});
+    const retired = await access.createContact("account-1", {
+      companyId: acme.id,
+    });
+
+    const preview = await access.previewMerge("account-1", {
+      retiredId: retired.id,
+      survivorId: survivor.id,
+    });
+
+    expect(preview.companyOutcome).toBe("Adopt retired");
+    expect(preview.fieldConflicts).toEqual([]);
+    expect(preview.adoptedDisplayName).toBeNull();
+  });
+
+  test("rejects merging a Contact into itself", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const contact = await access.createContact("account-1", {});
+
+    await expect(
+      access.previewMerge("account-1", {
+        retiredId: contact.id,
+        survivorId: contact.id,
+      }),
+    ).rejects.toThrow("Choose two different Contacts to merge.");
+    await expect(
+      access.mergeContacts("account-1", {
+        retiredId: contact.id,
+        survivorId: contact.id,
+      }),
+    ).rejects.toThrow("Choose two different Contacts to merge.");
+  });
+
+  test("the preview carries no Kanıt Rolü, comment, evidence or priority values", async () => {
+    const store = createMemoryStore();
+    const access = createContacts({ store });
+    const survivor = await access.createContact("account-1", {});
+    const retired = await access.createContact("account-1", {});
+
+    const preview = await access.previewMerge("account-1", {
+      retiredId: retired.id,
+      survivorId: survivor.id,
+    });
+
+    expect(Object.keys(preview).sort()).toEqual([
+      "addedEmails",
+      "adoptedDisplayName",
+      "companyOutcome",
+      "feedbackIds",
+      "fieldConflicts",
+      "personaDocuments",
+      "retired",
+      "survivor",
+    ]);
   });
 
   test("fails closed without a Workspace", async () => {

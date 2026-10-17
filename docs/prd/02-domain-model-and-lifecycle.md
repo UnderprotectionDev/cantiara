@@ -763,6 +763,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İş oluştur | `Create Work` | Projede yalnız başlıkla İş oluşturma eylemi |
 | Kopya olarak birleştir | `Merge as duplicate` | Gerçek kopya iki İşi tek hayatta kalan ana kayıtta birleştirme; kaybedenin anahtarı emekli kimlik yönlendirmesidir |
 | Birleştirme önizlemesi | `Merge Preview` | Hayatta kalan kayıt, alan çatışmaları ve yeniden yazılacak ilişkilerin onay öncesi görünümü |
+| Contact'ları birleştir | `Merge Contacts` | Güçlü kopya adayından kullanıcı başlatmalı Contact birleştirmesini açan eylem; Company birleştirmesi değildir |
+| Hayatta kalan Contact | `Surviving Contact` | Contact birleştirmesinde kullanıcının seçtiği, kopyanın değerlerini ve bağlarını devralan ana kayıt |
+| Birleştirmeyi onayla | `Confirm Merge` | Güncel Merge Preview'u tek atomik yazmayla uygulayan onay |
+| Ad devralındı | `Display name adopted` | Hayatta kalanın adı boşsa kopyanın adının devralınacağını gösteren önizleme satırı |
+| E-posta takma adları eklenir | `Email aliases added` | Kopyadan hayatta kalan Contact'a eklenecek normalize e-posta takma adları |
+| Geri Bildirim taşınır | `Feedback moved` | Kopyadan hayatta kalan Contact'a bağlanacak Geri Bildirim sayısı |
+| Persona bağları eklenir | `Persona links added` | Kopyadan hayatta kalan Contact'a eklenecek Persona Document bağları |
+| Hayatta kalanı koru | `Keep survivor` | Birleştirmede hayatta kalanın güncel Company bağının korunduğunu gösteren Belongs to Company sonucu |
+| Kopyayı devral | `Adopt retired` | Hayatta kalanda Company yokken kopyanın güncel Company bağının devralındığını gösteren Belongs to Company sonucu |
+| Yönlendirilen kimlik | `Redirected from` | Emekli kayıt kimliğinden açılan Contact'ta eski kimliğin görünür kökeni; içeriksiz yönlendirmedir |
 | Birleştirmeyi geri alma önizlemesi | `Undo Preview` | Birleştirmeyi geri almada ayrılacak değerler ve restor edilemeyen içeriğin onay öncesi görünümü |
 | Toplu düzenleme | `Bulk Edit` | Açıkça seçilmiş İşlerde mevcut alanların onay öncesi fark önizlemesi; örtük seçim, şema göçü veya içe aktarma değildir |
 | Uygula | `Apply` | Toplu düzenlemede seçilen İşlere alan yazmasını başlatma |

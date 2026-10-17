@@ -37,6 +37,8 @@ import {
   contactPersonaInputSchema,
   createCompanyInputSchema,
   createContactInputSchema,
+  mergeContactsInputSchema,
+  mergePreviewInputSchema,
   setContactCompanyInputSchema,
   updateContactInputSchema,
 } from "../contacts";
@@ -2508,6 +2510,7 @@ function rethrowDocumentMutationError(error: unknown, targetId: string): never {
 
 const CONTACT_UNAVAILABLE_MESSAGES: Record<string, string> = {
   COMPANY_NOT_FOUND: "Company is unavailable.",
+  CONTACT_FEEDBACK_NOT_FOUND: "Feedback is unavailable.",
   CONTACT_NOT_FOUND: "Contact is unavailable.",
   CONTACT_PERSONA_DOCUMENT_NOT_FOUND: "Persona Document is unavailable.",
   CONTACT_WORKSPACE_NOT_FOUND: "Workspace is unavailable.",
@@ -4368,6 +4371,27 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runContactOperation(() =>
         requireContacts(context).getContact(context.session.user.id, input),
+      ),
+    ),
+  resolveContact: protectedProcedure
+    .input(contactIdentityInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).resolveContact(context.session.user.id, input),
+      ),
+    ),
+  contactMergePreview: protectedProcedure
+    .input(mergePreviewInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).previewMerge(context.session.user.id, input),
+      ),
+    ),
+  mergeContacts: protectedProcedure
+    .input(mergeContactsInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).mergeContacts(context.session.user.id, input),
       ),
     ),
   contactDuplicateCandidates: protectedProcedure.handler(({ context }) =>
