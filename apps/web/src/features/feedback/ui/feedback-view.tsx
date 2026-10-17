@@ -368,7 +368,11 @@ function FeedbackRow({
     }
   }
   return (
-    <li className="space-y-3 rounded-lg border border-border/70 p-4">
+    <li
+      className="space-y-3 rounded-lg border border-border/70 p-4"
+      id={`feedback-record-${record.id}`}
+      tabIndex={-1}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="font-medium">{record.title}</h4>
         <div className="flex items-center gap-2 text-sm">

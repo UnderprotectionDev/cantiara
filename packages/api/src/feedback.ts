@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { FeedbackFeedAccess } from "./feedback-feed";
 import {
   canonicalizeMutationPayload,
   humanMutationEnvelopeSchema,
@@ -348,6 +349,8 @@ export interface FeedbackAccess {
     accountId: string,
     input: CreateFeedbackInput,
   ) => Promise<FeedbackRecord>;
+  /** Read-only Feed over Feedback and long-body Source master records. */
+  feed?: FeedbackFeedAccess["feed"];
   list: (accountId: string, projectId: string) => Promise<FeedbackList>;
   previewConvertToWork: (
     accountId: string,

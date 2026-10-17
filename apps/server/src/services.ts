@@ -54,7 +54,7 @@ import {
 } from "./features/documents/server/documents-database";
 import { createDatabaseExternalExecutionHandoffs } from "./features/external-handoffs/server/external-handoffs-database";
 import { createDatabaseFavorites } from "./features/favorites/server/favorites-database";
-import { createDatabaseFeedback } from "./features/feedback/server/feedback-database";
+import { createDatabaseFeedbackWithFeed } from "./features/feedback/server/feedback-feed-database";
 import { createFileAttachmentLocationWork } from "./features/file-attachments/server/file-attachment-location-work";
 import type { FileAttachmentPreviewProcessOptions } from "./features/file-attachments/server/file-attachment-preview";
 import { createFileAttachmentPreviewWorker } from "./features/file-attachments/server/file-attachment-preview-queue";
@@ -226,7 +226,7 @@ export const tagMutationContracts = createDatabaseTagMutationContracts(
   documentTagRename,
 );
 export const contacts = createDatabaseContacts(db);
-export const feedback = createDatabaseFeedback(db);
+export const feedback = createDatabaseFeedbackWithFeed(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);
