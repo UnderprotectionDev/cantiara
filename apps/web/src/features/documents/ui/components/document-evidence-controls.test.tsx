@@ -43,7 +43,7 @@ test("previews the exact version, range and the single new record before confirm
   expect(html).toContain("Version 1");
   expect(html).toContain("Range 4–9");
   expect(html).toContain("statement");
-  expect(html).toContain("Unspecified");
+  expect(html).toContain("Evidence Role: Unspecified");
 });
 
 test("shows Newer version exists without moving the old pin, plus the source and Origin Location", () => {
@@ -75,7 +75,7 @@ test("shows Newer version exists without moving the old pin, plus the source and
   expect(html).toContain("Newer version exists");
   expect(html).toContain("Rebind to new version");
   expect(html).toContain("Origin Location");
-  expect(html).toContain("Open source record");
+  expect(html).toContain("Open target record");
 });
 
 test("does not offer a link or a rebind for an unavailable archived target", () => {
@@ -105,6 +105,6 @@ test("does not offer a link or a rebind for an unavailable archived target", () 
     />,
   );
   expect(html).toContain("Permanently deleted");
-  expect(html).not.toContain("Open source record");
+  expect(html).not.toContain("Open target record");
   expect(html).not.toContain("Rebind to new version");
 });

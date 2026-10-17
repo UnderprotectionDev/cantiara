@@ -80,7 +80,7 @@ export function EvidencePreview({ plan }: { plan: DocumentEvidencePlan }) {
           ))}
         </dl>
       ) : null}
-      <p>Evidence role: Unspecified. The source text stays in place.</p>
+      <p>Evidence Role: Unspecified. The source text stays in place.</p>
     </section>
   );
 }
@@ -166,6 +166,8 @@ function EvidenceDialog({
     if (!projectId || pending) {
       return;
     }
+    // A new preview is a new command; a failed confirm's key must not replay against a changed plan.
+    command.current = null;
     const chosen = candidates.find((target) => target.recordId === targetId);
     setPending(true);
     setError(null);
@@ -384,7 +386,7 @@ export function EvidenceRow({
           )}
         </p>
       ) : null}
-      {href ? <a href={href}>Open source record</a> : null}
+      {href ? <a href={href}>Open target record</a> : null}
     </li>
   );
 }

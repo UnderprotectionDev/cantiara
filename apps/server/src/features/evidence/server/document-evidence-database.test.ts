@@ -179,12 +179,20 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
       // The stored pin is untouched until the explicit confirmation.
       const [stillOld] = (await api.documentEvidenceBindings(selection)) ?? [];
       expect(stillOld?.pin.excerpt).toBe("Founders want local exports");
-      await api.confirmDocumentEvidence({
+      const rebound = await api.confirmDocumentEvidence({
         ...selection,
         id: input.id,
         baseRevision: 1,
         clientIdempotencyKey: crypto.randomUUID(),
         plan: rebind,
+      });
+      // A rebind keeps the original bind identity; only the pin and revision move.
+      expect(rebound).toMatchObject({
+        revision: 2,
+        origin: false,
+        newerVersionExists: false,
+        createdAt: bound.createdAt,
+        actorId: bound.actorId,
       });
       const [moved] = (await api.documentEvidenceBindings(selection)) ?? [];
       expect(moved).toMatchObject({
@@ -360,9 +368,88 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
       const row = rows?.find((item) => item.id === id);
       expect(row).toMatchObject({
         pin: null,
-        source: { title: null, canOpenSourceRecord: false },
+        source: {
+          title: null,
+          brokenReason: "Permanently deleted",
+          canOpenSourceRecord: false,
+        },
       });
       expect(JSON.stringify(row)).not.toContain("Sensitive finding");
+    });
+
+    test("keeps an archived Project's pin readable but marks its source Archived", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const archivedProjectId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: archivedProjectId,
+        workspaceId,
+        name: "Archived source",
+        shortCode: `A${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      const source = await api.createDocument({
+        projectId: archivedProjectId,
+        title: "Archived notes",
+        body: "Retained finding.",
+        type: "General",
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+      });
+      const plan = await api.previewDocumentEvidence({
+        documentId: source.id,
+        projectId: archivedProjectId,
+        versionRevision: source.revision,
+        start: 0,
+        end: 17,
+        target: { type: "Decision", projectId, recordId: decisionId },
+      });
+      const id = crypto.randomUUID();
+      await api.confirmDocumentEvidence({
+        documentId: source.id,
+        projectId: archivedProjectId,
+        id,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        plan,
+      });
+      await db
+        .update(project)
+        .set({ archivedAt: new Date() })
+        .where(eq(project.id, archivedProjectId));
+      const rows = await api.documentEvidenceForTarget({
+        type: "Decision",
+        projectId,
+        recordId: decisionId,
+      });
+      const row = rows?.find((item) => item.id === id);
+      expect(row).toMatchObject({
+        pin: { excerpt: "Retained finding." },
+        source: {
+          title: "Archived notes",
+          brokenReason: "Archived",
+          canOpenSourceRecord: true,
+        },
+      });
+    });
+
+    test("reports an out-of-range preview as CONFLICT, not a server failure", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const source = await createDocument("Short note.");
+      await expect(
+        client().previewDocumentEvidence({
+          documentId: source.id,
+          projectId,
+          versionRevision: source.revision,
+          start: 0,
+          end: 999,
+          target: { type: "Decision", projectId, recordId: decisionId },
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
     });
   },
 );

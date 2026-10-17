@@ -473,6 +473,7 @@ async function commitPlan(
   });
 }
 
+/** Live Document for a persisted pin: owned and readable, `Archived`, or a safe broken reason. */
 async function liveSource(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -484,6 +485,7 @@ async function liveSource(
       title: document.title,
       revision: document.revision,
       archivedAt: document.archivedAt,
+      projectArchivedAt: project.archivedAt,
     })
     .from(document)
     .innerJoin(project, eq(document.projectId, project.id))
@@ -496,30 +498,50 @@ async function liveSource(
         eq(workspace.ownerAccountId, accountId),
       ),
     );
-  return source ?? null;
-}
-function sourceBrokenReason(source: { archivedAt: Date | null } | null) {
-  if (!source) {
-    return "No access" as const;
+  if (source) {
+    const archived = Boolean(source.archivedAt || source.projectArchivedAt);
+    return {
+      source,
+      brokenReason: archived ? ("Archived" as const) : null,
+    };
   }
-  return source.archivedAt ? ("Archived" as const) : null;
+  // Not visible to this Account: a row that is gone was permanently deleted, otherwise access is refused.
+  const [remaining] = await executor
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, pin.source.recordId),
+        eq(document.projectId, pin.source.projectId),
+      ),
+    )
+    .limit(1);
+  return {
+    source: null,
+    brokenReason: remaining
+      ? ("No access" as const)
+      : ("Permanently deleted" as const),
+  };
 }
 
 function targetEvidence(
   row: Row,
   pin: ReturnType<typeof versionPinnedEvidenceSchema.parse>,
-  source: Awaited<ReturnType<typeof liveSource>>,
+  live: Awaited<ReturnType<typeof liveSource>>,
 ): DocumentEvidenceForTarget {
+  const { source, brokenReason } = live;
+  // Archived content stays readable and visibly archived; every other reason hides text and navigation.
+  const readable = brokenReason === null || brokenReason === "Archived";
   return {
     id: row.id,
-    pin: source ? pin : null,
+    pin: readable ? pin : null,
     role: row.role,
     source: {
       documentId: pin.source.recordId,
       projectId: source ? pin.source.projectId : null,
       title: source?.title ?? null,
-      brokenReason: sourceBrokenReason(source),
-      canOpenSourceRecord: Boolean(source),
+      brokenReason,
+      canOpenSourceRecord: readable,
     },
     newerVersionExists: source ? pin.source.revision < source.revision : false,
     createdAt: row.createdAt.toISOString(),
@@ -626,12 +648,18 @@ export function createDatabaseDocumentEvidence(
         { isolationLevel: "repeatable read", accessMode: "read only" },
       );
     },
-    preview(accountId, raw) {
-      return database.transaction(
-        async (executor) =>
-          (await prepare(executor, accountId, raw, false))?.plan ?? null,
-        { isolationLevel: "repeatable read", accessMode: "read only" },
-      );
+    async preview(accountId, raw) {
+      const input = previewDocumentEvidenceInputSchema.parse(raw);
+      try {
+        return await database.transaction(
+          async (executor) =>
+            (await prepare(executor, accountId, input, false))?.plan ?? null,
+          { isolationLevel: "repeatable read", accessMode: "read only" },
+        );
+      } catch (error) {
+        // Stale or out-of-range previews are CONFLICT, like confirm, not server failures.
+        return rethrowSourceError(error, input.documentId);
+      }
     },
     async confirm(accountId, raw) {
       const input = confirmDocumentEvidenceInputSchema.parse(raw);
@@ -696,12 +724,12 @@ export function createDatabaseDocumentEvidence(
                   brokenReason: null,
                   canOpenSourceRecord: true,
                 },
-                origin: plan.mode === "create",
+                origin: currentValue.binding?.origin ?? plan.mode === "create",
                 newerVersionExists: false,
                 currentRevision: plan.currentRevision,
                 readOnly: false,
-                createdAt: committedAt,
-                actorId: accountId,
+                createdAt: currentValue.binding?.createdAt ?? committedAt,
+                actorId: currentValue.binding?.actorId ?? accountId,
               }),
             };
           },
@@ -808,13 +836,13 @@ export function createDatabaseDocumentEvidence(
               continue;
             }
             // A persisted pin never authorizes reads: the live owned Document gates the text.
-            const source = await liveSource(
+            const live = await liveSource(
               executor,
               accountId,
               owner.workspaceId,
               pin,
             );
-            result.push(targetEvidence(row, pin, source));
+            result.push(targetEvidence(row, pin, live));
           }
           return result;
         },
