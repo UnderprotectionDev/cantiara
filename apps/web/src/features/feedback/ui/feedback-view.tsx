@@ -14,10 +14,22 @@ import {
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
+import {
+  type ConfirmConvert,
+  ConvertToWorkDialog,
+  type PreviewConvert,
+} from "./convert-to-work-dialog";
+
+export interface IdentityOption {
+  id: string;
+  name: string;
+}
 
 export interface FeedbackDraft {
   attachmentIds: string[];
   channel: string | null;
+  companyId: string | null;
+  contactId: string | null;
   link: string | null;
   occurredAt: string;
   originalMessage: string;
@@ -25,6 +37,10 @@ export interface FeedbackDraft {
 }
 
 type Create = (draft: FeedbackDraft) => Promise<unknown>;
+type SetIdentity = (
+  record: FeedbackRecord,
+  identity: { companyId: string | null; contactId: string | null },
+) => Promise<unknown>;
 type SetStatus = (
   record: FeedbackRecord,
   status: FeedbackStatus,
@@ -42,11 +58,50 @@ function toInstant(localValue: string) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function IdentitySelect({
+  disabled,
+  id,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  disabled?: boolean;
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  options: IdentityOption[];
+  value: string;
+}) {
+  return (
+    <div className="grid gap-2 text-sm">
+      <label htmlFor={id}>{label}</label>
+      <NativeSelect
+        disabled={disabled}
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        <NativeSelectOption value="">Unknown</NativeSelectOption>
+        {options.map((option) => (
+          <NativeSelectOption key={option.id} value={option.id}>
+            {option.name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    </div>
+  );
+}
+
 export function CreateFeedbackForm({
   attachmentOptions,
+  companyOptions,
+  contactOptions,
   onCreate,
 }: {
   attachmentOptions: FeedbackAttachment[];
+  companyOptions: IdentityOption[];
+  contactOptions: IdentityOption[];
   onCreate: Create;
 }) {
   const [error, setError] = useState<string>();
@@ -54,6 +109,8 @@ export function CreateFeedbackForm({
     defaultValues: {
       attachmentIds: [] as string[],
       channel: "",
+      companyId: "",
+      contactId: "",
       link: "",
       occurredAt: localNow(),
       originalMessage: "",
@@ -70,6 +127,8 @@ export function CreateFeedbackForm({
         await onCreate({
           attachmentIds: value.attachmentIds,
           channel: value.channel.trim() || null,
+          companyId: value.companyId || null,
+          contactId: value.contactId || null,
           link: value.link.trim() || null,
           occurredAt,
           originalMessage: value.originalMessage,
@@ -79,6 +138,8 @@ export function CreateFeedbackForm({
           ...value,
           attachmentIds: [],
           channel: "",
+          companyId: "",
+          contactId: "",
           link: "",
           originalMessage: "",
           title: "",
@@ -174,6 +235,30 @@ export function CreateFeedbackForm({
                 </div>
               )}
             </form.Field>
+            <form.Field name="contactId">
+              {(field) => (
+                <IdentitySelect
+                  disabled={pending}
+                  id="feedback-contact"
+                  label="Contact (optional)"
+                  onChange={field.handleChange}
+                  options={contactOptions}
+                  value={field.state.value}
+                />
+              )}
+            </form.Field>
+            <form.Field name="companyId">
+              {(field) => (
+                <IdentitySelect
+                  disabled={pending}
+                  id="feedback-company"
+                  label="Company (optional)"
+                  onChange={field.handleChange}
+                  options={companyOptions}
+                  value={field.state.value}
+                />
+              )}
+            </form.Field>
             <form.Field name="link">
               {(field) => (
                 <div className="grid gap-2 text-sm">
@@ -232,15 +317,48 @@ export function CreateFeedbackForm({
 }
 
 function FeedbackRow({
+  companyOptions,
+  contactOptions,
+  onConfirmConvert,
+  onPreviewConvert,
+  onSetIdentity,
   onSetStatus,
   readOnly,
   record,
 }: {
+  companyOptions: IdentityOption[];
+  contactOptions: IdentityOption[];
+  onConfirmConvert: (record: FeedbackRecord) => ConfirmConvert;
+  onPreviewConvert: (record: FeedbackRecord) => PreviewConvert;
+  onSetIdentity: SetIdentity;
   onSetStatus: SetStatus;
   readOnly: boolean;
   record: FeedbackRecord;
 }) {
   const [error, setError] = useState<string>();
+  const [converting, setConverting] = useState(false);
+  async function changeIdentity(next: {
+    companyId?: string | null;
+    contactId?: string | null;
+  }) {
+    setError(undefined);
+    try {
+      await onSetIdentity(record, {
+        companyId:
+          next.companyId === undefined
+            ? (record.company?.id ?? null)
+            : next.companyId,
+        contactId:
+          next.contactId === undefined
+            ? (record.contact?.id ?? null)
+            : next.contactId,
+      });
+    } catch {
+      setError(
+        "Contact or Company could not be changed. Reload and try again.",
+      );
+    }
+  }
   async function change(status: FeedbackStatus) {
     setError(undefined);
     try {
@@ -279,6 +397,28 @@ function FeedbackRow({
         </p>
       ) : null}
       <p className="whitespace-pre-wrap text-sm">{record.originalMessage}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <IdentitySelect
+          disabled={readOnly}
+          id={`feedback-contact-${record.id}`}
+          label="Contact (optional)"
+          onChange={(value) => {
+            changeIdentity({ contactId: value || null }).catch(() => undefined);
+          }}
+          options={contactOptions}
+          value={record.contact?.id ?? ""}
+        />
+        <IdentitySelect
+          disabled={readOnly}
+          id={`feedback-company-${record.id}`}
+          label="Company (optional)"
+          onChange={(value) => {
+            changeIdentity({ companyId: value || null }).catch(() => undefined);
+          }}
+          options={companyOptions}
+          value={record.company?.id ?? ""}
+        />
+      </div>
       <dl className="grid gap-1 text-muted-foreground text-xs">
         {record.channel ? (
           <div className="flex gap-2">
@@ -314,19 +454,58 @@ function FeedbackRow({
           </div>
         ) : null}
       </dl>
+      {record.workOrigins.length > 0 ? (
+        <section aria-label="Origin of Work" className="space-y-1 text-sm">
+          <h5 className="font-medium">Origin of</h5>
+          <ul>
+            {record.workOrigins.map((origin) => (
+              <li key={origin.id}>
+                {origin.workKey} {origin.workTitle}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {readOnly ? null : (
+        <Button
+          onClick={() => setConverting(true)}
+          type="button"
+          variant="outline"
+        >
+          Convert to Work
+        </Button>
+      )}
+      {converting ? (
+        <ConvertToWorkDialog
+          onClose={() => setConverting(false)}
+          onConfirm={onConfirmConvert(record)}
+          onPreview={onPreviewConvert(record)}
+          record={record}
+        />
+      ) : null}
     </li>
   );
 }
 
 export function FeedbackView({
   attachmentOptions,
+  companyOptions,
+  contactOptions,
+  onConfirmConvert,
   onCreate,
+  onPreviewConvert,
+  onSetIdentity,
   onSetStatus,
   readOnly,
   records,
 }: {
   attachmentOptions: FeedbackAttachment[];
+  companyOptions: IdentityOption[];
+  contactOptions: IdentityOption[];
+  onConfirmConvert: (record: FeedbackRecord) => ConfirmConvert;
   onCreate: Create;
+  onPreviewConvert: (record: FeedbackRecord) => PreviewConvert;
+  onSetIdentity: SetIdentity;
   onSetStatus: SetStatus;
   readOnly: boolean;
   records: FeedbackRecord[];
@@ -339,6 +518,8 @@ export function FeedbackView({
       {readOnly ? null : (
         <CreateFeedbackForm
           attachmentOptions={attachmentOptions}
+          companyOptions={companyOptions}
+          contactOptions={contactOptions}
           onCreate={onCreate}
         />
       )}
@@ -348,7 +529,12 @@ export function FeedbackView({
         <ul className="space-y-3">
           {records.map((record) => (
             <FeedbackRow
+              companyOptions={companyOptions}
+              contactOptions={contactOptions}
               key={record.id}
+              onConfirmConvert={onConfirmConvert}
+              onPreviewConvert={onPreviewConvert}
+              onSetIdentity={onSetIdentity}
               onSetStatus={onSetStatus}
               readOnly={readOnly}
               record={record}

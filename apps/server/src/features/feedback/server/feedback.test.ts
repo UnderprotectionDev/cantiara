@@ -1,12 +1,16 @@
-import type {
-  FeedbackRecord,
-  FeedbackStore,
-  ParsedCreateFeedbackInput,
+import {
+  buildFeedbackWorkPlan,
+  type FeedbackConversionSource,
+  type FeedbackRecord,
+  type FeedbackStore,
+  type FeedbackWorkOrigin,
+  type ParsedCreateFeedbackInput,
 } from "@cantiara/api/feedback";
 import { describe, expect, test } from "vitest";
 
 import {
   createFeedback,
+  FeedbackConversionStaleError,
   FeedbackNotFoundError,
   FeedbackProjectNotFoundError,
   FeedbackRevisionConflictError,
@@ -17,9 +21,70 @@ const timestamp = "2026-10-01T09:00:00.000Z";
 /** Records every call so the seam's reach is observable, not assumed. */
 function createMemoryStore() {
   const records = new Map<string, FeedbackRecord>();
+  const works = new Map<string, { key: string; title: string }>();
+  const idempotent = new Map<string, FeedbackWorkOrigin>();
   const calls: string[] = [];
   let sequence = 0;
   const store: FeedbackStore = {
+    convertToWork: async (accountId, input) => {
+      await Promise.resolve();
+      calls.push("convertToWork");
+      const current = records.get(input.feedbackId);
+      if (!current || accountId !== "account-1") {
+        return null;
+      }
+      const replay = idempotent.get(input.clientIdempotencyKey);
+      const origin: FeedbackWorkOrigin = replay ?? {
+        createdAt: timestamp,
+        id: input.id,
+        workId: input.workId,
+        workKey: `FBK-${works.size + 1}`,
+        workTitle: input.plan.work.title,
+      };
+      if (!replay) {
+        idempotent.set(input.clientIdempotencyKey, origin);
+        works.set(origin.workId, {
+          key: origin.workKey,
+          title: origin.workTitle,
+        });
+        records.set(current.id, {
+          ...current,
+          workOrigins: [...current.workOrigins, origin],
+        });
+      }
+      return { feedback: records.get(current.id) ?? current, origin };
+    },
+    readConversionSource: async (accountId, projectId, feedbackId) => {
+      await Promise.resolve();
+      calls.push("readConversionSource");
+      const record = records.get(feedbackId);
+      return record &&
+        accountId === "account-1" &&
+        projectId === record.projectId
+        ? ({
+            projectName: "Feedback Project",
+            record,
+          } satisfies FeedbackConversionSource)
+        : null;
+    },
+    setIdentity: async (accountId, input) => {
+      await Promise.resolve();
+      calls.push("setIdentity");
+      const current = records.get(input.feedbackId);
+      if (!current || accountId !== "account-1") {
+        return null;
+      }
+      const next: FeedbackRecord = {
+        ...current,
+        company: input.companyId ? { id: input.companyId, name: "Acme" } : null,
+        contact: input.contactId
+          ? { displayName: "Ada", id: input.contactId }
+          : null,
+        revision: current.revision + 1,
+      };
+      records.set(next.id, next);
+      return next;
+    },
     create: async (accountId, input: ParsedCreateFeedbackInput) => {
       await Promise.resolve();
       calls.push("create");
@@ -30,6 +95,10 @@ function createMemoryStore() {
       const record: FeedbackRecord = {
         attachments: [],
         channel: input.channel ?? null,
+        company: input.companyId ? { id: input.companyId, name: "Acme" } : null,
+        contact: input.contactId
+          ? { displayName: "Ada", id: input.contactId }
+          : null,
         createdAt: timestamp,
         id: `feedback-${sequence}`,
         link: input.link ?? null,
@@ -40,6 +109,7 @@ function createMemoryStore() {
         status: "New",
         title: input.title,
         updatedAt: timestamp,
+        workOrigins: [],
       };
       records.set(record.id, record);
       return record;
@@ -73,7 +143,7 @@ function createMemoryStore() {
       return next;
     },
   };
-  return { calls, records, store };
+  return { calls, records, store, works };
 }
 
 const message = "  Export keeps failing on large files.\nPlease fix.  ";
@@ -101,7 +171,8 @@ describe("Feedback master record", () => {
       title: "Export fails",
     });
     expect(created).not.toHaveProperty("summary");
-    expect(created).not.toHaveProperty("contactId");
+    expect(created.contact).toBeNull();
+    expect(created.company).toBeNull();
   });
 
   test("needs only a message, time and title", async () => {
@@ -296,5 +367,298 @@ describe("Feedback status", () => {
         status: "Reviewed",
       }),
     ).rejects.toBeInstanceOf(FeedbackNotFoundError);
+  });
+});
+
+describe("Feedback optional identity", () => {
+  const base = {
+    occurredAt: "2026-09-30T12:00:00.000Z",
+    originalMessage: "Original words",
+    projectId: "project-1",
+    title: "Hi",
+  };
+
+  test("saves without a Contact and never asks for one", async () => {
+    const { calls, store } = createMemoryStore();
+    const access = createFeedback(store);
+
+    const record = await access.create("account-1", base);
+
+    expect(record).toMatchObject({ company: null, contact: null });
+    expect(calls).toEqual(["create"]);
+  });
+
+  test("links an existing Contact and Company and clears them again", async () => {
+    const access = createFeedback(createMemoryStore().store);
+    const created = await access.create("account-1", {
+      ...base,
+      companyId: "company-1",
+      contactId: "contact-1",
+    });
+    expect(created.contact).toMatchObject({ id: "contact-1" });
+    expect(created.company).toMatchObject({ id: "company-1" });
+
+    const cleared = await access.setIdentity("account-1", {
+      companyId: null,
+      contactId: null,
+      feedbackId: created.id,
+      projectId: "project-1",
+    });
+
+    expect(cleared).toMatchObject({
+      contact: null,
+      company: null,
+      originalMessage: "Original words",
+      status: "New",
+    });
+  });
+
+  test("the identity command carries identity only", async () => {
+    const access = createFeedback(createMemoryStore().store);
+    const created = await access.create("account-1", base);
+
+    await Promise.all(
+      [
+        { status: "Reviewed" },
+        { originalMessage: "Rewritten" },
+        { workId: "work-1" },
+        { email: "ada@example.com" },
+        { displayName: "Ada" },
+      ].map((extra) =>
+        expect(
+          access.setIdentity("account-1", {
+            companyId: null,
+            contactId: "contact-1",
+            feedbackId: created.id,
+            projectId: "project-1",
+            ...extra,
+          } as never),
+        ).rejects.toThrow(),
+      ),
+    );
+    await expect(
+      access.setIdentity("account-1", {
+        companyId: null,
+        contactId: null,
+        feedbackId: "missing",
+        projectId: "project-1",
+      }),
+    ).rejects.toBeInstanceOf(FeedbackNotFoundError);
+  });
+});
+
+describe("Convert to Work", () => {
+  async function seeded() {
+    const memory = createMemoryStore();
+    const access = createFeedback(memory.store);
+    const record = await access.create("account-1", {
+      occurredAt: "2026-09-30T12:00:00.000Z",
+      originalMessage: "Export keeps failing\nfor large files.",
+      projectId: "project-1",
+      title: "Export fails",
+    });
+    memory.calls.length = 0;
+    return { access, memory, record };
+  }
+
+  function confirmation(
+    plan: Awaited<
+      ReturnType<ReturnType<typeof createFeedback>["previewConvertToWork"]>
+    >,
+    feedbackId: string,
+    key = "key-1",
+  ) {
+    return {
+      baseRevision: 0,
+      clientIdempotencyKey: key,
+      feedbackId,
+      id: "origin-1",
+      plan,
+      projectId: "project-1",
+      workId: "work-1",
+    };
+  }
+
+  test("previews exactly one Work with title, body, target Project and Origin, writing nothing", async () => {
+    const { access, memory, record } = await seeded();
+
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+      workType: "Bug",
+    });
+
+    expect(plan).toMatchObject({
+      recordCount: 1,
+      relation: "Origin",
+      targetProject: { id: "project-1", name: "Feedback Project" },
+      work: {
+        description: "Export keeps failing\nfor large files.",
+        title: "Export fails",
+        type: "Bug",
+      },
+    });
+    expect(memory.calls).toEqual(["readConversionSource"]);
+    expect(memory.works.size).toBe(0);
+  });
+
+  test("defaults to Task and refuses Work types the mapping does not own", async () => {
+    const { access, record } = await seeded();
+
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+    });
+    expect(plan.work.type).toBe("Task");
+    await expect(
+      access.previewConvertToWork("account-1", {
+        feedbackId: record.id,
+        projectId: "project-1",
+        workType: "Feature" as never,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      access.previewConvertToWork("account-1", {
+        feedbackId: "missing",
+        projectId: "project-1",
+      }),
+    ).rejects.toBeInstanceOf(FeedbackNotFoundError);
+  });
+
+  test("confirming creates one Work and an Origin and leaves the Feedback as it was", async () => {
+    const { access, memory, record } = await seeded();
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+    });
+
+    const conversion = await access.convertToWork(
+      "account-1",
+      confirmation(plan, record.id),
+    );
+
+    expect(
+      memory.calls.filter((call) => call === "convertToWork"),
+    ).toHaveLength(1);
+    expect(memory.works.size).toBe(1);
+    expect(conversion.origin).toMatchObject({ workId: "work-1" });
+    expect(conversion.feedback).toMatchObject({
+      originalMessage: record.originalMessage,
+      revision: record.revision,
+      status: "New",
+    });
+    expect(conversion.feedback.workOrigins).toHaveLength(1);
+    expect(memory.records.has(record.id)).toBe(true);
+  });
+
+  test("keeps a Reviewed status through conversion", async () => {
+    const { access, record } = await seeded();
+    const reviewed = await access.setStatus("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+      status: "Reviewed",
+    });
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+    });
+
+    const conversion = await access.convertToWork(
+      "account-1",
+      confirmation(plan, record.id),
+    );
+
+    expect(conversion.feedback.status).toBe("Reviewed");
+    expect(conversion.feedback.revision).toBe(reviewed.revision);
+  });
+
+  test("a retry with the same key returns the same Work", async () => {
+    const { access, memory, record } = await seeded();
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+    });
+
+    const first = await access.convertToWork(
+      "account-1",
+      confirmation(plan, record.id),
+    );
+    const second = await access.convertToWork(
+      "account-1",
+      confirmation(plan, record.id),
+    );
+
+    expect(second.origin).toEqual(first.origin);
+    expect(memory.works.size).toBe(1);
+  });
+
+  test("refuses a stale preview after the Feedback changed", async () => {
+    const { access, memory, record } = await seeded();
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+    });
+    await access.setStatus("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+      status: "Reviewed",
+    });
+
+    await expect(
+      access.convertToWork("account-1", confirmation(plan, record.id)),
+    ).rejects.toBeInstanceOf(FeedbackConversionStaleError);
+    expect(memory.works.size).toBe(0);
+  });
+
+  test("refuses an edited or forged plan", async () => {
+    const { access, memory, record } = await seeded();
+    const plan = await access.previewConvertToWork("account-1", {
+      feedbackId: record.id,
+      projectId: "project-1",
+    });
+    const edited = {
+      ...plan,
+      work: { ...plan.work, title: "Something else entirely" },
+    };
+
+    await expect(
+      access.convertToWork("account-1", confirmation(edited, record.id)),
+    ).rejects.toBeInstanceOf(FeedbackConversionStaleError);
+    await expect(
+      access.convertToWork(
+        "account-1",
+        confirmation({ ...plan, recordCount: 2 } as never, record.id),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      access.convertToWork(
+        "account-1",
+        confirmation(
+          { ...plan, extraWork: { title: "Hidden" } } as never,
+          record.id,
+        ),
+      ),
+    ).rejects.toThrow();
+    expect(memory.works.size).toBe(0);
+  });
+
+  test("the plan mapping is pure and carries no AI or summary field", () => {
+    const record = {
+      id: "f",
+      originalMessage: "Body",
+      projectId: "p",
+      revision: 3,
+      title: "Title",
+    } as FeedbackRecord;
+
+    const plan = buildFeedbackWorkPlan({ projectName: "P", record }, "Task");
+
+    expect(plan.work).toEqual({
+      description: "Body",
+      title: "Title",
+      type: "Task",
+    });
+    expect(plan).not.toHaveProperty("summary");
+    expect(plan).not.toHaveProperty("priority");
   });
 });
