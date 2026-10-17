@@ -39,6 +39,7 @@ import {
   completionEffectsPreferencesMutationTarget,
   createDatabaseCompletionEffectsPreferences,
 } from "../src/features/completion-effects/server/completion-effects-database";
+import { createDatabaseContacts } from "../src/features/contacts/server/contacts-database";
 import { createDatabaseCustomFields } from "../src/features/custom-fields/server/custom-fields-database";
 import {
   createDatabaseCustomFieldFinalizationWriter,
@@ -339,6 +340,7 @@ const app = createApp({
   backlogMutationContracts,
   auth,
   captureInbox,
+  contacts: createDatabaseContacts(database),
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
   customFields,

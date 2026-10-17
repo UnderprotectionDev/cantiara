@@ -6,6 +6,7 @@ import {
   contactResolutionSchema,
   contactSchema,
   mergeResultSchema,
+  type ParsedMergeContactsInput,
 } from "@cantiara/api/contacts";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -23,6 +24,8 @@ import { document } from "@cantiara/db/schema/document";
 import { feedback } from "@cantiara/db/schema/feedback";
 import { project } from "@cantiara/db/schema/project";
 import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+
+import { accountActorAlias } from "../../account-access/server/github-identity-confirmation";
 
 import {
   CompanyNotFoundError,
@@ -85,7 +88,7 @@ async function requireCompany(
   return record;
 }
 
-async function lockContact(
+async function findLockedContact(
   executor: Pick<Database, "select">,
   workspaceId: string,
   contactId: string,
@@ -101,6 +104,15 @@ async function lockContact(
     )
     .limit(1)
     .for("update");
+  return record;
+}
+
+async function lockContact(
+  executor: Pick<Database, "select">,
+  workspaceId: string,
+  contactId: string,
+) {
+  const record = await findLockedContact(executor, workspaceId, contactId);
   if (!record) {
     throw new ContactNotFoundError(contactId);
   }
@@ -323,6 +335,40 @@ async function mergeIntoSurvivor(
   }
 }
 
+/**
+ * A repeated confirm after a committed merge returns that merge's result. Only
+ * the exact copy-to-survivor pair that was retired matches; anything else is
+ * still a missing Contact.
+ */
+async function replayMerge(
+  executor: ContactExecutor,
+  workspaceId: string,
+  input: ParsedMergeContactsInput,
+) {
+  const [identity] = await executor
+    .select()
+    .from(workspaceContactRetiredIdentity)
+    .where(
+      and(
+        eq(workspaceContactRetiredIdentity.id, input.retiredId),
+        eq(workspaceContactRetiredIdentity.workspaceId, workspaceId),
+        eq(
+          workspaceContactRetiredIdentity.survivingContactId,
+          input.survivorId,
+        ),
+      ),
+    )
+    .limit(1);
+  if (!identity) {
+    throw new ContactNotFoundError(input.retiredId);
+  }
+  return mergeResultSchema.parse({
+    mergeId: identity.mergeId,
+    retiredId: identity.id,
+    survivor: await readContact(executor, workspaceId, input.survivorId),
+  });
+}
+
 async function bumpRevision(
   executor: ContactExecutor,
   contact: typeof workspaceContact.$inferSelect,
@@ -484,32 +530,30 @@ export function createDatabaseContactStore(database: Database): ContactStore {
 
     mergeContacts(workspaceId, input, actorAccountId) {
       return database.transaction(async (executor) => {
-        // Lock in id order so two opposite merges cannot deadlock.
+        // Lock in id order so two opposite merges cannot deadlock. A copy that
+        // is already retired has no live row, so it is replayed, not re-merged.
         const [first, second] = [input.survivorId, input.retiredId].sort();
-        const firstRecord = await lockContact(
-          executor,
-          workspaceId,
-          first as string,
-        );
-        const secondRecord = await lockContact(
-          executor,
-          workspaceId,
-          second as string,
-        );
-        const survivor =
-          firstRecord.id === input.survivorId ? firstRecord : secondRecord;
-        const retired =
-          firstRecord.id === input.retiredId ? firstRecord : secondRecord;
-        if (
-          (input.expectedSurvivorRevision !== undefined &&
-            input.expectedSurvivorRevision !== survivor.revision) ||
-          (input.expectedRetiredRevision !== undefined &&
-            input.expectedRetiredRevision !== retired.revision)
-        ) {
+        const locked = [
+          await findLockedContact(executor, workspaceId, first as string),
+          await findLockedContact(executor, workspaceId, second as string),
+        ].filter((record) => record !== undefined);
+        const survivor = locked.find(({ id }) => id === input.survivorId);
+        const retired = locked.find(({ id }) => id === input.retiredId);
+        if (!survivor) {
+          throw new ContactNotFoundError(input.survivorId);
+        }
+        if (!retired) {
+          return replayMerge(executor, workspaceId, input);
+        }
+        const survivorStale =
+          input.expectedSurvivorRevision !== undefined &&
+          input.expectedSurvivorRevision !== survivor.revision;
+        const retiredStale =
+          input.expectedRetiredRevision !== undefined &&
+          input.expectedRetiredRevision !== retired.revision;
+        if (survivorStale || retiredStale) {
           throw new ContactRevisionConflictError(
-            input.expectedSurvivorRevision === survivor.revision
-              ? retired.id
-              : survivor.id,
+            survivorStale ? survivor.id : retired.id,
           );
         }
 
@@ -535,7 +579,7 @@ export function createDatabaseContactStore(database: Database): ContactStore {
           .where(eq(workspaceContact.id, retired.id));
         await bumpRevision(executor, survivor, undefined);
         await executor.insert(workspaceContactAuditEvent).values({
-          actorAccountId,
+          actorAlias: await accountActorAlias(actorAccountId),
           eventType: "contact.merged",
           id: crypto.randomUUID(),
           mergeId,

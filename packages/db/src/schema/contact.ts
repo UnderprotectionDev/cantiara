@@ -228,12 +228,13 @@ export const workspaceContactRetiredIdentity = pgTable(
 
 /**
  * Denetim kaydı for identity changes. It holds opaque Contact ids and the
- * actor account id only, never an email address or a display name.
+ * actor alias only (the same `account:` digest as `audit_record`), never an
+ * account id, an email address or a display name.
  */
 export const workspaceContactAuditEvent = pgTable(
   "workspace_contact_audit_event",
   {
-    actorAccountId: text("actor_account_id").notNull(),
+    actorAlias: text("actor_alias").notNull(),
     eventType: text("event_type").notNull(),
     id: text("id").primaryKey(),
     mergeId: text("merge_id").notNull(),

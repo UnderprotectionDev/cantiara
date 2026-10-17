@@ -14,7 +14,7 @@ import { type FormEvent, useState } from "react";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import MergePreviewPanel from "./merge-preview-panel";
+import MergePreviewPanel, { mergeContactsRequest } from "./merge-preview-panel";
 
 const NO_COMPANY = "";
 
@@ -22,16 +22,23 @@ function contactLabel(contact: Pick<Contact, "displayName" | "emails">) {
   return contact.displayName ?? contact.emails[0] ?? "Unnamed Contact";
 }
 
-export default function ContactsView() {
+export default function ContactsView({ contactId }: { contactId?: string }) {
   const queryClient = useQueryClient();
   const contacts = useQuery(orpc.contacts.queryOptions());
   const companies = useQuery(orpc.companies.queryOptions());
   const candidates = useQuery(orpc.contactDuplicateCandidates.queryOptions());
+  const opened = useQuery({
+    ...orpc.resolveContact.queryOptions({
+      input: { contactId: contactId ?? "" },
+    }),
+    enabled: contactId !== undefined,
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selected =
-    contacts.data?.find((contact) => contact.id === selectedId) ??
-    contacts.data?.[0];
+    contacts.data?.find(
+      (contact) => contact.id === (selectedId ?? opened.data?.contact.id),
+    ) ?? contacts.data?.[0];
 
   const refresh = () =>
     Promise.all([
@@ -290,18 +297,30 @@ export default function ContactsView() {
           onConfirm={async () => {
             setError(null);
             try {
-              await mergeContacts.mutateAsync({
-                expectedRetiredRevision: mergePreview.data.retired.revision,
-                expectedSurvivorRevision: mergePreview.data.survivor.revision,
-                ...mergePair,
-              });
+              await mergeContacts.mutateAsync(
+                mergeContactsRequest(mergePair, mergePreview.data),
+              );
             } catch {
-              setError("Contacts could not be merged.");
+              setError(
+                "Contacts could not be merged. The Merge Preview was refreshed; review it and confirm again.",
+              );
+              await mergePreview.refetch();
             }
           }}
           pending={mergeContacts.isPending}
           preview={mergePreview.data}
         />
+      ) : null}
+      {opened.isError ? (
+        <p className="text-destructive text-sm" role="alert">
+          Contact is unavailable.
+        </p>
+      ) : null}
+      {opened.data?.redirectedFrom &&
+      selected?.id === opened.data.contact.id ? (
+        <p className="text-muted-foreground text-sm" role="status">
+          Redirected from <code>{opened.data.redirectedFrom}</code>
+        </p>
       ) : null}
       {selected ? (
         <ContactProfile

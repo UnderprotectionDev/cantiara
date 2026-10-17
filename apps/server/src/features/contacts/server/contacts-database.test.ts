@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -350,7 +352,10 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
     ]);
     expect(await access.listContacts(accountId)).toEqual(before);
     expect(
-      await requireDatabase().select().from(workspaceContactRetiredIdentity),
+      await requireDatabase()
+        .select()
+        .from(workspaceContactRetiredIdentity)
+        .where(eq(workspaceContactRetiredIdentity.workspaceId, workspaceId)),
     ).toEqual([]);
   });
 
@@ -494,11 +499,14 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
 
     expect(await access.listContacts(accountId)).toEqual(before);
     expect(
-      await requireDatabase().select().from(workspaceContactRetiredIdentity),
+      await requireDatabase()
+        .select()
+        .from(workspaceContactRetiredIdentity)
+        .where(eq(workspaceContactRetiredIdentity.workspaceId, workspaceId)),
     ).toEqual([]);
   });
 
-  test("records an audit event with aliased ids, actor and time but no raw email", async () => {
+  test("records an audit event with an actor alias, opaque ids and time but no raw email", async () => {
     const { access, retired, survivor } = await seedDuplicates();
 
     await access.mergeContacts(accountId, {
@@ -512,14 +520,71 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
       .where(eq(workspaceContactAuditEvent.workspaceId, workspaceId));
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      actorAccountId: accountId,
+      actorAlias: `account:${createHash("sha256").update(accountId).digest("hex")}`,
       eventType: "contact.merged",
       retiredContactId: retired.id,
       survivingContactId: survivor.id,
     });
     expect(events[0]?.occurredAt).toBeInstanceOf(Date);
     const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain(accountId);
     expect(serialized).not.toContain("@");
     expect(serialized).not.toContain("Ada");
+  });
+
+  test("names the copy as the stale side when only its revision is sent", async () => {
+    const { access, retired, survivor } = await seedDuplicates();
+    const current = await access.getContact(accountId, {
+      contactId: retired.id,
+    });
+    await access.updateContact(accountId, {
+      contactId: retired.id,
+      displayName: "Ada L. Work",
+      expectedRevision: current.revision,
+    });
+
+    await expect(
+      access.mergeContacts(accountId, {
+        expectedRetiredRevision: current.revision,
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      }),
+    ).rejects.toThrow(`Contact ${retired.id} changed since it was loaded.`);
+  });
+
+  test("replays a confirmed merge with the same result instead of failing on the retired copy", async () => {
+    const { access, retired, survivor } = await seedDuplicates();
+    const input = { retiredId: retired.id, survivorId: survivor.id };
+    const first = await access.mergeContacts(accountId, input);
+
+    const replay = await access.mergeContacts(accountId, input);
+
+    expect(replay.mergeId).toBe(first.mergeId);
+    expect(replay.retiredId).toBe(retired.id);
+    expect(replay.survivor.id).toBe(survivor.id);
+    expect(
+      await requireDatabase()
+        .select()
+        .from(workspaceContactAuditEvent)
+        .where(eq(workspaceContactAuditEvent.workspaceId, workspaceId)),
+    ).toHaveLength(1);
+  });
+
+  test("does not replay a merge of a retired copy onto a different survivor", async () => {
+    const { access, retired, survivor } = await seedDuplicates();
+    await access.mergeContacts(accountId, {
+      retiredId: retired.id,
+      survivorId: survivor.id,
+    });
+    const other = await access.createContact(accountId, {
+      displayName: "Other",
+    });
+
+    await expect(
+      access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: other.id,
+      }),
+    ).rejects.toBeInstanceOf(ContactNotFoundError);
   });
 });

@@ -1,7 +1,9 @@
 import type {
   Company,
   Contact,
+  ContactResolution,
   DuplicateCandidate,
+  MergePreview,
 } from "@cantiara/api/contacts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -16,7 +18,7 @@ import { describe, expect, test } from "vitest";
 import { orpc } from "@/utils/orpc";
 
 import ContactsView from "./contacts-view";
-import MergePreviewPanel from "./merge-preview-panel";
+import MergePreviewPanel, { mergeContactsRequest } from "./merge-preview-panel";
 
 function noop() {
   // Presentational test: the handlers are never called.
@@ -72,8 +74,17 @@ function renderView(
   contacts: Contact[],
   companies: Company[],
   candidates: DuplicateCandidate[] = [],
+  opened?: { contactId: string; resolution: ContactResolution },
 ) {
   const queryClient = new QueryClient();
+  if (opened) {
+    queryClient.setQueryData(
+      orpc.resolveContact.queryOptions({
+        input: { contactId: opened.contactId },
+      }).queryKey,
+      opened.resolution,
+    );
+  }
   queryClient.setQueryData(orpc.contacts.queryOptions().queryKey, contacts);
   queryClient.setQueryData(orpc.companies.queryOptions().queryKey, companies);
   queryClient.setQueryData(
@@ -88,7 +99,7 @@ function renderView(
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
       <RouterContextProvider router={router}>
-        <ContactsView />
+        <ContactsView contactId={opened?.contactId} />
       </RouterContextProvider>
     </QueryClientProvider>,
   );
@@ -208,5 +219,46 @@ describe("Contact and Company surface", () => {
     ]) {
       expect(html).not.toContain(label);
     }
+  });
+});
+
+describe("Contact merge confirmation", () => {
+  test("shows the retired identity as the visible origin of a redirected link", () => {
+    const html = renderView([contact], [company], [], {
+      contactId: "contact-retired",
+      resolution: {
+        contact,
+        feedbackIds: [],
+        redirectedFrom: "contact-retired",
+      },
+    });
+
+    expect(html).toContain("Redirected from");
+    expect(html).toContain("contact-retired");
+  });
+
+  test("sends the revisions shown in the Merge Preview with the confirmation", () => {
+    const preview: MergePreview = {
+      addedEmails: [],
+      adoptedDisplayName: null,
+      companyOutcome: "None",
+      feedbackIds: [],
+      fieldConflicts: [],
+      personaDocuments: [],
+      retired: { ...contact, id: "contact-2", revision: 4 },
+      survivor: { ...contact, revision: 7 },
+    };
+
+    expect(
+      mergeContactsRequest(
+        { retiredId: "contact-2", survivorId: "contact-1" },
+        preview,
+      ),
+    ).toEqual({
+      expectedRetiredRevision: 4,
+      expectedSurvivorRevision: 7,
+      retiredId: "contact-2",
+      survivorId: "contact-1",
+    });
   });
 });

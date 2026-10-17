@@ -1,5 +1,21 @@
 import type { Contact, MergePreview } from "@cantiara/api/contacts";
 
+/**
+ * The confirmation carries the revisions the founder reviewed, so a Contact
+ * changed since the preview is rejected instead of merged unseen.
+ */
+export function mergeContactsRequest(
+  pair: { retiredId: string; survivorId: string },
+  preview: MergePreview,
+) {
+  return {
+    expectedRetiredRevision: preview.retired.revision,
+    expectedSurvivorRevision: preview.survivor.revision,
+    retiredId: pair.retiredId,
+    survivorId: pair.survivorId,
+  };
+}
+
 function contactLabel(contact: Pick<Contact, "displayName" | "emails">) {
   return contact.displayName ?? contact.emails[0] ?? "Unnamed Contact";
 }
