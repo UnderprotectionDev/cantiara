@@ -351,7 +351,7 @@ function EvidenceDialog({
 }
 
 /** Role is the founder's own choice on the relation; interpretation is separate from the source text. */
-function EvidenceRoleEditor({
+export function EvidenceRoleEditor({
   binding,
   record,
 }: {
@@ -405,7 +405,6 @@ function EvidenceRoleEditor({
         queryKey: orpc.documentEvidenceHistory.key(),
       });
     } catch {
-      command.current = null;
       setError("Evidence Role could not be saved. Reload and try again.");
     } finally {
       setPending(false);
@@ -468,7 +467,8 @@ export function EvidenceRoleHistory({
       <ul>
         {entries.map((entry) => (
           <li key={entry.revision}>
-            {entry.previousRole} → {entry.role} · {entry.changedAt}
+            {entry.previousRole} → {entry.role} · {entry.actorId} ·{" "}
+            {entry.changedAt}
             {entry.previousInterpretation === entry.interpretation
               ? null
               : ` · Previous interpretation: ${entry.previousInterpretation ?? "none"}`}

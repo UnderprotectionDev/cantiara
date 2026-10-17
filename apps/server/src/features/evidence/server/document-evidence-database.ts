@@ -202,6 +202,25 @@ async function ownedEnds(
   };
 }
 
+/** Role writes lock the source and target Projects in canonical id order, then the target record, before lifecycle is read. */
+async function lockRoleEnds(
+  executor: MutationDatabaseExecutor,
+  accountId: string,
+  id: string,
+  selection: DocumentSelection,
+) {
+  const row = await binding(executor, id, selection);
+  const target = row ? targetOf(row) : null;
+  if (!target) {
+    return;
+  }
+  const projectIds = [...new Set([selection.projectId, target.projectId])];
+  for (const projectId of projectIds.sort()) {
+    await evidenceProject(executor, accountId, projectId, true);
+  }
+  await evidenceTarget(executor, target, true);
+}
+
 const targetTables = {
   Work: work,
   Decision: decision,
@@ -678,6 +697,9 @@ export function createDatabaseDocumentEvidence(
     }
     return {
       async find(executor, id, lock) {
+        if (lock) {
+          await lockRoleEnds(executor, accountId, id, selection);
+        }
         const found = await current(executor, id, lock);
         return found
           ? {
@@ -688,6 +710,7 @@ export function createDatabaseDocumentEvidence(
           : null;
       },
       async update(executor, input) {
+        await lockRoleEnds(executor, accountId, input.targetId, selection);
         const found = await current(executor, input.targetId, true);
         if (!found || found.item.readOnly) {
           throw new MutationConflictError(input.targetId);

@@ -65,3 +65,20 @@ test("groups the role matrix with exact counts, keeps interpretation separate an
     expect(html.toLowerCase()).not.toContain(word);
   }
 });
+
+test("keeps an archived source visible as Archived inside its role group", () => {
+  const archived = {
+    ...item("h", "Supporting"),
+    source: {
+      documentId: "doc",
+      projectId: "project",
+      title: "Archived notes",
+      brokenReason: "Archived" as const,
+      canOpenSourceRecord: true,
+    },
+  };
+  const html = renderToStaticMarkup(<EvidenceRoleGroups items={[archived]} />);
+  expect(html).toContain("Supporting (1)");
+  expect(html).toContain("Archived notes");
+  expect(html).toContain("<p>Archived</p>");
+});

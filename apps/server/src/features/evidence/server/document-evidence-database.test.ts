@@ -10,8 +10,8 @@ import { evidenceBinding, recordOrigin } from "@cantiara/db/schema/evidence";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import {
   createDatabaseDocumentMutationContracts,
   createDatabaseDocuments,
@@ -657,5 +657,105 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
         }),
       ).rejects.toMatchObject({ code: "CONFLICT" });
     });
+
+    test("serializes an Evidence Role write behind a concurrent lifecycle write on the target Project", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const source = await createDocument("Founders want local exports. Done.");
+      const selection = { documentId: source.id, projectId };
+      const lifecycleProjectId = crypto.randomUUID();
+      const targetId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: lifecycleProjectId,
+        workspaceId,
+        name: "Lifecycle target",
+        shortCode: `L${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      await db.insert(decision).values({
+        id: targetId,
+        projectId: lifecycleProjectId,
+        title: "Cross-Project target",
+        decision: "Archive me",
+      });
+      const plan = await api.previewDocumentEvidence({
+        ...selection,
+        versionRevision: source.revision,
+        start: 0,
+        end: 27,
+        target: {
+          type: "Decision",
+          projectId: lifecycleProjectId,
+          recordId: targetId,
+        },
+      });
+      const bound = await api.confirmDocumentEvidence({
+        ...selection,
+        id: crypto.randomUUID(),
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        plan,
+      });
+      const bindingId = bound?.id ?? "";
+
+      // Hold the target Project's row lock in an archive transaction until the role write is queued behind it.
+      let release: () => void = () => undefined;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let markLocked: () => void = () => undefined;
+      const locked = new Promise<void>((resolve) => {
+        markLocked = resolve;
+      });
+      const lifecycle = db.transaction(async (tx) => {
+        await tx
+          .update(project)
+          .set({ archivedAt: new Date() })
+          .where(eq(project.id, lifecycleProjectId));
+        markLocked();
+        await released;
+      });
+      try {
+        await locked;
+        const outcome = api
+          .setDocumentEvidenceRole({
+            ...selection,
+            id: bindingId,
+            baseRevision: bound?.revision ?? 1,
+            clientIdempotencyKey: crypto.randomUUID(),
+            role: "Supporting",
+            interpretation: null,
+          })
+          .then(
+            () => "written",
+            (error: unknown) => error,
+          );
+        // The write must wait on the Project lock rather than read the target before the archive commits.
+        await vi.waitFor(
+          async () => {
+            const waiting = await db?.execute(sql`
+              select count(*)::int as count
+              from pg_stat_activity
+              where datname = current_database() and wait_event_type = 'Lock'
+            `);
+            expect(Number(waiting?.rows[0]?.count)).toBeGreaterThan(0);
+          },
+          { timeout: 3000 },
+        );
+        release();
+        await lifecycle;
+        expect(await outcome).toMatchObject({ code: "CONFLICT" });
+      } finally {
+        release();
+        await lifecycle.catch(() => undefined);
+      }
+      const [stored] = await db
+        .select({ role: evidenceBinding.role })
+        .from(evidenceBinding)
+        .where(eq(evidenceBinding.id, bindingId));
+      expect(stored?.role).toBe("Unspecified");
+    }, 15_000);
   },
 );

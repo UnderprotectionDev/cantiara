@@ -36,10 +36,9 @@ export default function EvidenceRoleGroups({
                     Founder interpretation: {item.interpretation}
                   </p>
                 ) : null}
-                {item.source.canOpenSourceRecord &&
-                item.source.projectId ? null : (
-                  <p>{item.source.brokenReason ?? "No access"}</p>
-                )}
+                {item.source.brokenReason ? (
+                  <p>{item.source.brokenReason}</p>
+                ) : null}
               </li>
             ))}
           </ul>
