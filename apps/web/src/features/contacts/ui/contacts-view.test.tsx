@@ -304,6 +304,14 @@ describe("Contact merge undo", () => {
     expect(html).toContain("Maker Mia");
     expect(html).toContain("Confirm Undo Merge");
     expect(html).not.toContain("Cannot be restored");
+    for (const label of [
+      "Erase personal data",
+      "Confirm GitHub Identity",
+      "Kanıt",
+      "Priority",
+    ]) {
+      expect(html).not.toContain(label);
+    }
   });
 
   test("says what cannot come back instead of promising a full undo", () => {

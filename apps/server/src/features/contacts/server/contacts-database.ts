@@ -616,7 +616,13 @@ async function planUndo(
             title: document.title,
           })
           .from(document)
-          .where(inArray(document.id, documentIds)),
+          .innerJoin(project, eq(project.id, document.projectId))
+          .where(
+            and(
+              inArray(document.id, documentIds),
+              eq(project.workspaceId, workspaceId),
+            ),
+          ),
     affiliationIds.length === 0
       ? []
       : executor
@@ -757,6 +763,15 @@ async function undoMergeInTransaction(
   );
   if (!survivor) {
     throw new ContactMergeUndoBlockedError(merge.survivingContactId);
+  }
+  // A concurrent undo may have committed while this one waited for the lock.
+  const [latest] = await executor
+    .select({ undoneAt: workspaceContactMerge.undoneAt })
+    .from(workspaceContactMerge)
+    .where(eq(workspaceContactMerge.id, merge.id))
+    .limit(1);
+  if (latest?.undoneAt) {
+    return replayUndo(executor, workspaceId, input.retiredId);
   }
   if (
     input.expectedSurvivorRevision !== undefined &&
