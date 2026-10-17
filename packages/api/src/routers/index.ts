@@ -78,6 +78,7 @@ import {
   documentEvidenceHistoryInputSchema,
   documentEvidenceTargetSchema,
   documentSelectionSchema,
+  evidenceFlowInputSchema,
   previewDocumentEvidenceInputSchema,
   setDocumentEvidenceRoleInputSchema,
 } from "../document-evidence";
@@ -5615,6 +5616,15 @@ export const appRouter = {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
       return access.list(context.session.user.id, input);
+    }),
+  evidenceFlow: protectedProcedure
+    .input(evidenceFlowInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.flow(context.session.user.id, input);
     }),
   documentEvidenceForTarget: protectedProcedure
     .input(documentEvidenceTargetSchema)

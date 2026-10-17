@@ -2,6 +2,7 @@ import type { AssumptionRecord } from "@cantiara/api/uncertainty-records";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
@@ -142,6 +143,15 @@ export default function ProjectAssumptionsSurface({
       </div>
     );
   }
+  function renderEvidenceFlow(recordId: string) {
+    return (
+      <EvidenceFlowPanel
+        projectId={projectId}
+        recordId={recordId}
+        type="Assumption"
+      />
+    );
+  }
   return (
     <div className="space-y-5">
       {documents.isError && !records.data.readOnly ? (
@@ -158,6 +168,7 @@ export default function ProjectAssumptionsSurface({
         onStartEditing={startEditing}
         onTransition={transition}
         projectId={projectId}
+        renderEvidenceFlow={renderEvidenceFlow}
         savedMessage={savedMessage}
         selectedId={selectedId}
       />

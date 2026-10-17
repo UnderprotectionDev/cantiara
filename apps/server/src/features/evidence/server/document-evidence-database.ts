@@ -59,6 +59,7 @@ import {
   updateEvidenceRole,
   writeEvidenceBinding,
 } from "./evidence-database";
+import { liveSource, readEvidenceFlow } from "./evidence-flow-database";
 import { createEvidenceRecord } from "./evidence-record-creation";
 import {
   evidenceProject,
@@ -500,57 +501,6 @@ async function commitPlan(
     actorId: accountId,
     committedAt: input.committedAt,
   });
-}
-
-/** Live Document for a persisted pin: owned and readable, `Archived`, or a safe broken reason. */
-async function liveSource(
-  executor: MutationDatabaseExecutor,
-  accountId: string,
-  workspaceId: string,
-  pin: ReturnType<typeof versionPinnedEvidenceSchema.parse>,
-) {
-  const [source] = await executor
-    .select({
-      title: document.title,
-      revision: document.revision,
-      archivedAt: document.archivedAt,
-      projectArchivedAt: project.archivedAt,
-    })
-    .from(document)
-    .innerJoin(project, eq(document.projectId, project.id))
-    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
-    .where(
-      and(
-        eq(document.id, pin.source.recordId),
-        eq(document.projectId, pin.source.projectId),
-        eq(workspace.id, workspaceId),
-        eq(workspace.ownerAccountId, accountId),
-      ),
-    );
-  if (source) {
-    const archived = Boolean(source.archivedAt || source.projectArchivedAt);
-    return {
-      source,
-      brokenReason: archived ? ("Archived" as const) : null,
-    };
-  }
-  // Not visible to this Account: a row that is gone was permanently deleted, otherwise access is refused.
-  const [remaining] = await executor
-    .select({ id: document.id })
-    .from(document)
-    .where(
-      and(
-        eq(document.id, pin.source.recordId),
-        eq(document.projectId, pin.source.projectId),
-      ),
-    )
-    .limit(1);
-  return {
-    source: null,
-    brokenReason: remaining
-      ? ("No access" as const)
-      : ("Permanently deleted" as const),
-  };
 }
 
 function targetEvidence(
@@ -1010,6 +960,10 @@ export function createDatabaseDocumentEvidence(
         },
         { isolationLevel: "repeatable read", accessMode: "read only" },
       );
+    },
+    /** Read-only derived view of explicit `Kanıtı` bindings; nothing is written or stored. */
+    flow(accountId, raw) {
+      return readEvidenceFlow(database, accountId, raw);
     },
     forTarget(accountId, raw) {
       const target = documentEvidenceTargetSchema.parse(raw);

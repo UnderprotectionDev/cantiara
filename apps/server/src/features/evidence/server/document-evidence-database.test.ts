@@ -8,6 +8,8 @@ import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
 import { evidenceBinding, recordOrigin } from "@cantiara/db/schema/evidence";
 import { project } from "@cantiara/db/schema/project";
+import { workRelation } from "@cantiara/db/schema/relation";
+import { researchSession } from "@cantiara/db/schema/research-session";
 import { work } from "@cantiara/db/schema/work";
 import { createRouterClient } from "@orpc/server";
 import { eq, sql } from "drizzle-orm";
@@ -639,6 +641,381 @@ const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
           canOpenSourceRecord: true,
         },
       });
+    });
+
+    test("Evidence Flow lists only explicit bindings in time order, filters by source type, writes nothing and withholds a gone source", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const flowDecisionId = crypto.randomUUID();
+      await db.insert(decision).values({
+        id: flowDecisionId,
+        projectId,
+        title: "Flow target",
+        decision: "Flow target",
+      });
+      const target = {
+        type: "Decision" as const,
+        projectId,
+        recordId: flowDecisionId,
+      };
+      // A Document in the same project that nothing binds to the target is not evidence.
+      await createDocument("Flow target unrelated.");
+      const ids: string[] = [];
+      for (const body of ["First finding.", "Second finding."]) {
+        const source = await createDocument(body);
+        const plan = await api.previewDocumentEvidence({
+          documentId: source.id,
+          projectId,
+          versionRevision: source.revision,
+          start: 0,
+          end: 5,
+          target,
+        });
+        const id = crypto.randomUUID();
+        await api.confirmDocumentEvidence({
+          documentId: source.id,
+          projectId,
+          id,
+          baseRevision: 0,
+          clientIdempotencyKey: crypto.randomUUID(),
+          plan,
+        });
+        ids.push(id);
+      }
+      const before = await db.select().from(evidenceBinding);
+      const flow = await api.evidenceFlow(target);
+      expect(flow?.map((row) => row.id)).toEqual(ids);
+      expect(flow?.[0]).toMatchObject({
+        sourceType: "Document",
+        role: "Unspecified",
+        pin: { excerpt: "First" },
+      });
+      expect(
+        await api.evidenceFlow({ ...target, sourceType: "Source" }),
+      ).toEqual([]);
+      expect(
+        (await api.evidenceFlow({ ...target, sourceType: "Document" }))?.length,
+      ).toBe(2);
+      // Reading the flow writes no relation, source or target life.
+      expect(await db.select().from(evidenceBinding)).toEqual(before);
+      expect(
+        await client(strangerId)
+          .evidenceFlow(target)
+          .catch(() => null),
+      ).toBeNull();
+
+      const firstSourceId = flow?.[0]?.source.recordId ?? "";
+      await db.delete(document).where(eq(document.id, firstSourceId));
+      const after = await api.evidenceFlow(target);
+      expect(after?.[0]).toMatchObject({
+        pin: null,
+        role: null,
+        source: {
+          title: null,
+          brokenReason: "Permanently deleted",
+          canOpenSourceRecord: false,
+        },
+      });
+      expect(JSON.stringify(after?.[0])).not.toContain("First");
+    });
+
+    test("Evidence Flow includes Research Session evidence under current Consent, names a missing component, and ignores Related relations", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const workId = crypto.randomUUID();
+      const otherWorkId = crypto.randomUUID();
+      for (const [id, number] of [
+        [workId, 9001],
+        [otherWorkId, 9002],
+      ] as const) {
+        await db.insert(work).values({
+          id,
+          projectId,
+          key: `E-${number}`,
+          number,
+          title: "Flow work",
+          type: "Task",
+        });
+      }
+      // A general Related relation is not evidence.
+      await db.insert(workRelation).values({
+        id: crypto.randomUUID(),
+        kind: "Related",
+        sourceWorkId: otherWorkId,
+        targetProjectId: projectId,
+        targetRecordId: workId,
+        targetLabel: "Flow work",
+      });
+      const target = { type: "Work" as const, projectId, recordId: workId };
+      expect(await api.evidenceFlow(target)).toEqual([]);
+
+      const sessionId = crypto.randomUUID();
+      const session = (consent: string, ids: string[]) => ({
+        id: sessionId,
+        projectId,
+        sourceType: "Research Session",
+        revision: 1,
+        title: "Interview 4",
+        purpose: "Pricing",
+        questionGuide: null,
+        status: "Completed",
+        scheduledAt: null,
+        durationMinutes: null,
+        channel: null,
+        facilitator: null,
+        scopeNote: null,
+        participantContactId: null,
+        consent,
+        consentNote: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        participantConsentAtLink: "Allowed",
+        consentRecordedBy: accountId,
+        consentRecordedAt: "2026-01-01T00:00:00.000Z",
+        content: ids.map((id) => ({
+          consentAtCapture: "Allowed",
+          content: {
+            id,
+            kind: "Observation",
+            text: "Pricing confused them.",
+            containsPersonalInformation: false,
+            relationIds: [],
+          },
+        })),
+      });
+      await db.insert(researchSession).values({
+        id: sessionId,
+        projectId,
+        revision: 1,
+        data: session("Allowed", ["note-1"]),
+      });
+      await db.insert(evidenceBinding).values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        sourceProjectId: projectId,
+        sourceRecordId: sessionId,
+        targetProjectId: projectId,
+        targetRecordId: workId,
+        targetRecordType: "Work",
+        pin: {
+          source: {
+            recordType: "Research Session",
+            recordId: sessionId,
+            projectId,
+            revision: 1,
+            componentId: "note-1",
+          },
+          start: 0,
+          end: 7,
+          excerpt: "Pricing",
+          before: "",
+          after: " confused them.",
+        },
+        actorId: accountId,
+      });
+      const open = await api.evidenceFlow(target);
+      expect(open).toHaveLength(1);
+      expect(open?.[0]).toMatchObject({
+        sourceType: "Research Session",
+        elementMissing: false,
+        pin: { excerpt: "Pricing" },
+        source: { title: "Interview 4", canOpenSourceRecord: true },
+      });
+      expect(
+        await api.evidenceFlow({ ...target, sourceType: "Document" }),
+      ).toEqual([]);
+
+      // Revoked Consent closes the text without hiding that the bind exists.
+      await db
+        .update(researchSession)
+        .set({ data: session("Not allowed", ["note-1"]) })
+        .where(eq(researchSession.id, sessionId));
+      const revoked = await api.evidenceFlow(target);
+      expect(revoked?.[0]).toMatchObject({
+        pin: null,
+        role: null,
+        source: { title: null, brokenReason: "No access" },
+      });
+      expect(JSON.stringify(revoked)).not.toContain("Pricing confused");
+
+      // Revoked Consent also closes a removed component: no title or open reveal.
+      await db
+        .update(researchSession)
+        .set({ data: session("Not allowed", ["note-2"]) })
+        .where(eq(researchSession.id, sessionId));
+      const revokedAndRemoved = await api.evidenceFlow(target);
+      expect(revokedAndRemoved?.[0]).toMatchObject({
+        elementMissing: false,
+        pin: null,
+        role: null,
+        source: {
+          title: null,
+          brokenReason: "No access",
+          canOpenSourceRecord: false,
+        },
+      });
+      expect(JSON.stringify(revokedAndRemoved)).not.toContain("Interview 4");
+
+      // A removed component never retargets silently.
+      await db
+        .update(researchSession)
+        .set({ data: session("Allowed", ["note-2"]) })
+        .where(eq(researchSession.id, sessionId));
+      expect((await api.evidenceFlow(target))?.[0]).toMatchObject({
+        elementMissing: true,
+        pin: null,
+        role: null,
+      });
+    });
+
+    test("Evidence Flow treats a Research Session outside the pinned Project as permanently deleted", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const otherProjectId = crypto.randomUUID();
+      await db.insert(project).values({
+        id: otherProjectId,
+        workspaceId,
+        name: "Other evidence project",
+        shortCode: `O${crypto.randomUUID().slice(0, 6).toUpperCase()}`,
+        starterConfiguration: "Blank Project",
+      });
+      const workId = crypto.randomUUID();
+      await db.insert(work).values({
+        id: workId,
+        projectId,
+        key: "E-9003",
+        number: 9003,
+        title: "Moved session target",
+        type: "Task",
+      });
+      const movedSessionId = crypto.randomUUID();
+      await db.insert(researchSession).values({
+        id: movedSessionId,
+        projectId: otherProjectId,
+        revision: 1,
+        data: {
+          id: movedSessionId,
+          projectId: otherProjectId,
+          sourceType: "Research Session",
+          revision: 1,
+          title: "Moved interview",
+          purpose: "Pricing",
+          questionGuide: null,
+          status: "Completed",
+          scheduledAt: null,
+          durationMinutes: null,
+          channel: null,
+          facilitator: null,
+          scopeNote: null,
+          participantContactId: null,
+          consent: "Allowed",
+          consentNote: null,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          participantConsentAtLink: "Allowed",
+          consentRecordedBy: accountId,
+          consentRecordedAt: "2026-01-01T00:00:00.000Z",
+          content: [],
+        },
+      });
+      await db.insert(evidenceBinding).values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        sourceProjectId: projectId,
+        sourceRecordId: movedSessionId,
+        targetProjectId: projectId,
+        targetRecordId: workId,
+        targetRecordType: "Work",
+        pin: {
+          source: {
+            recordType: "Research Session",
+            recordId: movedSessionId,
+            projectId,
+            revision: 1,
+            componentId: null,
+          },
+          start: 0,
+          end: 5,
+          excerpt: "Moved",
+          before: "",
+          after: " interview",
+        },
+        actorId: accountId,
+      });
+      const flow = await api.evidenceFlow({
+        type: "Work",
+        projectId,
+        recordId: workId,
+      });
+      expect(flow?.[0]).toMatchObject({
+        pin: null,
+        source: {
+          title: null,
+          brokenReason: "Permanently deleted",
+          canOpenSourceRecord: false,
+        },
+      });
+      expect(JSON.stringify(flow)).not.toContain("Moved interview");
+    });
+
+    test("Evidence Flow lists explicit evidence on an Assumption target", async () => {
+      if (!db) {
+        throw new Error("Database required");
+      }
+      const api = client();
+      const assumptionId = crypto.randomUUID();
+      await db.insert(assumption).values({
+        id: assumptionId,
+        projectId,
+        title: "Offline trust",
+        statement: "Founders trust offline exports.",
+      });
+      const target = {
+        type: "Assumption" as const,
+        projectId,
+        recordId: assumptionId,
+      };
+      const source = await createDocument("Offline exports are trusted.");
+      const plan = await api.previewDocumentEvidence({
+        documentId: source.id,
+        projectId,
+        versionRevision: source.revision,
+        start: 0,
+        end: 7,
+        target,
+      });
+      const bindingId = crypto.randomUUID();
+      await api.confirmDocumentEvidence({
+        documentId: source.id,
+        projectId,
+        id: bindingId,
+        baseRevision: 0,
+        clientIdempotencyKey: crypto.randomUUID(),
+        plan,
+      });
+      expect(await api.evidenceFlow(target)).toMatchObject([
+        {
+          id: bindingId,
+          sourceType: "Document",
+          pin: { excerpt: "Offline" },
+        },
+      ]);
+    });
+
+    test("Evidence Flow is offered only on Work, Decision and Assumption", async () => {
+      await expect(
+        client().evidenceFlow({
+          type: "Risk",
+          projectId,
+          recordId: crypto.randomUUID(),
+        } as never),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
 
     test("reports an out-of-range preview as CONFLICT, not a server failure", async () => {

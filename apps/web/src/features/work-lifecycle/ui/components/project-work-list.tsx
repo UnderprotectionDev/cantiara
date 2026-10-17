@@ -31,6 +31,7 @@ import useUserInitiatedWorkSuccess, {
 } from "@/features/completion-effects/hooks/use-user-initiated-work-success";
 import { customFieldItemsForRecord } from "@/features/custom-fields/hooks/use-custom-fields";
 import CustomFieldValuesForm from "@/features/custom-fields/ui/components/custom-field-values-form";
+import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import ExternalExecutionHandoff from "@/features/external-handoffs/ui/components/external-execution-handoff";
 import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import WorkReviewLaterControl from "@/features/personal-reminders/ui/components/work-review-later-control";
@@ -309,6 +310,11 @@ export default function ProjectWorkList({
                 workStatusLabels={workStatusLabels}
               />
               <ExternalExecutionHandoff work={work} />
+              <EvidenceFlowPanel
+                projectId={projectId}
+                recordId={work.id}
+                type="Work"
+              />
               {priorityMetricValues.query.isError ? (
                 <p className="text-destructive text-sm" role="alert">
                   Priority metrics are unavailable. Try loading this page again.
