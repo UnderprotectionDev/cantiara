@@ -4368,6 +4368,11 @@ export const appRouter = {
         requireContacts(context).getContact(context.session.user.id, input),
       ),
     ),
+  contactDuplicateCandidates: protectedProcedure.handler(({ context }) =>
+    runContactOperation(() =>
+      requireContacts(context).listDuplicateCandidates(context.session.user.id),
+    ),
+  ),
   companies: protectedProcedure.handler(({ context }) =>
     runContactOperation(() =>
       requireContacts(context).listCompanies(context.session.user.id),

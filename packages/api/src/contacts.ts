@@ -166,6 +166,23 @@ export const contactSchema = z
 
 export type Contact = z.infer<typeof contactSchema>;
 
+/**
+ * `strong`: the Contacts share a normalized email alias. `weak`: only a
+ * similar name or shared Company. Neither strength merges anything; a
+ * candidate is a read-only suggestion.
+ */
+export const duplicateCandidateSchema = z
+  .object({
+    contactIds: z.array(identifierSchema).min(2),
+    reasons: z.array(
+      z.enum(["Same email", "Similar name", "Same Company and name"]),
+    ),
+    strength: z.enum(["strong", "weak"]),
+  })
+  .strict();
+
+export type DuplicateCandidate = z.infer<typeof duplicateCandidateSchema>;
+
 export interface ContactStore {
   createCompany: (
     workspaceId: string,
@@ -216,6 +233,7 @@ export interface ContactsAccess {
   ) => Promise<Contact>;
   listCompanies: (accountId: string) => Promise<Company[]>;
   listContacts: (accountId: string) => Promise<Contact[]>;
+  listDuplicateCandidates: (accountId: string) => Promise<DuplicateCandidate[]>;
   setCompany: (
     accountId: string,
     input: SetContactCompanyInput,
