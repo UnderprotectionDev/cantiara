@@ -8,8 +8,10 @@
 │   └── workflows/
 │       ├── integration-tests.yml
 │       ├── code-quality.yml
+│       ├── macos-client-compile.yml
 │       ├── macos-release.yml
-│       └── pre-merge-validation.yml
+│       ├── pre-merge-validation.yml
+│       └── react-doctor.yml
 ├── apps/
 │   ├── extension/
 │   │   ├── entrypoints/

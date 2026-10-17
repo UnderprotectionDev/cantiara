@@ -179,33 +179,6 @@ jobs:
       - name: Run web unit tests
         run: bun run --cwd apps/web test -- --fsModuleCache
 
-  # Preserve the existing required Core integration check while its suites run
-  # independently. A skipped or cancelled suite must not turn this gate green.
-  core-integration:
-    name: Core integration
-    needs:
-      - database-integration
-      - server-integration
-      - unit-integration
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
-    steps:
-      - name: Require all core integration jobs to pass
-        env:
-          DATABASE_RESULT: ${{ needs.database-integration.result }}
-          SERVER_RESULT: ${{ needs.server-integration.result }}
-          UNIT_RESULT: ${{ needs.unit-integration.result }}
-        run: |
-          if [[ "$DATABASE_RESULT" != "success" || \
-                "$SERVER_RESULT" != "success" || \
-                "$UNIT_RESULT" != "success" ]]; then
-            echo "Database integration: $DATABASE_RESULT"
-            echo "Server integration: $SERVER_RESULT"
-            echo "Type checks and web unit tests: $UNIT_RESULT"
-            exit 1
-          fi
-
   # Keep one worker per isolated database: requests within each shard share a
   # local client identity and rate-limit bucket. Run the reference-scale
   # measurement on its own runner so test work cannot distort its budget.
@@ -335,10 +308,13 @@ jobs:
             --grep \
             "measures Command Palette visibility at the reference workspace scale: ${{ matrix.cache }}-cache$"
 
+  # A skipped or cancelled suite must not turn this gate green.
   integration-gate:
     name: Integration gate
     needs:
-      - core-integration
+      - database-integration
+      - server-integration
+      - unit-integration
       - browser-integration
       - command-palette-performance
     if: always()
@@ -347,14 +323,20 @@ jobs:
     steps:
       - name: Require all integration jobs to pass
         env:
-          CORE_RESULT: ${{ needs.core-integration.result }}
+          DATABASE_RESULT: ${{ needs.database-integration.result }}
+          SERVER_RESULT: ${{ needs.server-integration.result }}
+          UNIT_RESULT: ${{ needs.unit-integration.result }}
           BROWSER_RESULT: ${{ needs.browser-integration.result }}
           PERFORMANCE_RESULT: ${{ needs.command-palette-performance.result }}
         run: |
-          if [[ "$CORE_RESULT" != "success" || \
+          if [[ "$DATABASE_RESULT" != "success" || \
+                "$SERVER_RESULT" != "success" || \
+                "$UNIT_RESULT" != "success" || \
                 "$BROWSER_RESULT" != "success" || \
                 "$PERFORMANCE_RESULT" != "success" ]]; then
-            echo "Core integration: $CORE_RESULT"
+            echo "Database integration: $DATABASE_RESULT"
+            echo "Server integration: $SERVER_RESULT"
+            echo "Type checks and web unit tests: $UNIT_RESULT"
             echo "Browser integration: $BROWSER_RESULT"
             echo "Command Palette performance: $PERFORMANCE_RESULT"
             exit 1
