@@ -19,6 +19,10 @@ import {
   ConvertToWorkDialog,
   type PreviewConvert,
 } from "./convert-to-work-dialog";
+import {
+  EvidenceQualityPanel,
+  type SaveEvidence,
+} from "./evidence-quality-panel";
 
 export interface IdentityOption {
   id: string;
@@ -321,6 +325,7 @@ function FeedbackRow({
   contactOptions,
   onConfirmConvert,
   onPreviewConvert,
+  onSaveEvidence,
   onSetIdentity,
   onSetStatus,
   readOnly,
@@ -330,6 +335,7 @@ function FeedbackRow({
   contactOptions: IdentityOption[];
   onConfirmConvert: (record: FeedbackRecord) => ConfirmConvert;
   onPreviewConvert: (record: FeedbackRecord) => PreviewConvert;
+  onSaveEvidence: (record: FeedbackRecord) => SaveEvidence;
   onSetIdentity: SetIdentity;
   onSetStatus: SetStatus;
   readOnly: boolean;
@@ -463,8 +469,15 @@ function FeedbackRow({
           <h5 className="font-medium">Origin of</h5>
           <ul>
             {record.workOrigins.map((origin) => (
-              <li key={origin.id}>
-                {origin.workKey} {origin.workTitle}
+              <li className="space-y-2" key={origin.id}>
+                <p>
+                  {origin.workKey} {origin.workTitle}
+                </p>
+                <EvidenceQualityPanel
+                  onSave={onSaveEvidence(record)}
+                  origin={origin}
+                  readOnly={readOnly}
+                />
               </li>
             ))}
           </ul>
@@ -498,6 +511,7 @@ export function FeedbackView({
   onConfirmConvert,
   onCreate,
   onPreviewConvert,
+  onSaveEvidence,
   onSetIdentity,
   onSetStatus,
   readOnly,
@@ -509,6 +523,7 @@ export function FeedbackView({
   onConfirmConvert: (record: FeedbackRecord) => ConfirmConvert;
   onCreate: Create;
   onPreviewConvert: (record: FeedbackRecord) => PreviewConvert;
+  onSaveEvidence: (record: FeedbackRecord) => SaveEvidence;
   onSetIdentity: SetIdentity;
   onSetStatus: SetStatus;
   readOnly: boolean;
@@ -538,6 +553,7 @@ export function FeedbackView({
               key={record.id}
               onConfirmConvert={onConfirmConvert}
               onPreviewConvert={onPreviewConvert}
+              onSaveEvidence={onSaveEvidence}
               onSetIdentity={onSetIdentity}
               onSetStatus={onSetStatus}
               readOnly={readOnly}

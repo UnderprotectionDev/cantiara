@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { type EvidenceRole, evidenceRoleSchema } from "./document-evidence";
 import type { FeedbackFeedAccess } from "./feedback-feed";
 import {
   canonicalizeMutationPayload,
@@ -146,12 +147,169 @@ export const feedbackCompanySchema = z
   .strict();
 
 /**
+ * `Evidence quality` (Kanıt niteliği) of one Work-Feedback link. The seven
+ * fields are separate, each blank (`null`) or a value such as `Unknown`; the
+ * product never fills them from the original message.
+ */
+export const EVIDENCE_QUALITY_FIELDS = [
+  "reportedProblem",
+  "suggestedSolution",
+  "currentWorkaround",
+  "impactSeverity",
+  "usageFrequency",
+  "independence",
+  "audienceFit",
+] as const;
+export const evidenceQualityFieldSchema = z.enum(EVIDENCE_QUALITY_FIELDS);
+export type EvidenceQualityField = z.infer<typeof evidenceQualityFieldSchema>;
+
+export const EVIDENCE_QUALITY_LABELS: Record<EvidenceQualityField, string> = {
+  audienceFit: "Audience fit",
+  currentWorkaround: "Current workaround",
+  impactSeverity: "Impact severity",
+  independence: "Independence",
+  reportedProblem: "Reported problem",
+  suggestedSolution: "Suggested solution",
+  usageFrequency: "Usage frequency",
+};
+
+export const EVIDENCE_QUALITY_UNKNOWN = "Unknown";
+
+/** Link-local tracker intent; never a Feedback or Work lifecycle value. */
+export const FEEDBACK_FOLLOW_UPS = [
+  "Follow up",
+  "Followed up",
+  "Outcome verified",
+] as const;
+export const feedbackFollowUpSchema = z.enum(FEEDBACK_FOLLOW_UPS);
+export type FeedbackFollowUp = z.infer<typeof feedbackFollowUpSchema>;
+
+/**
+ * A founder-entered value. `founderInterpretation` says the source did not
+ * state it, so the stored entry is labeled with author and time. `Unknown`
+ * is never an interpretation.
+ */
+export const evidenceQualityInputSchema = z
+  .object({
+    founderInterpretation: z.boolean(),
+    value: z
+      .string()
+      .trim()
+      .min(1, "Enter a value or leave the field blank.")
+      .max(2000, "Value must be 2000 characters or fewer."),
+  })
+  .strict();
+
+export const evidenceQualityEntrySchema = z
+  .object({
+    author: identifierSchema,
+    founderInterpretation: z.boolean(),
+    recordedAt: timestampSchema,
+    value: z.string().min(1),
+  })
+  .strict();
+
+export type EvidenceQualityEntry = z.infer<typeof evidenceQualityEntrySchema>;
+
+const qualityEntriesShape = Object.fromEntries(
+  EVIDENCE_QUALITY_FIELDS.map((field) => [
+    field,
+    evidenceQualityEntrySchema.nullable(),
+  ]),
+) as Record<
+  EvidenceQualityField,
+  z.ZodNullable<typeof evidenceQualityEntrySchema>
+>;
+
+export const evidenceQualitySchema = z.object(qualityEntriesShape).strict();
+export type EvidenceQuality = z.infer<typeof evidenceQualitySchema>;
+
+export const feedbackEvidenceHistorySchema = z
+  .object({
+    actor: identifierSchema,
+    changedAt: timestampSchema,
+    changedFields: z.array(z.string().min(1)),
+    revision: revisionSchema,
+  })
+  .strict();
+
+/**
+ * Evidence quality, Evidence Role and follow-up of one Work-Feedback `Origin`
+ * link. Role is its own field: it is stored beside, never computed from, the
+ * quality fields, and nothing here is a score.
+ */
+export const feedbackLinkEvidenceSchema = z
+  .object({
+    followUp: feedbackFollowUpSchema.nullable(),
+    history: z.array(feedbackEvidenceHistorySchema),
+    quality: evidenceQualitySchema,
+    revision: revisionSchema,
+    role: evidenceRoleSchema,
+  })
+  .strict();
+
+export type FeedbackLinkEvidence = z.infer<typeof feedbackLinkEvidenceSchema>;
+
+export function emptyEvidenceQuality(): EvidenceQuality {
+  return Object.fromEntries(
+    EVIDENCE_QUALITY_FIELDS.map((field) => [field, null]),
+  ) as EvidenceQuality;
+}
+
+export function emptyLinkEvidence(): FeedbackLinkEvidence {
+  return {
+    followUp: null,
+    history: [],
+    quality: emptyEvidenceQuality(),
+    revision: 0,
+    role: "Unspecified",
+  };
+}
+
+const qualityInputShape = Object.fromEntries(
+  EVIDENCE_QUALITY_FIELDS.map((field) => [
+    field,
+    evidenceQualityInputSchema.nullable().optional(),
+  ]),
+) as Record<
+  EvidenceQualityField,
+  z.ZodOptional<z.ZodNullable<typeof evidenceQualityInputSchema>>
+>;
+
+/**
+ * One command per link. Every key is optional and an omitted key is left as
+ * it was, so editing quality cannot touch the role and vice versa; `null`
+ * clears a field. The original message, Feedback status, Work fields,
+ * priority and any score are not part of the contract, and `.strict()`
+ * refuses them.
+ */
+export const setFeedbackEvidenceInputSchema = z
+  .object({
+    expectedRevision: revisionSchema.optional(),
+    feedbackId: identifierSchema,
+    followUp: feedbackFollowUpSchema.nullable().optional(),
+    projectId: identifierSchema,
+    quality: z.object(qualityInputShape).strict().optional(),
+    role: evidenceRoleSchema.optional(),
+    workId: identifierSchema,
+  })
+  .strict();
+
+export type SetFeedbackEvidenceInput = z.input<
+  typeof setFeedbackEvidenceInputSchema
+>;
+export type ParsedSetFeedbackEvidenceInput = z.output<
+  typeof setFeedbackEvidenceInputSchema
+>;
+
+/**
  * One `Origin` link from this Feedback to a Work. Each Feedback is its own
  * origin: the list is provenance, never a vote count or priority.
  */
 export const feedbackWorkOriginSchema = z
   .object({
     createdAt: timestampSchema,
+    evidence: feedbackLinkEvidenceSchema,
     id: identifierSchema,
     workId: identifierSchema,
     workKey: identifierSchema,
@@ -312,6 +470,71 @@ export function isSameFeedbackWorkPlan(
   );
 }
 
+export interface MergedLinkEvidence {
+  changedFields: string[];
+  followUp: FeedbackFollowUp | null;
+  quality: EvidenceQuality;
+  role: EvidenceRole;
+}
+
+/**
+ * The one merge rule of a Work-Feedback evidence command. Omitted keys stay as
+ * they were, `null` clears, and a value that did not change keeps its author
+ * and time. A value is stamped with the acting founder's alias and the commit
+ * time; `Unknown` is never a Founder interpretation. Nothing is read from the
+ * original message, and role, quality and follow-up never influence each other.
+ */
+export function mergeLinkEvidence(
+  previous: Pick<FeedbackLinkEvidence, "followUp" | "quality" | "role">,
+  input: Pick<ParsedSetFeedbackEvidenceInput, "followUp" | "quality" | "role">,
+  stamp: { author: string; recordedAt: string },
+): MergedLinkEvidence {
+  const changedFields: string[] = [];
+  const quality = { ...previous.quality };
+  for (const field of EVIDENCE_QUALITY_FIELDS) {
+    const entered = input.quality?.[field];
+    if (entered === undefined) {
+      continue;
+    }
+    const before = previous.quality[field];
+    if (entered === null) {
+      if (before !== null) {
+        quality[field] = null;
+        changedFields.push(field);
+      }
+      continue;
+    }
+    const founderInterpretation =
+      entered.value === EVIDENCE_QUALITY_UNKNOWN
+        ? false
+        : entered.founderInterpretation;
+    if (
+      before &&
+      before.value === entered.value &&
+      before.founderInterpretation === founderInterpretation
+    ) {
+      continue;
+    }
+    quality[field] = {
+      author: stamp.author,
+      founderInterpretation,
+      recordedAt: stamp.recordedAt,
+      value: entered.value,
+    };
+    changedFields.push(field);
+  }
+  const role = input.role ?? previous.role;
+  if (role !== previous.role) {
+    changedFields.push("role");
+  }
+  const followUp =
+    input.followUp === undefined ? previous.followUp : input.followUp;
+  if (followUp !== previous.followUp) {
+    changedFields.push("followUp");
+  }
+  return { changedFields, followUp, quality, role };
+}
+
 /** Persistence port. `null` means the Project is not owned or does not exist. */
 export interface FeedbackStore {
   /** Atomic Work + `Origin` creation; `null` when the Feedback is unavailable. */
@@ -330,6 +553,11 @@ export interface FeedbackStore {
     projectId: string,
     feedbackId: string,
   ) => Promise<FeedbackConversionSource | null>;
+  /** `null` when the Feedback or its `Origin` link toward the Work is unavailable. */
+  setEvidence: (
+    accountId: string,
+    input: ParsedSetFeedbackEvidenceInput,
+  ) => Promise<FeedbackRecord | null>;
   setIdentity: (
     accountId: string,
     input: ParsedSetFeedbackIdentityInput,
@@ -356,6 +584,10 @@ export interface FeedbackAccess {
     accountId: string,
     input: PreviewFeedbackWorkInput,
   ) => Promise<FeedbackWorkPlan>;
+  setEvidence: (
+    accountId: string,
+    input: SetFeedbackEvidenceInput,
+  ) => Promise<FeedbackRecord>;
   setIdentity: (
     accountId: string,
     input: SetFeedbackIdentityInput,

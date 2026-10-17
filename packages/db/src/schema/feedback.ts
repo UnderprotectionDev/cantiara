@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -104,6 +105,63 @@ export const feedbackWorkOrigin = pgTable(
     check(
       "project_feedback_work_origin_revision_check",
       sql`${table.revision} >= 1`,
+    ),
+  ],
+);
+
+/**
+ * Evidence quality, Evidence Role and follow-up of one `Origin` link. Keyed by
+ * the link itself, so the same Feedback carries separate context per Work and
+ * nothing copies between links. `qualities` holds one entry per field (value,
+ * Founder interpretation flag, author alias, time) and is never derived from
+ * the original message; `role` is its own column and is never computed from it.
+ */
+export const feedbackWorkEvidence = pgTable(
+  "project_feedback_work_evidence",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    followUp: text("follow_up"),
+    originId: text("origin_id")
+      .primaryKey()
+      .references(() => feedbackWorkOrigin.id, { onDelete: "cascade" }),
+    qualities: jsonb("qualities").default({}).notNull(),
+    revision: integer("revision").default(1).notNull(),
+    role: text("role").default("Unspecified").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "project_feedback_work_evidence_role_check",
+      sql`${table.role} in ('Supporting', 'Contradicting', 'Provides context', 'Inconclusive', 'Unspecified')`,
+    ),
+    check(
+      "project_feedback_work_evidence_follow_up_check",
+      sql`${table.followUp} is null or ${table.followUp} in ('Follow up', 'Followed up', 'Outcome verified')`,
+    ),
+    check(
+      "project_feedback_work_evidence_revision_check",
+      sql`${table.revision} >= 1`,
+    ),
+  ],
+);
+
+/** Each change keeps the changed field names with actor alias and time, not message text. */
+export const feedbackWorkEvidenceHistory = pgTable(
+  "project_feedback_work_evidence_history",
+  {
+    actorAlias: text("actor_alias").notNull(),
+    changedAt: timestamp("changed_at").notNull(),
+    changedFields: jsonb("changed_fields").notNull(),
+    id: text("id").primaryKey(),
+    originId: text("origin_id")
+      .notNull()
+      .references(() => feedbackWorkOrigin.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+  },
+  (table) => [
+    index("project_feedback_work_evidence_history_origin_idx").on(
+      table.originId,
+      table.revision,
     ),
   ],
 );

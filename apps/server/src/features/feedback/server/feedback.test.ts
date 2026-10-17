@@ -1,9 +1,11 @@
 import {
   buildFeedbackWorkPlan,
+  emptyLinkEvidence,
   type FeedbackConversionSource,
   type FeedbackRecord,
   type FeedbackStore,
   type FeedbackWorkOrigin,
+  mergeLinkEvidence,
   type ParsedCreateFeedbackInput,
 } from "@cantiara/api/feedback";
 import { describe, expect, test } from "vitest";
@@ -36,6 +38,7 @@ function createMemoryStore() {
       const replay = idempotent.get(input.clientIdempotencyKey);
       const origin: FeedbackWorkOrigin = replay ?? {
         createdAt: timestamp,
+        evidence: emptyLinkEvidence(),
         id: input.id,
         workId: input.workId,
         workKey: `FBK-${works.size + 1}`,
@@ -66,6 +69,58 @@ function createMemoryStore() {
             record,
           } satisfies FeedbackConversionSource)
         : null;
+    },
+    setEvidence: async (accountId, input) => {
+      await Promise.resolve();
+      calls.push("setEvidence");
+      const current = records.get(input.feedbackId);
+      const link = current?.workOrigins.find(
+        ({ workId }) => workId === input.workId,
+      );
+      if (!(current && link) || accountId !== "account-1") {
+        return null;
+      }
+      if (
+        input.expectedRevision !== undefined &&
+        input.expectedRevision !== link.evidence.revision
+      ) {
+        throw new FeedbackRevisionConflictError(current.id);
+      }
+      const merged = mergeLinkEvidence(link.evidence, input, {
+        author: "founder-alias",
+        recordedAt: timestamp,
+      });
+      if (merged.changedFields.length === 0) {
+        return current;
+      }
+      const revision = link.evidence.revision + 1;
+      const next: FeedbackRecord = {
+        ...current,
+        workOrigins: current.workOrigins.map((origin) =>
+          origin.id === link.id
+            ? {
+                ...origin,
+                evidence: {
+                  followUp: merged.followUp,
+                  history: [
+                    ...origin.evidence.history,
+                    {
+                      actor: "founder-alias",
+                      changedAt: timestamp,
+                      changedFields: merged.changedFields,
+                      revision,
+                    },
+                  ],
+                  quality: merged.quality,
+                  revision,
+                  role: merged.role,
+                },
+              }
+            : origin,
+        ),
+      };
+      records.set(next.id, next);
+      return next;
     },
     setIdentity: async (accountId, input) => {
       await Promise.resolve();
@@ -660,5 +715,298 @@ describe("Convert to Work", () => {
     });
     expect(plan).not.toHaveProperty("summary");
     expect(plan).not.toHaveProperty("priority");
+  });
+});
+
+describe("Evidence quality on a Work-Feedback link", () => {
+  const original = "Export keeps failing\nfor large files.";
+
+  async function linked() {
+    const memory = createMemoryStore();
+    const access = createFeedback(memory.store);
+    const record = await access.create("account-1", {
+      occurredAt: "2026-09-30T12:00:00.000Z",
+      originalMessage: original,
+      projectId: "project-1",
+      title: "Export fails",
+    });
+    for (const [index, workId] of ["work-1", "work-2"].entries()) {
+      // biome-ignore lint/performance/noAwaitInLoops: ordered, dependent steps
+      const plan = await access.previewConvertToWork("account-1", {
+        feedbackId: record.id,
+        projectId: "project-1",
+      });
+      await access.convertToWork("account-1", {
+        baseRevision: 0,
+        clientIdempotencyKey: `key-${workId}`,
+        feedbackId: record.id,
+        id: `origin-${index}`,
+        plan,
+        projectId: "project-1",
+        workId,
+      });
+    }
+    memory.calls.length = 0;
+    return { access, memory, record };
+  }
+
+  const base = (feedbackId: string, workId = "work-1") => ({
+    feedbackId,
+    projectId: "project-1",
+    workId,
+  });
+  const linkOf = (record: FeedbackRecord, workId: string) => {
+    const link = record.workOrigins.find((origin) => origin.workId === workId);
+    if (!link) {
+      throw new Error("missing link");
+    }
+    return link;
+  };
+
+  test("a new link starts blank with no role and no follow-up, and never blocks the relation", async () => {
+    const { memory, record } = await linked();
+    const stored = memory.records.get(record.id);
+    const link = linkOf(stored as FeedbackRecord, "work-1");
+
+    expect(Object.values(link.evidence.quality)).toEqual(
+      new Array(7).fill(null),
+    );
+    expect(link.evidence).toMatchObject({
+      followUp: null,
+      revision: 0,
+      role: "Unspecified",
+    });
+  });
+
+  test("keeps the seven fields separate and the original message verbatim", async () => {
+    const { access, record } = await linked();
+
+    const updated = await access.setEvidence("account-1", {
+      ...base(record.id),
+      quality: {
+        impactSeverity: { founderInterpretation: true, value: "High" },
+        reportedProblem: {
+          founderInterpretation: false,
+          value: "Export fails above 50 MB",
+        },
+        usageFrequency: { founderInterpretation: false, value: "Unknown" },
+      },
+    });
+
+    const { quality } = linkOf(updated, "work-1").evidence;
+    expect(quality.reportedProblem?.value).toBe("Export fails above 50 MB");
+    expect(quality.impactSeverity?.value).toBe("High");
+    expect(quality.usageFrequency?.value).toBe("Unknown");
+    expect(quality.suggestedSolution).toBeNull();
+    expect(quality.currentWorkaround).toBeNull();
+    expect(quality.independence).toBeNull();
+    expect(quality.audienceFit).toBeNull();
+    expect(updated.originalMessage).toBe(original);
+  });
+
+  test("labels interpreted values with author and time, and Unknown is never an interpretation", async () => {
+    const { access, record } = await linked();
+
+    const updated = await access.setEvidence("account-1", {
+      ...base(record.id),
+      quality: {
+        impactSeverity: { founderInterpretation: true, value: "High" },
+        independence: { founderInterpretation: true, value: "Unknown" },
+        reportedProblem: { founderInterpretation: false, value: "Crashes" },
+      },
+    });
+
+    const { quality } = linkOf(updated, "work-1").evidence;
+    expect(quality.impactSeverity).toEqual({
+      author: "founder-alias",
+      founderInterpretation: true,
+      recordedAt: timestamp,
+      value: "High",
+    });
+    expect(quality.reportedProblem?.founderInterpretation).toBe(false);
+    expect(quality.independence?.founderInterpretation).toBe(false);
+  });
+
+  test("never extracts a value from the message and reads nothing but the link", async () => {
+    const { access, memory, record } = await linked();
+
+    await access.setEvidence("account-1", {
+      ...base(record.id),
+      role: "Supporting",
+    });
+
+    const link = linkOf(
+      memory.records.get(record.id) as FeedbackRecord,
+      "work-1",
+    );
+    // The message mentions failing, yet no field was filled from it.
+    expect(Object.values(link.evidence.quality)).toEqual(
+      new Array(7).fill(null),
+    );
+    expect(memory.calls).toEqual(["setEvidence"]);
+  });
+
+  test("Evidence Role is its own field: quality never sets it and it never sets quality", async () => {
+    const { access, record } = await linked();
+
+    const withQuality = await access.setEvidence("account-1", {
+      ...base(record.id),
+      quality: {
+        impactSeverity: { founderInterpretation: true, value: "Critical" },
+      },
+    });
+    expect(linkOf(withQuality, "work-1").evidence.role).toBe("Unspecified");
+
+    const withRole = await access.setEvidence("account-1", {
+      ...base(record.id),
+      role: "Contradicting",
+    });
+    const { evidence } = linkOf(withRole, "work-1");
+    expect(evidence.role).toBe("Contradicting");
+    expect(evidence.quality.impactSeverity?.value).toBe("Critical");
+    expect(evidence).not.toHaveProperty("score");
+    expect(evidence).not.toHaveProperty("weight");
+  });
+
+  test("quality on one Work link is not copied to another Work", async () => {
+    const { access, record } = await linked();
+
+    const updated = await access.setEvidence("account-1", {
+      ...base(record.id, "work-1"),
+      followUp: "Follow up",
+      quality: {
+        impactSeverity: { founderInterpretation: true, value: "High" },
+      },
+      role: "Supporting",
+    });
+
+    const other = linkOf(updated, "work-2").evidence;
+    expect(other.quality.impactSeverity).toBeNull();
+    expect(other).toMatchObject({
+      followUp: null,
+      revision: 0,
+      role: "Unspecified",
+    });
+  });
+
+  test("Follow up states are link-local and touch neither Feedback nor Work lifecycle", async () => {
+    const { access, memory, record } = await linked();
+    const before = memory.records.get(record.id) as FeedbackRecord;
+
+    let latest = before;
+    for (const followUp of [
+      "Follow up",
+      "Followed up",
+      "Outcome verified",
+    ] as const) {
+      // biome-ignore lint/performance/noAwaitInLoops: ordered, dependent steps
+      latest = await access.setEvidence("account-1", {
+        ...base(record.id),
+        followUp,
+      });
+      expect(linkOf(latest, "work-1").evidence.followUp).toBe(followUp);
+    }
+    latest = await access.setEvidence("account-1", {
+      ...base(record.id),
+      followUp: null,
+    });
+
+    expect(linkOf(latest, "work-1").evidence.followUp).toBeNull();
+    expect(latest.status).toBe(before.status);
+    expect(latest.revision).toBe(before.revision);
+    expect(latest.originalMessage).toBe(before.originalMessage);
+    expect(memory.works.size).toBe(2);
+    expect(memory.calls.every((call) => call === "setEvidence")).toBe(true);
+  });
+
+  test("an unchanged value keeps its author and time and writes no history", async () => {
+    const { access, record } = await linked();
+    const input = {
+      ...base(record.id),
+      quality: {
+        impactSeverity: { founderInterpretation: true, value: "High" },
+      },
+    };
+    const first = await access.setEvidence("account-1", input);
+    const second = await access.setEvidence("account-1", input);
+
+    expect(linkOf(second, "work-1").evidence).toEqual(
+      linkOf(first, "work-1").evidence,
+    );
+    expect(linkOf(second, "work-1").evidence.history).toHaveLength(1);
+  });
+
+  test("a blank clears a field and history names what changed", async () => {
+    const { access, record } = await linked();
+    await access.setEvidence("account-1", {
+      ...base(record.id),
+      quality: {
+        impactSeverity: { founderInterpretation: true, value: "High" },
+      },
+    });
+    const cleared = await access.setEvidence("account-1", {
+      ...base(record.id),
+      quality: { impactSeverity: null },
+    });
+
+    const { evidence } = linkOf(cleared, "work-1");
+    expect(evidence.quality.impactSeverity).toBeNull();
+    expect(evidence.history.map(({ changedFields }) => changedFields)).toEqual([
+      ["impactSeverity"],
+      ["impactSeverity"],
+    ]);
+  });
+
+  test("refuses message, status, Work, priority and score fields and unknown values", async () => {
+    const { access, record } = await linked();
+
+    await Promise.all(
+      [
+        { originalMessage: "rewritten" },
+        { status: "Reviewed" },
+        { workStatus: "Done" },
+        { priority: "High" },
+        { score: 9 },
+        { summary: "short" },
+        { followUp: "Closed" },
+        { role: "Very supporting" },
+        { quality: { score: { founderInterpretation: false, value: "9" } } },
+        { quality: { impactSeverity: { value: "High" } } },
+        {
+          quality: {
+            impactSeverity: { founderInterpretation: true, value: " " },
+          },
+        },
+      ].map((extra) =>
+        expect(
+          access.setEvidence("account-1", {
+            ...base(record.id),
+            ...extra,
+          } as never),
+        ).rejects.toThrow(),
+      ),
+    );
+  });
+
+  test("needs an existing Origin link, an owned Feedback and a current revision", async () => {
+    const { access, record } = await linked();
+
+    await expect(
+      access.setEvidence("account-1", base(record.id, "work-unlinked")),
+    ).rejects.toBeInstanceOf(FeedbackNotFoundError);
+    await expect(
+      access.setEvidence("account-2", base(record.id)),
+    ).rejects.toBeInstanceOf(FeedbackNotFoundError);
+    await access.setEvidence("account-1", {
+      ...base(record.id),
+      role: "Supporting",
+    });
+    await expect(
+      access.setEvidence("account-1", {
+        ...base(record.id),
+        expectedRevision: 0,
+        role: "Inconclusive",
+      }),
+    ).rejects.toBeInstanceOf(FeedbackRevisionConflictError);
   });
 });

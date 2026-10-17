@@ -7,6 +7,7 @@ import {
   feedbackProjectInputSchema,
   isSameFeedbackWorkPlan,
   previewFeedbackWorkInputSchema,
+  setFeedbackEvidenceInputSchema,
   setFeedbackIdentityInputSchema,
   setFeedbackStatusInputSchema,
 } from "@cantiara/api/feedback";
@@ -103,6 +104,15 @@ export function createFeedback(store: FeedbackStore): FeedbackAccess {
     async setIdentity(accountId, input) {
       const parsed = setFeedbackIdentityInputSchema.parse(input);
       const record = await store.setIdentity(accountId, parsed);
+      if (!record) {
+        throw new FeedbackNotFoundError(parsed.feedbackId);
+      }
+      return record;
+    },
+
+    async setEvidence(accountId, input) {
+      const parsed = setFeedbackEvidenceInputSchema.parse(input);
+      const record = await store.setEvidence(accountId, parsed);
       if (!record) {
         throw new FeedbackNotFoundError(parsed.feedbackId);
       }

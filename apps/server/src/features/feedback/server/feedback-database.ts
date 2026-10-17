@@ -1,12 +1,17 @@
 import {
   buildFeedbackWorkPlan,
+  emptyEvidenceQuality,
+  emptyLinkEvidence,
+  evidenceQualitySchema,
   type FeedbackConversion,
   type FeedbackConversionSource,
+  type FeedbackLinkEvidence,
   type FeedbackList,
   type FeedbackRecord,
   type FeedbackStore,
   type FeedbackWorkOrigin,
   isSameFeedbackWorkPlan,
+  mergeLinkEvidence,
   type ParsedConvertFeedbackToWorkInput,
 } from "@cantiara/api/feedback";
 import type { MutationPayload } from "@cantiara/api/mutation-and-undo";
@@ -21,12 +26,15 @@ import {
 import {
   feedback,
   feedbackAttachment,
+  feedbackWorkEvidence,
+  feedbackWorkEvidenceHistory,
   feedbackWorkOrigin,
 } from "@cantiara/db/schema/feedback";
 import { fileAttachment } from "@cantiara/db/schema/file-attachments";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { accountActorAlias } from "../../account-access/server/github-identity-confirmation";
 import { insertWorkWithKeyAllocation } from "../../evidence/server/evidence-record-creation";
 import {
   MutationApplyFailedError,
@@ -210,6 +218,43 @@ export async function toRecords(
     .innerJoin(work, eq(work.id, feedbackWorkOrigin.workId))
     .where(inArray(feedbackWorkOrigin.feedbackId, ids))
     .orderBy(asc(feedbackWorkOrigin.createdAt), asc(feedbackWorkOrigin.id));
+  const originIds = origins.map(({ id }) => id);
+  const evidenceRows = originIds.length
+    ? await executor
+        .select()
+        .from(feedbackWorkEvidence)
+        .where(inArray(feedbackWorkEvidence.originId, originIds))
+    : [];
+  const historyRows = originIds.length
+    ? await executor
+        .select()
+        .from(feedbackWorkEvidenceHistory)
+        .where(inArray(feedbackWorkEvidenceHistory.originId, originIds))
+        .orderBy(asc(feedbackWorkEvidenceHistory.revision))
+    : [];
+  function evidenceOf(originId: string): FeedbackLinkEvidence {
+    const row = evidenceRows.find((item) => item.originId === originId);
+    if (!row) {
+      return emptyLinkEvidence();
+    }
+    return {
+      followUp: row.followUp as FeedbackLinkEvidence["followUp"],
+      history: historyRows
+        .filter((item) => item.originId === originId)
+        .map((item) => ({
+          actor: item.actorAlias,
+          changedAt: item.changedAt.toISOString(),
+          changedFields: item.changedFields as string[],
+          revision: item.revision,
+        })),
+      quality: evidenceQualitySchema.parse({
+        ...emptyEvidenceQuality(),
+        ...(row.qualities as object),
+      }),
+      revision: row.revision,
+      role: row.role as FeedbackLinkEvidence["role"],
+    };
+  }
   return rows.map((row) => {
     const contact = contacts.find(({ feedbackId }) => feedbackId === row.id);
     const company = companies.find(({ feedbackId }) => feedbackId === row.id);
@@ -243,6 +288,7 @@ export async function toRecords(
             workTitle,
           }): FeedbackWorkOrigin => ({
             createdAt: createdAt.toISOString(),
+            evidence: evidenceOf(id),
             id,
             workId,
             workKey,
@@ -613,6 +659,7 @@ async function convertFeedbackToWork(
           nextWorkKey: currentValue.nextWorkKey,
           origin: {
             createdAt: committedAt,
+            evidence: emptyLinkEvidence(),
             id: input.id,
             workId: input.workId,
             workKey: currentValue.nextWorkKey,
@@ -669,6 +716,108 @@ export function createDatabaseFeedbackStore(database: Database): FeedbackStore {
           readConversionSourceOf(executor, accountId, projectId, feedbackId),
         { accessMode: "read only", isolationLevel: "repeatable read" },
       );
+    },
+
+    setEvidence(accountId, input) {
+      return database.transaction(async (executor) => {
+        const owned = await openProject(
+          executor,
+          accountId,
+          input.projectId,
+          true,
+        );
+        if (!owned) {
+          return null;
+        }
+        const [current] = await executor
+          .select()
+          .from(feedback)
+          .where(
+            and(
+              eq(feedback.id, input.feedbackId),
+              eq(feedback.projectId, owned.id),
+            ),
+          );
+        if (!current) {
+          return null;
+        }
+        // The link is the `Origin` row of exactly this (Feedback, Work) pair.
+        const [origin] = await executor
+          .select({ id: feedbackWorkOrigin.id })
+          .from(feedbackWorkOrigin)
+          .where(
+            and(
+              eq(feedbackWorkOrigin.feedbackId, current.id),
+              eq(feedbackWorkOrigin.workId, input.workId),
+            ),
+          )
+          .for("update");
+        if (!origin) {
+          return null;
+        }
+        const [existing] = await executor
+          .select()
+          .from(feedbackWorkEvidence)
+          .where(eq(feedbackWorkEvidence.originId, origin.id));
+        const revision = existing?.revision ?? 0;
+        if (
+          input.expectedRevision !== undefined &&
+          input.expectedRevision !== revision
+        ) {
+          throw new FeedbackRevisionConflictError(current.id);
+        }
+        const now = new Date();
+        const actorAlias = await accountActorAlias(accountId);
+        const merged = mergeLinkEvidence(
+          {
+            followUp: (existing?.followUp ??
+              null) as FeedbackLinkEvidence["followUp"],
+            quality: evidenceQualitySchema.parse({
+              ...emptyEvidenceQuality(),
+              ...(existing?.qualities as object | undefined),
+            }),
+            role: (existing?.role ??
+              "Unspecified") as FeedbackLinkEvidence["role"],
+          },
+          input,
+          { author: actorAlias, recordedAt: now.toISOString() },
+        );
+        if (merged.changedFields.length > 0) {
+          const next = revision + 1;
+          // Only the link's own rows are written; Feedback and Work rows stay untouched.
+          await executor
+            .insert(feedbackWorkEvidence)
+            .values({
+              createdAt: now,
+              followUp: merged.followUp,
+              originId: origin.id,
+              qualities: merged.quality,
+              revision: next,
+              role: merged.role,
+              updatedAt: now,
+            })
+            .onConflictDoUpdate({
+              set: {
+                followUp: merged.followUp,
+                qualities: merged.quality,
+                revision: next,
+                role: merged.role,
+                updatedAt: now,
+              },
+              target: feedbackWorkEvidence.originId,
+            });
+          await executor.insert(feedbackWorkEvidenceHistory).values({
+            actorAlias,
+            changedAt: now,
+            changedFields: merged.changedFields,
+            id: crypto.randomUUID(),
+            originId: origin.id,
+            revision: next,
+          });
+        }
+        const [record] = await toRecords(executor, [current]);
+        return record ?? null;
+      });
     },
 
     setIdentity(accountId, input) {

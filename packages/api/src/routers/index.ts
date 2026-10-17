@@ -152,6 +152,7 @@ import {
   createFeedbackInputSchema,
   feedbackProjectInputSchema,
   previewFeedbackWorkInputSchema,
+  setFeedbackEvidenceInputSchema,
   setFeedbackIdentityInputSchema,
   setFeedbackStatusInputSchema,
 } from "../feedback";
@@ -4490,6 +4491,13 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setIdentity(context.session.user.id, input),
+      ),
+    ),
+  setFeedbackEvidence: protectedProcedure
+    .input(setFeedbackEvidenceInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).setEvidence(context.session.user.id, input),
       ),
     ),
   previewFeedbackWork: protectedProcedure

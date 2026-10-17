@@ -6,7 +6,11 @@ import {
   workspaceContact,
   workspaceContactFeedback,
 } from "@cantiara/db/schema/contact";
-import { feedback, feedbackWorkOrigin } from "@cantiara/db/schema/feedback";
+import {
+  feedback,
+  feedbackWorkEvidence,
+  feedbackWorkOrigin,
+} from "@cantiara/db/schema/feedback";
 import { fileAttachment } from "@cantiara/db/schema/file-attachments";
 import { project } from "@cantiara/db/schema/project";
 import { source } from "@cantiara/db/schema/source";
@@ -621,6 +625,153 @@ describeDatabase("Feedback PostgreSQL integration", () => {
         .from(work)
         .where(and(eq(work.id, conversion.origin.workId)));
       expect(workRow?.status).toBe("Not Started");
+    });
+
+    describe("Evidence quality", () => {
+      async function linkTwoWorks() {
+        const { access, record } = await createRecord();
+        const origins: { id: string; workId: string }[] = [];
+        // Sequential on purpose: each conversion allocates the next Work key.
+        for (let index = 0; index < 2; index += 1) {
+          // biome-ignore lint/performance/noAwaitInLoops: ordered, dependent steps
+          const plan = await access.previewConvertToWork(accountId, {
+            feedbackId: record.id,
+            projectId,
+          });
+          const { origin } = await access.convertToWork(
+            accountId,
+            confirmation(plan, record.id),
+          );
+          origins.push({ id: origin.id, workId: origin.workId });
+        }
+        const [first, second] = origins;
+        if (!(first && second)) {
+          throw new Error("expected two links");
+        }
+        return { access, first, record, second };
+      }
+
+      test("stores quality, role and follow-up per link without touching Feedback or Work", async () => {
+        const db = requireDatabase();
+        const { access, first, record, second } = await linkTwoWorks();
+        const [feedbackBefore] = await db
+          .select()
+          .from(feedback)
+          .where(eq(feedback.id, record.id));
+        const [workBefore] = await db
+          .select()
+          .from(work)
+          .where(eq(work.id, first.workId));
+
+        const updated = await access.setEvidence(accountId, {
+          feedbackId: record.id,
+          followUp: "Follow up",
+          projectId,
+          quality: {
+            impactSeverity: { founderInterpretation: true, value: "High" },
+            reportedProblem: {
+              founderInterpretation: false,
+              value: "Export fails above 50 MB",
+            },
+            usageFrequency: { founderInterpretation: false, value: "Unknown" },
+          },
+          role: "Supporting",
+          workId: first.workId,
+        });
+
+        const link = updated.workOrigins.find(
+          ({ workId }) => workId === first.workId,
+        );
+        const other = updated.workOrigins.find(
+          ({ workId }) => workId === second.workId,
+        );
+        expect(link?.evidence).toMatchObject({
+          followUp: "Follow up",
+          revision: 1,
+          role: "Supporting",
+        });
+        expect(link?.evidence.quality.impactSeverity).toMatchObject({
+          founderInterpretation: true,
+          value: "High",
+        });
+        expect(link?.evidence.quality.impactSeverity?.author).toBeTruthy();
+        expect(
+          link?.evidence.quality.usageFrequency?.founderInterpretation,
+        ).toBe(false);
+        expect(link?.evidence.history).toHaveLength(1);
+        expect(other?.evidence.quality.impactSeverity).toBeNull();
+        expect(other?.evidence.role).toBe("Unspecified");
+        expect(updated.originalMessage).toBe(record.originalMessage);
+        const [feedbackAfter] = await db
+          .select()
+          .from(feedback)
+          .where(eq(feedback.id, record.id));
+        const [workAfter] = await db
+          .select()
+          .from(work)
+          .where(eq(work.id, first.workId));
+        expect(feedbackAfter).toEqual(feedbackBefore);
+        expect(workAfter).toEqual(workBefore);
+        expect(
+          await db
+            .select()
+            .from(feedbackWorkEvidence)
+            .where(eq(feedbackWorkEvidence.originId, second.id)),
+        ).toHaveLength(0);
+      });
+
+      test("keeps role independent of quality across commands", async () => {
+        const { access, first, record } = await linkTwoWorks();
+        await access.setEvidence(accountId, {
+          feedbackId: record.id,
+          projectId,
+          role: "Contradicting",
+          workId: first.workId,
+        });
+        const updated = await access.setEvidence(accountId, {
+          feedbackId: record.id,
+          projectId,
+          quality: {
+            impactSeverity: { founderInterpretation: true, value: "Critical" },
+          },
+          workId: first.workId,
+        });
+
+        const link = updated.workOrigins.find(
+          ({ workId }) => workId === first.workId,
+        );
+        expect(link?.evidence.role).toBe("Contradicting");
+        expect(link?.evidence.revision).toBe(2);
+      });
+
+      test("is owner-scoped, needs an Origin link, checks revision and refuses archived Projects", async () => {
+        const db = requireDatabase();
+        const { access, first, record } = await linkTwoWorks();
+        const input = {
+          feedbackId: record.id,
+          projectId,
+          role: "Supporting" as const,
+          workId: first.workId,
+        };
+
+        await expect(
+          access.setEvidence(otherAccountId, input),
+        ).rejects.toBeInstanceOf(FeedbackProjectNotFoundError);
+        await expect(
+          access.setEvidence(accountId, { ...input, workId: "work-unlinked" }),
+        ).rejects.toBeInstanceOf(FeedbackNotFoundError);
+        await expect(
+          access.setEvidence(accountId, { ...input, expectedRevision: 3 }),
+        ).rejects.toBeInstanceOf(FeedbackRevisionConflictError);
+        await db
+          .update(project)
+          .set({ archivedAt: new Date() })
+          .where(eq(project.id, projectId));
+        await expect(access.setEvidence(accountId, input)).rejects.toThrow();
+        expect(await db.select().from(feedbackWorkEvidence)).not.toContainEqual(
+          expect.objectContaining({ originId: first.id }),
+        );
+      });
     });
   });
 });

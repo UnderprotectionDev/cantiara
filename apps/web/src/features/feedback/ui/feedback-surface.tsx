@@ -8,6 +8,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import type { SaveEvidence } from "./evidence-quality-panel";
 import { type FeedbackDraft, FeedbackView } from "./feedback-view";
 
 export default function FeedbackSurface({ projectId }: { projectId: string }) {
@@ -49,6 +50,22 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
     } finally {
       await refresh();
     }
+  }
+  function saveEvidence(record: FeedbackRecord): SaveEvidence {
+    return async (origin, command) => {
+      try {
+        await runOnlineOnlyWrite(() =>
+          client.setFeedbackEvidence({
+            ...command,
+            feedbackId: record.id,
+            projectId,
+            workId: origin.workId,
+          }),
+        );
+      } finally {
+        await refresh();
+      }
+    };
   }
   function previewConvert(record: FeedbackRecord) {
     return (workType: FeedbackWorkType) =>
@@ -125,6 +142,7 @@ export default function FeedbackSurface({ projectId }: { projectId: string }) {
       onConfirmConvert={confirmConvert}
       onCreate={create}
       onPreviewConvert={previewConvert}
+      onSaveEvidence={saveEvidence}
       onSetIdentity={setIdentity}
       onSetStatus={setStatus}
       readOnly={records.data.readOnly}
