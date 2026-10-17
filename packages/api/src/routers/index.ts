@@ -148,8 +148,11 @@ import {
   favoriteSourceSchema,
 } from "../favorites";
 import {
+  convertFeedbackToWorkInputSchema,
   createFeedbackInputSchema,
   feedbackProjectInputSchema,
+  previewFeedbackWorkInputSchema,
+  setFeedbackIdentityInputSchema,
   setFeedbackStatusInputSchema,
 } from "../feedback";
 import {
@@ -2547,6 +2550,8 @@ const FEEDBACK_UNAVAILABLE_MESSAGES: Record<string, string> = {
 };
 
 const FEEDBACK_REJECTED_MESSAGES: Record<string, string> = {
+  FEEDBACK_IDENTITY_UNAVAILABLE:
+    "The Contact or Company is not available in this Workspace.",
   FEEDBACK_ATTACHMENT_UNAVAILABLE:
     "An attachment is not an active File Attachment of this Project.",
   FEEDBACK_PROJECT_READ_ONLY: "Archived Projects are read-only.",
@@ -2560,6 +2565,14 @@ async function runFeedbackOperation<T>(
   } catch (error) {
     if (!isRecord(error) || typeof error.code !== "string") {
       throw error;
+    }
+    if (error.code === "FEEDBACK_CONVERSION_STALE") {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: error.code, label: MUTATION_UI_LABELS.conflict },
+        defined: true,
+        message: "Feedback changed since the preview. Preview again.",
+      });
     }
     if (error.code === "FEEDBACK_REVISION_CONFLICT") {
       throw new ORPCError("PRECONDITION_FAILED", {
@@ -4460,6 +4473,30 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).create(context.session.user.id, input),
+      ),
+    ),
+  setFeedbackIdentity: protectedProcedure
+    .input(setFeedbackIdentityInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).setIdentity(context.session.user.id, input),
+      ),
+    ),
+  previewFeedbackWork: protectedProcedure
+    .input(previewFeedbackWorkInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).previewConvertToWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  convertFeedbackToWork: protectedProcedure
+    .input(convertFeedbackToWorkInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).convertToWork(context.session.user.id, input),
       ),
     ),
   setFeedbackStatus: protectedProcedure

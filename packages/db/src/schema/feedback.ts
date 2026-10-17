@@ -7,9 +7,11 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { fileAttachment } from "./file-attachments";
 import { project } from "./project";
+import { work } from "./work";
 
 export const feedback = pgTable(
   "project_feedback",
@@ -71,5 +73,37 @@ export const feedbackAttachment = pgTable(
       name: "project_feedback_attachment_pk",
     }),
     index("project_feedback_attachment_attachment_idx").on(table.attachmentId),
+  ],
+);
+
+/**
+ * Feedback `Origin` link to the Work created from it. Several Feedback records
+ * may origin-link to one Work as separate rows; no count here is a vote or a
+ * priority. The link owns no Feedback or Work lifecycle.
+ */
+export const feedbackWorkOrigin = pgTable(
+  "project_feedback_work_origin",
+  {
+    actorId: text("actor_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    feedbackId: text("feedback_id")
+      .notNull()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    revision: integer("revision").default(1).notNull(),
+    workId: text("work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("project_feedback_work_origin_pair_uidx").on(
+      table.feedbackId,
+      table.workId,
+    ),
+    index("project_feedback_work_origin_work_idx").on(table.workId),
+    check(
+      "project_feedback_work_origin_revision_check",
+      sql`${table.revision} >= 1`,
+    ),
   ],
 );

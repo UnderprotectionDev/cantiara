@@ -1,8 +1,13 @@
 import {
+  buildFeedbackWorkPlan,
+  convertFeedbackToWorkInputSchema,
   createFeedbackInputSchema,
   type FeedbackAccess,
   type FeedbackStore,
   feedbackProjectInputSchema,
+  isSameFeedbackWorkPlan,
+  previewFeedbackWorkInputSchema,
+  setFeedbackIdentityInputSchema,
   setFeedbackStatusInputSchema,
 } from "@cantiara/api/feedback";
 
@@ -51,6 +56,25 @@ export class FeedbackAttachmentUnavailableError extends Error {
   }
 }
 
+export class FeedbackIdentityUnavailableError extends Error {
+  readonly code = "FEEDBACK_IDENTITY_UNAVAILABLE" as const;
+
+  constructor() {
+    super("The Contact or Company is not available in this Workspace.");
+    this.name = "FeedbackIdentityUnavailableError";
+  }
+}
+
+/** The previewed plan no longer matches the Feedback; reopen the preview. */
+export class FeedbackConversionStaleError extends Error {
+  readonly code = "FEEDBACK_CONVERSION_STALE" as const;
+
+  constructor(feedbackId: string) {
+    super(`The Convert to Work preview of Feedback ${feedbackId} is stale.`);
+    this.name = "FeedbackConversionStaleError";
+  }
+}
+
 /**
  * Feedback seam. Inputs are parsed against the strict contract, so a command
  * can never carry a summary replacement, Contact requirement, Work status,
@@ -74,6 +98,57 @@ export function createFeedback(store: FeedbackStore): FeedbackAccess {
         throw new FeedbackProjectNotFoundError(parsed.projectId);
       }
       return list;
+    },
+
+    async setIdentity(accountId, input) {
+      const parsed = setFeedbackIdentityInputSchema.parse(input);
+      const record = await store.setIdentity(accountId, parsed);
+      if (!record) {
+        throw new FeedbackNotFoundError(parsed.feedbackId);
+      }
+      return record;
+    },
+
+    async previewConvertToWork(accountId, input) {
+      const parsed = previewFeedbackWorkInputSchema.parse(input);
+      const source = await store.readConversionSource(
+        accountId,
+        parsed.projectId,
+        parsed.feedbackId,
+      );
+      if (!source) {
+        throw new FeedbackNotFoundError(parsed.feedbackId);
+      }
+      return buildFeedbackWorkPlan(source, parsed.workType);
+    },
+
+    async convertToWork(accountId, input) {
+      const parsed = convertFeedbackToWorkInputSchema.parse(input);
+      const { plan } = parsed;
+      const source = await store.readConversionSource(
+        accountId,
+        parsed.projectId,
+        parsed.feedbackId,
+      );
+      if (!source) {
+        throw new FeedbackNotFoundError(parsed.feedbackId);
+      }
+      // Only the exact previewed plan may be confirmed; a changed record is refused.
+      if (
+        plan.feedbackId !== parsed.feedbackId ||
+        plan.projectId !== parsed.projectId ||
+        !isSameFeedbackWorkPlan(
+          plan,
+          buildFeedbackWorkPlan(source, plan.work.type),
+        )
+      ) {
+        throw new FeedbackConversionStaleError(parsed.feedbackId);
+      }
+      const conversion = await store.convertToWork(accountId, parsed);
+      if (!conversion) {
+        throw new FeedbackNotFoundError(parsed.feedbackId);
+      }
+      return conversion;
     },
 
     async setStatus(accountId, input) {
