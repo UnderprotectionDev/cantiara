@@ -610,7 +610,7 @@ async function convertFeedbackToWork(
         {
           committedAt: update.committedAt,
           description: plan.work.description,
-          idempotencyKey: String(update.idempotencyKey),
+          idempotencyKey: update.idempotencyKey.key,
           payloadFingerprint: update.payloadFingerprint,
           title: plan.work.title,
           type: plan.work.type,

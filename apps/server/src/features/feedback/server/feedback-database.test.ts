@@ -756,7 +756,7 @@ describeDatabase("Feedback PostgreSQL integration", () => {
 
         await expect(
           access.setEvidence(otherAccountId, input),
-        ).rejects.toBeInstanceOf(FeedbackProjectNotFoundError);
+        ).rejects.toBeInstanceOf(FeedbackNotFoundError);
         await expect(
           access.setEvidence(accountId, { ...input, workId: "work-unlinked" }),
         ).rejects.toBeInstanceOf(FeedbackNotFoundError);
