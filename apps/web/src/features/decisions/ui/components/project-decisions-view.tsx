@@ -9,7 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { DecisionChainView, decisionHref } from "./decision-chain-view";
 
@@ -167,9 +167,11 @@ export function ProjectDecisionsView({
   onStartEditing,
   savedMessage,
   accountFormattingPreferences = DEFAULT_ACCOUNT_PREFERENCES,
+  renderEvidenceFlow,
 }: {
   accountFormattingPreferences?: AccountPreferences;
   decisions: DecisionRecord[];
+  renderEvidenceFlow?: (recordId: string) => ReactNode;
   graph?: DecisionSupersessionGraph;
   projectId: string;
   selectedId?: string;
@@ -253,6 +255,7 @@ export function ProjectDecisionsView({
           projectId={projectId}
           readOnly={readOnly}
           record={selected}
+          renderEvidenceFlow={renderEvidenceFlow}
         />
       ) : null}
     </section>
@@ -268,7 +271,9 @@ function DecisionDetail({
   onWithdraw,
   graph,
   projectId,
+  renderEvidenceFlow,
 }: {
+  renderEvidenceFlow?: (recordId: string) => ReactNode;
   graph?: DecisionSupersessionGraph;
   projectId: string;
   record: DecisionRecord;
@@ -323,6 +328,7 @@ function DecisionDetail({
           </p>
         </section>
       ) : null}
+      {renderEvidenceFlow?.(record.id)}
       {readOnly || editing || record.life === "Superseded" ? null : (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => onEdit()} variant="outline">

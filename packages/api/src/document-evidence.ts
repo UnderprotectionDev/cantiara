@@ -169,6 +169,51 @@ export type DocumentEvidenceForTarget = z.infer<
   typeof documentEvidenceForTargetSchema
 >;
 
+/** Source types that can currently pin a version; the flow filter offers only these. */
+export const EVIDENCE_FLOW_SOURCE_TYPES = [
+  "Document",
+  "Source",
+  "Research Session",
+] as const;
+export const evidenceFlowSourceTypeSchema = z.enum(EVIDENCE_FLOW_SOURCE_TYPES);
+export type EvidenceFlowSourceType = z.infer<
+  typeof evidenceFlowSourceTypeSchema
+>;
+
+/** Flow lives on Work, Decision and Assumption detail; observation targets never reach it. */
+export const evidenceFlowInputSchema = documentEvidenceTargetSchema
+  .extend({
+    type: z.enum(["Work", "Decision", "Assumption"]),
+    sourceType: evidenceFlowSourceTypeSchema.optional(),
+  })
+  .strict();
+export type EvidenceFlowInput = z.infer<typeof evidenceFlowInputSchema>;
+
+/** One explicit `Kanıtı` relation. Relation time is kept apart from role, interpretation and source life. */
+export const evidenceFlowRowSchema = z
+  .object({
+    id,
+    sourceType: evidenceFlowSourceTypeSchema,
+    pin: versionPinnedEvidenceSchema.nullable(),
+    role: evidenceRoleSchema.nullable(),
+    interpretation: z.string().nullable(),
+    source: z
+      .object({
+        recordId: id,
+        projectId: id.nullable(),
+        title: id.nullable(),
+        brokenReason: brokenReferenceReasonSchema.nullable(),
+        canOpenSourceRecord: z.boolean(),
+      })
+      .strict(),
+    /** Owned component gone: `Source element no longer exists`; text and role stay withheld. */
+    elementMissing: z.boolean(),
+    newerVersionExists: z.boolean(),
+    relatedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+export type EvidenceFlowRow = z.infer<typeof evidenceFlowRowSchema>;
+
 /** A user choice only: no text inference, no reinterpretation on a new Source version. */
 export const setDocumentEvidenceRoleInputSchema = humanMutationEnvelopeSchema
   .extend({
@@ -231,6 +276,10 @@ export interface DocumentEvidenceAccess {
     accountId: string,
     input: ConfirmDocumentEvidenceInput,
   ) => Promise<DocumentEvidenceBinding | null>;
+  flow: (
+    accountId: string,
+    input: EvidenceFlowInput,
+  ) => Promise<EvidenceFlowRow[] | null>;
   forTarget: (
     accountId: string,
     input: DocumentEvidenceTarget,

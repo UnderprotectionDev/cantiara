@@ -16,7 +16,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { projectSourceRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 
 export interface AssumptionDraft {
@@ -294,9 +294,11 @@ export function ProjectAssumptionsView({
   onSave,
   onTransition,
   onStartEditing,
+  renderEvidenceFlow,
   savedMessage,
 }: {
   context: AssumptionsContext;
+  renderEvidenceFlow?: (recordId: string) => ReactNode;
   projectId: string;
   selectedId?: string;
   documents?: Document[];
@@ -422,6 +424,7 @@ export function ProjectAssumptionsView({
               <p className="text-muted-foreground">No evidence linked.</p>
             )}
           </section>
+          {renderEvidenceFlow?.(selected.id)}
           {context.readOnly || editing ? null : (
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => start("edit", selected)} variant="outline">

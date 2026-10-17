@@ -2,6 +2,7 @@ import type { AccountPreferences } from "@cantiara/api/account-preferences";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import EvidenceFlowPanel from "@/features/evidence/ui/components/evidence-flow-panel";
 import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -139,6 +140,15 @@ export default function ProjectDecisionsSurface({
     (record): record is DecisionRecord => record.sourceType === "Decision",
   );
   const selected = decisions.find((record) => record.id === selectedId);
+  function renderEvidenceFlow(recordId: string) {
+    return (
+      <EvidenceFlowPanel
+        projectId={projectId}
+        recordId={recordId}
+        type="Decision"
+      />
+    );
+  }
   return (
     <div className="space-y-5">
       <ProjectDecisionsView
@@ -150,6 +160,7 @@ export default function ProjectDecisionsSurface({
         onWithdraw={withdraw}
         projectId={projectId}
         readOnly={readOnly || Boolean(records.data?.readOnly)}
+        renderEvidenceFlow={renderEvidenceFlow}
         savedMessage={savedMessage}
         selectedId={selectedId}
       />
