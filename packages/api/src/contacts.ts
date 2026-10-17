@@ -233,6 +233,7 @@ export type MergeFieldConflict = z.infer<typeof mergeFieldConflictSchema>;
 export const mergePreviewSchema = z
   .object({
     addedEmails: z.array(z.string()),
+    adoptedDisplayName: z.string().nullable(),
     companyOutcome: z.enum(["Keep survivor", "Adopt retired", "None"]),
     feedbackIds: z.array(identifierSchema),
     fieldConflicts: z.array(mergeFieldConflictSchema),

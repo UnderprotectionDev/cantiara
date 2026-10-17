@@ -211,6 +211,8 @@ export function buildMergePreview({
   );
   const survivorFeedback = new Set(survivorFeedbackIds);
   return {
+    adoptedDisplayName:
+      survivor.displayName === null ? retired.displayName : null,
     addedEmails: retired.emails.filter(
       (email) => !survivor.emails.includes(email),
     ),

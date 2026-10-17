@@ -533,6 +533,7 @@ describe("Contact and Company", () => {
 
     expect(preview.companyOutcome).toBe("Adopt retired");
     expect(preview.fieldConflicts).toEqual([]);
+    expect(preview.adoptedDisplayName).toBeNull();
   });
 
   test("rejects merging a Contact into itself", async () => {
@@ -566,6 +567,7 @@ describe("Contact and Company", () => {
 
     expect(Object.keys(preview).sort()).toEqual([
       "addedEmails",
+      "adoptedDisplayName",
       "companyOutcome",
       "feedbackIds",
       "fieldConflicts",

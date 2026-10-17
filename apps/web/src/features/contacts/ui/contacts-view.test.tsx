@@ -163,6 +163,7 @@ describe("Contact and Company surface", () => {
         pending={false}
         preview={{
           addedEmails: ["ada@work.example"],
+          adoptedDisplayName: null,
           companyOutcome: "Keep survivor",
           feedbackIds: ["feedback-1", "feedback-2"],
           fieldConflicts: [

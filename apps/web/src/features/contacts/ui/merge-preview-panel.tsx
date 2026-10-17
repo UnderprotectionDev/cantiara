@@ -39,6 +39,8 @@ export default function MergePreviewPanel({
             ))}
           </ul>
         </dd>
+        <dt className="text-muted-foreground">Display name adopted</dt>
+        <dd>{preview.adoptedDisplayName ?? "None"}</dd>
         <dt className="text-muted-foreground">Email aliases added</dt>
         <dd>
           {preview.addedEmails.length > 0
