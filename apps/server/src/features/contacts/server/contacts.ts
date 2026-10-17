@@ -13,7 +13,9 @@ import {
   type MergePreview,
   mergeContactsInputSchema,
   mergePreviewInputSchema,
+  mergeUndoPreviewInputSchema,
   setContactCompanyInputSchema,
+  undoMergeInputSchema,
   updateContactInputSchema,
 } from "@cantiara/api/contacts";
 
@@ -68,6 +70,49 @@ export class ContactRevisionConflictError extends Error {
   constructor(contactId: string) {
     super(`Contact ${contactId} changed since it was loaded.`);
     this.name = "ContactRevisionConflictError";
+  }
+}
+
+export class ContactMergeNotFoundError extends Error {
+  readonly code = "CONTACT_MERGE_NOT_FOUND" as const;
+
+  constructor(retiredId: string) {
+    super(`No merge to undo was found for ${retiredId}.`);
+    this.name = "ContactMergeNotFoundError";
+  }
+}
+
+export class ContactMergeUndoBlockedError extends Error {
+  readonly code = "CONTACT_MERGE_UNDO_BLOCKED" as const;
+
+  constructor(survivingContactId: string) {
+    super(
+      `Surviving Contact ${survivingContactId} was itself merged away; undo that merge first.`,
+    );
+    this.name = "ContactMergeUndoBlockedError";
+  }
+}
+
+export class ContactMergeUndoPayloadChangedError extends Error {
+  readonly code = "CONTACT_MERGE_UNDO_PAYLOAD_CHANGED" as const;
+
+  constructor(retiredId: string) {
+    super(
+      `Undo for ${retiredId} was already confirmed with a different answer.`,
+    );
+    this.name = "ContactMergeUndoPayloadChangedError";
+  }
+}
+
+export class ContactMergeUndoConflictError extends Error {
+  readonly code = "CONTACT_MERGE_UNDO_CONFLICT" as const;
+
+  readonly fields: readonly string[];
+
+  constructor(fields: readonly string[]) {
+    super(`Undo needs a decision for: ${fields.join(", ")}.`);
+    this.name = "ContactMergeUndoConflictError";
+    this.fields = fields;
   }
 }
 
@@ -286,6 +331,11 @@ export function createContacts({
       );
     },
 
+    async previewMergeUndo(accountId, input) {
+      const parsed = mergeUndoPreviewInputSchema.parse(input);
+      return store.previewMergeUndo(await workspaceIdFor(accountId), parsed);
+    },
+
     async resolveContact(accountId, input) {
       const parsed = contactIdentityInputSchema.parse(input);
       return store.resolveContact(
@@ -310,6 +360,15 @@ export function createContacts({
     async setCompany(accountId, input) {
       const parsed = setContactCompanyInputSchema.parse(input);
       return store.setCompany(await workspaceIdFor(accountId), parsed);
+    },
+
+    async undoMerge(accountId, input) {
+      const parsed = undoMergeInputSchema.parse(input);
+      return store.undoMerge(
+        await workspaceIdFor(accountId),
+        parsed,
+        accountId,
+      );
     },
 
     async unlinkPersona(accountId, input) {

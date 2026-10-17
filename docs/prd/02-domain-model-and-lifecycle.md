@@ -766,6 +766,18 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Contact'ları birleştir | `Merge Contacts` | Güçlü kopya adayından kullanıcı başlatmalı Contact birleştirmesini açan eylem; Company birleştirmesi değildir |
 | Hayatta kalan Contact | `Surviving Contact` | Contact birleştirmesinde kullanıcının seçtiği, kopyanın değerlerini ve bağlarını devralan ana kayıt |
 | Birleştirmeyi onayla | `Confirm Merge` | Güncel Merge Preview'u tek atomik yazmayla uygulayan onay |
+| Birleştirmeyi geri al | `Undo Merge` | Emekli Contact kimliğini yeniden ana kayıt yapan düzeltme eylemi; geçmişe tam dönüş değildir |
+| Geri alma önizlemesi | `Undo Merge Preview` | Geri verilecek değer ve bağların, çatışmaların ve geri gelemeyen içeriğin onay öncesi görünümü |
+| Geri almayı onayla | `Confirm Undo Merge` | Güncel Undo Merge Preview'u tek atomik yazmayla uygulayan onay |
+| Geri yüklenemez | `Cannot be restored` | Redaksiyon veya kalıcı silmeyle yok olduğu için geri alma sonrası dönemeyecek içeriği gösteren önizleme satırı |
+| Güncel değeri koru | `Keep current value` | Birleştirmeden sonra değişmiş alanda sonraki değeri koruyan geri alma kararı |
+| Önceki değeri geri yükle | `Restore previous value` | Birleştirmeden sonra değişmiş alanı birleştirme öncesi değerine döndüren geri alma kararı |
+| Geri yüklenecek e-posta takma adları | `Email aliases restored` | Geri almada emekli Contact'a dönecek normalize e-posta takma adları |
+| Geri yüklenen Geri Bildirim | `Feedback restored` | Geri almada emekli Contact'a yeniden bağlanacak Geri Bildirim sayısı |
+| Geri yüklenen Persona bağları | `Persona links restored` | Geri almada emekli Contact'a dönecek Persona Document bağları |
+| Geri Bildirim bağı | `Feedback link` | Geri gelemeyen Geri Bildirim bağının türü; `Cannot be restored` altında listelenir |
+| Persona bağı | `Persona link` | Geri gelemeyen Persona Document bağının türü; `Cannot be restored` altında listelenir |
+| Company bağı | `Company link` | Geri gelemeyen Company bağının türü; `Cannot be restored` altında listelenir |
 | Ad devralındı | `Display name adopted` | Hayatta kalanın adı boşsa kopyanın adının devralınacağını gösteren önizleme satırı |
 | E-posta takma adları eklenir | `Email aliases added` | Kopyadan hayatta kalan Contact'a eklenecek normalize e-posta takma adları |
 | Geri Bildirim taşınır | `Feedback moved` | Kopyadan hayatta kalan Contact'a bağlanacak Geri Bildirim sayısı |

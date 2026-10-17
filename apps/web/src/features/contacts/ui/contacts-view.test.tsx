@@ -4,6 +4,7 @@ import type {
   ContactResolution,
   DuplicateCandidate,
   MergePreview,
+  MergeUndoPreview,
 } from "@cantiara/api/contacts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -17,13 +18,18 @@ import { describe, expect, test } from "vitest";
 
 import { orpc } from "@/utils/orpc";
 
-import ContactsView from "./contacts-view";
+import ContactsView, { undoFailureMessage } from "./contacts-view";
 import MergePreviewPanel, { mergeContactsRequest } from "./merge-preview-panel";
+import MergeUndoPanel, {
+  undoMergeRequest,
+  undoResultNotice,
+} from "./merge-undo-panel";
 
 function noop() {
   // Presentational test: the handlers are never called.
 }
 
+const confirmDisabledPattern = /disabled=""[^>]*>Confirm Undo Merge/;
 const timestamp = "2026-09-20T09:00:00.000Z";
 
 const company: Company = {
@@ -259,6 +265,125 @@ describe("Contact merge confirmation", () => {
       expectedSurvivorRevision: 7,
       retiredId: "contact-2",
       survivorId: "contact-1",
+    });
+  });
+});
+
+describe("Contact merge undo", () => {
+  const undoPreview: MergeUndoPreview = {
+    conflicts: [],
+    mergeId: "merge-1",
+    restoredCompany: "Acme",
+    restoredDisplayName: "Ada L.",
+    restoredEmails: ["ada@work.example"],
+    restoredFeedbackIds: ["feedback-1"],
+    restoredPersonaDocuments: withPersona.personaDocuments,
+    retiredId: "contact-2",
+    survivor: { ...contact, revision: 7 },
+    unrestorable: [],
+  };
+
+  function renderPanel(preview: MergeUndoPreview) {
+    return renderToStaticMarkup(
+      <MergeUndoPanel
+        onCancel={noop}
+        onConfirm={noop}
+        pending={false}
+        preview={preview}
+      />,
+    );
+  }
+
+  test("starts Undo Merge from the redirected origin and shows what comes back", () => {
+    const view = renderView([contact], [company], [], {
+      contactId: "contact-2",
+      resolution: { contact, feedbackIds: [], redirectedFrom: "contact-2" },
+    });
+    const html = renderPanel(undoPreview);
+
+    expect(view).toContain("Undo Merge");
+    expect(html).toContain("Undo Merge Preview");
+    expect(html).toContain("ada@work.example");
+    expect(html).toContain("Maker Mia");
+    expect(html).toContain("Confirm Undo Merge");
+    expect(html).not.toContain("Cannot be restored");
+    for (const label of [
+      "Erase personal data",
+      "Confirm GitHub Identity",
+      "Kanıt",
+      "Priority",
+    ]) {
+      expect(html).not.toContain(label);
+    }
+  });
+
+  test("says what cannot come back instead of promising a full undo", () => {
+    const html = renderPanel({
+      ...undoPreview,
+      unrestorable: [{ count: 2, kind: "Feedback link" }],
+    });
+
+    expect(html).toContain("Cannot be restored");
+    expect(html).toContain("not a full undo");
+    expect(html).toContain("Feedback link: 2");
+  });
+
+  test("asks for a decision when a merged value changed afterwards and blocks confirming until then", () => {
+    const html = renderPanel({
+      ...undoPreview,
+      conflicts: [
+        {
+          currentValue: "Grace Hopper",
+          field: "Display name",
+          previousValue: null,
+        },
+      ],
+    });
+
+    expect(html).toContain("Display name changed after the merge");
+    expect(html).toContain("Keep current value");
+    expect(html).toContain("Restore previous value");
+    expect(html).toMatch(confirmDisabledPattern);
+  });
+
+  test("leaves the unavailable preview to its own message instead of a retry prompt", () => {
+    expect(undoFailureMessage(true)).toBeNull();
+    expect(undoFailureMessage(false)).toBe(
+      "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.",
+    );
+  });
+
+  test("reports what an Undo Merge could not give back once it finishes", () => {
+    const finished = {
+      mergeId: "merge-1",
+      restored: contact,
+      survivor: contact,
+      unrestorable: [],
+    };
+
+    expect(undoResultNotice(finished)).toBeNull();
+    expect(
+      undoResultNotice({
+        ...finished,
+        unrestorable: [
+          { count: 1, kind: "Feedback link" },
+          { count: 2, kind: "Company link" },
+        ],
+      }),
+    ).toBe(
+      "Undo Merge finished. Cannot be restored: Feedback link: 1, Company link: 2.",
+    );
+  });
+
+  test("sends the survivor revision and the founder's answer with the confirmation", () => {
+    expect(undoMergeRequest(undoPreview, null)).toEqual({
+      expectedSurvivorRevision: 7,
+      retiredId: "contact-2",
+    });
+    expect(undoMergeRequest(undoPreview, "Keep current value")).toEqual({
+      expectedSurvivorRevision: 7,
+      resolutions: { displayName: "Keep current value" },
+      retiredId: "contact-2",
     });
   });
 });

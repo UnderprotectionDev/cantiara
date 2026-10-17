@@ -442,6 +442,29 @@ async function createLongStatusFixture(fixtureKey: string, accountId: string) {
   return longStatusProject;
 }
 
+async function createContactMergeUndoFixture(
+  fixtureKey: string,
+  accountId: string,
+) {
+  if (fixtureKey !== "contact-merge-undo") {
+    return;
+  }
+  const identityBook = createDatabaseContacts(database);
+  const survivor = await identityBook.createContact(accountId, {
+    displayName: "Ada",
+    email: "ada@example.com",
+  });
+  const retired = await identityBook.createContact(accountId, {
+    displayName: "Ada L.",
+    email: "ada@example.com",
+  });
+  await identityBook.mergeContacts(accountId, {
+    retiredId: retired.id,
+    survivorId: survivor.id,
+  });
+  return { mergedContactRetiredId: retired.id };
+}
+
 async function createE2EFixture(fixtureKey: string) {
   const fixtureEmail = `account-access-e2e-${fixtureKey}@example.invalid`;
   await database.delete(user).where(eq(user.email, fixtureEmail));
@@ -654,6 +677,11 @@ async function createE2EFixture(fixtureKey: string) {
     usedInSourceWorkId = source.id;
   }
 
+  const contactMergeFixture = await createContactMergeUndoFixture(
+    fixtureKey,
+    founder.id,
+  );
+
   const favoritesFixture = await prepareFavoritesFixture(
     database,
     fixtureKey,
@@ -689,6 +717,7 @@ async function createE2EFixture(fixtureKey: string) {
       ? { tauriBearerToken: currentCookie.value }
       : {}),
     ...(projectId ? { projectId } : {}),
+    ...contactMergeFixture,
     ...(bulkEditProgressFixture
       ? { bulkEditProgressWorkCount: bulkEditProgressFixture.workCount }
       : {}),
@@ -837,6 +866,7 @@ serve({
         bulkEditProgressWorkCount,
         favoritesFixture,
         currentCookie,
+        mergedContactRetiredId,
         otherCookie,
         projectId,
         tauriBearerToken,
@@ -846,6 +876,7 @@ serve({
       return Response.json({
         ...(favoritesFixture ? { favorites: favoritesFixture } : {}),
         cookie: currentCookie,
+        ...(mergedContactRetiredId ? { mergedContactRetiredId } : {}),
         otherCookie,
         ...(tauriBearerToken ? { tauriBearerToken } : {}),
         ...(projectId ? { projectId } : {}),

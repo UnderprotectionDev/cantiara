@@ -269,6 +269,88 @@ export const contactResolutionSchema = z
 
 export type ContactResolution = z.infer<typeof contactResolutionSchema>;
 
+export const mergeUndoPreviewInputSchema = z
+  .object({ retiredId: identifierSchema })
+  .strict();
+
+export type MergeUndoPreviewInput = z.input<typeof mergeUndoPreviewInputSchema>;
+
+/** The founder's answer for a field changed since the merge. */
+export const mergeUndoResolutionSchema = z.enum([
+  "Keep current value",
+  "Restore previous value",
+]);
+
+export type MergeUndoResolution = z.infer<typeof mergeUndoResolutionSchema>;
+
+export const undoMergeInputSchema = z
+  .object({
+    expectedSurvivorRevision: revisionSchema,
+    resolutions: z
+      .object({ displayName: mergeUndoResolutionSchema.optional() })
+      .strict()
+      .optional(),
+    retiredId: identifierSchema,
+  })
+  .strict();
+
+export type UndoMergeInput = z.input<typeof undoMergeInputSchema>;
+export type ParsedUndoMergeInput = z.output<typeof undoMergeInputSchema>;
+
+/** A merge-attributed value on the survivor that was edited after the merge. */
+export const mergeUndoConflictSchema = z
+  .object({
+    currentValue: z.string().nullable(),
+    field: z.enum(["Display name"]),
+    previousValue: z.string().nullable(),
+  })
+  .strict();
+
+export type MergeUndoConflict = z.infer<typeof mergeUndoConflictSchema>;
+
+/** Content that no longer exists, so undo cannot bring it back. */
+export const mergeUndoMissingSchema = z
+  .object({
+    count: z.number().int().positive().safe(),
+    kind: z.enum(["Feedback link", "Persona link", "Company link"]),
+  })
+  .strict();
+
+export type MergeUndoMissing = z.infer<typeof mergeUndoMissingSchema>;
+
+/**
+ * What `undoMerge` will give back to the retired Contact. Values and links
+ * the merge did not attribute, and every later unrelated edit, stay on the
+ * survivor. `unrestorable` is the part that cannot come back.
+ */
+export const mergeUndoPreviewSchema = z
+  .object({
+    conflicts: z.array(mergeUndoConflictSchema),
+    mergeId: identifierSchema,
+    restoredCompany: z.string().nullable(),
+    restoredDisplayName: z.string().nullable(),
+    restoredEmails: z.array(z.string()),
+    restoredFeedbackIds: z.array(identifierSchema),
+    restoredPersonaDocuments: z.array(contactPersonaDocumentSchema),
+    retiredId: identifierSchema,
+    survivor: contactSchema,
+    unrestorable: z.array(mergeUndoMissingSchema),
+  })
+  .strict();
+
+export type MergeUndoPreview = z.infer<typeof mergeUndoPreviewSchema>;
+
+export const undoMergeResultSchema = z
+  .object({
+    mergeId: identifierSchema,
+    restored: contactSchema,
+    survivor: contactSchema,
+    unrestorable: z.array(mergeUndoMissingSchema),
+  })
+  .strict();
+
+export type UndoMergeResult = z.infer<typeof undoMergeResultSchema>;
+
 export const linkContactFeedbackInputSchema = z
   .object({ contactId: identifierSchema, feedbackId: identifierSchema })
   .strict();
@@ -310,6 +392,10 @@ export interface ContactStore {
     input: ParsedMergeContactsInput,
     actorAccountId: string,
   ) => Promise<MergeResult>;
+  previewMergeUndo: (
+    workspaceId: string,
+    input: z.output<typeof mergeUndoPreviewInputSchema>,
+  ) => Promise<MergeUndoPreview>;
   readMergeInputs: (
     workspaceId: string,
     input: ParsedMergePreviewInput,
@@ -322,6 +408,11 @@ export interface ContactStore {
     workspaceId: string,
     input: ParsedSetContactCompanyInput,
   ) => Promise<Contact>;
+  undoMerge: (
+    workspaceId: string,
+    input: ParsedUndoMergeInput,
+    actorAccountId: string,
+  ) => Promise<UndoMergeResult>;
   unlinkPersona: (
     workspaceId: string,
     input: z.output<typeof contactPersonaInputSchema>,
@@ -364,6 +455,10 @@ export interface ContactsAccess {
     accountId: string,
     input: MergePreviewInput,
   ) => Promise<MergePreview>;
+  previewMergeUndo: (
+    accountId: string,
+    input: MergeUndoPreviewInput,
+  ) => Promise<MergeUndoPreview>;
   resolveContact: (
     accountId: string,
     input: ContactIdentityInput,
@@ -372,6 +467,10 @@ export interface ContactsAccess {
     accountId: string,
     input: SetContactCompanyInput,
   ) => Promise<Contact>;
+  undoMerge: (
+    accountId: string,
+    input: UndoMergeInput,
+  ) => Promise<UndoMergeResult>;
   unlinkPersona: (
     accountId: string,
     input: ContactPersonaInput,

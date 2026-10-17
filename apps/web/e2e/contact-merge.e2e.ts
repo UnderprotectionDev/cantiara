@@ -68,3 +68,48 @@ test("merges duplicate Contacts only after the Merge Preview is confirmed", asyn
   ).toBeVisible();
   await expect(candidates.getByText("No duplicate candidates.")).toBeVisible();
 });
+
+test("undoes a Contact merge from the redirected origin only after Confirm Undo Merge", async ({
+  context,
+  page,
+  request,
+}) => {
+  const setupResponse = await request.get(
+    `${E2E_SERVER_URL}/__e2e/setup?fixture=contact-merge-undo`,
+  );
+  expect(setupResponse.ok()).toBe(true);
+  const setup = (await setupResponse.json()) as {
+    cookie: Parameters<typeof context.addCookies>[0][number];
+    mergedContactRetiredId: string;
+  };
+  await context.addCookies([setup.cookie]);
+
+  await page.goto(`/contacts?contact=${setup.mergedContactRetiredId}`);
+  const contactList = page.getByRole("region", {
+    exact: true,
+    name: "Contacts",
+  });
+  await expect(page.getByText("Redirected from")).toBeVisible();
+  await expect(contactList.getByRole("button")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Undo Merge" }).click();
+  const preview = page.getByRole("region", {
+    exact: true,
+    name: "Undo Merge Preview",
+  });
+  await expect(preview).toBeVisible();
+  // Nothing is written until the founder confirms.
+  await expect(contactList.getByRole("button")).toHaveCount(1);
+
+  await preview.getByRole("button", { name: "Confirm Undo Merge" }).click();
+
+  await expect(preview).toBeHidden();
+  await expect(contactList.getByRole("button")).toHaveCount(2);
+  await expect(
+    contactList.getByRole("button", { exact: true, name: "Ada L." }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(contactList.getByRole("button")).toHaveCount(2);
+  await expect(page.getByText("Redirected from")).toBeHidden();
+});
