@@ -29,15 +29,3 @@ jobs:
       - name: Build applications and packages
         run: bun run build
 
-  macos-client-compile:
-    name: macOS client compile
-    runs-on: macos-14
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.98.1
-      - name: Compile the macOS client
-        run: cargo check --manifest-path apps/web/src-tauri/Cargo.toml --locked --all-targets

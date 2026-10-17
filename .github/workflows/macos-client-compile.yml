@@ -1,0 +1,36 @@
+name: macOS client compile
+
+# Rust toolchain and Cargo.lock are pinned, so only Tauri sources can change
+# this result. Keep the paths filter in sync if the macOS client gains inputs
+# outside apps/web/src-tauri.
+on:
+  pull_request:
+    paths:
+      - apps/web/src-tauri/**
+      - .github/workflows/macos-client-compile.yml
+  push:
+    branches: [main]
+    paths:
+      - apps/web/src-tauri/**
+      - .github/workflows/macos-client-compile.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-client-compile:
+    name: macOS client compile
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - name: Compile the macOS client
+        run: cargo check --manifest-path apps/web/src-tauri/Cargo.toml --locked --all-targets

@@ -152,15 +152,13 @@ test("restored caches reuse dependencies and transforms without skipping tests",
   expect(turboCache?.with?.key).toContain("bun.lock");
 });
 
-test("required gates reject failed, skipped and cancelled validation groups", () => {
+test("the integration gate rejects failed, skipped and cancelled validation groups", () => {
+  expect(workflow.jobs["core-integration"]).toBeUndefined();
   const expectedDependencies = {
-    "core-integration": [
+    "integration-gate": [
       "database-integration",
       "server-integration",
       "unit-integration",
-    ],
-    "integration-gate": [
-      "core-integration",
       "browser-integration",
       "command-palette-performance",
     ],
