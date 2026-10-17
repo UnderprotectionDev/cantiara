@@ -187,6 +187,37 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
     ).rejects.toBeInstanceOf(ContactRevisionConflictError);
   });
 
+  test("adds a display name and email alias later and keeps the stale-revision guard", async () => {
+    const access = createDatabaseContacts(requireDatabase());
+    const contact = await access.createContact(accountId, {});
+
+    const updated = await access.updateContact(accountId, {
+      contactId: contact.id,
+      displayName: "Grace",
+      email: "Grace@Example.com",
+      expectedRevision: contact.revision,
+    });
+    const repeated = await access.updateContact(accountId, {
+      contactId: contact.id,
+      email: "grace@example.com",
+    });
+
+    expect(updated).toMatchObject({
+      displayName: "Grace",
+      emails: ["grace@example.com"],
+      id: contact.id,
+      revision: contact.revision + 1,
+    });
+    expect(repeated.revision).toBe(updated.revision);
+    await expect(
+      access.updateContact(accountId, {
+        contactId: contact.id,
+        displayName: null,
+        expectedRevision: contact.revision,
+      }),
+    ).rejects.toBeInstanceOf(ContactRevisionConflictError);
+  });
+
   test("rejects a Company from another Workspace", async () => {
     const access = createDatabaseContacts(requireDatabase());
     const foreign = await access.createCompany(otherAccountId, {

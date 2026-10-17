@@ -9,6 +9,7 @@ import { describe, expect, test } from "vitest";
 import {
   CompanyNotFoundError,
   ContactNotFoundError,
+  ContactRevisionConflictError,
   ContactWorkspaceNotFoundError,
   createContacts,
 } from "./contacts";
@@ -83,6 +84,34 @@ function createMemoryStore() {
     listCompanies: async () => {
       await Promise.resolve();
       return [...companies.values()];
+    },
+    updateContact: async (_workspaceId, input) => {
+      await Promise.resolve();
+      const current = contactFor(input.contactId);
+      if (
+        input.expectedRevision !== undefined &&
+        input.expectedRevision !== current.revision
+      ) {
+        throw new ContactRevisionConflictError(current.id);
+      }
+      const emails =
+        input.email && !current.emails.includes(input.email)
+          ? [...current.emails, input.email]
+          : current.emails;
+      const displayName =
+        input.displayName === undefined
+          ? current.displayName
+          : input.displayName;
+      const changed =
+        displayName !== current.displayName || emails !== current.emails;
+      const updated: Contact = {
+        ...current,
+        displayName,
+        emails,
+        revision: changed ? current.revision + 1 : current.revision,
+      };
+      contacts.set(updated.id, updated);
+      return updated;
     },
     listContacts: async () => {
       await Promise.resolve();
@@ -252,6 +281,46 @@ describe("Contact and Company", () => {
       "name",
       "revision",
     ]);
+  });
+
+  test("adds a display name and email alias later without changing identity", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const contact = await access.createContact("account-1", {});
+
+    const updated = await access.updateContact("account-1", {
+      contactId: contact.id,
+      displayName: "  Grace Hopper ",
+      email: "Grace@Example.COM",
+      expectedRevision: contact.revision,
+    });
+
+    expect(updated).toMatchObject({
+      displayName: "Grace Hopper",
+      emails: ["grace@example.com"],
+      id: contact.id,
+      revision: contact.revision + 1,
+    });
+  });
+
+  test("clears the display name with null and rejects a stale revision", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const contact = await access.createContact("account-1", {
+      displayName: "Grace",
+    });
+
+    const cleared = await access.updateContact("account-1", {
+      contactId: contact.id,
+      displayName: null,
+    });
+
+    expect(cleared.displayName).toBeNull();
+    await expect(
+      access.updateContact("account-1", {
+        contactId: contact.id,
+        displayName: "Late edit",
+        expectedRevision: contact.revision,
+      }),
+    ).rejects.toBeInstanceOf(ContactRevisionConflictError);
   });
 
   test("never assigns a Persona on creation", async () => {

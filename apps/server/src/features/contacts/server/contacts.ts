@@ -6,6 +6,7 @@ import {
   createCompanyInputSchema,
   createContactInputSchema,
   setContactCompanyInputSchema,
+  updateContactInputSchema,
 } from "@cantiara/api/contacts";
 
 export class ContactWorkspaceNotFoundError extends Error {
@@ -106,6 +107,11 @@ export function createContacts({
     async unlinkPersona(accountId, input) {
       const parsed = contactPersonaInputSchema.parse(input);
       return store.unlinkPersona(await workspaceIdFor(accountId), parsed);
+    },
+
+    async updateContact(accountId, input) {
+      const parsed = updateContactInputSchema.parse(input);
+      return store.updateContact(await workspaceIdFor(accountId), parsed);
     },
   };
 }

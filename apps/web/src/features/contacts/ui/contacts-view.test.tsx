@@ -47,6 +47,18 @@ const contact: Contact = {
   revision: 1,
 };
 
+const withPersona: Contact = {
+  ...contact,
+  personaDocuments: [
+    {
+      archivedAt: null,
+      documentId: "document-1",
+      projectId: "project-1",
+      title: "Maker Mia",
+    },
+  ],
+};
+
 function renderView(contacts: Contact[], companies: Company[]) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(orpc.contacts.queryOptions().queryKey, contacts);
@@ -67,15 +79,23 @@ function renderView(contacts: Contact[], companies: Company[]) {
 
 describe("Contact and Company surface", () => {
   test("uses the English identity-book labels", () => {
-    const html = renderView([contact], [company]);
+    const html = renderView([withPersona], [company]);
 
     expect(html).toContain("Create Contact");
     expect(html).toContain("Create Company");
     expect(html).toContain("Display name");
+    expect(html).toContain("Save Contact");
     expect(html).toContain("Belongs to Company");
     expect(html).toContain("Open Source Record");
     expect(html).toContain("Past Companies");
     expect(html).toContain("Globex");
+  });
+
+  test("opens the Persona Document as the only Open Source Record link", () => {
+    const html = renderView([withPersona], [company]);
+
+    expect(html.match(/Open Source Record/g)).toHaveLength(1);
+    expect(html).toContain("Maker Mia");
   });
 
   test("shows the empty states", () => {

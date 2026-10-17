@@ -446,6 +446,50 @@ export function createDatabaseContactStore(database: Database): ContactStore {
         return readContact(executor, workspaceId, contact.id);
       });
     },
+
+    updateContact(workspaceId, input) {
+      return database.transaction(async (executor) => {
+        const contact = await lockContact(
+          executor,
+          workspaceId,
+          input.contactId,
+        );
+        if (
+          input.expectedRevision !== undefined &&
+          input.expectedRevision !== contact.revision
+        ) {
+          throw new ContactRevisionConflictError(contact.id);
+        }
+        let changed = false;
+        if (
+          input.displayName !== undefined &&
+          input.displayName !== contact.displayName
+        ) {
+          await executor
+            .update(workspaceContact)
+            .set({ displayName: input.displayName })
+            .where(eq(workspaceContact.id, contact.id));
+          changed = true;
+        }
+        if (input.email) {
+          const [added] = await executor
+            .insert(workspaceContactEmail)
+            .values({
+              contactId: contact.id,
+              id: crypto.randomUUID(),
+              normalizedEmail: input.email,
+              workspaceId,
+            })
+            .onConflictDoNothing()
+            .returning({ id: workspaceContactEmail.id });
+          changed = changed || added !== undefined;
+        }
+        if (changed) {
+          await bumpRevision(executor, contact, undefined);
+        }
+        return readContact(executor, workspaceId, contact.id);
+      });
+    },
   };
 }
 

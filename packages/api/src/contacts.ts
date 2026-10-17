@@ -70,6 +70,24 @@ export type ParsedSetContactCompanyInput = z.output<
   typeof setContactCompanyInputSchema
 >;
 
+/**
+ * `displayName: null` clears the name. `email` adds a normalized alias; it
+ * never replaces an existing one, so identity stays the Contact id.
+ */
+export const updateContactInputSchema = z
+  .object({
+    contactId: identifierSchema,
+    displayName: contactDisplayNameSchema.nullable().optional(),
+    email: contactEmailSchema.optional(),
+    expectedRevision: revisionSchema.optional(),
+  })
+  .strict();
+
+export type UpdateContactInput = z.input<typeof updateContactInputSchema>;
+export type ParsedUpdateContactInput = z.output<
+  typeof updateContactInputSchema
+>;
+
 export const contactPersonaInputSchema = z
   .object({
     contactId: identifierSchema,
@@ -173,6 +191,10 @@ export interface ContactStore {
     workspaceId: string,
     input: z.output<typeof contactPersonaInputSchema>,
   ) => Promise<Contact>;
+  updateContact: (
+    workspaceId: string,
+    input: ParsedUpdateContactInput,
+  ) => Promise<Contact>;
 }
 
 export interface ContactsAccess {
@@ -201,5 +223,9 @@ export interface ContactsAccess {
   unlinkPersona: (
     accountId: string,
     input: ContactPersonaInput,
+  ) => Promise<Contact>;
+  updateContact: (
+    accountId: string,
+    input: UpdateContactInput,
   ) => Promise<Contact>;
 }

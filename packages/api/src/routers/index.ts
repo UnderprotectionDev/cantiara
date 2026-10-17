@@ -38,6 +38,7 @@ import {
   createCompanyInputSchema,
   createContactInputSchema,
   setContactCompanyInputSchema,
+  updateContactInputSchema,
 } from "../contacts";
 import {
   CONFIRM_GITHUB_IDENTITY_OPERATION_IDS,
@@ -4399,6 +4400,13 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runContactOperation(() =>
         requireContacts(context).unlinkPersona(context.session.user.id, input),
+      ),
+    ),
+  updateContact: protectedProcedure
+    .input(updateContactInputSchema)
+    .handler(({ context, input }) =>
+      runContactOperation(() =>
+        requireContacts(context).updateContact(context.session.user.id, input),
       ),
     ),
   tags: protectedProcedure

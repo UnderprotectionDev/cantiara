@@ -5,6 +5,7 @@ import {
   type Contact,
   createCompanyInputSchema,
   createContactInputSchema,
+  updateContactInputSchema,
 } from "@cantiara/api/contacts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -56,6 +57,37 @@ export default function ContactsView() {
       runOnlineOnlyWrite(() => client.setContactCompany(input)),
     onSuccess: refresh,
   });
+  const updateContact = useMutation({
+    mutationFn: (input: Parameters<typeof client.updateContact>[0]) =>
+      runOnlineOnlyWrite(() => client.updateContact(input)),
+    onSuccess: refresh,
+  });
+
+  async function submitContactUpdate(
+    contact: Contact,
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const displayName = String(data.get("displayName") ?? "").trim();
+    const email = String(data.get("email") ?? "").trim();
+    const parsed = updateContactInputSchema.safeParse({
+      contactId: contact.id,
+      displayName: displayName || null,
+      ...(email ? { email } : {}),
+      expectedRevision: contact.revision,
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Contact is invalid.");
+      return;
+    }
+    setError(null);
+    try {
+      await updateContact.mutateAsync(parsed.data);
+    } catch {
+      setError("Contact could not be saved.");
+    }
+  }
 
   async function submitContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -224,6 +256,7 @@ export default function ContactsView() {
           companies={companies.data ?? []}
           contact={selected}
           onCompanyChange={changeCompany}
+          onUpdate={submitContactUpdate}
         />
       ) : null}
     </main>
@@ -232,10 +265,7 @@ export default function ContactsView() {
 
 function CompanyItem({ company }: { company: Company }) {
   return (
-    <li
-      className="rounded-md border px-3 py-2 text-sm"
-      id={`company-${company.id}`}
-    >
+    <li className="rounded-md border px-3 py-2 text-sm">
       {company.name}
       <span className="ml-2 text-muted-foreground">
         {company.contactCount} Contact{company.contactCount === 1 ? "" : "s"}
@@ -248,10 +278,15 @@ function ContactProfile({
   companies,
   contact,
   onCompanyChange,
+  onUpdate,
 }: {
   companies: Company[];
   contact: Contact;
   onCompanyChange: (contact: Contact, companyId: string) => Promise<void>;
+  onUpdate: (
+    contact: Contact,
+    event: FormEvent<HTMLFormElement>,
+  ) => Promise<void>;
 }) {
   const past = contact.companyHistory.filter((entry) => entry.endedAt);
 
@@ -261,6 +296,36 @@ function ContactProfile({
       className="space-y-4 border-t pt-6"
     >
       <h2 className="font-semibold text-xl">{contactLabel(contact)}</h2>
+      <form
+        className="flex flex-col gap-4 sm:flex-row sm:items-end"
+        key={`${contact.id}-${contact.revision}`}
+        onSubmit={(event) => onUpdate(contact, event)}
+      >
+        <label className="flex flex-col gap-1 text-sm">
+          Display name
+          <input
+            className="rounded-md border bg-background px-3 py-2"
+            defaultValue={contact.displayName ?? ""}
+            maxLength={255}
+            name="displayName"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Email
+          <input
+            className="rounded-md border bg-background px-3 py-2"
+            name="email"
+            placeholder="Add an email"
+            type="email"
+          />
+        </label>
+        <button
+          className="w-fit rounded-md bg-primary px-3 py-2 text-primary-foreground text-sm"
+          type="submit"
+        >
+          Save Contact
+        </button>
+      </form>
       <dl className="grid gap-2 text-sm sm:grid-cols-[10rem_1fr]">
         <dt className="text-muted-foreground">Display name</dt>
         <dd>{contact.displayName ?? "None"}</dd>
@@ -283,14 +348,6 @@ function ContactProfile({
               </option>
             ))}
           </select>
-          {contact.company ? (
-            <a
-              className="underline underline-offset-2"
-              href={`#company-${contact.company.id}`}
-            >
-              Open Source Record
-            </a>
-          ) : null}
         </dd>
         {past.length > 0 ? (
           <>
