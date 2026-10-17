@@ -83,10 +83,13 @@ function strongCandidates(live: readonly Contact[]) {
   }
   const candidates: DuplicateCandidate[] = [];
   const pairs = new Set<string>();
+  const seenGroups = new Set<string>();
   for (const contactIds of byEmail.values()) {
-    if (contactIds.length < 2) {
+    const groupKey = [...contactIds].sort().join("\u0000");
+    if (contactIds.length < 2 || seenGroups.has(groupKey)) {
       continue;
     }
+    seenGroups.add(groupKey);
     candidates.push({
       contactIds,
       reasons: ["Same email"],
@@ -105,26 +108,21 @@ function weakReason(
   first: Contact,
   second: Contact,
 ): DuplicateCandidate["reasons"][number] | null {
-  const firstName = normalizeName(first.displayName);
-  const secondName = normalizeName(second.displayName);
-  if (firstName.length === 0 || secondName.length === 0) {
-    return null;
-  }
-  if (firstName.join(" ") === secondName.join(" ")) {
+  const firstName = normalizeName(first.displayName).join(" ");
+  const secondName = normalizeName(second.displayName).join(" ");
+  if (firstName !== "" && firstName === secondName) {
     return "Similar name";
   }
-  const sameCompany =
-    first.company !== null && first.company.id === second.company?.id;
-  if (sameCompany && firstName.some((token) => secondName.includes(token))) {
-    return "Same Company and name";
+  if (first.company !== null && first.company.id === second.company?.id) {
+    return "Same Company";
   }
   return null;
 }
 
 /**
  * Read-only: groups live Contacts that share a normalized email (strong) and
- * pairs the remaining ones with a similar name or a shared Company and name
- * token (weak). It never writes, so no candidate can merge itself.
+ * pairs the remaining ones with a similar name or a shared current Company
+ * (weak). It never writes, so no candidate can merge itself.
  */
 export function findDuplicateCandidates(
   contacts: readonly Contact[],

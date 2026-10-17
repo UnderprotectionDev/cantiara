@@ -174,9 +174,7 @@ export type Contact = z.infer<typeof contactSchema>;
 export const duplicateCandidateSchema = z
   .object({
     contactIds: z.array(identifierSchema).min(2),
-    reasons: z.array(
-      z.enum(["Same email", "Similar name", "Same Company and name"]),
-    ),
+    reasons: z.array(z.enum(["Same email", "Similar name", "Same Company"])),
     strength: z.enum(["strong", "weak"]),
   })
   .strict();

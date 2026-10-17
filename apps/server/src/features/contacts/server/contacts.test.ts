@@ -379,7 +379,7 @@ describe("Contact and Company", () => {
       companyId: acme.id,
       displayName: "G. Hopper",
     });
-    await access.createContact("account-1", {
+    const third = await access.createContact("account-1", {
       companyId: acme.id,
       displayName: "Linus Torvalds",
     });
@@ -398,10 +398,42 @@ describe("Contact and Company", () => {
       },
       {
         contactIds: [second.id, sameCompany.id],
-        reasons: ["Same Company and name"],
+        reasons: ["Same Company"],
+        strength: "weak",
+      },
+      {
+        contactIds: [second.id, third.id],
+        reasons: ["Same Company"],
+        strength: "weak",
+      },
+      {
+        contactIds: [sameCompany.id, third.id],
+        reasons: ["Same Company"],
         strength: "weak",
       },
     ]);
+  });
+
+  test("lists Contacts sharing several emails as one strong candidate", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const first = await access.createContact("account-1", {
+      email: "a@example.com",
+    });
+    const second = await access.createContact("account-1", {
+      email: "a@example.com",
+    });
+    await access.updateContact("account-1", {
+      contactId: first.id,
+      email: "b@example.com",
+    });
+    await access.updateContact("account-1", {
+      contactId: second.id,
+      email: "b@example.com",
+    });
+
+    const candidates = await access.listDuplicateCandidates("account-1");
+
+    expect(candidates).toHaveLength(1);
   });
 
   test("does not downgrade a strong candidate into an extra weak one", async () => {

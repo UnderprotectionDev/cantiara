@@ -116,6 +116,7 @@ describe("Contact and Company surface", () => {
 
     expect(html).toContain("No Contacts yet.");
     expect(html).toContain("No Companies yet.");
+    expect(html).toContain("No duplicate candidates.");
   });
 
   test("shows strong and weak Duplicate candidates without a merge action", () => {
@@ -138,7 +139,7 @@ describe("Contact and Company surface", () => {
     );
 
     expect(html).toContain("Duplicate candidates");
-    expect(html).toContain("Strong");
+    expect(html).toContain("Strong copy candidate");
     expect(html).toContain("Weak suggestion");
     expect(html).not.toMatch(mergePattern);
   });

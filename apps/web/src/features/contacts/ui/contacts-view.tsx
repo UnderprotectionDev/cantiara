@@ -295,10 +295,9 @@ function DuplicateCandidates({
             key={`${candidate.strength}-${candidate.contactIds.join("-")}`}
           >
             <span className="font-medium">
-              {candidate.strength === "strong" ? "Strong" : "Weak suggestion"}
-            </span>
-            <span className="ml-2 text-muted-foreground">
-              {candidate.reasons.join(", ")}
+              {candidate.strength === "strong"
+                ? "Strong copy candidate"
+                : "Weak suggestion"}
             </span>
             <ul className="mt-1 flex flex-wrap gap-2">
               {candidate.contactIds.map((contactId) => {
