@@ -15,12 +15,22 @@ import { documentRecordHash } from "@/features/project-shell/lib/project-shell-n
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import MergePreviewPanel, { mergeContactsRequest } from "./merge-preview-panel";
-import MergeUndoPanel, { undoMergeRequest } from "./merge-undo-panel";
+import MergeUndoPanel, {
+  undoMergeRequest,
+  undoResultNotice,
+} from "./merge-undo-panel";
 
 const NO_COMPANY = "";
 
 function contactLabel(contact: Pick<Contact, "displayName" | "emails">) {
   return contact.displayName ?? contact.emails[0] ?? "Unnamed Contact";
+}
+
+/** Null once the preview is unavailable: the message under the panel says so. */
+export function undoFailureMessage(previewUnavailable: boolean) {
+  return previewUnavailable
+    ? null
+    : "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.";
 }
 
 export default function ContactsView({ contactId }: { contactId?: string }) {
@@ -91,6 +101,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
     },
   });
   const [undoRetiredId, setUndoRetiredId] = useState<string | null>(null);
+  const [undoNotice, setUndoNotice] = useState<string | null>(null);
   const undoPreview = useQuery({
     ...orpc.contactMergeUndoPreview.queryOptions({
       input: { retiredId: undoRetiredId ?? "" },
@@ -103,6 +114,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
       runOnlineOnlyWrite(() => client.undoMerge(input)),
     onSuccess: async (result) => {
       setUndoRetiredId(null);
+      setUndoNotice(undoResultNotice(result));
       setSelectedId(result.restored.id);
       await Promise.all([
         refresh(),
@@ -216,6 +228,9 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           {error}
         </p>
       ) : null}
+      <p className="text-muted-foreground text-sm" role="status">
+        {undoNotice}
+      </p>
       <div className="grid gap-8 md:grid-cols-2">
         <section aria-label="Create Contact" className="space-y-4">
           <h2 className="font-semibold text-xl">Create Contact</h2>
@@ -336,7 +351,7 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           preview={mergePreview.data}
         />
       ) : null}
-      {undoRetiredId && undoPreview.data ? (
+      {undoRetiredId && undoPreview.data && !undoPreview.isError ? (
         <MergeUndoPanel
           key={undoPreview.data.mergeId}
           onCancel={() => setUndoRetiredId(null)}
@@ -347,10 +362,8 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
                 undoMergeRequest(undoPreview.data, resolution),
               );
             } catch {
-              setError(
-                "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.",
-              );
-              await undoPreview.refetch();
+              const refreshed = await undoPreview.refetch();
+              setError(undoFailureMessage(refreshed.isError));
             }
           }}
           pending={undoMerge.isPending}
@@ -373,7 +386,10 @@ export default function ContactsView({ contactId }: { contactId?: string }) {
           Redirected from <code>{opened.data.redirectedFrom}</code>{" "}
           <button
             className="rounded-md border px-2 py-1"
-            onClick={() => setUndoRetiredId(opened.data.redirectedFrom)}
+            onClick={() => {
+              setUndoNotice(null);
+              setUndoRetiredId(opened.data.redirectedFrom);
+            }}
             type="button"
           >
             Undo Merge

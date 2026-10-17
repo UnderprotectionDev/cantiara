@@ -275,6 +275,7 @@ export const workspaceContactMerge = pgTable(
     retiredDisplayName: text("retired_display_name"),
     retiredRevision: integer("retired_revision").notNull(),
     survivingContactId: text("surviving_contact_id").notNull(),
+    undoFingerprint: text("undo_fingerprint"),
     undoneAt: timestamp("undone_at"),
     workspaceId: text("workspace_id")
       .notNull()

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   type Company,
   type Contact,
@@ -29,7 +31,7 @@ import {
 import { document } from "@cantiara/db/schema/document";
 import { feedback } from "@cantiara/db/schema/feedback";
 import { project } from "@cantiara/db/schema/project";
-import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { accountActorAlias } from "../../account-access/server/github-identity-confirmation";
 
@@ -39,6 +41,7 @@ import {
   ContactMergeNotFoundError,
   ContactMergeUndoBlockedError,
   ContactMergeUndoConflictError,
+  ContactMergeUndoPayloadChangedError,
   ContactNotFoundError,
   ContactPersonaDocumentNotFoundError,
   ContactRevisionConflictError,
@@ -612,7 +615,7 @@ async function planUndo(
           .select({
             archivedAt: document.archivedAt,
             id: document.id,
-            projectId: document.projectId,
+            projectId: project.id,
             title: document.title,
           })
           .from(document)
@@ -646,18 +649,12 @@ async function planUndo(
           ),
   ]);
 
-  const restorablePersonaDocuments = documentRows.flatMap((row) =>
-    row.projectId === null
-      ? []
-      : [
-          {
-            archivedAt: row.archivedAt?.toISOString() ?? null,
-            documentId: row.id,
-            projectId: row.projectId,
-            title: row.title,
-          },
-        ],
-  );
+  const restorablePersonaDocuments = documentRows.map((row) => ({
+    archivedAt: row.archivedAt?.toISOString() ?? null,
+    documentId: row.id,
+    projectId: row.projectId,
+    title: row.title,
+  }));
   const attributedAffiliation = new Set(
     links
       .filter((link) => link.kind === "affiliation" && link.attributed)
@@ -713,12 +710,82 @@ function toUndoPreview(plan: UndoPlan, survivor: Contact): MergeUndoPreview {
   });
 }
 
-/** A repeated confirm after undo returns the restored Contact. */
+/** Identifies the answer the founder confirmed, so a retry can be checked. */
+function undoFingerprint(input: ParsedUndoMergeInput) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        input.retiredId,
+        input.expectedSurvivorRevision,
+        input.resolutions?.displayName ?? null,
+      ]),
+    )
+    .digest("hex");
+}
+
+/**
+ * Returns the values that leave the survivor now. A value a later open merge
+ * also took from its copy stays: its attribution moves to that merge, so the
+ * later undo removes it instead.
+ */
+async function releaseAttributedValues(
+  executor: ContactExecutor,
+  workspaceId: string,
+  survivorId: string,
+  mergeId: string,
+  kind: MergeLinkKind,
+  values: string[],
+) {
+  if (values.length === 0) {
+    return [];
+  }
+  const claims = await executor
+    .select({
+      id: workspaceContactMergeLink.id,
+      value: workspaceContactMergeLink.value,
+    })
+    .from(workspaceContactMergeLink)
+    .innerJoin(
+      workspaceContactMerge,
+      eq(workspaceContactMerge.id, workspaceContactMergeLink.mergeId),
+    )
+    .where(
+      and(
+        eq(workspaceContactMerge.workspaceId, workspaceId),
+        eq(workspaceContactMerge.survivingContactId, survivorId),
+        isNull(workspaceContactMerge.undoneAt),
+        ne(workspaceContactMerge.id, mergeId),
+        eq(workspaceContactMergeLink.kind, kind),
+        eq(workspaceContactMergeLink.attributed, false),
+        inArray(workspaceContactMergeLink.value, values),
+      ),
+    )
+    .orderBy(asc(workspaceContactMerge.mergedAt));
+  const claimed = values.flatMap((value) => {
+    const claim = claims.find((row) => row.value === value);
+    return claim ? [claim.id] : [];
+  });
+  if (claimed.length > 0) {
+    await executor
+      .update(workspaceContactMergeLink)
+      .set({ attributed: true })
+      .where(inArray(workspaceContactMergeLink.id, claimed));
+  }
+  return values.filter(
+    (value) => !claims.some((claim) => claim.value === value),
+  );
+}
+
+/**
+ * A repeated confirm after undo returns the restored Contact. A retry that
+ * confirms a different answer is refused instead of silently replayed.
+ */
 async function replayUndo(
   executor: ContactExecutor,
   workspaceId: string,
-  retiredId: string,
+  input: ParsedUndoMergeInput,
 ) {
+  const { retiredId } = input;
   const [merge] = await executor
     .select()
     .from(workspaceContactMerge)
@@ -733,6 +800,9 @@ async function replayUndo(
   const [live] = await readContacts(executor, workspaceId, [retiredId]);
   if (!(merge?.undoneAt && live)) {
     throw new ContactMergeNotFoundError(retiredId);
+  }
+  if (merge.undoFingerprint !== undoFingerprint(input)) {
+    throw new ContactMergeUndoPayloadChangedError(retiredId);
   }
   return undoMergeResultSchema.parse({
     mergeId: merge.id,
@@ -754,7 +824,7 @@ async function undoMergeInTransaction(
 ) {
   const merge = await findOpenMerge(executor, workspaceId, input.retiredId);
   if (!merge) {
-    return replayUndo(executor, workspaceId, input.retiredId);
+    return replayUndo(executor, workspaceId, input);
   }
   const survivor = await findLockedContact(
     executor,
@@ -771,12 +841,9 @@ async function undoMergeInTransaction(
     .where(eq(workspaceContactMerge.id, merge.id))
     .limit(1);
   if (latest?.undoneAt) {
-    return replayUndo(executor, workspaceId, input.retiredId);
+    return replayUndo(executor, workspaceId, input);
   }
-  if (
-    input.expectedSurvivorRevision !== undefined &&
-    input.expectedSurvivorRevision !== survivor.revision
-  ) {
+  if (input.expectedSurvivorRevision !== survivor.revision) {
     throw new ContactRevisionConflictError(survivor.id);
   }
   const plan = await planUndo(executor, workspaceId, merge, survivor);
@@ -819,14 +886,21 @@ async function undoMergeInTransaction(
       })),
     );
   }
-  const attributedEmails = attributed("email");
-  if (attributedEmails.length > 0) {
+  const emailsToRemove = await releaseAttributedValues(
+    executor,
+    workspaceId,
+    survivor.id,
+    merge.id,
+    "email",
+    attributed("email"),
+  );
+  if (emailsToRemove.length > 0) {
     await executor
       .delete(workspaceContactEmail)
       .where(
         and(
           eq(workspaceContactEmail.contactId, survivor.id),
-          inArray(workspaceContactEmail.normalizedEmail, attributedEmails),
+          inArray(workspaceContactEmail.normalizedEmail, emailsToRemove),
         ),
       );
   }
@@ -841,14 +915,21 @@ async function undoMergeInTransaction(
       })),
     );
   }
-  const attributedFeedback = attributed("feedback");
-  if (attributedFeedback.length > 0) {
+  const feedbackToRemove = await releaseAttributedValues(
+    executor,
+    workspaceId,
+    survivor.id,
+    merge.id,
+    "feedback",
+    attributed("feedback"),
+  );
+  if (feedbackToRemove.length > 0) {
     await executor
       .delete(workspaceContactFeedback)
       .where(
         and(
           eq(workspaceContactFeedback.contactId, survivor.id),
-          inArray(workspaceContactFeedback.feedbackId, attributedFeedback),
+          inArray(workspaceContactFeedback.feedbackId, feedbackToRemove),
         ),
       );
   }
@@ -863,14 +944,21 @@ async function undoMergeInTransaction(
       })),
     );
   }
-  const attributedPersonas = attributed("persona");
-  if (attributedPersonas.length > 0) {
+  const personasToRemove = await releaseAttributedValues(
+    executor,
+    workspaceId,
+    survivor.id,
+    merge.id,
+    "persona",
+    attributed("persona"),
+  );
+  if (personasToRemove.length > 0) {
     await executor
       .delete(workspaceContactPersona)
       .where(
         and(
           eq(workspaceContactPersona.contactId, survivor.id),
-          inArray(workspaceContactPersona.documentId, attributedPersonas),
+          inArray(workspaceContactPersona.documentId, personasToRemove),
         ),
       );
   }
@@ -924,7 +1012,7 @@ async function undoMergeInTransaction(
   await bumpRevision(executor, survivor, undefined);
   await executor
     .update(workspaceContactMerge)
-    .set({ undoneAt: now })
+    .set({ undoFingerprint: undoFingerprint(input), undoneAt: now })
     .where(eq(workspaceContactMerge.id, merge.id));
   await executor.insert(workspaceContactAuditEvent).values({
     actorAlias: await accountActorAlias(actorAccountId),

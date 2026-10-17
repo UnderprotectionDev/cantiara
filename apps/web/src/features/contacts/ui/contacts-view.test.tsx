@@ -18,9 +18,12 @@ import { describe, expect, test } from "vitest";
 
 import { orpc } from "@/utils/orpc";
 
-import ContactsView from "./contacts-view";
+import ContactsView, { undoFailureMessage } from "./contacts-view";
 import MergePreviewPanel, { mergeContactsRequest } from "./merge-preview-panel";
-import MergeUndoPanel, { undoMergeRequest } from "./merge-undo-panel";
+import MergeUndoPanel, {
+  undoMergeRequest,
+  undoResultNotice,
+} from "./merge-undo-panel";
 
 function noop() {
   // Presentational test: the handlers are never called.
@@ -341,6 +344,35 @@ describe("Contact merge undo", () => {
     expect(html).toContain("Keep current value");
     expect(html).toContain("Restore previous value");
     expect(html).toMatch(confirmDisabledPattern);
+  });
+
+  test("leaves the unavailable preview to its own message instead of a retry prompt", () => {
+    expect(undoFailureMessage(true)).toBeNull();
+    expect(undoFailureMessage(false)).toBe(
+      "Merge could not be undone. The Undo Merge Preview was refreshed; review it and confirm again.",
+    );
+  });
+
+  test("reports what an Undo Merge could not give back once it finishes", () => {
+    const finished = {
+      mergeId: "merge-1",
+      restored: contact,
+      survivor: contact,
+      unrestorable: [],
+    };
+
+    expect(undoResultNotice(finished)).toBeNull();
+    expect(
+      undoResultNotice({
+        ...finished,
+        unrestorable: [
+          { count: 1, kind: "Feedback link" },
+          { count: 2, kind: "Company link" },
+        ],
+      }),
+    ).toBe(
+      "Undo Merge finished. Cannot be restored: Feedback link: 1, Company link: 2.",
+    );
   });
 
   test("sends the survivor revision and the founder's answer with the confirmation", () => {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import type { MergeUndoResolution } from "@cantiara/api/contacts";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import {
@@ -25,6 +26,7 @@ import {
   ContactMergeNotFoundError,
   ContactMergeUndoBlockedError,
   ContactMergeUndoConflictError,
+  ContactMergeUndoPayloadChangedError,
   ContactNotFoundError,
   ContactPersonaDocumentNotFoundError,
   ContactRevisionConflictError,
@@ -592,6 +594,19 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
   });
 
   describe("Merge undo", () => {
+    async function confirmUndo(
+      access: ReturnType<typeof createDatabaseContacts>,
+      retiredId: string,
+      displayName?: MergeUndoResolution,
+    ) {
+      const preview = await access.previewMergeUndo(accountId, { retiredId });
+      return access.undoMerge(accountId, {
+        expectedSurvivorRevision: preview.survivor.revision,
+        ...(displayName ? { resolutions: { displayName } } : {}),
+        retiredId,
+      });
+    }
+
     test("restores the retired identity and splits back only merge-attributed values", async () => {
       const { access, acme, feedbackId, personaId, retired, survivor } =
         await seedDuplicates();
@@ -600,9 +615,7 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         survivorId: survivor.id,
       });
 
-      const result = await access.undoMerge(accountId, {
-        retiredId: retired.id,
-      });
+      const result = await confirmUndo(access, retired.id);
 
       expect(result.unrestorable).toEqual([]);
       expect(result.restored).toMatchObject({
@@ -677,9 +690,7 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         contactId: survivor.id,
       });
 
-      const result = await access.undoMerge(accountId, {
-        retiredId: retired.id,
-      });
+      const result = await confirmUndo(access, retired.id);
 
       expect(result.survivor).toMatchObject({
         company: { id: lateCompany.id },
@@ -723,18 +734,15 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
           previousValue: null,
         },
       ]);
-      await expect(
-        access.undoMerge(accountId, { retiredId: retired.id }),
-      ).rejects.toBeInstanceOf(ContactMergeUndoConflictError);
+      await expect(confirmUndo(access, retired.id)).rejects.toBeInstanceOf(
+        ContactMergeUndoConflictError,
+      );
       // Nothing was written: the copy is still a redirect.
       await expect(
         access.getContact(accountId, { contactId: retired.id }),
       ).rejects.toBeInstanceOf(ContactNotFoundError);
 
-      const kept = await access.undoMerge(accountId, {
-        resolutions: { displayName: "Keep current value" },
-        retiredId: retired.id,
-      });
+      const kept = await confirmUndo(access, retired.id, "Keep current value");
       expect(kept.survivor.displayName).toBe("Grace Hopper");
       expect(kept.restored.displayName).toBe("Grace");
     });
@@ -746,10 +754,11 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         displayName: "Grace Hopper",
       });
 
-      const result = await access.undoMerge(accountId, {
-        resolutions: { displayName: "Restore previous value" },
-        retiredId: retired.id,
-      });
+      const result = await confirmUndo(
+        access,
+        retired.id,
+        "Restore previous value",
+      );
 
       expect(result.survivor.displayName).toBeNull();
       expect(result.restored.displayName).toBe("Grace");
@@ -758,9 +767,7 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
     test("removes an unedited adopted value without asking", async () => {
       const { access, retired } = await seedAdoptedName();
 
-      const result = await access.undoMerge(accountId, {
-        retiredId: retired.id,
-      });
+      const result = await confirmUndo(access, retired.id);
 
       expect(result.survivor.displayName).toBeNull();
       expect(result.restored.displayName).toBe("Grace");
@@ -791,9 +798,7 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         "ada@work.example",
       ]);
 
-      const result = await access.undoMerge(accountId, {
-        retiredId: retired.id,
-      });
+      const result = await confirmUndo(access, retired.id);
       expect(result.unrestorable).toEqual(preview.unrestorable);
       expect(result.restored.personaDocuments).toEqual([]);
       expect(result.restored.emails).toHaveLength(2);
@@ -813,9 +818,9 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
       await expect(
         access.previewMergeUndo(accountId, { retiredId: survivor.id }),
       ).rejects.toBeInstanceOf(ContactMergeNotFoundError);
-      await expect(
-        access.undoMerge(accountId, { retiredId: survivor.id }),
-      ).rejects.toBeInstanceOf(ContactMergeNotFoundError);
+      await expect(confirmUndo(access, survivor.id)).rejects.toBeInstanceOf(
+        ContactMergeNotFoundError,
+      );
     });
 
     test("undoes chained merges newest first and restores the older redirect", async () => {
@@ -838,19 +843,17 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         survivorId: third.id,
       });
 
-      await expect(
-        access.undoMerge(accountId, { retiredId: first.id }),
-      ).rejects.toBeInstanceOf(ContactMergeUndoBlockedError);
+      await expect(confirmUndo(access, first.id)).rejects.toBeInstanceOf(
+        ContactMergeUndoBlockedError,
+      );
 
-      await access.undoMerge(accountId, { retiredId: second.id });
+      await confirmUndo(access, second.id);
       expect(
         (await access.resolveContact(accountId, { contactId: first.id }))
           .contact.id,
       ).toBe(second.id);
 
-      const result = await access.undoMerge(accountId, {
-        retiredId: first.id,
-      });
+      const result = await confirmUndo(access, first.id);
       expect(result.restored.emails).toEqual(["a@x.test"]);
       expect(result.survivor.emails).toEqual(["b@x.test"]);
     });
@@ -861,13 +864,16 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         retiredId: retired.id,
         survivorId: survivor.id,
       });
-      const first = await access.undoMerge(accountId, {
+      const preview = await access.previewMergeUndo(accountId, {
         retiredId: retired.id,
       });
+      const input = {
+        expectedSurvivorRevision: preview.survivor.revision,
+        retiredId: retired.id,
+      };
+      const first = await access.undoMerge(accountId, input);
 
-      const replay = await access.undoMerge(accountId, {
-        retiredId: retired.id,
-      });
+      const replay = await access.undoMerge(accountId, input);
 
       expect(replay.mergeId).toBe(first.mergeId);
       expect(replay.restored.id).toBe(retired.id);
@@ -885,7 +891,7 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
         retiredId: retired.id,
         survivorId: survivor.id,
       });
-      await access.undoMerge(accountId, { retiredId: retired.id });
+      await confirmUndo(access, retired.id);
 
       const again = await access.mergeContacts(accountId, {
         retiredId: retired.id,
@@ -893,10 +899,9 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
       });
 
       expect(again.survivor.emails).toContain("ada@work.example");
-      expect(
-        (await access.undoMerge(accountId, { retiredId: retired.id })).restored
-          .id,
-      ).toBe(retired.id);
+      expect((await confirmUndo(access, retired.id)).restored.id).toBe(
+        retired.id,
+      );
     });
 
     test("stays inside the Workspace", async () => {
@@ -907,8 +912,180 @@ describeDatabase("Contact and Company PostgreSQL integration", () => {
       });
 
       await expect(
-        access.undoMerge(otherAccountId, { retiredId: retired.id }),
+        access.undoMerge(otherAccountId, {
+          expectedSurvivorRevision: survivor.revision,
+          retiredId: retired.id,
+        }),
       ).rejects.toBeInstanceOf(ContactMergeNotFoundError);
+    });
+
+    test("keeps a value a later open merge still depends on when an earlier merge is undone", async () => {
+      const access = createDatabaseContacts(requireDatabase());
+      const survivor = await access.createContact(accountId, {
+        email: "survivor@example.com",
+      });
+      const firstCopy = await access.createContact(accountId, {
+        email: "shared@example.com",
+      });
+      const secondCopy = await access.createContact(accountId, {
+        email: "shared@example.com",
+      });
+      const personaId = await insertDocument(projectId, "Persona", "Shared");
+      const sharedFeedbackId = await insertFeedback(projectId, "Shared");
+      await Promise.all(
+        [firstCopy, secondCopy].flatMap((copy) => [
+          access.linkPersona(accountId, {
+            contactId: copy.id,
+            documentId: personaId,
+          }),
+          access.linkFeedback(accountId, {
+            contactId: copy.id,
+            feedbackId: sharedFeedbackId,
+          }),
+        ]),
+      );
+      await access.mergeContacts(accountId, {
+        retiredId: firstCopy.id,
+        survivorId: survivor.id,
+      });
+      await access.mergeContacts(accountId, {
+        retiredId: secondCopy.id,
+        survivorId: survivor.id,
+      });
+
+      const firstUndo = await confirmUndo(access, firstCopy.id);
+
+      expect(firstUndo.restored.emails).toEqual(["shared@example.com"]);
+      expect(
+        firstUndo.restored.personaDocuments.map((p) => p.documentId),
+      ).toEqual([personaId]);
+      const stillMerged = await access.resolveContact(accountId, {
+        contactId: secondCopy.id,
+      });
+      expect(stillMerged.contact.id).toBe(survivor.id);
+      expect(stillMerged.contact.emails.sort()).toEqual([
+        "shared@example.com",
+        "survivor@example.com",
+      ]);
+      expect(
+        stillMerged.contact.personaDocuments.map((p) => p.documentId),
+      ).toEqual([personaId]);
+      expect(stillMerged.feedbackIds).toEqual([sharedFeedbackId]);
+
+      const secondUndo = await confirmUndo(access, secondCopy.id);
+
+      expect(secondUndo.restored.emails).toEqual(["shared@example.com"]);
+      expect(secondUndo.survivor.emails).toEqual(["survivor@example.com"]);
+      expect(secondUndo.survivor.personaDocuments).toEqual([]);
+      expect(
+        (await access.resolveContact(accountId, { contactId: survivor.id }))
+          .feedbackIds,
+      ).toEqual([]);
+    });
+
+    test("gives back the copy's Company and keeps the survivor's own Company", async () => {
+      const access = createDatabaseContacts(requireDatabase());
+      const globex = await access.createCompany(accountId, { name: "Globex" });
+      const acme = await access.createCompany(accountId, { name: "Acme" });
+      const survivor = await access.createContact(accountId, {
+        companyId: globex.id,
+        email: "ada@example.com",
+      });
+      const retired = await access.createContact(accountId, {
+        companyId: acme.id,
+        email: "ada@work.example",
+      });
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+
+      const result = await confirmUndo(access, retired.id);
+
+      expect(result.restored.company).toMatchObject({ id: acme.id });
+      expect(result.survivor.company).toMatchObject({ id: globex.id });
+    });
+
+    test("rejects an undo confirmed against a survivor revision the founder did not review", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      const preview = await access.previewMergeUndo(accountId, {
+        retiredId: retired.id,
+      });
+      await access.updateContact(accountId, {
+        contactId: survivor.id,
+        displayName: "Ada Lovelace",
+      });
+
+      await expect(
+        access.undoMerge(accountId, {
+          expectedSurvivorRevision: preview.survivor.revision,
+          retiredId: retired.id,
+        }),
+      ).rejects.toBeInstanceOf(ContactRevisionConflictError);
+      await expect(
+        access.getContact(accountId, { contactId: retired.id }),
+      ).rejects.toBeInstanceOf(ContactNotFoundError);
+    });
+
+    test("rejects a replayed undo whose answer differs from the confirmed one", async () => {
+      const { access, retired, survivor } = await seedAdoptedName();
+      await access.updateContact(accountId, {
+        contactId: survivor.id,
+        displayName: "Grace Hopper",
+      });
+      const preview = await access.previewMergeUndo(accountId, {
+        retiredId: retired.id,
+      });
+      const confirmed = {
+        expectedSurvivorRevision: preview.survivor.revision,
+        resolutions: { displayName: "Keep current value" as const },
+        retiredId: retired.id,
+      };
+      await access.undoMerge(accountId, confirmed);
+
+      await expect(
+        access.undoMerge(accountId, {
+          ...confirmed,
+          resolutions: { displayName: "Restore previous value" },
+        }),
+      ).rejects.toBeInstanceOf(ContactMergeUndoPayloadChangedError);
+      expect((await access.undoMerge(accountId, confirmed)).restored.id).toBe(
+        retired.id,
+      );
+    });
+
+    test("replays a double confirmation sent at the same time with one undo", async () => {
+      const { access, retired, survivor } = await seedDuplicates();
+      await access.mergeContacts(accountId, {
+        retiredId: retired.id,
+        survivorId: survivor.id,
+      });
+      const preview = await access.previewMergeUndo(accountId, {
+        retiredId: retired.id,
+      });
+      const input = {
+        expectedSurvivorRevision: preview.survivor.revision,
+        retiredId: retired.id,
+      };
+
+      const [first, second] = await Promise.all([
+        access.undoMerge(accountId, input),
+        access.undoMerge(accountId, input),
+      ]);
+
+      expect(second.mergeId).toBe(first.mergeId);
+      expect(second.restored.id).toBe(retired.id);
+      const undoEvents = (
+        await requireDatabase()
+          .select()
+          .from(workspaceContactAuditEvent)
+          .where(eq(workspaceContactAuditEvent.workspaceId, workspaceId))
+      ).filter((event) => event.eventType === "contact.merge_undone");
+      expect(undoEvents).toHaveLength(1);
     });
   });
 });

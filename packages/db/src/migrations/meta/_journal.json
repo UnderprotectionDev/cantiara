@@ -813,6 +813,13 @@
       "when": 1792400100000,
       "tag": "0115_contact_merge_undo",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1792400200000,
+      "tag": "0116_contact_merge_undo_fingerprint",
+      "breakpoints": true
     }
   ]
 }

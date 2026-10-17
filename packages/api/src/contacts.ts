@@ -285,7 +285,7 @@ export type MergeUndoResolution = z.infer<typeof mergeUndoResolutionSchema>;
 
 export const undoMergeInputSchema = z
   .object({
-    expectedSurvivorRevision: revisionSchema.optional(),
+    expectedSurvivorRevision: revisionSchema,
     resolutions: z
       .object({ displayName: mergeUndoResolutionSchema.optional() })
       .strict()

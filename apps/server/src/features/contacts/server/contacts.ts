@@ -93,6 +93,17 @@ export class ContactMergeUndoBlockedError extends Error {
   }
 }
 
+export class ContactMergeUndoPayloadChangedError extends Error {
+  readonly code = "CONTACT_MERGE_UNDO_PAYLOAD_CHANGED" as const;
+
+  constructor(retiredId: string) {
+    super(
+      `Undo for ${retiredId} was already confirmed with a different answer.`,
+    );
+    this.name = "ContactMergeUndoPayloadChangedError";
+  }
+}
+
 export class ContactMergeUndoConflictError extends Error {
   readonly code = "CONTACT_MERGE_UNDO_CONFLICT" as const;
 

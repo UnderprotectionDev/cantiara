@@ -772,6 +772,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri yüklenemez | `Cannot be restored` | Redaksiyon veya kalıcı silmeyle yok olduğu için geri alma sonrası dönemeyecek içeriği gösteren önizleme satırı |
 | Güncel değeri koru | `Keep current value` | Birleştirmeden sonra değişmiş alanda sonraki değeri koruyan geri alma kararı |
 | Önceki değeri geri yükle | `Restore previous value` | Birleştirmeden sonra değişmiş alanı birleştirme öncesi değerine döndüren geri alma kararı |
+| Geri yüklenecek e-posta takma adları | `Email aliases restored` | Geri almada emekli Contact'a dönecek normalize e-posta takma adları |
+| Geri yüklenen Geri Bildirim | `Feedback restored` | Geri almada emekli Contact'a yeniden bağlanacak Geri Bildirim sayısı |
+| Geri yüklenen Persona bağları | `Persona links restored` | Geri almada emekli Contact'a dönecek Persona Document bağları |
+| Geri Bildirim bağı | `Feedback link` | Geri gelemeyen Geri Bildirim bağının türü; `Cannot be restored` altında listelenir |
+| Persona bağı | `Persona link` | Geri gelemeyen Persona Document bağının türü; `Cannot be restored` altında listelenir |
+| Company bağı | `Company link` | Geri gelemeyen Company bağının türü; `Cannot be restored` altında listelenir |
 | Ad devralındı | `Display name adopted` | Hayatta kalanın adı boşsa kopyanın adının devralınacağını gösteren önizleme satırı |
 | E-posta takma adları eklenir | `Email aliases added` | Kopyadan hayatta kalan Contact'a eklenecek normalize e-posta takma adları |
 | Geri Bildirim taşınır | `Feedback moved` | Kopyadan hayatta kalan Contact'a bağlanacak Geri Bildirim sayısı |

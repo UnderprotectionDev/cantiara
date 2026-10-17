@@ -2511,6 +2511,15 @@ function rethrowDocumentMutationError(error: unknown, targetId: string): never {
   throw error;
 }
 
+const UNDO_MERGE_PRECONDITION_MESSAGES: Record<string, string> = {
+  CONTACT_MERGE_UNDO_BLOCKED:
+    "The surviving Contact was merged away. Undo that merge first.",
+  CONTACT_MERGE_UNDO_CONFLICT:
+    "Undo Merge needs a decision. Review the Undo Merge Preview and try again.",
+  CONTACT_MERGE_UNDO_PAYLOAD_CHANGED:
+    "Undo Merge was already confirmed with a different answer. Review the Undo Merge Preview.",
+};
+
 const CONTACT_UNAVAILABLE_MESSAGES: Record<string, string> = {
   COMPANY_NOT_FOUND: "Company is unavailable.",
   CONTACT_FEEDBACK_NOT_FOUND: "Feedback is unavailable.",
@@ -2537,16 +2546,14 @@ async function runContactOperation<T>(operation: () => Promise<T>): Promise<T> {
     }
     if (
       error.code === "CONTACT_MERGE_UNDO_BLOCKED" ||
-      error.code === "CONTACT_MERGE_UNDO_CONFLICT"
+      error.code === "CONTACT_MERGE_UNDO_CONFLICT" ||
+      error.code === "CONTACT_MERGE_UNDO_PAYLOAD_CHANGED"
     ) {
       throw new ORPCError("PRECONDITION_FAILED", {
         cause: error,
         data: { code: error.code },
         defined: true,
-        message:
-          error.code === "CONTACT_MERGE_UNDO_BLOCKED"
-            ? "The surviving Contact was merged away. Undo that merge first."
-            : "Undo Merge needs a decision. Review the Undo Merge Preview and try again.",
+        message: UNDO_MERGE_PRECONDITION_MESSAGES[error.code],
       });
     }
     const message = CONTACT_UNAVAILABLE_MESSAGES[error.code];

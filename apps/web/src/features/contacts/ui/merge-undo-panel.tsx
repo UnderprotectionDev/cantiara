@@ -4,8 +4,23 @@ import type {
   MergeUndoPreview,
   MergeUndoResolution,
   UndoMergeInput,
+  UndoMergeResult,
 } from "@cantiara/api/contacts";
 import { useState } from "react";
+
+/**
+ * Says what an Undo Merge could not give back. Content can disappear between
+ * the preview and the confirmation, so the result is reported, not dropped.
+ */
+export function undoResultNotice(result: UndoMergeResult) {
+  if (result.unrestorable.length === 0) {
+    return null;
+  }
+  const missing = result.unrestorable
+    .map(({ count, kind }) => `${kind}: ${count}`)
+    .join(", ");
+  return `Undo Merge finished. Cannot be restored: ${missing}.`;
+}
 
 /**
  * The confirmation carries the survivor revision the founder reviewed and the
