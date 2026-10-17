@@ -1,4 +1,8 @@
-import type { Company, Contact } from "@cantiara/api/contacts";
+import type {
+  Company,
+  Contact,
+  DuplicateCandidate,
+} from "@cantiara/api/contacts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -13,6 +17,7 @@ import { orpc } from "@/utils/orpc";
 
 import ContactsView from "./contacts-view";
 
+const mergePattern = /merge/i;
 const timestamp = "2026-09-20T09:00:00.000Z";
 
 const company: Company = {
@@ -59,10 +64,18 @@ const withPersona: Contact = {
   ],
 };
 
-function renderView(contacts: Contact[], companies: Company[]) {
+function renderView(
+  contacts: Contact[],
+  companies: Company[],
+  candidates: DuplicateCandidate[] = [],
+) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(orpc.contacts.queryOptions().queryKey, contacts);
   queryClient.setQueryData(orpc.companies.queryOptions().queryKey, companies);
+  queryClient.setQueryData(
+    orpc.contactDuplicateCandidates.queryOptions().queryKey,
+    candidates,
+  );
   const router = createRouter({
     history: createMemoryHistory(),
     routeTree: createRootRoute(),
@@ -103,6 +116,32 @@ describe("Contact and Company surface", () => {
 
     expect(html).toContain("No Contacts yet.");
     expect(html).toContain("No Companies yet.");
+    expect(html).toContain("No duplicate candidates.");
+  });
+
+  test("shows strong and weak Duplicate candidates without a merge action", () => {
+    const other: Contact = { ...contact, id: "contact-2" };
+    const html = renderView(
+      [contact, other],
+      [company],
+      [
+        {
+          contactIds: [contact.id, other.id],
+          reasons: ["Same email"],
+          strength: "strong",
+        },
+        {
+          contactIds: [contact.id, other.id],
+          reasons: ["Similar name"],
+          strength: "weak",
+        },
+      ],
+    );
+
+    expect(html).toContain("Duplicate candidates");
+    expect(html).toContain("Strong copy candidate");
+    expect(html).toContain("Weak suggestion");
+    expect(html).not.toMatch(mergePattern);
   });
 
   test("offers no CRM fields or Persona assignment", () => {

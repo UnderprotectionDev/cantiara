@@ -467,8 +467,11 @@ function DocumentEditor({
       return;
     }
     editSession.accept(record);
+    // Move the form with the session now; otherwise its next change event
+    // would write the previous body back into the accepted buffer.
+    form.reset({ title: record.title, type: record.type, body: record.body });
     setRevision(record.revision);
-  }, [editSession, editing.baseRevision, editing.dirty, record]);
+  }, [editSession, editing.baseRevision, editing.dirty, form, record]);
   useEffect(() => {
     if (editing.dirty || editing.baseRevision === revision) {
       return;

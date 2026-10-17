@@ -5,6 +5,7 @@ import {
   type Contact,
   createCompanyInputSchema,
   createContactInputSchema,
+  type DuplicateCandidate,
   updateContactInputSchema,
 } from "@cantiara/api/contacts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ export default function ContactsView() {
   const queryClient = useQueryClient();
   const contacts = useQuery(orpc.contacts.queryOptions());
   const companies = useQuery(orpc.companies.queryOptions());
+  const candidates = useQuery(orpc.contactDuplicateCandidates.queryOptions());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selected =
@@ -37,6 +39,9 @@ export default function ContactsView() {
       }),
       queryClient.invalidateQueries({
         queryKey: orpc.companies.queryOptions().queryKey,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: orpc.contactDuplicateCandidates.queryOptions().queryKey,
       }),
     ]);
   const createContact = useMutation({
@@ -251,6 +256,11 @@ export default function ContactsView() {
           </ul>
         </section>
       </div>
+      <DuplicateCandidates
+        candidates={candidates.data ?? []}
+        contacts={contacts.data ?? []}
+        onOpen={setSelectedId}
+      />
       {selected ? (
         <ContactProfile
           companies={companies.data ?? []}
@@ -260,6 +270,55 @@ export default function ContactsView() {
         />
       ) : null}
     </main>
+  );
+}
+
+function DuplicateCandidates({
+  candidates,
+  contacts,
+  onOpen,
+}: {
+  candidates: DuplicateCandidate[];
+  contacts: Contact[];
+  onOpen: (contactId: string) => void;
+}) {
+  const byId = new Map(contacts.map((contact) => [contact.id, contact]));
+
+  return (
+    <section aria-label="Duplicate candidates" className="space-y-3">
+      <h2 className="font-semibold text-xl">Duplicate candidates</h2>
+      {candidates.length === 0 ? <p>No duplicate candidates.</p> : null}
+      <ul className="space-y-2">
+        {candidates.map((candidate) => (
+          <li
+            className="rounded-md border px-3 py-2 text-sm"
+            key={`${candidate.strength}-${candidate.contactIds.join("-")}`}
+          >
+            <span className="font-medium">
+              {candidate.strength === "strong"
+                ? "Strong copy candidate"
+                : "Weak suggestion"}
+            </span>
+            <ul className="mt-1 flex flex-wrap gap-2">
+              {candidate.contactIds.map((contactId) => {
+                const contact = byId.get(contactId);
+                return contact ? (
+                  <li key={contactId}>
+                    <button
+                      className="underline underline-offset-2"
+                      onClick={() => onOpen(contactId)}
+                      type="button"
+                    >
+                      {contactLabel(contact)}
+                    </button>
+                  </li>
+                ) : null;
+              })}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

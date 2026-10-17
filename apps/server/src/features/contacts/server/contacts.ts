@@ -1,10 +1,12 @@
 import {
+  type Contact,
   type ContactStore,
   type ContactsAccess,
   contactIdentityInputSchema,
   contactPersonaInputSchema,
   createCompanyInputSchema,
   createContactInputSchema,
+  type DuplicateCandidate,
   setContactCompanyInputSchema,
   updateContactInputSchema,
 } from "@cantiara/api/contacts";
@@ -54,6 +56,97 @@ export class ContactRevisionConflictError extends Error {
   }
 }
 
+const whitespacePattern = /\s+/u;
+const combiningMarkPattern = /\p{M}/gu;
+
+function normalizeName(name: string | null) {
+  return (
+    name
+      ?.normalize("NFKD")
+      .replaceAll(combiningMarkPattern, "")
+      .toLocaleLowerCase("en-US")
+      .split(whitespacePattern)
+      .filter(Boolean) ?? []
+  );
+}
+
+function pairKey(first: string, second: string) {
+  return first < second ? `${first}\u0000${second}` : `${second}\u0000${first}`;
+}
+
+function strongCandidates(live: readonly Contact[]) {
+  const byEmail = new Map<string, string[]>();
+  for (const contact of live) {
+    for (const email of new Set(contact.emails)) {
+      byEmail.set(email, [...(byEmail.get(email) ?? []), contact.id]);
+    }
+  }
+  const candidates: DuplicateCandidate[] = [];
+  const pairs = new Set<string>();
+  const seenGroups = new Set<string>();
+  for (const contactIds of byEmail.values()) {
+    const groupKey = [...contactIds].sort().join("\u0000");
+    if (contactIds.length < 2 || seenGroups.has(groupKey)) {
+      continue;
+    }
+    seenGroups.add(groupKey);
+    candidates.push({
+      contactIds,
+      reasons: ["Same email"],
+      strength: "strong",
+    });
+    for (const [index, first] of contactIds.entries()) {
+      for (const second of contactIds.slice(index + 1)) {
+        pairs.add(pairKey(first, second));
+      }
+    }
+  }
+  return { candidates, pairs };
+}
+
+function weakReason(
+  first: Contact,
+  second: Contact,
+): DuplicateCandidate["reasons"][number] | null {
+  const firstName = normalizeName(first.displayName).join(" ");
+  const secondName = normalizeName(second.displayName).join(" ");
+  if (firstName !== "" && firstName === secondName) {
+    return "Similar name";
+  }
+  if (first.company !== null && first.company.id === second.company?.id) {
+    return "Same Company";
+  }
+  return null;
+}
+
+/**
+ * Read-only: groups live Contacts that share a normalized email (strong) and
+ * pairs the remaining ones with a similar name or a shared current Company
+ * (weak). It never writes, so no candidate can merge itself.
+ */
+export function findDuplicateCandidates(
+  contacts: readonly Contact[],
+): DuplicateCandidate[] {
+  const live = contacts.filter((contact) => contact.archivedAt === null);
+  const strong = strongCandidates(live);
+  const candidates = [...strong.candidates];
+  for (const [index, first] of live.entries()) {
+    for (const second of live.slice(index + 1)) {
+      const reason = strong.pairs.has(pairKey(first.id, second.id))
+        ? null
+        : weakReason(first, second);
+      if (reason) {
+        candidates.push({
+          contactIds: [first.id, second.id],
+          reasons: [reason],
+          strength: "weak",
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
 export function createContacts({
   store,
 }: {
@@ -83,6 +176,12 @@ export function createContacts({
       return store.getContact(
         await workspaceIdFor(accountId),
         parsed.contactId,
+      );
+    },
+
+    async listDuplicateCandidates(accountId) {
+      return findDuplicateCandidates(
+        await store.listContacts(await workspaceIdFor(accountId)),
       );
     },
 

@@ -14,6 +14,7 @@ import {
   createContacts,
 } from "./contacts";
 
+const mergeKeyPattern = /merge/i;
 const timestamp = "2026-09-20T09:00:00.000Z";
 
 function createMemoryStore() {
@@ -332,6 +333,133 @@ describe("Contact and Company", () => {
     });
 
     expect(contact.personaDocuments).toEqual([]);
+  });
+
+  test("lists the same normalized email as a strong candidate without merging", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const first = await access.createContact("account-1", {
+      displayName: "Ada",
+      email: "Ada@Example.com",
+    });
+    const copy = await access.createContact("account-1", {
+      email: " ada@example.COM ",
+    });
+    const other = await access.createContact("account-1", {
+      email: "grace@example.com",
+    });
+    const before = await access.listContacts("account-1");
+
+    const candidates = await access.listDuplicateCandidates("account-1");
+
+    expect(candidates).toEqual([
+      {
+        contactIds: [first.id, copy.id],
+        reasons: ["Same email"],
+        strength: "strong",
+      },
+    ]);
+    expect(candidates[0]?.contactIds).not.toContain(other.id);
+    expect(await access.listContacts("account-1")).toEqual(before);
+  });
+
+  test("lists a similar name or Company only as a weak suggestion", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const acme = await access.createCompany("account-1", { name: "Acme" });
+    const first = await access.createContact("account-1", {
+      displayName: "Ada Lovelace",
+    });
+    const sameName = await access.createContact("account-1", {
+      displayName: "  ada   LOVELACE ",
+    });
+    const second = await access.createContact("account-1", {
+      companyId: acme.id,
+      displayName: "Grace Hopper",
+    });
+    const sameCompany = await access.createContact("account-1", {
+      companyId: acme.id,
+      displayName: "G. Hopper",
+    });
+    const third = await access.createContact("account-1", {
+      companyId: acme.id,
+      displayName: "Linus Torvalds",
+    });
+    await access.createContact("account-1", { displayName: "Hopper" });
+
+    const candidates = await access.listDuplicateCandidates("account-1");
+
+    expect(candidates.every((candidate) => candidate.strength === "weak")).toBe(
+      true,
+    );
+    expect(candidates).toEqual([
+      {
+        contactIds: [first.id, sameName.id],
+        reasons: ["Similar name"],
+        strength: "weak",
+      },
+      {
+        contactIds: [second.id, sameCompany.id],
+        reasons: ["Same Company"],
+        strength: "weak",
+      },
+      {
+        contactIds: [second.id, third.id],
+        reasons: ["Same Company"],
+        strength: "weak",
+      },
+      {
+        contactIds: [sameCompany.id, third.id],
+        reasons: ["Same Company"],
+        strength: "weak",
+      },
+    ]);
+  });
+
+  test("lists Contacts sharing several emails as one strong candidate", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    const first = await access.createContact("account-1", {
+      email: "a@example.com",
+    });
+    const second = await access.createContact("account-1", {
+      email: "a@example.com",
+    });
+    await access.updateContact("account-1", {
+      contactId: first.id,
+      email: "b@example.com",
+    });
+    await access.updateContact("account-1", {
+      contactId: second.id,
+      email: "b@example.com",
+    });
+
+    const candidates = await access.listDuplicateCandidates("account-1");
+
+    expect(candidates).toHaveLength(1);
+  });
+
+  test("does not downgrade a strong candidate into an extra weak one", async () => {
+    const access = createContacts({ store: createMemoryStore() });
+    await access.createContact("account-1", {
+      displayName: "Ada",
+      email: "ada@example.com",
+    });
+    await access.createContact("account-1", {
+      displayName: "Ada",
+      email: "ada@example.com",
+    });
+
+    const candidates = await access.listDuplicateCandidates("account-1");
+
+    expect(candidates.map((candidate) => candidate.strength)).toEqual([
+      "strong",
+    ]);
+  });
+
+  test("exposes no merge path, including Company-to-Company", () => {
+    const access = createContacts({ store: createMemoryStore() });
+
+    expect(
+      Object.keys(access).filter((key) => mergeKeyPattern.test(key)),
+    ).toEqual([]);
   });
 
   test("fails closed without a Workspace", async () => {
