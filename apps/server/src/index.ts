@@ -3,6 +3,7 @@ import { serve } from "bun";
 import { initLogger } from "evlog";
 import { createApp } from "./app";
 import { desktopOrigins, env, redactSecrets } from "./env";
+import { createDatabaseDocumentEvidence } from "./features/evidence/server/document-evidence-database";
 import { createSmartLinkPreviewGateway } from "./features/sources-and-freshness/server/smart-link-preview-gateway";
 import { createDatabaseSourceEvidence } from "./features/sources-and-freshness/server/source-evidence-database";
 import { createDatabaseSourceRecheck } from "./features/sources-and-freshness/server/source-recheck-database";
@@ -101,6 +102,7 @@ setInterval(
 );
 
 const app = createApp({
+  documentEvidence: createDatabaseDocumentEvidence(getDb()),
   sourceEvidence: createDatabaseSourceEvidence(getDb()),
   sourceRecheck: createDatabaseSourceRecheck(
     getDb(),

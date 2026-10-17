@@ -66,6 +66,12 @@ import {
   decisionSupersessionSelectionSchema,
 } from "../decision-supersession";
 import {
+  confirmDocumentEvidenceInputSchema,
+  documentEvidenceTargetSchema,
+  documentSelectionSchema,
+  previewDocumentEvidenceInputSchema,
+} from "../document-evidence";
+import {
   createDocumentFromTemplateInputSchema,
   createDocumentTemplateInputSchema,
   documentTemplateDefinitionSchema,
@@ -5474,6 +5480,55 @@ export const appRouter = {
         throw new ORPCError("NOT_IMPLEMENTED");
       }
       return context.smartLinkPreview(input.url);
+    }),
+  documentEvidenceTargets: protectedProcedure
+    .input(documentSelectionSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.targets(context.session.user.id, input);
+    }),
+  documentEvidenceBindings: protectedProcedure
+    .input(documentSelectionSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.list(context.session.user.id, input);
+    }),
+  documentEvidenceForTarget: protectedProcedure
+    .input(documentEvidenceTargetSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return access.forTarget(context.session.user.id, input);
+    }),
+  previewDocumentEvidence: protectedProcedure
+    .input(previewDocumentEvidenceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.preview(context.session.user.id, input),
+      );
+    }),
+  confirmDocumentEvidence: protectedProcedure
+    .input(confirmDocumentEvidenceInputSchema)
+    .handler(({ context, input }) => {
+      const access = context.documentEvidence;
+      if (!access) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return sourceSaveResult(() =>
+        access.confirm(context.session.user.id, input),
+      );
     }),
   sourceEvidenceTargets: protectedProcedure
     .input(sourceSelectionSchema)

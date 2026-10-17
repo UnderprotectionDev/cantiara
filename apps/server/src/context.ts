@@ -23,6 +23,7 @@ import type {
 } from "@cantiara/api/custom-fields";
 import type { DailyFocusAccess } from "@cantiara/api/daily-focus";
 import { DESKTOP_API_CONTRACT_HEADER } from "@cantiara/api/desktop-api-window";
+import type { DocumentEvidenceAccess } from "@cantiara/api/document-evidence";
 import type { DocumentTransfersAccess } from "@cantiara/api/document-transfer";
 import type {
   DocumentMutationContracts,
@@ -105,6 +106,7 @@ export interface CreateContextOptions {
   customFields?: CustomFieldsAccess;
   dailyFocus?: DailyFocusAccess;
   database: Database;
+  documentEvidence?: DocumentEvidenceAccess;
   documentMutationContracts?: DocumentMutationContracts;
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;
@@ -192,6 +194,7 @@ export async function createContext({
   projectShellMutationContracts,
   projectGoals,
   projectSourceRecords,
+  documentEvidence,
   sourceEvidence,
   sourceRecheck,
   sourcesAndFreshness,
@@ -268,6 +271,7 @@ export async function createContext({
     projectShellMutationContracts,
     projectGoals,
     projectSourceRecords,
+    documentEvidence,
     sourceEvidence,
     sourceRecheck,
     sourcesAndFreshness,
