@@ -15,6 +15,7 @@ Personal project operating system for a solo product builder. This file is the a
 - **Domain documents:** Before editing the glossary or an ADR, read [`docs/agents/domain.md`](docs/agents/domain.md). Write `CONTEXT.md` and ADRs in Turkish.
 - **Authentication:** Treat GitHub login, sessions, and cookies as security-sensitive. Verify the installed Better Auth version's current API and security guidance, then test required failure paths at the Account Access seam.
 - **Issues:** At task start, check Conductor's inherited issue context and canonical `.context/attachments/[GITHUB]-*.md` attachments. If an issue was selected, resolve and read it before implementation using [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md). Read that guide before other tracker access too. GitHub Issues is canonical; role labels follow [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+- **Spec implementation:** Before running `/implement-spec` or implementing several tickets of one spec in one workspace, read [`docs/agents/implement-spec.md`](docs/agents/implement-spec.md).
 - **Implement close-out:** After implementation, tests, and review, follow [`docs/agents/implement-close-out.md`](docs/agents/implement-close-out.md).
 
 ## Repository guardrails

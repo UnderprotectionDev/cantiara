@@ -120,6 +120,7 @@ Existing pull request handling:
 
 - Before creating a new pull request, check whether an open pull request already exists for the current branch.
 - If an open pull request exists, update it instead of creating a duplicate.
+- If the open pull request body already contains `Closes #<number>` lines written by `/implement-spec` (see `docs/agents/implement-spec.md`), preserve them even when no GitHub issue was selected for this workspace.
 - If an open pull request is missing the required `Closes` or `Refs` issue reference, update the pull request body before reporting completion.
 - If a fully resolving pull request is already merged and the required `Closes` reference is missing, report that automatic issue closure is no longer guaranteed and do not claim successful issue closure.
 - If the pull request body cannot be updated, report the blocker and do not claim successful completion.
