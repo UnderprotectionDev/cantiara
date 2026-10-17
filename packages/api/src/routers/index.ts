@@ -148,6 +148,11 @@ import {
   favoriteSourceSchema,
 } from "../favorites";
 import {
+  createFeedbackInputSchema,
+  feedbackProjectInputSchema,
+  setFeedbackStatusInputSchema,
+} from "../feedback";
+import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
   fileAttachmentLocationBindInputSchema,
@@ -948,6 +953,13 @@ function requireCustomFieldMutationContracts(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.customFieldMutationContracts;
+}
+
+function requireFeedback(context: Context) {
+  if (!context.feedback) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.feedback;
 }
 
 function requireContacts(context: Context) {
@@ -2528,6 +2540,56 @@ const CONTACT_UNAVAILABLE_MESSAGES: Record<string, string> = {
   CONTACT_PERSONA_DOCUMENT_NOT_FOUND: "Persona Document is unavailable.",
   CONTACT_WORKSPACE_NOT_FOUND: "Workspace is unavailable.",
 };
+
+const FEEDBACK_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  FEEDBACK_NOT_FOUND: "Feedback is unavailable.",
+  FEEDBACK_PROJECT_NOT_FOUND: "Project is unavailable.",
+};
+
+const FEEDBACK_REJECTED_MESSAGES: Record<string, string> = {
+  FEEDBACK_ATTACHMENT_UNAVAILABLE:
+    "An attachment is not an active File Attachment of this Project.",
+  FEEDBACK_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+};
+
+async function runFeedbackOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "FEEDBACK_REVISION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Feedback changed since it was loaded. Reload and try again.",
+      });
+    }
+    const rejected = FEEDBACK_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = FEEDBACK_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
+}
 
 async function runContactOperation<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -4386,6 +4448,27 @@ export const appRouter = {
       }
       return project;
     }),
+  projectFeedback: protectedProcedure
+    .input(feedbackProjectInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  createFeedback: protectedProcedure
+    .input(createFeedbackInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).create(context.session.user.id, input),
+      ),
+    ),
+  setFeedbackStatus: protectedProcedure
+    .input(setFeedbackStatusInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
   contacts: protectedProcedure.handler(({ context }) =>
     runContactOperation(() =>
       requireContacts(context).listContacts(context.session.user.id),

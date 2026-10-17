@@ -32,6 +32,7 @@ import type {
 } from "@cantiara/api/documents";
 import type { ExternalExecutionHandoffsAccess } from "@cantiara/api/external-handoffs";
 import type { FavoritesAccess } from "@cantiara/api/favorites";
+import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type {
@@ -113,6 +114,7 @@ export interface CreateContextOptions {
   documents?: DocumentsAccess;
   documentTransfers?: DocumentTransfersAccess;
   favorites?: FavoritesAccess;
+  feedback?: FeedbackAccess;
   fileAttachments?: FileAttachmentAccess;
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
@@ -212,6 +214,7 @@ export async function createContext({
   workspaceOverview,
   tags,
   contacts,
+  feedback,
   relations,
   tagMutationContracts,
   trustedProxyIps,
@@ -290,6 +293,7 @@ export async function createContext({
     workspaceOverview,
     tags,
     contacts,
+    feedback,
     relations,
     auth: null,
     session,
