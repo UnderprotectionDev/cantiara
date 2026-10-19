@@ -34,6 +34,7 @@ import {
   FeedbackRevisionConflictError,
 } from "./feedback";
 import { createDatabaseFeedback } from "./feedback-database";
+import { createDatabaseFeedbackWithFeed } from "./feedback-feed-database";
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -435,6 +436,16 @@ describeDatabase("Feedback PostgreSQL integration", () => {
         workId: `work-${crypto.randomUUID()}`,
       };
     }
+
+    test("Feed reads the same Feedback ids through the read-only transaction", async () => {
+      const { record } = await createRecord("Feed row");
+      const access = createDatabaseFeedbackWithFeed(requireDatabase());
+      const feed = await access.feed(accountId, { projectId });
+      expect(feed.rows.map((row) => row.id)).toContain(record.id);
+      await expect(
+        access.feed(otherAccountId, { projectId }),
+      ).rejects.toBeInstanceOf(FeedbackProjectNotFoundError);
+    });
 
     test("previews without writing and confirms exactly one Work with an Origin", async () => {
       const db = requireDatabase();

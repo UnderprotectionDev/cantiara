@@ -16,7 +16,7 @@ import { createFeedback } from "./feedback";
 import {
   createDatabaseFeedbackStore,
   type FeedbackExecutor,
-  findOwnedProject,
+  findReadableProject,
   toRecords,
 } from "./feedback-database";
 import { createFeedbackFeed } from "./feedback-feed";
@@ -153,7 +153,11 @@ export function createDatabaseFeedbackFeedStore(
     read(accountId, projectId): Promise<Feed | null> {
       return database.transaction(
         async (executor) => {
-          const owned = await findOwnedProject(executor, accountId, projectId);
+          const owned = await findReadableProject(
+            executor,
+            accountId,
+            projectId,
+          );
           if (!owned) {
             return null;
           }

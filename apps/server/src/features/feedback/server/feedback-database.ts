@@ -509,7 +509,7 @@ async function readConversionSourceOf(
 
 type OwnedProject = NonNullable<Awaited<ReturnType<typeof findOwnedProject>>>;
 
-async function findReadableProject(
+export async function findReadableProject(
   executor: FeedbackExecutor,
   accountId: string,
   projectId: string,
