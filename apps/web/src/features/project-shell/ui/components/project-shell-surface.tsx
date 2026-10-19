@@ -25,6 +25,8 @@ import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
+import FeedSurface from "@/features/feedback/ui/feed-surface";
+import FeedbackSurface from "@/features/feedback/ui/feedback-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
@@ -218,6 +220,12 @@ function projectUncertaintySurface(
           key={`research:${projectId}`}
           projectId={projectId}
         />
+      ) : null}
+      {["discovery", "project-area-discovery"].includes(activeHash) ? (
+        <FeedbackSurface key={`feedback:${projectId}`} projectId={projectId} />
+      ) : null}
+      {["discovery", "project-area-discovery"].includes(activeHash) ? (
+        <FeedSurface key={`feed:${projectId}`} projectId={projectId} />
       ) : null}
       {isValidationSurface ? (
         <ValidationRecordsSurface

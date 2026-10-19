@@ -3,11 +3,16 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { fileAttachment } from "./file-attachments";
 import { project } from "./project";
+import { work } from "./work";
 
 export const feedback = pgTable(
   "project_feedback",
@@ -20,6 +25,7 @@ export const feedback = pgTable(
     originalMessage: text("original_message").notNull(),
     channel: text("channel"),
     occurredAt: timestamp("occurred_at").notNull(),
+    url: text("url"),
     status: text("status").default("New").notNull(),
     revision: integer("revision").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -39,6 +45,123 @@ export const feedback = pgTable(
       "project_feedback_message_check",
       sql`length(btrim(${table.originalMessage})) between 1 and 20000`,
     ),
+    check(
+      "project_feedback_url_check",
+      sql`${table.url} is null or length(btrim(${table.url})) between 1 and 2048`,
+    ),
     check("project_feedback_revision_check", sql`${table.revision} >= 0`),
+  ],
+);
+
+/**
+ * Attachments are references to existing Project-scoped File Attachments; the
+ * Feedback record owns no file bytes, versions or lifecycle of its own.
+ */
+export const feedbackAttachment = pgTable(
+  "project_feedback_attachment",
+  {
+    attachmentId: text("attachment_id")
+      .notNull()
+      .references(() => fileAttachment.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    feedbackId: text("feedback_id")
+      .notNull()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.feedbackId, table.attachmentId],
+      name: "project_feedback_attachment_pk",
+    }),
+    index("project_feedback_attachment_attachment_idx").on(table.attachmentId),
+  ],
+);
+
+/**
+ * Feedback `Origin` link to the Work created from it. Several Feedback records
+ * may origin-link to one Work as separate rows; no count here is a vote or a
+ * priority. The link owns no Feedback or Work lifecycle.
+ */
+export const feedbackWorkOrigin = pgTable(
+  "project_feedback_work_origin",
+  {
+    actorId: text("actor_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    feedbackId: text("feedback_id")
+      .notNull()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    revision: integer("revision").default(1).notNull(),
+    workId: text("work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("project_feedback_work_origin_pair_uidx").on(
+      table.feedbackId,
+      table.workId,
+    ),
+    index("project_feedback_work_origin_work_idx").on(table.workId),
+    check(
+      "project_feedback_work_origin_revision_check",
+      sql`${table.revision} >= 1`,
+    ),
+  ],
+);
+
+/**
+ * Evidence quality, Evidence Role and follow-up of one `Origin` link. Keyed by
+ * the link itself, so the same Feedback carries separate context per Work and
+ * nothing copies between links. `qualities` holds one entry per field (value,
+ * Founder interpretation flag, author alias, time) and is never derived from
+ * the original message; `role` is its own column and is never computed from it.
+ */
+export const feedbackWorkEvidence = pgTable(
+  "project_feedback_work_evidence",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    followUp: text("follow_up"),
+    originId: text("origin_id")
+      .primaryKey()
+      .references(() => feedbackWorkOrigin.id, { onDelete: "cascade" }),
+    qualities: jsonb("qualities").default({}).notNull(),
+    revision: integer("revision").default(1).notNull(),
+    role: text("role").default("Unspecified").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "project_feedback_work_evidence_role_check",
+      sql`${table.role} in ('Supporting', 'Contradicting', 'Provides context', 'Inconclusive', 'Unspecified')`,
+    ),
+    check(
+      "project_feedback_work_evidence_follow_up_check",
+      sql`${table.followUp} is null or ${table.followUp} in ('Follow up', 'Followed up', 'Outcome verified')`,
+    ),
+    check(
+      "project_feedback_work_evidence_revision_check",
+      sql`${table.revision} >= 1`,
+    ),
+  ],
+);
+
+/** Each change keeps the changed field names with actor alias and time, not message text. */
+export const feedbackWorkEvidenceHistory = pgTable(
+  "project_feedback_work_evidence_history",
+  {
+    actorAlias: text("actor_alias").notNull(),
+    changedAt: timestamp("changed_at").notNull(),
+    changedFields: jsonb("changed_fields").notNull(),
+    id: text("id").primaryKey(),
+    originId: text("origin_id")
+      .notNull()
+      .references(() => feedbackWorkOrigin.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+  },
+  (table) => [
+    index("project_feedback_work_evidence_history_origin_idx").on(
+      table.originId,
+      table.revision,
+    ),
   ],
 );

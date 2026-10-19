@@ -19,7 +19,7 @@ test("Uncertainty Records creates, answers without evidence, preserves cancelled
     exact: true,
   });
   await region.getByRole("button", { name: "Create", exact: true }).click();
-  await page.getByLabel("Title", { exact: true }).fill("Preferred cadence");
+  await region.getByLabel("Title", { exact: true }).fill("Preferred cadence");
   await page
     .getByLabel("Question", { exact: true })
     .fill("Which cadence do founders prefer?");
@@ -123,7 +123,10 @@ test("Uncertainty Records keeps exact Document evidence and can close an unanswe
     .getByRole("region", { name: "Open Question", exact: true })
     .getByRole("button", { name: "Create", exact: true })
     .click();
-  await page.getByLabel("Title", { exact: true }).fill("Cadence with evidence");
+  await page
+    .getByRole("region", { name: "Open Question", exact: true })
+    .getByLabel("Title", { exact: true })
+    .fill("Cadence with evidence");
   await page.getByLabel("Question", { exact: true }).fill("Which cadence?");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page
@@ -151,7 +154,10 @@ test("Uncertainty Records keeps exact Document evidence and can close an unanswe
     .getByRole("region", { name: "Open Question", exact: true })
     .getByRole("button", { name: "Create", exact: true })
     .click();
-  await page.getByLabel("Title", { exact: true }).fill("Unused question");
+  await page
+    .getByRole("region", { name: "Open Question", exact: true })
+    .getByLabel("Title", { exact: true })
+    .fill("Unused question");
   await page
     .getByLabel("Question", { exact: true })
     .fill("Do we still need this pilot?");
@@ -210,13 +216,13 @@ test("Uncertainty Records keeps Create and Answered drafts after a failed focus 
   }
 
   await region.getByRole("button", { name: "Create", exact: true }).click();
-  await page.getByLabel("Title", { exact: true }).fill("Focus refresh draft");
+  await region.getByLabel("Title", { exact: true }).fill("Focus refresh draft");
   await page.getByLabel("Question", { exact: true }).fill("Will it persist?");
   await page
     .getByLabel("Context (optional)", { exact: true })
     .fill("Window focus refresh");
   await failFocusRefresh();
-  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
+  await expect(region.getByLabel("Title", { exact: true })).toHaveValue(
     "Focus refresh draft",
   );
   await expect(page.getByLabel("Question", { exact: true })).toHaveValue(
