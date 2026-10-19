@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -44,12 +45,19 @@ export const screen = pgTable(
 /**
  * Exact Wireframe versions of one Screen. This is deliberately not a master
  * record: it has no Project scope, no archive or trash column and no identity
- * outside its Screen. Document content is added by the Wireframe engine.
+ * outside its Screen. `document` is the canonical versioned WireframeDocument
+ * (validated by `@cantiara/api/wireframe-document`); renderer JSON is never stored.
  */
 export const screenWireframeVersion = pgTable(
   "project_screen_wireframe_version",
   {
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    document: jsonb("document")
+      .$type<Record<string, unknown>>()
+      .default(
+        sql`'{"format":"cantiara.wireframe-document","version":1,"canvas":{"width":1280,"height":800},"blocks":[],"linkedDefinitions":{},"animations":[]}'::jsonb`,
+      )
+      .notNull(),
     id: text("id").primaryKey(),
     screenId: text("screen_id")
       .notNull()
@@ -62,5 +70,36 @@ export const screenWireframeVersion = pgTable(
       table.version,
     ),
     check("project_screen_wireframe_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
+/**
+ * Project-scoped source definition of a linked Wireframe block. Instances in
+ * Wireframe documents share it; it is not a production component, a token or a
+ * cross-project library, so it is owned by exactly one Project.
+ */
+export const screenLinkedBlock = pgTable(
+  "project_screen_linked_block",
+  {
+    content: jsonb("content").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    revision: integer("revision").default(1).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_screen_linked_block_project_idx").on(table.projectId),
+    check(
+      "project_screen_linked_block_name_check",
+      sql`length(btrim(${table.name})) between 1 and 120`,
+    ),
+    check(
+      "project_screen_linked_block_revision_check",
+      sql`${table.revision} >= 1`,
+    ),
   ],
 );

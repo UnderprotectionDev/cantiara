@@ -331,9 +331,14 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  createLinkedBlockInputSchema,
   createScreenInputSchema,
+  linkedBlockChangeInputSchema,
   resolveScreenInputSchema,
+  saveScreenWireframeInputSchema,
+  saveScreenWireframeVersionInputSchema,
   screenProjectInputSchema,
+  screenWireframeInputSchema,
   setScreenLifecycleInputSchema,
 } from "../screens";
 import {
@@ -379,6 +384,7 @@ import {
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
 import type { WebCaptureAccess } from "../web-capture";
+import { WireframeDocumentError } from "../wireframe-document";
 import {
   previewWorkContextLayout,
   type WorkContextAccess,
@@ -2620,6 +2626,7 @@ async function runFeedbackOperation<T>(
 }
 
 const SCREEN_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SCREEN_LINKED_BLOCK_NOT_FOUND: "Linked block is unavailable.",
   SCREEN_NOT_FOUND: "Screen is unavailable.",
   SCREEN_PROJECT_NOT_FOUND: "Project is unavailable.",
 };
@@ -2643,6 +2650,14 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
         data: { code: error.code },
         defined: true,
         message: "Screen changed since it was loaded. Reload and try again.",
+      });
+    }
+    if (error instanceof WireframeDocumentError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: error.message,
       });
     }
     const rejected = SCREEN_REJECTED_MESSAGES[error.code];
@@ -4604,6 +4619,72 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runScreenOperation(() =>
         requireScreens(context).setLifecycle(context.session.user.id, input),
+      ),
+    ),
+  screenWireframe: protectedProcedure
+    .input(screenWireframeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).wireframe(context.session.user.id, input),
+      ),
+    ),
+  saveScreenWireframe: protectedProcedure
+    .input(saveScreenWireframeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).saveWireframe(context.session.user.id, input),
+      ),
+    ),
+  saveScreenWireframeVersion: protectedProcedure
+    .input(saveScreenWireframeVersionInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).attachWireframeVersion(
+          context.session.user.id,
+          input.projectId,
+          input.screenId,
+          input.document,
+        ),
+      ),
+    ),
+  projectLinkedBlocks: protectedProcedure
+    .input(screenProjectInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).linkedBlocks(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createLinkedBlock: protectedProcedure
+    .input(createLinkedBlockInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).createLinkedBlock(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewLinkedBlockChange: protectedProcedure
+    .input(linkedBlockChangeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).previewLinkedBlockChange(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  applyLinkedBlockChange: protectedProcedure
+    .input(linkedBlockChangeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).applyLinkedBlockChange(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   resolveScreen: protectedProcedure

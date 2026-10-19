@@ -1,4 +1,11 @@
 import { z } from "zod";
+import type { AffectedScreen, LiveTextResolution } from "./wireframe-commands";
+import {
+  type WireframeDocument,
+  type WireframeLinkedContent,
+  type WireframeLinkedDefinition,
+  wireframeLinkedContentSchema,
+} from "./wireframe-document";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 const revisionSchema = z.number().int().nonnegative().safe();
@@ -188,21 +195,67 @@ export function planScreenLifecycle(
 
 export interface ScreenStore {
   /** Attaches the next exact Wireframe version to a Screen; used by the Wireframe engine. */
+  /** Applies a source change and the affected Screens' new versions in one transaction. */
+  applyLinkedBlockChange: (
+    accountId: string,
+    input: ParsedLinkedBlockChangeInput,
+    updates: { document: WireframeDocument; screenId: string }[],
+  ) => Promise<LinkedBlockRecord | null>;
   attachWireframeVersion: (
     accountId: string,
     projectId: string,
     screenId: string,
+    document?: WireframeDocument,
   ) => Promise<ScreenRecord | null>;
   create: (
     accountId: string,
     input: ParsedCreateScreenInput,
   ) => Promise<ScreenRecord | null>;
+  createLinkedBlock: (
+    accountId: string,
+    input: ParsedCreateLinkedBlockInput,
+  ) => Promise<LinkedBlockRecord | null>;
   find: (
     accountId: string,
     projectId: string,
     screenId: string,
   ) => Promise<ScreenRecord | null>;
+  findLinkedBlock: (
+    accountId: string,
+    projectId: string,
+    definitionId: string,
+  ) => Promise<LinkedBlockRecord | null>;
+  /** Stored (unparsed) Wireframe version: the requested one or the latest. */
+  findWireframe: (
+    accountId: string,
+    projectId: string,
+    screenId: string,
+    version?: number,
+  ) => Promise<StoredWireframe | null>;
+  /** Latest stored document of every Screen in the Project. */
+  headDocuments: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<StoredHeadDocument[] | null>;
   list: (accountId: string, projectId: string) => Promise<ScreenList | null>;
+  listLinkedBlocks: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<LinkedBlockRecord[] | null>;
+  /** Current plain text of Markdown sections; `null` when the source is gone. */
+  readLiveSections: (
+    accountId: string,
+    sources: { documentId: string; sectionId: string }[],
+  ) => Promise<
+    { documentId: string; sectionId: string; text: string | null }[]
+  >;
+  /** Writes the working (latest) version in place; creates version 1 when none exists. */
+  saveWireframe: (
+    accountId: string,
+    projectId: string,
+    screenId: string,
+    document: WireframeDocument,
+  ) => Promise<StoredWireframe | null>;
   setLifecycle: (
     accountId: string,
     input: ParsedSetScreenLifecycleInput,
@@ -210,22 +263,150 @@ export interface ScreenStore {
 }
 
 export interface ScreensAccess {
+  applyLinkedBlockChange: (
+    accountId: string,
+    input: LinkedBlockChangeInput,
+  ) => Promise<LinkedBlockChangeResult>;
+  /** Saves a new exact Wireframe version, freezing then-visible live text. */
   attachWireframeVersion: (
     accountId: string,
     projectId: string,
     screenId: string,
+    document?: unknown,
   ) => Promise<ScreenRecord>;
   create: (
     accountId: string,
     input: CreateScreenInput,
   ) => Promise<ScreenRecord>;
+  createLinkedBlock: (
+    accountId: string,
+    input: CreateLinkedBlockInput,
+  ) => Promise<LinkedBlockRecord>;
+  linkedBlocks: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<LinkedBlockRecord[]>;
   list: (accountId: string, projectId: string) => Promise<ScreenList>;
+  previewLinkedBlockChange: (
+    accountId: string,
+    input: LinkedBlockChangeInput,
+  ) => Promise<LinkedBlockChangeResult>;
   resolveTarget: (
     accountId: string,
     input: ResolveScreenInput,
   ) => Promise<ScreenTarget>;
+  saveWireframe: (
+    accountId: string,
+    input: SaveScreenWireframeInput,
+  ) => Promise<ScreenWireframe>;
   setLifecycle: (
     accountId: string,
     input: SetScreenLifecycleInput,
   ) => Promise<ScreenRecord>;
+  wireframe: (
+    accountId: string,
+    input: ScreenWireframeInput,
+  ) => Promise<ScreenWireframe>;
+}
+
+/** A stored Wireframe version as read from persistence, before migration. */
+export interface StoredWireframe {
+  createdAt: string;
+  document: unknown;
+  version: number;
+  versionId: string;
+}
+
+export interface StoredHeadDocument {
+  document: unknown;
+  lifecycle: ScreenLifecycle;
+  screenId: string;
+  title: string;
+}
+
+export interface ScreenWireframe {
+  createdAt: string;
+  document: WireframeDocument;
+  /** Live text read now; a broken source is `broken`, never empty. */
+  liveText: Record<string, LiveTextResolution>;
+  screenId: string;
+  version: number;
+  versionId: string;
+}
+
+export const screenWireframeInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    screenId: identifierSchema,
+    version: z.number().int().min(1).safe().optional(),
+  })
+  .strict();
+export type ScreenWireframeInput = z.input<typeof screenWireframeInputSchema>;
+
+/**
+ * `document` is deliberately untyped here: the server migrates and validates it
+ * as a WireframeDocument, so a Konva Stage JSON is rejected with its own reason.
+ */
+export const saveScreenWireframeInputSchema = z
+  .object({
+    document: z.unknown(),
+    projectId: identifierSchema,
+    screenId: identifierSchema,
+  })
+  .strict();
+export type SaveScreenWireframeInput = z.input<
+  typeof saveScreenWireframeInputSchema
+>;
+
+export const saveScreenWireframeVersionInputSchema = z
+  .object({
+    document: z.unknown().optional(),
+    projectId: identifierSchema,
+    screenId: identifierSchema,
+  })
+  .strict();
+
+export interface LinkedBlockRecord {
+  content: WireframeLinkedContent;
+  id: string;
+  name: string;
+  projectId: string;
+  revision: number;
+}
+
+export const createLinkedBlockInputSchema = z
+  .object({
+    content: wireframeLinkedContentSchema,
+    name: z.string().trim().min(1).max(120),
+    projectId: identifierSchema,
+  })
+  .strict();
+export type CreateLinkedBlockInput = z.input<
+  typeof createLinkedBlockInputSchema
+>;
+export type ParsedCreateLinkedBlockInput = z.output<
+  typeof createLinkedBlockInputSchema
+>;
+
+export const linkedBlockChangeInputSchema = z
+  .object({
+    content: wireframeLinkedContentSchema,
+    definitionId: identifierSchema,
+    expectedRevision: revisionSchema.optional(),
+    projectId: identifierSchema,
+  })
+  .strict();
+export type LinkedBlockChangeInput = z.input<
+  typeof linkedBlockChangeInputSchema
+>;
+export type ParsedLinkedBlockChangeInput = z.output<
+  typeof linkedBlockChangeInputSchema
+>;
+
+export interface LinkedBlockChangeResult {
+  affectedScreens: AffectedScreen[];
+  /** `true` after apply; a preview writes nothing. */
+  applied: boolean;
+  /** The definition as it stands after the change, or would stand for a preview. */
+  definition: WireframeLinkedDefinition;
 }

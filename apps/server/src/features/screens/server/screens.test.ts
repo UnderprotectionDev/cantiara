@@ -1,138 +1,14 @@
-import {
-  type ParsedSetScreenLifecycleInput,
-  planScreenLifecycle,
-  type ScreenRecord,
-  type ScreenStore,
-} from "@cantiara/api/screens";
 import { screen, screenWireframeVersion } from "@cantiara/db/schema/screen";
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 
 import {
-  createScreens,
   ScreenLifecycleInvalidError,
   ScreenNotFoundError,
   ScreenProjectNotFoundError,
   ScreenRevisionConflictError,
 } from "./screens";
-
-const timestamp = "2026-10-01T09:00:00.000Z";
-const accountId = "account-1";
-
-/** In-memory Screens store; Wireframe versions live only inside their Screen record. */
-function createMemoryStore() {
-  const records = new Map<string, ScreenRecord>();
-  const archived = new Set<string>();
-  const trashed = new Set<string>();
-  let sequence = 0;
-  const nextId = (prefix: string) => {
-    sequence += 1;
-    return `${prefix}-${sequence}`;
-  };
-  const owns = (account: string, projectId: string) =>
-    account === accountId && projectId === "project-1";
-  const withLifecycle = (record: ScreenRecord): ScreenRecord => {
-    if (trashed.has(record.id)) {
-      return { ...record, lifecycle: "In Trash" };
-    }
-    return {
-      ...record,
-      lifecycle: archived.has(record.id) ? "Archived" : "Active",
-    };
-  };
-  const store: ScreenStore = {
-    attachWireframeVersion: async (account, projectId, screenId) => {
-      await Promise.resolve();
-      const current = records.get(screenId);
-      if (
-        !(current && owns(account, projectId)) ||
-        trashed.has(screenId) ||
-        current.projectId !== projectId
-      ) {
-        return null;
-      }
-      const next: ScreenRecord = {
-        ...current,
-        wireframeVersions: [
-          ...current.wireframeVersions,
-          {
-            createdAt: timestamp,
-            id: nextId("version"),
-            version: current.wireframeVersions.length + 1,
-          },
-        ],
-      };
-      records.set(screenId, next);
-      return withLifecycle(next);
-    },
-    create: async (account, input) => {
-      await Promise.resolve();
-      if (!owns(account, input.projectId)) {
-        return null;
-      }
-      const record: ScreenRecord = {
-        createdAt: timestamp,
-        id: nextId("screen"),
-        lifecycle: "Active",
-        projectId: input.projectId,
-        revision: 1,
-        title: input.title,
-        updatedAt: timestamp,
-        wireframeVersions: [],
-      };
-      records.set(record.id, record);
-      return record;
-    },
-    find: async (account, projectId, screenId) => {
-      await Promise.resolve();
-      const record = records.get(screenId);
-      return record &&
-        owns(account, projectId) &&
-        record.projectId === projectId
-        ? withLifecycle(record)
-        : null;
-    },
-    list: async (account, projectId) => {
-      await Promise.resolve();
-      return owns(account, projectId)
-        ? {
-            readOnly: false,
-            screens: [...records.values()].map(withLifecycle),
-          }
-        : null;
-    },
-    setLifecycle: async (account, input: ParsedSetScreenLifecycleInput) => {
-      await Promise.resolve();
-      const current = records.get(input.screenId);
-      if (!(current && owns(account, input.projectId))) {
-        return null;
-      }
-      if (
-        input.expectedRevision !== undefined &&
-        input.expectedRevision !== current.revision
-      ) {
-        throw new ScreenRevisionConflictError(current.id);
-      }
-      const plan = planScreenLifecycle(
-        {
-          archived: archived.has(current.id),
-          trashed: trashed.has(current.id),
-        },
-        input.action,
-      );
-      if (!plan) {
-        throw new ScreenLifecycleInvalidError(current.id, input.action);
-      }
-      if (plan.changed) {
-        archived[plan.archived ? "add" : "delete"](current.id);
-        trashed[plan.trashed ? "add" : "delete"](current.id);
-        records.set(current.id, { ...current, revision: current.revision + 1 });
-      }
-      return withLifecycle(records.get(current.id) ?? current);
-    },
-  };
-  return { screens: createScreens(store), store };
-}
+import { accountId, createMemoryStore } from "./screens-memory-store";
 
 describe("Screens and Wireframes seam", () => {
   test("creates a Screen from a title alone, without any visual design", async () => {
@@ -185,7 +61,7 @@ describe("Screens and Wireframes seam", () => {
     // The version table carries no Project scope and no archive or trash column.
     const versionColumns = Object.keys(getTableColumns(screenWireframeVersion));
     expect(versionColumns.sort()).toEqual(
-      ["createdAt", "id", "screenId", "version"].sort(),
+      ["createdAt", "document", "id", "screenId", "version"].sort(),
     );
     expect(Object.keys(getTableColumns(screen))).toEqual(
       expect.arrayContaining(["archivedAt", "trashedAt", "projectId"]),

@@ -1071,7 +1071,7 @@ Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; ca
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
-Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
+Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Open Wireframe`, `Close Wireframe`, `Save Version`, `Undo`, `Redo`, `Button`, `Input`, `Card`, `Table`, `Navigation`, `Chart`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Kayda dönüştür ve bağla**:
@@ -1090,7 +1090,7 @@ UI: `Open Source Record`
 _Avoid_: planlama tahtası, Kullanım bağı, Proje Duvarı kartı
 
 **Bağlı Wireframe bloğu**:
-Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Detach Link`.
+Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Create Linked Block`, `Source label`, `Preview Change`, `Apply Change`, `Detach Link`.
 _Avoid_: production component, tasarım token'ı, çapraz proje canlı kütüphane
 
 **Moodboard**:

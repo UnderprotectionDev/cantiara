@@ -1,3 +1,8 @@
+import { applyWireframeTransaction } from "@cantiara/api/wireframe-commands";
+import {
+  createEmptyWireframeDocument,
+  createWireframeBlock,
+} from "@cantiara/api/wireframe-document";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
@@ -220,6 +225,130 @@ describeDatabase("Screens PostgreSQL integration", () => {
         screenId: second.id,
       }),
     ).toEqual({ reason: "No access", screenId: second.id, state: "broken" });
+  });
+
+  test("persists the WireframeDocument as version content and saves in place", async () => {
+    const access = createDatabaseScreens(requireDatabase());
+    const created = await access.create(accountId, {
+      projectId,
+      title: "Home",
+    });
+    const document = {
+      ...createEmptyWireframeDocument(),
+      blocks: [createWireframeBlock("Button", "b1", { x: 8, y: 8 })],
+    };
+
+    const first = await access.saveWireframe(accountId, {
+      document,
+      projectId,
+      screenId: created.id,
+    });
+    const moved = await access.saveWireframe(accountId, {
+      document: {
+        ...document,
+        blocks: [createWireframeBlock("Button", "b1", { x: 40, y: 8 })],
+      },
+      projectId,
+      screenId: created.id,
+    });
+
+    expect(first.version).toBe(1);
+    expect(moved.version).toBe(1);
+    const reread = await access.wireframe(accountId, {
+      projectId,
+      screenId: created.id,
+    });
+    expect(reread.document.blocks[0]).toMatchObject({ x: 40 });
+    // A geometry write adds no version and leaves the Screen row untouched.
+    const list = await access.list(accountId, projectId);
+    expect(list.screens[0]).toMatchObject({ revision: 1 });
+    expect(list.screens[0]?.wireframeVersions).toHaveLength(1);
+  });
+
+  test("rejects Konva JSON and keeps nothing", async () => {
+    const access = createDatabaseScreens(requireDatabase());
+    const created = await access.create(accountId, {
+      projectId,
+      title: "Home",
+    });
+
+    await expect(
+      access.saveWireframe(accountId, {
+        document: { attrs: {}, children: [], className: "Stage" },
+        projectId,
+        screenId: created.id,
+      }),
+    ).rejects.toMatchObject({ code: "KONVA_JSON_REJECTED" });
+    const rows = await requireDatabase()
+      .select()
+      .from(screenWireframeVersion)
+      .where(eq(screenWireframeVersion.screenId, created.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  test("applies a linked block change to affected Screens as new versions", async () => {
+    const access = createDatabaseScreens(requireDatabase());
+    const content = {
+      height: 56,
+      kind: "Navigation" as const,
+      label: "Header",
+      props: { items: ["Home"] },
+      width: 560,
+    };
+    const definition = await access.createLinkedBlock(accountId, {
+      content,
+      name: "Header",
+      projectId,
+    });
+    const home = await access.create(accountId, { projectId, title: "Home" });
+    const linked = applyWireframeTransaction(
+      {
+        ...createEmptyWireframeDocument(),
+        blocks: [createWireframeBlock("Navigation", "nav", { x: 0, y: 0 })],
+      },
+      [
+        {
+          blockId: "nav",
+          definition: {
+            content: definition.content,
+            id: definition.id,
+            name: definition.name,
+            revision: definition.revision,
+          },
+          type: "linkBlock",
+        },
+      ],
+    );
+    await access.saveWireframe(accountId, {
+      document: linked,
+      projectId,
+      screenId: home.id,
+    });
+
+    const change = {
+      content: { ...content, label: "Main" },
+      definitionId: definition.id,
+      projectId,
+    };
+    const preview = await access.previewLinkedBlockChange(accountId, change);
+    expect(preview.affectedScreens.map(({ screenId }) => screenId)).toEqual([
+      home.id,
+    ]);
+    expect(
+      (await access.list(accountId, projectId)).screens[0]?.wireframeVersions,
+    ).toHaveLength(1);
+
+    await access.applyLinkedBlockChange(accountId, change);
+    const [record] = (await access.list(accountId, projectId)).screens;
+    expect(record?.wireframeVersions.map(({ version }) => version)).toEqual([
+      1, 2,
+    ]);
+    await expect(
+      access.applyLinkedBlockChange(accountId, {
+        ...change,
+        expectedRevision: 1,
+      }),
+    ).rejects.toBeInstanceOf(ScreenRevisionConflictError);
   });
 
   test("deleting the Project removes Screens and their versions together", async () => {
