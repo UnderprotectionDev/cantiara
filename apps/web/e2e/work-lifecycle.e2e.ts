@@ -711,6 +711,9 @@ test("walks the read-only Scope Tree and opens a source record", async ({
   await expect(scopeTree).toContainText("Wait for provider access");
   await expect(scopeTree).toContainText("Private beta");
 
+  // Page-load writes (e.g. markReturnContextViewed) must settle before the
+  // drag so only requests caused by the drag are counted.
+  await page.waitForLoadState("networkidle");
   const nonGetRequests: string[] = [];
   page.on("request", (pageRequest) => {
     if (pageRequest.method() !== "GET") {

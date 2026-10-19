@@ -5,8 +5,8 @@ import { decision } from "@cantiara/db/schema/decision";
 import { openQuestion } from "@cantiara/db/schema/open-question";
 import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
+import { screen } from "@cantiara/db/schema/screen";
 import {
-  screen,
   userFlowRecordBind,
   userFlowRecordBindRebind,
   userFlowTemplate,

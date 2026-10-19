@@ -17,6 +17,7 @@ export const primarySchemaFiles = [
   "./src/schema/moodboard.ts",
   "./src/schema/decision.ts",
   "./src/schema/risk.ts",
+  "./src/schema/screen.ts",
   "./src/schema/assumption.ts",
   "./src/schema/validation-record.ts",
   "./src/schema/research-session.ts",

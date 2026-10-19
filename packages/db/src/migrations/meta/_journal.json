@@ -897,6 +897,34 @@
       "when": 1792411125791,
       "tag": "0127_flaky_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1792411126791,
+      "tag": "0128_screen_master_record",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1792411127791,
+      "tag": "0129_wireframe_document",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1792411128791,
+      "tag": "0130_screen_block_origin",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1792411129791,
+      "tag": "0131_screen_viewport",
+      "breakpoints": true
     }
   ]
 }

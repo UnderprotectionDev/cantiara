@@ -34,6 +34,7 @@ export * from "./research-session";
 export * from "./return-to-work";
 export * from "./risk";
 export * from "./roadmap-horizon";
+export * from "./screen";
 export * from "./smart-collection";
 export * from "./source";
 export * from "./tags";

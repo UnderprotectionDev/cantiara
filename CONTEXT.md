@@ -1045,8 +1045,8 @@ UI: `Save as template`, `Create from template`
 _Avoid_: live-bound template, kaynak akış kopyası
 
 **Canlı kart**:
-Kullanıcı Akışı tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
-UI: `Place live card`, `Open Source Record`
+Kullanıcı Akışı veya Wireframe tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
+UI: `Place live card`, `Live Card`, `Open Source Record`
 _Avoid_: kopya İş, smart-zone
 
 **Akış öğesi**:
@@ -1071,26 +1071,26 @@ Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; ca
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
-Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
+Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan düzenleme yüzeyi; bağımsız ana kayıt veya yaşam döngüsü değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Wireframe`, `Open Wireframe`, `Close Wireframe`, `Save Version`, `Undo`, `Redo`, `Button`, `Input`, `Card`, `Table`, `Navigation`, `Chart`, `Presentation Mode`, `Exit Presentation Mode`, `Unresolved`, `Export`, `PNG`, `SVG`, `PDF`, `HTML`.
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Kayda dönüştür ve bağla**:
-Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir.
-UI: `Convert and Bind`, `Confirm`, `Origin`, `Origin Location`
+Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir. Önizleme hedef türü, Projeyi, başlık/gövde eşlemesini, `Kökeni`'ni ve Köken konumunu gösterir; onaydan önce kayıt oluşmaz.
+UI: `Convert and Bind`, `Preview`, `Target type`, `Confirm`, `Origin`, `Origin Location`, `Kaynak öğe artık yok`, `Rebind`
 _Avoid_: Wireframe'den Ekran üretme, otomatik dönüşüm, Related
 
 **Wireframe şablonu**:
 Kesin Wireframe sürümünün yapı ve bağlı-blok damgası; kaynak Projenin İş/Karar geçmişini veya canlı bağını taşımaz.
-UI: `Save as template`, `Create Screen from template`
+UI: `Save as Template`, `Create Screen from Template`
 _Avoid_: İş şablonu, Belge şablonu, live-bound kopya
 
 **Canlı Wireframe kartı**:
 Wireframe yüzeyine konmuş salt okunur İş, Karar veya Risk referansı; taşımak kaynak kaydı yazmaz.
-UI: `Open Source Record`
+UI: `Place live card`, `Open Source Record`
 _Avoid_: planlama tahtası, Kullanım bağı, Proje Duvarı kartı
 
 **Bağlı Wireframe bloğu**:
-Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Detach Link`.
+Aynı Projede birden fazla Ekranın Wireframe yüzeyinde paylaştığı düşük sadakatli kaynak tanımı; production component, tasarım token'ı veya projeler arasında canlı kütüphane değildir ([Ekranlar ve Wireframe yüzeyi](docs/prd/09-discovery-decisions-and-design.md#wireframeler)). UI: `Create Linked Block`, `Source label`, `Preview Change`, `Apply Change`, `Detach Link`.
 _Avoid_: production component, tasarım token'ı, çapraz proje canlı kütüphane
 
 **Moodboard**:
@@ -1129,7 +1129,7 @@ _Avoid_: recent-context, paylaşım görünümü, export viewport
 
 **Yapılandırılmış outline**:
 İşaretçi olmadan ekleme, seçme, sıralama, gruplama, inceleme ve kaynak açmayı sunan canvas listesi; salt okunur yedek değildir.
-UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`, `Add to outline`, `Group selection into Section`, `Bind`, `Unbind`
+UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`, `Remove Block`, `Align Left`, `Align Right`, `Align Top`, `Align Bottom`, `Align Center`, `Align Middle`, `Add to outline`, `Group selection into Section`, `Bind`, `Unbind`
 _Avoid_: salt okunur katman listesi
 
 **Görünüm kırpması**:

@@ -78,6 +78,7 @@ import { createDatabaseRelations } from "../src/features/relations/server/relati
 import { createDatabaseResearchSessions } from "../src/features/research-sessions/server/research-sessions-database";
 import { createDatabaseReturnToWork } from "../src/features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "../src/features/roadmap-horizon/server/roadmap-horizon-database";
+import { createDatabaseScreens } from "../src/features/screens/server/screens-database";
 import { createDatabaseSmartCollections } from "../src/features/smart-collections/server/smart-collections-database";
 import { createSmartLinkPreview } from "../src/features/sources-and-freshness/server/smart-link-preview";
 import { createDatabaseSourceEvidence } from "../src/features/sources-and-freshness/server/source-evidence-database";
@@ -350,6 +351,7 @@ const app = createApp({
   captureInbox,
   contacts: createDatabaseContacts(database),
   feedback: createDatabaseFeedbackWithFeed(database),
+  screens: createDatabaseScreens(database),
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
   customFields,

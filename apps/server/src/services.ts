@@ -97,6 +97,7 @@ import {
 } from "./features/research-sessions/server/research-sessions-database";
 import { createDatabaseReturnToWork } from "./features/return-to-work/server/return-to-work-database";
 import { createDatabaseRoadmapHorizon } from "./features/roadmap-horizon/server/roadmap-horizon-database";
+import { createDatabaseScreens } from "./features/screens/server/screens-database";
 import { createSmartCollectionSubscriptionSignalWorker } from "./features/smart-collections/server/smart-collection-subscription-signal-worker";
 import {
   createDatabaseSmartCollections,
@@ -237,6 +238,7 @@ export const tagMutationContracts = createDatabaseTagMutationContracts(
 );
 export const contacts = createDatabaseContacts(db);
 export const feedback = createDatabaseFeedbackWithFeed(db);
+export const screens = createDatabaseScreens(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

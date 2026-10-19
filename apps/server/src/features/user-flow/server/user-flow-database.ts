@@ -19,8 +19,8 @@ import { decision } from "@cantiara/db/schema/decision";
 import { openQuestion } from "@cantiara/db/schema/open-question";
 import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
+import { screen } from "@cantiara/db/schema/screen";
 import {
-  screen,
   userFlow,
   userFlowRecordBind,
   userFlowRecordBindRebind,
@@ -441,8 +441,8 @@ async function readRecords(
 }
 
 /**
- * PostgreSQL adapter of the User Flow seam. It reads `screen` only to resolve
- * live references and never writes it.
+ * PostgreSQL adapter of the User Flow seam. It resolves live references against
+ * the Screen master (`project_screen`) and creates one for `Promote to Screen`.
  */
 export function createDatabaseUserFlowStore(database: Database): UserFlowStore {
   return {
@@ -818,7 +818,6 @@ export function createDatabaseUserFlowStore(database: Database): UserFlowStore {
             eq(screen.projectId, projectId),
             isNull(screen.archivedAt),
             isNull(screen.trashedAt),
-            isNull(screen.redactedAt),
           ),
         )
         .orderBy(asc(screen.title), asc(screen.id));
@@ -835,7 +834,6 @@ export function createDatabaseUserFlowStore(database: Database): UserFlowStore {
           id: screen.id,
           ownerAccountId: workspace.ownerAccountId,
           projectId: screen.projectId,
-          redactedAt: screen.redactedAt,
           title: screen.title,
           trashedAt: screen.trashedAt,
         })
@@ -853,7 +851,8 @@ export function createDatabaseUserFlowStore(database: Database): UserFlowStore {
           archivedAt: row.archivedAt?.toISOString() ?? null,
           kind: "found",
           projectId: row.projectId,
-          redactedAt: row.redactedAt?.toISOString() ?? null,
+          // The Screen master has no redaction: a deleted Screen has no row.
+          redactedAt: null,
           title: row.title,
           trashedAt: row.trashedAt?.toISOString() ?? null,
         });

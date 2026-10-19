@@ -370,6 +370,30 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  confirmConvertAndBindInputSchema,
+  confirmRebindInputSchema,
+  createScreenFromTemplateInputSchema,
+  previewConvertAndBindInputSchema,
+  previewRebindInputSchema,
+  saveScreenTemplateInputSchema,
+  screenTemplateListInputSchema,
+} from "../screen-origins";
+import {
+  saveScreenViewportInputSchema,
+  screenViewportInputSchema,
+} from "../screen-viewport";
+import {
+  createLinkedBlockInputSchema,
+  createScreenInputSchema,
+  linkedBlockChangeInputSchema,
+  resolveScreenInputSchema,
+  saveScreenWireframeInputSchema,
+  saveScreenWireframeVersionInputSchema,
+  screenProjectInputSchema,
+  screenWireframeInputSchema,
+  setScreenLifecycleInputSchema,
+} from "../screens";
+import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
   SmartCollectionUnavailableError,
@@ -428,6 +452,7 @@ import {
   userFlowProjectInputSchema,
 } from "../user-flow";
 import type { WebCaptureAccess } from "../web-capture";
+import { WireframeDocumentError } from "../wireframe-document";
 import {
   previewWorkContextLayout,
   type WorkContextAccess,
@@ -1020,6 +1045,13 @@ function requireFeedback(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.feedback;
+}
+
+function requireScreens(context: Context) {
+  if (!context.screens) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.screens;
 }
 
 function requireUserFlow(context: Context) {
@@ -2811,6 +2843,67 @@ async function runFeedbackOperation<T>(
       });
     }
     const message = FEEDBACK_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
+}
+
+const SCREEN_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SCREEN_LINKED_BLOCK_NOT_FOUND: "Linked block is unavailable.",
+  SCREEN_NOT_FOUND: "Screen is unavailable.",
+  SCREEN_PROJECT_NOT_FOUND: "Project is unavailable.",
+  SCREEN_TEMPLATE_NOT_FOUND: "Wireframe template is unavailable.",
+  SCREEN_VERSION_NOT_FOUND: "Wireframe version is unavailable.",
+};
+
+const SCREEN_REJECTED_MESSAGES: Record<string, string> = {
+  SCREEN_CONVERSION_STALE:
+    "The block or Wireframe version changed since the preview. Preview again.",
+  SCREEN_LIFECYCLE_INVALID:
+    "That action does not apply to this Screen in its current state.",
+  SCREEN_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+};
+
+async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "SCREEN_REVISION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Screen changed since it was loaded. Reload and try again.",
+      });
+    }
+    if (error instanceof WireframeDocumentError) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: error.message,
+      });
+    }
+    const rejected = SCREEN_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = SCREEN_UNAVAILABLE_MESSAGES[error.code];
     if (message) {
       throw new ORPCError("NOT_FOUND", {
         cause: error,
@@ -5289,6 +5382,179 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  projectScreens: protectedProcedure
+    .input(screenProjectInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  createScreen: protectedProcedure
+    .input(createScreenInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).create(context.session.user.id, input),
+      ),
+    ),
+  setScreenLifecycle: protectedProcedure
+    .input(setScreenLifecycleInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).setLifecycle(context.session.user.id, input),
+      ),
+    ),
+  screenViewport: protectedProcedure
+    .input(screenViewportInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).viewport(context.session.user.id, input),
+      ),
+    ),
+  saveScreenViewport: protectedProcedure
+    .input(saveScreenViewportInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).saveViewport(context.session.user.id, input),
+      ),
+    ),
+  screenWireframe: protectedProcedure
+    .input(screenWireframeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).wireframe(context.session.user.id, input),
+      ),
+    ),
+  saveScreenWireframe: protectedProcedure
+    .input(saveScreenWireframeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).saveWireframe(context.session.user.id, input),
+      ),
+    ),
+  saveScreenWireframeVersion: protectedProcedure
+    .input(saveScreenWireframeVersionInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).attachWireframeVersion(
+          context.session.user.id,
+          input.projectId,
+          input.screenId,
+          input.document,
+        ),
+      ),
+    ),
+  projectLinkedBlocks: protectedProcedure
+    .input(screenProjectInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).linkedBlocks(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createLinkedBlock: protectedProcedure
+    .input(createLinkedBlockInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).createLinkedBlock(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewLinkedBlockChange: protectedProcedure
+    .input(linkedBlockChangeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).previewLinkedBlockChange(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  applyLinkedBlockChange: protectedProcedure
+    .input(linkedBlockChangeInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).applyLinkedBlockChange(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewConvertAndBind: protectedProcedure
+    .input(previewConvertAndBindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).previewConvertAndBind(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  confirmConvertAndBind: protectedProcedure
+    .input(confirmConvertAndBindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).convertAndBind(context.session.user.id, input),
+      ),
+    ),
+  screenOrigins: protectedProcedure
+    .input(resolveScreenInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).origins(context.session.user.id, input),
+      ),
+    ),
+  previewRebindScreenOrigin: protectedProcedure
+    .input(previewRebindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).previewRebind(context.session.user.id, input),
+      ),
+    ),
+  rebindScreenOrigin: protectedProcedure
+    .input(confirmRebindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).rebind(context.session.user.id, input),
+      ),
+    ),
+  saveScreenTemplate: protectedProcedure
+    .input(saveScreenTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).saveTemplate(context.session.user.id, input),
+      ),
+    ),
+  screenTemplates: protectedProcedure
+    .input(screenTemplateListInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).templates(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createScreenFromTemplate: protectedProcedure
+    .input(createScreenFromTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).createScreenFromTemplate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  resolveScreen: protectedProcedure
+    .input(resolveScreenInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).resolveTarget(context.session.user.id, input),
       ),
     ),
   contacts: protectedProcedure.handler(({ context }) =>

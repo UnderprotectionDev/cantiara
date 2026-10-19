@@ -54,10 +54,12 @@ export interface UserFlowDocument {
 }
 
 /**
- * Minimal Screen master record owned by the User Flow spec until the Screens
- * and Wireframes feature extends it. A permanently deleted Screen has no row.
+ * Superseded stand-in for the Screen master record. Screens and Wireframes
+ * (spec 48) own the Screen master in `project_screen`, which User Flow now
+ * reads and writes. This table is no longer used by code; an expand-only
+ * schema keeps it until a later `parallel-safety: contract` migration drops it.
  */
-export const screen = pgTable(
+export const legacyScreen = pgTable(
   "screen",
   {
     id: text("id").primaryKey(),

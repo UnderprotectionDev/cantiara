@@ -66,6 +66,7 @@ import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
 import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
 import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
+import ScreensSurface from "@/features/screens/ui/screens-surface";
 import {
   clearSmartCollectionWorkPrefillSearch,
   type SmartCollectionWorkPrefillSearch,
@@ -119,6 +120,12 @@ function decodedSourceId(value: string) {
   } catch {
     return "";
   }
+}
+
+function projectDesignSurface(activeHash: string, projectId: string) {
+  return ["design", "project-area-design"].includes(activeHash) ? (
+    <ScreensSurface key={`screens:${projectId}`} projectId={projectId} />
+  ) : null;
 }
 
 function liveSourceRouteForHash(activeHash: string, projectId: string) {
@@ -422,13 +429,15 @@ function ProjectShellContent({
     activeHash === "goals" || activeHash.startsWith("project-goal-");
   const isAreaCatalogSurface =
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
-  const uncertaintySurface = projectUncertaintySurface(
-    projectId,
-    accountId,
-    activeHash,
-    sourceRecordRoute,
-    accountFormattingPreferences,
-  );
+  const uncertaintySurface =
+    projectDesignSurface(activeHash, projectId) ??
+    projectUncertaintySurface(
+      projectId,
+      accountId,
+      activeHash,
+      sourceRecordRoute,
+      accountFormattingPreferences,
+    );
   const projectSurface = (() => {
     if (isGoalsSurface) {
       return (
