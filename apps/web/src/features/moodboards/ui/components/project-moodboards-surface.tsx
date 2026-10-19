@@ -22,6 +22,13 @@ import {
   pickColorWithEyeDropper,
   sampleVisualColor,
 } from "../../lib/color-sampling";
+import {
+  FocusOrderEditor,
+  PresentationView,
+  PresentedVisual,
+  SnapshotPanel,
+  VisualViewTools,
+} from "./moodboard-view-tools";
 
 type MoodboardsApi = ReturnType<typeof useMoodboards>;
 
@@ -106,6 +113,15 @@ function VisualRow({
           />
         </button>
       ) : null}
+      {item.origin.kind === "External link" &&
+      (item.view.crop !== null || item.view.rotation !== 0) ? (
+        <PresentedVisual
+          caption={item.caption}
+          url={item.origin.url}
+          view={item.view}
+        />
+      ) : null}
+      <VisualViewTools api={api} item={item} moodboard={moodboard} />
       <form className="flex items-end gap-2" onSubmit={saveCaption}>
         <div className="flex-1 space-y-1">
           <Label htmlFor={inputId}>{MOODBOARD_UI_LABELS.caption}</Label>
@@ -431,6 +447,7 @@ function MoodboardCard({
   const [sampleTarget, setSampleTarget] = useState<
     ((hex: string) => void) | null
   >(null);
+  const [presenting, setPresenting] = useState(false);
   const visuals = moodboard.items.filter(
     (item): item is MoodboardVisual => item.kind === "Visual",
   );
@@ -453,6 +470,21 @@ function MoodboardCard({
       ),
     },
   ].filter(({ id, swatches: members }) => id !== "" || members.length > 0);
+  if (presenting) {
+    return (
+      <article
+        aria-label={moodboard.title}
+        className="space-y-3 rounded-lg border p-4"
+        id={`moodboard-${moodboard.id}`}
+      >
+        <h3 className="font-medium">{moodboard.title}</h3>
+        <PresentationView
+          moodboard={moodboard}
+          onExit={() => setPresenting(false)}
+        />
+      </article>
+    );
+  }
   return (
     <article
       aria-label={moodboard.title}
@@ -460,6 +492,13 @@ function MoodboardCard({
       id={`moodboard-${moodboard.id}`}
     >
       <h3 className="font-medium">{moodboard.title}</h3>
+      <Button
+        onClick={() => setPresenting(true)}
+        type="button"
+        variant="outline"
+      >
+        {MOODBOARD_UI_LABELS.presentationMode}
+      </Button>
       <ul className="space-y-2">
         {visuals.map((item) => (
           <VisualRow
@@ -501,6 +540,8 @@ function MoodboardCard({
           onStartSampling={(apply) => setSampleTarget(() => apply)}
         />
       </section>
+      <FocusOrderEditor api={api} moodboard={moodboard} />
+      <SnapshotPanel api={api} moodboard={moodboard} />
     </article>
   );
 }
@@ -525,6 +566,8 @@ export default function ProjectMoodboardsSurface({
     api.addColorSwatch,
     api.addPaletteGroup,
     api.assignPaletteGroup,
+    api.setVisualView,
+    api.setFocusOrder,
   ].find((mutation) => mutation.isError)?.error;
 
   function create(event: FormEvent<HTMLFormElement>) {

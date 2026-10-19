@@ -62,6 +62,7 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
+import { createDatabaseMoodboardSnapshots } from "./features/moodboards/server/moodboard-snapshots-database";
 import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/server/moodboards-mutation-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
@@ -346,6 +347,9 @@ const fileAttachmentService = fileAttachmentObjectStore
   : undefined;
 processFileAttachmentPreview = fileAttachmentService?.processPreview;
 export const fileAttachments = fileAttachmentService?.access;
+export const moodboardSnapshots = createDatabaseMoodboardSnapshots(db, {
+  objectStore: fileAttachmentObjectStore,
+});
 export const startFileAttachmentPreviewWorker = () =>
   fileAttachmentPreviewWorker?.start() ?? Promise.resolve();
 export const stopFileAttachmentPreviewWorker = () =>
