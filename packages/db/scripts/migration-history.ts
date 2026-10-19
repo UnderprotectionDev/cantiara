@@ -15,11 +15,9 @@ export class MigrationHistoryError extends Error {
   }
 }
 
-export function assertMigrationHistory(
-  expected: Pick<MigrationMeta, "folderMillis" | "hash">[],
-  applied: AppliedMigration[],
-  { allowAhead = false } = {},
-) {
+function assertCanonicalHistory<
+  TMigration extends Pick<MigrationMeta, "folderMillis" | "hash">,
+>(expected: TMigration[], applied: AppliedMigration[]) {
   for (const [index, row] of applied.slice(0, expected.length).entries()) {
     const migration = expected[index];
     if (
@@ -33,18 +31,56 @@ export function assertMigrationHistory(
       );
     }
   }
-  if (!allowAhead && applied.length > expected.length) {
+  if (applied.length > expected.length) {
     throw new MigrationHistoryError(
       "ahead",
       "Database migration history is ahead of this Git branch",
     );
   }
+  return { foreign: [], pending: expected.slice(applied.length) };
+}
+
+// Other Conductor workspaces apply their own migrations to the shared
+// development database, and rebases may move an entry's journal timestamp.
+// Development therefore identifies migrations by SQL hash; records from other
+// branches are foreign. Deployment keeps the exact canonical order.
+export function assertMigrationHistory<
+  TMigration extends Pick<MigrationMeta, "folderMillis" | "hash">,
+>(
+  expected: TMigration[],
+  applied: AppliedMigration[],
+  { allowForeign = false } = {},
+): { foreign: AppliedMigration[]; pending: TMigration[] } {
+  if (!allowForeign) {
+    return assertCanonicalHistory(expected, applied);
+  }
+  const ownHashes = new Set(expected.map((migration) => migration.hash));
+  const appliedHashes = new Set(applied.map((row) => row.hash));
+  const foreign = applied.filter((row) => !ownHashes.has(row.hash));
+  for (const row of foreign) {
+    // A record at this branch's own journal time with other SQL means an
+    // applied migration was edited after it ran.
+    if (
+      expected.some(
+        (migration) => migration.folderMillis === Number(row.created_at),
+      )
+    ) {
+      throw new MigrationHistoryError(
+        "history-mismatch",
+        `Database migration history diverged at ${row.created_at}`,
+      );
+    }
+  }
+  return {
+    foreign,
+    pending: expected.filter((migration) => !appliedHashes.has(migration.hash)),
+  };
 }
 
 export async function verifyMigrationHistory(
   pool: Pick<Pool, "query">,
   folder: string,
-  options: { allowAhead?: boolean } = {},
+  options: { allowForeign?: boolean } = {},
 ) {
   const expected = readMigrationFiles({ migrationsFolder: folder });
   const state = await pool.query<{
@@ -62,7 +98,11 @@ export async function verifyMigrationHistory(
         "Database has tables but no migration history",
       );
     }
-    return { expected, applied: [] as AppliedMigration[] };
+    return {
+      expected,
+      applied: [] as AppliedMigration[],
+      ...assertMigrationHistory(expected, [], options),
+    };
   }
 
   const history = await pool.query<AppliedMigration>(
@@ -74,6 +114,9 @@ export async function verifyMigrationHistory(
       "Database has tables but no applied migrations",
     );
   }
-  assertMigrationHistory(expected, history.rows, options);
-  return { expected, applied: history.rows };
+  return {
+    expected,
+    applied: history.rows,
+    ...assertMigrationHistory(expected, history.rows, options),
+  };
 }

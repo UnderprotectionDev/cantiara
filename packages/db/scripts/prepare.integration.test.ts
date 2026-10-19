@@ -5,6 +5,7 @@ import { Pool } from "@neondatabase/serverless";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { assertLocalPostgresTarget } from "./migration-connection";
+import { readMigrationRepository } from "./migration-repository";
 import {
   connectMigrationTarget,
   resolveMigrationTarget,
@@ -13,6 +14,9 @@ import {
 const fixtureUrl = process.env.MIGRATION_TEST_DATABASE_URL;
 const describeDatabase = fixtureUrl ? describe : describe.skip;
 const root = fileURLToPath(new URL("../../../", import.meta.url));
+const repository = readMigrationRepository(
+  fileURLToPath(new URL("../src/migrations/", import.meta.url)),
+);
 const FIXTURE_DATABASE_PATTERN = /^\/cantiara_migration_test[a-z0-9_]*$/;
 const DEEP_CHECKS_PATTERN = /deep schema checks passed/g;
 
@@ -204,4 +208,65 @@ describeDatabase("Development database preparation command", () => {
       await primary.execute(sql.raw(statement));
     }
   }, 60_000);
+
+  test("prepares pending chains over migrations applied from other branches", async () => {
+    const base = new URL(fixtureUrl ?? "");
+    const suffix = randomUUID().slice(0, 8);
+    const primaryUrl = new URL(base);
+    primaryUrl.pathname = `/cantiara_migration_test_prepare_foreign_${suffix}`;
+    const securityUrl = new URL(base);
+    securityUrl.pathname = `${primaryUrl.pathname}_security`;
+    for (const target of [primaryUrl, securityUrl]) {
+      const name = target.pathname.slice(1);
+      // biome-ignore lint/performance/noAwaitInLoops: Register each owned fixture before a later setup operation can fail.
+      await admin.execute(sql`CREATE DATABASE ${sql.identifier(name)}`);
+      created.push(name);
+    }
+    const foreign = await connectMigrationTarget(
+      resolveMigrationTarget({
+        ...environment,
+        DATABASE_URL: primaryUrl.toString(),
+      }),
+    );
+    try {
+      await foreign.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+      await foreign.execute(
+        sql`CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`,
+      );
+      await foreign.execute(
+        sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('test-only-foreign-preparation', 1999999999999)`,
+      );
+    } finally {
+      await foreign.$client.end();
+    }
+    const result = prepare({
+      DATABASE_URL: primaryUrl.toString(),
+      SECURITY_EVENT_DATABASE_URL: securityUrl.toString(),
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain("Primary: pending");
+    expect(result.stdout).toContain("applying reviewed pending migrations");
+    expect(result.stdout).toContain("1 migrations applied from other branches");
+    expect(result.stdout).toContain("1 from other branches kept");
+    expect(result.stdout.match(DEEP_CHECKS_PATTERN)).toHaveLength(1);
+    expect(result.stdout).toContain("Both development databases are ready");
+    const prepared = await connectMigrationTarget(
+      resolveMigrationTarget({
+        ...environment,
+        DATABASE_URL: primaryUrl.toString(),
+      }),
+    );
+    try {
+      const kept = await prepared.execute(
+        sql`SELECT count(*) AS total FROM drizzle.__drizzle_migrations`,
+      );
+      expect(Number(kept.rows[0]?.total)).toBe(repository.entries.length + 1);
+      const tables = await prepared.execute(
+        sql`SELECT to_regclass('public."user"') IS NOT NULL AS present`,
+      );
+      expect(tables.rows[0]?.present).toBe(true);
+    } finally {
+      await prepared.$client.end();
+    }
+  }, 90_000);
 });

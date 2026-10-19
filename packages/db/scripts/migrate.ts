@@ -9,8 +9,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Client, Pool, type PoolClient } from "@neondatabase/serverless";
+import type { MigrationMeta } from "drizzle-orm/migrator";
 import { migrate } from "drizzle-orm/neon-serverless/migrator";
-import { checkMigrationSources } from "./check-migrations";
+import {
+  checkMigrationSources,
+  parallelSafetyBaseline,
+} from "./check-migrations";
 import {
   MigrationHistoryError,
   verifyMigrationHistory,
@@ -24,6 +28,7 @@ import {
   connectMigrationTarget,
   resolveMigrationTarget,
 } from "./migration-target";
+import { assertParallelSafeMigrations } from "./parallel-safety";
 import { inspectDatabaseSchema } from "./schema-inspection";
 
 async function verifyAppliedSchema(
@@ -31,13 +36,17 @@ async function verifyAppliedSchema(
   folder: string,
   repository: Awaited<ReturnType<typeof checkMigrationSources>>,
   compatibilityTag: string | null,
+  allowForeign: boolean,
 ) {
-  const verified = await verifyMigrationHistory(client, folder);
-  if (verified.applied.length === repository.entries.length) {
+  const verified = await verifyMigrationHistory(client, folder, {
+    allowForeign,
+  });
+  if (verified.pending.length === 0) {
     const issues = await inspectDatabaseSchema(
       client,
       repository.snapshot,
       true,
+      verified.foreign.length > 0,
     );
     if (issues.length > 0) {
       throw new Error(
@@ -48,6 +57,111 @@ async function verifyAppliedSchema(
     throw new Error("Migration history is still incomplete after applying SQL");
   }
   return verified;
+}
+
+// Drizzle's migrator skips every migration older than the newest record.
+// Other branches' records make that common in the shared development
+// database, so development applies exactly this branch's pending SQL in one
+// transaction on the locked connection.
+async function applyDevelopmentMigrations(
+  client: Client | PoolClient,
+  pending: MigrationMeta[],
+) {
+  await client.query('CREATE SCHEMA IF NOT EXISTS "drizzle"');
+  await client.query(
+    'CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)',
+  );
+  await client.query("BEGIN");
+  try {
+    for (const migration of pending) {
+      for (const statement of migration.sql) {
+        if (statement.trim()) {
+          // biome-ignore lint/performance/noAwaitInLoops: Migration statements must run in order.
+          await client.query(statement);
+        }
+      }
+      await client.query(
+        'INSERT INTO "drizzle"."__drizzle_migrations" ("hash", "created_at") VALUES ($1, $2)',
+        [migration.hash, migration.folderMillis],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
+}
+
+function compatibilityRepair(
+  repository: Awaited<ReturnType<typeof checkMigrationSources>>,
+  history: Awaited<ReturnType<typeof verifyMigrationHistory>>,
+  compatibilityTag: string,
+) {
+  const [entry] = selectMigrations(repository.entries, {
+    compatibilityTag,
+    compatibilityOnly: true,
+  });
+  const migration = entry ? history.expected[entry.idx] : undefined;
+  if (!(entry && migration)) {
+    throw new Error("Compatibility migration is missing");
+  }
+  const firstPending = history.expected.findIndex((candidate) =>
+    history.pending.includes(candidate),
+  );
+  if (firstPending !== -1 && entry.idx > firstPending) {
+    throw new Error(
+      "Compatibility repair cannot skip unapplied canonical migrations",
+    );
+  }
+  return { entry, migration };
+}
+
+function compatibilityRepairFolder(
+  folder: string,
+  entry: ReturnType<typeof compatibilityRepair>["entry"],
+) {
+  const temporaryFolder = mkdtempSync(
+    join(tmpdir(), "cantiara-migration-repair-"),
+  );
+  mkdirSync(join(temporaryFolder, "meta"));
+  copyFileSync(
+    join(folder, `${entry.tag}.sql`),
+    join(temporaryFolder, `${entry.tag}.sql`),
+  );
+  writeFileSync(
+    join(temporaryFolder, "meta", "_journal.json"),
+    JSON.stringify({
+      version: "7",
+      dialect: "postgresql",
+      entries: [{ ...entry, idx: 0 }],
+    }),
+  );
+  return temporaryFolder;
+}
+
+function warnAboutContractMigrations(
+  repository: Awaited<ReturnType<typeof checkMigrationSources>>,
+  history: Awaited<ReturnType<typeof verifyMigrationHistory>>,
+  securityEvents: boolean,
+) {
+  const contract = new Set(
+    assertParallelSafeMigrations(
+      repository,
+      parallelSafetyBaseline(securityEvents),
+    ),
+  );
+  for (const [index, entry] of repository.entries.entries()) {
+    const migration = history.expected[index];
+    if (
+      contract.has(entry.tag) &&
+      migration &&
+      history.pending.includes(migration)
+    ) {
+      console.warn(
+        `${entry.tag} is an acknowledged contract migration; other workspaces still running code that depends on the old schema will break.`,
+      );
+    }
+  }
 }
 
 async function runMigrations() {
@@ -91,55 +205,40 @@ async function runMigrations() {
         "Another migration or development API session is using this database. Stop development servers before applying migrations.",
       );
     }
-    const history = await verifyMigrationHistory(client, folder);
-    let selectedFolder = folder;
-    if (compatibilityTag) {
-      const selected = selectMigrations(repository.entries, {
-        compatibilityTag,
-        compatibilityOnly: true,
+    // Shared development databases also hold other branches' migrations;
+    // deployment targets must match the canonical chain exactly.
+    const allowForeign = !deployment;
+    const history = await verifyMigrationHistory(client, folder, {
+      allowForeign,
+    });
+    const repair = compatibilityTag
+      ? compatibilityRepair(repository, history, compatibilityTag)
+      : undefined;
+    if (deployment) {
+      if (repair) {
+        temporaryFolder = compatibilityRepairFolder(folder, repair.entry);
+      }
+      await migrate(database, {
+        migrationsFolder: temporaryFolder ?? folder,
       });
-      const [entry] = selected;
-      if (!entry) {
-        throw new Error("Compatibility migration is missing");
-      }
-      if (
-        entry.idx >= history.applied.length &&
-        entry.idx !== history.applied.length
-      ) {
-        throw new Error(
-          "Compatibility repair cannot skip unapplied canonical migrations",
-        );
-      }
-      temporaryFolder = mkdtempSync(
-        join(tmpdir(), "cantiara-migration-repair-"),
+    } else {
+      warnAboutContractMigrations(repository, history, securityEvents);
+      await applyDevelopmentMigrations(
+        client,
+        history.pending.filter(
+          (migration) => !repair || migration === repair.migration,
+        ),
       );
-      mkdirSync(join(temporaryFolder, "meta"));
-      copyFileSync(
-        join(folder, `${compatibilityTag}.sql`),
-        join(temporaryFolder, `${compatibilityTag}.sql`),
-      );
-      writeFileSync(
-        join(temporaryFolder, "meta", "_journal.json"),
-        JSON.stringify({
-          version: "7",
-          dialect: "postgresql",
-          entries: selected.map((migrationEntry, index) => ({
-            ...migrationEntry,
-            idx: index,
-          })),
-        }),
-      );
-      selectedFolder = temporaryFolder;
     }
-    await migrate(database, { migrationsFolder: selectedFolder });
     const verified = await verifyAppliedSchema(
       client,
       folder,
       repository,
       compatibilityTag,
+      allowForeign,
     );
     console.log(
-      `${securityEvents ? "Security events" : "Primary"}: ${verified.applied.length}/${repository.entries.length} canonical migrations verified`,
+      `${securityEvents ? "Security events" : "Primary"}: ${verified.expected.length - verified.pending.length}/${repository.entries.length} canonical migrations verified${verified.foreign.length > 0 ? `; ${verified.foreign.length} from other branches kept` : ""}`,
     );
   } finally {
     try {
@@ -165,7 +264,7 @@ if (import.meta.main) {
     const safe =
       error instanceof Error &&
       (error instanceof MigrationHistoryError ||
-        /^(Another migration|Compatibility|Migration schema verification|Migration history|Application and migration targets differ|Source schema differs|Invalid migration|Missing migration|Migration snapshot|Migration target must|Local migration requires|Deployment migration requires)/.test(
+        /^(\d{4}_[A-Za-z0-9_-]+ is not safe|Another migration|Compatibility|Migration schema verification|Migration history|Application and migration targets differ|Source schema differs|Invalid migration|Missing migration|Migration snapshot|Migration target must|Local migration requires|Deployment migration requires)/.test(
           error.message,
         ));
     console.error(
