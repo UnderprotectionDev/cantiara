@@ -323,3 +323,17 @@ test("batched inspection fails closed when a plan result is missing", async () =
     inspectDatabaseSchema(fixture.client, fixture.snapshot, true),
   ).rejects.toThrow("Database expression could not be inspected");
 });
+
+test("deep inspection compares a generated column's expression instead of expecting no default", async () => {
+  const fixture = expressionInspectionFixture(1);
+  const column = fixture.snapshot.tables["public.item_0"]?.columns.value_0;
+  if (!column) {
+    throw new Error("Missing fixture column");
+  }
+  column.default = undefined;
+  column.generated = { as: "value_0 + 1", type: "stored" };
+  await expect(
+    inspectDatabaseSchema(fixture.client, fixture.snapshot, true),
+  ).resolves.toEqual([]);
+  expect(fixture.explainCalls.flat().join("\n")).toContain("(value_0 + 1)");
+});

@@ -498,7 +498,8 @@ function planTableExpressions(
     if (found) {
       defaultChecks.push({
         comparisonIndex: addComparison(
-          column.default === undefined ? undefined : String(column.default),
+          column.generated?.as ??
+            (column.default === undefined ? undefined : String(column.default)),
           found.default_expression,
         ),
         issue: `Column default differs: ${table.name}.${column.name}`,
