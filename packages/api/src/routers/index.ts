@@ -372,6 +372,13 @@ import {
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
+import {
+  createUserFlowInputSchema,
+  placeUserFlowNodeInputSchema,
+  saveUserFlowVersionInputSchema,
+  userFlowInputSchema,
+  userFlowProjectInputSchema,
+} from "../user-flow";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   previewWorkContextLayout,
@@ -965,6 +972,63 @@ function requireFeedback(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.feedback;
+}
+
+function requireUserFlow(context: Context) {
+  if (!context.userFlow) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.userFlow;
+}
+
+const USER_FLOW_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  USER_FLOW_NOT_FOUND: "User Flow is unavailable.",
+  USER_FLOW_PROJECT_NOT_FOUND: "Project is unavailable.",
+};
+
+const USER_FLOW_REJECTED_MESSAGES: Record<string, string> = {
+  USER_FLOW_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  USER_FLOW_SCREEN_UNAVAILABLE:
+    "The Screen is not an active Screen of this Project.",
+};
+
+async function runUserFlowOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "USER_FLOW_VERSION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "User Flow changed since it was loaded. Reload and try again.",
+      });
+    }
+    const rejected = USER_FLOW_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = USER_FLOW_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
 }
 
 function requireContacts(context: Context) {
@@ -3475,6 +3539,55 @@ export const appRouter = {
       }
       return view;
     }),
+  userFlows: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  userFlow: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).get(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  userFlowScreens: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).screens(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createUserFlow: protectedProcedure
+    .input(createUserFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).create(context.session.user.id, input),
+      ),
+    ),
+  saveUserFlowVersion: protectedProcedure
+    .input(saveUserFlowVersionInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).save(context.session.user.id, input),
+      ),
+    ),
+  placeUserFlowNode: protectedProcedure
+    .input(placeUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).placeNode(context.session.user.id, input),
+      ),
+    ),
   technicalDiagrams: protectedProcedure
     .input(z.object({ projectId: projectIdSchema }).strict())
     .handler(({ context, input }) => {

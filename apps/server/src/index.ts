@@ -65,6 +65,7 @@ import {
   universalSearch,
   usageLinkMutationContracts,
   usageLinks,
+  userFlow,
   webCapture,
   workContext,
   workDrafts,
@@ -131,6 +132,7 @@ const app = createApp({
   documentTransfers,
   smartCollections,
   technicalDiagrams,
+  userFlow,
   universalSearch,
   focusPeriod,
   desktopApiWindow: {
