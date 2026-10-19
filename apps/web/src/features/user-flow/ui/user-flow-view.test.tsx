@@ -13,6 +13,7 @@ const ignore = () => undefined;
 
 function flow(screen: UserFlowView["nodes"][number]["screen"]): UserFlowView {
   return {
+    cards: [],
     createdAt: placedAt,
     id: "f1",
     links: [],

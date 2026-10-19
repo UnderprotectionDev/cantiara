@@ -1,7 +1,12 @@
-import type { UserFlowDocument } from "@cantiara/db/schema/user-flow";
+import type {
+  UserFlowDocument,
+  UserFlowTemplateStructure,
+} from "@cantiara/db/schema/user-flow";
 import { z } from "zod";
 
+import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 import type { BrokenReferenceView } from "./relations";
+import { workTypeSchema } from "./work-lifecycle";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 const versionSchema = z.number().int().min(1).safe();
@@ -88,6 +93,40 @@ export const userFlowNodeInputSchema = z
   .strict()
   .superRefine(requireScreenOnlyForScreenNodes);
 
+/**
+ * Node of a saved document. A Screen node of a template instance is an
+ * unlinked placeholder until the founder links a Screen explicitly, so the
+ * document shape allows `screenId: null` on a Screen node; the seam accepts it
+ * only for a placeholder that already exists in the previous version.
+ */
+const userFlowDocumentNodeInputSchema = z
+  .object({ id: identifierSchema, ...nodeFields })
+  .strict()
+  .superRefine((node, context) => {
+    if (node.kind !== "Screen" && node.screenId !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Only a Screen node can reference a Screen.",
+        path: ["screenId"],
+      });
+    }
+  });
+
+export const USER_FLOW_CARD_KINDS = ["Work", "Decision", "Risk"] as const;
+export const userFlowCardKindSchema = z.enum(USER_FLOW_CARD_KINDS);
+export type UserFlowCardKind = z.infer<typeof userFlowCardKindSchema>;
+export const USER_FLOW_CARD_LIMIT = 100;
+
+export const userFlowCardInputSchema = z
+  .object({
+    id: identifierSchema,
+    kind: userFlowCardKindSchema,
+    position: positionSchema.default({ x: 0, y: 0 }),
+    /** The only record data a card holds: the live reference. Never a copy. */
+    recordId: identifierSchema,
+  })
+  .strict();
+
 export const userFlowLinkInputSchema = z
   .object({
     from: identifierSchema,
@@ -99,14 +138,25 @@ export const userFlowLinkInputSchema = z
 
 export const userFlowDocumentInputSchema = z
   .object({
+    /** Omitted keeps the cards of the previous version. */
+    cards: z
+      .array(userFlowCardInputSchema)
+      .max(USER_FLOW_CARD_LIMIT)
+      .optional(),
     links: z.array(userFlowLinkInputSchema).max(USER_FLOW_LINK_LIMIT),
-    nodes: z.array(userFlowNodeInputSchema).max(USER_FLOW_NODE_LIMIT),
+    nodes: z.array(userFlowDocumentNodeInputSchema).max(USER_FLOW_NODE_LIMIT),
   })
   .strict()
   .superRefine((document, context) => {
     const nodeIds = new Set(document.nodes.map(({ id }) => id));
     if (nodeIds.size !== document.nodes.length) {
       context.addIssue({ code: "custom", message: "Duplicate node id." });
+    }
+    if (
+      new Set((document.cards ?? []).map(({ id }) => id)).size !==
+      (document.cards ?? []).length
+    ) {
+      context.addIssue({ code: "custom", message: "Duplicate card id." });
     }
     if (
       new Set(document.links.map(({ id }) => id)).size !== document.links.length
@@ -238,6 +288,8 @@ export interface UserFlowNodeView {
 }
 
 export interface UserFlowView {
+  /** Read-only live cards; moving or removing one never writes the source. */
+  cards: UserFlowCardView[];
   createdAt: string;
   id: string;
   links: UserFlowDocument["links"];
@@ -306,8 +358,21 @@ export function resolveScreenReference(input: {
 export function buildUserFlowView(
   record: UserFlowRecord,
   lookups: ReadonlyMap<string, ScreenLookup>,
+  recordLookups: ReadonlyMap<string, RecordLookup> = new Map(),
 ): UserFlowView {
   return {
+    cards: (record.document.cards ?? []).map((card) => ({
+      id: card.id,
+      placedAt: card.placedAt,
+      position: card.position,
+      record: resolveRecordReference({
+        flowProjectId: record.projectId,
+        kind: card.kind,
+        lookup: recordLookups.get(recordLookupKey(card.kind, card.recordId)),
+        placedAt: card.placedAt,
+        recordId: card.recordId,
+      }),
+    })),
     createdAt: record.createdAt,
     id: record.id,
     links: record.document.links,
@@ -390,6 +455,15 @@ export interface UserFlowStore {
       userFlowId: string;
     },
   ) => Promise<UserFlowRecord | null>;
+  /**
+   * Atomic `Convert and Bind`: exactly one Work, Decision, Risk or Open
+   * Question plus its bind. It never creates a Screen. `null` when the User
+   * Flow is unavailable.
+   */
+  convertNode: (
+    accountId: string,
+    input: ParsedConvertUserFlowNodeInput,
+  ) => Promise<UserFlowBindRecord | null>;
   /** Creates version 1; `null` when the Project is unavailable. */
   create: (
     accountId: string,
@@ -400,31 +474,111 @@ export interface UserFlowStore {
       title: string;
     },
   ) => Promise<UserFlowRecord | null>;
+  /** Creates one minimal Screen master; `null` when the Project is unavailable. */
+  createScreen: (
+    accountId: string,
+    input: { id: string; projectId: string; title: string },
+  ) => Promise<ScreenOption | null>;
+  /** Saves a custom template for the Workspace of the Project; `null` when unavailable. */
+  createTemplate: (
+    accountId: string,
+    input: {
+      id: string;
+      name: string;
+      projectId: string;
+      structure: UserFlowTemplateStructure;
+    },
+  ) => Promise<UserFlowTemplateView | null>;
   find: (
     accountId: string,
     projectId: string,
     userFlowId: string,
   ) => Promise<UserFlowRecord | null>;
+  /** Template of the Workspace that owns the Project; `null` when unavailable. */
+  findTemplate: (
+    accountId: string,
+    projectId: string,
+    templateId: string,
+  ) => Promise<UserFlowTemplateView | null>;
+  /** Read-only document of one saved version; `null` when it does not exist. */
+  findVersion: (
+    accountId: string,
+    projectId: string,
+    userFlowId: string,
+    version: number,
+  ) => Promise<UserFlowDocument | null>;
   list: (
     accountId: string,
     projectId: string,
   ) => Promise<UserFlowRecord[] | null>;
+  /** Binds of one User Flow; `null` when the User Flow is unavailable. */
+  listBinds: (
+    accountId: string,
+    projectId: string,
+    userFlowId: string,
+  ) => Promise<UserFlowBindRecord[] | null>;
+  /** Work, Decision and Risk a live card can show; `null` when the Project is unavailable. */
+  listCardRecords: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<CardRecordOption[] | null>;
   /** Active Screens a node can reference; `null` when the Project is unavailable. */
   listScreens: (
     accountId: string,
     projectId: string,
   ) => Promise<ScreenOption[] | null>;
+  /** Templates of the Workspace that owns the Project; `null` when unavailable. */
+  listTemplates: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<UserFlowTemplateView[] | null>;
+  /** Record ids the store cannot find are permanently deleted. Read-only. */
+  lookupRecords: (
+    accountId: string,
+    refs: Array<{ id: string; kind: RecordLookupKind }>,
+  ) => Promise<Map<string, RecordLookup>>;
   /** Screen ids the store cannot find are permanently deleted. */
   lookupScreens: (
     accountId: string,
     screenIds: string[],
   ) => Promise<Map<string, ScreenLookup>>;
+  /** Read-only; writes nothing. */
+  readConversionSource: (
+    accountId: string,
+    projectId: string,
+    userFlowId: string,
+  ) => Promise<UserFlowConversionSource | null>;
+  /**
+   * Moves a bind to the previewed version only; the Origin Location stays.
+   * `null` when the bind is unavailable.
+   */
+  rebind: (
+    accountId: string,
+    input: ParsedRebindUserFlowBindInput,
+  ) => Promise<UserFlowBindRecord | null>;
 }
 
 export interface UserFlowAccess {
+  binds: (
+    accountId: string,
+    projectId: string,
+    userFlowId: string,
+  ) => Promise<UserFlowBindView[]>;
+  cardRecords: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<CardRecordOption[]>;
+  convertNode: (
+    accountId: string,
+    input: ConvertUserFlowNodeInput,
+  ) => Promise<UserFlowBindView>;
   create: (
     accountId: string,
     input: CreateUserFlowInput,
+  ) => Promise<UserFlowView>;
+  createFromTemplate: (
+    accountId: string,
+    input: CreateUserFlowFromTemplateInput,
   ) => Promise<UserFlowView>;
   get: (
     accountId: string,
@@ -432,13 +586,644 @@ export interface UserFlowAccess {
     userFlowId: string,
   ) => Promise<UserFlowView>;
   list: (accountId: string, projectId: string) => Promise<UserFlowSummary[]>;
+  placeCard: (
+    accountId: string,
+    input: PlaceUserFlowCardInput,
+  ) => Promise<UserFlowView>;
   placeNode: (
     accountId: string,
     input: PlaceUserFlowNodeInput,
   ) => Promise<UserFlowView>;
+  previewConvert: (
+    accountId: string,
+    input: PreviewConvertUserFlowNodeInput,
+  ) => Promise<UserFlowConvertPlan>;
+  previewRebind: (
+    accountId: string,
+    input: PreviewRebindUserFlowBindInput,
+  ) => Promise<UserFlowRebindPlan>;
+  promoteToScreen: (
+    accountId: string,
+    input: PromoteUserFlowNodeInput,
+  ) => Promise<UserFlowView>;
+  rebind: (
+    accountId: string,
+    input: RebindUserFlowBindInput,
+  ) => Promise<UserFlowBindView>;
   save: (
     accountId: string,
     input: SaveUserFlowVersionInput,
   ) => Promise<UserFlowView>;
+  saveTemplate: (
+    accountId: string,
+    input: SaveUserFlowTemplateInput,
+  ) => Promise<UserFlowTemplateView>;
   screens: (accountId: string, projectId: string) => Promise<ScreenOption[]>;
+  templates: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<UserFlowTemplateView[]>;
+}
+
+// --- Live records: read-only cards and the records a bind opened -----------
+
+export type RecordLookupKind = "Decision" | "Open Question" | "Risk" | "Work";
+
+/** What the owning stores can say about a record id; absence means permanently deleted. */
+export type RecordLookup =
+  | {
+      archived: boolean;
+      kind: "found";
+      projectId: string;
+      status: string | null;
+      title: string;
+      /** In Trash: a broken target that can still open its source. */
+      trashed?: boolean;
+    }
+  | { kind: "inaccessible" };
+
+export function recordLookupKey(kind: RecordLookupKind, recordId: string) {
+  return `${kind}:${recordId}`;
+}
+
+const RECORD_SOURCE_PREFIXES: Record<RecordLookupKind, string> = {
+  Decision: "source-decision-",
+  "Open Question": "source-open-question-",
+  Risk: "source-risk-",
+  Work: "work-",
+};
+
+export function recordSourcePath(
+  projectId: string,
+  kind: RecordLookupKind,
+  recordId: string,
+) {
+  return `/projects/${encodeURIComponent(projectId)}#${RECORD_SOURCE_PREFIXES[kind]}${encodeURIComponent(recordId)}`;
+}
+
+/** Live, read-only view of the source record behind a card or a bind. */
+export interface RecordReferenceView {
+  broken: BrokenReferenceView | null;
+  kind: RecordLookupKind;
+  /** Relative app path of the source record; null when it cannot be opened. */
+  openPath: string | null;
+  recordId: string;
+  status: string | null;
+  title: string | null;
+}
+
+/**
+ * Resolves one record reference by its own id only. A permanently deleted,
+ * foreign or cross-Project record is a broken target with no title or status;
+ * an archived one stays readable and visibly `Archived`.
+ */
+export function resolveRecordReference(input: {
+  flowProjectId: string;
+  kind: RecordLookupKind;
+  lookup: RecordLookup | undefined;
+  placedAt: string;
+  recordId: string;
+}): RecordReferenceView {
+  const { flowProjectId, kind, lookup, placedAt, recordId } = input;
+  const broken = (
+    reason: BrokenReferenceView["reason"],
+  ): RecordReferenceView => ({
+    broken: { canOpenSourceRecord: false, establishedAt: placedAt, reason },
+    kind,
+    openPath: null,
+    recordId,
+    status: null,
+    title: null,
+  });
+  if (!lookup) {
+    return broken("Permanently deleted");
+  }
+  if (lookup.kind === "inaccessible" || lookup.projectId !== flowProjectId) {
+    return broken("No access");
+  }
+  if (lookup.trashed) {
+    return {
+      broken: {
+        canOpenSourceRecord: true,
+        establishedAt: placedAt,
+        reason: "In Trash",
+      },
+      kind,
+      openPath: recordSourcePath(flowProjectId, kind, recordId),
+      recordId,
+      status: null,
+      title: null,
+    };
+  }
+  return {
+    broken: lookup.archived
+      ? {
+          canOpenSourceRecord: true,
+          establishedAt: placedAt,
+          reason: "Archived",
+        }
+      : null,
+    kind,
+    openPath: recordSourcePath(flowProjectId, kind, recordId),
+    recordId,
+    status: lookup.status,
+    title: lookup.title,
+  };
+}
+
+export interface CardRecordOption {
+  id: string;
+  kind: UserFlowCardKind;
+  title: string;
+}
+
+export interface UserFlowCardView {
+  id: string;
+  placedAt: string;
+  position: { x: number; y: number };
+  record: RecordReferenceView;
+}
+
+export const placeUserFlowCardInputSchema = z
+  .object({
+    expectedVersion: versionSchema,
+    kind: userFlowCardKindSchema,
+    position: positionSchema.default({ x: 0, y: 0 }),
+    projectId: identifierSchema,
+    recordId: identifierSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type PlaceUserFlowCardInput = z.input<
+  typeof placeUserFlowCardInputSchema
+>;
+
+// --- Convert and Bind -------------------------------------------------------
+
+/** The only targets of `Convert and Bind`; a Screen is promoted, never converted. */
+export const USER_FLOW_CONVERT_TARGETS = [
+  "Work",
+  "Decision",
+  "Risk",
+  "Open Question",
+] as const;
+export const userFlowConvertTargetSchema = z.enum(USER_FLOW_CONVERT_TARGETS);
+export type UserFlowConvertTarget = z.infer<typeof userFlowConvertTargetSchema>;
+
+export const USER_FLOW_WORK_TYPES = [
+  "Task",
+  "Bug",
+  "Research",
+  "Improvement",
+] as const;
+const userFlowWorkTypeSchema = z.enum(USER_FLOW_WORK_TYPES);
+export type UserFlowWorkType = z.infer<typeof userFlowWorkTypeSchema>;
+
+export const previewConvertUserFlowNodeInputSchema = z
+  .object({
+    nodeId: identifierSchema,
+    projectId: identifierSchema,
+    target: userFlowConvertTargetSchema,
+    userFlowId: identifierSchema,
+    workType: userFlowWorkTypeSchema.default("Task"),
+  })
+  .strict();
+
+export type PreviewConvertUserFlowNodeInput = z.input<
+  typeof previewConvertUserFlowNodeInputSchema
+>;
+
+/** Origin Location of a bind: immutable once the record exists. */
+export const userFlowOriginLocationSchema = z
+  .object({
+    flowVersion: versionSchema,
+    nodeId: identifierSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type UserFlowOriginLocation = z.infer<
+  typeof userFlowOriginLocationSchema
+>;
+
+/**
+ * Read-only `Convert and Bind` preview: exactly one record in the User Flow's
+ * own Project, its title/body map, the `Origin` relation and the Origin
+ * Location. Nothing exists until the founder confirms the exact plan.
+ */
+export const userFlowConvertPlanSchema = z
+  .object({
+    createsScreen: z.literal(false),
+    nodeId: identifierSchema,
+    originLocation: userFlowOriginLocationSchema,
+    projectId: identifierSchema,
+    recordCount: z.literal(1),
+    record: z
+      .object({
+        body: z.string().min(1).max(100_000),
+        title: z.string().min(1).max(255),
+        type: userFlowConvertTargetSchema,
+        workType: userFlowWorkTypeSchema.nullable(),
+      })
+      .strict(),
+    relation: z.literal("Origin"),
+    targetProject: z
+      .object({ id: identifierSchema, name: z.string().min(1) })
+      .strict(),
+    userFlowId: identifierSchema,
+  })
+  .strict()
+  .superRefine((plan, context) => {
+    if ((plan.record.type === "Work") !== (plan.record.workType !== null)) {
+      context.addIssue({
+        code: "custom",
+        message: "Only a Work has a Work type.",
+        path: ["record", "workType"],
+      });
+    }
+  });
+
+export type UserFlowConvertPlan = z.infer<typeof userFlowConvertPlanSchema>;
+
+export const convertUserFlowNodeInputSchema = humanMutationEnvelopeSchema
+  .extend({
+    /** Identity of the bind; the Mutation Contract target. */
+    id: identifierSchema,
+    nodeId: identifierSchema,
+    plan: userFlowConvertPlanSchema,
+    projectId: identifierSchema,
+    /** Identity of the single new record. */
+    recordId: identifierSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type ConvertUserFlowNodeInput = z.input<
+  typeof convertUserFlowNodeInputSchema
+>;
+export type ParsedConvertUserFlowNodeInput = z.output<
+  typeof convertUserFlowNodeInputSchema
+>;
+
+export interface UserFlowConversionSource {
+  projectName: string;
+  record: UserFlowRecord;
+}
+
+function firstLine(text: string) {
+  return (
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line !== "") ?? ""
+  );
+}
+
+/**
+ * The one mapping rule: the first line of the node text titles the record and
+ * the whole node text is its body. No AI, no summary, no extra records. `null`
+ * when the node is not in the exact current version.
+ */
+export function buildUserFlowConvertPlan(
+  source: UserFlowConversionSource,
+  input: {
+    nodeId: string;
+    target: UserFlowConvertTarget;
+    workType: UserFlowWorkType;
+  },
+): UserFlowConvertPlan | null {
+  const { record } = source;
+  const node = record.document.nodes.find(({ id }) => id === input.nodeId);
+  if (!node) {
+    return null;
+  }
+  const title = (
+    firstLine(node.text) || `${node.kind} node of ${record.title}`
+  ).slice(0, 255);
+  return userFlowConvertPlanSchema.parse({
+    createsScreen: false,
+    nodeId: node.id,
+    originLocation: {
+      flowVersion: record.version,
+      nodeId: node.id,
+      userFlowId: record.id,
+    },
+    projectId: record.projectId,
+    record: {
+      body: node.text.trim() || title,
+      title,
+      type: input.target,
+      workType:
+        input.target === "Work" ? workTypeSchema.parse(input.workType) : null,
+    },
+    recordCount: 1,
+    relation: "Origin",
+    targetProject: { id: record.projectId, name: source.projectName },
+    userFlowId: record.id,
+  });
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortKeys);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, sortKeys(item)]),
+    );
+  }
+  return value;
+}
+
+/** A confirmed plan must equal the plan re-derived from the current record. */
+export function isSameUserFlowPlan(left: unknown, right: unknown) {
+  return JSON.stringify(sortKeys(left)) === JSON.stringify(sortKeys(right));
+}
+
+/** Durable bind of one node to the one record it opened. */
+export interface UserFlowBindRecord {
+  boundVersion: number;
+  createdAt: string;
+  id: string;
+  nodeId: string;
+  /** Immutable: the exact flow version the record was opened from. */
+  originVersion: number;
+  recordId: string;
+  recordType: UserFlowConvertTarget;
+  revision: number;
+  updatedAt: string;
+  userFlowId: string;
+}
+
+export interface UserFlowBindNodeView {
+  kind: UserFlowNodeKind;
+  text: string;
+}
+
+export interface UserFlowBindView {
+  boundVersion: number;
+  createdAt: string;
+  id: string;
+  /** The node as it reads at the bound version; null when that version has no such node. */
+  node: UserFlowBindNodeView | null;
+  /** Immutable Origin Location with the node as it read at that exact version. */
+  origin: UserFlowOriginLocation & { node: UserFlowBindNodeView | null };
+  /** True only when a newer version has the node and the bind may be rebound. */
+  rebindAvailable: boolean;
+  record: RecordReferenceView;
+  revision: number;
+}
+
+function nodeAt(
+  document: UserFlowDocument | null,
+  nodeId: string,
+): UserFlowBindNodeView | null {
+  const node = document?.nodes.find(({ id }) => id === nodeId);
+  return node ? { kind: node.kind, text: node.text } : null;
+}
+
+export function buildUserFlowBindView(input: {
+  bind: UserFlowBindRecord;
+  boundDocument: UserFlowDocument | null;
+  current: UserFlowRecord;
+  lookup: RecordLookup | undefined;
+  originDocument: UserFlowDocument | null;
+}): UserFlowBindView {
+  const { bind, current } = input;
+  return {
+    boundVersion: bind.boundVersion,
+    createdAt: bind.createdAt,
+    id: bind.id,
+    node: nodeAt(input.boundDocument, bind.nodeId),
+    origin: {
+      flowVersion: bind.originVersion,
+      node: nodeAt(input.originDocument, bind.nodeId),
+      nodeId: bind.nodeId,
+      userFlowId: bind.userFlowId,
+    },
+    rebindAvailable:
+      bind.boundVersion < current.version &&
+      nodeAt(current.document, bind.nodeId) !== null,
+    record: resolveRecordReference({
+      flowProjectId: current.projectId,
+      kind: bind.recordType,
+      lookup: input.lookup,
+      placedAt: bind.createdAt,
+      recordId: bind.recordId,
+    }),
+    revision: bind.revision,
+  };
+}
+
+// --- Rebind (explicit, previewed) ------------------------------------------
+
+export const previewRebindUserFlowBindInputSchema = z
+  .object({
+    bindId: identifierSchema,
+    projectId: identifierSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type PreviewRebindUserFlowBindInput = z.input<
+  typeof previewRebindUserFlowBindInputSchema
+>;
+
+/** The exact move a rebind would make; the Origin Location is shown and never changes. */
+export const userFlowRebindPlanSchema = z
+  .object({
+    bindId: identifierSchema,
+    bindRevision: versionSchema,
+    fromVersion: versionSchema,
+    nodeId: identifierSchema,
+    originLocation: userFlowOriginLocationSchema,
+    projectId: identifierSchema,
+    recordId: identifierSchema,
+    recordType: userFlowConvertTargetSchema,
+    toVersion: versionSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type UserFlowRebindPlan = z.infer<typeof userFlowRebindPlanSchema>;
+
+export const rebindUserFlowBindInputSchema = z
+  .object({
+    bindId: identifierSchema,
+    plan: userFlowRebindPlanSchema,
+    projectId: identifierSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type RebindUserFlowBindInput = z.input<
+  typeof rebindUserFlowBindInputSchema
+>;
+export type ParsedRebindUserFlowBindInput = z.output<
+  typeof rebindUserFlowBindInputSchema
+>;
+
+/** `null` when the bind is already on the current version or the node left it. */
+export function buildUserFlowRebindPlan(
+  current: UserFlowRecord,
+  bind: UserFlowBindRecord,
+): UserFlowRebindPlan | null {
+  if (
+    bind.boundVersion >= current.version ||
+    nodeAt(current.document, bind.nodeId) === null
+  ) {
+    return null;
+  }
+  return userFlowRebindPlanSchema.parse({
+    bindId: bind.id,
+    bindRevision: bind.revision,
+    fromVersion: bind.boundVersion,
+    nodeId: bind.nodeId,
+    originLocation: {
+      flowVersion: bind.originVersion,
+      nodeId: bind.nodeId,
+      userFlowId: bind.userFlowId,
+    },
+    projectId: current.projectId,
+    recordId: bind.recordId,
+    recordType: bind.recordType,
+    toVersion: current.version,
+    userFlowId: current.id,
+  });
+}
+
+// --- Promote to Screen (a separate action, a live reference) ---------------
+
+export const promoteUserFlowNodeInputSchema = z
+  .object({
+    expectedVersion: versionSchema,
+    nodeId: identifierSchema,
+    projectId: identifierSchema,
+    /** Link an existing Screen, or create one Screen master with this title. */
+    screen: z.discriminatedUnion("mode", [
+      z
+        .object({ mode: z.literal("link"), screenId: identifierSchema })
+        .strict(),
+      z
+        .object({
+          mode: z.literal("create"),
+          screenId: identifierSchema.optional(),
+          title: z.string().trim().min(1).max(255),
+        })
+        .strict(),
+    ]),
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type PromoteUserFlowNodeInput = z.input<
+  typeof promoteUserFlowNodeInputSchema
+>;
+
+// --- Templates: structure and placeholders only -----------------------------
+
+export const userFlowTemplateNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Template name is required.")
+  .max(255, "Template name must be 255 characters or fewer.");
+
+export const saveUserFlowTemplateInputSchema = z
+  .object({
+    id: identifierSchema.optional(),
+    name: userFlowTemplateNameSchema,
+    /** The selected structure; links between selected nodes come along. */
+    nodeIds: z.array(identifierSchema).min(1).max(USER_FLOW_NODE_LIMIT),
+    projectId: identifierSchema,
+    userFlowId: identifierSchema,
+  })
+  .strict();
+
+export type SaveUserFlowTemplateInput = z.input<
+  typeof saveUserFlowTemplateInputSchema
+>;
+
+export const createUserFlowFromTemplateInputSchema = z
+  .object({
+    id: identifierSchema.optional(),
+    projectId: identifierSchema,
+    templateId: identifierSchema,
+    title: userFlowTitleSchema,
+  })
+  .strict();
+
+export type CreateUserFlowFromTemplateInput = z.input<
+  typeof createUserFlowFromTemplateInputSchema
+>;
+
+export interface UserFlowTemplateView {
+  createdAt: string;
+  id: string;
+  name: string;
+  structure: UserFlowTemplateStructure;
+}
+
+/**
+ * The stamp: the selected nodes and the links between them under
+ * template-local ids. A Screen node keeps its kind but loses its Screen id; no
+ * Work, Decision, Risk, card, relation, bind, version, publish state, history,
+ * Project id or source node id is carried.
+ */
+export function buildUserFlowTemplateStructure(
+  document: UserFlowDocument,
+  nodeIds: readonly string[],
+): UserFlowTemplateStructure {
+  const selected = new Set(nodeIds);
+  const chosen = document.nodes.filter(({ id }) => selected.has(id));
+  const localId = new Map(
+    chosen.map((node, index) => [node.id, `node-${index + 1}`]),
+  );
+  return {
+    links: document.links.flatMap((link, index) => {
+      const from = localId.get(link.from);
+      const to = localId.get(link.to);
+      return from && to
+        ? [{ from, id: `link-${index + 1}`, text: link.text, to }]
+        : [];
+    }),
+    nodes: chosen.map((node) => ({
+      id: localId.get(node.id) as string,
+      kind: node.kind,
+      position: node.position,
+      style: node.style ?? "default",
+      text: node.text,
+    })),
+  };
+}
+
+/**
+ * Stamps a template into a new document: fresh independent ids, no Screen ids
+ * (a Screen node is an unlinked placeholder until the founder links a Screen
+ * explicitly), no cards, no binds.
+ */
+export function instantiateUserFlowTemplate(
+  structure: UserFlowTemplateStructure,
+  createId: () => string,
+  placedAt: string,
+): UserFlowDocument {
+  const fresh = new Map(structure.nodes.map((node) => [node.id, createId()]));
+  return {
+    links: structure.links.flatMap((link) => {
+      const from = fresh.get(link.from);
+      const to = fresh.get(link.to);
+      return from && to ? [{ from, id: createId(), text: link.text, to }] : [];
+    }),
+    nodes: structure.nodes.map((node) => ({
+      id: fresh.get(node.id) as string,
+      kind: node.kind,
+      placedAt,
+      position: node.position,
+      screenId: null,
+      style: node.style,
+      text: node.text,
+    })),
+  };
 }

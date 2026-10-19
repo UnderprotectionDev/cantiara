@@ -25,9 +25,11 @@ import {
   PASTE_OFFSET,
   paste,
   redo,
+  removeCard,
   reorderSelection,
   select,
   selectAll,
+  setCardPositions,
   setNodePositions,
   setSelectionStyle,
   setSelectionText,
@@ -538,5 +540,80 @@ describe("keyboard alternatives", () => {
   test("unrelated keys are left alone", () => {
     expect(commandForKey(key({ key: "q" }))).toBeNull();
     expect(commandForKey(key({ key: "q", metaKey: true }))).toBeNull();
+  });
+});
+
+describe("read-only live cards", () => {
+  const card = {
+    id: "card-1",
+    kind: "Work" as const,
+    position: { x: 10, y: 20 },
+    recordId: "work-1",
+  };
+  const base = createEditor({
+    cards: [card],
+    links: [],
+    nodes: [node("a"), node("b")],
+  });
+
+  test("moving a card changes only its position in the flow document", () => {
+    const moved = setCardPositions(
+      base,
+      new Map([["card-1", { x: 100, y: 200 }]]),
+    );
+    expect(moved.document.cards).toEqual([
+      { ...card, position: { x: 100, y: 200 } },
+    ]);
+    expect(moved.document.cards?.[0]?.recordId).toBe("work-1");
+    expect(canUndo(moved)).toBe(true);
+    expect(undo(moved).document.cards).toEqual([card]);
+  });
+
+  test("removing a card removes it from the flow only and is undoable", () => {
+    const removed = removeCard(base, "card-1");
+    expect(removed.document.cards).toEqual([]);
+    expect(undo(removed).document.cards).toEqual([card]);
+    expect(removeCard(base, "missing")).toBe(base);
+  });
+
+  test("node operations carry cards through unchanged", () => {
+    let state = select(base, ["a"]);
+    state = deleteSelection(state);
+    expect(state.document.cards).toEqual([card]);
+    state = select(base, ["b"]);
+    state = paste(copySelection(state), counter());
+    expect(state.document.cards).toEqual([card]);
+    state = moveSelection(select(base, ["a"]), { dx: 5, dy: 5 });
+    expect(state.document.cards).toEqual([card]);
+  });
+
+  test("the saved document shape accepts cards by record id only", () => {
+    const parsed = userFlowDocumentInputSchema.safeParse({
+      cards: [
+        { id: "card-1", kind: "Work", position: { x: 1, y: 2 }, recordId: "w" },
+      ],
+      links: [],
+      nodes: [],
+    });
+    expect(parsed.success).toBe(true);
+    const copied = userFlowDocumentInputSchema.safeParse({
+      cards: [
+        {
+          id: "card-1",
+          kind: "Work",
+          recordId: "w",
+          title: "copied title",
+        },
+      ],
+      links: [],
+      nodes: [],
+    });
+    expect(copied.success).toBe(false);
+    const wrongKind = userFlowDocumentInputSchema.safeParse({
+      cards: [{ id: "c", kind: "Screen", recordId: "w" }],
+      links: [],
+      nodes: [],
+    });
+    expect(wrongKind.success).toBe(false);
   });
 });

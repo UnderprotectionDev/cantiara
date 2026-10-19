@@ -1,8 +1,5 @@
 import {
-  type ScreenLookup,
   USER_FLOW_NODE_TONES,
-  type UserFlowRecord,
-  type UserFlowStore,
   userFlowCounts,
   userFlowExportContent,
   userFlowSearchableText,
@@ -17,130 +14,12 @@ import {
   UserFlowScreenUnavailableError,
   UserFlowVersionConflictError,
 } from "./user-flow";
-
-const ACCOUNT = "account-1";
-const PROJECT = "project-1";
-const timestamp = "2026-10-01T09:00:00.000Z";
-
-interface MemoryScreen {
-  archivedAt: string | null;
-  id: string;
-  projectId: string;
-  redactedAt: string | null;
-  title: string;
-  trashedAt: string | null;
-}
-
-/** In-memory store; records every call so the seam's reach is observable. */
-function createMemoryStore() {
-  const flows = new Map<string, UserFlowRecord>();
-  const versions: Array<{ flowId: string; version: number }> = [];
-  const screens = new Map<string, MemoryScreen>();
-  const foreignScreens = new Set<string>();
-  const writes: string[] = [];
-  const store: UserFlowStore = {
-    appendVersion: async (accountId, input) => {
-      await Promise.resolve();
-      const current = flows.get(input.userFlowId);
-      if (
-        !current ||
-        accountId !== ACCOUNT ||
-        current.projectId !== input.projectId
-      ) {
-        return null;
-      }
-      if (current.version !== input.expectedVersion) {
-        throw new UserFlowVersionConflictError(current.id);
-      }
-      const next: UserFlowRecord = {
-        ...current,
-        document: input.document,
-        updatedAt: timestamp,
-        version: current.version + 1,
-      };
-      flows.set(next.id, next);
-      versions.push({ flowId: next.id, version: next.version });
-      writes.push("appendVersion");
-      return next;
-    },
-    create: async (accountId, input) => {
-      await Promise.resolve();
-      if (accountId !== ACCOUNT || input.projectId !== PROJECT) {
-        return null;
-      }
-      const record: UserFlowRecord = {
-        createdAt: timestamp,
-        document: input.document,
-        id: input.id,
-        projectId: input.projectId,
-        title: input.title,
-        updatedAt: timestamp,
-        version: 1,
-      };
-      flows.set(record.id, record);
-      versions.push({ flowId: record.id, version: 1 });
-      writes.push("create");
-      return record;
-    },
-    find: async (accountId, projectId, userFlowId) => {
-      await Promise.resolve();
-      const record = flows.get(userFlowId);
-      return record && accountId === ACCOUNT && record.projectId === projectId
-        ? record
-        : null;
-    },
-    list: async (accountId, projectId) => {
-      await Promise.resolve();
-      return accountId === ACCOUNT && projectId === PROJECT
-        ? [...flows.values()].filter((flow) => flow.projectId === projectId)
-        : null;
-    },
-    listScreens: async (accountId, projectId) => {
-      await Promise.resolve();
-      if (accountId !== ACCOUNT || projectId !== PROJECT) {
-        return null;
-      }
-      return [...screens.values()]
-        .filter(
-          (screen) =>
-            screen.projectId === projectId &&
-            !(screen.archivedAt || screen.trashedAt || screen.redactedAt),
-        )
-        .map(({ id, title }) => ({ id, title }));
-    },
-    lookupScreens: async (_accountId, screenIds) => {
-      await Promise.resolve();
-      const found = new Map<string, ScreenLookup>();
-      for (const id of screenIds) {
-        const screen = screens.get(id);
-        if (foreignScreens.has(id)) {
-          found.set(id, { kind: "inaccessible" });
-        } else if (screen) {
-          found.set(id, { ...screen, kind: "found" });
-        }
-      }
-      return found;
-    },
-  };
-  return {
-    addScreen(id: string, title: string, patch: Partial<MemoryScreen> = {}) {
-      screens.set(id, {
-        archivedAt: null,
-        id,
-        projectId: PROJECT,
-        redactedAt: null,
-        title,
-        trashedAt: null,
-        ...patch,
-      });
-    },
-    foreignScreens,
-    screens,
-    store,
-    versions,
-    writes,
-  };
-}
+import {
+  ACCOUNT,
+  createMemoryStore,
+  PROJECT,
+  timestamp,
+} from "./user-flow-memory-store";
 
 function setup() {
   const memory = createMemoryStore();

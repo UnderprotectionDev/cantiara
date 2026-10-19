@@ -1,12 +1,15 @@
+import type { UserFlowRebindPlan } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import type { EditorDocument } from "../lib/flow-editor";
+import type { PromoteChoice } from "./user-flow-promote-templates";
 import {
   type PlaceNodeDraft,
   UserFlowDetail,
+  type UserFlowDetailTools,
   UserFlowListView,
 } from "./user-flow-view";
 
@@ -26,9 +29,32 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     orpc.userFlowScreens.queryOptions({ input: { projectId } }),
   );
 
+  const binds = useQuery(
+    orpc.userFlowBinds.queryOptions({
+      input: selectedId ? { projectId, userFlowId: selectedId } : skipToken,
+    }),
+  );
+  const cardRecords = useQuery(
+    orpc.userFlowCardRecords.queryOptions({ input: { projectId } }),
+  );
+  const templates = useQuery(
+    orpc.userFlowTemplates.queryOptions({ input: { projectId } }),
+  );
+
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: orpc.userFlows.key() });
     await queryClient.invalidateQueries({ queryKey: orpc.userFlow.key() });
+    await queryClient.invalidateQueries({ queryKey: orpc.userFlowBinds.key() });
+    await queryClient.invalidateQueries({
+      queryKey: orpc.userFlowCardRecords.key(),
+    });
+  }
+  async function createFromTemplate(templateId: string, title: string) {
+    const created = await runOnlineOnlyWrite(() =>
+      client.createUserFlowFromTemplate({ projectId, templateId, title }),
+    );
+    setSelectedId(created.id);
+    await refresh();
   }
   async function create(title: string) {
     const created = await runOnlineOnlyWrite(() =>
@@ -74,6 +100,126 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     }
   }
 
+  const tools: UserFlowDetailTools | undefined = flow.data
+    ? {
+        binds: binds.data ?? [],
+        cardRecords: cardRecords.data ?? [],
+        onConvertConfirm: async (nodeId, plan, identity) => {
+          try {
+            return await runOnlineOnlyWrite(() =>
+              client.convertUserFlowNode({
+                baseRevision: 0,
+                clientIdempotencyKey: identity.key,
+                id: identity.id,
+                nodeId,
+                plan,
+                projectId,
+                recordId: identity.recordId,
+                userFlowId: flow.data.id,
+              }),
+            );
+          } finally {
+            await refresh();
+          }
+        },
+        onConvertPreview: (nodeId, target, workType) =>
+          client.previewUserFlowConvert({
+            nodeId,
+            projectId,
+            target,
+            userFlowId: flow.data.id,
+            workType,
+          }),
+        onPlaceCard: async (kind, recordId) => {
+          try {
+            await runOnlineOnlyWrite(() =>
+              client.placeUserFlowCard({
+                expectedVersion: flow.data.version,
+                kind,
+                projectId,
+                recordId,
+                userFlowId: flow.data.id,
+              }),
+            );
+          } finally {
+            await refresh();
+          }
+        },
+        onPreviewRebind: (bindId) =>
+          client.previewUserFlowRebind({
+            bindId,
+            projectId,
+            userFlowId: flow.data.id,
+          }),
+        onPromote: async (nodeId: string, choice: PromoteChoice) => {
+          try {
+            await runOnlineOnlyWrite(() =>
+              client.promoteUserFlowNode({
+                expectedVersion: flow.data.version,
+                nodeId,
+                projectId,
+                screen: choice,
+                userFlowId: flow.data.id,
+              }),
+            );
+          } finally {
+            await refresh();
+            await queryClient.invalidateQueries({
+              queryKey: orpc.userFlowScreens.key(),
+            });
+          }
+        },
+        onRebind: async (bindId: string, plan: UserFlowRebindPlan) => {
+          try {
+            await runOnlineOnlyWrite(() =>
+              client.rebindUserFlowBind({
+                bindId,
+                plan,
+                projectId,
+                userFlowId: flow.data.id,
+              }),
+            );
+          } finally {
+            await refresh();
+          }
+        },
+        // Removing a live card saves this flow without it; the source record is not written.
+        onRemoveCard: (cardId) =>
+          saveDocument({
+            cards: flow.data.cards
+              .filter(({ id }) => id !== cardId)
+              .map((card) => ({
+                id: card.id,
+                kind: card.record.kind as "Decision" | "Risk" | "Work",
+                position: card.position,
+                recordId: card.record.recordId,
+              })),
+            links: flow.data.links,
+            nodes: flow.data.nodes.map((node) => ({
+              id: node.id,
+              kind: node.kind,
+              position: node.position,
+              screenId: node.screen?.screenId ?? null,
+              style: node.style,
+              text: node.text,
+            })),
+          }),
+        onSaveTemplate: async (name, nodeIds) => {
+          await runOnlineOnlyWrite(() =>
+            client.saveUserFlowTemplate({
+              name,
+              nodeIds,
+              projectId,
+              userFlowId: flow.data.id,
+            }),
+          );
+          await queryClient.invalidateQueries({
+            queryKey: orpc.userFlowTemplates.key(),
+          });
+        },
+      }
+    : undefined;
+
   function retry() {
     flows.refetch().catch(() => undefined);
   }
@@ -93,6 +239,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     <UserFlowListView
       flows={flows.data}
       onCreate={create}
+      onCreateFromTemplate={createFromTemplate}
       onSelect={setSelectedId}
       readOnly={false}
       selected={
@@ -110,11 +257,13 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
               onPlaceNode={placeNode}
               readOnly={dirty}
               screens={screens.data ?? []}
+              tools={tools}
             />
           </div>
         ) : null
       }
       selectedId={selectedId}
+      templates={templates.data ?? []}
     />
   );
 }
