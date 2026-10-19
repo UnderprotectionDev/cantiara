@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { ScreensView } from "./screens-view";
+import WireframeSurface from "./wireframe-surface";
 
 export default function ScreensSurface({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -36,6 +37,15 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
       await refresh();
     }
   }
+  function renderWireframe(screen: ScreenRecord) {
+    return (
+      <WireframeSurface
+        projectId={projectId}
+        readOnly={screens.data?.readOnly ?? true}
+        screenId={screen.id}
+      />
+    );
+  }
   function retry() {
     screens.refetch().catch(() => undefined);
   }
@@ -55,6 +65,7 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
       onCreate={create}
       onSetLifecycle={setLifecycle}
       readOnly={screens.data.readOnly}
+      renderWireframe={renderWireframe}
       screens={screens.data.screens}
     />
   );

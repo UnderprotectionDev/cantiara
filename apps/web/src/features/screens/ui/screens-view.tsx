@@ -8,7 +8,7 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 
 export type CreateScreen = (title: string) => Promise<unknown>;
 export type SetScreenLifecycle = (
@@ -90,16 +90,21 @@ function CreateScreenForm({ onCreate }: { onCreate: CreateScreen }) {
   );
 }
 
+export type RenderWireframe = (screen: ScreenRecord) => ReactNode;
+
 function ScreenItem({
   onSetLifecycle,
   readOnly,
+  renderWireframe,
   screen,
 }: {
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
+  renderWireframe?: RenderWireframe;
   screen: ScreenRecord;
 }) {
   const [error, setError] = useState<string>();
+  const [wireframeOpen, setWireframeOpen] = useState(false);
   async function run(action: ScreenLifecycleAction) {
     setError(undefined);
     try {
@@ -147,6 +152,20 @@ function ScreenItem({
           ))}
         </div>
       )}
+      {renderWireframe && screen.lifecycle !== "In Trash" ? (
+        <div className="space-y-3">
+          <Button
+            aria-expanded={wireframeOpen}
+            onClick={() => setWireframeOpen((open) => !open)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {wireframeOpen ? "Close Wireframe" : "Open Wireframe"}
+          </Button>
+          {wireframeOpen ? renderWireframe(screen) : null}
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -155,11 +174,13 @@ export function ScreensView({
   onCreate,
   onSetLifecycle,
   readOnly,
+  renderWireframe,
   screens,
 }: {
   onCreate: CreateScreen;
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
+  renderWireframe?: RenderWireframe;
   screens: ScreenRecord[];
 }) {
   return (
@@ -187,6 +208,7 @@ export function ScreensView({
                     key={item.id}
                     onSetLifecycle={onSetLifecycle}
                     readOnly={readOnly}
+                    renderWireframe={renderWireframe}
                     screen={item}
                   />
                 ))}
