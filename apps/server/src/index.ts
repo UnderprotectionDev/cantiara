@@ -69,6 +69,7 @@ import {
   universalSearch,
   usageLinkMutationContracts,
   usageLinks,
+  userFlow,
   webCapture,
   workContext,
   workDrafts,
@@ -139,6 +140,7 @@ const app = createApp({
   moodboardSnapshots,
   moodboards,
   technicalDiagrams,
+  userFlow,
   universalSearch,
   focusPeriod,
   desktopApiWindow: {

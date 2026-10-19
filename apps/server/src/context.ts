@@ -80,6 +80,7 @@ import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
+import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -157,6 +158,7 @@ export interface CreateContextOptions {
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
+  userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
@@ -193,6 +195,7 @@ export async function createContext({
   moodboardSnapshots,
   moodboards,
   technicalDiagrams,
+  userFlow,
   universalSearch,
   focusPeriod,
   roadmapHorizon,
@@ -273,6 +276,7 @@ export async function createContext({
     moodboardSnapshots,
     moodboards,
     technicalDiagrams,
+    userFlow,
     universalSearch,
     focusPeriod,
     roadmapHorizon,

@@ -68,6 +68,7 @@ import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
+import type { UserFlowAccess } from "./user-flow";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
@@ -220,6 +221,7 @@ export interface Context {
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
+  userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;

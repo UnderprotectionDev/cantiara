@@ -106,6 +106,9 @@ const ProjectTechnicalDiagramsSurface = lazy(
       "@/features/technical-diagrams/ui/components/project-technical-diagrams-surface"
     ),
 );
+const UserFlowSurface = lazy(
+  () => import("@/features/user-flow/ui/user-flow-surface"),
+);
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
@@ -144,6 +147,13 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
           projectId={projectId}
           selectedViewId={selectedViewId}
         />
+      </Suspense>
+    );
+  }
+  if (activeHash === "user-flows") {
+    return (
+      <Suspense fallback={<p>Loading User Flows…</p>}>
+        <UserFlowSurface key={`user-flow:${projectId}`} projectId={projectId} />
       </Suspense>
     );
   }

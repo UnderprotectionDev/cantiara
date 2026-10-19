@@ -8,6 +8,92 @@ import { work, workKeyAllocation } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
+/** Record types a conversion can open; a Screen is never one of them. */
+export type ConvertedRecordType =
+  | "Assumption"
+  | "Decision"
+  | "Open Question"
+  | "Risk"
+  | "Work";
+
+/**
+ * Inserts the single record a conversion opens. The caller holds the owning
+ * Project row lock and passes that locked row. Every conversion path (a
+ * Document selection, a User Flow node) creates its record here, so a record
+ * is born the same way whichever surface opened it.
+ */
+export async function insertConvertedRecord(
+  executor: MutationDatabaseExecutor,
+  owner: typeof project.$inferSelect,
+  input: {
+    body: string;
+    committedAt: Date;
+    idempotencyKey: string;
+    /** Work only: the Origin Location columns of the new Work. */
+    origin?: {
+      componentId: string | null;
+      ownerRecordId: string | null;
+      sourceVersion: string | null;
+    };
+    payloadFingerprint: string;
+    recordId: string;
+    title: string;
+    type: ConvertedRecordType;
+    workType?: string | null;
+  },
+) {
+  const base = {
+    id: input.recordId,
+    projectId: owner.id,
+    title: input.title,
+    createdAt: input.committedAt,
+    updatedAt: input.committedAt,
+    revision: 1,
+  };
+  switch (input.type) {
+    case "Assumption":
+      await executor
+        .insert(assumption)
+        .values({ ...base, statement: input.body, life: "Open" });
+      return;
+    case "Open Question":
+      await executor
+        .insert(openQuestion)
+        .values({ ...base, question: input.body, life: "Open" });
+      return;
+    case "Decision":
+      await executor
+        .insert(decision)
+        .values({ ...base, decision: input.body, life: "Valid" });
+      return;
+    case "Risk":
+      await executor
+        .insert(risk)
+        .values({ ...base, description: input.body, life: "Open" });
+      return;
+    case "Work": {
+      if (!input.workType) {
+        throw new Error("Choose a Work type.");
+      }
+      await insertWorkWithKeyAllocation(executor, owner, {
+        committedAt: input.committedAt,
+        description: input.body,
+        idempotencyKey: input.idempotencyKey,
+        originComponentId: input.origin?.componentId,
+        originOwnerRecordId: input.origin?.ownerRecordId,
+        originSourceVersion: input.origin?.sourceVersion,
+        payloadFingerprint: input.payloadFingerprint,
+        title: input.title,
+        type: input.workType,
+        workId: input.recordId,
+      });
+      return;
+    }
+    default:
+      throw new Error("Unsupported conversion record type.");
+  }
+}
+
 /**
  * Creates the single record of `Convert to new record and bind`.
  * The caller holds the owning Project row lock and passes that locked row.
@@ -27,57 +113,21 @@ export async function createEvidenceRecord(
   if (!newRecord) {
     throw new Error("A new record is required.");
   }
-  const base = {
-    id: input.recordId,
-    projectId: owner.id,
+  await insertConvertedRecord(executor, owner, {
+    body: plan.pin.excerpt,
+    committedAt: input.committedAt,
+    idempotencyKey: input.idempotencyKey,
+    origin: {
+      componentId: plan.pin.source.componentId,
+      ownerRecordId: plan.pin.source.recordId,
+      sourceVersion: String(plan.pin.source.revision),
+    },
+    payloadFingerprint: input.payloadFingerprint,
+    recordId: input.recordId,
     title: newRecord.title,
-    createdAt: input.committedAt,
-    updatedAt: input.committedAt,
-    revision: 1,
-  };
-  const { excerpt } = plan.pin;
-  switch (newRecord.type) {
-    case "Assumption":
-      await executor
-        .insert(assumption)
-        .values({ ...base, statement: excerpt, life: "Open" });
-      return;
-    case "Open Question":
-      await executor
-        .insert(openQuestion)
-        .values({ ...base, question: excerpt, life: "Open" });
-      return;
-    case "Decision":
-      await executor
-        .insert(decision)
-        .values({ ...base, decision: excerpt, life: "Valid" });
-      return;
-    case "Risk":
-      await executor
-        .insert(risk)
-        .values({ ...base, description: excerpt, life: "Open" });
-      return;
-    case "Work": {
-      if (!newRecord.workType) {
-        throw new Error("Choose a Work type.");
-      }
-      await insertWorkWithKeyAllocation(executor, owner, {
-        committedAt: input.committedAt,
-        description: excerpt,
-        idempotencyKey: input.idempotencyKey,
-        originComponentId: plan.pin.source.componentId,
-        originOwnerRecordId: plan.pin.source.recordId,
-        originSourceVersion: String(plan.pin.source.revision),
-        payloadFingerprint: input.payloadFingerprint,
-        title: newRecord.title,
-        type: newRecord.workType,
-        workId: input.recordId,
-      });
-      return;
-    }
-    default:
-      throw new Error("Unsupported evidence record type.");
-  }
+    type: newRecord.type,
+    workType: newRecord.workType,
+  });
 }
 
 /**

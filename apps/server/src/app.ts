@@ -92,6 +92,7 @@ import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshn
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
+import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import {
   type WebCaptureAccess,
   webCapturePairingInputSchema,
@@ -225,6 +226,7 @@ export interface AppDependencies {
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
+  userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
@@ -1202,6 +1204,7 @@ export function createApp(dependencies: AppDependencies) {
       moodboardSnapshots: dependencies.moodboardSnapshots,
       moodboards: dependencies.moodboards,
       technicalDiagrams: dependencies.technicalDiagrams,
+      userFlow: dependencies.userFlow,
       universalSearch: dependencies.universalSearch,
       focusPeriod: dependencies.focusPeriod,
       roadmapHorizon: dependencies.roadmapHorizon,

@@ -411,6 +411,22 @@ import {
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
+import {
+  convertUserFlowNodeInputSchema,
+  createUserFlowFromTemplateInputSchema,
+  createUserFlowInputSchema,
+  placeUserFlowCardInputSchema,
+  placeUserFlowNodeInputSchema,
+  previewConvertUserFlowNodeInputSchema,
+  previewRebindUserFlowBindInputSchema,
+  promoteUserFlowNodeInputSchema,
+  rebindUserFlowBindInputSchema,
+  saveUserFlowTemplateInputSchema,
+  saveUserFlowVersionInputSchema,
+  saveUserFlowViewportInputSchema,
+  userFlowInputSchema,
+  userFlowProjectInputSchema,
+} from "../user-flow";
 import type { WebCaptureAccess } from "../web-capture";
 import {
   previewWorkContextLayout,
@@ -1004,6 +1020,87 @@ function requireFeedback(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.feedback;
+}
+
+function requireUserFlow(context: Context) {
+  if (!context.userFlow) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.userFlow;
+}
+
+const USER_FLOW_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  USER_FLOW_BIND_NOT_FOUND: "Bind is unavailable.",
+  USER_FLOW_NODE_NOT_FOUND: "Node is not in this version of the User Flow.",
+  USER_FLOW_NOT_FOUND: "User Flow is unavailable.",
+  USER_FLOW_PROJECT_NOT_FOUND: "Project is unavailable.",
+  USER_FLOW_TEMPLATE_NOT_FOUND: "User Flow template is unavailable.",
+};
+
+const USER_FLOW_STALE_MESSAGES: Record<string, string> = {
+  USER_FLOW_CONVERSION_STALE:
+    "The User Flow changed since the preview. Preview again.",
+  USER_FLOW_REBIND_STALE: "The bind changed since the preview. Preview again.",
+};
+
+const USER_FLOW_REJECTED_MESSAGES: Record<string, string> = {
+  USER_FLOW_NODE_NOT_PROMOTABLE: "This node already references a Screen.",
+  USER_FLOW_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  USER_FLOW_REBIND_NOT_NEEDED: "This bind has nothing to rebind.",
+  USER_FLOW_RECORD_UNAVAILABLE:
+    "The record is not an active Work, Decision or Risk of this Project.",
+  USER_FLOW_SCENE_LIMIT:
+    "A User Flow holds at most 500 visible items and 750 links.",
+  USER_FLOW_SCREEN_UNAVAILABLE:
+    "The Screen is not an active Screen of this Project.",
+};
+
+async function runUserFlowOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "USER_FLOW_VERSION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "User Flow changed since it was loaded. Reload and try again.",
+      });
+    }
+    const stale = USER_FLOW_STALE_MESSAGES[error.code];
+    if (stale) {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: stale,
+      });
+    }
+    const rejected = USER_FLOW_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = USER_FLOW_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
 }
 
 function requireContacts(context: Context) {
@@ -3595,6 +3692,166 @@ export const appRouter = {
       }
       return view;
     }),
+  userFlows: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  userFlow: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).get(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  userFlowScreens: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).screens(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createUserFlow: protectedProcedure
+    .input(createUserFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).create(context.session.user.id, input),
+      ),
+    ),
+  saveUserFlowVersion: protectedProcedure
+    .input(saveUserFlowVersionInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).save(context.session.user.id, input),
+      ),
+    ),
+  placeUserFlowNode: protectedProcedure
+    .input(placeUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).placeNode(context.session.user.id, input),
+      ),
+    ),
+  userFlowCardRecords: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).cardRecords(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  userFlowBinds: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).binds(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  previewUserFlowConvert: protectedProcedure
+    .input(previewConvertUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).previewConvert(context.session.user.id, input),
+      ),
+    ),
+  convertUserFlowNode: protectedProcedure
+    .input(convertUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).convertNode(context.session.user.id, input),
+      ),
+    ),
+  previewUserFlowRebind: protectedProcedure
+    .input(previewRebindUserFlowBindInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).previewRebind(context.session.user.id, input),
+      ),
+    ),
+  rebindUserFlowBind: protectedProcedure
+    .input(rebindUserFlowBindInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).rebind(context.session.user.id, input),
+      ),
+    ),
+  promoteUserFlowNode: protectedProcedure
+    .input(promoteUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).promoteToScreen(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  placeUserFlowCard: protectedProcedure
+    .input(placeUserFlowCardInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).placeCard(context.session.user.id, input),
+      ),
+    ),
+  userFlowViewport: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).viewport(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  saveUserFlowViewport: protectedProcedure
+    .input(saveUserFlowViewportInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).saveViewport(context.session.user.id, input),
+      ),
+    ),
+  userFlowTemplates: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).templates(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  saveUserFlowTemplate: protectedProcedure
+    .input(saveUserFlowTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).saveTemplate(context.session.user.id, input),
+      ),
+    ),
+  createUserFlowFromTemplate: protectedProcedure
+    .input(createUserFlowFromTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).createFromTemplate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   moodboards: protectedProcedure
     .input(moodboardsProjectInputSchema)
     .handler(async ({ context, input }) => {
