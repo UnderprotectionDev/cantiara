@@ -1076,17 +1076,17 @@ _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Kayda dönüştür ve bağla**:
 Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir. Önizleme hedef türü, Projeyi, başlık/gövde eşlemesini, `Kökeni`'ni ve Köken konumunu gösterir; onaydan önce kayıt oluşmaz.
-UI: `Convert and Bind`, `Preview`, `Target type`, `Confirm`, `Origin`, `Origin Location`, `Source item is gone`, `Rebind`
+UI: `Convert and Bind`, `Preview`, `Target type`, `Confirm`, `Origin`, `Origin Location`, `Kaynak öğe artık yok`, `Rebind`
 _Avoid_: Wireframe'den Ekran üretme, otomatik dönüşüm, Related
 
 **Wireframe şablonu**:
 Kesin Wireframe sürümünün yapı ve bağlı-blok damgası; kaynak Projenin İş/Karar geçmişini veya canlı bağını taşımaz.
-UI: `Save as template`, `Create Screen from template`
+UI: `Save as Template`, `Create Screen from Template`
 _Avoid_: İş şablonu, Belge şablonu, live-bound kopya
 
 **Canlı Wireframe kartı**:
 Wireframe yüzeyine konmuş salt okunur İş, Karar veya Risk referansı; taşımak kaynak kaydı yazmaz.
-UI: `Open Source Record`
+UI: `Place live card`, `Open Source Record`
 _Avoid_: planlama tahtası, Kullanım bağı, Proje Duvarı kartı
 
 **Bağlı Wireframe bloğu**:

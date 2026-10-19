@@ -37,6 +37,7 @@ import { createViewportSession } from "../engine/viewport-session";
 import { CanvasTextOverlay } from "./canvas-text-overlay";
 import type { ConvertAndBindActions } from "./convert-and-bind-panel";
 import type { LinkedBlockActions } from "./linked-block-controls";
+import { LiveCardPicker } from "./live-card-picker";
 import { WireframeOutline } from "./wireframe-outline";
 import type { ViewportGesture } from "./wireframe-stage";
 
@@ -307,6 +308,15 @@ export function WireframePane({
         <Button onClick={fitView} size="sm" type="button" variant="outline">
           Fit View
         </Button>
+        {readOnly ? null : (
+          <LiveCardPicker
+            onPlace={(record) => {
+              placed.current += 1;
+              const offset = 24 + (placed.current % 10) * 28;
+              editor.placeLiveCard(record, { x: offset, y: offset });
+            }}
+          />
+        )}
         {onSaveVersion && !readOnly ? (
           <Button onClick={onSaveVersion} size="sm" type="button">
             Save Version

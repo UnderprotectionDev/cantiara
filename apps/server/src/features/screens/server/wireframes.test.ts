@@ -101,6 +101,36 @@ describe("Wireframe document persistence", () => {
     expect(list.screens[0]?.wireframeVersions).toHaveLength(1);
   });
 
+  test("an archived Screen keeps its Wireframe editable: Archive is visibility, Trash is the broken target", async () => {
+    const { record, screens } = await setup();
+    await screens.setLifecycle(accountId, {
+      action: "archive",
+      projectId: "project-1",
+      screenId: record.id,
+    });
+    const saved = await screens.saveWireframe(accountId, {
+      document: documentWith(block("Card", "c1")),
+      projectId: "project-1",
+      screenId: record.id,
+    });
+    expect(saved.document.blocks).toHaveLength(1);
+    const list = await screens.list(accountId, "project-1");
+    expect(list.screens[0]?.lifecycle).toBe("Archived");
+
+    await screens.setLifecycle(accountId, {
+      action: "trash",
+      projectId: "project-1",
+      screenId: record.id,
+    });
+    await expect(
+      screens.saveWireframe(accountId, {
+        document: documentWith(),
+        projectId: "project-1",
+        screenId: record.id,
+      }),
+    ).rejects.toThrow();
+  });
+
   test("a document migrates through a registered chain and refuses a newer version", () => {
     const migrate = createWireframeMigrator({
       current: 3,

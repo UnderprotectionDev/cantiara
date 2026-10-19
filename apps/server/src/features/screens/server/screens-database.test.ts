@@ -168,6 +168,35 @@ describeDatabase("Screens PostgreSQL integration", () => {
     expect(rows).toHaveLength(2);
   });
 
+  test("saving a Wireframe on an archived Screen is allowed; Trash refuses it", async () => {
+    const access = createDatabaseScreens(requireDatabase());
+    const created = await access.create(accountId, {
+      projectId,
+      title: "Archived home",
+    });
+    const act = (action: "archive" | "trash") =>
+      access.setLifecycle(accountId, {
+        action,
+        projectId,
+        screenId: created.id,
+      });
+    await act("archive");
+    const saved = await access.saveWireframe(accountId, {
+      document: createEmptyWireframeDocument(),
+      projectId,
+      screenId: created.id,
+    });
+    expect(saved.version).toBe(1);
+    await act("trash");
+    await expect(
+      access.saveWireframe(accountId, {
+        document: createEmptyWireframeDocument(),
+        projectId,
+        screenId: created.id,
+      }),
+    ).rejects.toThrow();
+  });
+
   test("Move to Trash keeps Archive, Restore returns it, and repeats are no-ops", async () => {
     const access = createDatabaseScreens(requireDatabase());
     const created = await access.create(accountId, {

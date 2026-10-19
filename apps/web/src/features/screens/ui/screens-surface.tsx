@@ -6,6 +6,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import type { ScreenTemplateActions } from "./screen-templates";
 import ScreensOutputSurface from "./screens-output-surface";
 import { ScreensView } from "./screens-view";
 import WireframeSurface from "./wireframe-surface";
@@ -21,6 +22,32 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
     await runOnlineOnlyWrite(() => client.createScreen({ projectId, title }));
     await refresh();
   }
+  const templateOptions = orpc.screenTemplates.queryOptions({
+    input: { projectId },
+  });
+  const templateList = useQuery(templateOptions);
+  const templates: ScreenTemplateActions = {
+    create: async (templateId, title) => {
+      await runOnlineOnlyWrite(() =>
+        client.createScreenFromTemplate({ projectId, templateId, title }),
+      );
+      await refresh();
+    },
+    save: async (screen, wireframeVersion, name) => {
+      await runOnlineOnlyWrite(() =>
+        client.saveScreenTemplate({
+          name,
+          projectId,
+          screenId: screen.id,
+          wireframeVersion,
+        }),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: templateOptions.queryKey,
+      });
+    },
+    templates: templateList.data ?? [],
+  };
   async function setLifecycle(
     screen: ScreenRecord,
     action: ScreenLifecycleAction,
@@ -69,6 +96,7 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
         readOnly={screens.data.readOnly}
         renderWireframe={renderWireframe}
         screens={screens.data.screens}
+        templates={templates}
       />
       <ScreensOutputSurface
         projectId={projectId}
