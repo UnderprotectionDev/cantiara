@@ -178,7 +178,13 @@ export async function toRecords(
       fileAttachment,
       eq(fileAttachment.id, feedbackAttachment.attachmentId),
     )
-    .where(inArray(feedbackAttachment.feedbackId, ids))
+    // Only Active references are shown, as at attach time; Archive and Trash hide the name.
+    .where(
+      and(
+        inArray(feedbackAttachment.feedbackId, ids),
+        eq(fileAttachment.lifecycleStatus, "Active"),
+      ),
+    )
     .orderBy(asc(feedbackAttachment.createdAt), asc(fileAttachment.id));
   const contacts = await executor
     .select({
@@ -882,21 +888,28 @@ export function createDatabaseFeedbackStore(database: Database): FeedbackStore {
     },
 
     list(accountId, projectId): Promise<FeedbackList | null> {
-      return database.transaction(async (executor) => {
-        const owned = await openProject(executor, accountId, projectId, false);
-        if (!owned) {
-          return null;
-        }
-        const rows = await executor
-          .select()
-          .from(feedback)
-          .where(eq(feedback.projectId, owned.id))
-          .orderBy(desc(feedback.occurredAt), asc(feedback.id));
-        return {
-          readOnly: owned.archivedAt !== null,
-          records: await toRecords(executor, rows),
-        };
-      });
+      return database.transaction(
+        async (executor) => {
+          const owned = await findReadableProject(
+            executor,
+            accountId,
+            projectId,
+          );
+          if (!owned) {
+            return null;
+          }
+          const rows = await executor
+            .select()
+            .from(feedback)
+            .where(eq(feedback.projectId, owned.id))
+            .orderBy(desc(feedback.occurredAt), asc(feedback.id));
+          return {
+            readOnly: owned.archivedAt !== null,
+            records: await toRecords(executor, rows),
+          };
+        },
+        { accessMode: "read only", isolationLevel: "repeatable read" },
+      );
     },
 
     setStatus(accountId, input) {

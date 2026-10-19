@@ -7,7 +7,7 @@ import type {
 import type { Database } from "@cantiara/db";
 import { decision } from "@cantiara/db/schema/decision";
 import { evidenceBinding } from "@cantiara/db/schema/evidence";
-import { feedback } from "@cantiara/db/schema/feedback";
+import { feedback, feedbackWorkOrigin } from "@cantiara/db/schema/feedback";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { work } from "@cantiara/db/schema/work";
@@ -35,7 +35,7 @@ function addRelated(
   related.set(rowId, list);
 }
 
-/** Existing relations only: Work-owned relations and Evidence bindings that point away from the row. */
+/** Existing relations only: Work-owned relations, `Origin` links and Evidence bindings that point away from the row. */
 async function readRelated(
   executor: FeedbackExecutor,
   projectId: string,
@@ -67,6 +67,29 @@ async function readRelated(
     .orderBy(asc(workRelation.createdAt), asc(workRelation.id));
   for (const row of works) {
     addRelated(related, row.recordId, {
+      id: row.id,
+      projectId: row.projectId,
+      title: `${row.key} ${row.title}`,
+      type: "Work",
+    });
+  }
+  // The Work that Convert to Work created from the Feedback is its `Origin` link.
+  const origins = await executor
+    .select({
+      feedbackId: feedbackWorkOrigin.feedbackId,
+      id: work.id,
+      key: work.key,
+      projectId: work.projectId,
+      title: work.title,
+    })
+    .from(feedbackWorkOrigin)
+    .innerJoin(work, eq(work.id, feedbackWorkOrigin.workId))
+    .where(
+      and(inArray(feedbackWorkOrigin.feedbackId, ids), isNull(work.trashedAt)),
+    )
+    .orderBy(asc(feedbackWorkOrigin.createdAt), asc(feedbackWorkOrigin.id));
+  for (const row of origins) {
+    addRelated(related, row.feedbackId, {
       id: row.id,
       projectId: row.projectId,
       title: `${row.key} ${row.title}`,

@@ -193,6 +193,85 @@ describeDatabase("Feedback PostgreSQL integration", () => {
     );
   });
 
+  test("shows only Active File Attachments once a referenced file leaves Active", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseFeedback(db);
+    const kept = `attachment-${crypto.randomUUID()}`;
+    const trashed = `attachment-${crypto.randomUUID()}`;
+    const archived = `attachment-${crypto.randomUUID()}`;
+    await db.insert(fileAttachment).values([
+      {
+        id: kept,
+        name: "kept.png",
+        projectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+      {
+        id: trashed,
+        name: "trashed.png",
+        projectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+      {
+        id: archived,
+        name: "archived.png",
+        projectId,
+        scopeType: "Project",
+        workspaceId,
+      },
+    ]);
+    const created = await access.create(accountId, {
+      attachmentIds: [kept, trashed, archived],
+      occurredAt,
+      originalMessage: "Files leave Active later",
+      projectId,
+      title: "Attachments",
+    });
+    expect(created.attachments).toHaveLength(3);
+
+    await db
+      .update(fileAttachment)
+      .set({ lifecycleStatus: "Trash" })
+      .where(eq(fileAttachment.id, trashed));
+    await db
+      .update(fileAttachment)
+      .set({ lifecycleStatus: "Archive" })
+      .where(eq(fileAttachment.id, archived));
+
+    const listed = await access.list(accountId, projectId);
+    expect(
+      listed.records.find(({ id }) => id === created.id)?.attachments,
+    ).toEqual([{ id: kept, name: "kept.png" }]);
+  });
+
+  test("lists without waiting on a Project row lock", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseFeedback(db);
+    await access.create(accountId, {
+      occurredAt,
+      originalMessage: "Read while the Project is locked",
+      projectId,
+      title: "Locked read",
+    });
+
+    await db.transaction(async (executor) => {
+      await executor
+        .select()
+        .from(project)
+        .where(eq(project.id, projectId))
+        .for("update");
+      const outcome = await Promise.race([
+        access.list(accountId, projectId).then(() => "listed" as const),
+        new Promise<"waiting">((resolve) => {
+          setTimeout(() => resolve("waiting"), 2000);
+        }),
+      ]);
+      expect(outcome).toBe("listed");
+    });
+  });
+
   test("is a separate master record, not a Source row", async () => {
     const db = requireDatabase();
     const access = createDatabaseFeedback(db);

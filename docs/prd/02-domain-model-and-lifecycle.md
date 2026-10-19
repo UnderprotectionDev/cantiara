@@ -1040,6 +1040,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri Bildirim yaşamı | `New`, `Reviewed`, `Archived` | Geri Bildirim durumları; ilişkili İş durumunu, önceliğini veya planlama üyeliğini yazmaz |
 | Geri Bildirim oluştur | `Create Feedback` | Özgün mesaj, kanal ve zamanla Geri Bildirim açma |
 | Mevcut kaynaktan oluştur | `Create from Source` | Mevcut Kaynaktan köken kopyalayarak Geri Bildirim açma; Kaynak alt türü yapmaz |
+| İsteğe bağlı İletişim | `Contact (optional)` | Geri Bildirimde yalnız mevcut Contact seçilir; seçilmezse `Unknown` kalır ve Contact oluşturulmaz |
+| İsteğe bağlı Kuruluş | `Company (optional)` | Geri Bildirimde yalnız mevcut Company seçilir; kimlik zorunlu değildir |
+| Köken görünümü | `Origin of` | Geri Bildirim kaydında, kökeni olduğu İşleri listeleyen başlık; sayı, oy veya öncelik değildir |
+| Hedef Proje | `Target Project` | Geri Bildirimden İş dönüşümünün hedefi; Geri Bildirimin kendi Projesidir |
 | Özgün mesaj | `Original message` | Geri Bildirimin asıl metni; özet bunun yerine geçmez |
 | Geri Bildirim zamanı | `Occurred at` | Özgün mesajın zamanı |
 | Geri Bildirim bağlantısı | `Link` | İsteğe bağlı URL |

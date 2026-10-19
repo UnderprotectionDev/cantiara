@@ -76,14 +76,16 @@ test("Create Feedback labels its fields and needs no Contact", () => {
     "Create Feedback",
     "Title",
     "Original message",
-    "Channel",
     "Occurred at",
-    "Link",
     "Attachments",
     "No Feedback yet.",
   ]) {
     expect(html).toContain(label);
   }
+  expect(html).toContain(">Channel</label>");
+  expect(html).toContain(">Link</label>");
+  expect(html).not.toContain("Channel (optional)");
+  expect(html).not.toContain("Link (optional)");
   expect(html).toContain("Contact (optional)");
   expect(html).toContain("Company (optional)");
   expect(html).toContain("Unknown");

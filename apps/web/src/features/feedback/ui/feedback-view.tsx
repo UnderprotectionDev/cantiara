@@ -211,7 +211,7 @@ export function CreateFeedbackForm({
             <form.Field name="channel">
               {(field) => (
                 <div className="grid gap-2 text-sm">
-                  <label htmlFor="feedback-channel">Channel (optional)</label>
+                  <label htmlFor="feedback-channel">Channel</label>
                   <Input
                     disabled={pending}
                     id="feedback-channel"
@@ -266,7 +266,7 @@ export function CreateFeedbackForm({
             <form.Field name="link">
               {(field) => (
                 <div className="grid gap-2 text-sm">
-                  <label htmlFor="feedback-link">Link (optional)</label>
+                  <label htmlFor="feedback-link">Link</label>
                   <Input
                     disabled={pending}
                     id="feedback-link"
