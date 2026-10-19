@@ -26,6 +26,8 @@ export interface UserFlowDocument {
     placedAt: string;
     position: { x: number; y: number };
     screenId: string | null;
+    /** Fixed palette tone; absent in versions saved before styles existed. */
+    style?: "amber" | "blue" | "default" | "green" | "red" | "violet";
     /** Flow-specific description, transition, condition or decision text. */
     text: string;
   }>;
@@ -90,10 +92,31 @@ export const userFlowVersion = pgTable(
       .references(() => userFlow.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
     document: jsonb("document").$type<UserFlowDocument>().notNull(),
+    // Generated verdict of the closed semantic set: `valid` only when every
+    // node has one of the five kinds (and a palette tone when styled).
+    closedSet: text("closed_set").generatedAlwaysAs(
+      sql`case when jsonb_typeof(document -> 'nodes') = 'array'
+        and jsonb_array_length(jsonb_path_query_array(document, '$.nodes[*]')) = jsonb_array_length(jsonb_path_query_array(
+          document,
+          '$.nodes[*] ? (@.kind == "Screen" || @.kind == "Action" || @.kind == "Decision" || @.kind == "State/Outcome" || @.kind == "Section")'
+        ))
+        and jsonb_array_length(jsonb_path_query_array(
+          document,
+          '$.nodes[*] ? (exists(@.style) && @.style != "default" && @.style != "blue" && @.style != "green" && @.style != "amber" && @.style != "red" && @.style != "violet")'
+        )) = 0
+        then 'valid' else 'invalid' end`,
+    ),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     unique("user_flow_version_unique").on(table.userFlowId, table.version),
     check("user_flow_version_number_check", sql`${table.version} >= 1`),
+    // Last line of defence of the closed semantic set: a document whose generated
+    // verdict is not `valid` is refused. The guard lives on a new column so the
+    // migration stays expand-only.
+    check(
+      "user_flow_version_closed_set_check",
+      sql`${table.closedSet} = 'valid'`,
+    ),
   ],
 );

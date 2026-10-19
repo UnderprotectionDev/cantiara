@@ -137,6 +137,7 @@ export function createUserFlow(
           placedAt: unchanged ? existing.placedAt : placedAt,
           position: node.position,
           screenId: node.screenId,
+          style: node.style,
           text: node.text,
         };
       }),
@@ -239,12 +240,16 @@ export function createUserFlow(
         {
           links: current.document.links,
           nodes: [
-            ...current.document.nodes,
+            ...current.document.nodes.map((node) => ({
+              ...node,
+              style: node.style ?? "default",
+            })),
             {
               id: nodeId,
               kind: parsed.kind,
               position: parsed.position,
               screenId: parsed.screenId,
+              style: parsed.style,
               text: parsed.text,
             },
           ],
