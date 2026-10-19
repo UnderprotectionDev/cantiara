@@ -45,6 +45,12 @@ import {
   fileAttachmentStageInputSchema,
 } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
+import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
+import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
+import type {
+  MoodboardMutationContracts,
+  MoodboardsAccess,
+} from "@cantiara/api/moodboards";
 import type {
   MutationContract,
   MutationPayload,
@@ -184,6 +190,10 @@ export interface AppDependencies {
     "getStatus" | "requiresFreshConsent"
   >;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  moodboardMutationContracts?: MoodboardMutationContracts;
+  moodboardPersonalViews?: PersonalMoodboardViewsAccess;
+  moodboardSnapshots?: MoodboardSnapshotsAccess;
+  moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
   personalReminders?: PersonalRemindersAccess;
@@ -1187,6 +1197,10 @@ export function createApp(dependencies: AppDependencies) {
       documents: dependencies.documents,
       documentTransfers: dependencies.documentTransfers,
       smartCollections: dependencies.smartCollections,
+      moodboardMutationContracts: dependencies.moodboardMutationContracts,
+      moodboardPersonalViews: dependencies.moodboardPersonalViews,
+      moodboardSnapshots: dependencies.moodboardSnapshots,
+      moodboards: dependencies.moodboards,
       technicalDiagrams: dependencies.technicalDiagrams,
       universalSearch: dependencies.universalSearch,
       focusPeriod: dependencies.focusPeriod,
