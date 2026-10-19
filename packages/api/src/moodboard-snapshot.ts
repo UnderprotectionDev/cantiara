@@ -11,6 +11,8 @@ export const MOODBOARD_SNAPSHOT_LABELS = {
     "Static output. It is not a public share, an External Surface, or an Approved Snapshot Revision, and it is not a live brand guide.",
   noLiveLinksNotice:
     "This snapshot carries no live source links. Later changes to the Moodboard or its files do not update it.",
+  externalLinkNotice:
+    "Visuals that come from an external link are not embedded; they appear as placeholders and their Crop or Rotate 90° is not applied.",
   noTransformNotice:
     "No view-local Crop or Rotate 90° applies to the selected visuals.",
   pdf: "PDF",
@@ -190,6 +192,12 @@ export function buildSnapshotPreview(
         ]
       : [],
   );
+  const hasExternalLink = moodboard.items.some(
+    (item) =>
+      item.kind === "Visual" &&
+      selected.has(item.id) &&
+      item.origin.kind === "External link",
+  );
   const generatedAt = now.toISOString();
   return {
     generatedAt,
@@ -200,6 +208,9 @@ export function buildSnapshotPreview(
       transforms.length > 0
         ? `View-local Crop or Rotate 90° applies to ${transforms.length} visual${transforms.length === 1 ? "" : "s"}; the original files stay unchanged and downloadable.`
         : MOODBOARD_SNAPSHOT_LABELS.noTransformNotice,
+      ...(hasExternalLink
+        ? [MOODBOARD_SNAPSHOT_LABELS.externalLinkNotice]
+        : []),
       MOODBOARD_SNAPSHOT_LABELS.frozenCopyNotice,
     ],
     pageCount: snapshotPageCount(sections),
