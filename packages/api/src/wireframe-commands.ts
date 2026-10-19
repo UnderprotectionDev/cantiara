@@ -15,8 +15,24 @@ import {
  * A completed gesture is a command; one gesture is one transaction. Pointer
  * moves and drags never reach this module: the editor commits once at the end.
  */
+export const WIREFRAME_ALIGN_EDGES = [
+  "left",
+  "right",
+  "top",
+  "bottom",
+  "center",
+  "middle",
+] as const;
+export type WireframeAlignEdge = (typeof WIREFRAME_ALIGN_EDGES)[number];
+
 export type WireframeCommand =
   | { block: WireframeBlock; type: "addBlock" }
+  | { blockId: string; toIndex: number; type: "reorderBlock" }
+  | {
+      blockIds: readonly string[];
+      edge: WireframeAlignEdge;
+      type: "alignBlocks";
+    }
   | { blockId: string; type: "removeBlock" }
   | { blockId: string; type: "moveBlock"; x: number; y: number }
   | {
@@ -110,6 +126,66 @@ function applyCommand(
         ),
         blocks: document.blocks.filter(({ id }) => id !== command.blockId),
       });
+    }
+    case "reorderBlock": {
+      const from = indexOfBlock(document, command.blockId);
+      const to = Math.min(
+        document.blocks.length - 1,
+        Math.max(0, Math.trunc(command.toIndex)),
+      );
+      const blocks = [...document.blocks];
+      const [moved] = blocks.splice(from, 1);
+      blocks.splice(to, 0, moved as WireframeBlock);
+      return { ...document, blocks };
+    }
+    case "alignBlocks": {
+      const targets = command.blockIds.map((id) => ({
+        block: document.blocks[indexOfBlock(document, id)] as WireframeBlock,
+        id,
+      }));
+      if (targets.length < 2) {
+        return document;
+      }
+      const left = Math.min(...targets.map(({ block }) => block.x));
+      const top = Math.min(...targets.map(({ block }) => block.y));
+      const right = Math.max(
+        ...targets.map(({ block }) => block.x + block.width),
+      );
+      const bottom = Math.max(
+        ...targets.map(({ block }) => block.y + block.height),
+      );
+      const moved = new Map(
+        targets.map(({ block, id }) => {
+          const next = { x: block.x, y: block.y };
+          switch (command.edge) {
+            case "left":
+              next.x = left;
+              break;
+            case "right":
+              next.x = right - block.width;
+              break;
+            case "top":
+              next.y = top;
+              break;
+            case "bottom":
+              next.y = bottom - block.height;
+              break;
+            case "center":
+              next.x = (left + right) / 2 - block.width / 2;
+              break;
+            default:
+              next.y = (top + bottom) / 2 - block.height / 2;
+          }
+          return [id, next] as const;
+        }),
+      );
+      return {
+        ...document,
+        blocks: document.blocks.map((block) => {
+          const next = moved.get(block.id);
+          return next ? { ...block, ...next } : block;
+        }),
+      };
     }
     case "moveBlock": {
       const index = indexOfBlock(document, command.blockId);

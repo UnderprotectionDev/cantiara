@@ -1,5 +1,6 @@
 import {
   applyWireframeTransaction,
+  type WireframeAlignEdge,
   type WireframeCommand,
 } from "@cantiara/api/wireframe-commands";
 import {
@@ -85,6 +86,57 @@ export function createWireframeEditor(
       this.dispatch([
         { blockId, type: "moveBlock", x: snapped.x, y: snapped.y },
       ]);
+    },
+
+    /** Aligns the selection to one edge or axis as one transaction. */
+    alignSelection(edge: WireframeAlignEdge) {
+      if (state.selection.length < 2) {
+        return;
+      }
+      this.dispatch([{ blockIds: state.selection, edge, type: "alignBlocks" }]);
+    },
+
+    /** Moves the selection by a keyboard step as one transaction. */
+    moveSelection(dx: number, dy: number) {
+      const commands = state.selection.flatMap(
+        (blockId): WireframeCommand[] => {
+          const block = state.document.blocks.find(({ id }) => id === blockId);
+          return block
+            ? [{ blockId, type: "moveBlock", x: block.x + dx, y: block.y + dy }]
+            : [];
+        },
+      );
+      if (commands.length > 0) {
+        this.dispatch(commands);
+      }
+    },
+
+    /** Reorders a block in paint order; `-1` is earlier (behind), `1` later. */
+    reorder(blockId: string, delta: number) {
+      const from = state.document.blocks.findIndex(({ id }) => id === blockId);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= state.document.blocks.length) {
+        return;
+      }
+      this.dispatch([{ blockId, toIndex: to, type: "reorderBlock" }]);
+    },
+
+    /** Removes the block as one transaction; the selection moves with it. */
+    removeBlock(blockId: string) {
+      this.dispatch([{ blockId, type: "removeBlock" }]);
+    },
+
+    /** Selects the next or previous block in outline order, wrapping. */
+    selectStep(delta: number) {
+      const { blocks } = state.document;
+      if (blocks.length === 0) {
+        return;
+      }
+      const current = blocks.findIndex(({ id }) => id === state.selection[0]);
+      const entry = delta > 0 ? 0 : blocks.length - 1;
+      const next =
+        current < 0 ? entry : (current + delta + blocks.length) % blocks.length;
+      publish(state.document, [blocks[next]?.id ?? ""]);
     },
 
     /** Places a new block of a closed kind at a point and selects it. */

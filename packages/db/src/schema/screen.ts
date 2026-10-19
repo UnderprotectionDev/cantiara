@@ -1,17 +1,19 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  doublePrecision,
   foreignKey,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { workspace } from "./auth";
+import { user, workspace } from "./auth";
 import { project } from "./project";
 
 /**
@@ -186,6 +188,43 @@ export const screenWireframeTemplate = pgTable(
     check(
       "workspace_screen_wireframe_template_name_check",
       sql`length(btrim(${table.name})) between 1 and 120`,
+    ),
+  ],
+);
+
+/**
+ * Personal viewport (centre, zoom, view-local collapsed outline groups) of one
+ * account on one Screen's Wireframe canvas. It is navigation, not content: it
+ * is keyed by account and Screen only (never by Wireframe version), is not part
+ * of any WireframeDocument, share snapshot, export, search document or
+ * relation, and is never read for another account.
+ */
+export const screenViewport = pgTable(
+  "account_screen_viewport",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    centerX: doublePrecision("center_x").notNull(),
+    centerY: doublePrecision("center_y").notNull(),
+    collapsedGroups: jsonb("collapsed_groups")
+      .$type<string[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    screenId: text("screen_id")
+      .notNull()
+      .references(() => screen.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    zoom: doublePrecision("zoom").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.accountId, table.screenId],
+      name: "account_screen_viewport_pk",
+    }),
+    check(
+      "account_screen_viewport_zoom_check",
+      sql`${table.zoom} between 0.1 and 4`,
     ),
   ],
 );

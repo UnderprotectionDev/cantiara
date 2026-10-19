@@ -340,6 +340,10 @@ import {
   screenTemplateListInputSchema,
 } from "../screen-origins";
 import {
+  saveScreenViewportInputSchema,
+  screenViewportInputSchema,
+} from "../screen-viewport";
+import {
   createLinkedBlockInputSchema,
   createScreenInputSchema,
   linkedBlockChangeInputSchema,
@@ -4632,6 +4636,20 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runScreenOperation(() =>
         requireScreens(context).setLifecycle(context.session.user.id, input),
+      ),
+    ),
+  screenViewport: protectedProcedure
+    .input(screenViewportInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).viewport(context.session.user.id, input),
+      ),
+    ),
+  saveScreenViewport: protectedProcedure
+    .input(saveScreenViewportInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).saveViewport(context.session.user.id, input),
       ),
     ),
   screenWireframe: protectedProcedure

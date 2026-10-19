@@ -11,6 +11,12 @@ import type {
   ScreenBlockOriginView,
   ScreenTemplateRecord,
 } from "./screen-origins";
+import type {
+  SaveScreenViewportInput,
+  ScreenViewportInput,
+  ScreenViewportRecord,
+  WireframeViewport,
+} from "./screen-viewport";
 import type { AffectedScreen, LiveTextResolution } from "./wireframe-commands";
 import {
   type WireframeDocument,
@@ -256,6 +262,15 @@ export interface ScreenStore {
     projectId: string,
     templateId: string,
   ) => Promise<ScreenTemplateRecord | null>;
+  /**
+   * The account's own viewport on this Screen's canvas; `null` when the Screen
+   * is not readable. Keyed by account and Screen only, never by version.
+   */
+  findViewport: (
+    accountId: string,
+    projectId: string,
+    screenId: string,
+  ) => Promise<ScreenViewportRecord | null>;
   /** Stored (unparsed) Wireframe version: the requested one or the latest. */
   findWireframe: (
     accountId: string,
@@ -310,6 +325,13 @@ export interface ScreenStore {
     accountId: string,
     input: { document: unknown; name: string; projectId: string },
   ) => Promise<ScreenTemplateRecord | null>;
+  /** Upserts the account's own viewport; never touches a Wireframe version. */
+  saveViewport: (
+    accountId: string,
+    projectId: string,
+    screenId: string,
+    viewport: WireframeViewport,
+  ) => Promise<ScreenViewportRecord | null>;
   /** Writes the working (latest) version in place; creates version 1 when none exists. */
   saveWireframe: (
     accountId: string,
@@ -381,6 +403,11 @@ export interface ScreensAccess {
     accountId: string,
     input: unknown,
   ) => Promise<Omit<ScreenTemplateRecord, "document">>;
+  /** Personal viewport only: saving it is not a Wireframe or Screen write. */
+  saveViewport: (
+    accountId: string,
+    input: SaveScreenViewportInput,
+  ) => Promise<ScreenViewportRecord>;
   saveWireframe: (
     accountId: string,
     input: SaveScreenWireframeInput,
@@ -393,6 +420,10 @@ export interface ScreensAccess {
     accountId: string,
     projectId: string,
   ) => Promise<Omit<ScreenTemplateRecord, "document">[]>;
+  viewport: (
+    accountId: string,
+    input: ScreenViewportInput,
+  ) => Promise<ScreenViewportRecord>;
   wireframe: (
     accountId: string,
     input: ScreenWireframeInput,

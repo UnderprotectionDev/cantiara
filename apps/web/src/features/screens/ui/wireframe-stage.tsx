@@ -1,9 +1,14 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Konva handlers bind to the painted block.
 import "@fontsource/shantell-sans/400.css";
 import type { LiveCardResolution } from "@cantiara/api/screen-origins";
+import { visibleRect } from "@cantiara/api/screen-viewport";
 import type { LiveTextResolution } from "@cantiara/api/wireframe-commands";
-import { resolvedBlocks } from "@cantiara/api/wireframe-document";
+import {
+  resolvedBlocks,
+  type WireframeBlock,
+} from "@cantiara/api/wireframe-document";
 import type Konva from "konva";
+import { useMemo, useSyncExternalStore } from "react";
 import {
   Circle,
   Group,
@@ -11,6 +16,7 @@ import {
   Line,
   Path,
   Rect,
+  Shape,
   Stage,
   Text,
 } from "react-konva";
@@ -21,6 +27,16 @@ import {
   paintBlock,
   WIREFRAME_FONT_FAMILY,
 } from "../engine/paint";
+import { createSceneIndex, deriveVisualLinks } from "../engine/scene";
+import type { ViewportSession } from "../engine/viewport-session";
+
+/** Blocks this far outside the pane are still drawn so a pan never pops. */
+const CULL_MARGIN = 120;
+
+/** A finished viewport gesture; never emitted per pointer move. */
+export type ViewportGesture =
+  | { centerX: number; centerY: number; type: "pan" }
+  | { deltaX: number; deltaY: number; type: "wheel"; zoom: boolean };
 
 export interface WireframeStageProps {
   editor: WireframeEditor;
@@ -28,6 +44,8 @@ export interface WireframeStageProps {
   liveCards?: Record<string, LiveCardResolution>;
   liveText: Record<string, LiveTextResolution>;
   onEditText: (blockId: string) => void;
+  onViewportGesture?: (gesture: ViewportGesture) => void;
+  viewport: ViewportSession;
   width: number;
 }
 
@@ -149,9 +167,34 @@ function PaintedBlock({
   );
 }
 
+const paintCache = new WeakMap<
+  WireframeBlock,
+  {
+    card: LiveCardResolution | undefined;
+    plan: PaintPlan;
+    text: LiveTextResolution | undefined;
+  }
+>();
+
+function planFor(
+  block: WireframeBlock,
+  text: LiveTextResolution | undefined,
+  card: LiveCardResolution | undefined,
+) {
+  const hit = paintCache.get(block);
+  if (hit && hit.text === text && hit.card === card) {
+    return hit.plan;
+  }
+  const plan = paintBlock(block, text, card);
+  paintCache.set(block, { card, plan, text });
+  return plan;
+}
+
 /**
- * Konva adapter: paints the plan derived from canonical geometry. It owns no
- * document state and `toJSON()` of this stage is never persisted.
+ * Konva adapter: paints the plan derived from canonical geometry, culled to
+ * the personal viewport. It owns no document state and `toJSON()` of this
+ * stage is never persisted. The viewport is Stage scale and position, never a
+ * CSS transform, so the Stage can not be clipped out of its pane.
  */
 export default function WireframeStage({
   editor,
@@ -159,22 +202,102 @@ export default function WireframeStage({
   liveCards,
   liveText,
   onEditText,
+  onViewportGesture,
+  viewport,
   width,
 }: WireframeStageProps) {
   const state = editor.getState();
   const selected = new Set(state.selection);
+  const view = useSyncExternalStore(
+    viewport.subscribe,
+    viewport.getState,
+    viewport.getState,
+  );
+  const blocks = useMemo(
+    () => resolvedBlocks(state.document),
+    [state.document],
+  );
+  const scene = useMemo(
+    () => createSceneIndex(blocks, deriveVisualLinks(state.document)),
+    [blocks, state.document],
+  );
+  const rect = visibleRect(view, { height, width });
+  const margin = CULL_MARGIN / view.zoom;
+  const culling = {
+    height: rect.height + margin * 2,
+    width: rect.width + margin * 2,
+    x: rect.x - margin,
+    y: rect.y - margin,
+  };
+  const visibleIds = new Set(scene.visibleBlockIds(culling));
+  const links = scene.visibleLinks(culling);
+
+  function onDragEnd(event: Konva.KonvaEventObject<DragEvent>) {
+    const stage = event.target.getStage();
+    if (!stage || event.target !== stage) {
+      return;
+    }
+    onViewportGesture?.({
+      centerX: (width / 2 - stage.x()) / view.zoom,
+      centerY: (height / 2 - stage.y()) / view.zoom,
+      type: "pan",
+    });
+  }
+
+  function onWheel(event: Konva.KonvaEventObject<WheelEvent>) {
+    event.evt.preventDefault();
+    onViewportGesture?.({
+      deltaX: event.evt.deltaX,
+      deltaY: event.evt.deltaY,
+      type: "wheel",
+      zoom: event.evt.ctrlKey || event.evt.metaKey,
+    });
+  }
+
   return (
-    <Stage height={height} width={width}>
+    <Stage
+      draggable
+      height={height}
+      onDragEnd={onDragEnd}
+      onWheel={onWheel}
+      scaleX={view.zoom}
+      scaleY={view.zoom}
+      width={width}
+      x={width / 2 - view.centerX * view.zoom}
+      y={height / 2 - view.centerY * view.zoom}
+    >
+      <Layer listening={false}>
+        <Shape
+          sceneFunc={(context, shape) => {
+            // One path for every visible link: a single batched stroke.
+            context.beginPath();
+            for (const link of links) {
+              const from = scene.centers.get(link.from);
+              const to = scene.centers.get(link.to);
+              if (from && to) {
+                context.moveTo(from.x, from.y);
+                context.lineTo(to.x, to.y);
+              }
+            }
+            context.fillStrokeShape(shape);
+          }}
+          stroke="#94a3b8"
+          strokeScaleEnabled={false}
+          strokeWidth={1}
+        />
+      </Layer>
       <Layer>
-        {resolvedBlocks(state.document).map((block) => (
-          <PaintedBlock
-            editor={editor}
-            key={block.id}
-            onEditText={onEditText}
-            plan={paintBlock(block, liveText[block.id], liveCards?.[block.id])}
-            selected={selected.has(block.id)}
-          />
-        ))}
+        {blocks
+          .filter((block) => visibleIds.has(block.id))
+          .map((block) => (
+            <PaintedBlock
+              editor={editor}
+              key={block.id}
+              onEditText={onEditText}
+              plan={planFor(block, liveText[block.id], liveCards?.[block.id])}
+              selected={selected.has(block.id)}
+            />
+          ))}
       </Layer>
     </Stage>
   );
