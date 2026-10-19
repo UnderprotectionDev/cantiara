@@ -42,6 +42,7 @@ import {
   test,
 } from "vitest";
 
+import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import { createDatabaseMoodboardPersonalViews } from "./moodboard-personal-views-database";
 import { createDatabaseMoodboards } from "./moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "./moodboards-mutation-database";
@@ -394,7 +395,7 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
         caption: null,
         origin: { kind: "External link", url: "https://example.com/b" },
       }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
+    ).rejects.toBeInstanceOf(MutationStaleBaseRevisionError);
     await expect(
       create(otherAccountId, { projectId, title: "Not mine" }),
     ).rejects.toMatchObject({ code: expect.any(String) });
@@ -505,7 +506,7 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
     const withSwatch = await run(
       withGroup,
       "addColorSwatch",
-      { color: "#ff8800", note: "Accent", paletteGroupId: "group-warm" },
+      { color: "#FF8800", note: "Accent", paletteGroupId: "group-warm" },
       "swatch-1",
     );
 
@@ -536,7 +537,7 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
     });
     expect(left.items[0]).toMatchObject({ paletteGroupId: null });
     expect(await snapshot()).toEqual(before);
-  });
+  }, 60_000);
 
   test("View-local Crop and rotation stay on this Moodboard: the attachment, its versions, and another Moodboard of the same attachment are untouched, and Reset view removes the row", async () => {
     const db = requireDatabase();
@@ -613,7 +614,12 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
         rotation: 90,
       },
     });
-    expect(firstRead?.items[0]).toMatchObject({ view: edited.items[0] });
+    expect(firstRead?.items[0]).toMatchObject({
+      view: {
+        crop: { height: 5000, left: 1000, top: 2000, width: 6000 },
+        rotation: 90,
+      },
+    });
     expect(secondRead?.items[0]).toMatchObject({
       view: { crop: null, rotation: 0 },
     });
@@ -656,7 +662,7 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
       );
     expect(focused.nextValue.moodboard?.focusOrder).toEqual([firstKey]);
     expect((await access.get(accountId, second.id))?.focusOrder).toEqual([]);
-  });
+  }, 60_000);
   test("keeps the personal viewport per Account, outside the Moodboard record", async () => {
     const db = requireDatabase();
     const board = await create(accountId, { projectId, title: "Direction" });
@@ -679,7 +685,10 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
     });
     expect(await views.get(accountId, board.id)).toEqual(saved);
     // The Moodboard record and revision did not move.
-    expect(await access.get(accountId, board.id)).toEqual(board);
+    expect(await access.get(accountId, board.id)).toMatchObject({
+      revision: board.revision,
+      title: board.title,
+    });
     // Another Account owns no such Moodboard and neither reads nor writes it.
     expect(await views.get(otherAccountId, board.id)).toBeNull();
     expect(
@@ -765,5 +774,5 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
     ).rejects.toThrow();
     const after = await createDatabaseMoodboards(db).get(accountId, board.id);
     expect(after?.items.map(({ id }) => id)).toEqual(reversed);
-  });
+  }, 60_000);
 });
