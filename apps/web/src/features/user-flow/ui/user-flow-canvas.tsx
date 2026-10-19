@@ -1,8 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Toolbar handlers close over the editor state of this canvas.
 import {
+  resolveUserFlowViewport,
+  type ScreenOption,
+  USER_FLOW_MAX_ZOOM,
+  USER_FLOW_MIN_ZOOM,
   USER_FLOW_NODE_TONES,
   type UserFlowNodeTone,
   type UserFlowView,
+  type UserFlowViewport,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { Label } from "@cantiara/ui/components/label";
@@ -18,6 +23,7 @@ import {
   type NodeChange,
   type NodeProps,
   ReactFlow,
+  type ReactFlowInstance,
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
@@ -26,6 +32,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -56,7 +63,9 @@ import {
   undo,
 } from "../lib/flow-editor";
 import { commandForKey, type EditorCommand } from "../lib/flow-keyboard";
+import { hiddenNodeIds, toggleCollapsed } from "../lib/flow-outline";
 import { KIND_RADIUS, TONE_COLORS } from "../lib/flow-style";
+import { UserFlowOutline } from "./user-flow-outline";
 import { RecordReference } from "./user-flow-records";
 import { ScreenReference } from "./user-flow-view";
 import "@xyflow/react/dist/style.css";
@@ -161,6 +170,7 @@ function toEditorDocument(flow: UserFlowView): EditorDocument {
       kind: node.kind,
       position: node.position,
       screenId: node.screen?.screenId ?? null,
+      sectionId: node.sectionId,
       style: node.style,
       text: node.text,
     })),
@@ -189,12 +199,73 @@ function createNodeId() {
 
 interface CanvasProps {
   flow: UserFlowView;
+  /** The account's saved personal viewport of this canvas, or null. */
+  initialViewport?: UserFlowViewport | null;
   onDirtyChange?: (dirty: boolean) => void;
   onSave?: (document: EditorDocument) => Promise<unknown>;
+  /** Reports the personal viewport; it is never part of a saved version. */
+  onViewportChange?: (viewport: UserFlowViewport) => void;
+  screenOptions?: ScreenOption[];
 }
 
-function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
+const VIEWPORT_SAVE_DELAY = 400;
+const FALLBACK_FRAME = { height: 360, width: 800 };
+
+function Editor({
+  flow,
+  initialViewport = null,
+  onDirtyChange,
+  onSave,
+  onViewportChange,
+  screenOptions = [],
+}: CanvasProps) {
   const reactFlow = useReactFlow();
+  const frameRef = useRef<HTMLElement>(null);
+  const [collapsed, setCollapsed] = useState<string[]>(
+    () => initialViewport?.collapsed ?? [],
+  );
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
+  const pendingViewport = useRef<UserFlowViewport | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushViewport = useCallback(() => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (pendingViewport.current) {
+      onViewportChange?.(pendingViewport.current);
+      pendingViewport.current = null;
+    }
+  }, [onViewportChange]);
+
+  // Personal working position: center, zoom and view-local collapse only.
+  const rememberViewport = useCallback(
+    (
+      viewport: { x: number; y: number; zoom: number },
+      nextCollapsed?: string[],
+    ) => {
+      const frame = frameRef.current;
+      const width = frame?.clientWidth || FALLBACK_FRAME.width;
+      const height = frame?.clientHeight || FALLBACK_FRAME.height;
+      pendingViewport.current = {
+        center: {
+          x: (width / 2 - viewport.x) / viewport.zoom,
+          y: (height / 2 - viewport.y) / viewport.zoom,
+        },
+        collapsed: nextCollapsed ?? collapsedRef.current,
+        zoom: viewport.zoom,
+      };
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+      }
+      saveTimer.current = setTimeout(flushViewport, VIEWPORT_SAVE_DELAY);
+    },
+    [flushViewport],
+  );
+
+  useEffect(() => flushViewport, [flushViewport]);
   const [editor, setEditor] = useState<EditorState>(() =>
     createEditor(toEditorDocument(flow)),
   );
@@ -233,6 +304,11 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
     [flow.cards],
   );
 
+  const hidden = useMemo(
+    () => hiddenNodeIds(editor.document, collapsed),
+    [collapsed, editor.document],
+  );
+
   const modelNodes = useMemo<Array<CanvasCard | FlowNode>>(() => {
     const selected = new Set(editor.selection);
     const cardNodes: CanvasCard[] = (editor.document.cards ?? []).map(
@@ -257,6 +333,7 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
         style: node.style,
         text: node.text,
       },
+      hidden: hidden.has(node.id),
       id: node.id,
       position: node.position,
       selected: selected.has(node.id),
@@ -270,6 +347,7 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
     editor.document.cards,
     editor.document.nodes,
     editor.selection,
+    hidden,
     removeLiveCard,
     screens,
   ]);
@@ -348,6 +426,62 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
     setEditor(change);
   }
 
+  // `Fit View` returns to the neutral view: every Section expanded, all visible content fitted.
+  function fitNeutral() {
+    collapsedRef.current = [];
+    setCollapsed([]);
+    window.requestAnimationFrame(() => {
+      reactFlow
+        .fitView({ duration: 0 })
+        .then(() => rememberViewport(reactFlow.getViewport(), []))
+        .catch(() => undefined);
+    });
+  }
+
+  function toggleSection(sectionId: string) {
+    const next = toggleCollapsed(collapsedRef.current, sectionId);
+    collapsedRef.current = next;
+    setCollapsed(next);
+    rememberViewport(reactFlow.getViewport(), next);
+  }
+
+  // Restore the saved position only when it still shows content; otherwise fit visible content.
+  function onInit(instance: ReactFlowInstance<CanvasCard | FlowNode>) {
+    const frame = frameRef.current;
+    const resolution = resolveUserFlowViewport({
+      content: {
+        cards: editor.document.cards ?? [],
+        nodes: editor.document.nodes,
+      },
+      frame: {
+        height: frame?.clientHeight ?? 0,
+        width: frame?.clientWidth ?? 0,
+      },
+      saved: initialViewport,
+    });
+    if (resolution.mode === "restore") {
+      const { center, zoom } = resolution.viewport;
+      const width = frame?.clientWidth ?? FALLBACK_FRAME.width;
+      const height = frame?.clientHeight ?? FALLBACK_FRAME.height;
+      instance
+        .setViewport(
+          {
+            x: width / 2 - center.x * zoom,
+            y: height / 2 - center.y * zoom,
+            zoom,
+          },
+          { duration: 0 },
+        )
+        .catch(() => undefined);
+      return;
+    }
+    if (collapsedRef.current.join() !== resolution.collapsed.join()) {
+      collapsedRef.current = resolution.collapsed;
+      setCollapsed(resolution.collapsed);
+    }
+    instance.fitView({ duration: 0 }).catch(() => undefined);
+  }
+
   function run(command: EditorCommand) {
     switch (command.type) {
       case "align":
@@ -374,7 +508,7 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
           .catch(() => undefined);
         break;
       case "fitView":
-        reactFlow.fitView({ duration: 0 }).catch(() => undefined);
+        fitNeutral();
         break;
       case "nudge":
         apply((state) =>
@@ -603,17 +737,22 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
         aria-label="User Flow canvas"
         className="h-[360px] w-full rounded-lg border bg-muted/20"
         onKeyDown={onKeyDown}
+        ref={frameRef}
       >
         <ReactFlow<CanvasCard | FlowNode>
           deleteKeyCode={null}
           disableKeyboardA11y
           edges={edges}
-          fitView
+          maxZoom={USER_FLOW_MAX_ZOOM}
+          minZoom={USER_FLOW_MIN_ZOOM}
           multiSelectionKeyCode="Shift"
           nodes={canvasNodes}
           nodesConnectable={false}
           nodesDraggable
           nodeTypes={NODE_TYPES}
+          onInit={onInit}
+          onlyRenderVisibleElements
+          onMoveEnd={(_event, viewport) => rememberViewport(viewport)}
           onNodeDragStop={onNodeDragStop}
           onNodesChange={onNodesChange}
           selectionKeyCode="Shift"
@@ -629,6 +768,15 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
         and Shift+Z copy, paste, select all, undo and redo, Cmd/Ctrl+[ and ]
         reorder layers.
       </p>
+      <UserFlowOutline
+        collapsed={collapsed}
+        createId={createNodeId}
+        onChange={apply}
+        onToggleCollapse={toggleSection}
+        screenOptions={screenOptions}
+        screens={screens}
+        state={editor}
+      />
       {single ? (
         <div className="space-y-2">
           <div className="space-y-1">

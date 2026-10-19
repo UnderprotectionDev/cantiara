@@ -26,6 +26,7 @@ import {
   userFlowRecordBindRebind,
   userFlowTemplate,
   userFlowVersion,
+  userFlowViewport,
 } from "@cantiara/db/schema/user-flow";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, isNull, type SQL } from "drizzle-orm";
@@ -769,6 +770,29 @@ export function createDatabaseUserFlowStore(database: Database): UserFlowStore {
         and(eq(userFlow.id, userFlowId), eq(userFlow.projectId, projectId)),
       );
       return record ?? null;
+    },
+
+    async findViewport(accountId, userFlowId) {
+      const [row] = await database
+        .select({ viewport: userFlowViewport.viewport })
+        .from(userFlowViewport)
+        .where(
+          and(
+            eq(userFlowViewport.accountId, accountId),
+            eq(userFlowViewport.userFlowId, userFlowId),
+          ),
+        );
+      return row?.viewport ?? null;
+    },
+
+    async saveViewport(accountId, userFlowId, viewport) {
+      await database
+        .insert(userFlowViewport)
+        .values({ accountId, userFlowId, viewport })
+        .onConflictDoUpdate({
+          set: { updatedAt: new Date(), viewport },
+          target: [userFlowViewport.accountId, userFlowViewport.userFlowId],
+        });
     },
 
     async list(accountId, projectId) {

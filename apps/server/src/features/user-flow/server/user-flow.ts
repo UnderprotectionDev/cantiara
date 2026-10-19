@@ -9,6 +9,7 @@ import {
   createUserFlowInputSchema,
   instantiateUserFlowTemplate,
   isSameUserFlowPlan,
+  liveCollapsedSections,
   type ParsedUserFlowDocumentInput,
   placeUserFlowCardInputSchema,
   placeUserFlowNodeInputSchema,
@@ -22,6 +23,9 @@ import {
   type ScreenLookup,
   saveUserFlowTemplateInputSchema,
   saveUserFlowVersionInputSchema,
+  saveUserFlowViewportInputSchema,
+  USER_FLOW_LINK_LIMIT,
+  USER_FLOW_VISIBLE_ITEM_LIMIT,
   type UserFlowAccess,
   type UserFlowBindRecord,
   type UserFlowDocument,
@@ -131,6 +135,18 @@ export class UserFlowNodeNotPromotableError extends Error {
   constructor(nodeId: string) {
     super(`Node ${nodeId} already references a Screen.`);
     this.name = "UserFlowNodeNotPromotableError";
+  }
+}
+
+/** The 500 visible item / 750 link hard scene is the most a document holds. */
+export class UserFlowSceneLimitError extends Error {
+  readonly code = "USER_FLOW_SCENE_LIMIT" as const;
+
+  constructor() {
+    super(
+      `A User Flow holds at most ${USER_FLOW_VISIBLE_ITEM_LIMIT} visible items and ${USER_FLOW_LINK_LIMIT} links.`,
+    );
+    this.name = "UserFlowSceneLimitError";
   }
 }
 
@@ -352,6 +368,7 @@ export function createUserFlow(
           placedAt: unchanged ? existing.placedAt : placedAt,
           position: node.position,
           screenId: node.screenId,
+          sectionId: node.sectionId ?? null,
           style: node.style,
           text: node.text,
         };
@@ -371,11 +388,22 @@ export function createUserFlow(
     return record;
   }
 
+  function assertWithinScene(document: UserFlowDocument) {
+    if (
+      document.nodes.length + (document.cards ?? []).length >
+        USER_FLOW_VISIBLE_ITEM_LIMIT ||
+      document.links.length > USER_FLOW_LINK_LIMIT
+    ) {
+      throw new UserFlowSceneLimitError();
+    }
+  }
+
   async function appendDocument(
     accountId: string,
     current: UserFlowRecord,
     document: UserFlowDocument,
   ) {
+    assertWithinScene(document);
     const saved = await store.appendVersion(accountId, {
       document,
       expectedVersion: current.version,
@@ -754,6 +782,7 @@ export function createUserFlow(
           nodes: [
             ...current.document.nodes.map((node) => ({
               ...node,
+              sectionId: node.sectionId ?? null,
               style: node.style ?? "default",
             })),
             {
@@ -761,12 +790,14 @@ export function createUserFlow(
               kind: parsed.kind,
               position: parsed.position,
               screenId: parsed.screenId,
+              sectionId: null,
               style: parsed.style,
               text: parsed.text,
             },
           ],
         },
       );
+      assertWithinScene(document);
       const saved = await store.appendVersion(accountId, {
         document,
         expectedVersion: parsed.expectedVersion,
@@ -777,6 +808,44 @@ export function createUserFlow(
         throw new UserFlowNotFoundError(parsed.userFlowId);
       }
       return view(accountId, saved);
+    },
+
+    async viewport(accountId, projectId, userFlowId) {
+      const parsed = userFlowInputSchema.parse({ projectId, userFlowId });
+      const current = await load(
+        accountId,
+        parsed.projectId,
+        parsed.userFlowId,
+      );
+      const saved = await store.findViewport(accountId, current.id);
+      return saved
+        ? {
+            ...saved,
+            collapsed: liveCollapsedSections(
+              current.document.nodes,
+              saved.collapsed,
+            ),
+          }
+        : null;
+    },
+
+    async saveViewport(accountId, input) {
+      const parsed = saveUserFlowViewportInputSchema.parse(input);
+      const current = await load(
+        accountId,
+        parsed.projectId,
+        parsed.userFlowId,
+      );
+      // Personal working position: it writes no version and no Project content.
+      const viewport = {
+        ...parsed.viewport,
+        collapsed: liveCollapsedSections(
+          current.document.nodes,
+          parsed.viewport.collapsed,
+        ),
+      };
+      await store.saveViewport(accountId, current.id, viewport);
+      return viewport;
     },
 
     async screens(accountId, projectId) {

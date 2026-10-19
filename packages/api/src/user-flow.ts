@@ -44,6 +44,15 @@ export type UserFlowNodeTone = z.infer<typeof userFlowNodeToneSchema>;
 /** Hard performance scene of the editor; a document never exceeds it. */
 export const USER_FLOW_NODE_LIMIT = 500;
 export const USER_FLOW_LINK_LIMIT = 750;
+/**
+ * The 500 in "500 visible / 750 link" counts every visible item: nodes plus
+ * live cards. A document with 500 nodes therefore has no room for a card.
+ */
+export const USER_FLOW_VISIBLE_ITEM_LIMIT = USER_FLOW_NODE_LIMIT;
+
+/** Fixed card footprint the canvas renders; viewport meaning is computed from it. */
+export const USER_FLOW_NODE_WIDTH = 220;
+export const USER_FLOW_NODE_HEIGHT = 96;
 
 export const userFlowTitleSchema = z
   .string()
@@ -65,6 +74,8 @@ const nodeFields = {
   style: userFlowNodeToneSchema.default("default"),
   /** The only Screen data a node holds: the live reference. Never a copy. */
   screenId: identifierSchema.nullable().default(null),
+  /** Section node this node is grouped under; a grouping, never a Screen link. */
+  sectionId: identifierSchema.nullable().default(null),
   text: nodeTextSchema.default(""),
 };
 
@@ -162,6 +173,26 @@ export const userFlowDocumentInputSchema = z
       new Set(document.links.map(({ id }) => id)).size !== document.links.length
     ) {
       context.addIssue({ code: "custom", message: "Duplicate link id." });
+    }
+    const visibleItems = document.nodes.length + (document.cards ?? []).length;
+    if (visibleItems > USER_FLOW_VISIBLE_ITEM_LIMIT) {
+      context.addIssue({
+        code: "custom",
+        message: `A User Flow shows at most ${USER_FLOW_VISIBLE_ITEM_LIMIT} items (nodes and live cards).`,
+      });
+    }
+    const kinds = new Map(document.nodes.map(({ id, kind }) => [id, kind]));
+    for (const node of document.nodes) {
+      if (node.sectionId === null) {
+        continue;
+      }
+      if (kinds.get(node.sectionId) !== "Section" || node.kind === "Section") {
+        context.addIssue({
+          code: "custom",
+          message: "Only a non-Section node can be grouped under a Section.",
+          path: ["nodes"],
+        });
+      }
     }
     for (const link of document.links) {
       if (!(nodeIds.has(link.from) && nodeIds.has(link.to))) {
@@ -283,6 +314,8 @@ export interface UserFlowNodeView {
   placedAt: string;
   position: { x: number; y: number };
   screen: ScreenReferenceView | null;
+  /** Section node this node is grouped under, or null. */
+  sectionId: string | null;
   style: UserFlowNodeTone;
   text: string;
 }
@@ -389,6 +422,7 @@ export function buildUserFlowView(
             screenId: node.screenId,
           })
         : null,
+      sectionId: node.sectionId ?? null,
       style: node.style ?? "default",
       text: node.text,
     })),
@@ -507,6 +541,14 @@ export interface UserFlowStore {
     userFlowId: string,
     version: number,
   ) => Promise<UserFlowDocument | null>;
+  /**
+   * The account's personal viewport of one User Flow canvas, or `null` when
+   * none was saved. It lives outside every version, relation and snapshot.
+   */
+  findViewport: (
+    accountId: string,
+    userFlowId: string,
+  ) => Promise<UserFlowViewport | null>;
   list: (
     accountId: string,
     projectId: string,
@@ -556,6 +598,12 @@ export interface UserFlowStore {
     accountId: string,
     input: ParsedRebindUserFlowBindInput,
   ) => Promise<UserFlowBindRecord | null>;
+  /** Upserts the account's own viewport of this canvas; no version is written. */
+  saveViewport: (
+    accountId: string,
+    userFlowId: string,
+    viewport: UserFlowViewport,
+  ) => Promise<void>;
 }
 
 export interface UserFlowAccess {
@@ -618,11 +666,22 @@ export interface UserFlowAccess {
     accountId: string,
     input: SaveUserFlowTemplateInput,
   ) => Promise<UserFlowTemplateView>;
+  /** Writes only the caller's own viewport; never a version, relation or snapshot. */
+  saveViewport: (
+    accountId: string,
+    input: SaveUserFlowViewportInput,
+  ) => Promise<UserFlowViewport>;
   screens: (accountId: string, projectId: string) => Promise<ScreenOption[]>;
   templates: (
     accountId: string,
     projectId: string,
   ) => Promise<UserFlowTemplateView[]>;
+  /** The caller's own saved viewport of this canvas, or `null`. */
+  viewport: (
+    accountId: string,
+    projectId: string,
+    userFlowId: string,
+  ) => Promise<UserFlowViewport | null>;
 }
 
 // --- Live records: read-only cards and the records a bind opened -----------
@@ -1226,4 +1285,123 @@ export function instantiateUserFlowTemplate(
       text: node.text,
     })),
   };
+}
+
+// --- Personal viewport (spec 49 #374) ----------------------------------------
+
+export const USER_FLOW_MIN_ZOOM = 0.1;
+export const USER_FLOW_MAX_ZOOM = 4;
+
+/**
+ * The account's own working position on this canvas: viewport center, zoom and
+ * the view-local collapse of Sections. It is not part of the versioned
+ * document, a relation, a share snapshot or an export, and never another
+ * account's view. Selection, inspector, edit mode and unsaved operations are
+ * deliberately absent from the shape.
+ */
+export const userFlowViewportSchema = z
+  .object({
+    center: positionSchema,
+    /** Section node ids collapsed in this account's view only. */
+    collapsed: z.array(identifierSchema).max(USER_FLOW_NODE_LIMIT).default([]),
+    zoom: z.number().finite().min(USER_FLOW_MIN_ZOOM).max(USER_FLOW_MAX_ZOOM),
+  })
+  .strict();
+export type UserFlowViewport = z.infer<typeof userFlowViewportSchema>;
+
+export const saveUserFlowViewportInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    userFlowId: identifierSchema,
+    viewport: userFlowViewportSchema,
+  })
+  .strict();
+export type SaveUserFlowViewportInput = z.input<
+  typeof saveUserFlowViewportInputSchema
+>;
+
+/** Section ids that still exist; a stale collapse never hides anything. */
+export function liveCollapsedSections(
+  nodes: ReadonlyArray<{ id: string; kind: string }>,
+  collapsed: readonly string[],
+) {
+  const sections = new Set(
+    nodes.filter(({ kind }) => kind === "Section").map(({ id }) => id),
+  );
+  return [...new Set(collapsed)].filter((id) => sections.has(id));
+}
+
+export interface UserFlowViewportContent {
+  cards: Array<{ position: { x: number; y: number } }>;
+  nodes: Array<{
+    id: string;
+    kind: string;
+    position: { x: number; y: number };
+    sectionId?: string | null;
+  }>;
+}
+
+export type UserFlowViewportResolution =
+  | { collapsed: string[]; mode: "fit" }
+  | {
+      collapsed: string[];
+      mode: "restore";
+      viewport: { center: { x: number; y: number }; zoom: number };
+    };
+
+/**
+ * Decides whether a saved position still means something. It is restored only
+ * when the visible rectangle it describes shows at least one visible item;
+ * otherwise (nothing saved, nothing to show, a deleted or moved region, an
+ * empty gap) the canvas fits visible content instead of opening on empty
+ * space. Items hidden by a collapsed Section do not count as content.
+ */
+export function resolveUserFlowViewport(input: {
+  content: UserFlowViewportContent;
+  frame: { height: number; width: number };
+  saved: UserFlowViewport | null;
+}): UserFlowViewportResolution {
+  const { content, frame, saved } = input;
+  if (!saved) {
+    return { collapsed: [], mode: "fit" };
+  }
+  const collapsed = liveCollapsedSections(content.nodes, saved.collapsed);
+  const hidden = new Set(collapsed);
+  const origins = [
+    ...content.nodes
+      .filter(({ sectionId }) => !(sectionId && hidden.has(sectionId)))
+      .map(({ position }) => position),
+    ...content.cards.map(({ position }) => position),
+  ];
+  if (
+    origins.length === 0 ||
+    !(
+      saved.zoom >= USER_FLOW_MIN_ZOOM &&
+      saved.zoom <= USER_FLOW_MAX_ZOOM &&
+      frame.width > 0 &&
+      frame.height > 0
+    )
+  ) {
+    return { collapsed, mode: "fit" };
+  }
+  const halfWidth = frame.width / saved.zoom / 2;
+  const halfHeight = frame.height / saved.zoom / 2;
+  const left = saved.center.x - halfWidth;
+  const right = saved.center.x + halfWidth;
+  const top = saved.center.y - halfHeight;
+  const bottom = saved.center.y + halfHeight;
+  const sees = origins.some(
+    ({ x, y }) =>
+      x < right &&
+      x + USER_FLOW_NODE_WIDTH > left &&
+      y < bottom &&
+      y + USER_FLOW_NODE_HEIGHT > top,
+  );
+  return sees
+    ? {
+        collapsed,
+        mode: "restore",
+        viewport: { center: saved.center, zoom: saved.zoom },
+      }
+    : { collapsed, mode: "fit" };
 }
