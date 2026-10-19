@@ -13,6 +13,8 @@ export const primarySchemaFiles = [
   "./src/schema/document-template.ts",
   "./src/schema/smart-collection.ts",
   "./src/schema/technical-diagram.ts",
+  "./src/schema/user-flow.ts",
+  "./src/schema/moodboard.ts",
   "./src/schema/decision.ts",
   "./src/schema/risk.ts",
   "./src/schema/screen.ts",

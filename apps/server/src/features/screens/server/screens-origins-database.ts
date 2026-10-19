@@ -30,7 +30,7 @@ import {
 } from "@cantiara/db/schema/screen";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { createConvertedRecord } from "../../evidence/server/evidence-record-creation";
+import { insertConvertedRecord } from "../../evidence/server/evidence-record-creation";
 import {
   type FeedbackExecutor,
   findOwnedProject,
@@ -193,7 +193,7 @@ async function readTitles(
 
 /**
  * PostgreSQL side of `Convert and Bind`, Wireframe templates and live cards.
- * The only main-record write is `createConvertedRecord`, the same boundary
+ * The only main-record write is `insertConvertedRecord`, the same boundary
  * Evidence conversions use; everything else touches Screen tables.
  */
 export function createDatabaseOriginStore(
@@ -244,7 +244,7 @@ export function createDatabaseOriginStore(
         // The exact previewed plan, re-derived under the Project and Screen locks.
         assertCurrentPlan(input.plan, version.document, owned.project, current);
         const now = new Date();
-        await createConvertedRecord(executor, owned.project, {
+        await insertConvertedRecord(executor, owned.project, {
           body: input.plan.body,
           committedAt: now,
           idempotencyKey: input.originId,

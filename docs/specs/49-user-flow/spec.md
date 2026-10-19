@@ -48,7 +48,7 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 - **Closed semantic set.** `Screen`, `Action`, `Decision`, `State/Outcome`, `Section` only. Text and limited accessible style. Color/shape are not a second type system.
 - **Editor commons.** Multi-select, pan/zoom, fit view/selection, align, z-order, grid, copy/paste, keyboard, safe undo. React Flow is the adapter; durable model is the Tasarım record's versioned flow document in the database, not xyflow JSON as a public contract.
 - **Convert and Bind.** Preview exactly one Work, Decision, Risk, or Open Question; Origin Location = owning User Flow id, node id, exact flow version. Confirm creates one record; node stays. No AI, no multi-create. New version does not silently move the bind. Promoting a low-detail step to a Screen creates or links a Screen master and live-refs it; it does not copy a Screen.
-- **Templates.** Save selected User Flow structure as a custom cross-Project template: structure and placeholders only. Instantiation creates a new User Flow in the target Project with no live bind to the source Project, its Work, or its Screens unless the founder explicitly re-links Screens in the target.
+- **Templates.** Save selected User Flow structure as a custom cross-Project template: structure and placeholders only. Instantiation creates a new User Flow in the target Project with no live bind to the source Project, its Work, or its Screens unless the founder explicitly re-links Screens in the target. Screen nodes in an instantiated template are unlinked placeholders until the founder links a Screen; the Wireframe preview and Wireframe editor opening wait for spec 48.
 - **Live cards.** Read-only Work/Decision/Risk cards; move/remove does not write source. Binds to exact node version stay on that version.
 - **Personal viewport, a11y, perf.** Same PRD 04 / 15 contract as other canvases, scoped to this User Flow surface. English labels as in stories; add missing terms in the same change. Tech stack: React Flow, not the Wireframe engine and not a universal whiteboard.
 
@@ -58,7 +58,7 @@ Kurucu Kullanıcı Akışını Proje kapsamlı tasarım ana kaydı olarak yönet
 - **Seam (one).** User Flow — the product-facing flow record and node-to-Screen interface. React Flow is an adapter.
 - **Modules under test.** User Flow only. Screen/Wireframe editor, Technical Sequence, Moodboard, Project Wall, sharing are counterparts.
 - **Prior art.** Bind to [Kullanıcı Akışı](../../prd/16-product-acceptance.md#uctan-uca-kabul-yolculuklari) and **canvas yapılandırılmış outline**.
-- **Required counterparts.** Node does not create a Screen copy; node→Screen is a kullanım bağı not `Kökeni`; broken target does not retarget and leaks no body; extra semantic types rejected; `Convert and Bind` does not mint a Screen (promotion is a separate live-ref action); template live-bind absent; Technical Sequence types absent; Moodboard or Project Wall is not this surface.
+- **Required counterparts.** Node does not create a Screen copy; node→Screen is a kullanım bağı not `Kökeni`; broken target does not retarget and leaks no body; extra semantic types rejected; `Convert and Bind` does not mint a Screen (promotion is a separate live-ref action); template live-bind absent; instantiated Screen placeholders carry no Screen id until explicitly linked; Technical Sequence types absent; Moodboard or Project Wall is not this surface.
 
 ## Out of Scope
 

@@ -97,11 +97,18 @@ const ProjectSmartCollectionsSurface = lazy(
       "@/features/smart-collections/ui/components/project-smart-collections-surface"
     ),
 );
+const ProjectMoodboardsSurface = lazy(
+  () =>
+    import("@/features/moodboards/ui/components/project-moodboards-surface"),
+);
 const ProjectTechnicalDiagramsSurface = lazy(
   () =>
     import(
       "@/features/technical-diagrams/ui/components/project-technical-diagrams-surface"
     ),
+);
+const UserFlowSurface = lazy(
+  () => import("@/features/user-flow/ui/user-flow-surface"),
 );
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
@@ -146,6 +153,31 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
         <ProjectSmartCollectionsSurface
           projectId={projectId}
           selectedViewId={selectedViewId}
+        />
+      </Suspense>
+    );
+  }
+  if (activeHash === "user-flows") {
+    return (
+      <Suspense fallback={<p>Loading User Flows…</p>}>
+        <UserFlowSurface key={`user-flow:${projectId}`} projectId={projectId} />
+      </Suspense>
+    );
+  }
+  const moodboardPrefix = "moodboard-";
+  if (
+    activeHash === "design" ||
+    activeHash === "project-area-design" ||
+    activeHash.startsWith(moodboardPrefix)
+  ) {
+    const selectedMoodboardId = activeHash.startsWith(moodboardPrefix)
+      ? decodedSourceId(activeHash.slice(moodboardPrefix.length))
+      : undefined;
+    return (
+      <Suspense fallback={<p>Loading source record…</p>}>
+        <ProjectMoodboardsSurface
+          projectId={projectId}
+          selectedMoodboardId={selectedMoodboardId}
         />
       </Suspense>
     );

@@ -181,6 +181,45 @@ import {
 } from "../focus-period";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
+  MoodboardSnapshotError,
+  moodboardSnapshotExportInputSchema,
+  moodboardSnapshotPreviewInputSchema,
+} from "../moodboard-snapshot";
+import {
+  personalMoodboardViewInputSchema,
+  savePersonalMoodboardViewInputSchema,
+} from "../moodboard-viewport";
+import {
+  addColorSwatchInputSchema,
+  addColorSwatchMutationInputSchema,
+  addMoodboardVisualInputSchema,
+  addMoodboardVisualMutationInputSchema,
+  addPaletteGroupInputSchema,
+  addPaletteGroupMutationInputSchema,
+  assignColorSwatchPaletteGroupInputSchema,
+  assignColorSwatchPaletteGroupMutationInputSchema,
+  createMoodboardInputSchema,
+  createMoodboardMutationInputSchema,
+  moodboardsProjectInputSchema,
+  newMoodboard,
+  reorderMoodboardItemsInputSchema,
+  reorderMoodboardItemsMutationInputSchema,
+  setMoodboardFocusOrderInputSchema,
+  setMoodboardFocusOrderMutationInputSchema,
+  setMoodboardVisualViewInputSchema,
+  setMoodboardVisualViewMutationInputSchema,
+  updateMoodboardVisualCaptionInputSchema,
+  updateMoodboardVisualCaptionMutationInputSchema,
+  withAddedColorSwatch,
+  withAddedPaletteGroup,
+  withAddedVisual,
+  withColorSwatchPaletteGroup,
+  withFocusOrder,
+  withReorderedItems,
+  withVisualCaption,
+  withVisualView,
+} from "../moodboards";
+import {
   humanMutationEnvelopeSchema,
   MUTATION_UI_LABELS,
   type MutationApply,
@@ -396,6 +435,22 @@ import {
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
+import {
+  convertUserFlowNodeInputSchema,
+  createUserFlowFromTemplateInputSchema,
+  createUserFlowInputSchema,
+  placeUserFlowCardInputSchema,
+  placeUserFlowNodeInputSchema,
+  previewConvertUserFlowNodeInputSchema,
+  previewRebindUserFlowBindInputSchema,
+  promoteUserFlowNodeInputSchema,
+  rebindUserFlowBindInputSchema,
+  saveUserFlowTemplateInputSchema,
+  saveUserFlowVersionInputSchema,
+  saveUserFlowViewportInputSchema,
+  userFlowInputSchema,
+  userFlowProjectInputSchema,
+} from "../user-flow";
 import type { WebCaptureAccess } from "../web-capture";
 import { WireframeDocumentError } from "../wireframe-document";
 import {
@@ -997,6 +1052,87 @@ function requireScreens(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.screens;
+}
+
+function requireUserFlow(context: Context) {
+  if (!context.userFlow) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.userFlow;
+}
+
+const USER_FLOW_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  USER_FLOW_BIND_NOT_FOUND: "Bind is unavailable.",
+  USER_FLOW_NODE_NOT_FOUND: "Node is not in this version of the User Flow.",
+  USER_FLOW_NOT_FOUND: "User Flow is unavailable.",
+  USER_FLOW_PROJECT_NOT_FOUND: "Project is unavailable.",
+  USER_FLOW_TEMPLATE_NOT_FOUND: "User Flow template is unavailable.",
+};
+
+const USER_FLOW_STALE_MESSAGES: Record<string, string> = {
+  USER_FLOW_CONVERSION_STALE:
+    "The User Flow changed since the preview. Preview again.",
+  USER_FLOW_REBIND_STALE: "The bind changed since the preview. Preview again.",
+};
+
+const USER_FLOW_REJECTED_MESSAGES: Record<string, string> = {
+  USER_FLOW_NODE_NOT_PROMOTABLE: "This node already references a Screen.",
+  USER_FLOW_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  USER_FLOW_REBIND_NOT_NEEDED: "This bind has nothing to rebind.",
+  USER_FLOW_RECORD_UNAVAILABLE:
+    "The record is not an active Work, Decision or Risk of this Project.",
+  USER_FLOW_SCENE_LIMIT:
+    "A User Flow holds at most 500 visible items and 750 links.",
+  USER_FLOW_SCREEN_UNAVAILABLE:
+    "The Screen is not an active Screen of this Project.",
+};
+
+async function runUserFlowOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "USER_FLOW_VERSION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "User Flow changed since it was loaded. Reload and try again.",
+      });
+    }
+    const stale = USER_FLOW_STALE_MESSAGES[error.code];
+    if (stale) {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: stale,
+      });
+    }
+    const rejected = USER_FLOW_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = USER_FLOW_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
 }
 
 function requireContacts(context: Context) {
@@ -2345,6 +2481,87 @@ function rethrowPrioritizationSessionMutationError(
   throw error;
 }
 
+function rethrowMoodboardMutationError(
+  error: unknown,
+  targetId: string,
+): never {
+  if (!isRecord(error)) {
+    throw error;
+  }
+  if (error.code === "APPLY_FAILED" && isRecord(error.cause)) {
+    rethrowMoodboardMutationError(error.cause, targetId);
+  }
+  if (
+    error.code === "MOODBOARD_PALETTE_GROUP_NOT_FOUND" ||
+    error.code === "MOODBOARD_PROJECT_NOT_FOUND" ||
+    error.code === "MOODBOARD_SWATCH_NOT_FOUND" ||
+    error.code === "MOODBOARD_VISUAL_NOT_FOUND" ||
+    error.code === "TARGET_NOT_FOUND"
+  ) {
+    throw new ORPCError("NOT_FOUND", {
+      defined: true,
+      message: "The Moodboard is unavailable.",
+    });
+  }
+  if (error.code === "MOODBOARD_ORIGIN_UNAVAILABLE") {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : "The visual origin is unavailable.",
+    });
+  }
+  if (error.code === "CONFLICT") {
+    throw new ORPCError("CONFLICT", {
+      data: { code: error.code, targetId },
+      defined: true,
+      message: MUTATION_UI_LABELS.conflict,
+    });
+  }
+  throw error;
+}
+
+function requireMoodboardSnapshots(context: Context) {
+  if (!context.moodboardSnapshots) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.moodboardSnapshots;
+}
+
+function rethrowMoodboardSnapshotError(error: unknown): never {
+  if (error instanceof MoodboardSnapshotError) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message: error.message,
+    });
+  }
+  throw error;
+}
+
+function requireMoodboardPersonalViews(context: Context) {
+  if (!context.moodboardPersonalViews) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.moodboardPersonalViews;
+}
+
+function requireMoodboards(context: Context) {
+  if (!context.moodboards) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.moodboards;
+}
+
+function requireMoodboardMutationContracts(context: Context) {
+  if (!context.moodboardMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.moodboardMutationContracts;
+}
+
 function rethrowTagError(error: unknown): never {
   if (!isRecord(error)) {
     throw error;
@@ -3567,6 +3784,556 @@ export const appRouter = {
         throw new ORPCError("NOT_FOUND");
       }
       return view;
+    }),
+  userFlows: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  userFlow: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).get(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  userFlowScreens: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).screens(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createUserFlow: protectedProcedure
+    .input(createUserFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).create(context.session.user.id, input),
+      ),
+    ),
+  saveUserFlowVersion: protectedProcedure
+    .input(saveUserFlowVersionInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).save(context.session.user.id, input),
+      ),
+    ),
+  placeUserFlowNode: protectedProcedure
+    .input(placeUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).placeNode(context.session.user.id, input),
+      ),
+    ),
+  userFlowCardRecords: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).cardRecords(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  userFlowBinds: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).binds(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  previewUserFlowConvert: protectedProcedure
+    .input(previewConvertUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).previewConvert(context.session.user.id, input),
+      ),
+    ),
+  convertUserFlowNode: protectedProcedure
+    .input(convertUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).convertNode(context.session.user.id, input),
+      ),
+    ),
+  previewUserFlowRebind: protectedProcedure
+    .input(previewRebindUserFlowBindInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).previewRebind(context.session.user.id, input),
+      ),
+    ),
+  rebindUserFlowBind: protectedProcedure
+    .input(rebindUserFlowBindInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).rebind(context.session.user.id, input),
+      ),
+    ),
+  promoteUserFlowNode: protectedProcedure
+    .input(promoteUserFlowNodeInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).promoteToScreen(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  placeUserFlowCard: protectedProcedure
+    .input(placeUserFlowCardInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).placeCard(context.session.user.id, input),
+      ),
+    ),
+  userFlowViewport: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).viewport(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  saveUserFlowViewport: protectedProcedure
+    .input(saveUserFlowViewportInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).saveViewport(context.session.user.id, input),
+      ),
+    ),
+  userFlowTemplates: protectedProcedure
+    .input(userFlowProjectInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).templates(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  saveUserFlowTemplate: protectedProcedure
+    .input(saveUserFlowTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).saveTemplate(context.session.user.id, input),
+      ),
+    ),
+  createUserFlowFromTemplate: protectedProcedure
+    .input(createUserFlowFromTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).createFromTemplate(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  moodboards: protectedProcedure
+    .input(moodboardsProjectInputSchema)
+    .handler(async ({ context, input }) => {
+      const moodboards = await requireMoodboards(context).list(
+        context.session.user.id,
+        input.projectId,
+      );
+      if (!moodboards) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Project Moodboards are unavailable.",
+        });
+      }
+      return moodboards;
+    }),
+  createMoodboard: protectedProcedure
+    .input(createMoodboardMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = createMoodboardInputSchema.parse(payloadInput);
+      const targetId = clientIdempotencyKey;
+      const mutation = requireMoodboardMutationContracts(context).create(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, payload }) =>
+            newMoodboard({
+              id: targetId,
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  addMoodboardVisual: protectedProcedure
+    .input(addMoodboardVisualMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = addMoodboardVisualInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).addVisual(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withAddedVisual(currentValue, {
+              itemId: clientIdempotencyKey,
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  updateMoodboardVisualCaption: protectedProcedure
+    .input(updateMoodboardVisualCaptionMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed =
+        updateMoodboardVisualCaptionInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).updateVisualCaption(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withVisualCaption(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  addColorSwatch: protectedProcedure
+    .input(addColorSwatchMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = addColorSwatchInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).addColorSwatch(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withAddedColorSwatch(currentValue, {
+              itemId: clientIdempotencyKey,
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  addPaletteGroup: protectedProcedure
+    .input(addPaletteGroupMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = addPaletteGroupInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).addPaletteGroup(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withAddedPaletteGroup(currentValue, {
+              groupId: clientIdempotencyKey,
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  assignColorSwatchPaletteGroup: protectedProcedure
+    .input(assignColorSwatchPaletteGroupMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed =
+        assignColorSwatchPaletteGroupInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).assignColorSwatchPaletteGroup(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withColorSwatchPaletteGroup(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  setMoodboardVisualView: protectedProcedure
+    .input(setMoodboardVisualViewMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = setMoodboardVisualViewInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).setVisualView(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withVisualView(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  setMoodboardFocusOrder: protectedProcedure
+    .input(setMoodboardFocusOrderMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = setMoodboardFocusOrderInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).setFocusOrder(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withFocusOrder(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  reorderMoodboardItems: protectedProcedure
+    .input(reorderMoodboardItemsMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = reorderMoodboardItemsInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).reorderItems(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withReorderedItems(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  moodboardPersonalView: protectedProcedure
+    .input(personalMoodboardViewInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireMoodboardPersonalViews(context).get(
+        context.session.user.id,
+        input.moodboardId,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Moodboard is unavailable.",
+        });
+      }
+      return view;
+    }),
+  saveMoodboardPersonalView: protectedProcedure
+    .input(savePersonalMoodboardViewInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireMoodboardPersonalViews(context).save(
+        context.session.user.id,
+        input.moodboardId,
+        input.view,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Moodboard is unavailable.",
+        });
+      }
+      return view;
+    }),
+  moodboardSnapshotPreview: protectedProcedure
+    .input(moodboardSnapshotPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireMoodboardSnapshots(context).preview(
+          context.session.user.id,
+          input,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return preview;
+      } catch (error) {
+        rethrowMoodboardSnapshotError(error);
+      }
+    }),
+  exportMoodboardSnapshot: protectedProcedure
+    .input(moodboardSnapshotExportInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const output = await requireMoodboardSnapshots(context).export(
+          context.session.user.id,
+          input,
+        );
+        if (!output) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return output;
+      } catch (error) {
+        rethrowMoodboardSnapshotError(error);
+      }
     }),
   technicalDiagrams: protectedProcedure
     .input(z.object({ projectId: projectIdSchema }).strict())

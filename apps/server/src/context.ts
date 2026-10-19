@@ -35,6 +35,12 @@ import type { FavoritesAccess } from "@cantiara/api/favorites";
 import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
+import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
+import type { PersonalMoodboardViewsAccess } from "@cantiara/api/moodboard-viewport";
+import type {
+  MoodboardMutationContracts,
+  MoodboardsAccess,
+} from "@cantiara/api/moodboards";
 import type {
   MutationContract,
   MutationPayload,
@@ -75,6 +81,7 @@ import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
+import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
 import type { WorkDraftsAccess } from "@cantiara/api/work-drafts";
@@ -120,6 +127,10 @@ export interface CreateContextOptions {
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  moodboardMutationContracts?: MoodboardMutationContracts;
+  moodboardPersonalViews?: PersonalMoodboardViewsAccess;
+  moodboardSnapshots?: MoodboardSnapshotsAccess;
+  moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
@@ -149,6 +160,7 @@ export interface CreateContextOptions {
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
+  userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;
@@ -180,7 +192,12 @@ export async function createContext({
   documents,
   documentTransfers,
   smartCollections,
+  moodboardMutationContracts,
+  moodboardPersonalViews,
+  moodboardSnapshots,
+  moodboards,
   technicalDiagrams,
+  userFlow,
   universalSearch,
   focusPeriod,
   roadmapHorizon,
@@ -257,7 +274,12 @@ export async function createContext({
     documents,
     documentTransfers,
     smartCollections,
+    moodboardMutationContracts,
+    moodboardPersonalViews,
+    moodboardSnapshots,
+    moodboards,
     technicalDiagrams,
+    userFlow,
     universalSearch,
     focusPeriod,
     roadmapHorizon,

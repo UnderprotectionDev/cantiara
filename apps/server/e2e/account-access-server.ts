@@ -56,6 +56,9 @@ import { createDatabaseDocumentEvidence } from "../src/features/evidence/server/
 import { createDatabaseFavorites } from "../src/features/favorites/server/favorites-database";
 import { createDatabaseFeedbackWithFeed } from "../src/features/feedback/server/feedback-feed-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
+import { createDatabaseMoodboardPersonalViews } from "../src/features/moodboards/server/moodboard-personal-views-database";
+import { createDatabaseMoodboards } from "../src/features/moodboards/server/moodboards-database";
+import { createDatabaseMoodboardMutationContracts } from "../src/features/moodboards/server/moodboards-mutation-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
@@ -115,6 +118,10 @@ const documents = createDatabaseDocuments(database);
 const universalSearch = createDatabaseUniversalSearch(database);
 const smartCollections = createDatabaseSmartCollections(database);
 const technicalDiagrams = createDatabaseTechnicalDiagrams(database);
+const moodboards = createDatabaseMoodboards(database);
+const moodboardPersonalViews = createDatabaseMoodboardPersonalViews(database);
+const moodboardMutationContracts =
+  createDatabaseMoodboardMutationContracts(database);
 const documentMutationContracts =
   createDatabaseDocumentMutationContracts(database);
 const securityEventDatabase = createSecurityEventDb({
@@ -359,6 +366,9 @@ const app = createApp({
     createDatabaseDocumentSurfaceCancellations(securityEventDatabase),
   ),
   smartCollections,
+  moodboardMutationContracts,
+  moodboardPersonalViews,
+  moodboards,
   technicalDiagrams,
   universalSearch,
   // Keep integration coverage inside the API window regardless of CI date.

@@ -26,6 +26,12 @@ import type { FavoritesAccess } from "./favorites";
 import type { FeedbackAccess } from "./feedback";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
+import type { MoodboardSnapshotsAccess } from "./moodboard-snapshot";
+import type { PersonalMoodboardViewsAccess } from "./moodboard-viewport";
+import type {
+  MoodboardMutationContracts,
+  MoodboardsAccess,
+} from "./moodboards";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type { PersonalRemindersAccess } from "./personal-reminders";
 import type {
@@ -63,6 +69,7 @@ import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
+import type { UserFlowAccess } from "./user-flow";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
 import type { WorkDraftsAccess } from "./work-drafts";
@@ -181,6 +188,10 @@ export interface Context {
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
+  moodboardMutationContracts?: MoodboardMutationContracts;
+  moodboardPersonalViews?: PersonalMoodboardViewsAccess;
+  moodboardSnapshots?: MoodboardSnapshotsAccess;
+  moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
@@ -212,6 +223,7 @@ export interface Context {
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
+  userFlow?: UserFlowAccess;
   webCapture?: WebCaptureAccess;
   workContext?: WorkContextAccess;
   workDrafts?: WorkDraftsAccess;

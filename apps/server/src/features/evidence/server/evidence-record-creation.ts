@@ -8,34 +8,39 @@ import { work, workKeyAllocation } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
-/** The closed set of main records a conversion can open. */
-export interface ConvertedRecordInput {
-  /** The text the record starts from: its description, decision or question. */
-  body: string;
-  committedAt: Date;
-  idempotencyKey: string;
-  /** Owned-component provenance stored on a Work (`originLocation` stays unset). */
-  origin?: {
-    componentId: string | null;
-    ownerRecordId: string;
-    sourceVersion: string;
-  };
-  payloadFingerprint: string;
-  recordId: string;
-  title: string;
-  type: "Assumption" | "Decision" | "Open Question" | "Risk" | "Work";
-  workType?: string | null;
-}
+/** Record types a conversion can open; a Screen is never one of them. */
+export type ConvertedRecordType =
+  | "Assumption"
+  | "Decision"
+  | "Open Question"
+  | "Risk"
+  | "Work";
 
 /**
- * The one boundary that inserts the single record of a conversion
- * (`Convert to new record and bind`, `Convert and Bind`). The caller holds the
- * owning Project row lock and passes that locked row.
+ * Inserts the single record a conversion opens. The caller holds the owning
+ * Project row lock and passes that locked row. Every conversion path (a
+ * Document selection, a User Flow node) creates its record here, so a record
+ * is born the same way whichever surface opened it.
  */
-export async function createConvertedRecord(
+export async function insertConvertedRecord(
   executor: MutationDatabaseExecutor,
   owner: typeof project.$inferSelect,
-  input: ConvertedRecordInput,
+  input: {
+    body: string;
+    committedAt: Date;
+    idempotencyKey: string;
+    /** Work only: the Origin Location columns of the new Work. */
+    origin?: {
+      componentId: string | null;
+      ownerRecordId: string | null;
+      sourceVersion: string | null;
+    };
+    payloadFingerprint: string;
+    recordId: string;
+    title: string;
+    type: ConvertedRecordType;
+    workType?: string | null;
+  },
 ) {
   const base = {
     id: input.recordId,
@@ -85,7 +90,7 @@ export async function createConvertedRecord(
       return;
     }
     default:
-      throw new Error("Unsupported record type.");
+      throw new Error("Unsupported conversion record type.");
   }
 }
 
@@ -108,18 +113,15 @@ export async function createEvidenceRecord(
   if (!newRecord) {
     throw new Error("A new record is required.");
   }
-  await createConvertedRecord(executor, owner, {
+  await insertConvertedRecord(executor, owner, {
     body: plan.pin.excerpt,
     committedAt: input.committedAt,
     idempotencyKey: input.idempotencyKey,
-    origin:
-      newRecord.type === "Work"
-        ? {
-            componentId: plan.pin.source.componentId,
-            ownerRecordId: plan.pin.source.recordId,
-            sourceVersion: String(plan.pin.source.revision),
-          }
-        : undefined,
+    origin: {
+      componentId: plan.pin.source.componentId,
+      ownerRecordId: plan.pin.source.recordId,
+      sourceVersion: String(plan.pin.source.revision),
+    },
     payloadFingerprint: input.payloadFingerprint,
     recordId: input.recordId,
     title: newRecord.title,

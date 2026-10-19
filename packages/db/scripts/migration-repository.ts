@@ -25,6 +25,7 @@ export interface MigrationSnapshot {
           primaryKey: boolean;
           notNull: boolean;
           default?: unknown;
+          generated?: { as: string; type: string };
         }
       >;
       compositePrimaryKeys: Record<string, { name: string; columns: string[] }>;

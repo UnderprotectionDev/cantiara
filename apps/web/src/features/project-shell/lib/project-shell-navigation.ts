@@ -245,6 +245,13 @@ export function navigationSurfaceFromHash(
     return "Technical Diagrams";
   }
   if (
+    hash.startsWith("moodboard-") &&
+    enabledAreas.includes("Design") &&
+    !hiddenAreas.includes("Design")
+  ) {
+    return "Design";
+  }
+  if (
     isWorkSurfaceHash(hash) &&
     enabledAreas.includes("Work") &&
     !hiddenAreas.includes("Work")
