@@ -19,7 +19,7 @@ import {
   createMemoryStore,
   PROJECT,
   timestamp,
-} from "./user-flow-memory-store";
+} from "./user-flow-test-support";
 
 function setup() {
   const memory = createMemoryStore();

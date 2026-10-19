@@ -20,7 +20,7 @@ import {
   createMemoryStore,
   PROJECT,
   timestamp,
-} from "./user-flow-memory-store";
+} from "./user-flow-test-support";
 
 const OTHER_ACCOUNT = "account-2";
 
