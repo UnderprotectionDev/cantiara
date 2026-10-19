@@ -1,3 +1,5 @@
+import type { SnapshotFormat } from "@cantiara/api/moodboard-snapshot";
+import type { VisualView } from "@cantiara/api/moodboard-view";
 import type {
   Moodboard,
   MoodboardVisualOrigin,
@@ -119,7 +121,57 @@ export function useMoodboards(projectId: string) {
     onSuccess: invalidate,
   });
 
+  const setVisualView = useMutation({
+    mutationFn: (input: {
+      itemId: string;
+      moodboard: Moodboard;
+      view: VisualView;
+    }) =>
+      runOnlineOnlyWrite(() =>
+        client.setMoodboardVisualView({
+          baseRevision: input.moodboard.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          crop: input.view.crop,
+          itemId: input.itemId,
+          moodboardId: input.moodboard.id,
+          rotation: input.view.rotation,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
+  const setFocusOrder = useMutation({
+    mutationFn: (input: { itemIds: string[]; moodboard: Moodboard }) =>
+      runOnlineOnlyWrite(() =>
+        client.setMoodboardFocusOrder({
+          baseRevision: input.moodboard.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          itemIds: input.itemIds,
+          moodboardId: input.moodboard.id,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
+  // Snapshot reads never change the Moodboard, so they do not invalidate it.
+  const snapshotPreview = useMutation({
+    mutationFn: (input: { itemIds: string[]; moodboardId: string }) =>
+      client.moodboardSnapshotPreview(input),
+  });
+
+  const exportSnapshot = useMutation({
+    mutationFn: (input: {
+      format: SnapshotFormat;
+      itemIds: string[];
+      moodboardId: string;
+    }) => client.exportMoodboardSnapshot(input),
+  });
+
   return {
+    exportSnapshot,
+    setFocusOrder,
+    setVisualView,
+    snapshotPreview,
     addColorSwatch,
     addPaletteGroup,
     addVisual,

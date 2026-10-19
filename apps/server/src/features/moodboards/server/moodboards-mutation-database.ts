@@ -1,3 +1,4 @@
+import { visualOriginKey } from "@cantiara/api/moodboard-view";
 import {
   addColorSwatchInputSchema,
   addMoodboardVisualInputSchema,
@@ -7,6 +8,8 @@ import {
   type MoodboardMutationContracts,
   type MoodboardMutationValue,
   type MoodboardVisualOrigin,
+  setMoodboardFocusOrderInputSchema,
+  setMoodboardVisualViewInputSchema,
   updateMoodboardVisualCaptionInputSchema,
 } from "@cantiara/api/moodboards";
 import type {
@@ -22,9 +25,11 @@ import {
 import {
   moodboard,
   moodboardColorSwatch,
+  moodboardFocusStep,
   moodboardItem,
   moodboardPaletteGroup,
   moodboardVisual,
+  moodboardVisualView,
 } from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
 import { and, count, eq } from "drizzle-orm";
@@ -46,6 +51,8 @@ type MoodboardOperation =
   | "addVisual"
   | "assignColorSwatchPaletteGroup"
   | "create"
+  | "setFocusOrder"
+  | "setVisualView"
   | "updateVisualCaption";
 type ExistingOperation = Exclude<MoodboardOperation, "create">;
 type MoodboardUpdateInput = Parameters<
@@ -192,6 +199,52 @@ function assertPaletteGroupExists(
   }
 }
 
+function validateViewPayload(
+  operation: "setFocusOrder" | "setVisualView" | "updateVisualCaption",
+  record: MoodboardRecord,
+  current: NonNullable<MoodboardMutationValue["moodboard"]>,
+  payload: MutationPayload,
+) {
+  if (operation === "setVisualView") {
+    const parsed = setMoodboardVisualViewInputSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.moodboardId !== record.id) {
+      return false;
+    }
+    if (
+      !current.items.some(
+        (item) => item.kind === "Visual" && item.id === parsed.data.itemId,
+      )
+    ) {
+      throw new MoodboardVisualNotFoundError(parsed.data.itemId);
+    }
+    return true;
+  }
+  if (operation === "updateVisualCaption") {
+    const parsed = updateMoodboardVisualCaptionInputSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.moodboardId !== record.id) {
+      return false;
+    }
+    if (
+      !current.items.some(
+        (item) => item.kind === "Visual" && item.id === parsed.data.itemId,
+      )
+    ) {
+      throw new MoodboardVisualNotFoundError(parsed.data.itemId);
+    }
+    return true;
+  }
+  const parsed = setMoodboardFocusOrderInputSchema.safeParse(payload);
+  if (!parsed.success || parsed.data.moodboardId !== record.id) {
+    return false;
+  }
+  const known = new Set(current.items.map(({ id }) => id));
+  const unknown = parsed.data.itemIds.find((id) => !known.has(id));
+  if (unknown !== undefined) {
+    throw new MoodboardVisualNotFoundError(unknown);
+  }
+  return true;
+}
+
 async function validatePayload(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -241,18 +294,7 @@ async function validatePayload(
     assertPaletteGroupExists(current, parsed.data.paletteGroupId);
     return true;
   }
-  const parsed = updateMoodboardVisualCaptionInputSchema.safeParse(payload);
-  if (!parsed.success || parsed.data.moodboardId !== record.id) {
-    return false;
-  }
-  if (
-    !current.items.some(
-      (item) => item.kind === "Visual" && item.id === parsed.data.itemId,
-    )
-  ) {
-    throw new MoodboardVisualNotFoundError(parsed.data.itemId);
-  }
-  return true;
+  return validateViewPayload(operation, record, current, payload);
 }
 
 async function findExistingTarget(
@@ -498,6 +540,92 @@ async function updateVisualCaptionItem(
   return true;
 }
 
+/**
+ * Writes only this Moodboard's view row of the targeted visual, bound to its
+ * exact origin. The File Attachment, its versions, and other Moodboards are not
+ * read for writing; a default view removes the row (Reset view).
+ */
+async function setVisualViewItem(
+  executor: MutationDatabaseExecutor,
+  record: MoodboardRecord,
+  input: MoodboardUpdateInput,
+) {
+  const before = await loadMoodboard(executor, record);
+  const next = input.nextValue.moodboard?.items.find(
+    (item) =>
+      item.kind === "Visual" &&
+      before.items.some(
+        (previous) =>
+          previous.kind === "Visual" &&
+          previous.id === item.id &&
+          (previous.view.rotation !== item.view.rotation ||
+            JSON.stringify(previous.view.crop) !==
+              JSON.stringify(item.view.crop)),
+      ),
+  );
+  if (!next) {
+    // A repeated view is a no-op that still advances the Moodboard revision.
+    return true;
+  }
+  if (next.kind !== "Visual") {
+    return false;
+  }
+  await executor
+    .update(moodboardItem)
+    .set({ updatedAt: input.committedAt })
+    .where(
+      and(
+        eq(moodboardItem.id, next.id),
+        eq(moodboardItem.moodboardId, record.id),
+      ),
+    );
+  if (next.view.crop === null && next.view.rotation === 0) {
+    await executor
+      .delete(moodboardVisualView)
+      .where(eq(moodboardVisualView.itemId, next.id));
+    return true;
+  }
+  const values = {
+    boundOrigin: visualOriginKey(next.origin),
+    cropHeight: next.view.crop?.height ?? null,
+    cropLeft: next.view.crop?.left ?? null,
+    cropTop: next.view.crop?.top ?? null,
+    cropWidth: next.view.crop?.width ?? null,
+    rotation: next.view.rotation,
+    updatedAt: input.committedAt,
+  };
+  await executor
+    .insert(moodboardVisualView)
+    .values({ itemId: next.id, ...values })
+    .onConflictDoUpdate({ set: values, target: moodboardVisualView.itemId });
+  return true;
+}
+
+/** Rewrites only the ordered ID list; no item or content row is copied. */
+async function setFocusOrderRows(
+  executor: MutationDatabaseExecutor,
+  record: MoodboardRecord,
+  input: MoodboardUpdateInput,
+) {
+  const order = input.nextValue.moodboard?.focusOrder;
+  if (!order) {
+    return false;
+  }
+  await executor
+    .delete(moodboardFocusStep)
+    .where(eq(moodboardFocusStep.moodboardId, record.id));
+  if (order.length > 0) {
+    await executor.insert(moodboardFocusStep).values(
+      order.map((itemId, position) => ({
+        itemId,
+        moodboardId: record.id,
+        position,
+      })),
+    );
+  }
+  return true;
+}
+
 async function updateExistingMoodboard(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -526,6 +654,12 @@ async function updateExistingMoodboard(
       break;
     case "assignColorSwatchPaletteGroup":
       written = await assignSwatchGroupItem(executor, record, input);
+      break;
+    case "setFocusOrder":
+      written = await setFocusOrderRows(executor, record, input);
+      break;
+    case "setVisualView":
+      written = await setVisualViewItem(executor, record, input);
       break;
     default:
       written = await updateVisualCaptionItem(executor, record, input);
@@ -596,6 +730,8 @@ export function createDatabaseMoodboardMutationContracts(
     assignColorSwatchPaletteGroup: (accountId) =>
       contract("assignColorSwatchPaletteGroup", accountId),
     create: (accountId) => contract("create", accountId),
+    setFocusOrder: (accountId) => contract("setFocusOrder", accountId),
+    setVisualView: (accountId) => contract("setVisualView", accountId),
     updateVisualCaption: (accountId) =>
       contract("updateVisualCaption", accountId),
   };

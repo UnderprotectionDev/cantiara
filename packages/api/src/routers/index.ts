@@ -181,6 +181,11 @@ import {
 } from "../focus-period";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
+  MoodboardSnapshotError,
+  moodboardSnapshotExportInputSchema,
+  moodboardSnapshotPreviewInputSchema,
+} from "../moodboard-snapshot";
+import {
   addColorSwatchInputSchema,
   addColorSwatchMutationInputSchema,
   addMoodboardVisualInputSchema,
@@ -193,13 +198,19 @@ import {
   createMoodboardMutationInputSchema,
   moodboardsProjectInputSchema,
   newMoodboard,
+  setMoodboardFocusOrderInputSchema,
+  setMoodboardFocusOrderMutationInputSchema,
+  setMoodboardVisualViewInputSchema,
+  setMoodboardVisualViewMutationInputSchema,
   updateMoodboardVisualCaptionInputSchema,
   updateMoodboardVisualCaptionMutationInputSchema,
   withAddedColorSwatch,
   withAddedPaletteGroup,
   withAddedVisual,
   withColorSwatchPaletteGroup,
+  withFocusOrder,
   withVisualCaption,
+  withVisualView,
 } from "../moodboards";
 import {
   humanMutationEnvelopeSchema,
@@ -2376,6 +2387,24 @@ function rethrowMoodboardMutationError(
   throw error;
 }
 
+function requireMoodboardSnapshots(context: Context) {
+  if (!context.moodboardSnapshots) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.moodboardSnapshots;
+}
+
+function rethrowMoodboardSnapshotError(error: unknown): never {
+  if (error instanceof MoodboardSnapshotError) {
+    throw new ORPCError("BAD_REQUEST", {
+      data: { code: error.code },
+      defined: true,
+      message: error.message,
+    });
+  }
+  throw error;
+}
+
 function requireMoodboards(context: Context) {
   if (!context.moodboards) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -3775,6 +3804,106 @@ export const appRouter = {
         return receipt.nextValue.moodboard;
       } catch (error) {
         rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  setMoodboardVisualView: protectedProcedure
+    .input(setMoodboardVisualViewMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = setMoodboardVisualViewInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).setVisualView(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withVisualView(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  setMoodboardFocusOrder: protectedProcedure
+    .input(setMoodboardFocusOrderMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = setMoodboardFocusOrderInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).setFocusOrder(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withFocusOrder(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  moodboardSnapshotPreview: protectedProcedure
+    .input(moodboardSnapshotPreviewInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const preview = await requireMoodboardSnapshots(context).preview(
+          context.session.user.id,
+          input,
+        );
+        if (!preview) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return preview;
+      } catch (error) {
+        rethrowMoodboardSnapshotError(error);
+      }
+    }),
+  exportMoodboardSnapshot: protectedProcedure
+    .input(moodboardSnapshotExportInputSchema)
+    .handler(async ({ context, input }) => {
+      try {
+        const output = await requireMoodboardSnapshots(context).export(
+          context.session.user.id,
+          input,
+        );
+        if (!output) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return output;
+      } catch (error) {
+        rethrowMoodboardSnapshotError(error);
       }
     }),
   technicalDiagrams: protectedProcedure

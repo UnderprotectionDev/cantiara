@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 import { normalizeColorHex } from "./moodboard-color";
+import {
+  DEFAULT_VISUAL_VIEW,
+  MOODBOARD_FOCUS_ORDER_MAX,
+  visualCropSchema,
+  visualRotationSchema,
+  visualViewSchema,
+} from "./moodboard-view";
 import type { MutationContract } from "./mutation-and-undo";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
@@ -13,6 +20,12 @@ export const MOODBOARD_UI_LABELS = {
   colorSwatch: "Color Swatch",
   eyedrop: "Eyedrop",
   colorSwatchEntryHint: "HEX, RGB, or HSL",
+  crop: "Crop",
+  exitPresentationMode: "Exit Presentation Mode",
+  focusOrder: "Focus order",
+  presentationMode: "Presentation Mode",
+  resetView: "Reset view",
+  rotate90: "Rotate 90°",
   createMoodboard: "Create Moodboard",
   externalLink: "External link",
   fileAttachmentVersion: "File Attachment version",
@@ -87,6 +100,8 @@ export const moodboardVisualSchema = z
     origin: moodboardVisualOriginSchema,
     position: z.number().int().nonnegative(),
     updatedAt: z.string().datetime(),
+    /** View-local Crop and Rotate 90°; bound to this exact origin. */
+    view: visualViewSchema,
   })
   .strict();
 
@@ -173,6 +188,8 @@ export type MoodboardItem = z.infer<typeof moodboardItemSchema>;
 export const moodboardSchema = z
   .object({
     createdAt: z.string().datetime(),
+    /** Optional view-local Presentation Mode order; empty means board order. */
+    focusOrder: z.array(identifierSchema),
     id: identifierSchema,
     items: z.array(moodboardItemSchema),
     paletteGroups: z.array(paletteGroupSchema),
@@ -268,6 +285,48 @@ export const assignColorSwatchPaletteGroupMutationInputSchema =
     .extend(assignColorSwatchPaletteGroupFieldsSchema.shape)
     .strict();
 
+const setMoodboardVisualViewFieldsSchema = z
+  .object({
+    crop: visualCropSchema.nullable(),
+    itemId: identifierSchema,
+    moodboardId: identifierSchema,
+    rotation: visualRotationSchema,
+  })
+  .strict();
+
+export const setMoodboardVisualViewInputSchema =
+  setMoodboardVisualViewFieldsSchema;
+export const setMoodboardVisualViewMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend(setMoodboardVisualViewFieldsSchema.shape)
+    .strict();
+
+const setMoodboardFocusOrderFieldsSchema = z
+  .object({
+    itemIds: z
+      .array(identifierSchema)
+      .max(MOODBOARD_FOCUS_ORDER_MAX)
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Focus order cannot repeat an item.",
+      ),
+    moodboardId: identifierSchema,
+  })
+  .strict();
+
+export const setMoodboardFocusOrderInputSchema =
+  setMoodboardFocusOrderFieldsSchema;
+export const setMoodboardFocusOrderMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend(setMoodboardFocusOrderFieldsSchema.shape)
+    .strict();
+
+export type SetMoodboardVisualViewInput = z.output<
+  typeof setMoodboardVisualViewInputSchema
+>;
+export type SetMoodboardFocusOrderInput = z.output<
+  typeof setMoodboardFocusOrderInputSchema
+>;
 export type AddColorSwatchInput = z.output<typeof addColorSwatchInputSchema>;
 export type AddPaletteGroupInput = z.output<typeof addPaletteGroupInputSchema>;
 export type AssignColorSwatchPaletteGroupInput = z.output<
@@ -298,6 +357,12 @@ export interface MoodboardMutationContracts {
     accountId: string,
   ) => MutationContract<MoodboardMutationValue>;
   create: (accountId: string) => MutationContract<MoodboardMutationValue>;
+  setFocusOrder: (
+    accountId: string,
+  ) => MutationContract<MoodboardMutationValue>;
+  setVisualView: (
+    accountId: string,
+  ) => MutationContract<MoodboardMutationValue>;
   updateVisualCaption: (
     accountId: string,
   ) => MutationContract<MoodboardMutationValue>;
@@ -313,6 +378,7 @@ export function newMoodboard(input: {
   return {
     moodboard: {
       createdAt: input.now,
+      focusOrder: [],
       id: input.id,
       items: [],
       paletteGroups: [],
@@ -345,6 +411,7 @@ export function withAddedVisual(
     origin: input.payload.origin,
     position: moodboard.items.length,
     updatedAt: input.now,
+    view: DEFAULT_VISUAL_VIEW,
   };
   return {
     moodboard: {
@@ -469,6 +536,63 @@ export function withColorSwatchPaletteGroup(
             }
           : item,
       ),
+      revision: input.revision,
+      updatedAt: input.now,
+    },
+  };
+}
+
+/** Only the targeted visual's view-local Crop and rotation change; nothing else does. */
+export function withVisualView(
+  current: MoodboardMutationValue,
+  input: {
+    now: string;
+    payload: SetMoodboardVisualViewInput;
+    revision: number;
+  },
+): MoodboardMutationValue {
+  const { moodboard } = current;
+  if (!moodboard) {
+    return current;
+  }
+  return {
+    moodboard: {
+      ...moodboard,
+      items: moodboard.items.map((item) =>
+        item.kind === "Visual" && item.id === input.payload.itemId
+          ? {
+              ...item,
+              updatedAt: input.now,
+              view: {
+                crop: input.payload.crop,
+                rotation: input.payload.rotation,
+              },
+            }
+          : item,
+      ),
+      revision: input.revision,
+      updatedAt: input.now,
+    },
+  };
+}
+
+/** The Focus order lists existing item IDs only; it never copies content. */
+export function withFocusOrder(
+  current: MoodboardMutationValue,
+  input: {
+    now: string;
+    payload: SetMoodboardFocusOrderInput;
+    revision: number;
+  },
+): MoodboardMutationValue {
+  const { moodboard } = current;
+  if (!moodboard) {
+    return current;
+  }
+  return {
+    moodboard: {
+      ...moodboard,
+      focusOrder: input.payload.itemIds,
       revision: input.revision,
       updatedAt: input.now,
     },

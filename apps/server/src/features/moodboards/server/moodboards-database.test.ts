@@ -1,3 +1,4 @@
+import type { VisualView } from "@cantiara/api/moodboard-view";
 import {
   type AddMoodboardVisualInput,
   type CreateMoodboardInput,
@@ -8,7 +9,9 @@ import {
   withAddedPaletteGroup,
   withAddedVisual,
   withColorSwatchPaletteGroup,
+  withFocusOrder,
   withVisualCaption,
+  withVisualView,
 } from "@cantiara/api/moodboards";
 import { createDb } from "@cantiara/db";
 import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
@@ -526,5 +529,125 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
     });
     expect(left.items[0]).toMatchObject({ paletteGroupId: null });
     expect(await snapshot()).toEqual(before);
+  });
+
+  test("View-local Crop and rotation stay on this Moodboard: the attachment, its versions, and another Moodboard of the same attachment are untouched, and Reset view removes the row", async () => {
+    const db = requireDatabase();
+    const attachmentId = `attachment-${crypto.randomUUID()}`;
+    const versionId = `version-${crypto.randomUUID()}`;
+    await db.insert(fileAttachment).values({
+      id: attachmentId,
+      name: "reference.png",
+      projectId,
+      scopeType: "Project",
+      workspaceId,
+    });
+    await insertVersion(attachmentId, versionId, 1, "image/png");
+    const attachmentBefore = await db
+      .select()
+      .from(fileAttachment)
+      .where(eq(fileAttachment.id, attachmentId));
+    const versionsBefore = await db
+      .select()
+      .from(fileAttachmentVersion)
+      .where(eq(fileAttachmentVersion.attachmentId, attachmentId));
+    const firstKey = crypto.randomUUID();
+    const secondKey = crypto.randomUUID();
+    const origin = {
+      attachmentVersionId: versionId,
+      kind: "File Attachment version",
+    } as const;
+    const first = await addVisual(
+      await create(accountId, { projectId, title: "First" }),
+      { caption: null, origin },
+      firstKey,
+    );
+    const second = await addVisual(
+      await create(accountId, { projectId, title: "Second" }),
+      { caption: null, origin },
+      secondKey,
+    );
+
+    async function setView(board: Moodboard, itemId: string, view: VisualView) {
+      const receipt = await mutations()
+        .setVisualView(accountId)
+        .mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision: board.revision,
+            clientIdempotencyKey: crypto.randomUUID(),
+            kind: "human",
+            payload: { ...view, itemId, moodboardId: board.id },
+            targetId: board.id,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withVisualView(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+      if (!receipt.nextValue.moodboard) {
+        throw new Error("Moodboard is missing.");
+      }
+      return receipt.nextValue.moodboard;
+    }
+
+    const edited = await setView(first, firstKey, {
+      crop: { height: 5000, left: 1000, top: 2000, width: 6000 },
+      rotation: 90,
+    });
+    const access = createDatabaseMoodboards(db);
+    const [firstRead] = [await access.get(accountId, first.id)];
+    const [secondRead] = [await access.get(accountId, second.id)];
+    expect(edited.items[0]).toMatchObject({
+      view: {
+        crop: { height: 5000, left: 1000, top: 2000, width: 6000 },
+        rotation: 90,
+      },
+    });
+    expect(firstRead?.items[0]).toMatchObject({ view: edited.items[0] });
+    expect(secondRead?.items[0]).toMatchObject({
+      view: { crop: null, rotation: 0 },
+    });
+    expect(secondRead?.revision).toBe(second.revision);
+    expect(
+      await db
+        .select()
+        .from(fileAttachment)
+        .where(eq(fileAttachment.id, attachmentId)),
+    ).toEqual(attachmentBefore);
+    expect(
+      await db
+        .select()
+        .from(fileAttachmentVersion)
+        .where(eq(fileAttachmentVersion.attachmentId, attachmentId)),
+    ).toEqual(versionsBefore);
+
+    const reset = await setView(edited, firstKey, {
+      crop: null,
+      rotation: 0,
+    });
+    expect(reset.items[0]).toMatchObject({ view: { crop: null, rotation: 0 } });
+    const focused = await mutations()
+      .setFocusOrder(accountId)
+      .mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: reset.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          kind: "human",
+          payload: { itemIds: [firstKey], moodboardId: reset.id },
+          targetId: reset.id,
+        },
+        ({ currentRevision, currentValue, payload }) =>
+          withFocusOrder(currentValue, {
+            now: new Date().toISOString(),
+            payload,
+            revision: currentRevision + 1,
+          }),
+      );
+    expect(focused.nextValue.moodboard?.focusOrder).toEqual([firstKey]);
+    expect((await access.get(accountId, second.id))?.focusOrder).toEqual([]);
   });
 });

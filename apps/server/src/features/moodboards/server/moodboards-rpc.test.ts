@@ -1,4 +1,6 @@
 import type { Context } from "@cantiara/api/context";
+import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
+import { presentationSequence } from "@cantiara/api/moodboard-view";
 import {
   type Moodboard,
   type MoodboardMutationContracts,
@@ -21,6 +23,11 @@ import { createRouterClient } from "@orpc/server";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, test, vi } from "vitest";
 
+import {
+  buildMoodboardSnapshotOutput,
+  previewMoodboardSnapshot,
+} from "./moodboard-snapshots-database";
+
 const MOODBOARD_TABLE_NAME = /^moodboard/;
 const PRODUCT_THEME_COLUMN =
   /theme|appearance|effect|token|css|custom_field|wall|highlight/;
@@ -28,6 +35,8 @@ const PRODUCT_THEME_KEY = /theme|token|css|wall|highlight/i;
 const COLOR_ROUTE_NAME = /moodboard|swatch|palette|color|colour/i;
 const FORBIDDEN_ROUTE_NAME =
   /stock|unsplash|pexels|(color|colour|palette|swatch).*(suggest|recommend|extract|generate)|(suggest|recommend|extract|generate).*(color|colour|palette|swatch)/i;
+
+const SHARING_COPY = /share link|Build in Public/;
 
 const accountId = "account-1";
 const projectId = "project-1";
@@ -75,6 +84,8 @@ function createFixture() {
     addVisual: () => fakeContract,
     assignColorSwatchPaletteGroup: () => fakeContract,
     create: () => fakeContract,
+    setFocusOrder: () => fakeContract,
+    setVisualView: () => fakeContract,
     updateVisualCaption: () => fakeContract,
   };
   const access: MoodboardsAccess = {
@@ -83,6 +94,44 @@ function createFixture() {
       requestedProjectId === projectId && stored.moodboard
         ? [stored.moodboard]
         : [],
+  };
+  // Snapshot service over the same in-memory Moodboard: the real builder with a
+  // fake renderer and an object store that can only read.
+  const originalReads = vi.fn(() => Promise.resolve<Uint8Array | null>(null));
+  const rendered = { pages: [] as { tiles: unknown[] }[][] };
+  const snapshots: MoodboardSnapshotsAccess = {
+    export(_account, input) {
+      const board = stored.moodboard;
+      if (!board || board.id !== input.moodboardId) {
+        return Promise.resolve(null);
+      }
+      return buildMoodboardSnapshotOutput(board, input, {
+        loadOriginalBytes: originalReads,
+        now: () => new Date("2026-10-19T10:00:00.000Z"),
+        renderer: {
+          pdf: (pages) => {
+            rendered.pages.push([...pages]);
+            return Promise.resolve(new Uint8Array([37, 80, 68, 70]));
+          },
+          png: (pages) => {
+            rendered.pages.push([...pages]);
+            return Promise.resolve(pages.map(() => new Uint8Array([137, 80])));
+          },
+        },
+      });
+    },
+    preview(_account, input) {
+      const board = stored.moodboard;
+      return Promise.resolve(
+        board && board.id === input.moodboardId
+          ? previewMoodboardSnapshot(
+              board,
+              input.itemIds,
+              new Date("2026-10-19T10:00:00.000Z"),
+            )
+          : null,
+      );
+    },
   };
   // Counterparts a Moodboard edit must never touch.
   const usageLinkMutationContracts = {
@@ -111,6 +160,7 @@ function createFixture() {
     db: {} as Context["db"],
     fileAttachments,
     moodboardMutationContracts: contracts,
+    moodboardSnapshots: snapshots,
     moodboards: access,
     session: {
       session: { id: "session-1" },
@@ -122,6 +172,9 @@ function createFixture() {
     client: createRouterClient(appRouter, { context }),
     fileAttachments,
     forbidden,
+    originalReads,
+    rendered,
+    snapshotted: () => stored.moodboard,
     usageLinkMutationContracts,
   };
 }
@@ -341,6 +394,7 @@ describe("Moodboards", () => {
       "origin",
       "position",
       "updatedAt",
+      "view",
     ]);
     expect(withVisual.items[0]?.kind).toBe("Visual");
     // A strict schema rejects attempts to smuggle extra identity onto a visual.
@@ -554,8 +608,279 @@ describe("Moodboards Color Swatch", () => {
       "addPaletteGroup",
       "assignColorSwatchPaletteGroup",
       "createMoodboard",
+      "exportMoodboardSnapshot",
+      "moodboardSnapshotPreview",
       "moodboards",
+      "setMoodboardFocusOrder",
+      "setMoodboardVisualView",
       "updateMoodboardVisualCaption",
     ]);
+  });
+
+  test("Crop and Rotate 90° change only the targeted visual's view and are reversible with Reset view", async () => {
+    const { client, fileAttachments } = createFixture();
+    const board = await createMoodboard(client);
+    const attachment = {
+      attachmentVersionId: "attachment-version-1",
+      kind: "File Attachment version",
+    } as const;
+    const first = await client.addMoodboardVisual({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "visual-a",
+      moodboardId: board.id,
+      origin: attachment,
+    });
+    const both = await client.addMoodboardVisual({
+      baseRevision: first.revision,
+      clientIdempotencyKey: "visual-b",
+      moodboardId: board.id,
+      origin: attachment,
+    });
+
+    const edited = await client.setMoodboardVisualView({
+      baseRevision: both.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      crop: { height: 5000, left: 1000, top: 2000, width: 6000 },
+      itemId: "visual-a",
+      moodboardId: board.id,
+      rotation: 90,
+    });
+    const reset = await client.setMoodboardVisualView({
+      baseRevision: edited.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      crop: null,
+      itemId: "visual-a",
+      moodboardId: board.id,
+      rotation: 0,
+    });
+
+    expect(edited.items[0]).toMatchObject({
+      origin: attachment,
+      view: {
+        crop: { height: 5000, left: 1000, top: 2000, width: 6000 },
+        rotation: 90,
+      },
+    });
+    // The same exact attachment version on the other visual stays unedited.
+    expect(edited.items[1]).toMatchObject({
+      origin: attachment,
+      view: { crop: null, rotation: 0 },
+    });
+    expect(reset.items[0]).toMatchObject({ view: { crop: null, rotation: 0 } });
+    expect(fileAttachments.updateDescription).not.toHaveBeenCalled();
+    expect(fileAttachments.upload).not.toHaveBeenCalled();
+  });
+
+  test("rejects a crop outside the image and a rotation that is not a quarter turn", async () => {
+    const { client } = createFixture();
+    const board = await createMoodboard(client);
+    const added = await client.addMoodboardVisual({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "visual-a",
+      moodboardId: board.id,
+      origin: { kind: "External link", url: "https://example.com/a" },
+    });
+    const base = {
+      baseRevision: added.revision,
+      clientIdempotencyKey: "view",
+      itemId: "visual-a",
+      moodboardId: board.id,
+    };
+
+    await expect(
+      client.setMoodboardVisualView({
+        ...base,
+        crop: { height: 5000, left: 6000, top: 0, width: 6000 },
+        rotation: 0,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      client.setMoodboardVisualView({
+        ...base,
+        crop: null,
+        // @ts-expect-error only quarter turns are valid
+        rotation: 45,
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("Presentation Mode reads the same items in Focus order and copies no content", async () => {
+    const { client, fileAttachments } = createFixture();
+    const board = await createMoodboard(client);
+    const one = await client.addMoodboardVisual({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "visual-1",
+      moodboardId: board.id,
+      origin: { kind: "External link", url: "https://example.com/a" },
+    });
+    const two = await client.addColorSwatch({
+      baseRevision: one.revision,
+      clientIdempotencyKey: "swatch-1",
+      color: "#112233",
+      moodboardId: board.id,
+    });
+
+    const ordered = await client.setMoodboardFocusOrder({
+      baseRevision: two.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      itemIds: ["swatch-1", "visual-1"],
+      moodboardId: board.id,
+    });
+    const [stored] = await client.moodboards({ projectId });
+
+    expect(ordered.focusOrder).toEqual(["swatch-1", "visual-1"]);
+    expect(ordered.items).toEqual(two.items);
+    expect(
+      presentationSequence(ordered.items, ordered.focusOrder).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["swatch-1", "visual-1"]);
+    // The sequence yields the board's own item objects, not copies.
+    expect(presentationSequence(ordered.items, ordered.focusOrder)[1]).toBe(
+      ordered.items[0],
+    );
+    expect(presentationSequence(two.items, []).map(({ id }) => id)).toEqual([
+      "visual-1",
+      "swatch-1",
+    ]);
+    expect(stored?.items).toEqual(two.items);
+    expect(fileAttachments.upload).not.toHaveBeenCalled();
+    await expect(
+      client.setMoodboardFocusOrder({
+        baseRevision: ordered.revision,
+        clientIdempotencyKey: crypto.randomUUID(),
+        itemIds: ["visual-1", "visual-1"],
+        moodboardId: board.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("Snapshot preview states no live links, the moment, and the applied Crop or Rotate 90°, and writes nothing", async () => {
+    const { client, forbidden, snapshotted, usageLinkMutationContracts } =
+      createFixture();
+    const board = await createMoodboard(client);
+    const added = await client.addMoodboardVisual({
+      baseRevision: board.revision,
+      caption: "Hero",
+      clientIdempotencyKey: "visual-1",
+      moodboardId: board.id,
+      origin: {
+        attachmentVersionId: "attachment-version-1",
+        kind: "File Attachment version",
+      },
+    });
+    const rotated = await client.setMoodboardVisualView({
+      baseRevision: added.revision,
+      clientIdempotencyKey: crypto.randomUUID(),
+      crop: null,
+      itemId: "visual-1",
+      moodboardId: board.id,
+      rotation: 270,
+    });
+    const before = structuredClone(snapshotted());
+
+    const preview = await client.moodboardSnapshotPreview({
+      itemIds: ["visual-1"],
+      moodboardId: board.id,
+    });
+
+    expect(preview.notices.join(" ")).toContain("no live source links");
+    expect(preview.moment).toContain("2026-10-19");
+    expect(preview.moment).toContain(`revision ${rotated.revision}`);
+    expect(preview.transforms).toEqual([
+      { caption: "Hero", crop: false, itemId: "visual-1", rotation: 270 },
+    ]);
+    expect(preview.notices.join(" ")).toContain("Rotate 90°");
+    expect(preview.notices.join(" ")).not.toMatch(SHARING_COPY);
+    expect(snapshotted()).toEqual(before);
+    expect(usageLinkMutationContracts.create).not.toHaveBeenCalled();
+    for (const access of Object.values(forbidden)) {
+      for (const method of Object.values(access)) {
+        expect(method).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  test("Snapshot export leaves the source visuals identical, groups PDF pages per section, and PNG as separate images", async () => {
+    const { client, originalReads, rendered, snapshotted, fileAttachments } =
+      createFixture();
+    let board = await createMoodboard(client);
+    board = await client.addPaletteGroup({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "group-1",
+      moodboardId: board.id,
+      name: "Warm",
+    });
+    for (const [index, key] of [
+      "v1",
+      "v2",
+      "v3",
+      "v4",
+      "v5",
+      "v6",
+      "v7",
+    ].entries()) {
+      // biome-ignore lint/performance/noAwaitInLoops: Each revision builds on the previous one.
+      board = await client.addMoodboardVisual({
+        baseRevision: board.revision,
+        clientIdempotencyKey: key,
+        moodboardId: board.id,
+        origin: { kind: "External link", url: `https://example.com/${index}` },
+      });
+    }
+    board = await client.addColorSwatch({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "s1",
+      color: "#AA0000",
+      moodboardId: board.id,
+      paletteGroupId: "group-1",
+    });
+    const itemIds = board.items.map(({ id }) => id);
+    const sourcesBefore = structuredClone(snapshotted());
+
+    const pdf = await client.exportMoodboardSnapshot({
+      format: "PDF",
+      itemIds,
+      moodboardId: board.id,
+    });
+    const png = await client.exportMoodboardSnapshot({
+      format: "PNG",
+      itemIds,
+      moodboardId: board.id,
+    });
+
+    // Visuals: 7 -> 2 pages (6 + 1); Palette group Warm: 1 page. Never one page.
+    expect(pdf.preview.pageCount).toBe(3);
+    expect(pdf.files).toHaveLength(1);
+    expect(pdf.files[0]).toMatchObject({ mimeType: "application/pdf" });
+    expect(pdf.files[0]?.fileName).toContain("2026-10-19");
+    expect(rendered.pages[0]?.map(({ tiles }) => tiles.length)).toEqual([
+      6, 1, 1,
+    ]);
+    expect(png.files).toHaveLength(3);
+    expect(new Set(png.files.map(({ fileName }) => fileName)).size).toBe(3);
+    expect(png.files.every(({ mimeType }) => mimeType === "image/png")).toBe(
+      true,
+    );
+    // Source visuals and the File Attachment boundary are identical after.
+    expect(snapshotted()).toEqual(sourcesBefore);
+    expect(fileAttachments.updateDescription).not.toHaveBeenCalled();
+    expect(fileAttachments.upload).not.toHaveBeenCalled();
+    expect(originalReads).not.toHaveBeenCalled();
+  });
+
+  test("Snapshot refuses an empty selection and items that are not on the Moodboard", async () => {
+    const { client } = createFixture();
+    const board = await createMoodboard(client);
+
+    await expect(
+      client.moodboardSnapshotPreview({ itemIds: [], moodboardId: board.id }),
+    ).rejects.toThrow();
+    await expect(
+      client.moodboardSnapshotPreview({
+        itemIds: ["missing"],
+        moodboardId: board.id,
+      }),
+    ).rejects.toThrow();
   });
 });

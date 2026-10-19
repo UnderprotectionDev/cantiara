@@ -5,6 +5,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -192,5 +193,79 @@ export const moodboardColorSwatch = pgTable(
       "moodboard_color_swatch_note_check",
       sql`${table.note} is null or length(btrim(${table.note})) between 1 and 140`,
     ),
+  ],
+);
+
+/**
+ * View-local crop and 90-degree rotation of one visual on this Moodboard. The
+ * row is bound to the exact origin it was made for (`bound_origin` is the File
+ * Attachment version ID or the external link), so it never applies to another
+ * version. It never touches the File Attachment, its version chain, or any
+ * other Moodboard that uses the same attachment. Crop edges are basis points
+ * (0..10000) of the original image; no row means the unedited presentation.
+ */
+export const moodboardVisualView = pgTable(
+  "moodboard_visual_view",
+  {
+    boundOrigin: text("bound_origin").notNull(),
+    cropHeight: integer("crop_height"),
+    cropLeft: integer("crop_left"),
+    cropTop: integer("crop_top"),
+    cropWidth: integer("crop_width"),
+    itemId: text("item_id").primaryKey(),
+    itemKind: text("item_kind").default("Visual").notNull(),
+    rotation: integer("rotation").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.itemId, table.itemKind],
+      foreignColumns: [moodboardItem.id, moodboardItem.kind],
+      name: "moodboard_visual_view_item_fk",
+    }).onDelete("cascade"),
+    check(
+      "moodboard_visual_view_item_kind_check",
+      sql`${table.itemKind} = 'Visual'`,
+    ),
+    check(
+      "moodboard_visual_view_rotation_check",
+      sql`${table.rotation} in (0, 90, 180, 270)`,
+    ),
+    check(
+      "moodboard_visual_view_crop_check",
+      sql`(${table.cropLeft} is null and ${table.cropTop} is null and ${table.cropWidth} is null and ${table.cropHeight} is null) or (${table.cropLeft} >= 0 and ${table.cropTop} >= 0 and ${table.cropWidth} >= 1 and ${table.cropHeight} >= 1 and ${table.cropLeft} + ${table.cropWidth} <= 10000 and ${table.cropTop} + ${table.cropHeight} <= 10000)`,
+    ),
+  ],
+);
+
+/**
+ * Optional Focus order of Presentation Mode: view metadata that only lists
+ * existing items of this Moodboard in a sequence. It owns no content, so there
+ * is no second presentation document or content copy.
+ */
+export const moodboardFocusStep = pgTable(
+  "moodboard_focus_step",
+  {
+    itemId: text("item_id")
+      .notNull()
+      .references(() => moodboardItem.id, { onDelete: "cascade" }),
+    moodboardId: text("moodboard_id")
+      .notNull()
+      .references(() => moodboard.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.moodboardId, table.itemId],
+      name: "moodboard_focus_step_pk",
+    }),
+    uniqueIndex("moodboard_focus_step_position_uidx").on(
+      table.moodboardId,
+      table.position,
+    ),
+    check("moodboard_focus_step_position_check", sql`${table.position} >= 0`),
   ],
 );

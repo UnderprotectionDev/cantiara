@@ -1,4 +1,9 @@
 import {
+  DEFAULT_VISUAL_VIEW,
+  type VisualView,
+  visualOriginKey,
+} from "@cantiara/api/moodboard-view";
+import {
   type Moodboard,
   type MoodboardItem,
   type MoodboardsAccess,
@@ -9,9 +14,11 @@ import { workspace } from "@cantiara/db/schema/auth";
 import {
   moodboard,
   moodboardColorSwatch,
+  moodboardFocusStep,
   moodboardItem,
   moodboardPaletteGroup,
   moodboardVisual,
+  moodboardVisualView,
 } from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
 import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
@@ -36,24 +43,59 @@ function toColorSwatch(
   };
 }
 
+/**
+ * A stored view applies only to the exact origin it was bound to; a row for
+ * any other origin reads as the unedited presentation.
+ */
+function toVisualView(
+  origin: ReturnType<typeof toVisualOrigin>,
+  row: typeof moodboardVisualView.$inferSelect | undefined,
+): VisualView {
+  if (!row || row.boundOrigin !== visualOriginKey(origin)) {
+    return DEFAULT_VISUAL_VIEW;
+  }
+  const hasCrop =
+    row.cropLeft !== null &&
+    row.cropTop !== null &&
+    row.cropWidth !== null &&
+    row.cropHeight !== null;
+  return {
+    crop: hasCrop
+      ? {
+          height: row.cropHeight ?? 0,
+          left: row.cropLeft ?? 0,
+          top: row.cropTop ?? 0,
+          width: row.cropWidth ?? 0,
+        }
+      : null,
+    rotation: row.rotation as VisualView["rotation"],
+  };
+}
+
+function toVisualOrigin(visual: typeof moodboardVisual.$inferSelect) {
+  return visual.originKind === "External link" && visual.externalUrl
+    ? ({ kind: "External link", url: visual.externalUrl } as const)
+    : ({
+        attachmentVersionId: visual.fileAttachmentVersionId ?? "",
+        kind: "File Attachment version",
+      } as const);
+}
+
 function toVisual(
   item: typeof moodboardItem.$inferSelect,
   visual: typeof moodboardVisual.$inferSelect,
+  viewRow: typeof moodboardVisualView.$inferSelect | undefined,
 ): MoodboardItem {
+  const origin = toVisualOrigin(visual);
   return {
     caption: visual.caption,
     createdAt: item.createdAt.toISOString(),
     id: item.id,
     kind: "Visual",
-    origin:
-      visual.originKind === "External link" && visual.externalUrl
-        ? { kind: "External link", url: visual.externalUrl }
-        : {
-            attachmentVersionId: visual.fileAttachmentVersionId ?? "",
-            kind: "File Attachment version",
-          },
+    origin,
     position: item.position,
     updatedAt: item.updatedAt.toISOString(),
+    view: toVisualView(origin, viewRow),
   };
 }
 
@@ -66,9 +108,17 @@ export async function hydrateMoodboards(
   }
   const moodboardIds = records.map(({ id }) => id);
   const visualRows = await executor
-    .select({ item: moodboardItem, visual: moodboardVisual })
+    .select({
+      item: moodboardItem,
+      view: moodboardVisualView,
+      visual: moodboardVisual,
+    })
     .from(moodboardItem)
     .innerJoin(moodboardVisual, eq(moodboardVisual.itemId, moodboardItem.id))
+    .leftJoin(
+      moodboardVisualView,
+      eq(moodboardVisualView.itemId, moodboardItem.id),
+    )
     .where(inArray(moodboardItem.moodboardId, moodboardIds));
   const swatchRows = await executor
     .select({ item: moodboardItem, swatch: moodboardColorSwatch })
@@ -83,14 +133,24 @@ export async function hydrateMoodboards(
     .from(moodboardPaletteGroup)
     .where(inArray(moodboardPaletteGroup.moodboardId, moodboardIds))
     .orderBy(asc(moodboardPaletteGroup.position));
+  const focusRows = await executor
+    .select()
+    .from(moodboardFocusStep)
+    .where(inArray(moodboardFocusStep.moodboardId, moodboardIds))
+    .orderBy(asc(moodboardFocusStep.position));
   return records.map((record) =>
     moodboardSchema.parse({
       createdAt: record.createdAt.toISOString(),
+      focusOrder: focusRows
+        .filter((step) => step.moodboardId === record.id)
+        .map(({ itemId }) => itemId),
       id: record.id,
       items: [
         ...visualRows
           .filter(({ item }) => item.moodboardId === record.id)
-          .map(({ item, visual }) => toVisual(item, visual)),
+          .map(({ item, view, visual }) =>
+            toVisual(item, visual, view ?? undefined),
+          ),
         ...swatchRows
           .filter(({ item }) => item.moodboardId === record.id)
           .map(({ item, swatch }) => toColorSwatch(item, swatch)),
