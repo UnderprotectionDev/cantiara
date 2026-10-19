@@ -6,6 +6,7 @@ import {
   type ScreenTemplateRecord,
 } from "@cantiara/api/screen-origins";
 import { instantiateTemplateDocument } from "@cantiara/api/screen-templates";
+import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import {
   type LinkedBlockRecord,
   type ParsedSetScreenLifecycleInput,
@@ -50,6 +51,8 @@ export function createMemoryStore() {
     }
   >();
   const origins: ScreenBlockOriginRecord[] = [];
+  /** Personal viewports by `account:screen`; never part of a Wireframe version. */
+  const viewports = new Map<string, WireframeViewport>();
   const templates = new Map<string, ScreenTemplateRecord>();
   let sequence = 0;
   const nextId = (prefix: string) => {
@@ -354,6 +357,27 @@ export function createMemoryStore() {
           : versions.find((item) => item.version === version)) ?? null
       );
     },
+    findViewport: async (account, projectId, screenId) => {
+      await Promise.resolve();
+      if (!(records.has(screenId) && owns(account, projectId))) {
+        return null;
+      }
+      if (trashed.has(screenId)) {
+        return null;
+      }
+      return { viewport: viewports.get(`${account}:${screenId}`) ?? null };
+    },
+    saveViewport: async (account, projectId, screenId, viewport) => {
+      await Promise.resolve();
+      if (!(records.has(screenId) && owns(account, projectId))) {
+        return null;
+      }
+      if (trashed.has(screenId)) {
+        return null;
+      }
+      viewports.set(`${account}:${screenId}`, structuredClone(viewport));
+      return { viewport };
+    },
     headDocuments: async (account, projectId) => {
       await Promise.resolve();
       if (!owns(account, projectId)) {
@@ -516,5 +540,6 @@ export function createMemoryStore() {
     stored,
     store,
     templates,
+    viewports,
   };
 }

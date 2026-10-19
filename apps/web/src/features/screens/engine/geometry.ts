@@ -86,6 +86,17 @@ export function createGeometryIndex(blocks: readonly WireframeBlock[]) {
       return hits[0]?.blockId ?? null;
     },
 
+    /**
+     * Blocks whose bounds touch the rectangle, in document (paint) order. This
+     * is the culling query: only these are drawn for a viewport.
+     */
+    searchRect(rect: WireframeBounds): string[] {
+      return tree
+        .search(toQuery(rect))
+        .sort((a, b) => a.order - b.order)
+        .map(({ blockId }) => blockId);
+    },
+
     /** Blocks fully inside the rectangle, in document order. */
     selectInRect(rect: WireframeBounds): string[] {
       return tree

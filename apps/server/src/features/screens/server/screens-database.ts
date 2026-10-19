@@ -1,4 +1,5 @@
 import { documentSectionById } from "@cantiara/api/documents";
+import type { WireframeViewport } from "@cantiara/api/screen-viewport";
 import {
   type LinkedBlockRecord,
   type ParsedSetScreenLifecycleInput,
@@ -22,6 +23,7 @@ import {
   screen,
   screenBlockOrigin,
   screenLinkedBlock,
+  screenViewport,
   screenWireframeVersion,
 } from "@cantiara/db/schema/screen";
 import { and, asc, desc, eq, inArray, max, sql } from "drizzle-orm";
@@ -247,9 +249,103 @@ async function isSealed(
   return sealed !== undefined;
 }
 
+function toViewport(
+  row: typeof screenViewport.$inferSelect,
+): WireframeViewport {
+  return {
+    centerX: row.centerX,
+    centerY: row.centerY,
+    collapsedGroups: row.collapsedGroups,
+    zoom: row.zoom,
+  };
+}
+
+/** A Screen the account may read (not in Trash) in a Project it can read. */
+async function readableScreen(
+  executor: ScreenExecutor,
+  accountId: string,
+  projectId: string,
+  screenId: string,
+) {
+  const owned = await findReadableProject(executor, accountId, projectId);
+  if (!owned) {
+    return null;
+  }
+  const [row] = await executor
+    .select()
+    .from(screen)
+    .where(and(eq(screen.id, screenId), eq(screen.projectId, owned.id)));
+  return row && row.trashedAt === null ? row : null;
+}
+
 export function createDatabaseScreenStore(database: Database): ScreenStore {
   return {
     ...createDatabaseOriginStore(database),
+    findViewport(accountId, projectId, screenId) {
+      return database.transaction(
+        async (executor) => {
+          const row = await readableScreen(
+            executor,
+            accountId,
+            projectId,
+            screenId,
+          );
+          if (!row) {
+            return null;
+          }
+          const [saved] = await executor
+            .select()
+            .from(screenViewport)
+            .where(
+              and(
+                eq(screenViewport.accountId, accountId),
+                eq(screenViewport.screenId, row.id),
+              ),
+            );
+          return { viewport: saved ? toViewport(saved) : null };
+        },
+        { accessMode: "read only", isolationLevel: "repeatable read" },
+      );
+    },
+
+    saveViewport(accountId, projectId, screenId, viewport) {
+      return database.transaction(async (executor) => {
+        // Personal navigation: an archived Project stays readable, so the
+        // viewport saves there too. Only the viewport row is written.
+        const row = await readableScreen(
+          executor,
+          accountId,
+          projectId,
+          screenId,
+        );
+        if (!row) {
+          return null;
+        }
+        const values = {
+          accountId,
+          centerX: viewport.centerX,
+          centerY: viewport.centerY,
+          collapsedGroups: viewport.collapsedGroups,
+          screenId: row.id,
+          zoom: viewport.zoom,
+        };
+        await executor
+          .insert(screenViewport)
+          .values(values)
+          .onConflictDoUpdate({
+            set: {
+              centerX: values.centerX,
+              centerY: values.centerY,
+              collapsedGroups: values.collapsedGroups,
+              updatedAt: sql`now()`,
+              zoom: values.zoom,
+            },
+            target: [screenViewport.accountId, screenViewport.screenId],
+          });
+        return { viewport };
+      });
+    },
+
     applyLinkedBlockChange(accountId, input, updates) {
       return database.transaction(async (executor) => {
         const owned = await openProject(executor, accountId, input.projectId);

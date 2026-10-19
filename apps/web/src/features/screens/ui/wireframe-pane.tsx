@@ -1,8 +1,11 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected block and toolbar kind.
 import type { LiveCardResolution } from "@cantiara/api/screen-origins";
+import {
+  restoreViewport,
+  type WireframeViewport,
+} from "@cantiara/api/screen-viewport";
 import type { LiveTextResolution } from "@cantiara/api/wireframe-commands";
 import {
-  resolveBlock,
   WIREFRAME_COMPONENT_KINDS,
   type WireframeComponentKind,
 } from "@cantiara/api/wireframe-document";
@@ -17,24 +20,25 @@ import {
   TextCursorInput,
 } from "lucide-react";
 import {
+  type KeyboardEvent,
   lazy,
   Suspense,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
+import { type CanvasKeyCommand, canvasKeyCommand } from "../engine/canvas-keys";
 import type { WireframeEditor } from "../engine/editor";
+import type { OutlineSourceRecord } from "../engine/outline";
+import { createViewportSession } from "../engine/viewport-session";
 import { CanvasTextOverlay } from "./canvas-text-overlay";
-import {
-  type ConvertAndBindActions,
-  ConvertAndBindPanel,
-} from "./convert-and-bind-panel";
-import {
-  type LinkedBlockActions,
-  LinkedBlockControls,
-} from "./linked-block-controls";
+import type { ConvertAndBindActions } from "./convert-and-bind-panel";
+import type { LinkedBlockActions } from "./linked-block-controls";
+import { WireframeOutline } from "./wireframe-outline";
+import type { ViewportGesture } from "./wireframe-stage";
 
 const WireframeStage = lazy(() => import("./wireframe-stage"));
 
@@ -59,6 +63,7 @@ export function stageSizeFor(pane: { height: number; width: number }) {
 function usePaneSize() {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ height: 600, width: 960 });
+  const [measured, setMeasured] = useState(false);
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) {
@@ -68,6 +73,7 @@ function usePaneSize() {
       const rect = element.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         setSize(stageSizeFor(rect));
+        setMeasured(true);
       }
     };
     measure();
@@ -75,7 +81,7 @@ function usePaneSize() {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  return { ref, size };
+  return { measured, ref, size };
 }
 
 export interface WireframePaneProps {
@@ -85,36 +91,18 @@ export interface WireframePaneProps {
   linked?: LinkedBlockActions;
   liveCards?: Record<string, LiveCardResolution>;
   liveText: Record<string, LiveTextResolution>;
+  /** `Open Source Record` of the selected block. */
+  onOpenSource?: (source: OutlineSourceRecord) => void;
   onSaveVersion?: () => void;
   readOnly?: boolean;
-}
-
-function Outline({ editor }: { editor: WireframeEditor }) {
-  const state = useSyncExternalStore(
-    editor.subscribe,
-    editor.getState,
-    editor.getState,
-  );
-  if (state.document.blocks.length === 0) {
-    return <p className="text-muted-foreground text-xs">No blocks yet.</p>;
-  }
-  return (
-    <ul aria-label="Wireframe outline" className="flex flex-wrap gap-1">
-      {state.document.blocks.map((block) => (
-        <li key={block.id}>
-          <Button
-            aria-pressed={state.selection.includes(block.id)}
-            onClick={() => editor.select([block.id])}
-            size="sm"
-            type="button"
-            variant={state.selection.includes(block.id) ? "default" : "outline"}
-          >
-            {block.kind}: {block.label}
-          </Button>
-        </li>
-      ))}
-    </ul>
-  );
+  /**
+   * The account's own saved viewport of this canvas and where changes go. It
+   * is navigation only: nothing here reaches the document or its versions.
+   */
+  viewport?: {
+    onChange: (viewport: WireframeViewport) => void;
+    saved: WireframeViewport | null;
+  };
 }
 
 export function WireframePane({
@@ -123,19 +111,110 @@ export function WireframePane({
   linked,
   liveCards,
   liveText,
+  onOpenSource,
   onSaveVersion,
   readOnly = false,
+  viewport: personal,
 }: WireframePaneProps) {
   const state = useSyncExternalStore(
     editor.subscribe,
     editor.getState,
     editor.getState,
   );
-  const { ref, size } = usePaneSize();
+  const { measured, ref, size } = usePaneSize();
+  const [session] = useState(() =>
+    createViewportSession(
+      restoreViewport(
+        personal?.saved ?? null,
+        editor.getState().document.blocks,
+        editor.getState().document.canvas,
+        size,
+      ),
+    ),
+  );
+  const restored = useRef(false);
+  // The first real pane size decides whether the saved position is meaningful.
+  useEffect(() => {
+    if (!measured || restored.current) {
+      return;
+    }
+    restored.current = true;
+    const { document } = editor.getState();
+    session.restore(
+      personal?.saved ?? null,
+      document.blocks,
+      document.canvas,
+      size,
+    );
+  }, [editor, measured, personal?.saved, session, size]);
+
+  function commitView(next: WireframeViewport) {
+    personal?.onChange(next);
+  }
+
+  function fitView() {
+    commitView(session.fitView(editor.getState().document.canvas));
+  }
+
+  function onGesture(gesture: ViewportGesture) {
+    if (gesture.type === "pan") {
+      commitView(
+        session.set({
+          ...session.getState(),
+          centerX: gesture.centerX,
+          centerY: gesture.centerY,
+        }),
+      );
+      return;
+    }
+    commitView(
+      gesture.zoom
+        ? session.zoom(gesture.deltaY < 0 ? 1.1 : 1 / 1.1)
+        : session.pan(gesture.deltaX, gesture.deltaY),
+    );
+  }
+
+  function onCanvasKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    // Keys typed into the text overlay or any control stay theirs.
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    const command = canvasKeyCommand(event);
+    if (!command) {
+      return;
+    }
+    event.preventDefault();
+    runCanvasKey(command);
+  }
+
+  function runCanvasKey(command: CanvasKeyCommand) {
+    switch (command.type) {
+      case "pan":
+        commitView(session.pan(command.dx, command.dy));
+        break;
+      case "zoom":
+        commitView(session.zoom(command.factor));
+        break;
+      case "fit":
+        fitView();
+        break;
+      case "select":
+        editor.selectStep(command.delta);
+        break;
+      case "move":
+        if (!readOnly) {
+          editor.moveSelection(command.dx, command.dy);
+        }
+        break;
+      default:
+        if (!readOnly) {
+          editor.alignSelection(command.edge);
+        }
+    }
+  }
+
   const [editing, setEditing] = useState<string | null>(null);
   const placed = useRef(0);
-  const [selectedId] = state.selection;
-  const selected = state.document.blocks.find(({ id }) => id === selectedId);
   const editingBlock = state.document.blocks.find(({ id }) => id === editing);
 
   function place(kind: WireframeComponentKind) {
@@ -225,31 +304,35 @@ export function WireframePane({
         >
           Redo
         </Button>
+        <Button onClick={fitView} size="sm" type="button" variant="outline">
+          Fit View
+        </Button>
         {onSaveVersion && !readOnly ? (
           <Button onClick={onSaveVersion} size="sm" type="button">
             Save Version
           </Button>
         ) : null}
       </div>
-      <Outline editor={editor} />
-      {selected && !readOnly ? (
-        <LinkedBlockControls
-          actions={linked}
-          block={resolveBlock(state.document, selected)}
-          editor={editor}
-          linkedBlock={selected}
-        />
-      ) : null}
-      {selected && !readOnly && convert ? (
-        <ConvertAndBindPanel
-          actions={convert}
-          blockId={selected.id}
-          key={selected.id}
-        />
-      ) : null}
+      <WireframeOutline
+        convert={convert}
+        editor={editor}
+        linked={linked}
+        onOpenSource={onOpenSource}
+        onViewportChange={() => commitView(session.getState())}
+        readOnly={readOnly}
+        viewport={session}
+      />
+      {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: the canvas application region owns the keyboard grammar. */}
       <div
+        aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight + - 0 [ ]"
+        aria-label="Wireframe canvas. Arrow keys pan, plus and minus zoom, 0 is Fit View, brackets select, Shift with arrows moves, Alt with arrows aligns."
+        aria-roledescription="canvas"
         className="relative h-[70vh] min-h-96 w-full overflow-hidden rounded-lg border border-border/70 bg-white"
+        onKeyDown={onCanvasKeyDown}
         ref={ref}
+        role="application"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the canvas is an application region with its own keyboard grammar (pan, zoom, select, move, align).
+        tabIndex={0}
       >
         <Suspense fallback={<p role="status">Loading Wireframe…</p>}>
           <WireframeStage
@@ -258,6 +341,8 @@ export function WireframePane({
             liveCards={liveCards}
             liveText={liveText}
             onEditText={startEdit}
+            onViewportGesture={onGesture}
+            viewport={session}
             width={size.width}
           />
         </Suspense>

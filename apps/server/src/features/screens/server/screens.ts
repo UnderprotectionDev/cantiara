@@ -19,6 +19,10 @@ import {
 } from "@cantiara/api/screen-origins";
 import { sanitizeTemplateDocument } from "@cantiara/api/screen-templates";
 import {
+  saveScreenViewportInputSchema,
+  screenViewportInputSchema,
+} from "@cantiara/api/screen-viewport";
+import {
   createLinkedBlockInputSchema,
   createScreenInputSchema,
   linkedBlockChangeInputSchema,
@@ -604,6 +608,33 @@ export function createScreens(store: ScreenStore): ScreensAccess {
         throw new ScreenNotFoundError(parsed.screenId);
       }
       return toWireframe(accountId, parsed.screenId, stored);
+    },
+
+    async viewport(accountId, input) {
+      const parsed = screenViewportInputSchema.parse(input);
+      const found = await store.findViewport(
+        accountId,
+        parsed.projectId,
+        parsed.screenId,
+      );
+      if (!found) {
+        throw new ScreenNotFoundError(parsed.screenId);
+      }
+      return found;
+    },
+
+    async saveViewport(accountId, input) {
+      const parsed = saveScreenViewportInputSchema.parse(input);
+      const saved = await store.saveViewport(
+        accountId,
+        parsed.projectId,
+        parsed.screenId,
+        parsed.viewport,
+      );
+      if (!saved) {
+        throw new ScreenNotFoundError(parsed.screenId);
+      }
+      return saved;
     },
 
     async wireframe(accountId, input) {

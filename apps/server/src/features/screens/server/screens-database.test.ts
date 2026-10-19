@@ -6,7 +6,11 @@ import {
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { project } from "@cantiara/db/schema/project";
-import { screen, screenWireframeVersion } from "@cantiara/db/schema/screen";
+import {
+  screen,
+  screenViewport,
+  screenWireframeVersion,
+} from "@cantiara/db/schema/screen";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -19,6 +23,7 @@ import {
 
 import {
   ScreenLifecycleInvalidError,
+  ScreenNotFoundError,
   ScreenProjectNotFoundError,
   ScreenProjectReadOnlyError,
   ScreenRevisionConflictError,
@@ -349,6 +354,71 @@ describeDatabase("Screens PostgreSQL integration", () => {
         expectedRevision: 1,
       }),
     ).rejects.toBeInstanceOf(ScreenRevisionConflictError);
+  });
+
+  test("keeps a personal viewport per account and Screen without touching Wireframe versions", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseScreens(db);
+    const created = await access.create(accountId, {
+      projectId,
+      title: "Home",
+    });
+    await access.saveWireframe(accountId, {
+      document: createEmptyWireframeDocument(),
+      projectId,
+      screenId: created.id,
+    });
+    const versionsBefore = await db
+      .select()
+      .from(screenWireframeVersion)
+      .where(eq(screenWireframeVersion.screenId, created.id));
+    const viewport = {
+      centerX: 12.5,
+      centerY: -40,
+      collapsedGroups: ["Card"],
+      zoom: 2,
+    };
+
+    expect(
+      await access.viewport(accountId, { projectId, screenId: created.id }),
+    ).toEqual({ viewport: null });
+    await access.saveViewport(accountId, {
+      projectId,
+      screenId: created.id,
+      viewport,
+    });
+    await access.saveViewport(accountId, {
+      projectId,
+      screenId: created.id,
+      viewport: { ...viewport, zoom: 0.5 },
+    });
+
+    expect(
+      await access.viewport(accountId, { projectId, screenId: created.id }),
+    ).toEqual({ viewport: { ...viewport, zoom: 0.5 } });
+    expect(
+      await db
+        .select()
+        .from(screenViewport)
+        .where(eq(screenViewport.screenId, created.id)),
+    ).toHaveLength(1);
+    expect(
+      await db
+        .select()
+        .from(screenWireframeVersion)
+        .where(eq(screenWireframeVersion.screenId, created.id)),
+    ).toEqual(versionsBefore);
+    await expect(
+      access.viewport(otherAccountId, { projectId, screenId: created.id }),
+    ).rejects.toBeInstanceOf(ScreenNotFoundError);
+    // The view follows the Screen: deleting the Project removes it with it.
+    await db.delete(project).where(eq(project.id, projectId));
+    expect(
+      await db
+        .select()
+        .from(screenViewport)
+        .where(eq(screenViewport.screenId, created.id)),
+    ).toHaveLength(0);
   });
 
   test("deleting the Project removes Screens and their versions together", async () => {
