@@ -54,6 +54,7 @@ import {
 } from "../src/features/documents/server/documents-database";
 import { createDatabaseDocumentEvidence } from "../src/features/evidence/server/document-evidence-database";
 import { createDatabaseFavorites } from "../src/features/favorites/server/favorites-database";
+import { createDatabaseFeedbackWithFeed } from "../src/features/feedback/server/feedback-feed-database";
 import { createDatabaseFocusPeriod } from "../src/features/focus-period/server/focus-period-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
@@ -341,6 +342,7 @@ const app = createApp({
   auth,
   captureInbox,
   contacts: createDatabaseContacts(database),
+  feedback: createDatabaseFeedbackWithFeed(database),
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
   customFields,

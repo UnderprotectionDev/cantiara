@@ -148,6 +148,16 @@ import {
   favoriteSourceSchema,
 } from "../favorites";
 import {
+  convertFeedbackToWorkInputSchema,
+  createFeedbackInputSchema,
+  feedbackProjectInputSchema,
+  previewFeedbackWorkInputSchema,
+  setFeedbackEvidenceInputSchema,
+  setFeedbackIdentityInputSchema,
+  setFeedbackStatusInputSchema,
+} from "../feedback";
+import { feedInputSchema } from "../feedback-feed";
+import {
   fileAttachmentFinalizeInputSchema,
   fileAttachmentListInputSchema,
   fileAttachmentLocationBindInputSchema,
@@ -948,6 +958,13 @@ function requireCustomFieldMutationContracts(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.customFieldMutationContracts;
+}
+
+function requireFeedback(context: Context) {
+  if (!context.feedback) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.feedback;
 }
 
 function requireContacts(context: Context) {
@@ -2528,6 +2545,66 @@ const CONTACT_UNAVAILABLE_MESSAGES: Record<string, string> = {
   CONTACT_PERSONA_DOCUMENT_NOT_FOUND: "Persona Document is unavailable.",
   CONTACT_WORKSPACE_NOT_FOUND: "Workspace is unavailable.",
 };
+
+const FEEDBACK_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  FEEDBACK_NOT_FOUND: "Feedback is unavailable.",
+  FEEDBACK_PROJECT_NOT_FOUND: "Project is unavailable.",
+};
+
+const FEEDBACK_REJECTED_MESSAGES: Record<string, string> = {
+  FEEDBACK_IDENTITY_UNAVAILABLE:
+    "The Contact or Company is not available in this Workspace.",
+  FEEDBACK_ATTACHMENT_UNAVAILABLE:
+    "An attachment is not an active File Attachment of this Project.",
+  FEEDBACK_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+};
+
+async function runFeedbackOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "FEEDBACK_CONVERSION_STALE") {
+      throw new ORPCError("CONFLICT", {
+        cause: error,
+        data: { code: error.code, label: MUTATION_UI_LABELS.conflict },
+        defined: true,
+        message: "Feedback changed since the preview. Preview again.",
+      });
+    }
+    if (error.code === "FEEDBACK_REVISION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Feedback changed since it was loaded. Reload and try again.",
+      });
+    }
+    const rejected = FEEDBACK_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = FEEDBACK_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
+}
 
 async function runContactOperation<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -4386,6 +4463,67 @@ export const appRouter = {
       }
       return project;
     }),
+  projectFeedback: protectedProcedure
+    .input(feedbackProjectInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  feedbackFeed: protectedProcedure
+    .input(feedInputSchema)
+    .handler(({ context, input }) => {
+      const { feed } = requireFeedback(context);
+      if (!feed) {
+        throw new ORPCError("NOT_IMPLEMENTED");
+      }
+      return runFeedbackOperation(() => feed(context.session.user.id, input));
+    }),
+  createFeedback: protectedProcedure
+    .input(createFeedbackInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).create(context.session.user.id, input),
+      ),
+    ),
+  setFeedbackIdentity: protectedProcedure
+    .input(setFeedbackIdentityInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).setIdentity(context.session.user.id, input),
+      ),
+    ),
+  setFeedbackEvidence: protectedProcedure
+    .input(setFeedbackEvidenceInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).setEvidence(context.session.user.id, input),
+      ),
+    ),
+  previewFeedbackWork: protectedProcedure
+    .input(previewFeedbackWorkInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).previewConvertToWork(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  convertFeedbackToWork: protectedProcedure
+    .input(convertFeedbackToWorkInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).convertToWork(context.session.user.id, input),
+      ),
+    ),
+  setFeedbackStatus: protectedProcedure
+    .input(setFeedbackStatusInputSchema)
+    .handler(({ context, input }) =>
+      runFeedbackOperation(() =>
+        requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
   contacts: protectedProcedure.handler(({ context }) =>
     runContactOperation(() =>
       requireContacts(context).listContacts(context.session.user.id),

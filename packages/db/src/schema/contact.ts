@@ -202,6 +202,31 @@ export const workspaceContactFeedback = pgTable(
 );
 
 /**
+ * Optional Company of one Feedback record. A Feedback names at most one
+ * Company (primary key on the Feedback); the Company must belong to the
+ * Feedback's Workspace and is never required.
+ */
+export const workspaceCompanyFeedback = pgTable(
+  "workspace_company_feedback",
+  {
+    companyId: text("company_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    feedbackId: text("feedback_id")
+      .primaryKey()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.workspaceId],
+      foreignColumns: [workspaceCompany.id, workspaceCompany.workspaceId],
+      name: "workspace_company_feedback_company_fk",
+    }).onDelete("cascade"),
+    index("workspace_company_feedback_company_idx").on(table.companyId),
+  ],
+);
+
+/**
  * A merged Contact no longer remains a live row. Its immutable id stays here
  * as a contentless redirect to the survivor: no name, email or Company. It is
  * not a Contact, so it is never listed, searched or reused as a new key.
