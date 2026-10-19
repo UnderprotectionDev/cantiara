@@ -55,6 +55,11 @@ describe("Project Shell Work navigation", () => {
       ),
     ).toBe("Technical Diagrams");
   });
+  test("opens a Moodboard record under the Design area", () => {
+    expect(
+      navigationSurfaceFromHash("moodboard-board-1", ["Design"], [], []),
+    ).toBe("Design");
+  });
   test("exposes Record Action as a Project configuration host", () => {
     expect(CONFIGURATION_HOSTS.map((host) => host.label)).toContain(
       "Record Action",

@@ -45,6 +45,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |
 | Altyazı | `Caption` | Moodboard görselindeki isteğe bağlı kısa neden; yorum dizisi, reaksiyon, görev, mention veya Dosya Eki açıklaması değildir |
 | Dış bağlantı | `External link` | Moodboard görselinin Dosya Eki sürümü olmayan kökeni |
+| Dosya Eki sürümü kökeni | `File Attachment version` | Moodboard görselinin kesin Dosya Eki sürümü olan kökeni; sürüm zinciri ve baytlar bu görselden değişmez |
 | Görsel ekle | `Add visual` | Moodboard'a Dosya Eki veya dış bağlantı kökenli görsel yerleştirme |
 | Renk Örneği | `Color Swatch` | Moodboard birinci sınıf renk öğesi; palet görsel yön bağlamıdır, tema veya token değildir |
 | Palet grubu | `Palette group` | Moodboard üzerindeki Renk Örneği grubu |

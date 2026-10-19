@@ -62,6 +62,8 @@ import { createFileAttachments } from "./features/file-attachments/server/file-a
 import { createDatabaseFileAttachments } from "./features/file-attachments/server/file-attachments-database";
 import { createFileAttachmentObjectStore } from "./features/file-attachments/server/file-attachments-object-store";
 import { createDatabaseFocusPeriod } from "./features/focus-period/server/focus-period-database";
+import { createDatabaseMoodboards } from "./features/moodboards/server/moodboards-database";
+import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/server/moodboards-mutation-database";
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
@@ -125,6 +127,9 @@ export const startSmartCollectionSubscriptionSignalWorker =
 export const stopSmartCollectionSubscriptionSignalWorker =
   smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
+export const moodboards = createDatabaseMoodboards(db);
+export const moodboardMutationContracts =
+  createDatabaseMoodboardMutationContracts(db);
 export const universalSearch = createDatabaseUniversalSearch(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);

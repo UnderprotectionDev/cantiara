@@ -26,6 +26,10 @@ import type { FavoritesAccess } from "./favorites";
 import type { FeedbackAccess } from "./feedback";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
+import type {
+  MoodboardMutationContracts,
+  MoodboardsAccess,
+} from "./moodboards";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type { PersonalRemindersAccess } from "./personal-reminders";
 import type {
@@ -180,6 +184,8 @@ export interface Context {
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
+  moodboardMutationContracts?: MoodboardMutationContracts;
+  moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
