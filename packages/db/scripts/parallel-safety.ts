@@ -5,7 +5,7 @@ import type { MigrationSnapshot } from "./migration-repository";
 // older code of every other branch writable, so new migrations stay
 // expand-only. Earlier migrations predate this rule and are not rechecked.
 export const parallelSafetyBaselines = {
-  primary: "0116_contact_merge_undo_fingerprint",
+  primary: "0119_feedback_evidence_quality",
   securityEvents: "0003_repair_missing_security_event",
 } as const;
 
