@@ -55,6 +55,7 @@ import type {
 import type { ResearchSessionsAccess } from "./research-sessions";
 import type { ReturnToWorkAccess } from "./return-to-work";
 import type { RoadmapHorizonAccess } from "./roadmap-horizon";
+import type { ScreensAccess } from "./screens";
 import type { SmartCollectionsAccess } from "./smart-collections";
 import type { SmartLinkPreviewAccess } from "./smart-link-preview";
 import type { SourceEvidenceAccess } from "./source-evidence";
@@ -196,6 +197,7 @@ export interface Context {
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
+  screens?: ScreensAccess;
   session: Awaited<
     ReturnType<ReturnType<typeof createAuth>["api"]["getSession"]>
   >;

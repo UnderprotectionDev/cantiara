@@ -67,6 +67,7 @@ import type {
 import type { ResearchSessionsAccess } from "@cantiara/api/research-sessions";
 import type { ReturnToWorkAccess } from "@cantiara/api/return-to-work";
 import type { RoadmapHorizonAccess } from "@cantiara/api/roadmap-horizon";
+import type { ScreensAccess } from "@cantiara/api/screens";
 import type { SmartCollectionsAccess } from "@cantiara/api/smart-collections";
 import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
 import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
@@ -135,6 +136,7 @@ export interface CreateContextOptions {
   researchSessions?: ResearchSessionsAccess;
   returnToWork?: ReturnToWorkAccess;
   roadmapHorizon?: RoadmapHorizonAccess;
+  screens?: ScreensAccess;
   smartCollections?: SmartCollectionsAccess;
   smartLinkPreview?: SmartLinkPreviewAccess;
   sourceEvidence?: SourceEvidenceAccess;
@@ -215,6 +217,7 @@ export async function createContext({
   tags,
   contacts,
   feedback,
+  screens,
   relations,
   tagMutationContracts,
   trustedProxyIps,
@@ -294,6 +297,7 @@ export async function createContext({
     tags,
     contacts,
     feedback,
+    screens,
     relations,
     auth: null,
     session,

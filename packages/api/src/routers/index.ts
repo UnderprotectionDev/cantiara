@@ -331,6 +331,12 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  createScreenInputSchema,
+  resolveScreenInputSchema,
+  screenProjectInputSchema,
+  setScreenLifecycleInputSchema,
+} from "../screens";
+import {
   createSmartCollectionInputSchema,
   SmartCollectionConflictError,
   SmartCollectionUnavailableError,
@@ -965,6 +971,13 @@ function requireFeedback(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.feedback;
+}
+
+function requireScreens(context: Context) {
+  if (!context.screens) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.screens;
 }
 
 function requireContacts(context: Context) {
@@ -2594,6 +2607,54 @@ async function runFeedbackOperation<T>(
       });
     }
     const message = FEEDBACK_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
+}
+
+const SCREEN_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SCREEN_NOT_FOUND: "Screen is unavailable.",
+  SCREEN_PROJECT_NOT_FOUND: "Project is unavailable.",
+};
+
+const SCREEN_REJECTED_MESSAGES: Record<string, string> = {
+  SCREEN_LIFECYCLE_INVALID:
+    "That action does not apply to this Screen in its current state.",
+  SCREEN_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+};
+
+async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "SCREEN_REVISION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Screen changed since it was loaded. Reload and try again.",
+      });
+    }
+    const rejected = SCREEN_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = SCREEN_UNAVAILABLE_MESSAGES[error.code];
     if (message) {
       throw new ORPCError("NOT_FOUND", {
         cause: error,
@@ -4522,6 +4583,34 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  projectScreens: protectedProcedure
+    .input(screenProjectInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  createScreen: protectedProcedure
+    .input(createScreenInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).create(context.session.user.id, input),
+      ),
+    ),
+  setScreenLifecycle: protectedProcedure
+    .input(setScreenLifecycleInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).setLifecycle(context.session.user.id, input),
+      ),
+    ),
+  resolveScreen: protectedProcedure
+    .input(resolveScreenInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).resolveTarget(context.session.user.id, input),
       ),
     ),
   contacts: protectedProcedure.handler(({ context }) =>
