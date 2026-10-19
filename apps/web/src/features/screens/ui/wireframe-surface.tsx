@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { createWireframeEditor } from "../engine/editor";
+import type { ConvertAndBindActions } from "./convert-and-bind-panel";
 import type { LinkedBlockActions } from "./linked-block-controls";
 import { WireframePane } from "./wireframe-pane";
 
@@ -77,6 +78,38 @@ function LoadedWireframe({
       client.previewLinkedBlockChange({ content, definitionId, projectId }),
   };
 
+  // Convert and Bind names an exact stored version, so the current document is
+  // flushed first and the preview and confirm address the version that returns.
+  const convert: ConvertAndBindActions = {
+    confirm: (plan) =>
+      runOnlineOnlyWrite(() =>
+        client.confirmConvertAndBind({
+          originId: crypto.randomUUID(),
+          plan,
+          projectId,
+          recordId: crypto.randomUUID(),
+          screenId,
+        }),
+      ),
+    preview: async (request) => {
+      const flushed = await runOnlineOnlyWrite(() =>
+        client.saveScreenWireframe({
+          document: editor.getState().document,
+          projectId,
+          screenId,
+        }),
+      );
+      saved.current = editor.getState().document;
+      queryClient.setQueryData(options.queryKey, flushed);
+      return client.previewConvertAndBind({
+        ...request,
+        projectId,
+        screenId,
+        wireframeVersion: flushed.version,
+      });
+    },
+  };
+
   async function saveVersion() {
     await runOnlineOnlyWrite(() =>
       client.saveScreenWireframeVersion({
@@ -93,8 +126,10 @@ function LoadedWireframe({
 
   return (
     <WireframePane
+      convert={convert}
       editor={editor}
       linked={linked}
+      liveCards={wireframe.liveCards}
       liveText={wireframe.liveText}
       onSaveVersion={saveVersion}
       readOnly={readOnly}

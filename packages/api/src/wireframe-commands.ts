@@ -75,6 +75,15 @@ function pruneDefinitions(document: WireframeDocument): WireframeDocument {
   };
 }
 
+function refuseLiveCard(block: WireframeBlock) {
+  if (block.kind === "Live Card") {
+    throw new WireframeDocumentError(
+      "INVALID_COMMAND",
+      "A live card is a read-only view of its record. Move it; edit the record at its source.",
+    );
+  }
+}
+
 function refuseLinked(block: WireframeBlock) {
   if (block.link) {
     throw new WireframeDocumentError(
@@ -127,6 +136,7 @@ function applyCommand(
       const index = indexOfBlock(document, command.blockId);
       const block = document.blocks[index] as WireframeBlock;
       refuseLinked(block);
+      refuseLiveCard(block);
       return replaceBlock(document, index, { ...block, label: command.label });
     }
     case "setText": {

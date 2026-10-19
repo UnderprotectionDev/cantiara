@@ -331,6 +331,15 @@ import {
   updateWorkHorizonInputSchema,
 } from "../roadmap-horizon";
 import {
+  confirmConvertAndBindInputSchema,
+  confirmRebindInputSchema,
+  createScreenFromTemplateInputSchema,
+  previewConvertAndBindInputSchema,
+  previewRebindInputSchema,
+  saveScreenTemplateInputSchema,
+  screenTemplateListInputSchema,
+} from "../screen-origins";
+import {
   createLinkedBlockInputSchema,
   createScreenInputSchema,
   linkedBlockChangeInputSchema,
@@ -2629,9 +2638,13 @@ const SCREEN_UNAVAILABLE_MESSAGES: Record<string, string> = {
   SCREEN_LINKED_BLOCK_NOT_FOUND: "Linked block is unavailable.",
   SCREEN_NOT_FOUND: "Screen is unavailable.",
   SCREEN_PROJECT_NOT_FOUND: "Project is unavailable.",
+  SCREEN_TEMPLATE_NOT_FOUND: "Wireframe template is unavailable.",
+  SCREEN_VERSION_NOT_FOUND: "Wireframe version is unavailable.",
 };
 
 const SCREEN_REJECTED_MESSAGES: Record<string, string> = {
+  SCREEN_CONVERSION_STALE:
+    "The block or Wireframe version changed since the preview. Preview again.",
   SCREEN_LIFECYCLE_INVALID:
     "That action does not apply to this Screen in its current state.",
   SCREEN_PROJECT_READ_ONLY: "Archived Projects are read-only.",
@@ -4682,6 +4695,71 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runScreenOperation(() =>
         requireScreens(context).applyLinkedBlockChange(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewConvertAndBind: protectedProcedure
+    .input(previewConvertAndBindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).previewConvertAndBind(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  confirmConvertAndBind: protectedProcedure
+    .input(confirmConvertAndBindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).convertAndBind(context.session.user.id, input),
+      ),
+    ),
+  screenOrigins: protectedProcedure
+    .input(resolveScreenInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).origins(context.session.user.id, input),
+      ),
+    ),
+  previewRebindScreenOrigin: protectedProcedure
+    .input(previewRebindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).previewRebind(context.session.user.id, input),
+      ),
+    ),
+  rebindScreenOrigin: protectedProcedure
+    .input(confirmRebindInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).rebind(context.session.user.id, input),
+      ),
+    ),
+  saveScreenTemplate: protectedProcedure
+    .input(saveScreenTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).saveTemplate(context.session.user.id, input),
+      ),
+    ),
+  screenTemplates: protectedProcedure
+    .input(screenTemplateListInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).templates(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createScreenFromTemplate: protectedProcedure
+    .input(createScreenFromTemplateInputSchema)
+    .handler(({ context, input }) =>
+      runScreenOperation(() =>
+        requireScreens(context).createScreenFromTemplate(
           context.session.user.id,
           input,
         ),
