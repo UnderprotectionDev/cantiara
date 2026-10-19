@@ -37,6 +37,7 @@ export * from "./smart-collection";
 export * from "./source";
 export * from "./tags";
 export * from "./technical-diagram";
+export * from "./user-flow";
 export * from "./validation-record";
 export * from "./work";
 export * from "./work-draft";

@@ -104,6 +104,7 @@ import {
   createDatabaseTags,
 } from "./features/tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "./features/technical-diagrams/server/technical-diagrams-database";
+import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "./features/work-lifecycle/server/work-lifecycle-database";
@@ -125,6 +126,7 @@ export const startSmartCollectionSubscriptionSignalWorker =
 export const stopSmartCollectionSubscriptionSignalWorker =
   smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
+export const userFlow = createDatabaseUserFlow(db);
 export const universalSearch = createDatabaseUniversalSearch(db);
 export const documentMutationContracts =
   createDatabaseDocumentMutationContracts(db);
