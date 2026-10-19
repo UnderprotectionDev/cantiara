@@ -33,6 +33,18 @@ export interface EditorNode {
   text: string;
 }
 
+/**
+ * Read-only live card of a Work, Decision or Risk. It holds the record id and
+ * its place only; moving or removing it edits this flow document and never the
+ * source record.
+ */
+export interface EditorCard {
+  id: string;
+  kind: "Decision" | "Risk" | "Work";
+  position: { x: number; y: number };
+  recordId: string;
+}
+
 export interface EditorLink {
   from: string;
   id: string;
@@ -42,6 +54,8 @@ export interface EditorLink {
 
 /** Array order of `nodes` is the z-order: later nodes are drawn above. */
 export interface EditorDocument {
+  /** Absent means no cards; every operation below carries cards through unchanged. */
+  cards?: EditorCard[];
   links: EditorLink[];
   nodes: EditorNode[];
 }
@@ -246,6 +260,42 @@ export function setNodePositions(
   return commit(state, changed ? { ...state.document, nodes } : state.document);
 }
 
+/** Drag end of live cards: only this flow document changes. */
+export function setCardPositions(
+  state: EditorState,
+  positions: ReadonlyMap<string, { x: number; y: number }>,
+  options: { snap?: boolean } = {},
+): EditorState {
+  let changed = false;
+  const cards = (state.document.cards ?? []).map((card) => {
+    const target = positions.get(card.id);
+    if (!target) {
+      return card;
+    }
+    const position = options.snap
+      ? { x: snapToGrid(target.x), y: snapToGrid(target.y) }
+      : target;
+    if (position.x === card.position.x && position.y === card.position.y) {
+      return card;
+    }
+    changed = true;
+    return { ...card, position };
+  });
+  return commit(state, changed ? { ...state.document, cards } : state.document);
+}
+
+/** Removes a live card from the flow; the source record is not touched. */
+export function removeCard(state: EditorState, cardId: string): EditorState {
+  const cards = state.document.cards ?? [];
+  if (!cards.some(({ id }) => id === cardId)) {
+    return state;
+  }
+  return commit(state, {
+    ...state.document,
+    cards: cards.filter(({ id }) => id !== cardId),
+  });
+}
+
 export function snapSelectionToGrid(state: EditorState): EditorState {
   return moveSelection(state, { dx: 0, dy: 0 }, { snap: true });
 }
@@ -383,6 +433,7 @@ export function deleteSelection(state: EditorState): EditorState {
   return commit(
     state,
     {
+      ...state.document,
       links: state.document.links.filter(
         ({ from, to }) => !(selected.has(from) || selected.has(to)),
       ),
@@ -464,6 +515,7 @@ export function paste(state: EditorState, createId: () => string): EditorState {
       clipboard: { ...clipboard, pastes },
     },
     {
+      ...state.document,
       links: [...state.document.links, ...links],
       nodes: [...state.document.nodes, ...nodes],
     },

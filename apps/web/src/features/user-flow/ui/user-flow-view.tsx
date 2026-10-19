@@ -1,12 +1,20 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over the selected User Flow and their own draft fields.
 import {
+  type CardRecordOption,
   type ScreenOption,
   type ScreenReferenceView,
   USER_FLOW_NODE_KINDS,
+  type UserFlowBindView,
+  type UserFlowCardKind,
+  type UserFlowConvertPlan,
+  type UserFlowConvertTarget,
   type UserFlowNodeKind,
   type UserFlowNodeView,
+  type UserFlowRebindPlan,
   type UserFlowView as UserFlowRecordView,
   type UserFlowSummary,
+  type UserFlowTemplateView,
+  type UserFlowWorkType,
 } from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -16,7 +24,41 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useState } from "react";
+import {
+  ConvertAndBindDialog,
+  type ConvertAndBindIdentity,
+} from "./convert-and-bind-dialog";
+import { RebindDialog } from "./rebind-dialog";
+import {
+  CreateFromTemplateForm,
+  type PromoteChoice,
+  PromoteToScreenForm,
+  SaveTemplateForm,
+} from "./user-flow-promote-templates";
+import { BindList, LiveCardList, PlaceCardForm } from "./user-flow-records";
+
+/** Spec 49 #373 actions of the outline; the surface owns every durable read and write. */
+export interface UserFlowDetailTools {
+  binds: UserFlowBindView[];
+  cardRecords: CardRecordOption[];
+  onConvertConfirm: (
+    nodeId: string,
+    plan: UserFlowConvertPlan,
+    identity: ConvertAndBindIdentity,
+  ) => Promise<unknown>;
+  onConvertPreview: (
+    nodeId: string,
+    target: UserFlowConvertTarget,
+    workType: UserFlowWorkType,
+  ) => Promise<UserFlowConvertPlan>;
+  onPlaceCard: (kind: UserFlowCardKind, recordId: string) => Promise<unknown>;
+  onPreviewRebind: (bindId: string) => Promise<UserFlowRebindPlan>;
+  onPromote: (nodeId: string, choice: PromoteChoice) => Promise<unknown>;
+  onRebind: (bindId: string, plan: UserFlowRebindPlan) => Promise<unknown>;
+  onRemoveCard: (cardId: string) => Promise<unknown>;
+  onSaveTemplate: (name: string, nodeIds: string[]) => Promise<unknown>;
+}
 
 export interface PlaceNodeDraft {
   kind: UserFlowNodeKind;
@@ -67,7 +109,13 @@ export function ScreenReference({
   );
 }
 
-function NodeOutlineItem({ node }: { node: UserFlowNodeView }) {
+function NodeOutlineItem({
+  actions,
+  node,
+}: {
+  actions?: ReactNode;
+  node: UserFlowNodeView;
+}) {
   return (
     <li className="space-y-1 rounded-md border p-3">
       <p className="font-medium text-sm">
@@ -78,6 +126,7 @@ function NodeOutlineItem({ node }: { node: UserFlowNodeView }) {
         <p className="whitespace-pre-wrap text-sm">{node.text}</p>
       ) : null}
       {node.screen ? <ScreenReference reference={node.screen} /> : null}
+      {actions}
     </li>
   );
 }
@@ -175,12 +224,25 @@ export function UserFlowDetail({
   onPlaceNode,
   readOnly,
   screens,
+  tools,
 }: {
   flow: UserFlowRecordView;
   onPlaceNode: (draft: PlaceNodeDraft) => Promise<unknown>;
   readOnly: boolean;
   screens: ScreenOption[];
+  tools?: UserFlowDetailTools;
 }) {
+  const [converting, setConverting] = useState<UserFlowNodeView | null>(null);
+  const [rebinding, setRebinding] = useState<UserFlowBindView | null>(null);
+  const rebindingId = rebinding?.id;
+  const previewRebind = useCallback(
+    () =>
+      tools && rebindingId
+        ? tools.onPreviewRebind(rebindingId)
+        : Promise.reject(new Error("No bind")),
+    [rebindingId, tools],
+  );
+
   return (
     <section aria-label={`User Flow ${flow.title}`} className="space-y-4">
       <h3 className="font-medium text-lg">{flow.title}</h3>
@@ -191,15 +253,87 @@ export function UserFlowDetail({
       ) : (
         <ol aria-label="Outline" className="space-y-2">
           {flow.nodes.map((node) => (
-            <NodeOutlineItem key={node.id} node={node} />
+            <NodeOutlineItem
+              actions={
+                tools ? (
+                  <div className="space-y-2 pt-1">
+                    <Button
+                      disabled={readOnly}
+                      onClick={() => setConverting(node)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Convert and Bind
+                    </Button>
+                    {node.screen ? null : (
+                      <PromoteToScreenForm
+                        disabled={readOnly}
+                        node={node}
+                        onPromote={tools.onPromote}
+                        screens={screens}
+                      />
+                    )}
+                  </div>
+                ) : null
+              }
+              key={node.id}
+              node={node}
+            />
           ))}
         </ol>
       )}
+      {tools ? (
+        <>
+          <BindList
+            binds={tools.binds}
+            onRebind={setRebinding}
+            readOnly={readOnly}
+          />
+          <LiveCardList
+            cards={flow.cards}
+            onRemove={tools.onRemoveCard}
+            readOnly={readOnly}
+          />
+          <PlaceCardForm
+            disabled={readOnly}
+            onPlace={tools.onPlaceCard}
+            options={tools.cardRecords}
+          />
+          {flow.nodes.length > 0 ? (
+            <SaveTemplateForm
+              disabled={readOnly}
+              nodes={flow.nodes}
+              onSave={tools.onSaveTemplate}
+            />
+          ) : null}
+        </>
+      ) : null}
       <PlaceNodeForm
         disabled={readOnly}
         onPlaceNode={onPlaceNode}
         screens={screens}
       />
+      {tools && converting ? (
+        <ConvertAndBindDialog
+          node={converting}
+          onClose={() => setConverting(null)}
+          onConfirm={(plan, identity) =>
+            tools.onConvertConfirm(converting.id, plan, identity)
+          }
+          onPreview={(target, workType) =>
+            tools.onConvertPreview(converting.id, target, workType)
+          }
+        />
+      ) : null}
+      {tools && rebinding ? (
+        <RebindDialog
+          bind={rebinding}
+          onClose={() => setRebinding(null)}
+          onConfirm={(plan) => tools.onRebind(rebinding.id, plan)}
+          onPreview={previewRebind}
+        />
+      ) : null}
     </section>
   );
 }
@@ -207,17 +341,24 @@ export function UserFlowDetail({
 export function UserFlowListView({
   flows,
   onCreate,
+  onCreateFromTemplate,
   onSelect,
   readOnly,
   selected,
   selectedId,
+  templates = [],
 }: {
   flows: UserFlowSummary[];
   onCreate: (title: string) => Promise<unknown>;
+  onCreateFromTemplate?: (
+    templateId: string,
+    title: string,
+  ) => Promise<unknown>;
   onSelect: (id: string) => void;
   readOnly: boolean;
   selected: ReactNode;
   selectedId: string | null;
+  templates?: UserFlowTemplateView[];
 }) {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +411,13 @@ export function UserFlowListView({
           Create User Flow
         </Button>
       </form>
+      {onCreateFromTemplate ? (
+        <CreateFromTemplateForm
+          onCreate={onCreateFromTemplate}
+          readOnly={readOnly}
+          templates={templates}
+        />
+      ) : null}
       {selected}
     </section>
   );

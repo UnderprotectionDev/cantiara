@@ -43,10 +43,12 @@ import {
   moveSelection,
   paste,
   redo,
+  removeCard,
   reorderSelection,
   type StackMove,
   select,
   selectAll,
+  setCardPositions,
   setNodePositions,
   setSelectionStyle,
   setSelectionText,
@@ -55,6 +57,7 @@ import {
 } from "../lib/flow-editor";
 import { commandForKey, type EditorCommand } from "../lib/flow-keyboard";
 import { KIND_RADIUS, TONE_COLORS } from "../lib/flow-style";
+import { RecordReference } from "./user-flow-records";
 import { ScreenReference } from "./user-flow-view";
 import "@xyflow/react/dist/style.css";
 
@@ -113,10 +116,45 @@ function FlowCard({ data, id }: NodeProps<FlowNode>) {
   );
 }
 
-const NODE_TYPES = { flow: FlowCard };
+type CardView = UserFlowView["cards"][number];
+
+type CanvasCard = Node<
+  { card: CardView | null; onRemove: (cardId: string) => void; cardId: string },
+  "card"
+>;
+
+const CARD_PREFIX = "card:";
+
+/** A read-only live card: it shows the source record and edits only this flow. */
+function LiveCard({ data }: NodeProps<CanvasCard>) {
+  return (
+    <section
+      aria-label="Live card"
+      className="w-[220px] space-y-1 rounded-md border-2 border-dashed bg-background p-3 text-sm"
+    >
+      {data.card ? <RecordReference reference={data.card.record} /> : null}
+      <Button
+        onClick={() => data.onRemove(data.cardId)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        Remove card
+      </Button>
+    </section>
+  );
+}
+
+const NODE_TYPES = { card: LiveCard, flow: FlowCard };
 
 function toEditorDocument(flow: UserFlowView): EditorDocument {
   return {
+    cards: flow.cards.map((card) => ({
+      id: card.id,
+      kind: card.record.kind as "Decision" | "Risk" | "Work",
+      position: card.position,
+      recordId: card.record.recordId,
+    })),
     links: flow.links,
     nodes: flow.nodes.map((node) => ({
       id: node.id,
@@ -181,13 +219,36 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
     return byScreenId;
   }, [flow.nodes]);
 
+  // Removing a card edits this flow document only; the source record is untouched.
+  const removeLiveCard = useCallback((cardId: string) => {
+    setEditor((state) => removeCard(state, cardId));
+  }, []);
+
   const activate = useCallback((id: string, additive: boolean) => {
     setEditor((state) => select(state, [id], additive ? "toggle" : "replace"));
   }, []);
 
-  const modelNodes = useMemo<FlowNode[]>(() => {
+  const cardViews = useMemo(
+    () => new Map(flow.cards.map((card) => [card.id, card])),
+    [flow.cards],
+  );
+
+  const modelNodes = useMemo<Array<CanvasCard | FlowNode>>(() => {
     const selected = new Set(editor.selection);
-    return editor.document.nodes.map((node, index) => ({
+    const cardNodes: CanvasCard[] = (editor.document.cards ?? []).map(
+      (card) => ({
+        data: {
+          card: cardViews.get(card.id) ?? null,
+          cardId: card.id,
+          onRemove: removeLiveCard,
+        },
+        draggable: true,
+        id: `${CARD_PREFIX}${card.id}`,
+        position: card.position,
+        type: "card",
+      }),
+    );
+    const flowNodes = editor.document.nodes.map((node, index) => ({
       data: {
         kind: node.kind,
         onActivate: activate,
@@ -199,13 +260,23 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
       id: node.id,
       position: node.position,
       selected: selected.has(node.id),
-      type: "flow",
+      type: "flow" as const,
       zIndex: index,
     }));
-  }, [activate, editor.document.nodes, editor.selection, screens]);
+    return [...flowNodes, ...cardNodes];
+  }, [
+    activate,
+    cardViews,
+    editor.document.cards,
+    editor.document.nodes,
+    editor.selection,
+    removeLiveCard,
+    screens,
+  ]);
 
   // React Flow animates drags on its own copy; the model owns every commit.
-  const [canvasNodes, setCanvasNodes] = useState<FlowNode[]>(modelNodes);
+  const [canvasNodes, setCanvasNodes] =
+    useState<Array<CanvasCard | FlowNode>>(modelNodes);
   useEffect(() => {
     setCanvasNodes(modelNodes);
   }, [modelNodes]);
@@ -221,33 +292,52 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
     [editor.document.links],
   );
 
-  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
-    setCanvasNodes((nodes) => applyNodeChanges(changes, nodes));
-    const selection = changes.filter((change) => change.type === "select");
-    if (selection.length > 0) {
-      setEditor((state) => {
-        const ids = new Set(state.selection);
-        for (const change of selection) {
-          if (change.type === "select") {
-            if (change.selected) {
-              ids.add(change.id);
-            } else {
-              ids.delete(change.id);
+  const onNodesChange = useCallback(
+    (changes: NodeChange<CanvasCard | FlowNode>[]) => {
+      setCanvasNodes((nodes) => applyNodeChanges(changes, nodes));
+      const selection = changes.filter((change) => change.type === "select");
+      if (selection.length > 0) {
+        setEditor((state) => {
+          const ids = new Set(state.selection);
+          for (const change of selection) {
+            if (change.type === "select") {
+              if (change.selected) {
+                ids.add(change.id);
+              } else {
+                ids.delete(change.id);
+              }
             }
           }
-        }
-        return select(state, [...ids]);
-      });
-    }
-  }, []);
+          return select(state, [...ids]);
+        });
+      }
+    },
+    [],
+  );
 
   const onNodeDragStop = useCallback(
-    (_event: unknown, _node: unknown, dragged: FlowNode[]) => {
+    (
+      _event: unknown,
+      _node: unknown,
+      dragged: Array<CanvasCard | FlowNode>,
+    ) => {
+      // Moving a live card edits this flow document only, never the source record.
+      const cardPositions = new Map<string, { x: number; y: number }>();
+      const nodePositions = new Map<string, { x: number; y: number }>();
+      for (const node of dragged) {
+        if (node.id.startsWith(CARD_PREFIX)) {
+          cardPositions.set(node.id.slice(CARD_PREFIX.length), node.position);
+        } else {
+          nodePositions.set(node.id, node.position);
+        }
+      }
       setEditor((state) =>
-        setNodePositions(
-          state,
-          new Map(dragged.map((node) => [node.id, node.position])),
-          { snap },
+        setCardPositions(
+          setNodePositions(state, nodePositions, { snap }),
+          cardPositions,
+          {
+            snap,
+          },
         ),
       );
     },
@@ -514,7 +604,7 @@ function Editor({ flow, onDirtyChange, onSave }: CanvasProps) {
         className="h-[360px] w-full rounded-lg border bg-muted/20"
         onKeyDown={onKeyDown}
       >
-        <ReactFlow<FlowNode>
+        <ReactFlow<CanvasCard | FlowNode>
           deleteKeyCode={null}
           disableKeyboardA11y
           edges={edges}

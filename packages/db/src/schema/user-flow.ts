@@ -8,9 +8,24 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { workspace } from "./auth";
 import { project } from "./project";
+
+/**
+ * Read-only live card of a Work, Decision or Risk on the canvas. The card holds
+ * only the record id and its place on the canvas: moving or removing it is a
+ * flow edit and never writes the source record.
+ */
+export interface UserFlowCard {
+  id: string;
+  kind: "Decision" | "Risk" | "Work";
+  placedAt: string;
+  position: { x: number; y: number };
+  recordId: string;
+}
 
 /**
  * Durable User Flow document. React Flow is only the editor adapter; this is
@@ -18,6 +33,8 @@ import { project } from "./project";
  * of the Screen: no title, body or preview is copied onto the node.
  */
 export interface UserFlowDocument {
+  /** Absent in versions saved before live cards existed. */
+  cards?: UserFlowCard[];
   links: Array<{ from: string; id: string; text: string; to: string }>;
   nodes: Array<{
     id: string;
@@ -117,6 +134,118 @@ export const userFlowVersion = pgTable(
     check(
       "user_flow_version_closed_set_check",
       sql`${table.closedSet} = 'valid'`,
+    ),
+  ],
+);
+
+/** The record types `Convert and Bind` can open; never a Screen. */
+export const USER_FLOW_BIND_RECORD_TYPES = [
+  "Work",
+  "Decision",
+  "Risk",
+  "Open Question",
+] as const;
+
+/**
+ * Structure and placeholders only. Template-local ids replace every source id;
+ * no Screen id, Project id, record, relation, publish state or history exists
+ * in this shape, so a template is a stamp and holds no live bind.
+ */
+export interface UserFlowTemplateStructure {
+  links: Array<{ from: string; id: string; text: string; to: string }>;
+  nodes: Array<{
+    id: string;
+    kind: "Action" | "Decision" | "Screen" | "Section" | "State/Outcome";
+    position: { x: number; y: number };
+    style: "amber" | "blue" | "default" | "green" | "red" | "violet";
+    text: string;
+  }>;
+}
+
+/**
+ * `Convert and Bind` bind of one flow node to the one record it opened. The
+ * Origin Location (`userFlowId`, `nodeId`, `originVersion`) is immutable;
+ * `boundVersion` is the exact node version the bind stays on and moves only
+ * through a previewed rebind.
+ */
+export const userFlowRecordBind = pgTable(
+  "user_flow_record_bind",
+  {
+    id: text("id").primaryKey(),
+    userFlowId: text("user_flow_id")
+      .notNull()
+      .references(() => userFlow.id, { onDelete: "cascade" }),
+    nodeId: text("node_id").notNull(),
+    recordType: text("record_type").notNull(),
+    recordId: text("record_id").notNull(),
+    originVersion: integer("origin_version").notNull(),
+    boundVersion: integer("bound_version").notNull(),
+    revision: integer("revision").notNull().default(1),
+    actorId: text("actor_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_flow_record_bind_record_uidx").on(
+      table.recordType,
+      table.recordId,
+    ),
+    index("user_flow_record_bind_flow_node_idx").on(
+      table.userFlowId,
+      table.nodeId,
+    ),
+    check(
+      "user_flow_record_bind_type_check",
+      sql`${table.recordType} in ('Work', 'Decision', 'Risk', 'Open Question')`,
+    ),
+    check(
+      "user_flow_record_bind_version_check",
+      sql`${table.originVersion} >= 1 and ${table.boundVersion} >= ${table.originVersion}`,
+    ),
+    check("user_flow_record_bind_revision_check", sql`${table.revision} >= 1`),
+  ],
+);
+
+/** Every previewed rebind keeps the version it left. */
+export const userFlowRecordBindRebind = pgTable(
+  "user_flow_record_bind_rebind",
+  {
+    id: text("id").primaryKey(),
+    bindId: text("bind_id")
+      .notNull()
+      .references(() => userFlowRecordBind.id, { onDelete: "cascade" }),
+    fromVersion: integer("from_version").notNull(),
+    toVersion: integer("to_version").notNull(),
+    actorId: text("actor_id").notNull(),
+    reboundAt: timestamp("rebound_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("user_flow_record_bind_rebind_bind_idx").on(table.bindId),
+    check(
+      "user_flow_record_bind_rebind_version_check",
+      sql`${table.toVersion} > ${table.fromVersion}`,
+    ),
+  ],
+);
+
+/** Custom User Flow template, usable across the Projects of one Workspace. */
+export const userFlowTemplate = pgTable(
+  "user_flow_template",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    structure: jsonb("structure").$type<UserFlowTemplateStructure>().notNull(),
+    actorId: text("actor_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("user_flow_template_workspace_idx").on(table.workspaceId),
+    check(
+      "user_flow_template_name_check",
+      sql`length(btrim(${table.name})) between 1 and 255`,
     ),
   ],
 );

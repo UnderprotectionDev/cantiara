@@ -855,6 +855,13 @@
       "when": 1792408752643,
       "tag": "0121_cuddly_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1792409681122,
+      "tag": "0122_giant_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }
