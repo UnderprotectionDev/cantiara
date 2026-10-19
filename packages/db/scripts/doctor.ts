@@ -17,7 +17,6 @@ export interface DatabaseDiagnosis {
   reason:
     | "ready"
     | "pending"
-    | "ahead"
     | "history-mismatch"
     | "schema-drift"
     | "target-mismatch"
@@ -51,29 +50,39 @@ export async function inspectReadiness(
         import.meta.url,
       ),
     ),
-    { allowAhead: development },
+    { allowForeign: true },
   );
-  if (history.applied.length < history.expected.length) {
+  const foreign =
+    history.foreign.length > 0
+      ? `${history.foreign.length} migrations applied from other branches are accepted after development schema compatibility checks.`
+      : undefined;
+  if (history.pending.length > 0) {
+    const pendingHashes = new Set(
+      history.pending.map((migration) => migration.hash),
+    );
     const pending = repository.entries
-      .slice(history.applied.length)
+      .filter((_, index) =>
+        pendingHashes.has(history.expected[index]?.hash ?? ""),
+      )
       .map((entry) => entry.tag);
     return {
       reason: "pending",
-      details: pending,
+      details: [...pending, ...(foreign ? [foreign] : [])],
       nextStep: `Review pending SQL, then run bun run ${securityEvents ? "db:security:migrate" : "db:migrate"} on the verified development target.`,
     };
   }
+  const tolerant = development || history.foreign.length > 0;
   const issues = await inspectDatabaseSchema(
     client,
     repository.snapshot,
-    deep || development,
-    development,
+    deep || tolerant,
+    tolerant,
   );
   if (issues.length > 0) {
     return {
       reason: "schema-drift",
       details: issues,
-      nextStep: development
+      nextStep: tolerant
         ? "This branch's schema requirements are incompatible with the shared database. Reconcile the owning code and canonical migrations; do not bypass checks or use db:push."
         : "History matches but schema differs. Diagnose the cause and prepare a versioned repair; do not use db:push or edit applied SQL.",
     };
@@ -81,9 +90,8 @@ export async function inspectReadiness(
   return {
     reason: "ready",
     details: [
-      history.applied.length > history.expected.length
-        ? `Database is ${history.applied.length - history.expected.length} migrations ahead; matching prefix and development schema compatibility checks passed. Migration writes remain blocked until canonical history is integrated.`
-        : `${history.applied.length} migrations match; ${deep || development ? "deep" : "column"} schema checks passed`,
+      foreign ??
+        `${history.applied.length} migrations match; ${deep || development ? "deep" : "column"} schema checks passed`,
     ],
     nextStep: "Development target is ready.",
   };
@@ -108,6 +116,19 @@ async function closeInspectionClient(
       client.release();
     }
   }
+}
+
+function historyErrorDiagnosis(
+  error: MigrationHistoryError,
+): DatabaseDiagnosis {
+  return {
+    // Doctor verifies with allowForeign and never performs the strict
+    // deployment check that produces "ahead".
+    reason: error.reason === "ahead" ? "history-mismatch" : error.reason,
+    details: [error.message],
+    nextStep:
+      "Bring the canonical applied migrations and owning code into this Git branch. Stop until histories match; do not reset or invent history.",
+  };
 }
 
 export async function diagnoseDatabase(
@@ -176,12 +197,7 @@ export async function diagnoseDatabase(
     }
   } catch (error) {
     if (error instanceof MigrationHistoryError) {
-      return {
-        reason: error.reason,
-        details: [error.message],
-        nextStep:
-          "Bring the canonical applied migrations and owning code into this Git branch. Stop until histories match; do not reset or invent history.",
-      };
+      return historyErrorDiagnosis(error);
     }
     const code = databaseErrorCode(error);
     const permission = ["42501", "28P01", "28000"].includes(code);

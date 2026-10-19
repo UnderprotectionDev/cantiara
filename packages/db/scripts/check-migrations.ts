@@ -6,6 +6,10 @@ import {
   type MigrationSnapshot,
   readMigrationRepository,
 } from "./migration-repository";
+import {
+  assertParallelSafeMigrations,
+  parallelSafetyBaselines,
+} from "./parallel-safety";
 
 export function assertSchemaSnapshot(
   expected: MigrationSnapshot,
@@ -27,6 +31,12 @@ export function assertSchemaSnapshot(
       );
     }
   }
+}
+
+export function parallelSafetyBaseline(securityEvents: boolean) {
+  return securityEvents
+    ? parallelSafetyBaselines.securityEvents
+    : parallelSafetyBaselines.primary;
 }
 
 export async function checkMigrationSources(securityEvents = false) {
@@ -52,6 +62,10 @@ export async function checkMigrationSources(securityEvents = false) {
     JSON.stringify(generateDrizzleJson(imports)),
   );
   assertSchemaSnapshot(repository.snapshot, generated);
+  assertParallelSafeMigrations(
+    repository,
+    parallelSafetyBaseline(securityEvents),
+  );
   return repository;
 }
 
@@ -63,8 +77,16 @@ if (import.meta.main) {
     ]);
     for (const [index, repository] of repositories.entries()) {
       console.log(
-        `${index === 1 ? "Security events" : "Primary"}: ${repository.entries.length} migration files, snapshot chain and source schema verified`,
+        `${index === 1 ? "Security events" : "Primary"}: ${repository.entries.length} migration files, snapshot chain, source schema and shared database safety verified`,
       );
+      for (const tag of assertParallelSafeMigrations(
+        repository,
+        parallelSafetyBaseline(index === 1),
+      )) {
+        console.warn(
+          `${tag} is an acknowledged contract migration; apply it only after every workspace using the shared development database runs code that no longer depends on the old schema.`,
+        );
+      }
     }
   } catch (error) {
     console.error(

@@ -152,9 +152,9 @@ async function acquireBoundary(
           verifiedFingerprint = currentFingerprint;
         }
         const history = await verifyMigrationHistory(client, folder, {
-          allowAhead: true,
+          allowForeign: true,
         });
-        if (history.applied.length < history.expected.length) {
+        if (history.pending.length > 0) {
           throw new Error("Development migration history changed");
         }
       },

@@ -85,7 +85,6 @@ test("preflights both targets and migrates them in order before final verificati
 });
 
 const blockers: Reason[] = [
-  "ahead",
   "history-mismatch",
   "schema-drift",
   "target-mismatch",

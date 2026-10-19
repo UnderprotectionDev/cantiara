@@ -55,6 +55,78 @@ describe("assertMigrationHistory", () => {
   });
 });
 
+describe("migrations applied from other branches", () => {
+  test("accepts interleaved migrations from other branches in development", () => {
+    expect(
+      assertMigrationHistory(
+        expected,
+        [
+          { created_at: "1000", hash: "first" },
+          { created_at: "1500", hash: "other-branch" },
+          { created_at: "2000", hash: "second" },
+          { created_at: "2500", hash: "another-branch" },
+        ],
+        { allowForeign: true },
+      ),
+    ).toEqual({
+      foreign: [
+        { created_at: "1500", hash: "other-branch" },
+        { created_at: "2500", hash: "another-branch" },
+      ],
+      pending: [],
+    });
+  });
+
+  test("keeps own pending migrations applicable after newer foreign ones", () => {
+    expect(
+      assertMigrationHistory(
+        expected,
+        [
+          { created_at: "1000", hash: "first" },
+          { created_at: "2500", hash: "other-branch" },
+        ],
+        { allowForeign: true },
+      ).pending,
+    ).toEqual([{ folderMillis: 2000, hash: "second" }]);
+  });
+
+  test("recognizes an applied migration whose journal time moved during a rebase", () => {
+    expect(
+      assertMigrationHistory(
+        expected,
+        [
+          { created_at: "1000", hash: "first" },
+          { created_at: "1200", hash: "second" },
+        ],
+        { allowForeign: true },
+      ),
+    ).toEqual({ foreign: [], pending: [] });
+  });
+
+  test("rejects own migration SQL edited after it was applied", () => {
+    expect(() =>
+      assertMigrationHistory(
+        expected,
+        [
+          { created_at: "1000", hash: "first" },
+          { created_at: "2000", hash: "edited-second" },
+        ],
+        { allowForeign: true },
+      ),
+    ).toThrow("migration history diverged at 2000");
+  });
+
+  test("strict history treats foreign migrations as divergence or ahead", () => {
+    expect(() =>
+      assertMigrationHistory(expected, [
+        { created_at: "1000", hash: "first" },
+        { created_at: "1500", hash: "other-branch" },
+        { created_at: "2000", hash: "second" },
+      ]),
+    ).toThrow("migration history diverged at 2000");
+  });
+});
+
 test("rejects an empty migration ledger when public tables already exist", async () => {
   const client = {
     query: <Row>(query: string) => {

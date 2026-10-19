@@ -336,7 +336,7 @@ export async function inspectDatabaseSchema(
       details,
       keyIssues: [
         ...compareKeys(table, actualConstraints),
-        ...compareUniqueConstraints(table, actualConstraints),
+        ...compareUniqueConstraints(table, actualConstraints, development),
       ],
     };
   });
@@ -414,9 +414,27 @@ function compareKeys(table: MigrationTable, constraints: DatabaseConstraint[]) {
   return issues;
 }
 
+const plainColumnName = /^"?([a-z_][a-z0-9_]*)"?$/;
+
+// Another branch may add a nullable column together with its own key or
+// check. Older code never writes that column, so development accepts it.
+function onlyAddedColumns(table: MigrationTable, columns: string[]) {
+  const known = new Set(
+    Object.values(table.columns).map((column) => column.name),
+  );
+  return (
+    columns.length > 0 &&
+    columns.every((column) => {
+      const name = plainColumnName.exec(column)?.[1];
+      return name !== undefined && !known.has(name);
+    })
+  );
+}
+
 function compareUniqueConstraints(
   table: MigrationTable,
   constraints: DatabaseConstraint[],
+  development: boolean,
 ) {
   const issues: string[] = [];
   for (const unique of Object.values(table.uniqueConstraints)) {
@@ -443,7 +461,8 @@ function compareUniqueConstraints(
   for (const constraint of constraints) {
     if (
       ["f", "u", "c"].includes(constraint.type) &&
-      !expectedNames.has(constraint.name)
+      !expectedNames.has(constraint.name) &&
+      !(development && onlyAddedColumns(table, constraint.columns))
     ) {
       issues.push(`Unexpected constraint: ${table.name}.${constraint.name}`);
     }
@@ -586,7 +605,12 @@ function planTableExpressions(
           (index) =>
             index.is_unique &&
             !index.is_constraint_backed &&
-            !expectedNames.has(index.name),
+            !expectedNames.has(index.name) &&
+            !(
+              development &&
+              index.predicate === null &&
+              onlyAddedColumns(table, index.columns)
+            ),
         )
         .map((index) => `Unexpected unique index: ${table.name}.${index.name}`);
       return [

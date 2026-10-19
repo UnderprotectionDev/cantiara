@@ -130,6 +130,7 @@ export function readMigrationRepository(folder: string) {
   }
   let previousId = "00000000-0000-0000-0000-000000000000";
   let snapshot: MigrationSnapshot | undefined;
+  const snapshots: MigrationSnapshot[] = [];
   const identities = new Set<string>();
   for (const entry of journal.entries) {
     const path = join(
@@ -143,6 +144,7 @@ export function readMigrationRepository(folder: string) {
     snapshot = JSON.parse(readFileSync(path, "utf8"));
     assertSnapshot(snapshot, previousId, identities, entry.tag);
     identities.add(snapshot.id);
+    snapshots.push(snapshot);
     previousId = snapshot.id;
   }
   if (!snapshot) {
@@ -152,5 +154,6 @@ export function readMigrationRepository(folder: string) {
     entries: journal.entries,
     migrations: readMigrationFiles({ migrationsFolder: folder }),
     snapshot,
+    snapshots,
   };
 }

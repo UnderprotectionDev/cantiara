@@ -227,7 +227,7 @@ describeDatabase(
       }
     });
 
-    test("blocks a database ahead of the branch without writing or repairing it", async () => {
+    test("accepts migrations applied from other branches but blocks incompatible schema", async () => {
       const last = repository.migrations.at(-1);
       if (!last) {
         throw new Error("Last migration is required");
@@ -236,12 +236,13 @@ describeDatabase(
         sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('test-only-ahead', ${last.folderMillis + 1})`,
       );
       try {
-        expect((await diagnoseDatabase(environment)).reason).toBe("ahead");
+        const readiness = await diagnoseDatabase(environment, { deep: true });
+        expect(readiness.reason, readiness.details.join("\n")).toBe("ready");
+        expect(readiness.details.join("\n")).toContain("other branches");
         const runtime = await diagnoseDatabase(environment, {
           development: true,
         });
         expect(runtime.reason, runtime.details.join("\n")).toBe("ready");
-        expect(runtime.details.join("\n")).toContain("ahead");
         const lease = await acquireDevelopmentLease(environment);
         try {
           await lease.verify();
@@ -249,8 +250,9 @@ describeDatabase(
           await lease.close();
         }
         const result = command("packages/db/scripts/migrate.ts");
-        expect(result.status).toBe(1);
-        expect(result.stderr).toContain("ahead of this Git branch");
+        expect(result.stderr).toBe("");
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("1 from other branches kept");
         await database.execute(
           sql`ALTER TABLE "user" RENAME COLUMN name TO test_only_name`,
         );
@@ -274,6 +276,111 @@ describeDatabase(
         );
       }
     });
+
+    test("applies this branch's pending migration after a newer one from another branch", async () => {
+      const last = repository.entries.at(-1);
+      const lastSnapshot = repository.snapshot;
+      if (!last) {
+        throw new Error("Last migration is required");
+      }
+      const fixture = mkdtempSync(join(tmpdir(), "cantiara-interleaved-"));
+      const fixtureDb = join(fixture, "packages/db");
+      mkdirSync(fixtureDb, { recursive: true });
+      for (const entry of ["scripts", "src", "schema-files.ts"]) {
+        cpSync(join(root, "packages/db", entry), join(fixtureDb, entry), {
+          recursive: true,
+        });
+      }
+      symlinkSync(join(root, "node_modules"), join(fixture, "node_modules"));
+      symlinkSync(
+        join(root, "packages/db/node_modules"),
+        join(fixtureDb, "node_modules"),
+      );
+      const fixtureFolder = join(fixtureDb, "src/migrations");
+      const ownTag = `${String(last.idx + 1).padStart(4, "0")}_test_only_own`;
+      const ownWhen = last.when + 10;
+      const foreignWhen = ownWhen + 100;
+      writeFileSync(
+        join(fixtureFolder, `${ownTag}.sql`),
+        'CREATE TABLE "test_only_own_marker" ("id" text PRIMARY KEY NOT NULL);',
+      );
+      writeFileSync(
+        join(
+          fixtureFolder,
+          "meta",
+          `${String(last.idx + 1).padStart(4, "0")}_snapshot.json`,
+        ),
+        JSON.stringify({
+          ...lastSnapshot,
+          id: "00000000-0000-4000-8000-0000000000aa",
+          prevId: lastSnapshot.id,
+        }),
+      );
+      writeFileSync(
+        join(fixtureFolder, "meta", "_journal.json"),
+        `${JSON.stringify(
+          {
+            version: "7",
+            dialect: "postgresql",
+            entries: [
+              ...repository.entries,
+              { ...last, idx: last.idx + 1, tag: ownTag, when: ownWhen },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      await database.execute(
+        sql`ALTER TABLE "user" ADD COLUMN test_only_parent text REFERENCES "user"(id)`,
+      );
+      await database.execute(
+        sql`CREATE UNIQUE INDEX test_only_parent_uidx ON "user" (test_only_parent)`,
+      );
+      await database.execute(
+        sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('test-only-other-branch', ${foreignWhen})`,
+      );
+      try {
+        const result = command(join(fixtureDb, "scripts/migrate.ts"));
+        expect(result.stderr).toBe("");
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("1 from other branches kept");
+        const own = await database.execute(
+          sql`SELECT count(*) AS total FROM drizzle.__drizzle_migrations WHERE created_at = ${ownWhen}`,
+        );
+        expect(Number(own.rows[0]?.total)).toBe(1);
+        const marker = await database.execute(
+          sql`SELECT to_regclass('public.test_only_own_marker') IS NOT NULL AS present`,
+        );
+        expect(marker.rows[0]?.present).toBe(true);
+        const repeated = command(join(fixtureDb, "scripts/migrate.ts"));
+        expect(repeated.stderr).toBe("");
+        expect(repeated.status).toBe(0);
+        const doctor = command(join(fixtureDb, "scripts/doctor.ts"));
+        expect(doctor.status, doctor.stdout).toBe(0);
+        expect(doctor.stdout).toContain(
+          "1 migrations applied from other branches",
+        );
+        const otherWorkspace = await diagnoseDatabase(environment, {
+          development: true,
+        });
+        expect(otherWorkspace.reason, otherWorkspace.details.join("\n")).toBe(
+          "ready",
+        );
+        expect(otherWorkspace.details.join("\n")).toContain(
+          "2 migrations applied from other branches",
+        );
+      } finally {
+        await database.execute(
+          sql`DELETE FROM drizzle.__drizzle_migrations WHERE created_at > ${last.when}`,
+        );
+        await database.execute(sql`DROP TABLE IF EXISTS test_only_own_marker`);
+        await database.execute(
+          sql`ALTER TABLE "user" DROP COLUMN IF EXISTS test_only_parent`,
+        );
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    }, 60_000);
 
     test("development accepts defaulted additions and widened text checks but blocks incompatible changes", async () => {
       await database.execute(
