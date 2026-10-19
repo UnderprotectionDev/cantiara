@@ -1,5 +1,8 @@
 import {
+  addColorSwatchInputSchema,
   addMoodboardVisualInputSchema,
+  addPaletteGroupInputSchema,
+  assignColorSwatchPaletteGroupInputSchema,
   createMoodboardInputSchema,
   type MoodboardMutationContracts,
   type MoodboardMutationValue,
@@ -18,7 +21,9 @@ import {
 } from "@cantiara/db/schema/file-attachments";
 import {
   moodboard,
+  moodboardColorSwatch,
   moodboardItem,
+  moodboardPaletteGroup,
   moodboardVisual,
 } from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
@@ -35,7 +40,13 @@ import {
   type MoodboardRecord,
 } from "./moodboards-database";
 
-type MoodboardOperation = "addVisual" | "create" | "updateVisualCaption";
+type MoodboardOperation =
+  | "addColorSwatch"
+  | "addPaletteGroup"
+  | "addVisual"
+  | "assignColorSwatchPaletteGroup"
+  | "create"
+  | "updateVisualCaption";
 type ExistingOperation = Exclude<MoodboardOperation, "create">;
 type MoodboardUpdateInput = Parameters<
   MutationDatabaseTargetAdapter<MoodboardMutationValue>["update"]
@@ -56,6 +67,24 @@ export class MoodboardVisualNotFoundError extends Error {
   constructor(itemId: string) {
     super(`Moodboard visual ${itemId} was not found.`);
     this.name = "MoodboardVisualNotFoundError";
+  }
+}
+
+export class MoodboardSwatchNotFoundError extends Error {
+  readonly code = "MOODBOARD_SWATCH_NOT_FOUND" as const;
+
+  constructor(itemId: string) {
+    super(`Moodboard Color Swatch ${itemId} was not found.`);
+    this.name = "MoodboardSwatchNotFoundError";
+  }
+}
+
+export class MoodboardPaletteGroupNotFoundError extends Error {
+  readonly code = "MOODBOARD_PALETTE_GROUP_NOT_FOUND" as const;
+
+  constructor(groupId: string) {
+    super(`Moodboard Palette group ${groupId} was not found.`);
+    this.name = "MoodboardPaletteGroupNotFoundError";
   }
 }
 
@@ -151,6 +180,18 @@ async function findCreateTarget(
   } satisfies MutationTarget<MoodboardMutationValue>;
 }
 
+function assertPaletteGroupExists(
+  current: NonNullable<MoodboardMutationValue["moodboard"]>,
+  paletteGroupId: string | null,
+) {
+  if (
+    paletteGroupId !== null &&
+    !current.paletteGroups.some(({ id }) => id === paletteGroupId)
+  ) {
+    throw new MoodboardPaletteGroupNotFoundError(paletteGroupId);
+  }
+}
+
 async function validatePayload(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -172,11 +213,43 @@ async function validatePayload(
     );
     return true;
   }
+  if (operation === "addColorSwatch") {
+    const parsed = addColorSwatchInputSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.moodboardId !== record.id) {
+      return false;
+    }
+    assertPaletteGroupExists(current, parsed.data.paletteGroupId);
+    return true;
+  }
+  if (operation === "addPaletteGroup") {
+    const parsed = addPaletteGroupInputSchema.safeParse(payload);
+    return parsed.success && parsed.data.moodboardId === record.id;
+  }
+  if (operation === "assignColorSwatchPaletteGroup") {
+    const parsed = assignColorSwatchPaletteGroupInputSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.moodboardId !== record.id) {
+      return false;
+    }
+    if (
+      !current.items.some(
+        (item) =>
+          item.kind === "Color Swatch" && item.id === parsed.data.itemId,
+      )
+    ) {
+      throw new MoodboardSwatchNotFoundError(parsed.data.itemId);
+    }
+    assertPaletteGroupExists(current, parsed.data.paletteGroupId);
+    return true;
+  }
   const parsed = updateMoodboardVisualCaptionInputSchema.safeParse(payload);
   if (!parsed.success || parsed.data.moodboardId !== record.id) {
     return false;
   }
-  if (!current.items.some((item) => item.id === parsed.data.itemId)) {
+  if (
+    !current.items.some(
+      (item) => item.kind === "Visual" && item.id === parsed.data.itemId,
+    )
+  ) {
     throw new MoodboardVisualNotFoundError(parsed.data.itemId);
   }
   return true;
@@ -295,6 +368,98 @@ async function addVisualItem(
   return true;
 }
 
+async function addColorSwatchItem(
+  executor: MutationDatabaseExecutor,
+  record: MoodboardRecord,
+  input: MoodboardUpdateInput,
+) {
+  const added = input.nextValue.moodboard?.items.at(-1);
+  if (added?.kind !== "Color Swatch") {
+    return false;
+  }
+  const [existing] = await executor
+    .select({ total: count() })
+    .from(moodboardItem)
+    .where(eq(moodboardItem.moodboardId, record.id));
+  await executor.insert(moodboardItem).values({
+    createdAt: input.committedAt,
+    id: added.id,
+    kind: "Color Swatch",
+    moodboardId: record.id,
+    position: existing?.total ?? 0,
+    updatedAt: input.committedAt,
+  });
+  await executor.insert(moodboardColorSwatch).values({
+    color: added.color,
+    itemId: added.id,
+    moodboardId: record.id,
+    note: added.note,
+    paletteGroupId: added.paletteGroupId,
+  });
+  return true;
+}
+
+async function addPaletteGroupRow(
+  executor: MutationDatabaseExecutor,
+  record: MoodboardRecord,
+  input: MoodboardUpdateInput,
+) {
+  const added = input.nextValue.moodboard?.paletteGroups.at(-1);
+  if (!added) {
+    return false;
+  }
+  const [existing] = await executor
+    .select({ total: count() })
+    .from(moodboardPaletteGroup)
+    .where(eq(moodboardPaletteGroup.moodboardId, record.id));
+  await executor.insert(moodboardPaletteGroup).values({
+    createdAt: input.committedAt,
+    id: added.id,
+    moodboardId: record.id,
+    name: added.name,
+    position: existing?.total ?? 0,
+  });
+  return true;
+}
+
+/** Only the membership of the changed swatch is written. */
+async function assignSwatchGroupItem(
+  executor: MutationDatabaseExecutor,
+  record: MoodboardRecord,
+  input: MoodboardUpdateInput,
+) {
+  const before = await loadMoodboard(executor, record);
+  const changed = input.nextValue.moodboard?.items.find((item) => {
+    const previous = before.items.find(({ id }) => id === item.id);
+    return (
+      item.kind === "Color Swatch" &&
+      previous?.kind === "Color Swatch" &&
+      previous.paletteGroupId !== item.paletteGroupId
+    );
+  });
+  if (!changed) {
+    // A repeated assignment is a no-op that still advances the revision.
+    return true;
+  }
+  if (changed.kind !== "Color Swatch") {
+    return false;
+  }
+  await executor
+    .update(moodboardItem)
+    .set({ updatedAt: input.committedAt })
+    .where(
+      and(
+        eq(moodboardItem.id, changed.id),
+        eq(moodboardItem.moodboardId, record.id),
+      ),
+    );
+  await executor
+    .update(moodboardColorSwatch)
+    .set({ paletteGroupId: changed.paletteGroupId })
+    .where(eq(moodboardColorSwatch.itemId, changed.id));
+  return true;
+}
+
 /** Only the caption of the changed visual is written; its origin never moves. */
 async function updateVisualCaptionItem(
   executor: MutationDatabaseExecutor,
@@ -305,7 +470,9 @@ async function updateVisualCaptionItem(
   const changed = input.nextValue.moodboard?.items.find((item) => {
     const previous = before.items.find(({ id }) => id === item.id);
     return (
-      item.kind === "Visual" && previous && previous.caption !== item.caption
+      item.kind === "Visual" &&
+      previous?.kind === "Visual" &&
+      previous.caption !== item.caption
     );
   });
   if (!changed) {
@@ -346,10 +513,23 @@ async function updateExistingMoodboard(
   if (!record || record.revision !== input.expectedRevision) {
     return null;
   }
-  const written =
-    operation === "addVisual"
-      ? await addVisualItem(executor, accountId, record, input)
-      : await updateVisualCaptionItem(executor, record, input);
+  let written: boolean;
+  switch (operation) {
+    case "addColorSwatch":
+      written = await addColorSwatchItem(executor, record, input);
+      break;
+    case "addPaletteGroup":
+      written = await addPaletteGroupRow(executor, record, input);
+      break;
+    case "addVisual":
+      written = await addVisualItem(executor, accountId, record, input);
+      break;
+    case "assignColorSwatchPaletteGroup":
+      written = await assignSwatchGroupItem(executor, record, input);
+      break;
+    default:
+      written = await updateVisualCaptionItem(executor, record, input);
+  }
   if (!written) {
     return null;
   }
@@ -410,7 +590,11 @@ export function createDatabaseMoodboardMutationContracts(
     });
   }
   return {
+    addColorSwatch: (accountId) => contract("addColorSwatch", accountId),
+    addPaletteGroup: (accountId) => contract("addPaletteGroup", accountId),
     addVisual: (accountId) => contract("addVisual", accountId),
+    assignColorSwatchPaletteGroup: (accountId) =>
+      contract("assignColorSwatchPaletteGroup", accountId),
     create: (accountId) => contract("create", accountId),
     updateVisualCaption: (accountId) =>
       contract("updateVisualCaption", accountId),
