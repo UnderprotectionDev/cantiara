@@ -6,6 +6,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import ScreensOutputSurface from "./screens-output-surface";
 import { ScreensView } from "./screens-view";
 import WireframeSurface from "./wireframe-surface";
 
@@ -61,12 +62,18 @@ export default function ScreensSurface({ projectId }: { projectId: string }) {
     );
   }
   return (
-    <ScreensView
-      onCreate={create}
-      onSetLifecycle={setLifecycle}
-      readOnly={screens.data.readOnly}
-      renderWireframe={renderWireframe}
-      screens={screens.data.screens}
-    />
+    <div className="space-y-6">
+      <ScreensView
+        onCreate={create}
+        onSetLifecycle={setLifecycle}
+        readOnly={screens.data.readOnly}
+        renderWireframe={renderWireframe}
+        screens={screens.data.screens}
+      />
+      <ScreensOutputSurface
+        projectId={projectId}
+        screens={screens.data.screens}
+      />
+    </div>
   );
 }
