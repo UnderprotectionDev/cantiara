@@ -53,7 +53,12 @@ test("canvas yapılandırılmış outline: create, select, reorder, inspect, gro
     pane.getByRole("button", { name: "Convert and Bind" }),
   ).toHaveCount(1);
   await pane.getByRole("button", { name: "Move down" }).focus();
+  // The Wireframe autosave must land too, or the reload shows an empty canvas.
+  const wireframeSaved = page.waitForResponse((result) =>
+    result.url().endsWith("/rpc/saveScreenWireframe"),
+  );
   await page.keyboard.press("Enter");
+  expect((await wireframeSaved).ok()).toBe(true);
 
   // Group: collapse is view-local.
   await pane.getByRole("button", { name: COLLAPSE_CARD }).focus();
