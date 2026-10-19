@@ -41,7 +41,7 @@ test("Uncertainty Records persists outcomes and exact evidence and preserves can
   await assumptions
     .getByRole("button", { name: "Create", exact: true })
     .click();
-  await page.getByLabel("Title", { exact: true }).fill("Export demand");
+  await assumptions.getByLabel("Title", { exact: true }).fill("Export demand");
   await page
     .getByLabel("Statement", { exact: true })
     .fill("Customers will pay for export.");
@@ -109,7 +109,9 @@ test("Uncertainty Records persists outcomes and exact evidence and preserves can
   await expect(detail).toContainText("Customers need CSV export.");
   await expect(detail).toContainText("Customers expect it for free.");
   await detail.getByRole("button", { name: "Edit", exact: true }).click();
-  await page.getByLabel("Title", { exact: true }).fill("Export demand revised");
+  await assumptions
+    .getByLabel("Title", { exact: true })
+    .fill("Export demand revised");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.reload();
   await expect(detail).toContainText("Export demand revised");
@@ -177,7 +179,7 @@ test("Assumption outcome keeps the Document version offered when editing starts"
   await assumptions
     .getByRole("button", { name: "Create", exact: true })
     .click();
-  await page.getByLabel("Title", { exact: true }).fill("Export demand");
+  await assumptions.getByLabel("Title", { exact: true }).fill("Export demand");
   await page
     .getByLabel("Statement", { exact: true })
     .fill("Customers will pay for export.");
