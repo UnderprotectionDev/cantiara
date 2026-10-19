@@ -68,5 +68,64 @@ export function useMoodboards(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { addVisual, createMoodboard, moodboardsQuery, updateCaption };
+  const addColorSwatch = useMutation({
+    mutationFn: (input: {
+      color: string;
+      moodboard: Moodboard;
+      note: string | null;
+      paletteGroupId: string | null;
+    }) =>
+      runOnlineOnlyWrite(() =>
+        client.addColorSwatch({
+          baseRevision: input.moodboard.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          color: input.color,
+          moodboardId: input.moodboard.id,
+          note: input.note,
+          paletteGroupId: input.paletteGroupId,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
+  const addPaletteGroup = useMutation({
+    mutationFn: (input: { moodboard: Moodboard; name: string }) =>
+      runOnlineOnlyWrite(() =>
+        client.addPaletteGroup({
+          baseRevision: input.moodboard.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          moodboardId: input.moodboard.id,
+          name: input.name,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
+  const assignPaletteGroup = useMutation({
+    mutationFn: (input: {
+      itemId: string;
+      moodboard: Moodboard;
+      paletteGroupId: string | null;
+    }) =>
+      runOnlineOnlyWrite(() =>
+        client.assignColorSwatchPaletteGroup({
+          baseRevision: input.moodboard.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          itemId: input.itemId,
+          moodboardId: input.moodboard.id,
+          paletteGroupId: input.paletteGroupId,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
+  return {
+    addColorSwatch,
+    addPaletteGroup,
+    addVisual,
+    assignPaletteGroup,
+    createMoodboard,
+    moodboardsQuery,
+    updateCaption,
+  };
 }

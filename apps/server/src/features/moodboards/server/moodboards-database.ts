@@ -8,7 +8,9 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import {
   moodboard,
+  moodboardColorSwatch,
   moodboardItem,
+  moodboardPaletteGroup,
   moodboardVisual,
 } from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
@@ -17,6 +19,22 @@ import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 
 export type MoodboardRecord = typeof moodboard.$inferSelect;
+
+function toColorSwatch(
+  item: typeof moodboardItem.$inferSelect,
+  swatch: typeof moodboardColorSwatch.$inferSelect,
+): MoodboardItem {
+  return {
+    color: swatch.color,
+    createdAt: item.createdAt.toISOString(),
+    id: item.id,
+    kind: "Color Swatch",
+    note: swatch.note,
+    paletteGroupId: swatch.paletteGroupId,
+    position: item.position,
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
 
 function toVisual(
   item: typeof moodboardItem.$inferSelect,
@@ -46,24 +64,40 @@ export async function hydrateMoodboards(
   if (records.length === 0) {
     return [];
   }
-  const rows = await executor
+  const moodboardIds = records.map(({ id }) => id);
+  const visualRows = await executor
     .select({ item: moodboardItem, visual: moodboardVisual })
     .from(moodboardItem)
     .innerJoin(moodboardVisual, eq(moodboardVisual.itemId, moodboardItem.id))
-    .where(
-      inArray(
-        moodboardItem.moodboardId,
-        records.map(({ id }) => id),
-      ),
+    .where(inArray(moodboardItem.moodboardId, moodboardIds));
+  const swatchRows = await executor
+    .select({ item: moodboardItem, swatch: moodboardColorSwatch })
+    .from(moodboardItem)
+    .innerJoin(
+      moodboardColorSwatch,
+      eq(moodboardColorSwatch.itemId, moodboardItem.id),
     )
-    .orderBy(asc(moodboardItem.position));
+    .where(inArray(moodboardItem.moodboardId, moodboardIds));
+  const groupRows = await executor
+    .select()
+    .from(moodboardPaletteGroup)
+    .where(inArray(moodboardPaletteGroup.moodboardId, moodboardIds))
+    .orderBy(asc(moodboardPaletteGroup.position));
   return records.map((record) =>
     moodboardSchema.parse({
       createdAt: record.createdAt.toISOString(),
       id: record.id,
-      items: rows
-        .filter(({ item }) => item.moodboardId === record.id)
-        .map(({ item, visual }) => toVisual(item, visual)),
+      items: [
+        ...visualRows
+          .filter(({ item }) => item.moodboardId === record.id)
+          .map(({ item, visual }) => toVisual(item, visual)),
+        ...swatchRows
+          .filter(({ item }) => item.moodboardId === record.id)
+          .map(({ item, swatch }) => toColorSwatch(item, swatch)),
+      ].sort((left, right) => left.position - right.position),
+      paletteGroups: groupRows
+        .filter((group) => group.moodboardId === record.id)
+        .map(({ id, name, position }) => ({ id, name, position })),
       projectId: record.projectId,
       revision: record.revision,
       title: record.title,

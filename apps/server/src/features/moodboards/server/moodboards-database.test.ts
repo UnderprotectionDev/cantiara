@@ -4,11 +4,19 @@ import {
   type Moodboard,
   newMoodboard,
   type UpdateMoodboardVisualCaptionInput,
+  withAddedColorSwatch,
+  withAddedPaletteGroup,
   withAddedVisual,
+  withColorSwatchPaletteGroup,
   withVisualCaption,
 } from "@cantiara/api/moodboards";
 import { createDb } from "@cantiara/db";
-import { user, workspace } from "@cantiara/db/schema/auth";
+import { accountPreferences, user, workspace } from "@cantiara/db/schema/auth";
+import { completionEffectPreferences } from "@cantiara/db/schema/completion-effects";
+import {
+  customFieldDefinition,
+  customFieldValue,
+} from "@cantiara/db/schema/custom-fields";
 import {
   fileAttachment,
   fileAttachmentVersion,
@@ -235,7 +243,9 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
     const access = createDatabaseMoodboards(db);
     const [read] = (await access.list(accountId, projectId)) ?? [];
     expect(
-      read?.items.map(({ origin, caption }) => ({ caption, origin })),
+      read?.items
+        .filter((item) => item.kind === "Visual")
+        .map(({ origin, caption }) => ({ caption, origin })),
     ).toEqual([
       {
         caption: "Older crop on purpose",
@@ -389,5 +399,132 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
         otherAccountId,
       ),
     ).rejects.toMatchObject({ code: expect.any(String) });
+  });
+
+  test("Color Swatches and Palette groups persist, keep membership inside one Moodboard, and write no theme, effect, custom field, or wall link", async () => {
+    const db = requireDatabase();
+    const snapshot = async () => ({
+      effects: await db
+        .select()
+        .from(completionEffectPreferences)
+        .where(eq(completionEffectPreferences.accountId, accountId)),
+      fieldDefinitions: await db
+        .select()
+        .from(customFieldDefinition)
+        .where(eq(customFieldDefinition.projectId, projectId)),
+      fieldValues: await db
+        .select()
+        .from(customFieldValue)
+        .where(eq(customFieldValue.recordId, projectId)),
+      preferences: await db
+        .select()
+        .from(accountPreferences)
+        .where(eq(accountPreferences.accountId, accountId)),
+      usageLinks: await db
+        .select()
+        .from(usageLink)
+        .where(eq(usageLink.workspaceId, workspaceId)),
+    });
+    const before = await snapshot();
+    const board = await create(accountId, { projectId, title: "Direction" });
+    const other = await create(accountId, { projectId, title: "Other" });
+
+    async function run(
+      target: Moodboard,
+      operation:
+        | "addColorSwatch"
+        | "addPaletteGroup"
+        | "assignColorSwatchPaletteGroup",
+      payload: Record<string, unknown>,
+      key: string = crypto.randomUUID(),
+    ): Promise<Moodboard> {
+      const receipt = await mutations()
+        [operation](accountId)
+        .mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision: target.revision,
+            clientIdempotencyKey: key,
+            kind: "human",
+            payload: { ...payload, moodboardId: target.id },
+            targetId: target.id,
+          },
+          ({ currentRevision, currentValue, payload: next }) => {
+            const input = {
+              now: new Date().toISOString(),
+              revision: currentRevision + 1,
+            };
+            if (operation === "addColorSwatch") {
+              return withAddedColorSwatch(currentValue, {
+                ...input,
+                itemId: key,
+                payload: next as never,
+              });
+            }
+            if (operation === "addPaletteGroup") {
+              return withAddedPaletteGroup(currentValue, {
+                ...input,
+                groupId: key,
+                payload: next as never,
+              });
+            }
+            return withColorSwatchPaletteGroup(currentValue, {
+              ...input,
+              payload: next as never,
+            });
+          },
+        );
+      if (!receipt.nextValue.moodboard) {
+        throw new Error("Moodboard is missing.");
+      }
+      return receipt.nextValue.moodboard;
+    }
+
+    const withGroup = await run(
+      board,
+      "addPaletteGroup",
+      { name: "Warm" },
+      "group-warm",
+    );
+    const otherGroup = await run(
+      other,
+      "addPaletteGroup",
+      { name: "Elsewhere" },
+      "group-elsewhere",
+    );
+    const withSwatch = await run(
+      withGroup,
+      "addColorSwatch",
+      { color: "#ff8800", note: "Accent", paletteGroupId: "group-warm" },
+      "swatch-1",
+    );
+
+    const access = createDatabaseMoodboards(db);
+    const read = await access.get(accountId, board.id);
+    expect(read?.paletteGroups).toEqual([
+      { id: "group-warm", name: "Warm", position: 0 },
+    ]);
+    expect(read?.items).toMatchObject([
+      {
+        color: "#FF8800",
+        kind: "Color Swatch",
+        note: "Accent",
+        paletteGroupId: "group-warm",
+      },
+    ]);
+    // A group of another Moodboard cannot hold this swatch.
+    await expect(
+      run(withSwatch, "assignColorSwatchPaletteGroup", {
+        itemId: "swatch-1",
+        paletteGroupId: "group-elsewhere",
+      }),
+    ).rejects.toMatchObject({ code: expect.any(String) });
+    expect(otherGroup.paletteGroups).toHaveLength(1);
+    const left = await run(withSwatch, "assignColorSwatchPaletteGroup", {
+      itemId: "swatch-1",
+      paletteGroupId: null,
+    });
+    expect(left.items[0]).toMatchObject({ paletteGroupId: null });
+    expect(await snapshot()).toEqual(before);
   });
 });

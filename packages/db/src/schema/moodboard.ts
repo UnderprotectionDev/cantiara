@@ -111,3 +111,86 @@ export const moodboardVisual = pgTable(
     ),
   ],
 );
+
+/**
+ * A named Color Swatch group on one Moodboard. It narrates visual direction;
+ * it is not a theme, a token set, or a Completion effect palette.
+ */
+export const moodboardPaletteGroup = pgTable(
+  "moodboard_palette_group",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    moodboardId: text("moodboard_id")
+      .notNull()
+      .references(() => moodboard.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    uniqueIndex("moodboard_palette_group_position_uidx").on(
+      table.moodboardId,
+      table.position,
+    ),
+    unique("moodboard_palette_group_id_moodboard_uidx").on(
+      table.id,
+      table.moodboardId,
+    ),
+    check(
+      "moodboard_palette_group_name_check",
+      sql`length(btrim(${table.name})) between 1 and 80`,
+    ),
+    check(
+      "moodboard_palette_group_position_check",
+      sql`${table.position} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * A Color Swatch: one normalized `#RRGGBB` value, an optional short note, and
+ * optional membership of a Palette group of the same Moodboard. It has no link
+ * to Account appearance, Completion effects, tokens, CSS, custom fields, or
+ * Project Wall cards.
+ */
+export const moodboardColorSwatch = pgTable(
+  "moodboard_color_swatch",
+  {
+    color: text("color").notNull(),
+    itemId: text("item_id").primaryKey(),
+    itemKind: text("item_kind").default("Color Swatch").notNull(),
+    moodboardId: text("moodboard_id").notNull(),
+    note: text("note"),
+    paletteGroupId: text("palette_group_id"),
+  },
+  (table) => [
+    index("moodboard_color_swatch_group_idx").on(table.paletteGroupId),
+    foreignKey({
+      columns: [table.itemId, table.itemKind],
+      foreignColumns: [moodboardItem.id, moodboardItem.kind],
+      name: "moodboard_color_swatch_item_fk",
+    }).onDelete("cascade"),
+    // A swatch can only join a group of its own Moodboard; MATCH SIMPLE skips
+    // the check while the group is null.
+    foreignKey({
+      columns: [table.paletteGroupId, table.moodboardId],
+      foreignColumns: [
+        moodboardPaletteGroup.id,
+        moodboardPaletteGroup.moodboardId,
+      ],
+      name: "moodboard_color_swatch_group_fk",
+    }),
+    check(
+      "moodboard_color_swatch_item_kind_check",
+      sql`${table.itemKind} = 'Color Swatch'`,
+    ),
+    check(
+      "moodboard_color_swatch_color_check",
+      sql`${table.color} ~ '^#[0-9A-F]{6}$'`,
+    ),
+    check(
+      "moodboard_color_swatch_note_check",
+      sql`${table.note} is null or length(btrim(${table.note})) between 1 and 140`,
+    ),
+  ],
+);

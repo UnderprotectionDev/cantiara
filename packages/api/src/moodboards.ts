@@ -1,21 +1,33 @@
 import { z } from "zod";
 
+import { normalizeColorHex } from "./moodboard-color";
 import type { MutationContract } from "./mutation-and-undo";
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
 
 export const MOODBOARD_UI_LABELS = {
+  addColorSwatch: "Add Color Swatch",
+  addPaletteGroup: "Add palette group",
   addVisual: "Add visual",
   caption: "Caption",
+  color: "Color",
+  colorSwatch: "Color Swatch",
+  eyedrop: "Eyedrop",
+  colorSwatchEntryHint: "HEX, RGB, or HSL",
   createMoodboard: "Create Moodboard",
   externalLink: "External link",
   fileAttachmentVersion: "File Attachment version",
   moodboard: "Moodboard",
   noMoodboards: "No Moodboards yet.",
+  noPaletteGroup: "No Palette group",
+  note: "Note",
+  paletteGroup: "Palette group",
   title: "Title",
 } as const;
 
 export const MOODBOARD_CAPTION_MAX_LENGTH = 280;
 export const MOODBOARD_EXTERNAL_LINK_MAX_LENGTH = 2048;
+export const MOODBOARD_NOTE_MAX_LENGTH = 140;
+export const MOODBOARD_PALETTE_GROUP_NAME_MAX_LENGTH = 80;
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -80,12 +92,80 @@ export const moodboardVisualSchema = z
 
 export type MoodboardVisual = z.infer<typeof moodboardVisualSchema>;
 
+/** Stored Color Swatch value: one normalized upper-case `#RRGGBB`. */
+export const colorSwatchHexSchema = z
+  .string()
+  .regex(/^#[0-9A-F]{6}$/, "Color must be a normalized HEX value.");
+
+/** Entry form: HEX, RGB, or HSL text, normalized to the stored HEX value. */
+export const colorSwatchEntrySchema = z
+  .string()
+  .trim()
+  .transform((value, context) => {
+    const hex = normalizeColorHex(value);
+    if (!hex) {
+      context.addIssue({
+        code: "custom",
+        message: "Color must be a HEX, RGB, or HSL value.",
+      });
+      return z.NEVER;
+    }
+    return hex;
+  });
+
+/** A short color note; null when absent. Never a Caption or token description. */
+export const colorSwatchNoteSchema = z
+  .string()
+  .trim()
+  .min(1, "Note is required when present.")
+  .max(
+    MOODBOARD_NOTE_MAX_LENGTH,
+    `Note must be ${MOODBOARD_NOTE_MAX_LENGTH} characters or fewer.`,
+  )
+  .nullable();
+
+export const paletteGroupNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Name is required.")
+  .max(
+    MOODBOARD_PALETTE_GROUP_NAME_MAX_LENGTH,
+    `Name must be ${MOODBOARD_PALETTE_GROUP_NAME_MAX_LENGTH} characters or fewer.`,
+  );
+
+export const paletteGroupSchema = z
+  .object({
+    id: identifierSchema,
+    name: paletteGroupNameSchema,
+    position: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type PaletteGroup = z.infer<typeof paletteGroupSchema>;
+
 /**
- * Moodboard content items. Only visual references exist today; Color Swatch
- * items join this union without reshaping the Moodboard record.
+ * First-class Color Swatch item. Visual-direction context only: it carries no
+ * theme, Completion effect, token, CSS, custom-field, or Project Wall identity.
  */
+export const colorSwatchSchema = z
+  .object({
+    color: colorSwatchHexSchema,
+    createdAt: z.string().datetime(),
+    id: identifierSchema,
+    kind: z.literal("Color Swatch"),
+    note: colorSwatchNoteSchema,
+    paletteGroupId: identifierSchema.nullable(),
+    position: z.number().int().nonnegative(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export type ColorSwatch = z.infer<typeof colorSwatchSchema>;
+
+/** Moodboard content items: visual references and Color Swatches. */
 export const moodboardItemSchema = z.discriminatedUnion("kind", [
   moodboardVisualSchema,
+  colorSwatchSchema,
 ]);
 
 export type MoodboardItem = z.infer<typeof moodboardItemSchema>;
@@ -95,6 +175,7 @@ export const moodboardSchema = z
     createdAt: z.string().datetime(),
     id: identifierSchema,
     items: z.array(moodboardItemSchema),
+    paletteGroups: z.array(paletteGroupSchema),
     projectId: identifierSchema,
     revision: z.number().int().nonnegative(),
     title: moodboardTitleSchema,
@@ -149,6 +230,49 @@ export const updateMoodboardVisualCaptionMutationInputSchema =
     .extend(updateMoodboardVisualCaptionFieldsSchema.shape)
     .strict();
 
+const addColorSwatchFieldsSchema = z
+  .object({
+    color: colorSwatchEntrySchema,
+    moodboardId: identifierSchema,
+    note: colorSwatchNoteSchema.default(null),
+    paletteGroupId: identifierSchema.nullable().default(null),
+  })
+  .strict();
+
+export const addColorSwatchInputSchema = addColorSwatchFieldsSchema;
+export const addColorSwatchMutationInputSchema = humanMutationEnvelopeSchema
+  .extend(addColorSwatchFieldsSchema.shape)
+  .strict();
+
+const addPaletteGroupFieldsSchema = z
+  .object({ moodboardId: identifierSchema, name: paletteGroupNameSchema })
+  .strict();
+
+export const addPaletteGroupInputSchema = addPaletteGroupFieldsSchema;
+export const addPaletteGroupMutationInputSchema = humanMutationEnvelopeSchema
+  .extend(addPaletteGroupFieldsSchema.shape)
+  .strict();
+
+const assignColorSwatchPaletteGroupFieldsSchema = z
+  .object({
+    itemId: identifierSchema,
+    moodboardId: identifierSchema,
+    paletteGroupId: identifierSchema.nullable(),
+  })
+  .strict();
+
+export const assignColorSwatchPaletteGroupInputSchema =
+  assignColorSwatchPaletteGroupFieldsSchema;
+export const assignColorSwatchPaletteGroupMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend(assignColorSwatchPaletteGroupFieldsSchema.shape)
+    .strict();
+
+export type AddColorSwatchInput = z.output<typeof addColorSwatchInputSchema>;
+export type AddPaletteGroupInput = z.output<typeof addPaletteGroupInputSchema>;
+export type AssignColorSwatchPaletteGroupInput = z.output<
+  typeof assignColorSwatchPaletteGroupInputSchema
+>;
 export type CreateMoodboardInput = z.output<typeof createMoodboardInputSchema>;
 export type AddMoodboardVisualInput = z.output<
   typeof addMoodboardVisualInputSchema
@@ -163,7 +287,16 @@ export interface MoodboardsAccess {
 }
 
 export interface MoodboardMutationContracts {
+  addColorSwatch: (
+    accountId: string,
+  ) => MutationContract<MoodboardMutationValue>;
+  addPaletteGroup: (
+    accountId: string,
+  ) => MutationContract<MoodboardMutationValue>;
   addVisual: (accountId: string) => MutationContract<MoodboardMutationValue>;
+  assignColorSwatchPaletteGroup: (
+    accountId: string,
+  ) => MutationContract<MoodboardMutationValue>;
   create: (accountId: string) => MutationContract<MoodboardMutationValue>;
   updateVisualCaption: (
     accountId: string,
@@ -182,6 +315,7 @@ export function newMoodboard(input: {
       createdAt: input.now,
       id: input.id,
       items: [],
+      paletteGroups: [],
       projectId: input.payload.projectId,
       revision: input.revision,
       title: input.payload.title,
@@ -238,8 +372,101 @@ export function withVisualCaption(
     moodboard: {
       ...moodboard,
       items: moodboard.items.map((item) =>
-        item.id === input.payload.itemId
+        item.kind === "Visual" && item.id === input.payload.itemId
           ? { ...item, caption: input.payload.caption, updatedAt: input.now }
+          : item,
+      ),
+      revision: input.revision,
+      updatedAt: input.now,
+    },
+  };
+}
+
+export function withAddedColorSwatch(
+  current: MoodboardMutationValue,
+  input: {
+    itemId: string;
+    now: string;
+    payload: AddColorSwatchInput;
+    revision: number;
+  },
+): MoodboardMutationValue {
+  const { moodboard } = current;
+  if (!moodboard) {
+    return current;
+  }
+  const swatch: ColorSwatch = {
+    color: input.payload.color,
+    createdAt: input.now,
+    id: input.itemId,
+    kind: "Color Swatch",
+    note: input.payload.note,
+    paletteGroupId: input.payload.paletteGroupId,
+    position: moodboard.items.length,
+    updatedAt: input.now,
+  };
+  return {
+    moodboard: {
+      ...moodboard,
+      items: [...moodboard.items, swatch],
+      revision: input.revision,
+      updatedAt: input.now,
+    },
+  };
+}
+
+export function withAddedPaletteGroup(
+  current: MoodboardMutationValue,
+  input: {
+    groupId: string;
+    now: string;
+    payload: AddPaletteGroupInput;
+    revision: number;
+  },
+): MoodboardMutationValue {
+  const { moodboard } = current;
+  if (!moodboard) {
+    return current;
+  }
+  return {
+    moodboard: {
+      ...moodboard,
+      paletteGroups: [
+        ...moodboard.paletteGroups,
+        {
+          id: input.groupId,
+          name: input.payload.name,
+          position: moodboard.paletteGroups.length,
+        },
+      ],
+      revision: input.revision,
+      updatedAt: input.now,
+    },
+  };
+}
+
+export function withColorSwatchPaletteGroup(
+  current: MoodboardMutationValue,
+  input: {
+    now: string;
+    payload: AssignColorSwatchPaletteGroupInput;
+    revision: number;
+  },
+): MoodboardMutationValue {
+  const { moodboard } = current;
+  if (!moodboard) {
+    return current;
+  }
+  return {
+    moodboard: {
+      ...moodboard,
+      items: moodboard.items.map((item) =>
+        item.kind === "Color Swatch" && item.id === input.payload.itemId
+          ? {
+              ...item,
+              paletteGroupId: input.payload.paletteGroupId,
+              updatedAt: input.now,
+            }
           : item,
       ),
       revision: input.revision,

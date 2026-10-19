@@ -181,15 +181,24 @@ import {
 } from "../focus-period";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
+  addColorSwatchInputSchema,
+  addColorSwatchMutationInputSchema,
   addMoodboardVisualInputSchema,
   addMoodboardVisualMutationInputSchema,
+  addPaletteGroupInputSchema,
+  addPaletteGroupMutationInputSchema,
+  assignColorSwatchPaletteGroupInputSchema,
+  assignColorSwatchPaletteGroupMutationInputSchema,
   createMoodboardInputSchema,
   createMoodboardMutationInputSchema,
   moodboardsProjectInputSchema,
   newMoodboard,
   updateMoodboardVisualCaptionInputSchema,
   updateMoodboardVisualCaptionMutationInputSchema,
+  withAddedColorSwatch,
+  withAddedPaletteGroup,
   withAddedVisual,
+  withColorSwatchPaletteGroup,
   withVisualCaption,
 } from "../moodboards";
 import {
@@ -2336,7 +2345,9 @@ function rethrowMoodboardMutationError(
     rethrowMoodboardMutationError(error.cause, targetId);
   }
   if (
+    error.code === "MOODBOARD_PALETTE_GROUP_NOT_FOUND" ||
     error.code === "MOODBOARD_PROJECT_NOT_FOUND" ||
+    error.code === "MOODBOARD_SWATCH_NOT_FOUND" ||
     error.code === "MOODBOARD_VISUAL_NOT_FOUND" ||
     error.code === "TARGET_NOT_FOUND"
   ) {
@@ -3648,6 +3659,111 @@ export const appRouter = {
           },
           ({ currentRevision, currentValue, payload }) =>
             withVisualCaption(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  addColorSwatch: protectedProcedure
+    .input(addColorSwatchMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = addColorSwatchInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).addColorSwatch(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withAddedColorSwatch(currentValue, {
+              itemId: clientIdempotencyKey,
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  addPaletteGroup: protectedProcedure
+    .input(addPaletteGroupMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = addPaletteGroupInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).addPaletteGroup(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withAddedPaletteGroup(currentValue, {
+              groupId: clientIdempotencyKey,
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  assignColorSwatchPaletteGroup: protectedProcedure
+    .input(assignColorSwatchPaletteGroupMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed =
+        assignColorSwatchPaletteGroupInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(
+        context,
+      ).assignColorSwatchPaletteGroup(context.session.user.id);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withColorSwatchPaletteGroup(currentValue, {
               now: new Date().toISOString(),
               payload,
               revision: currentRevision + 1,

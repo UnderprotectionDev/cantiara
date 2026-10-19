@@ -1,9 +1,13 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each Moodboard card binds its own form state and revision.
+import { normalizeColorHex } from "@cantiara/api/moodboard-color";
 import {
+  type ColorSwatch,
   MOODBOARD_CAPTION_MAX_LENGTH,
+  MOODBOARD_NOTE_MAX_LENGTH,
+  MOODBOARD_PALETTE_GROUP_NAME_MAX_LENGTH,
   MOODBOARD_UI_LABELS,
   type Moodboard,
-  type MoodboardItem,
+  type MoodboardVisual,
 } from "@cantiara/api/moodboards";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -12,8 +16,12 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { mutationErrorMessage } from "@/lib/mutation-messages";
-
 import { useMoodboards } from "../../hooks/use-moodboards";
+import {
+  isEyeDropperAvailable,
+  pickColorWithEyeDropper,
+  sampleVisualColor,
+} from "../../lib/color-sampling";
 
 type MoodboardsApi = ReturnType<typeof useMoodboards>;
 
@@ -26,10 +34,12 @@ function VisualRow({
   api,
   item,
   moodboard,
+  onSample,
 }: {
   api: MoodboardsApi;
-  item: MoodboardItem;
+  item: MoodboardVisual;
   moodboard: Moodboard;
+  onSample: ((hex: string) => void) | null;
 }) {
   const [caption, setCaption] = useState(item.caption ?? "");
   const inputId = `moodboard-caption-${item.id}`;
@@ -71,6 +81,31 @@ function VisualRow({
           </>
         )}
       </p>
+      {item.origin.kind === "External link" ? (
+        <button
+          aria-label={`${MOODBOARD_UI_LABELS.eyedrop}: ${item.caption ?? item.origin.url}`}
+          className="block"
+          disabled={onSample === null}
+          onClick={(event) => {
+            const image = event.currentTarget.querySelector("img");
+            const hex = image
+              ? sampleVisualColor(image, event.clientX, event.clientY)
+              : null;
+            if (hex) {
+              onSample?.(hex);
+            }
+          }}
+          type="button"
+        >
+          {/* biome-ignore lint/correctness/useImageSize: The natural size of a founder-provided link is unknown; max height bounds it. */}
+          <img
+            alt=""
+            className={`max-h-40 rounded-md ${onSample ? "cursor-crosshair" : ""}`}
+            crossOrigin="anonymous"
+            src={item.origin.url}
+          />
+        </button>
+      ) : null}
       <form className="flex items-end gap-2" onSubmit={saveCaption}>
         <div className="flex-1 space-y-1">
           <Label htmlFor={inputId}>{MOODBOARD_UI_LABELS.caption}</Label>
@@ -180,6 +215,212 @@ function AddVisualForm({
   );
 }
 
+function SwatchRow({
+  api,
+  moodboard,
+  swatch,
+}: {
+  api: MoodboardsApi;
+  moodboard: Moodboard;
+  swatch: ColorSwatch;
+}) {
+  const selectId = `moodboard-swatch-group-${swatch.id}`;
+  return (
+    <li
+      aria-label={`${MOODBOARD_UI_LABELS.colorSwatch} ${swatch.color}`}
+      className="flex items-center gap-3 rounded-md border p-3"
+    >
+      <span
+        aria-hidden="true"
+        className="size-8 shrink-0 rounded border"
+        style={{ backgroundColor: swatch.color }}
+      />
+      <div className="flex-1">
+        <p className="font-mono text-sm">{swatch.color}</p>
+        {swatch.note ? (
+          <p className="text-muted-foreground text-sm">{swatch.note}</p>
+        ) : null}
+      </div>
+      <Label className="sr-only" htmlFor={selectId}>
+        {MOODBOARD_UI_LABELS.paletteGroup}
+      </Label>
+      <select
+        className="rounded-md border bg-background px-2 py-1 text-sm"
+        disabled={api.assignPaletteGroup.isPending}
+        id={selectId}
+        onChange={(event) =>
+          api.assignPaletteGroup.mutate({
+            itemId: swatch.id,
+            moodboard,
+            paletteGroupId: event.target.value || null,
+          })
+        }
+        value={swatch.paletteGroupId ?? ""}
+      >
+        <option value="">{MOODBOARD_UI_LABELS.noPaletteGroup}</option>
+        {moodboard.paletteGroups.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.name}
+          </option>
+        ))}
+      </select>
+    </li>
+  );
+}
+
+function AddColorSwatchForm({
+  api,
+  moodboard,
+  onStartSampling,
+}: {
+  api: MoodboardsApi;
+  moodboard: Moodboard;
+  onStartSampling: (apply: ((hex: string) => void) | null) => void;
+}) {
+  const [entry, setEntry] = useState("#808080");
+  const [note, setNote] = useState("");
+  const [paletteGroupId, setPaletteGroupId] = useState("");
+  const idPrefix = `moodboard-swatch-${moodboard.id}`;
+  const normalized = normalizeColorHex(entry);
+
+  async function pickFromVisual() {
+    if (isEyeDropperAvailable()) {
+      const hex = await pickColorWithEyeDropper();
+      if (hex) {
+        setEntry(hex);
+      }
+      return;
+    }
+    onStartSampling((hex) => {
+      setEntry(hex);
+      onStartSampling(null);
+    });
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!normalized) {
+      return;
+    }
+    api.addColorSwatch.mutate(
+      {
+        color: normalized,
+        moodboard,
+        note: captionOrNull(note),
+        paletteGroupId: paletteGroupId || null,
+      },
+      { onSuccess: () => setNote("") },
+    );
+  }
+
+  return (
+    <form
+      aria-label={MOODBOARD_UI_LABELS.addColorSwatch}
+      className="space-y-2"
+      onSubmit={submit}
+    >
+      <div className="flex items-end gap-2">
+        <input
+          aria-label="Picker"
+          className="h-9 w-12 rounded border"
+          onChange={(event) => setEntry(event.target.value)}
+          type="color"
+          value={normalized?.toLowerCase() ?? "#808080"}
+        />
+        <div className="flex-1 space-y-1">
+          <Label htmlFor={`${idPrefix}-color`}>
+            {MOODBOARD_UI_LABELS.color} (
+            {MOODBOARD_UI_LABELS.colorSwatchEntryHint})
+          </Label>
+          <Input
+            aria-invalid={normalized === null}
+            id={`${idPrefix}-color`}
+            onChange={(event) => setEntry(event.target.value)}
+            value={entry}
+          />
+        </div>
+        <Button onClick={pickFromVisual} type="button" variant="outline">
+          {MOODBOARD_UI_LABELS.eyedrop}
+        </Button>
+      </div>
+      <Label htmlFor={`${idPrefix}-note`}>{MOODBOARD_UI_LABELS.note}</Label>
+      <Input
+        id={`${idPrefix}-note`}
+        maxLength={MOODBOARD_NOTE_MAX_LENGTH}
+        onChange={(event) => setNote(event.target.value)}
+        value={note}
+      />
+      <Label htmlFor={`${idPrefix}-group`}>
+        {MOODBOARD_UI_LABELS.paletteGroup}
+      </Label>
+      <select
+        className="block rounded-md border bg-background px-2 py-1"
+        id={`${idPrefix}-group`}
+        onChange={(event) => setPaletteGroupId(event.target.value)}
+        value={paletteGroupId}
+      >
+        <option value="">{MOODBOARD_UI_LABELS.noPaletteGroup}</option>
+        {moodboard.paletteGroups.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.name}
+          </option>
+        ))}
+      </select>
+      <Button
+        disabled={api.addColorSwatch.isPending || normalized === null}
+        type="submit"
+      >
+        {MOODBOARD_UI_LABELS.addColorSwatch}
+      </Button>
+    </form>
+  );
+}
+
+function AddPaletteGroupForm({
+  api,
+  moodboard,
+}: {
+  api: MoodboardsApi;
+  moodboard: Moodboard;
+}) {
+  const [name, setName] = useState("");
+  const inputId = `moodboard-group-${moodboard.id}`;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    api.addPaletteGroup.mutate(
+      { moodboard, name },
+      { onSuccess: () => setName("") },
+    );
+  }
+
+  return (
+    <form
+      aria-label={MOODBOARD_UI_LABELS.addPaletteGroup}
+      className="flex items-end gap-2"
+      onSubmit={submit}
+    >
+      <div className="flex-1 space-y-1">
+        <Label htmlFor={inputId}>{MOODBOARD_UI_LABELS.paletteGroup}</Label>
+        <Input
+          id={inputId}
+          maxLength={MOODBOARD_PALETTE_GROUP_NAME_MAX_LENGTH}
+          onChange={(event) => setName(event.target.value)}
+          required
+          value={name}
+        />
+      </div>
+      <Button
+        disabled={api.addPaletteGroup.isPending}
+        type="submit"
+        variant="outline"
+      >
+        {MOODBOARD_UI_LABELS.addPaletteGroup}
+      </Button>
+    </form>
+  );
+}
+
 function MoodboardCard({
   api,
   moodboard,
@@ -187,6 +428,31 @@ function MoodboardCard({
   api: MoodboardsApi;
   moodboard: Moodboard;
 }) {
+  const [sampleTarget, setSampleTarget] = useState<
+    ((hex: string) => void) | null
+  >(null);
+  const visuals = moodboard.items.filter(
+    (item): item is MoodboardVisual => item.kind === "Visual",
+  );
+  const swatches = moodboard.items.filter(
+    (item): item is ColorSwatch => item.kind === "Color Swatch",
+  );
+  const swatchSections = [
+    ...moodboard.paletteGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      swatches: swatches.filter(
+        ({ paletteGroupId }) => paletteGroupId === group.id,
+      ),
+    })),
+    {
+      id: "",
+      name: MOODBOARD_UI_LABELS.noPaletteGroup,
+      swatches: swatches.filter(
+        ({ paletteGroupId }) => paletteGroupId === null,
+      ),
+    },
+  ].filter(({ id, swatches: members }) => id !== "" || members.length > 0);
   return (
     <article
       aria-label={moodboard.title}
@@ -195,16 +461,46 @@ function MoodboardCard({
     >
       <h3 className="font-medium">{moodboard.title}</h3>
       <ul className="space-y-2">
-        {moodboard.items.map((item) => (
+        {visuals.map((item) => (
           <VisualRow
             api={api}
             item={item}
             key={`${item.id}:${item.updatedAt}`}
             moodboard={moodboard}
+            onSample={sampleTarget}
           />
         ))}
       </ul>
       <AddVisualForm api={api} moodboard={moodboard} />
+      <section
+        aria-label={MOODBOARD_UI_LABELS.colorSwatch}
+        className="space-y-3"
+      >
+        <h4 className="font-medium">{MOODBOARD_UI_LABELS.colorSwatch}</h4>
+        {swatchSections.map((section) => (
+          <fieldset className="space-y-2" key={section.id}>
+            <legend className="text-muted-foreground text-sm">
+              {MOODBOARD_UI_LABELS.paletteGroup}: {section.name}
+            </legend>
+            <ul className="space-y-2">
+              {section.swatches.map((swatch) => (
+                <SwatchRow
+                  api={api}
+                  key={`${swatch.id}:${swatch.updatedAt}`}
+                  moodboard={moodboard}
+                  swatch={swatch}
+                />
+              ))}
+            </ul>
+          </fieldset>
+        ))}
+        <AddPaletteGroupForm api={api} moodboard={moodboard} />
+        <AddColorSwatchForm
+          api={api}
+          moodboard={moodboard}
+          onStartSampling={(apply) => setSampleTarget(() => apply)}
+        />
+      </section>
     </article>
   );
 }
@@ -222,9 +518,14 @@ export default function ProjectMoodboardsSurface({
   const moodboards = (moodboardsQuery.data ?? []).filter(
     ({ id }) => !selectedMoodboardId || id === selectedMoodboardId,
   );
-  const failure = [api.createMoodboard, api.addVisual, api.updateCaption].find(
-    (mutation) => mutation.isError,
-  )?.error;
+  const failure = [
+    api.createMoodboard,
+    api.addVisual,
+    api.updateCaption,
+    api.addColorSwatch,
+    api.addPaletteGroup,
+    api.assignPaletteGroup,
+  ].find((mutation) => mutation.isError)?.error;
 
   function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
