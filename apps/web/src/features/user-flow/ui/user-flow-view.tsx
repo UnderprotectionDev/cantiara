@@ -70,7 +70,10 @@ export function ScreenReference({
 function NodeOutlineItem({ node }: { node: UserFlowNodeView }) {
   return (
     <li className="space-y-1 rounded-md border p-3">
-      <p className="font-medium text-sm">{node.kind}</p>
+      <p className="font-medium text-sm">
+        {node.kind}
+        {node.style === "default" ? "" : ` · ${node.style}`}
+      </p>
       {node.text ? (
         <p className="whitespace-pre-wrap text-sm">{node.text}</p>
       ) : null}

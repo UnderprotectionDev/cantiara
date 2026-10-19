@@ -1,5 +1,6 @@
 import {
   type ScreenLookup,
+  USER_FLOW_NODE_TONES,
   type UserFlowRecord,
   type UserFlowStore,
   userFlowCounts,
@@ -406,6 +407,7 @@ describe("live Screen references", () => {
       placedAt: timestamp,
       position: { x: 0, y: 0 },
       screenId: "screen-1",
+      style: "default",
       text: "User pays",
     });
   });
@@ -600,5 +602,178 @@ describe("broken targets are excluded from derived surfaces", () => {
     expect(exported).not.toContain("screen-1");
     expect(exported).not.toContain("screen-2");
     expect(exported).toContain("User pays");
+  });
+});
+
+describe("closed semantic set and node style", () => {
+  const FOREIGN_KINDS = [
+    "Lifeline",
+    "Message",
+    "Activation",
+    "Fragment",
+    "Participant",
+    "Process",
+    "Terminator",
+    "Database",
+    "Note",
+    "Moodboard",
+    "Wall",
+    "State",
+    "Transition",
+    "screen",
+    "",
+  ];
+
+  async function emptyFlow() {
+    const ctx = setup();
+    const created = await ctx.seam.create(ACCOUNT, {
+      projectId: PROJECT,
+      title: "Flow",
+    });
+    return { ...ctx, flowId: created.id };
+  }
+
+  test("a kind outside the set is rejected on save and never persisted", async () => {
+    const ctx = await emptyFlow();
+    const before = ctx.writes.length;
+    await Promise.all(
+      FOREIGN_KINDS.map((kind) =>
+        expect(
+          ctx.seam.save(ACCOUNT, {
+            document: {
+              links: [],
+              nodes: [{ id: "a", kind: kind as "Action", text: "x" }],
+            },
+            expectedVersion: 1,
+            projectId: PROJECT,
+            userFlowId: ctx.flowId,
+          }),
+        ).rejects.toBeInstanceOf(ZodError),
+      ),
+    );
+    expect(ctx.writes).toHaveLength(before);
+    const flow = await ctx.seam.get(ACCOUNT, PROJECT, ctx.flowId);
+    expect(flow.version).toBe(1);
+    expect(flow.nodes).toEqual([]);
+  });
+
+  test("a document mixing valid and foreign kinds is rejected as a whole", async () => {
+    const ctx = await emptyFlow();
+    await expect(
+      ctx.seam.save(ACCOUNT, {
+        document: {
+          links: [],
+          nodes: [
+            { id: "a", kind: "Action" },
+            { id: "b", kind: "Lifeline" as "Action" },
+          ],
+        },
+        expectedVersion: 1,
+        projectId: PROJECT,
+        userFlowId: ctx.flowId,
+      }),
+    ).rejects.toBeInstanceOf(ZodError);
+    expect(ctx.writes).not.toContain("appendVersion");
+  });
+
+  test("the five set kinds are saved and read back unchanged", async () => {
+    const ctx = await emptyFlow();
+    const saved = await ctx.seam.save(ACCOUNT, {
+      document: {
+        links: [],
+        nodes: [
+          { id: "a", kind: "Action" },
+          { id: "d", kind: "Decision" },
+          { id: "o", kind: "State/Outcome" },
+          { id: "s", kind: "Section" },
+          { id: "c", kind: "Screen", screenId: "screen-1" },
+        ],
+      },
+      expectedVersion: 1,
+      projectId: PROJECT,
+      userFlowId: ctx.flowId,
+    });
+    expect(saved.nodes.map(({ kind }) => kind)).toEqual([
+      "Action",
+      "Decision",
+      "State/Outcome",
+      "Section",
+      "Screen",
+    ]);
+  });
+
+  test("shape, colour and free type fields are not accepted on a node", async () => {
+    const ctx = await emptyFlow();
+    const extras = [
+      { shape: "diamond" },
+      { color: "#ff0000" },
+      { type: "Lifeline" },
+      { style: { shape: "diamond" } },
+      { style: { color: "#ff0000" } },
+      { style: "hotpink" },
+    ];
+    await Promise.all(
+      extras.map((extra) =>
+        expect(
+          ctx.seam.save(ACCOUNT, {
+            document: {
+              links: [],
+              nodes: [{ id: "a", kind: "Action", ...extra }],
+            },
+            expectedVersion: 1,
+            projectId: PROJECT,
+            userFlowId: ctx.flowId,
+          } as never),
+        ).rejects.toBeInstanceOf(ZodError),
+      ),
+    );
+    expect(ctx.writes).not.toContain("appendVersion");
+  });
+
+  test("a node style is a fixed palette tone and never changes the kind", async () => {
+    const ctx = await emptyFlow();
+    const saved = await ctx.seam.save(ACCOUNT, {
+      document: {
+        links: [],
+        nodes: USER_FLOW_NODE_TONES.map((tone, index) => ({
+          id: `n-${index}`,
+          kind: "Decision" as const,
+          style: tone,
+        })),
+      },
+      expectedVersion: 1,
+      projectId: PROJECT,
+      userFlowId: ctx.flowId,
+    });
+    expect(saved.nodes.map(({ style }) => style)).toEqual([
+      ...USER_FLOW_NODE_TONES,
+    ]);
+    expect(saved.nodes.every(({ kind }) => kind === "Decision")).toBe(true);
+  });
+
+  test("a node without a style reads as the default tone", async () => {
+    const ctx = await emptyFlow();
+    const saved = await ctx.seam.save(ACCOUNT, {
+      document: { links: [], nodes: [{ id: "a", kind: "Action" }] },
+      expectedVersion: 1,
+      projectId: PROJECT,
+      userFlowId: ctx.flowId,
+    });
+    expect(saved.nodes[0]?.style).toBe("default");
+  });
+
+  test("style does not enter search or counts", async () => {
+    const ctx = await emptyFlow();
+    const saved = await ctx.seam.save(ACCOUNT, {
+      document: {
+        links: [],
+        nodes: [{ id: "a", kind: "Action", style: "red", text: "Pay" }],
+      },
+      expectedVersion: 1,
+      projectId: PROJECT,
+      userFlowId: ctx.flowId,
+    });
+    expect(userFlowSearchableText(saved)).toEqual(["Flow", "Pay"]);
+    expect(userFlowCounts(saved)).toEqual({ links: 0, nodes: 1, screens: 0 });
   });
 });

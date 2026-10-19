@@ -7,6 +7,7 @@ import { expect, test } from "vitest";
 import { UserFlowDetail, UserFlowListView } from "./user-flow-view";
 
 const placedAt = "2026-10-01T09:00:00.000Z";
+const FOREIGN_SURFACES = /Lifeline|Moodboard|Project Wall|Technical Sequence/;
 const noop = async () => undefined;
 const ignore = () => undefined;
 
@@ -22,6 +23,7 @@ function flow(screen: UserFlowView["nodes"][number]["screen"]): UserFlowView {
         placedAt,
         position: { x: 0, y: 0 },
         screen,
+        style: "default",
         text: "User pays",
       },
     ],
@@ -108,6 +110,21 @@ test("a User Flow with no nodes offers Place node with the closed type set", () 
     expect(html).toContain(`>${kind}</option>`);
   }
   expect(html).not.toContain("Lifeline");
+});
+
+test("the node type picker offers only the closed semantic set", () => {
+  const html = render(flow(null));
+  const options = [...html.matchAll(/<option[^>]*value="([^"]*)"/g)].map(
+    ([, value]) => value,
+  );
+  expect(options.filter((value) => value !== "" && value !== "s1")).toEqual([
+    "Screen",
+    "Action",
+    "Decision",
+    "State/Outcome",
+    "Section",
+  ]);
+  expect(html).not.toMatch(FOREIGN_SURFACES);
 });
 
 test("the list view is labelled User Flow", () => {

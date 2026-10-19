@@ -20,6 +20,22 @@ export const USER_FLOW_NODE_KINDS = [
 export const userFlowNodeKindSchema = z.enum(USER_FLOW_NODE_KINDS);
 export type UserFlowNodeKind = z.infer<typeof userFlowNodeKindSchema>;
 
+/**
+ * Limited accessible visual style of a node: a fixed palette tone. The tone is
+ * decoration only; `kind` is the single type system, so a tone never changes
+ * what a node means, how it is searched, counted or exported.
+ */
+export const USER_FLOW_NODE_TONES = [
+  "default",
+  "blue",
+  "green",
+  "amber",
+  "red",
+  "violet",
+] as const;
+export const userFlowNodeToneSchema = z.enum(USER_FLOW_NODE_TONES);
+export type UserFlowNodeTone = z.infer<typeof userFlowNodeToneSchema>;
+
 /** Hard performance scene of the editor; a document never exceeds it. */
 export const USER_FLOW_NODE_LIMIT = 500;
 export const USER_FLOW_LINK_LIMIT = 750;
@@ -41,6 +57,7 @@ const positionSchema = z
 const nodeFields = {
   kind: userFlowNodeKindSchema,
   position: positionSchema.default({ x: 0, y: 0 }),
+  style: userFlowNodeToneSchema.default("default"),
   /** The only Screen data a node holds: the live reference. Never a copy. */
   screenId: identifierSchema.nullable().default(null),
   text: nodeTextSchema.default(""),
@@ -216,6 +233,7 @@ export interface UserFlowNodeView {
   placedAt: string;
   position: { x: number; y: number };
   screen: ScreenReferenceView | null;
+  style: UserFlowNodeTone;
   text: string;
 }
 
@@ -306,6 +324,7 @@ export function buildUserFlowView(
             screenId: node.screenId,
           })
         : null,
+      style: node.style ?? "default",
       text: node.text,
     })),
     projectId: record.projectId,
