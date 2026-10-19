@@ -186,6 +186,10 @@ import {
   moodboardSnapshotPreviewInputSchema,
 } from "../moodboard-snapshot";
 import {
+  personalMoodboardViewInputSchema,
+  savePersonalMoodboardViewInputSchema,
+} from "../moodboard-viewport";
+import {
   addColorSwatchInputSchema,
   addColorSwatchMutationInputSchema,
   addMoodboardVisualInputSchema,
@@ -198,6 +202,8 @@ import {
   createMoodboardMutationInputSchema,
   moodboardsProjectInputSchema,
   newMoodboard,
+  reorderMoodboardItemsInputSchema,
+  reorderMoodboardItemsMutationInputSchema,
   setMoodboardFocusOrderInputSchema,
   setMoodboardFocusOrderMutationInputSchema,
   setMoodboardVisualViewInputSchema,
@@ -209,6 +215,7 @@ import {
   withAddedVisual,
   withColorSwatchPaletteGroup,
   withFocusOrder,
+  withReorderedItems,
   withVisualCaption,
   withVisualView,
 } from "../moodboards";
@@ -2405,6 +2412,13 @@ function rethrowMoodboardSnapshotError(error: unknown): never {
   throw error;
 }
 
+function requireMoodboardPersonalViews(context: Context) {
+  if (!context.moodboardPersonalViews) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.moodboardPersonalViews;
+}
+
 function requireMoodboards(context: Context) {
   if (!context.moodboards) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -3873,6 +3887,71 @@ export const appRouter = {
       } catch (error) {
         rethrowMoodboardMutationError(error, targetId);
       }
+    }),
+  reorderMoodboardItems: protectedProcedure
+    .input(reorderMoodboardItemsMutationInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const parsed = reorderMoodboardItemsInputSchema.parse(payloadInput);
+      const targetId = parsed.moodboardId;
+      const mutation = requireMoodboardMutationContracts(context).reorderItems(
+        context.session.user.id,
+      );
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: context.session.user.id, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload: parsed,
+            targetId,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withReorderedItems(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        );
+        if (!receipt.nextValue.moodboard) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.moodboard;
+      } catch (error) {
+        rethrowMoodboardMutationError(error, targetId);
+      }
+    }),
+  moodboardPersonalView: protectedProcedure
+    .input(personalMoodboardViewInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireMoodboardPersonalViews(context).get(
+        context.session.user.id,
+        input.moodboardId,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Moodboard is unavailable.",
+        });
+      }
+      return view;
+    }),
+  saveMoodboardPersonalView: protectedProcedure
+    .input(savePersonalMoodboardViewInputSchema)
+    .handler(async ({ context, input }) => {
+      const view = await requireMoodboardPersonalViews(context).save(
+        context.session.user.id,
+        input.moodboardId,
+        input.view,
+      );
+      if (!view) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "The Moodboard is unavailable.",
+        });
+      }
+      return view;
     }),
   moodboardSnapshotPreview: protectedProcedure
     .input(moodboardSnapshotPreviewInputSchema)

@@ -8,6 +8,7 @@ import {
   type MoodboardMutationContracts,
   type MoodboardMutationValue,
   type MoodboardVisualOrigin,
+  reorderMoodboardItemsInputSchema,
   setMoodboardFocusOrderInputSchema,
   setMoodboardVisualViewInputSchema,
   updateMoodboardVisualCaptionInputSchema,
@@ -32,7 +33,7 @@ import {
   moodboardVisualView,
 } from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 
 import {
   createDatabaseMutationContract,
@@ -51,6 +52,7 @@ type MoodboardOperation =
   | "addVisual"
   | "assignColorSwatchPaletteGroup"
   | "create"
+  | "reorderItems"
   | "setFocusOrder"
   | "setVisualView"
   | "updateVisualCaption";
@@ -245,6 +247,24 @@ function validateViewPayload(
   return true;
 }
 
+/** The order must be exactly the current items: nothing created or dropped. */
+function validateReorderPayload(
+  record: MoodboardRecord,
+  current: NonNullable<MoodboardMutationValue["moodboard"]>,
+  payload: MutationPayload,
+) {
+  const parsed = reorderMoodboardItemsInputSchema.safeParse(payload);
+  if (!parsed.success || parsed.data.moodboardId !== record.id) {
+    return false;
+  }
+  const known = new Set(current.items.map(({ id }) => id));
+  const unknown = parsed.data.itemIds.find((id) => !known.has(id));
+  if (unknown !== undefined) {
+    throw new MoodboardVisualNotFoundError(unknown);
+  }
+  return parsed.data.itemIds.length === known.size;
+}
+
 async function validatePayload(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -293,6 +313,9 @@ async function validatePayload(
     }
     assertPaletteGroupExists(current, parsed.data.paletteGroupId);
     return true;
+  }
+  if (operation === "reorderItems") {
+    return validateReorderPayload(record, current, payload);
   }
   return validateViewPayload(operation, record, current, payload);
 }
@@ -626,6 +649,45 @@ async function setFocusOrderRows(
   return true;
 }
 
+/**
+ * Rewrites only item positions. The unique (moodboard, position) index forces
+ * two steps: park every position above the range, then assign the new order in
+ * one statement.
+ */
+async function reorderItemRows(
+  executor: MutationDatabaseExecutor,
+  record: MoodboardRecord,
+  input: MoodboardUpdateInput,
+) {
+  const order = input.nextValue.moodboard?.items.map(({ id }) => id);
+  if (!order) {
+    return false;
+  }
+  if (order.length === 0) {
+    return true;
+  }
+  await executor
+    .update(moodboardItem)
+    .set({ position: sql`${moodboardItem.position} + ${order.length}` })
+    .where(eq(moodboardItem.moodboardId, record.id));
+  const cases = order.map(
+    (itemId, position) =>
+      sql`when ${moodboardItem.id} = ${itemId} then ${position}::integer`,
+  );
+  await executor
+    .update(moodboardItem)
+    .set({
+      position: sql`case ${sql.join(cases, sql` `)} else ${moodboardItem.position} end`,
+    })
+    .where(
+      and(
+        eq(moodboardItem.moodboardId, record.id),
+        inArray(moodboardItem.id, order),
+      ),
+    );
+  return true;
+}
+
 async function updateExistingMoodboard(
   executor: MutationDatabaseExecutor,
   accountId: string,
@@ -654,6 +716,9 @@ async function updateExistingMoodboard(
       break;
     case "assignColorSwatchPaletteGroup":
       written = await assignSwatchGroupItem(executor, record, input);
+      break;
+    case "reorderItems":
+      written = await reorderItemRows(executor, record, input);
       break;
     case "setFocusOrder":
       written = await setFocusOrderRows(executor, record, input);
@@ -730,6 +795,7 @@ export function createDatabaseMoodboardMutationContracts(
     assignColorSwatchPaletteGroup: (accountId) =>
       contract("assignColorSwatchPaletteGroup", accountId),
     create: (accountId) => contract("create", accountId),
+    reorderItems: (accountId) => contract("reorderItems", accountId),
     setFocusOrder: (accountId) => contract("setFocusOrder", accountId),
     setVisualView: (accountId) => contract("setVisualView", accountId),
     updateVisualCaption: (accountId) =>

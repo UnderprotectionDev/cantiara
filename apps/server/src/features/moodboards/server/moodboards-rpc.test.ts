@@ -2,6 +2,11 @@ import type { Context } from "@cantiara/api/context";
 import type { MoodboardSnapshotsAccess } from "@cantiara/api/moodboard-snapshot";
 import { presentationSequence } from "@cantiara/api/moodboard-view";
 import {
+  EMPTY_PERSONAL_VIEW,
+  type PersonalMoodboardView,
+  type PersonalMoodboardViewsAccess,
+} from "@cantiara/api/moodboard-viewport";
+import {
   type Moodboard,
   type MoodboardMutationContracts,
   type MoodboardMutationValue,
@@ -36,6 +41,7 @@ const COLOR_ROUTE_NAME = /moodboard|swatch|palette|color|colour/i;
 const FORBIDDEN_ROUTE_NAME =
   /stock|unsplash|pexels|(color|colour|palette|swatch).*(suggest|recommend|extract|generate)|(suggest|recommend|extract|generate).*(color|colour|palette|swatch)/i;
 
+const PERSONAL_VIEW_LEAK = /9876\.5|1234\.5|centerX|viewport|collapsed/;
 const SHARING_COPY = /share link|Build in Public/;
 
 const accountId = "account-1";
@@ -84,6 +90,7 @@ function createFixture() {
     addVisual: () => fakeContract,
     assignColorSwatchPaletteGroup: () => fakeContract,
     create: () => fakeContract,
+    reorderItems: () => fakeContract,
     setFocusOrder: () => fakeContract,
     setVisualView: () => fakeContract,
     updateVisualCaption: () => fakeContract,
@@ -154,12 +161,32 @@ function createFixture() {
     },
     customFields: { list: vi.fn() },
   };
+  // Personal viewport store keyed by Account and Moodboard; it is separate from
+  // the Moodboard record on purpose.
+  const personalViews = new Map<string, PersonalMoodboardView>();
+  const moodboardPersonalViews: PersonalMoodboardViewsAccess = {
+    get: (account, moodboardId) =>
+      Promise.resolve(
+        stored.moodboard?.id === moodboardId && account === accountId
+          ? (personalViews.get(`${account}:${moodboardId}`) ??
+              EMPTY_PERSONAL_VIEW)
+          : null,
+      ),
+    save: (account, moodboardId, view) => {
+      if (stored.moodboard?.id !== moodboardId || account !== accountId) {
+        return Promise.resolve(null);
+      }
+      personalViews.set(`${account}:${moodboardId}`, view);
+      return Promise.resolve(view);
+    },
+  };
   const context = {
     ...forbidden,
     auth: null,
     db: {} as Context["db"],
     fileAttachments,
     moodboardMutationContracts: contracts,
+    moodboardPersonalViews,
     moodboardSnapshots: snapshots,
     moodboards: access,
     session: {
@@ -168,8 +195,18 @@ function createFixture() {
     } as Context["session"],
     usageLinkMutationContracts,
   } as unknown as Context;
+  const otherAccountContext = {
+    ...context,
+    session: {
+      session: { id: "session-2" },
+      user: { id: "account-2" },
+    } as Context["session"],
+  } as Context;
   return {
     client: createRouterClient(appRouter, { context }),
+    otherAccountClient: createRouterClient(appRouter, {
+      context: otherAccountContext,
+    }),
     fileAttachments,
     forbidden,
     originalReads,
@@ -609,8 +646,11 @@ describe("Moodboards Color Swatch", () => {
       "assignColorSwatchPaletteGroup",
       "createMoodboard",
       "exportMoodboardSnapshot",
+      "moodboardPersonalView",
       "moodboardSnapshotPreview",
       "moodboards",
+      "reorderMoodboardItems",
+      "saveMoodboardPersonalView",
       "setMoodboardFocusOrder",
       "setMoodboardVisualView",
       "updateMoodboardVisualCaption",
@@ -882,5 +922,128 @@ describe("Moodboards Color Swatch", () => {
         moodboardId: board.id,
       }),
     ).rejects.toThrow();
+  });
+  test("reorders existing items as a permutation and refuses to drop or invent items", async () => {
+    const { client } = createFixture();
+    const board = await createMoodboard(client);
+    const first = await client.addColorSwatch({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "swatch-a",
+      color: "#112233",
+      moodboardId: board.id,
+    });
+    const second = await client.addMoodboardVisual({
+      baseRevision: first.revision,
+      clientIdempotencyKey: "visual-b",
+      moodboardId: board.id,
+      origin: { kind: "External link", url: "https://example.com/b.png" },
+    });
+
+    const reordered = await client.reorderMoodboardItems({
+      baseRevision: second.revision,
+      clientIdempotencyKey: "reorder-1",
+      itemIds: ["visual-b", "swatch-a"],
+      moodboardId: board.id,
+    });
+
+    expect(reordered.items.map(({ id, position }) => [id, position])).toEqual([
+      ["visual-b", 0],
+      ["swatch-a", 1],
+    ]);
+    expect(moodboardSchema.parse(reordered).revision).toBe(second.revision + 1);
+    await expect(
+      client.reorderMoodboardItems({
+        baseRevision: reordered.revision,
+        clientIdempotencyKey: "reorder-2",
+        itemIds: ["visual-b", "swatch-a", "swatch-a"],
+        moodboardId: board.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("personal viewport and collapse are saved per Account and Moodboard, never in the Moodboard record", async () => {
+    const { client, otherAccountClient, snapshotted } = createFixture();
+    const board = await createMoodboard(client);
+    const recordBefore = JSON.stringify(snapshotted());
+
+    await expect(
+      client.moodboardPersonalView({ moodboardId: board.id }),
+    ).resolves.toEqual({ collapsed: [], viewport: null });
+    const saved = await client.saveMoodboardPersonalView({
+      moodboardId: board.id,
+      view: {
+        collapsed: ["visuals"],
+        viewport: { centerX: 120.5, centerY: -40, zoom: 0.75 },
+      },
+    });
+
+    expect(saved).toEqual({
+      collapsed: ["visuals"],
+      viewport: { centerX: 120.5, centerY: -40, zoom: 0.75 },
+    });
+    // Restored in a later session.
+    await expect(
+      client.moodboardPersonalView({ moodboardId: board.id }),
+    ).resolves.toEqual(saved);
+    // The Moodboard record and its revision are untouched.
+    expect(JSON.stringify(snapshotted())).toBe(recordBefore);
+    // Another Account neither reads nor writes this view.
+    await expect(
+      otherAccountClient.moodboardPersonalView({ moodboardId: board.id }),
+    ).rejects.toThrow();
+    await expect(
+      otherAccountClient.saveMoodboardPersonalView({
+        moodboardId: board.id,
+        view: { collapsed: [], viewport: null },
+      }),
+    ).rejects.toThrow();
+    // Selection, inspector, and unsaved operations are not accepted fields.
+    await expect(
+      client.saveMoodboardPersonalView({
+        moodboardId: board.id,
+        view: {
+          collapsed: [],
+          selection: ["x"],
+          viewport: null,
+        } as never,
+      }),
+    ).rejects.toThrow();
+    // Out-of-range zoom and non-finite centers are refused.
+    await expect(
+      client.saveMoodboardPersonalView({
+        moodboardId: board.id,
+        view: {
+          collapsed: [],
+          viewport: { centerX: 0, centerY: 0, zoom: 100 },
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("the personal viewport is absent from the Moodboard record and Snapshot output", async () => {
+    const { client, snapshotted } = createFixture();
+    const board = await createMoodboard(client);
+    const withVisual = await client.addMoodboardVisual({
+      baseRevision: board.revision,
+      clientIdempotencyKey: "visual-1",
+      moodboardId: board.id,
+      origin: { kind: "External link", url: "https://example.com/a.png" },
+    });
+    await client.saveMoodboardPersonalView({
+      moodboardId: board.id,
+      view: {
+        collapsed: ["visuals"],
+        viewport: { centerX: 9876.5, centerY: 1234.5, zoom: 2 },
+      },
+    });
+
+    const preview = await client.moodboardSnapshotPreview({
+      itemIds: ["visual-1"],
+      moodboardId: board.id,
+    });
+    const exported = JSON.stringify([snapshotted(), preview, withVisual]);
+
+    expect(exported).not.toMatch(PERSONAL_VIEW_LEAK);
+    expect(Object.keys(moodboardSchema.shape)).not.toContain("viewport");
   });
 });

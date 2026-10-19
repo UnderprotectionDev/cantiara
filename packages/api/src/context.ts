@@ -27,6 +27,7 @@ import type { FeedbackAccess } from "./feedback";
 import type { FileAttachmentAccess } from "./file-attachments";
 import type { FocusPeriodAccess } from "./focus-period";
 import type { MoodboardSnapshotsAccess } from "./moodboard-snapshot";
+import type { PersonalMoodboardViewsAccess } from "./moodboard-viewport";
 import type {
   MoodboardMutationContracts,
   MoodboardsAccess,
@@ -186,6 +187,7 @@ export interface Context {
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmationAccess;
   moodboardMutationContracts?: MoodboardMutationContracts;
+  moodboardPersonalViews?: PersonalMoodboardViewsAccess;
   moodboardSnapshots?: MoodboardSnapshotsAccess;
   moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
