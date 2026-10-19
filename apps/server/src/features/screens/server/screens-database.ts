@@ -20,6 +20,7 @@ import { document as documentTable } from "@cantiara/db/schema/document";
 import { project } from "@cantiara/db/schema/project";
 import {
   screen,
+  screenBlockOrigin,
   screenLinkedBlock,
   screenWireframeVersion,
 } from "@cantiara/db/schema/screen";
@@ -35,6 +36,7 @@ import {
   ScreenProjectReadOnlyError,
   ScreenRevisionConflictError,
 } from "./screens";
+import { createDatabaseOriginStore } from "./screens-origins-database";
 
 type ScreenExecutor = FeedbackExecutor;
 
@@ -194,8 +196,60 @@ async function latestVersion(executor: ScreenExecutor, screenId: string) {
   return latest ?? null;
 }
 
+/**
+ * Geometry writes update the working (latest) version in place and never touch
+ * the Screen row, so the Screen list has nothing to refetch. A version an
+ * origin names is sealed: Origin Location stays exact, so the save opens the
+ * next working version instead of mutating it.
+ */
+async function writeWorkingVersion(
+  executor: ScreenExecutor,
+  screenId: string,
+  document: WireframeDocument,
+) {
+  const latest = await latestVersion(executor, screenId);
+  if (latest && !(await isSealed(executor, screenId, latest.version))) {
+    const [updated] = await executor
+      .update(screenWireframeVersion)
+      .set({ document })
+      .where(eq(screenWireframeVersion.id, latest.id))
+      .returning();
+    return updated ? toStored(updated) : null;
+  }
+  const [created] = await executor
+    .insert(screenWireframeVersion)
+    .values({
+      createdAt: new Date(),
+      document,
+      id: crypto.randomUUID(),
+      screenId,
+      version: (latest?.version ?? 0) + 1,
+    })
+    .returning();
+  return created ? toStored(created) : null;
+}
+
+async function isSealed(
+  executor: ScreenExecutor,
+  screenId: string,
+  version: number,
+) {
+  const [sealed] = await executor
+    .select({ id: screenBlockOrigin.id })
+    .from(screenBlockOrigin)
+    .where(
+      and(
+        eq(screenBlockOrigin.screenId, screenId),
+        eq(screenBlockOrigin.wireframeVersion, version),
+      ),
+    )
+    .limit(1);
+  return sealed !== undefined;
+}
+
 export function createDatabaseScreenStore(database: Database): ScreenStore {
   return {
+    ...createDatabaseOriginStore(database),
     applyLinkedBlockChange(accountId, input, updates) {
       return database.transaction(async (executor) => {
         const owned = await openProject(executor, accountId, input.projectId);
@@ -449,28 +503,7 @@ export function createDatabaseScreenStore(database: Database): ScreenStore {
         if (!current || current.trashedAt !== null) {
           return null;
         }
-        // Geometry writes update the working version in place and never touch
-        // the Screen row, so the Screen list has nothing to refetch.
-        const latest = await latestVersion(executor, current.id);
-        if (latest) {
-          const [updated] = await executor
-            .update(screenWireframeVersion)
-            .set({ document })
-            .where(eq(screenWireframeVersion.id, latest.id))
-            .returning();
-          return updated ? toStored(updated) : null;
-        }
-        const [created] = await executor
-          .insert(screenWireframeVersion)
-          .values({
-            createdAt: new Date(),
-            document,
-            id: crypto.randomUUID(),
-            screenId: current.id,
-            version: 1,
-          })
-          .returning();
-        return created ? toStored(created) : null;
+        return writeWorkingVersion(executor, current.id, document);
       });
     },
 

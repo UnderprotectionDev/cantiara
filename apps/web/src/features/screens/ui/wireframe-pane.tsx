@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the selected block and toolbar kind.
+import type { LiveCardResolution } from "@cantiara/api/screen-origins";
 import type { LiveTextResolution } from "@cantiara/api/wireframe-commands";
 import {
   resolveBlock,
@@ -26,6 +27,10 @@ import {
 } from "react";
 import type { WireframeEditor } from "../engine/editor";
 import { CanvasTextOverlay } from "./canvas-text-overlay";
+import {
+  type ConvertAndBindActions,
+  ConvertAndBindPanel,
+} from "./convert-and-bind-panel";
 import {
   type LinkedBlockActions,
   LinkedBlockControls,
@@ -74,8 +79,11 @@ function usePaneSize() {
 }
 
 export interface WireframePaneProps {
+  /** `Convert and Bind` of the selected block; mounted in the inspector area only. */
+  convert?: ConvertAndBindActions;
   editor: WireframeEditor;
   linked?: LinkedBlockActions;
+  liveCards?: Record<string, LiveCardResolution>;
   liveText: Record<string, LiveTextResolution>;
   onSaveVersion?: () => void;
   readOnly?: boolean;
@@ -110,8 +118,10 @@ function Outline({ editor }: { editor: WireframeEditor }) {
 }
 
 export function WireframePane({
+  convert,
   editor,
   linked,
+  liveCards,
   liveText,
   onSaveVersion,
   readOnly = false,
@@ -230,6 +240,13 @@ export function WireframePane({
           linkedBlock={selected}
         />
       ) : null}
+      {selected && !readOnly && convert ? (
+        <ConvertAndBindPanel
+          actions={convert}
+          blockId={selected.id}
+          key={selected.id}
+        />
+      ) : null}
       <div
         className="relative h-[70vh] min-h-96 w-full overflow-hidden rounded-lg border border-border/70 bg-white"
         ref={ref}
@@ -238,6 +255,7 @@ export function WireframePane({
           <WireframeStage
             editor={editor}
             height={size.height}
+            liveCards={liveCards}
             liveText={liveText}
             onEditText={startEdit}
             width={size.width}

@@ -104,6 +104,33 @@ const textBlockContent = z
   .object({ ...sized, kind: z.literal("Text"), text: textContentSchema })
   .strict();
 
+/**
+ * Read-only live Work/Decision/Risk card (Canlı kart). It is a Wireframe-local
+ * view of one main record: placement is the only thing the Screen owns, so
+ * moving it never writes the source record. It is not a palette component kind
+ * and cannot be a linked-block definition.
+ */
+export const WIREFRAME_LIVE_CARD_KIND = "Live Card" as const;
+export const WIREFRAME_LIVE_CARD_RECORD_TYPES = [
+  "Work",
+  "Decision",
+  "Risk",
+] as const;
+export type WireframeLiveCardRecordType =
+  (typeof WIREFRAME_LIVE_CARD_RECORD_TYPES)[number];
+const liveCardContent = z
+  .object({
+    ...sized,
+    kind: z.literal(WIREFRAME_LIVE_CARD_KIND),
+    props: z
+      .object({
+        recordId: identifier,
+        recordType: z.enum(WIREFRAME_LIVE_CARD_RECORD_TYPES),
+      })
+      .strict(),
+  })
+  .strict();
+
 /** What a linked block shares: everything but placement. Text is block-local. */
 const linkedContentSchema = z.discriminatedUnion("kind", [
   buttonContent,
@@ -145,6 +172,7 @@ export const wireframeBlockSchema = z.discriminatedUnion("kind", [
   navigationContent.extend(placement),
   chartContent.extend(placement),
   textBlockContent.extend(placement),
+  liveCardContent.extend(placement),
 ]);
 export type WireframeBlock = z.infer<typeof wireframeBlockSchema>;
 
@@ -488,6 +516,25 @@ export function seedFromId(id: string): number {
     hash = (hash * 31 + id.charCodeAt(index)) % 2_147_483_647;
   }
   return hash;
+}
+
+/** A newly placed live card; its text is read live, never copied into the document. */
+export function createLiveCardBlock(
+  id: string,
+  at: { x: number; y: number },
+  record: { recordId: string; recordType: WireframeLiveCardRecordType },
+): WireframeBlock {
+  return {
+    height: 96,
+    id,
+    kind: WIREFRAME_LIVE_CARD_KIND,
+    label: record.recordType,
+    props: record,
+    seed: seedFromId(id),
+    width: 280,
+    x: at.x,
+    y: at.y,
+  };
 }
 
 const DEFAULT_SIZES: Record<

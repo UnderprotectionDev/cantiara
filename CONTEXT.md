@@ -1045,8 +1045,8 @@ UI: `Save as template`, `Create from template`
 _Avoid_: live-bound template, kaynak akış kopyası
 
 **Canlı kart**:
-Kullanıcı Akışı tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
-UI: `Place live card`, `Open Source Record`
+Kullanıcı Akışı veya Wireframe tuvaline konan salt okunur İş, Karar veya Risk görünümü; taşımak veya kaldırmak kaynak kaydı yazmaz.
+UI: `Place live card`, `Live Card`, `Open Source Record`
 _Avoid_: kopya İş, smart-zone
 
 **Akış öğesi**:
@@ -1075,8 +1075,8 @@ Bir Ekranın düşük sadakatli görsel düzenini ve sürüm zincirini taşıyan
 _Avoid_: Wireframe ana kaydı, Ekrandan bağımsız Wireframe
 
 **Kayda dönüştür ve bağla**:
-Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir.
-UI: `Convert and Bind`, `Confirm`, `Origin`, `Origin Location`
+Kesin Wireframe sürümündeki bir blocktan önizlemeli olarak tam bir İş, Karar, Risk veya Açık Soru açma; Ekran üretmez ve yeni kullanım bağı türü değildir. Önizleme hedef türü, Projeyi, başlık/gövde eşlemesini, `Kökeni`'ni ve Köken konumunu gösterir; onaydan önce kayıt oluşmaz.
+UI: `Convert and Bind`, `Preview`, `Target type`, `Confirm`, `Origin`, `Origin Location`, `Source item is gone`, `Rebind`
 _Avoid_: Wireframe'den Ekran üretme, otomatik dönüşüm, Related
 
 **Wireframe şablonu**:

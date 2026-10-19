@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Konva handlers bind to the painted block.
 import "@fontsource/shantell-sans/400.css";
+import type { LiveCardResolution } from "@cantiara/api/screen-origins";
 import type { LiveTextResolution } from "@cantiara/api/wireframe-commands";
 import { resolvedBlocks } from "@cantiara/api/wireframe-document";
 import type Konva from "konva";
@@ -24,6 +25,7 @@ import {
 export interface WireframeStageProps {
   editor: WireframeEditor;
   height: number;
+  liveCards?: Record<string, LiveCardResolution>;
   liveText: Record<string, LiveTextResolution>;
   onEditText: (blockId: string) => void;
   width: number;
@@ -154,6 +156,7 @@ function PaintedBlock({
 export default function WireframeStage({
   editor,
   height,
+  liveCards,
   liveText,
   onEditText,
   width,
@@ -168,7 +171,7 @@ export default function WireframeStage({
             editor={editor}
             key={block.id}
             onEditText={onEditText}
-            plan={paintBlock(block, liveText[block.id])}
+            plan={paintBlock(block, liveText[block.id], liveCards?.[block.id])}
             selected={selected.has(block.id)}
           />
         ))}

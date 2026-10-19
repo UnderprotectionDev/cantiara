@@ -1,4 +1,16 @@
 import { z } from "zod";
+import type {
+  ConvertAndBindPlan,
+  LiveCardResolution,
+  ParsedConfirmConvertAndBindInput,
+  ParsedConfirmRebindInput,
+  PreviewConvertAndBindInput,
+  RebindPlan,
+  ScreenBlockOriginRecord,
+  ScreenBlockOriginRow,
+  ScreenBlockOriginView,
+  ScreenTemplateRecord,
+} from "./screen-origins";
 import type { AffectedScreen, LiveTextResolution } from "./wireframe-commands";
 import {
   type WireframeDocument,
@@ -207,6 +219,15 @@ export interface ScreenStore {
     screenId: string,
     document?: WireframeDocument,
   ) => Promise<ScreenRecord | null>;
+  /**
+   * Atomically creates the single record and its origin row, or returns the
+   * existing origin when the same `originId` is retried. Re-derives the plan
+   * under lock and throws `ScreenConversionStaleError` if it no longer matches.
+   */
+  convertBlock: (
+    accountId: string,
+    input: ParsedConfirmConvertAndBindInput,
+  ) => Promise<ScreenBlockOriginRecord | null>;
   create: (
     accountId: string,
     input: ParsedCreateScreenInput,
@@ -215,6 +236,11 @@ export interface ScreenStore {
     accountId: string,
     input: ParsedCreateLinkedBlockInput,
   ) => Promise<LinkedBlockRecord | null>;
+  /** Creates a Screen with its first Wireframe and fresh Project-scoped definitions. */
+  createScreenFromTemplate: (
+    accountId: string,
+    input: { projectId: string; template: ScreenTemplateRecord; title: string },
+  ) => Promise<ScreenRecord | null>;
   find: (
     accountId: string,
     projectId: string,
@@ -225,6 +251,11 @@ export interface ScreenStore {
     projectId: string,
     definitionId: string,
   ) => Promise<LinkedBlockRecord | null>;
+  findTemplate: (
+    accountId: string,
+    projectId: string,
+    templateId: string,
+  ) => Promise<ScreenTemplateRecord | null>;
   /** Stored (unparsed) Wireframe version: the requested one or the latest. */
   findWireframe: (
     accountId: string,
@@ -242,6 +273,27 @@ export interface ScreenStore {
     accountId: string,
     projectId: string,
   ) => Promise<LinkedBlockRecord[] | null>;
+  /** Origins of one Screen, current and superseded, with the record's live title. */
+  listOrigins: (
+    accountId: string,
+    projectId: string,
+    screenId: string,
+  ) => Promise<ScreenBlockOriginRow[] | null>;
+  listTemplates: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<ScreenTemplateRecord[] | null>;
+  projectSummary: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<{ id: string; name: string } | null>;
+  /** Live titles of the records behind `Live Card` blocks; `null` title means gone. */
+  readLiveCards: (
+    accountId: string,
+    refs: { recordId: string; recordType: string }[],
+  ) => Promise<
+    { recordId: string; recordType: string; title: string | null }[]
+  >;
   /** Current plain text of Markdown sections; `null` when the source is gone. */
   readLiveSections: (
     accountId: string,
@@ -249,6 +301,15 @@ export interface ScreenStore {
   ) => Promise<
     { documentId: string; sectionId: string; text: string | null }[]
   >;
+  /** Supersedes one origin with an explicitly previewed new location. */
+  rebindOrigin: (
+    accountId: string,
+    input: ParsedConfirmRebindInput,
+  ) => Promise<ScreenBlockOriginRecord | null>;
+  saveTemplate: (
+    accountId: string,
+    input: { document: unknown; name: string; projectId: string },
+  ) => Promise<ScreenTemplateRecord | null>;
   /** Writes the working (latest) version in place; creates version 1 when none exists. */
   saveWireframe: (
     accountId: string,
@@ -274,6 +335,11 @@ export interface ScreensAccess {
     screenId: string,
     document?: unknown,
   ) => Promise<ScreenRecord>;
+  /** Confirms the exact previewed plan; creates exactly one record. */
+  convertAndBind: (
+    accountId: string,
+    input: unknown,
+  ) => Promise<ScreenBlockOriginView>;
   create: (
     accountId: string,
     input: CreateScreenInput,
@@ -282,19 +348,39 @@ export interface ScreensAccess {
     accountId: string,
     input: CreateLinkedBlockInput,
   ) => Promise<LinkedBlockRecord>;
+  createScreenFromTemplate: (
+    accountId: string,
+    input: unknown,
+  ) => Promise<ScreenRecord>;
   linkedBlocks: (
     accountId: string,
     projectId: string,
   ) => Promise<LinkedBlockRecord[]>;
   list: (accountId: string, projectId: string) => Promise<ScreenList>;
+  /** `Kökeni` and Origin Location of the records created from this Screen. */
+  origins: (
+    accountId: string,
+    input: ResolveScreenInput,
+  ) => Promise<ScreenBlockOriginView[]>;
+  /** Read-only; nothing exists until `convertAndBind`. */
+  previewConvertAndBind: (
+    accountId: string,
+    input: PreviewConvertAndBindInput,
+  ) => Promise<ConvertAndBindPlan>;
   previewLinkedBlockChange: (
     accountId: string,
     input: LinkedBlockChangeInput,
   ) => Promise<LinkedBlockChangeResult>;
+  previewRebind: (accountId: string, input: unknown) => Promise<RebindPlan>;
+  rebind: (accountId: string, input: unknown) => Promise<ScreenBlockOriginView>;
   resolveTarget: (
     accountId: string,
     input: ResolveScreenInput,
   ) => Promise<ScreenTarget>;
+  saveTemplate: (
+    accountId: string,
+    input: unknown,
+  ) => Promise<Omit<ScreenTemplateRecord, "document">>;
   saveWireframe: (
     accountId: string,
     input: SaveScreenWireframeInput,
@@ -303,6 +389,10 @@ export interface ScreensAccess {
     accountId: string,
     input: SetScreenLifecycleInput,
   ) => Promise<ScreenRecord>;
+  templates: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<Omit<ScreenTemplateRecord, "document">[]>;
   wireframe: (
     accountId: string,
     input: ScreenWireframeInput,
@@ -327,6 +417,8 @@ export interface StoredHeadDocument {
 export interface ScreenWireframe {
   createdAt: string;
   document: WireframeDocument;
+  /** Live record cards read now; present only when the document has a `Live Card`. */
+  liveCards?: Record<string, LiveCardResolution>;
   /** Live text read now; a broken source is `broken`, never empty. */
   liveText: Record<string, LiveTextResolution>;
   screenId: string;

@@ -1,3 +1,4 @@
+import type { LiveCardResolution } from "@cantiara/api/screen-origins";
 import type { LiveTextResolution } from "@cantiara/api/wireframe-commands";
 import {
   blockBounds,
@@ -51,6 +52,7 @@ const FILLS: Record<WireframeBlock["kind"], string> = {
   Navigation: "#ede9fe",
   Table: "#dcfce7",
   Text: "#ffffff",
+  "Live Card": "#fff7ed",
 };
 
 /**
@@ -78,7 +80,7 @@ function markLine(...points: number[]): PaintMark {
 }
 
 function componentMarks(
-  block: Exclude<WireframeBlock, { kind: "Text" }>,
+  block: Exclude<WireframeBlock, { kind: "Text" | "Live Card" }>,
 ): PaintMark[] {
   const { x, y, width, height } = blockBounds(block);
   switch (block.kind) {
@@ -173,6 +175,7 @@ function componentMarks(
 export function paintBlock(
   block: WireframeBlock,
   liveText?: LiveTextResolution,
+  liveCard?: LiveCardResolution,
 ): PaintPlan {
   const base = {
     blockId: block.id,
@@ -203,6 +206,19 @@ export function paintBlock(
       label: broken
         ? `Broken reference: ${block.text.visibleText}`
         : resolved.text,
+      marks: [],
+    };
+  }
+  if (block.kind === "Live Card") {
+    // Read-only view of one record: its title is read live, never stored here.
+    const broken = liveCard?.state === "broken";
+    const title = liveCard?.title ?? block.label;
+    return {
+      ...base,
+      broken,
+      label: broken
+        ? `${block.props.recordType} unavailable`
+        : `${block.props.recordType}: ${title}`,
       marks: [],
     };
   }
