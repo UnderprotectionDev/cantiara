@@ -1,6 +1,8 @@
 import {
   USER_FLOW_LINK_LIMIT,
-  USER_FLOW_NODE_LIMIT,
+  USER_FLOW_NODE_HEIGHT,
+  USER_FLOW_NODE_WIDTH,
+  USER_FLOW_VISIBLE_ITEM_LIMIT,
   type UserFlowNodeTone,
 } from "@cantiara/api/user-flow";
 
@@ -17,8 +19,8 @@ import {
 
 export const GRID_SIZE = 16;
 /** Fixed card footprint the adapter renders; alignment is computed from it. */
-export const NODE_WIDTH = 220;
-export const NODE_HEIGHT = 96;
+export const NODE_WIDTH = USER_FLOW_NODE_WIDTH;
+export const NODE_HEIGHT = USER_FLOW_NODE_HEIGHT;
 export const HISTORY_LIMIT = 100;
 /** Offset of each repeated paste, so a pasted copy never hides its source. */
 export const PASTE_OFFSET = GRID_SIZE * 2;
@@ -29,6 +31,8 @@ export interface EditorNode {
   position: { x: number; y: number };
   /** Live Screen reference; copy and paste keep the id, never a Screen copy. */
   screenId: string | null;
+  /** Section node this node is grouped under; absent means ungrouped. */
+  sectionId?: string | null;
   style: UserFlowNodeTone;
   text: string;
 }
@@ -205,6 +209,7 @@ function mapSelected(
       next.position.x !== node.position.x ||
       next.position.y !== node.position.y ||
       next.style !== node.style ||
+      next.sectionId !== node.sectionId ||
       next.text !== node.text
     ) {
       changed = true;
@@ -437,7 +442,13 @@ export function deleteSelection(state: EditorState): EditorState {
       links: state.document.links.filter(
         ({ from, to }) => !(selected.has(from) || selected.has(to)),
       ),
-      nodes: state.document.nodes.filter(({ id }) => !selected.has(id)),
+      nodes: state.document.nodes
+        .filter(({ id }) => !selected.has(id))
+        .map((node) =>
+          node.sectionId && selected.has(node.sectionId)
+            ? { ...node, sectionId: null }
+            : node,
+        ),
     },
     [],
   );
@@ -474,8 +485,8 @@ export function paste(state: EditorState, createId: () => string): EditorState {
     return state;
   }
   if (
-    state.document.nodes.length + clipboard.nodes.length >
-      USER_FLOW_NODE_LIMIT ||
+    visibleItemCount(state.document) + clipboard.nodes.length >
+      USER_FLOW_VISIBLE_ITEM_LIMIT ||
     state.document.links.length + clipboard.links.length > USER_FLOW_LINK_LIMIT
   ) {
     return state;
@@ -504,6 +515,11 @@ export function paste(state: EditorState, createId: () => string): EditorState {
       position: { x: node.position.x + offset, y: node.position.y + offset },
     };
   });
+  // A copy stays grouped only when its Section was copied with it.
+  const grouped = nodes.map((node) => ({
+    ...node,
+    sectionId: node.sectionId ? (idMap.get(node.sectionId) ?? null) : null,
+  }));
   const links = clipboard.links.flatMap((link) => {
     const from = idMap.get(link.from);
     const to = idMap.get(link.to);
@@ -517,11 +533,215 @@ export function paste(state: EditorState, createId: () => string): EditorState {
     {
       ...state.document,
       links: [...state.document.links, ...links],
-      nodes: [...state.document.nodes, ...nodes],
+      nodes: [...state.document.nodes, ...grouped],
     },
     nodes.map(({ id }) => id),
   );
   return next;
+}
+
+// --- Structured outline: pointer-free create, group, bind -----------------------
+
+/** Nodes and live cards share the 500 visible items of the hard scene. */
+export function visibleItemCount(document: EditorDocument) {
+  return document.nodes.length + (document.cards ?? []).length;
+}
+
+function nextFreePosition(document: EditorDocument) {
+  if (document.nodes.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  const left = Math.min(...document.nodes.map(({ position }) => position.x));
+  const bottom = Math.max(...document.nodes.map(({ position }) => position.y));
+  return { x: left, y: bottom + NODE_HEIGHT + GRID_SIZE * 2 };
+}
+
+/**
+ * Outline `Place node`: one new node below the content, selected. A Screen
+ * node needs a live Screen id; any other node carries none. Refused (state
+ * unchanged) when the scene is full or the id is taken.
+ */
+export function addNode(
+  state: EditorState,
+  input: {
+    id: string;
+    kind: EditorNode["kind"];
+    screenId?: string | null;
+    text?: string;
+  },
+): EditorState {
+  const screenId = input.kind === "Screen" ? (input.screenId ?? null) : null;
+  if (
+    (input.kind === "Screen" && screenId === null) ||
+    visibleItemCount(state.document) >= USER_FLOW_VISIBLE_ITEM_LIMIT ||
+    state.document.nodes.some(({ id }) => id === input.id)
+  ) {
+    return state;
+  }
+  const node: EditorNode = {
+    id: input.id,
+    kind: input.kind,
+    position: nextFreePosition(state.document),
+    screenId,
+    sectionId: null,
+    style: "default",
+    text: input.text ?? "",
+  };
+  return commit(
+    state,
+    { ...state.document, nodes: [...state.document.nodes, node] },
+    [node.id],
+  );
+}
+
+/**
+ * Moves one node one step among its siblings (same Section, or the top level)
+ * in outline order, which is also its z-order.
+ */
+export function moveInOutline(
+  state: EditorState,
+  id: string,
+  direction: "down" | "up",
+): EditorState {
+  const nodes = [...state.document.nodes];
+  const index = nodes.findIndex((node) => node.id === id);
+  const current = nodes[index];
+  if (!current) {
+    return state;
+  }
+  const step = direction === "up" ? -1 : 1;
+  let target = index + step;
+  while (
+    nodes[target] &&
+    (nodes[target]?.sectionId ?? null) !== (current.sectionId ?? null)
+  ) {
+    target += step;
+  }
+  const neighbour = nodes[target];
+  if (!neighbour) {
+    return state;
+  }
+  nodes[index] = neighbour;
+  nodes[target] = current;
+  return commit(state, { ...state.document, nodes });
+}
+
+/**
+ * Groups the selected nodes under a new Section node placed above them. Only
+ * non-Section nodes can be grouped; nothing selected (or only Sections) does
+ * nothing. The Section becomes the selection.
+ */
+export function groupSelection(
+  state: EditorState,
+  sectionId: string,
+): EditorState {
+  const selected = selectedSet(state);
+  const members = state.document.nodes.filter(
+    ({ id, kind }) => selected.has(id) && kind !== "Section",
+  );
+  if (
+    members.length === 0 ||
+    visibleItemCount(state.document) >= USER_FLOW_VISIBLE_ITEM_LIMIT ||
+    state.document.nodes.some(({ id }) => id === sectionId)
+  ) {
+    return state;
+  }
+  const memberIds = new Set(members.map(({ id }) => id));
+  const section: EditorNode = {
+    id: sectionId,
+    kind: "Section",
+    position: {
+      x: Math.min(...members.map(({ position }) => position.x)),
+      y:
+        Math.min(...members.map(({ position }) => position.y)) -
+        NODE_HEIGHT -
+        GRID_SIZE,
+    },
+    screenId: null,
+    sectionId: null,
+    style: "default",
+    text: "",
+  };
+  const first = state.document.nodes.findIndex(({ id }) => memberIds.has(id));
+  const nodes = state.document.nodes.map((node) =>
+    memberIds.has(node.id) ? { ...node, sectionId } : node,
+  );
+  nodes.splice(first, 0, section);
+  return commit(state, { ...state.document, nodes }, [sectionId]);
+}
+
+/** Moves the selected non-Section nodes under an existing Section, or out of any. */
+export function assignSelectionToSection(
+  state: EditorState,
+  sectionId: string | null,
+): EditorState {
+  if (
+    sectionId !== null &&
+    !state.document.nodes.some(
+      ({ id, kind }) => id === sectionId && kind === "Section",
+    )
+  ) {
+    return state;
+  }
+  const selected = selectedSet(state);
+  let changed = false;
+  const nodes = state.document.nodes.map((node) => {
+    if (
+      !selected.has(node.id) ||
+      node.kind === "Section" ||
+      (node.sectionId ?? null) === sectionId
+    ) {
+      return node;
+    }
+    changed = true;
+    return { ...node, sectionId };
+  });
+  return commit(state, changed ? { ...state.document, nodes } : state.document);
+}
+
+/**
+ * Bind: a link between two distinct nodes of this flow. A repeated pair or a
+ * full scene (750 links) is refused with the state unchanged.
+ */
+export function connectNodes(
+  state: EditorState,
+  input: { from: string; id: string; text?: string; to: string },
+): EditorState {
+  const { links, nodes } = state.document;
+  const known = new Set(nodes.map(({ id }) => id));
+  if (
+    input.from === input.to ||
+    !(known.has(input.from) && known.has(input.to)) ||
+    links.length >= USER_FLOW_LINK_LIMIT ||
+    links.some(
+      (link) =>
+        link.id === input.id ||
+        (link.from === input.from && link.to === input.to),
+    )
+  ) {
+    return state;
+  }
+  return commit(state, {
+    ...state.document,
+    links: [
+      ...links,
+      { from: input.from, id: input.id, text: input.text ?? "", to: input.to },
+    ],
+  });
+}
+
+/** Unbind: removes one link; both nodes stay. */
+export function disconnectLink(
+  state: EditorState,
+  linkId: string,
+): EditorState {
+  if (!state.document.links.some(({ id }) => id === linkId)) {
+    return state;
+  }
+  return commit(state, {
+    ...state.document,
+    links: state.document.links.filter(({ id }) => id !== linkId),
+  });
 }
 
 // --- Undo / redo ------------------------------------------------------------

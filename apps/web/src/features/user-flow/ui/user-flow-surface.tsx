@@ -1,4 +1,7 @@
-import type { UserFlowRebindPlan } from "@cantiara/api/user-flow";
+import type {
+  UserFlowRebindPlan,
+  UserFlowViewport,
+} from "@cantiara/api/user-flow";
 import { Button } from "@cantiara/ui/components/button";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
@@ -25,6 +28,11 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     input: selectedId ? { projectId, userFlowId: selectedId } : skipToken,
   });
   const flow = useQuery(flowOptions);
+  // The personal viewport of this canvas; the canvas opens only after it settles.
+  const viewportOptions = orpc.userFlowViewport.queryOptions({
+    input: selectedId ? { projectId, userFlowId: selectedId } : skipToken,
+  });
+  const viewport = useQuery(viewportOptions);
   const screens = useQuery(
     orpc.userFlowScreens.queryOptions({ input: { projectId } }),
   );
@@ -79,6 +87,20 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
     } finally {
       await refresh();
     }
+  }
+  // A personal working position, not content: it writes no version and is not offline-queued.
+  function saveViewport(next: UserFlowViewport) {
+    if (!flow.data) {
+      return;
+    }
+    queryClient.setQueryData(viewportOptions.queryKey, next);
+    client
+      .saveUserFlowViewport({
+        projectId,
+        userFlowId: flow.data.id,
+        viewport: next,
+      })
+      .catch(() => undefined);
   }
   async function placeNode(draft: PlaceNodeDraft) {
     if (!flow.data) {
@@ -200,6 +222,7 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
               kind: node.kind,
               position: node.position,
               screenId: node.screen?.screenId ?? null,
+              sectionId: node.sectionId,
               style: node.style,
               text: node.text,
             })),
@@ -243,13 +266,16 @@ export default function UserFlowSurface({ projectId }: { projectId: string }) {
       onSelect={setSelectedId}
       readOnly={false}
       selected={
-        flow.data ? (
+        flow.data && !viewport.isPending ? (
           <div className="space-y-4">
             <Suspense fallback={<p role="status">Loading canvas…</p>}>
               <UserFlowCanvas
                 flow={flow.data}
+                initialViewport={viewport.data ?? null}
                 onDirtyChange={setDirty}
                 onSave={saveDocument}
+                onViewportChange={saveViewport}
+                screenOptions={screens.data ?? []}
               />
             </Suspense>
             <UserFlowDetail

@@ -384,6 +384,7 @@ import {
   rebindUserFlowBindInputSchema,
   saveUserFlowTemplateInputSchema,
   saveUserFlowVersionInputSchema,
+  saveUserFlowViewportInputSchema,
   userFlowInputSchema,
   userFlowProjectInputSchema,
 } from "../user-flow";
@@ -1009,6 +1010,8 @@ const USER_FLOW_REJECTED_MESSAGES: Record<string, string> = {
   USER_FLOW_REBIND_NOT_NEEDED: "This bind has nothing to rebind.",
   USER_FLOW_RECORD_UNAVAILABLE:
     "The record is not an active Work, Decision or Risk of this Project.",
+  USER_FLOW_SCENE_LIMIT:
+    "A User Flow holds at most 500 visible items and 750 links.",
   USER_FLOW_SCREEN_UNAVAILABLE:
     "The Screen is not an active Screen of this Project.",
 };
@@ -3682,6 +3685,24 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runUserFlowOperation(() =>
         requireUserFlow(context).placeCard(context.session.user.id, input),
+      ),
+    ),
+  userFlowViewport: protectedProcedure
+    .input(userFlowInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).viewport(
+          context.session.user.id,
+          input.projectId,
+          input.userFlowId,
+        ),
+      ),
+    ),
+  saveUserFlowViewport: protectedProcedure
+    .input(saveUserFlowViewportInputSchema)
+    .handler(({ context, input }) =>
+      runUserFlowOperation(() =>
+        requireUserFlow(context).saveViewport(context.session.user.id, input),
       ),
     ),
   userFlowTemplates: protectedProcedure

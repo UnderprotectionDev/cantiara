@@ -1129,7 +1129,7 @@ _Avoid_: recent-context, paylaşım görünümü, export viewport
 
 **Yapılandırılmış outline**:
 İşaretçi olmadan ekleme, seçme, sıralama, gruplama, inceleme ve kaynak açmayı sunan canvas listesi; salt okunur yedek değildir.
-UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`
+UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`, `Collapse`, `Expand`, `Add to outline`, `Group selection into Section`, `Bind`, `Unbind`
 _Avoid_: salt okunur katman listesi
 
 **Görünüm kırpması**:

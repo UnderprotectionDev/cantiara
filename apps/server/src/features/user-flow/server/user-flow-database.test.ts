@@ -10,6 +10,7 @@ import {
   userFlowRecordBind,
   userFlowRecordBindRebind,
   userFlowTemplate,
+  userFlowViewport,
 } from "@cantiara/db/schema/user-flow";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
@@ -424,6 +425,42 @@ describeDatabase(
       });
       const [after] = await db.select().from(work).where(eq(work.id, workId));
       expect(after).toEqual(untouched);
+    });
+
+    test("the personal viewport upserts per account, writes no version and leaves the flow document alone", async () => {
+      const { access, db, flowId, saved } = await seeded();
+      const viewport = {
+        center: { x: 10, y: 20 },
+        collapsed: [],
+        zoom: 1.25,
+      };
+      expect(await access.viewport(accountId, projectId, flowId)).toBeNull();
+      await access.saveViewport(accountId, {
+        projectId,
+        userFlowId: flowId,
+        viewport,
+      });
+      await access.saveViewport(accountId, {
+        projectId,
+        userFlowId: flowId,
+        viewport: { ...viewport, zoom: 2 },
+      });
+      expect(await access.viewport(accountId, projectId, flowId)).toEqual({
+        ...viewport,
+        zoom: 2,
+      });
+      const rows = await db
+        .select()
+        .from(userFlowViewport)
+        .where(eq(userFlowViewport.userFlowId, flowId));
+      expect(rows).toHaveLength(1);
+      const after = await access.get(accountId, projectId, flowId);
+      expect(after.version).toBe(saved.version);
+      expect(after.nodes).toEqual(saved.nodes);
+      // Another account cannot read or write this flow's viewport.
+      await expect(
+        access.viewport(otherAccountId, projectId, flowId),
+      ).rejects.toThrow();
     });
   },
 );

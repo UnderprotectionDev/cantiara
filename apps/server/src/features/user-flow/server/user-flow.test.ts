@@ -286,6 +286,7 @@ describe("live Screen references", () => {
       placedAt: timestamp,
       position: { x: 0, y: 0 },
       screenId: "screen-1",
+      sectionId: null,
       style: "default",
       text: "User pays",
     });

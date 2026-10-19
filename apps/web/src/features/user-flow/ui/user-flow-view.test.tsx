@@ -24,6 +24,7 @@ function flow(screen: UserFlowView["nodes"][number]["screen"]): UserFlowView {
         placedAt,
         position: { x: 0, y: 0 },
         screen,
+        sectionId: null,
         style: "default",
         text: "User pays",
       },

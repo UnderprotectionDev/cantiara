@@ -299,7 +299,15 @@ describe("copy and paste", () => {
       screenId: "screen-1",
     });
     expect(Object.keys(pasted ?? {}).sort()).toEqual(
-      ["id", "kind", "position", "screenId", "style", "text"].sort(),
+      [
+        "id",
+        "kind",
+        "position",
+        "screenId",
+        "sectionId",
+        "style",
+        "text",
+      ].sort(),
     );
   });
 

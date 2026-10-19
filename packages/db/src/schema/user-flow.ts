@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -43,6 +44,8 @@ export interface UserFlowDocument {
     placedAt: string;
     position: { x: number; y: number };
     screenId: string | null;
+    /** Section node this node is grouped under; absent before grouping existed. */
+    sectionId?: string | null;
     /** Fixed palette tone; absent in versions saved before styles existed. */
     style?: "amber" | "blue" | "default" | "green" | "red" | "violet";
     /** Flow-specific description, transition, condition or decision text. */
@@ -247,5 +250,35 @@ export const userFlowTemplate = pgTable(
       "user_flow_template_name_check",
       sql`length(btrim(${table.name})) between 1 and 255`,
     ),
+  ],
+);
+
+/**
+ * The account's personal viewport of one User Flow canvas (center, zoom and
+ * view-local Section collapse). It is deliberately not part of
+ * `user_flow_version`, a relation, a share snapshot or an export, and it is
+ * keyed by account so it is never another user's view.
+ */
+export interface UserFlowViewportState {
+  center: { x: number; y: number };
+  collapsed: string[];
+  zoom: number;
+}
+
+export const userFlowViewport = pgTable(
+  "user_flow_viewport",
+  {
+    accountId: text("account_id").notNull(),
+    userFlowId: text("user_flow_id")
+      .notNull()
+      .references(() => userFlow.id, { onDelete: "cascade" }),
+    viewport: jsonb("viewport").$type<UserFlowViewportState>().notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.accountId, table.userFlowId],
+      name: "user_flow_viewport_pk",
+    }),
   ],
 );

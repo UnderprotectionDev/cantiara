@@ -251,7 +251,7 @@ export function UserFlowDetail({
           This User Flow has no nodes yet.
         </p>
       ) : (
-        <ol aria-label="Outline" className="space-y-2">
+        <ol aria-label="Saved version nodes" className="space-y-2">
           {flow.nodes.map((node) => (
             <NodeOutlineItem
               actions={

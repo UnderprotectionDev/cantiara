@@ -7,6 +7,7 @@ import type {
   UserFlowRecord,
   UserFlowStore,
   UserFlowTemplateView,
+  UserFlowViewport,
 } from "@cantiara/api/user-flow";
 import { recordLookupKey } from "@cantiara/api/user-flow";
 
@@ -67,6 +68,7 @@ export function createMemoryStore() {
   const binds = new Map<string, UserFlowBindRecord>();
   const rebinds: Array<{ bindId: string; from: number; to: number }> = [];
   const templates = new Map<string, UserFlowTemplateView>();
+  const viewports = new Map<string, UserFlowViewport>();
   const writes: string[] = [];
   const recordWrites: string[] = [];
   const calls: string[] = [];
@@ -208,6 +210,17 @@ export function createMemoryStore() {
       return record && accountId === ACCOUNT && record.projectId === projectId
         ? record
         : null;
+    },
+    findViewport: async (accountId, userFlowId) => {
+      calls.push("findViewport");
+      await Promise.resolve();
+      return viewports.get(`${accountId}:${userFlowId}`) ?? null;
+    },
+    saveViewport: async (accountId, userFlowId, viewport) => {
+      calls.push("saveViewport");
+      await Promise.resolve();
+      viewports.set(`${accountId}:${userFlowId}`, viewport);
+      writes.push("saveViewport");
     },
     findTemplate: async (accountId, projectId, templateId) => {
       calls.push("findTemplate");
@@ -376,6 +389,7 @@ export function createMemoryStore() {
     screens,
     store,
     templates,
+    viewports,
     versions,
     writes,
   };
