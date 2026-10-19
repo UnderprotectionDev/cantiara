@@ -65,7 +65,11 @@ test("canvas yapılandırılmış outline: create, select, reorder, inspect, gro
   await canvas.focus();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("+");
-  await page.waitForTimeout(800);
+  // The debounced save of the last move must land before the reload.
+  const viewportSaved = await page.waitForResponse((result) =>
+    result.url().endsWith("/rpc/saveScreenViewport"),
+  );
+  expect(viewportSaved.ok()).toBe(true);
 
   // The personal view survives a reload; selection and inspector do not.
   await page.reload();
