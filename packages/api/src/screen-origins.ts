@@ -37,7 +37,7 @@ export const convertAndBindWorkTypeSchema = z.enum([
 ]);
 
 /** PRD 02 term: `Kaynak öğe artık yok`. */
-export const SOURCE_ITEM_GONE_LABEL = "Source item is gone";
+export const SOURCE_ITEM_GONE_LABEL = "Kaynak öğe artık yok";
 
 export const originLocationSchema = z
   .object({
@@ -243,7 +243,7 @@ export interface ScreenBlockOriginRow extends ScreenBlockOriginRecord {
 export type OriginLocationState = "gone" | "resolved" | "unavailable";
 
 export interface OriginLocationView extends OriginLocation {
-  /** `Source item is gone` when the Screen reads but the block id is absent. */
+  /** `Kaynak öğe artık yok` when the Screen reads but the block id is absent. */
   label: string | null;
   state: OriginLocationState;
 }

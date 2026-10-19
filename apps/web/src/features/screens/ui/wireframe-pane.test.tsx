@@ -15,7 +15,7 @@ import { createWireframeEditor } from "../engine/editor";
 import { stageSizeFor, WireframePane } from "./wireframe-pane";
 
 const FULL_WIDTH_SECTION = /<section[^>]*class="[^"]*\bw-full\b/;
-const STAGE_PANE = /<div[^>]*class="[^"]*\brelative\b[^>]*>/;
+const STAGE_PANE = /<div[^>]*aria-roledescription="canvas"[^>]*>/;
 const CLIPPING_TRANSFORM = /translate|scale|rotate|style=/;
 const save = vi.fn();
 const listFetch = vi.fn();

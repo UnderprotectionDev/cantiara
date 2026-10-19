@@ -276,7 +276,7 @@ describe("Convert and Bind confirm", () => {
 });
 
 describe("Origin Location after the source changes", () => {
-  test("deleting the source block keeps the record and reads Source item is gone", async () => {
+  test("deleting the source block keeps the record and reads Kaynak öğe artık yok", async () => {
     const { createdRecords, original, record, screens } = await setup();
     await confirm(screens, record.id);
 

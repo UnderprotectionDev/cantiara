@@ -189,7 +189,7 @@ describeDatabase("Convert and Bind PostgreSQL integration", () => {
       screenId: created.id,
     });
     expect(view?.location).toMatchObject({
-      label: "Source item is gone",
+      label: "Kaynak öğe artık yok",
       state: "gone",
       wireframeVersion: 1,
     });

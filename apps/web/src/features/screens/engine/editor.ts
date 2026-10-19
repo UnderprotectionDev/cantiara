@@ -4,9 +4,11 @@ import {
   type WireframeCommand,
 } from "@cantiara/api/wireframe-commands";
 import {
+  createLiveCardBlock,
   createWireframeBlock,
   type WireframeBlockKind,
   type WireframeDocument,
+  type WireframeLiveCardRecordType,
 } from "@cantiara/api/wireframe-document";
 import { createGeometryIndex, type GeometryIndex } from "./geometry";
 
@@ -142,6 +144,17 @@ export function createWireframeEditor(
     /** Places a new block of a closed kind at a point and selects it. */
     placeBlock(kind: WireframeBlockKind, at: { x: number; y: number }) {
       const block = createWireframeBlock(kind, createId(), at);
+      this.dispatch([{ block, type: "addBlock" }]);
+      publish(state.document, [block.id]);
+      return block;
+    },
+
+    /** Places a read-only live card; only the reference is stored, never the record. */
+    placeLiveCard(
+      record: { recordId: string; recordType: WireframeLiveCardRecordType },
+      at: { x: number; y: number },
+    ) {
+      const block = createLiveCardBlock(createId(), at, record);
       this.dispatch([{ block, type: "addBlock" }]);
       publish(state.document, [block.id]);
       return block;

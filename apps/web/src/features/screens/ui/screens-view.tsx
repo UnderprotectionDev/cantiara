@@ -9,6 +9,11 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, type ReactNode, useState } from "react";
+import {
+  CreateScreenFromTemplate,
+  SaveAsTemplate,
+  type ScreenTemplateActions,
+} from "./screen-templates";
 
 export type CreateScreen = (title: string) => Promise<unknown>;
 export type SetScreenLifecycle = (
@@ -97,11 +102,13 @@ function ScreenItem({
   readOnly,
   renderWireframe,
   screen,
+  templates,
 }: {
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
   renderWireframe?: RenderWireframe;
   screen: ScreenRecord;
+  templates?: ScreenTemplateActions;
 }) {
   const [error, setError] = useState<string>();
   const [wireframeOpen, setWireframeOpen] = useState(false);
@@ -152,6 +159,9 @@ function ScreenItem({
           ))}
         </div>
       )}
+      {templates && !readOnly && screen.lifecycle !== "In Trash" ? (
+        <SaveAsTemplate actions={templates} screen={screen} />
+      ) : null}
       {renderWireframe && screen.lifecycle !== "In Trash" ? (
         <div className="space-y-3">
           <Button
@@ -176,17 +186,22 @@ export function ScreensView({
   readOnly,
   renderWireframe,
   screens,
+  templates,
 }: {
   onCreate: CreateScreen;
   onSetLifecycle: SetScreenLifecycle;
   readOnly: boolean;
   renderWireframe?: RenderWireframe;
   screens: ScreenRecord[];
+  templates?: ScreenTemplateActions;
 }) {
   return (
     <section aria-label="Screens" className="space-y-6" id="screens">
       <h2 className="font-semibold text-lg">Screens</h2>
       {readOnly ? null : <CreateScreenForm onCreate={onCreate} />}
+      {templates && !readOnly ? (
+        <CreateScreenFromTemplate actions={templates} />
+      ) : null}
       {LIFECYCLE_SECTIONS.map((lifecycle) => {
         const items = screens.filter((item) => item.lifecycle === lifecycle);
         if (lifecycle === "Archived" && items.length === 0) {
@@ -210,6 +225,7 @@ export function ScreensView({
                     readOnly={readOnly}
                     renderWireframe={renderWireframe}
                     screen={item}
+                    templates={templates}
                   />
                 ))}
               </ul>
