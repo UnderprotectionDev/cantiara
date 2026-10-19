@@ -10,6 +10,7 @@ import {
   withAddedVisual,
   withColorSwatchPaletteGroup,
   withFocusOrder,
+  withReorderedItems,
   withVisualCaption,
   withVisualView,
 } from "@cantiara/api/moodboards";
@@ -24,6 +25,11 @@ import {
   fileAttachment,
   fileAttachmentVersion,
 } from "@cantiara/db/schema/file-attachments";
+import {
+  moodboardItem,
+  moodboardPersonalView,
+  moodboardVisual,
+} from "@cantiara/db/schema/moodboard";
 import { project } from "@cantiara/db/schema/project";
 import { usageLink } from "@cantiara/db/schema/relation";
 import { eq } from "drizzle-orm";
@@ -36,6 +42,7 @@ import {
   test,
 } from "vitest";
 
+import { createDatabaseMoodboardPersonalViews } from "./moodboard-personal-views-database";
 import { createDatabaseMoodboards } from "./moodboards-database";
 import { createDatabaseMoodboardMutationContracts } from "./moodboards-mutation-database";
 
@@ -649,5 +656,114 @@ describeDatabase("Moodboards PostgreSQL integration", () => {
       );
     expect(focused.nextValue.moodboard?.focusOrder).toEqual([firstKey]);
     expect((await access.get(accountId, second.id))?.focusOrder).toEqual([]);
+  });
+  test("keeps the personal viewport per Account, outside the Moodboard record", async () => {
+    const db = requireDatabase();
+    const board = await create(accountId, { projectId, title: "Direction" });
+    const views = createDatabaseMoodboardPersonalViews(db);
+    const access = createDatabaseMoodboards(db);
+
+    expect(await views.get(accountId, board.id)).toEqual({
+      collapsed: [],
+      viewport: null,
+    });
+    const saved = await views.save(accountId, board.id, {
+      collapsed: ["visuals", "deleted-group"],
+      viewport: { centerX: 10.5, centerY: -3, zoom: 0.5 },
+    });
+
+    // Collapse of a group that does not exist is dropped.
+    expect(saved).toEqual({
+      collapsed: ["visuals"],
+      viewport: { centerX: 10.5, centerY: -3, zoom: 0.5 },
+    });
+    expect(await views.get(accountId, board.id)).toEqual(saved);
+    // The Moodboard record and revision did not move.
+    expect(await access.get(accountId, board.id)).toEqual(board);
+    // Another Account owns no such Moodboard and neither reads nor writes it.
+    expect(await views.get(otherAccountId, board.id)).toBeNull();
+    expect(
+      await views.save(otherAccountId, board.id, {
+        collapsed: [],
+        viewport: null,
+      }),
+    ).toBeNull();
+    expect(
+      await db
+        .select()
+        .from(moodboardPersonalView)
+        .where(eq(moodboardPersonalView.moodboardId, board.id)),
+    ).toHaveLength(1);
+  });
+
+  test("reorders 2.000 stress items as a permutation without losing one", async () => {
+    const db = requireDatabase();
+    const board = await create(accountId, { projectId, title: "Stress" });
+    const ids = Array.from(
+      { length: 2000 },
+      (_, index) => `stress-${board.id}-${index}`,
+    );
+    await db.insert(moodboardItem).values(
+      ids.map((id, position) => ({
+        id,
+        kind: "Visual",
+        moodboardId: board.id,
+        position,
+      })),
+    );
+    await db.insert(moodboardVisual).values(
+      ids.map((id, position) => ({
+        externalUrl: `https://example.com/${position}.png`,
+        itemId: id,
+        originKind: "External link",
+      })),
+    );
+
+    const reversed = [...ids].reverse();
+    const receipt = await mutations()
+      .reorderItems(accountId)
+      .mutate(
+        {
+          actor: { actorId: accountId, type: "User" },
+          baseRevision: board.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          kind: "human",
+          payload: { itemIds: reversed, moodboardId: board.id },
+          targetId: board.id,
+        },
+        ({ currentRevision, currentValue, payload }) =>
+          withReorderedItems(currentValue, {
+            now: new Date().toISOString(),
+            payload,
+            revision: currentRevision + 1,
+          }),
+      );
+
+    const read = await createDatabaseMoodboards(db).get(accountId, board.id);
+    expect(receipt.nextValue.moodboard?.items).toHaveLength(2000);
+    expect(read?.items.map(({ id }) => id)).toEqual(reversed);
+    // A dropped item is refused and leaves the stored order alone.
+    await expect(
+      mutations()
+        .reorderItems(accountId)
+        .mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision: read?.revision ?? 0,
+            clientIdempotencyKey: crypto.randomUUID(),
+            kind: "human",
+            payload: { itemIds: reversed.slice(1), moodboardId: board.id },
+            targetId: board.id,
+          },
+          ({ currentRevision, currentValue, payload }) =>
+            withReorderedItems(currentValue, {
+              now: new Date().toISOString(),
+              payload,
+              revision: currentRevision + 1,
+            }),
+        ),
+    ).rejects.toThrow();
+    const after = await createDatabaseMoodboards(db).get(accountId, board.id);
+    expect(after?.items.map(({ id }) => id)).toEqual(reversed);
   });
 });

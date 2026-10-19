@@ -1,5 +1,7 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each Moodboard card binds its own form state and revision.
+
 import { normalizeColorHex } from "@cantiara/api/moodboard-color";
+import type { OutlineSourceTarget } from "@cantiara/api/moodboard-outline";
 import {
   type ColorSwatch,
   MOODBOARD_CAPTION_MAX_LENGTH,
@@ -29,6 +31,7 @@ import {
   SnapshotPanel,
   VisualViewTools,
 } from "./moodboard-view-tools";
+import { MoodboardWorkspace } from "./moodboard-workspace";
 
 type MoodboardsApi = ReturnType<typeof useMoodboards>;
 
@@ -61,7 +64,11 @@ function VisualRow({
   }
 
   return (
-    <li className="space-y-2 rounded-md border p-3">
+    <li
+      className="space-y-2 rounded-md border p-3"
+      id={`moodboard-visual-${item.id}`}
+      tabIndex={-1}
+    >
       <p className="text-sm">
         {item.origin.kind === "External link" ? (
           <>
@@ -470,6 +477,16 @@ function MoodboardCard({
       ),
     },
   ].filter(({ id, swatches: members }) => id !== "" || members.length > 0);
+  function openSource(target: OutlineSourceTarget, itemId: string) {
+    if (target.kind === "link") {
+      window.open(target.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    // A File Attachment version opens in context: its row shows the exact version.
+    const row = document.getElementById(`moodboard-visual-${itemId}`);
+    row?.scrollIntoView?.({ block: "center" });
+    row?.focus();
+  }
   if (presenting) {
     return (
       <article
@@ -510,7 +527,21 @@ function MoodboardCard({
           />
         ))}
       </ul>
-      <AddVisualForm api={api} moodboard={moodboard} />
+      <MoodboardWorkspace
+        addControls={
+          <div className="space-y-3">
+            <AddVisualForm api={api} moodboard={moodboard} />
+            <AddColorSwatchForm
+              api={api}
+              moodboard={moodboard}
+              onStartSampling={(apply) => setSampleTarget(() => apply)}
+            />
+          </div>
+        }
+        api={api}
+        moodboard={moodboard}
+        onOpenSource={openSource}
+      />
       <section
         aria-label={MOODBOARD_UI_LABELS.colorSwatch}
         className="space-y-3"
@@ -534,11 +565,6 @@ function MoodboardCard({
           </fieldset>
         ))}
         <AddPaletteGroupForm api={api} moodboard={moodboard} />
-        <AddColorSwatchForm
-          api={api}
-          moodboard={moodboard}
-          onStartSampling={(apply) => setSampleTarget(() => apply)}
-        />
       </section>
       <FocusOrderEditor api={api} moodboard={moodboard} />
       <SnapshotPanel api={api} moodboard={moodboard} />
@@ -568,6 +594,7 @@ export default function ProjectMoodboardsSurface({
     api.assignPaletteGroup,
     api.setVisualView,
     api.setFocusOrder,
+    api.reorderItems,
   ].find((mutation) => mutation.isError)?.error;
 
   function create(event: FormEvent<HTMLFormElement>) {

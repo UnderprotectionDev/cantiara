@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  doublePrecision,
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -12,6 +14,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { project } from "./project";
 
 /** Tasarım type `Moodboard`: a Project-scoped main record. */
@@ -267,5 +270,43 @@ export const moodboardFocusStep = pgTable(
       table.position,
     ),
     check("moodboard_focus_step_position_check", sql`${table.position} >= 0`),
+  ],
+);
+
+/**
+ * One Account's personal viewport on one Moodboard: center, zoom, and the
+ * view-local collapsed outline sections. Deliberately outside the Moodboard
+ * record: it has no revision, is never hydrated into the Moodboard, Snapshot,
+ * share, or export input, and another Account never reads it. Selection,
+ * inspector, and unsaved operations are not stored. Null center/zoom means no
+ * saved position (only collapse is kept).
+ */
+export const moodboardPersonalView = pgTable(
+  "moodboard_personal_view",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    centerX: doublePrecision("center_x"),
+    centerY: doublePrecision("center_y"),
+    collapsed: jsonb("collapsed").$type<string[]>().default([]).notNull(),
+    moodboardId: text("moodboard_id")
+      .notNull()
+      .references(() => moodboard.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    zoom: doublePrecision("zoom"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.accountId, table.moodboardId],
+      name: "moodboard_personal_view_pk",
+    }),
+    check(
+      "moodboard_personal_view_viewport_check",
+      sql`(${table.centerX} is null and ${table.centerY} is null and ${table.zoom} is null) or (${table.centerX} is not null and ${table.centerY} is not null and ${table.zoom} between 0.05 and 4)`,
+    ),
   ],
 );

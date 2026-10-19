@@ -15,6 +15,15 @@ export const MOODBOARD_UI_LABELS = {
   addColorSwatch: "Add Color Swatch",
   addPaletteGroup: "Add palette group",
   addVisual: "Add visual",
+  collapse: "Collapse",
+  expand: "Expand",
+  fitView: "Fit View",
+  group: "Group",
+  inspect: "Inspect",
+  moveDown: "Move down",
+  moveUp: "Move up",
+  openSourceRecord: "Open Source Record",
+  outline: "Outline",
   caption: "Caption",
   color: "Color",
   colorSwatch: "Color Swatch",
@@ -37,6 +46,8 @@ export const MOODBOARD_UI_LABELS = {
   title: "Title",
 } as const;
 
+/** Order upper bound for one reorder request; above the 2.000 item data stress scene. */
+export const MOODBOARD_ITEMS_MAX = 5000;
 export const MOODBOARD_CAPTION_MAX_LENGTH = 280;
 export const MOODBOARD_EXTERNAL_LINK_MAX_LENGTH = 2048;
 export const MOODBOARD_NOTE_MAX_LENGTH = 140;
@@ -321,6 +332,29 @@ export const setMoodboardFocusOrderMutationInputSchema =
     .extend(setMoodboardFocusOrderFieldsSchema.shape)
     .strict();
 
+const reorderMoodboardItemsFieldsSchema = z
+  .object({
+    itemIds: z
+      .array(identifierSchema)
+      .max(MOODBOARD_ITEMS_MAX)
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Item order cannot repeat an item.",
+      ),
+    moodboardId: identifierSchema,
+  })
+  .strict();
+
+export const reorderMoodboardItemsInputSchema =
+  reorderMoodboardItemsFieldsSchema;
+export const reorderMoodboardItemsMutationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend(reorderMoodboardItemsFieldsSchema.shape)
+    .strict();
+
+export type ReorderMoodboardItemsInput = z.output<
+  typeof reorderMoodboardItemsInputSchema
+>;
 export type SetMoodboardVisualViewInput = z.output<
   typeof setMoodboardVisualViewInputSchema
 >;
@@ -357,6 +391,7 @@ export interface MoodboardMutationContracts {
     accountId: string,
   ) => MutationContract<MoodboardMutationValue>;
   create: (accountId: string) => MutationContract<MoodboardMutationValue>;
+  reorderItems: (accountId: string) => MutationContract<MoodboardMutationValue>;
   setFocusOrder: (
     accountId: string,
   ) => MutationContract<MoodboardMutationValue>;
@@ -593,6 +628,38 @@ export function withFocusOrder(
     moodboard: {
       ...moodboard,
       focusOrder: input.payload.itemIds,
+      revision: input.revision,
+      updatedAt: input.now,
+    },
+  };
+}
+
+/**
+ * Reorders the existing items of this Moodboard. The order must be exactly a
+ * permutation of the current item IDs, so no item is created, dropped, or
+ * copied by a reorder.
+ */
+export function withReorderedItems(
+  current: MoodboardMutationValue,
+  input: {
+    now: string;
+    payload: ReorderMoodboardItemsInput;
+    revision: number;
+  },
+): MoodboardMutationValue {
+  const { moodboard } = current;
+  if (!moodboard) {
+    return current;
+  }
+  const byId = new Map(moodboard.items.map((item) => [item.id, item]));
+  const items = input.payload.itemIds.flatMap((id, position) => {
+    const item = byId.get(id);
+    return item ? [{ ...item, position }] : [];
+  });
+  return {
+    moodboard: {
+      ...moodboard,
+      items,
       revision: input.revision,
       updatedAt: input.now,
     },

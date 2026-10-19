@@ -140,6 +140,19 @@ export function useMoodboards(projectId: string) {
     onSuccess: invalidate,
   });
 
+  const reorderItems = useMutation({
+    mutationFn: (input: { itemIds: string[]; moodboard: Moodboard }) =>
+      runOnlineOnlyWrite(() =>
+        client.reorderMoodboardItems({
+          baseRevision: input.moodboard.revision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          itemIds: input.itemIds,
+          moodboardId: input.moodboard.id,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
+
   const setFocusOrder = useMutation({
     mutationFn: (input: { itemIds: string[]; moodboard: Moodboard }) =>
       runOnlineOnlyWrite(() =>
@@ -169,6 +182,7 @@ export function useMoodboards(projectId: string) {
 
   return {
     exportSnapshot,
+    reorderItems,
     setFocusOrder,
     setVisualView,
     snapshotPreview,
