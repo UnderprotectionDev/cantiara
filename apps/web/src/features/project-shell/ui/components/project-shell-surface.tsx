@@ -96,6 +96,10 @@ const ProjectSmartCollectionsSurface = lazy(
       "@/features/smart-collections/ui/components/project-smart-collections-surface"
     ),
 );
+const ProjectMoodboardsSurface = lazy(
+  () =>
+    import("@/features/moodboards/ui/components/project-moodboards-surface"),
+);
 const ProjectTechnicalDiagramsSurface = lazy(
   () =>
     import(
@@ -146,10 +150,28 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
       </Suspense>
     );
   }
-  if (activeHash === "user-flows" || activeHash === "project-area-design") {
+  if (activeHash === "user-flows") {
     return (
       <Suspense fallback={<p>Loading User Flows…</p>}>
         <UserFlowSurface key={`user-flow:${projectId}`} projectId={projectId} />
+      </Suspense>
+    );
+  }
+  const moodboardPrefix = "moodboard-";
+  if (
+    activeHash === "design" ||
+    activeHash === "project-area-design" ||
+    activeHash.startsWith(moodboardPrefix)
+  ) {
+    const selectedMoodboardId = activeHash.startsWith(moodboardPrefix)
+      ? decodedSourceId(activeHash.slice(moodboardPrefix.length))
+      : undefined;
+    return (
+      <Suspense fallback={<p>Loading source record…</p>}>
+        <ProjectMoodboardsSurface
+          projectId={projectId}
+          selectedMoodboardId={selectedMoodboardId}
+        />
       </Suspense>
     );
   }

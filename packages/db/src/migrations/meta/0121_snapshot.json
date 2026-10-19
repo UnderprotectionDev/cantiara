@@ -1,6 +1,6 @@
 {
-  "id": "8e406c6c-c74f-4684-85f1-721ed4efc5c6",
-  "prevId": "8ac54cc2-de7d-410e-913d-fb4448dc7a78",
+  "id": "7832b7e7-c16a-4b88-859a-6cadf3a608d8",
+  "prevId": "9a121a9d-0ce9-4746-b7ef-cf9dcd930375",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4750,10 +4750,17 @@
       },
       "isRLSEnabled": false
     },
-    "public.screen": {
-      "name": "screen",
+    "public.moodboard": {
+      "name": "moodboard",
       "schema": "",
       "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "id": {
           "name": "id",
           "type": "text",
@@ -4766,36 +4773,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "title": {
           "name": "title",
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "trashed_at": {
-          "name": "trashed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "redacted_at": {
-          "name": "redacted_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
@@ -4806,8 +4795,8 @@
         }
       },
       "indexes": {
-        "screen_project_idx": {
-          "name": "screen_project_idx",
+        "moodboard_project_idx": {
+          "name": "moodboard_project_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -4823,9 +4812,9 @@
         }
       },
       "foreignKeys": {
-        "screen_project_id_project_id_fk": {
-          "name": "screen_project_id_project_id_fk",
-          "tableFrom": "screen",
+        "moodboard_project_id_project_id_fk": {
+          "name": "moodboard_project_id_project_id_fk",
+          "tableFrom": "moodboard",
           "tableTo": "project",
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
@@ -4837,63 +4826,65 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "screen_title_check": {
-          "name": "screen_title_check",
-          "value": "length(btrim(\"screen\".\"title\")) between 1 and 255"
+        "moodboard_title_check": {
+          "name": "moodboard_title_check",
+          "value": "length(btrim(\"moodboard\".\"title\")) between 1 and 255"
+        },
+        "moodboard_revision_check": {
+          "name": "moodboard_revision_check",
+          "value": "\"moodboard\".\"revision\" >= 0"
         }
       },
       "isRLSEnabled": false
     },
-    "public.user_flow": {
-      "name": "user_flow",
+    "public.moodboard_color_swatch": {
+      "name": "moodboard_color_swatch",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
           "type": "text",
           "primaryKey": true,
           "notNull": true
         },
-        "project_id": {
-          "name": "project_id",
+        "item_kind": {
+          "name": "item_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Color Swatch'"
+        },
+        "moodboard_id": {
+          "name": "moodboard_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "title": {
-          "name": "title",
+        "note": {
+          "name": "note",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "current_version": {
-          "name": "current_version",
-          "type": "integer",
+        "palette_group_id": {
+          "name": "palette_group_id",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false
         }
       },
       "indexes": {
-        "user_flow_project_idx": {
-          "name": "user_flow_project_idx",
+        "moodboard_color_swatch_group_idx": {
+          "name": "moodboard_color_swatch_group_idx",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "palette_group_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4906,13 +4897,22 @@
         }
       },
       "foreignKeys": {
-        "user_flow_project_id_project_id_fk": {
-          "name": "user_flow_project_id_project_id_fk",
-          "tableFrom": "user_flow",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
+        "moodboard_color_swatch_item_fk": {
+          "name": "moodboard_color_swatch_item_fk",
+          "tableFrom": "moodboard_color_swatch",
+          "tableTo": "moodboard_item",
+          "columnsFrom": ["item_id", "item_kind"],
+          "columnsTo": ["id", "kind"],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "moodboard_color_swatch_group_fk": {
+          "name": "moodboard_color_swatch_group_fk",
+          "tableFrom": "moodboard_color_swatch",
+          "tableTo": "moodboard_palette_group",
+          "columnsFrom": ["palette_group_id", "moodboard_id"],
+          "columnsTo": ["id", "moodboard_id"],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -4920,70 +4920,93 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "user_flow_title_check": {
-          "name": "user_flow_title_check",
-          "value": "length(btrim(\"user_flow\".\"title\")) between 1 and 255"
+        "moodboard_color_swatch_item_kind_check": {
+          "name": "moodboard_color_swatch_item_kind_check",
+          "value": "\"moodboard_color_swatch\".\"item_kind\" = 'Color Swatch'"
         },
-        "user_flow_version_check": {
-          "name": "user_flow_version_check",
-          "value": "\"user_flow\".\"current_version\" >= 1"
+        "moodboard_color_swatch_color_check": {
+          "name": "moodboard_color_swatch_color_check",
+          "value": "\"moodboard_color_swatch\".\"color\" ~ '^#[0-9A-F]{6}$'"
+        },
+        "moodboard_color_swatch_note_check": {
+          "name": "moodboard_color_swatch_note_check",
+          "value": "\"moodboard_color_swatch\".\"note\" is null or length(btrim(\"moodboard_color_swatch\".\"note\")) between 1 and 140"
         }
       },
       "isRLSEnabled": false
     },
-    "public.user_flow_version": {
-      "name": "user_flow_version",
+    "public.moodboard_item": {
+      "name": "moodboard_item",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "user_flow_id": {
-          "name": "user_flow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document": {
-          "name": "document",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closed_set": {
-          "name": "closed_set",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "generated": {
-            "as": "case when jsonb_typeof(document -> 'nodes') = 'array'\n        and jsonb_array_length(jsonb_path_query_array(document, '$.nodes[*]')) = jsonb_array_length(jsonb_path_query_array(\n          document,\n          '$.nodes[*] ? (@.kind == \"Screen\" || @.kind == \"Action\" || @.kind == \"Decision\" || @.kind == \"State/Outcome\" || @.kind == \"Section\")'\n        ))\n        and jsonb_array_length(jsonb_path_query_array(\n          document,\n          '$.nodes[*] ? (exists(@.style) && @.style != \"default\" && @.style != \"blue\" && @.style != \"green\" && @.style != \"amber\" && @.style != \"red\" && @.style != \"violet\")'\n        )) = 0\n        then 'valid' else 'invalid' end",
-            "type": "stored"
-          }
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "moodboard_id": {
+          "name": "moodboard_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "moodboard_item_moodboard_position_uidx": {
+          "name": "moodboard_item_moodboard_position_uidx",
+          "columns": [
+            {
+              "expression": "moodboard_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "user_flow_version_user_flow_id_user_flow_id_fk": {
-          "name": "user_flow_version_user_flow_id_user_flow_id_fk",
-          "tableFrom": "user_flow_version",
-          "tableTo": "user_flow",
-          "columnsFrom": ["user_flow_id"],
+        "moodboard_item_moodboard_id_moodboard_id_fk": {
+          "name": "moodboard_item_moodboard_id_moodboard_id_fk",
+          "tableFrom": "moodboard_item",
+          "tableTo": "moodboard",
+          "columnsFrom": ["moodboard_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -4991,21 +5014,201 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "user_flow_version_unique": {
-          "name": "user_flow_version_unique",
+        "moodboard_item_id_kind_uidx": {
+          "name": "moodboard_item_id_kind_uidx",
           "nullsNotDistinct": false,
-          "columns": ["user_flow_id", "version"]
+          "columns": ["id", "kind"]
         }
       },
       "policies": {},
       "checkConstraints": {
-        "user_flow_version_number_check": {
-          "name": "user_flow_version_number_check",
-          "value": "\"user_flow_version\".\"version\" >= 1"
+        "moodboard_item_kind_check": {
+          "name": "moodboard_item_kind_check",
+          "value": "length(btrim(\"moodboard_item\".\"kind\")) > 0"
         },
-        "user_flow_version_closed_set_check": {
-          "name": "user_flow_version_closed_set_check",
-          "value": "\"user_flow_version\".\"closed_set\" = 'valid'"
+        "moodboard_item_position_check": {
+          "name": "moodboard_item_position_check",
+          "value": "\"moodboard_item\".\"position\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.moodboard_palette_group": {
+      "name": "moodboard_palette_group",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "moodboard_id": {
+          "name": "moodboard_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "moodboard_palette_group_position_uidx": {
+          "name": "moodboard_palette_group_position_uidx",
+          "columns": [
+            {
+              "expression": "moodboard_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "moodboard_palette_group_moodboard_id_moodboard_id_fk": {
+          "name": "moodboard_palette_group_moodboard_id_moodboard_id_fk",
+          "tableFrom": "moodboard_palette_group",
+          "tableTo": "moodboard",
+          "columnsFrom": ["moodboard_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "moodboard_palette_group_id_moodboard_uidx": {
+          "name": "moodboard_palette_group_id_moodboard_uidx",
+          "nullsNotDistinct": false,
+          "columns": ["id", "moodboard_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "moodboard_palette_group_name_check": {
+          "name": "moodboard_palette_group_name_check",
+          "value": "length(btrim(\"moodboard_palette_group\".\"name\")) between 1 and 80"
+        },
+        "moodboard_palette_group_position_check": {
+          "name": "moodboard_palette_group_position_check",
+          "value": "\"moodboard_palette_group\".\"position\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.moodboard_visual": {
+      "name": "moodboard_visual",
+      "schema": "",
+      "columns": {
+        "caption": {
+          "name": "caption",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_url": {
+          "name": "external_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_attachment_version_id": {
+          "name": "file_attachment_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "item_kind": {
+          "name": "item_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Visual'"
+        },
+        "origin_kind": {
+          "name": "origin_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "moodboard_visual_version_idx": {
+          "name": "moodboard_visual_version_idx",
+          "columns": [
+            {
+              "expression": "file_attachment_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "moodboard_visual_item_fk": {
+          "name": "moodboard_visual_item_fk",
+          "tableFrom": "moodboard_visual",
+          "tableTo": "moodboard_item",
+          "columnsFrom": ["item_id", "item_kind"],
+          "columnsTo": ["id", "kind"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "moodboard_visual_item_kind_check": {
+          "name": "moodboard_visual_item_kind_check",
+          "value": "\"moodboard_visual\".\"item_kind\" = 'Visual'"
+        },
+        "moodboard_visual_caption_check": {
+          "name": "moodboard_visual_caption_check",
+          "value": "\"moodboard_visual\".\"caption\" is null or length(btrim(\"moodboard_visual\".\"caption\")) between 1 and 280"
+        },
+        "moodboard_visual_origin_check": {
+          "name": "moodboard_visual_origin_check",
+          "value": "(\"moodboard_visual\".\"origin_kind\" = 'File Attachment version' and \"moodboard_visual\".\"file_attachment_version_id\" is not null and \"moodboard_visual\".\"external_url\" is null) or (\"moodboard_visual\".\"origin_kind\" = 'External link' and \"moodboard_visual\".\"external_url\" is not null and \"moodboard_visual\".\"file_attachment_version_id\" is null and length(\"moodboard_visual\".\"external_url\") <= 2048)"
         }
       },
       "isRLSEnabled": false

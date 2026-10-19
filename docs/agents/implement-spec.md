@@ -38,11 +38,9 @@ Subagent'lar ortak Neon hedefine yazmaz; yalnız migration SQL'ini üretir ve DB
 
 ## Pull request
 
-Skill draft PR'ı `gh pr create --base main --draft` ile ilk birleşmeden sonra açar; PR `main`'i hedefler. Close-out kontrolleri geçince `gh pr ready` ile hazır işaretlenir. Conductor'ın `Create PR` eylemi seçili issue bulamayınca `Closes` satırlarını siler; bu yüzden PR'ı skill açar ve gövdeyi Conductor `create_pr` yapısıyla yazar: İngilizce Conventional Commits başlığı, `## Summary`, `## Product contract`, `## Testing`, `## Manual verification`, `## Risks`.
+Skill PR açmaz, push etmez ve `gh pr ready` çalıştırmaz. Kullanıcı PR'ı kendisi oluşturur. Close-out raporu, kullanıcının PR gövdesine taşıyabileceği ticket listesini (`Closes #<number>`) ve spec yolunu içerir.
 
-`## Summary` maddelerinden sonra, `## Product contract` öncesinde her ticket için bağımsız satır bulunur: `Closes #360`. Spec yolu `## Product contract` altında yer alır. PR açıldıktan sonra gövdeyi ve GitHub closing metadata'sını `gh pr view --json body,closingIssuesReferences` ile oku.
-
-**Done when** `closingIssuesReferences` spec'in tüm ticket'larını listeler.
+**Done when** hiçbir PR açılmamış veya hazır işaretlenmemiştir.
 
 ## Close-out
 
@@ -53,4 +51,4 @@ Skill draft PR'ı `gh pr create --base main --draft` ile ilk birleşmeden sonra 
 - **Nasıl test edilir** spec'in kullanıcı yolculuğunu baştan sona anlatır; ticket sırası bağımlılık sırasıdır. Hazırlanan manuel test kayıtlarını veya tam tarayıcı hazırlığını anlatır.
 - DB sonucunu ve çalıştırılmayan her kontrolü yaz.
 
-**Done when** rapor üç bölümü de içerir, DB sonucu ile çalıştırılmayan kontroller yazılmıştır ve `gh pr ready` yapılmıştır.
+**Done when** rapor üç bölümü de içerir, DB sonucu ile çalıştırılmayan kontroller yazılmıştır.

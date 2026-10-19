@@ -1133,7 +1133,7 @@ UI: `Outline`, `Open Source Record`, `Inspect`, `Group`, `Move up`, `Move down`,
 _Avoid_: salt okunur katman listesi
 
 **Görünüm kırpması**:
-Moodboard görselinin yalnız bu görünüme ait, kesin Dosya Eki sürümüne bağlı geri alınabilir kırpma ve 90° döndürme üstverisi; özgün baytları, sürüm zincirini veya diğer görünümleri değiştirmez ([Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Crop`, `Rotate 90°`.
+Moodboard görselinin yalnız bu görünüme ait, kesin Dosya Eki sürümüne bağlı geri alınabilir kırpma ve 90° döndürme üstverisi; özgün baytları, sürüm zincirini veya diğer görünümleri değiştirmez ([Moodboard ve görsel yön](docs/prd/09-discovery-decisions-and-design.md#moodboard-ve-görsel-yön)). UI: `Crop`, `Rotate 90°`, `Reset view`.
 _Avoid_: özgün dosya düzenleme, üretim varlığı, işaretleme katmanı
 
 **Odak sırası**:
