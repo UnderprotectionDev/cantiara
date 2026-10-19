@@ -36,6 +36,10 @@ import type { FeedbackAccess } from "@cantiara/api/feedback";
 import type { FileAttachmentAccess } from "@cantiara/api/file-attachments";
 import type { FocusPeriodAccess } from "@cantiara/api/focus-period";
 import type {
+  MoodboardMutationContracts,
+  MoodboardsAccess,
+} from "@cantiara/api/moodboards";
+import type {
   MutationContract,
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
@@ -119,6 +123,8 @@ export interface CreateContextOptions {
   focusPeriod?: FocusPeriodAccess;
   githubAvailability: GitHubAvailability;
   githubIdentityConfirmation?: GitHubIdentityConfirmation;
+  moodboardMutationContracts?: MoodboardMutationContracts;
+  moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
@@ -178,6 +184,8 @@ export async function createContext({
   documents,
   documentTransfers,
   smartCollections,
+  moodboardMutationContracts,
+  moodboards,
   technicalDiagrams,
   universalSearch,
   focusPeriod,
@@ -254,6 +262,8 @@ export async function createContext({
     documents,
     documentTransfers,
     smartCollections,
+    moodboardMutationContracts,
+    moodboards,
     technicalDiagrams,
     universalSearch,
     focusPeriod,
