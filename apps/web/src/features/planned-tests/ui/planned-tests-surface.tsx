@@ -9,8 +9,10 @@ import {
   type CaseFormValues,
   toRelationInputs,
 } from "../lib/planned-test-form";
+import { toHandoffInput } from "../lib/test-handoff-form";
 import { PlannedTestsView } from "./planned-tests-view";
 import { SessionTestsView } from "./session-tests-view";
+import { TestHandoffsView } from "./test-handoffs-view";
 
 function definition(values: CaseFormValues) {
   return {
@@ -39,6 +41,12 @@ export default function PlannedTestsSurface({
     input: { projectId },
   });
   const sessionTests = useQuery(sessionOptions);
+  const handoffOptions = orpc.projectTestHandoffs.queryOptions({
+    input: { projectId },
+  });
+  const handoffs = useQuery(handoffOptions);
+  const refreshHandoffs = () =>
+    queryClient.invalidateQueries({ queryKey: handoffOptions.queryKey });
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: options.queryKey });
   const refreshSessionTests = () =>
@@ -89,6 +97,63 @@ export default function PlannedTestsSurface({
         }}
         readOnly={cases.data.readOnly}
       />
+      {handoffs.data && sessionTests.data ? (
+        <TestHandoffsView
+          cases={cases.data.cases}
+          handoffs={handoffs.data.handoffs}
+          onCreate={async (values) => {
+            await runOnlineOnlyWrite(() =>
+              client.createTestHandoff({
+                projectId,
+                ...toHandoffInput(values, cases.data.cases),
+              }),
+            );
+            await refreshHandoffs();
+          }}
+          onLink={async (handoff, sessionTestId) => {
+            try {
+              await runOnlineOnlyWrite(() =>
+                client.linkTestHandoffSessionTest({
+                  handoffId: handoff.id,
+                  projectId,
+                  sessionTestId,
+                }),
+              );
+            } finally {
+              await refreshHandoffs();
+            }
+          }}
+          onTransition={async (handoff, to) => {
+            try {
+              await runOnlineOnlyWrite(() =>
+                client.transitionTestHandoff({
+                  expectedState: handoff.state,
+                  handoffId: handoff.id,
+                  projectId,
+                  to,
+                }),
+              );
+            } finally {
+              await refreshHandoffs();
+            }
+          }}
+          onUpdate={async (handoff, values) => {
+            try {
+              await runOnlineOnlyWrite(() =>
+                client.updateTestHandoff({
+                  handoffId: handoff.id,
+                  projectId,
+                  ...toHandoffInput(values, cases.data.cases),
+                }),
+              );
+            } finally {
+              await refreshHandoffs();
+            }
+          }}
+          readOnly={handoffs.data.readOnly}
+          sessionTests={sessionTests.data.sessionTests}
+        />
+      ) : null}
       {sessionTests.data ? (
         <SessionTestsView
           cases={cases.data.cases}
