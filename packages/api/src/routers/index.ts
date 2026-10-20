@@ -2941,39 +2941,85 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-const PLANNED_TEST_UNAVAILABLE_MESSAGES: Record<string, string> = {
-  PLANNED_TEST_CASE_NOT_FOUND: "Planned Test Case is unavailable.",
-  PLANNED_TEST_PROJECT_NOT_FOUND: "Project is unavailable.",
-  PLANNED_TEST_VERSION_NOT_FOUND: "Planned Test Case version is unavailable.",
-  SESSION_TEST_NOT_FOUND: "Session Test is unavailable.",
-  TEST_HANDOFF_NOT_FOUND: "Test Handoff is unavailable.",
-};
+interface PlannedTestFailure {
+  /** `null` passes the error's own message, which names a section and kind only, never a value. */
+  message: string | null;
+  status: "BAD_REQUEST" | "NOT_FOUND" | "PRECONDITION_FAILED";
+}
 
-const PLANNED_TEST_REJECTED_MESSAGES: Record<string, string> = {
-  PLANNED_TEST_NO_CHANGE:
-    "Nothing changed. Change the Planned Test Case before saving a new version.",
-  PLANNED_TEST_PROJECT_READ_ONLY: "Archived Projects are read-only.",
-  SESSION_TEST_ALREADY_BOUND:
-    "This Session Test is already bound to a Planned Test Case version. A bind does not move.",
-  SESSION_TEST_ALREADY_IN_HANDOFF:
-    "This Session Test already arrived on a Test Handoff.",
-  TEST_HANDOFF_LOCKED:
-    "A shared Test Handoff is history. Open a new Test Handoff instead of rewriting it.",
-  TEST_HANDOFF_SCOPE_MISMATCH:
-    "This Session Test is bound to a Planned Test Case version the Test Handoff did not select.",
-  TEST_HANDOFF_TRANSITION_NOT_ALLOWED:
-    "A Test Handoff cannot move to that state from here.",
-  PLANNED_TEST_RELATION_TARGET_UNAVAILABLE:
-    "A relation target is not an existing, active record of this Project.",
-};
-
-const PLANNED_TEST_CONFLICT_MESSAGES: Record<string, string> = {
-  PLANNED_TEST_VERSION_CONFLICT:
-    "Planned Test Case changed since it was loaded. Reload and try again.",
-  TEST_HANDOFF_PACKAGE_STALE:
-    "The package changed since the preview. Preview it again.",
-  TEST_HANDOFF_STATE_CONFLICT:
-    "Test Handoff changed since it was loaded. Reload and try again.",
+const PLANNED_TEST_FAILURES: Record<string, PlannedTestFailure> = {
+  PLANNED_TEST_CASE_NOT_FOUND: {
+    message: "Planned Test Case is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PLANNED_TEST_NO_CHANGE: {
+    message:
+      "Nothing changed. Change the Planned Test Case before saving a new version.",
+    status: "BAD_REQUEST",
+  },
+  PLANNED_TEST_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PLANNED_TEST_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  PLANNED_TEST_RELATION_TARGET_UNAVAILABLE: {
+    message:
+      "A relation target is not an existing, active record of this Project.",
+    status: "BAD_REQUEST",
+  },
+  PLANNED_TEST_VERSION_CONFLICT: {
+    message:
+      "Planned Test Case changed since it was loaded. Reload and try again.",
+    status: "PRECONDITION_FAILED",
+  },
+  PLANNED_TEST_VERSION_NOT_FOUND: {
+    message: "Planned Test Case version is unavailable.",
+    status: "NOT_FOUND",
+  },
+  SESSION_TEST_ALREADY_BOUND: {
+    message:
+      "This Session Test is already bound to a Planned Test Case version. A bind does not move.",
+    status: "BAD_REQUEST",
+  },
+  SESSION_TEST_ALREADY_IN_HANDOFF: {
+    message: "This Session Test already arrived on a Test Handoff.",
+    status: "BAD_REQUEST",
+  },
+  SESSION_TEST_NOT_FOUND: {
+    message: "Session Test is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_HANDOFF_LOCKED: {
+    message:
+      "A shared Test Handoff is history. Open a new Test Handoff instead of rewriting it.",
+    status: "BAD_REQUEST",
+  },
+  TEST_HANDOFF_NOT_FOUND: {
+    message: "Test Handoff is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_HANDOFF_PACKAGE_BLOCKED: { message: null, status: "BAD_REQUEST" },
+  TEST_HANDOFF_PACKAGE_STALE: {
+    message: "The package changed since the preview. Preview it again.",
+    status: "PRECONDITION_FAILED",
+  },
+  TEST_HANDOFF_PACKAGE_STATE: { message: null, status: "BAD_REQUEST" },
+  TEST_HANDOFF_SCOPE_MISMATCH: {
+    message:
+      "This Session Test is bound to a Planned Test Case version the Test Handoff did not select.",
+    status: "BAD_REQUEST",
+  },
+  TEST_HANDOFF_STATE_CONFLICT: {
+    message: "Test Handoff changed since it was loaded. Reload and try again.",
+    status: "PRECONDITION_FAILED",
+  },
+  TEST_HANDOFF_TRANSITION_NOT_ALLOWED: {
+    message: "A Test Handoff cannot move to that state from here.",
+    status: "BAD_REQUEST",
+  },
 };
 
 async function runPlannedTestOperation<T>(
@@ -2985,49 +3031,20 @@ async function runPlannedTestOperation<T>(
     if (!isRecord(error) || typeof error.code !== "string") {
       throw error;
     }
-    if (
-      error.code === "PLANNED_TEST_VERSION_CONFLICT" ||
-      error.code === "TEST_HANDOFF_STATE_CONFLICT" ||
-      error.code === "TEST_HANDOFF_PACKAGE_STALE"
-    ) {
-      throw new ORPCError("PRECONDITION_FAILED", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message: PLANNED_TEST_CONFLICT_MESSAGES[error.code] ?? "",
-      });
+    const failure = Object.hasOwn(PLANNED_TEST_FAILURES, error.code)
+      ? PLANNED_TEST_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
     }
-    if (
-      error.code === "TEST_HANDOFF_PACKAGE_STATE" ||
-      error.code === "TEST_HANDOFF_PACKAGE_BLOCKED"
-    ) {
-      // These messages name the section and kind only, never a value.
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message: error instanceof Error ? error.message : "Package refused.",
-      });
-    }
-    const rejected = PLANNED_TEST_REJECTED_MESSAGES[error.code];
-    if (rejected) {
-      throw new ORPCError("BAD_REQUEST", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message: rejected,
-      });
-    }
-    const message = PLANNED_TEST_UNAVAILABLE_MESSAGES[error.code];
-    if (message) {
-      throw new ORPCError("NOT_FOUND", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message,
-      });
-    }
-    throw error;
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Package refused."),
+    });
   }
 }
 
