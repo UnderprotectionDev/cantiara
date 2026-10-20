@@ -61,6 +61,67 @@ export default function ProjectWallSurface({
 
   const wallId = wall.data?.id;
   const actions: ProjectWallActions = {
+    onCreateGroup: (title) =>
+      write(() =>
+        client.createProjectWallGroup({
+          projectId,
+          title,
+          wallId: wallId ?? "",
+        }),
+      ),
+    onCreateRelation: ({ baseRevision, kind, linkId, previewId }) =>
+      write(() =>
+        client.createProjectWallPersistentRelation({
+          baseRevision,
+          clientIdempotencyKey: crypto.randomUUID(),
+          kind,
+          linkId,
+          previewId,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
+    onDeleteGroup: (groupId) =>
+      write(() =>
+        client.deleteProjectWallGroup({
+          groupId,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
+    onDrawLink: (link) =>
+      write(() =>
+        client.drawProjectWallLink({
+          ...link,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
+    onPreviewRelation: (request) =>
+      write(() =>
+        client.previewProjectWallPersistentRelation({
+          ...request,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
+    onToggleGroup: (groupId, collapsed) =>
+      write(() =>
+        client.setProjectWallGroupCollapsed({
+          collapsed,
+          groupId,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
+    onUnbindLink: (linkId) =>
+      write(() =>
+        client.unbindProjectWallLink({
+          linkId,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
     onAddCard: (source: {
       sourceId: string;
       sourceType: ProjectWallSourceType;
@@ -96,6 +157,26 @@ export default function ProjectWallSurface({
           client.setProjectWallCardDensity({
             cardId,
             density,
+            projectId,
+            wallId: wallId ?? "",
+          }),
+        );
+      },
+      onGroup: (cardId: string, groupId: string | null) => {
+        write(() =>
+          client.setProjectWallCardGroup({
+            cardId,
+            groupId,
+            projectId,
+            wallId: wallId ?? "",
+          }),
+        );
+      },
+      onLock: (cardId: string, locked: boolean) => {
+        write(() =>
+          client.setProjectWallCardLock({
+            cardId,
+            locked,
             projectId,
             wallId: wallId ?? "",
           }),
@@ -152,7 +233,9 @@ export default function ProjectWallSurface({
               <ProjectWallCanvas
                 actions={cardActions}
                 cards={wall.data.cards}
+                groups={wall.data.groups}
                 key={wall.data.id}
+                links={wall.data.links}
                 onMove={onMove}
               />
             </Suspense>

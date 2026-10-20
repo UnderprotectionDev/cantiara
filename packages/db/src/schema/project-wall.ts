@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   doublePrecision,
   index,
@@ -41,6 +42,30 @@ export const projectWall = pgTable(
 );
 
 /**
+ * A named, single-level group: wall view state only. It has no parent group,
+ * colour or kind, so it cannot become taxonomy or a relation.
+ */
+export const projectWallGroup = pgTable(
+  "project_wall_group",
+  {
+    collapsed: boolean("collapsed").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    wallId: text("wall_id")
+      .notNull()
+      .references(() => projectWall.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("project_wall_group_wall_idx").on(table.wallId),
+    check(
+      "project_wall_group_title_check",
+      sql`length(btrim(${table.title})) between 1 and 255`,
+    ),
+  ],
+);
+
+/**
  * A live card: a reference to one existing master record by its source id plus
  * wall view state (position, density, highlight). It carries no title, body,
  * note, task or file of its own, so a card cannot become a copy of the record.
@@ -53,8 +78,14 @@ export const projectWallItem = pgTable(
   "project_wall_item",
   {
     density: text("density").default("Preview").notNull(),
+    // Wall-only membership; deleting a group keeps its cards.
+    groupId: text("group_id").references(() => projectWallGroup.id, {
+      onDelete: "set null",
+    }),
     highlight: text("highlight"),
     id: text("id").primaryKey(),
+    // View-local `Lock Position`; never read by any source record.
+    locked: boolean("locked").default(false).notNull(),
     placedAt: timestamp("placed_at").defaultNow().notNull(),
     positionX: doublePrecision("position_x").default(0).notNull(),
     positionY: doublePrecision("position_y").default(0).notNull(),
@@ -72,6 +103,7 @@ export const projectWallItem = pgTable(
       table.sourceId,
     ),
     index("project_wall_item_source_idx").on(table.sourceType, table.sourceId),
+    index("project_wall_item_group_idx").on(table.groupId),
     check(
       "project_wall_item_source_type_check",
       sql`${table.sourceType} in ('Work', 'Decision', 'Risk')`,
@@ -83,6 +115,42 @@ export const projectWallItem = pgTable(
     check(
       "project_wall_item_highlight_check",
       sql`${table.highlight} is null or ${table.highlight} in ('blue', 'green', 'amber', 'red', 'violet')`,
+    ),
+  ],
+);
+
+/**
+ * A `Visual link`: a directed, labeled line between two cards of one wall. It
+ * is wall view state, not a relation: it references no relation row and a
+ * relation is written only through the previewed `Create Persistent Relation`.
+ */
+export const projectWallLink = pgTable(
+  "project_wall_link",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    fromItemId: text("from_item_id")
+      .notNull()
+      .references(() => projectWallItem.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    toItemId: text("to_item_id")
+      .notNull()
+      .references(() => projectWallItem.id, { onDelete: "cascade" }),
+    wallId: text("wall_id")
+      .notNull()
+      .references(() => projectWall.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("project_wall_link_wall_idx").on(table.wallId),
+    index("project_wall_link_from_idx").on(table.fromItemId),
+    index("project_wall_link_to_idx").on(table.toItemId),
+    check(
+      "project_wall_link_label_check",
+      sql`length(btrim(${table.label})) between 1 and 120`,
+    ),
+    check(
+      "project_wall_link_distinct_check",
+      sql`${table.fromItemId} <> ${table.toItemId}`,
     ),
   ],
 );

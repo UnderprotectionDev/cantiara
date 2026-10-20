@@ -4,6 +4,7 @@ import {
   PROJECT_WALL_HIGHLIGHTS,
   type ProjectWallCardView,
   type ProjectWallDensity,
+  type ProjectWallGroupView,
   type ProjectWallHighlight,
 } from "@cantiara/api/project-wall";
 import { Button } from "@cantiara/ui/components/button";
@@ -26,7 +27,9 @@ const HIGHLIGHT_BORDER: Record<ProjectWallHighlight, string> = {
 
 export interface ProjectWallCardActions {
   onDensity: (cardId: string, density: ProjectWallDensity) => void;
+  onGroup: (cardId: string, groupId: string | null) => void;
   onHighlight: (cardId: string, highlight: ProjectWallHighlight | null) => void;
+  onLock: (cardId: string, locked: boolean) => void;
   onRemove: (cardId: string) => void;
 }
 
@@ -38,9 +41,11 @@ export interface ProjectWallCardActions {
 export function ProjectWallCard({
   actions,
   card,
+  groups = [],
 }: {
   actions?: ProjectWallCardActions;
   card: ProjectWallCardView;
+  groups?: ProjectWallGroupView[];
 }) {
   const { source } = card;
   const { broken } = source;
@@ -62,6 +67,7 @@ export function ProjectWallCard({
             ? ` · ${broken.reason === "Archived" ? "Archived" : `Broken — ${broken.reason}`}`
             : ""}
           {card.highlight ? ` · Highlight: ${card.highlight}` : ""}
+          {card.locked ? " · Position locked" : ""}
         </p>
         {source.title ? (
           <h3 className="break-words font-medium">{source.title}</h3>
@@ -121,6 +127,29 @@ export function ProjectWallCard({
               </NativeSelectOption>
             ))}
           </NativeSelect>
+          <NativeSelect
+            aria-label="Group"
+            onChange={(event) =>
+              actions.onGroup(card.id, event.target.value || null)
+            }
+            value={card.groupId ?? ""}
+          >
+            <NativeSelectOption value="">No group</NativeSelectOption>
+            {groups.map((group) => (
+              <NativeSelectOption key={group.id} value={group.id}>
+                {group.title}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <Button
+            aria-pressed={card.locked}
+            onClick={() => actions.onLock(card.id, !card.locked)}
+            size="sm"
+            type="button"
+            variant={card.locked ? "default" : "outline"}
+          >
+            Lock Position
+          </Button>
           <Button
             onClick={() => actions.onRemove(card.id)}
             size="sm"

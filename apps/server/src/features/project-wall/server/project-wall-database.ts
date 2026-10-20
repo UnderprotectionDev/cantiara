@@ -2,9 +2,12 @@ import type {
   ProjectWallAccess,
   ProjectWallDensity,
   ProjectWallFieldName,
+  ProjectWallGroupRecord,
   ProjectWallHighlight,
   ProjectWallItemRecord,
+  ProjectWallLinkRecord,
   ProjectWallRecord,
+  ProjectWallRelations,
   ProjectWallSourceLookup,
   ProjectWallSourceType,
   ProjectWallStore,
@@ -14,7 +17,12 @@ import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { project } from "@cantiara/db/schema/project";
-import { projectWall, projectWallItem } from "@cantiara/db/schema/project-wall";
+import {
+  projectWall,
+  projectWallGroup,
+  projectWallItem,
+  projectWallLink,
+} from "@cantiara/db/schema/project-wall";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
@@ -94,8 +102,10 @@ type WallRow = typeof projectWall.$inferSelect;
 function toItem(row: ItemRow): ProjectWallItemRecord {
   return {
     density: row.density as ProjectWallDensity,
+    groupId: row.groupId,
     highlight: row.highlight as ProjectWallHighlight | null,
     id: row.id,
+    locked: row.locked,
     placedAt: row.placedAt.toISOString(),
     position: { x: row.positionX, y: row.positionY },
     sourceId: row.sourceId,
@@ -103,11 +113,34 @@ function toItem(row: ItemRow): ProjectWallItemRecord {
   };
 }
 
-function toRecord(row: WallRow, items: ItemRow[]): ProjectWallRecord {
+type GroupRow = typeof projectWallGroup.$inferSelect;
+type LinkRow = typeof projectWallLink.$inferSelect;
+
+function toGroup(row: GroupRow): ProjectWallGroupRecord {
+  return { collapsed: row.collapsed, id: row.id, title: row.title };
+}
+
+function toLink(row: LinkRow): ProjectWallLinkRecord {
+  return {
+    fromCardId: row.fromItemId,
+    id: row.id,
+    label: row.label,
+    toCardId: row.toItemId,
+  };
+}
+
+function toRecord(
+  row: WallRow,
+  items: ItemRow[],
+  groups: GroupRow[] = [],
+  links: LinkRow[] = [],
+): ProjectWallRecord {
   return {
     createdAt: row.createdAt.toISOString(),
+    groups: groups.map(toGroup),
     id: row.id,
     items: items.map(toItem),
+    links: links.map(toLink),
     projectId: row.projectId,
     title: row.title,
     updatedAt: row.updatedAt.toISOString(),
@@ -255,6 +288,213 @@ export function createDatabaseProjectWallStore(
       });
     },
 
+    async addLink(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return null;
+        }
+        const ends = await tx
+          .select({ id: projectWallItem.id })
+          .from(projectWallItem)
+          .where(
+            and(
+              eq(projectWallItem.wallId, input.wallId),
+              inArray(projectWallItem.id, [input.fromCardId, input.toCardId]),
+            ),
+          );
+        if (ends.length !== 2) {
+          return null;
+        }
+        // A Visual link is a wall row; it writes no relation row.
+        const [row] = await tx
+          .insert(projectWallLink)
+          .values({
+            fromItemId: input.fromCardId,
+            id: input.id,
+            label: input.label,
+            toItemId: input.toCardId,
+            wallId: input.wallId,
+          })
+          .returning();
+        return row ? toLink(row) : null;
+      });
+    },
+
+    async createGroup(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return null;
+        }
+        const [row] = await tx
+          .insert(projectWallGroup)
+          .values({
+            id: input.id,
+            title: input.title,
+            wallId: input.wallId,
+          })
+          .returning();
+        return row ? toGroup(row) : null;
+      });
+    },
+
+    async deleteGroup(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // Member cards fall back to ungrouped (on delete set null).
+        const removed = await tx
+          .delete(projectWallGroup)
+          .where(
+            and(
+              eq(projectWallGroup.id, input.groupId),
+              eq(projectWallGroup.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallGroup.id });
+        return removed.length > 0;
+      });
+    },
+
+    async removeLink(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        const removed = await tx
+          .delete(projectWallLink)
+          .where(
+            and(
+              eq(projectWallLink.id, input.linkId),
+              eq(projectWallLink.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallLink.id });
+        return removed.length > 0;
+      });
+    },
+
+    async setCardGroup(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        if (input.groupId !== null) {
+          const [group] = await tx
+            .select({ id: projectWallGroup.id })
+            .from(projectWallGroup)
+            .where(
+              and(
+                eq(projectWallGroup.id, input.groupId),
+                eq(projectWallGroup.wallId, input.wallId),
+              ),
+            );
+          if (!group) {
+            return false;
+          }
+        }
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ groupId: input.groupId })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        return changed.length > 0;
+      });
+    },
+
+    async setCardLocked(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // Only the wall item row: the source record is never touched.
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ locked: input.locked })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        return changed.length > 0;
+      });
+    },
+
+    async setGroupCollapsed(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        const changed = await tx
+          .update(projectWallGroup)
+          .set({ collapsed: input.collapsed })
+          .where(
+            and(
+              eq(projectWallGroup.id, input.groupId),
+              eq(projectWallGroup.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallGroup.id });
+        return changed.length > 0;
+      });
+    },
+
     async createWall(accountId, input) {
       return await database.transaction(async (tx) => {
         if (!(await requireWritableProject(tx, accountId, input.projectId))) {
@@ -299,7 +539,19 @@ export function createDatabaseProjectWallStore(
         .from(projectWallItem)
         .where(eq(projectWallItem.wallId, wallId))
         .orderBy(asc(projectWallItem.placedAt), asc(projectWallItem.id));
-      return toRecord(wall, items);
+      const [groups, links] = await Promise.all([
+        database
+          .select()
+          .from(projectWallGroup)
+          .where(eq(projectWallGroup.wallId, wallId))
+          .orderBy(asc(projectWallGroup.createdAt), asc(projectWallGroup.id)),
+        database
+          .select()
+          .from(projectWallLink)
+          .where(eq(projectWallLink.wallId, wallId))
+          .orderBy(asc(projectWallLink.createdAt), asc(projectWallLink.id)),
+      ]);
+      return toRecord(wall, items, groups, links);
     },
 
     async listSourceOptions(accountId, projectId) {
@@ -419,6 +671,8 @@ export function createDatabaseProjectWallStore(
               and(
                 eq(projectWallItem.id, cardId),
                 eq(projectWallItem.wallId, input.wallId),
+                // `Lock Position` fixes the card in manual drag.
+                eq(projectWallItem.locked, false),
               ),
             );
         }
@@ -527,6 +781,9 @@ export function createDatabaseProjectWallStore(
 
 export function createDatabaseProjectWall(
   database: Database,
+  relations: ProjectWallRelations,
 ): ProjectWallAccess {
-  return createProjectWall(createDatabaseProjectWallStore(database));
+  return createProjectWall(createDatabaseProjectWallStore(database), {
+    relations,
+  });
 }

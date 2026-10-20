@@ -43,6 +43,16 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Görsel bağlantı | `Visual link` | Kartlar arasında yönlü etiketli anlatı çizgisi; kayıt ilişkisi değildir |
 | Kalıcı ilişki oluştur | `Create Persistent Relation` | Görsel çizgiden önizlemeli katalog ilişkisi yazma |
 | Konumu kilitle | `Lock Position` | Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını kısıtlamaz |
+| Görsel bağlantı ekle | `Add Visual link` | `From` ve `To` kartı ile etiketten yönlü görsel çizgi çizme; ilişki satırı yazmaz |
+| Çizgi başlangıcı | `From` | Görsel bağlantının çıkış kartı; kalıcı ilişkide kaynak uç olur |
+| Çizgi hedefi | `To` | Görsel bağlantının varış kartı; kalıcı ilişkide hedef uç olur |
+| Çizgiyi çöz | `Unbind` | Yalnız görsel çizgiyi kaldırma; kartlar, kaynak kayıtlar ve ilişkiler değişmez |
+| İlişkiyi onayla | `Confirm Create Persistent Relation` | `Create Persistent Relation` önizlemesini okuduktan sonra katalog ilişkisini yazan açık onay |
+| Grup | `Group` | Duvardaki tek seviyeli, adlı, kalıcı sınıflandırma olmayan kart kümesi; ilişki değildir |
+| Grup oluştur | `Create Group` | Duvara adlı grup ekleme |
+| Grubu daralt | `Collapse group` | Grup üyelerini duvar görünümünde gizleme; kayıt durumu değişmez |
+| Grubu aç | `Expand group` | Daraltılmış grubun üyelerini yeniden gösterme |
+| Grubu sil | `Delete group` | Yalnız grubu silme; kartlar gruptan çıkar, kaynak kayıtlar değişmez |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |
