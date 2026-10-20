@@ -4,6 +4,7 @@ import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { project } from "@cantiara/db/schema/project";
 import {
+  projectWallFocusStep,
   projectWallGroup,
   projectWallItem,
   projectWallLink,
@@ -322,5 +323,79 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
         .from(projectWallGroup)
         .where(eq(projectWallGroup.wallId, wall.id)),
     ).toEqual([]);
+  });
+
+  test("Focus order is wall metadata and a snapshot writes nothing", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseProjectWall(db, createDatabaseRelations(db), {
+      renderer: {
+        pdf: () => Promise.resolve(new Uint8Array([1])),
+        png: () => Promise.resolve(new Uint8Array([1])),
+      },
+    });
+    const wall = await access.create(accountId, { projectId, title: "Story" });
+    await access.addCard(accountId, {
+      projectId,
+      sourceId: workId,
+      sourceType: "Work",
+      wallId: wall.id,
+    });
+    const placed = await access.addCard(accountId, {
+      projectId,
+      sourceId: decisionId,
+      sourceType: "Decision",
+      wallId: wall.id,
+    });
+    const ids = placed.cards.map(({ id }) => id).reverse();
+    const [workBefore] = await db
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+
+    const ordered = await access.setFocusOrder(accountId, {
+      cardIds: ids,
+      projectId,
+      wallId: wall.id,
+    });
+    expect(ordered.focusOrder).toEqual(ids);
+    expect(
+      await db
+        .select()
+        .from(projectWallFocusStep)
+        .where(eq(projectWallFocusStep.wallId, wall.id)),
+    ).toHaveLength(2);
+
+    const itemsBefore = await db
+      .select()
+      .from(projectWallItem)
+      .where(eq(projectWallItem.wallId, wall.id));
+    await access.exportSnapshot(accountId, {
+      cardIds: ids,
+      format: "PNG",
+      projectId,
+      wallId: wall.id,
+    });
+    expect(
+      await db
+        .select()
+        .from(projectWallItem)
+        .where(eq(projectWallItem.wallId, wall.id)),
+    ).toEqual(itemsBefore);
+    const [workAfter] = await db.select().from(work).where(eq(work.id, workId));
+    expect(workAfter).toEqual(workBefore);
+
+    // Removing a card drops its step; clearing leaves no step rows.
+    const removed = await access.removeCard(accountId, {
+      cardId: ids[0] ?? "",
+      projectId,
+      wallId: wall.id,
+    });
+    expect(removed.focusOrder).toEqual([ids[1]]);
+    const cleared = await access.setFocusOrder(accountId, {
+      cardIds: [],
+      projectId,
+      wallId: wall.id,
+    });
+    expect(cleared.focusOrder).toEqual([]);
   });
 });

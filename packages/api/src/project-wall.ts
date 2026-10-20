@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import type {
+  ExportProjectWallSnapshotInput,
+  PreviewProjectWallSnapshotInput,
+  ProjectWallSnapshotOutput,
+  ProjectWallSnapshotPreview,
+  SetProjectWallFocusOrderInput,
+} from "./project-wall-presentation";
 import {
   type RelationCreateInput,
   type RelationCreatePreviewInput,
@@ -9,10 +16,11 @@ import {
   type RelationPreview,
   relationKindSchema,
 } from "./relations";
+import type { SmartCollectionsAccess } from "./smart-collections";
+import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import {
   type RecordLookup,
   type RecordReferenceView,
-  recordLookupKey,
   resolveRecordReference,
 } from "./user-flow";
 
@@ -21,10 +29,48 @@ const identifierSchema = z.string().trim().min(1).max(255);
 /**
  * Master record types a Project Wall card can reference. A card is a live
  * reference to one of these by source id; the wall never stores a copy.
+ * `Technical Diagram` is a read-only live preview of a Diagram View and
+ * `Smart Collection` (`Akıllı Koleksiyon`) is a read-only live summary block;
+ * for the latter `source_id` is the collection view id.
  */
-export const PROJECT_WALL_SOURCE_TYPES = ["Work", "Decision", "Risk"] as const;
+export const PROJECT_WALL_SOURCE_TYPES = [
+  "Work",
+  "Decision",
+  "Risk",
+  "Technical Diagram",
+  "Smart Collection",
+] as const;
 export const projectWallSourceTypeSchema = z.enum(PROJECT_WALL_SOURCE_TYPES);
 export type ProjectWallSourceType = z.infer<typeof projectWallSourceTypeSchema>;
+
+/** Source types owned by the planning stores the wall reads field by field. */
+export type ProjectWallRecordSourceType = "Decision" | "Risk" | "Work";
+
+/** Stable key of one source reference inside a lookup map. */
+export function projectWallLookupKey(
+  sourceType: ProjectWallSourceType,
+  recordId: string,
+) {
+  return `${sourceType}:${recordId}`;
+}
+
+/** Relative app path of a diagram or collection source. */
+export function projectWallExtraSourcePath(
+  projectId: string,
+  sourceType: "Smart Collection" | "Technical Diagram",
+  recordId: string,
+) {
+  const anchor =
+    sourceType === "Smart Collection"
+      ? "smart-collection-view-"
+      : "technical-diagram-";
+  return `/projects/${encodeURIComponent(projectId)}#${anchor}${encodeURIComponent(recordId)}`;
+}
+
+/** Most records the Smart Collection block lists; the rest opens in source. */
+export const PROJECT_WALL_COLLECTION_SUMMARY_LIMIT = 5;
+/** Most diagram nodes the card previews. */
+export const PROJECT_WALL_DIAGRAM_PREVIEW_NODE_LIMIT = 40;
 
 /** Closed card densities. The product, not the card, chooses the fields. */
 export const PROJECT_WALL_DENSITIES = [
@@ -67,6 +113,8 @@ export const PROJECT_WALL_DENSITY_FIELDS: Record<
   ProjectWallSourceType,
   Record<ProjectWallDensity, readonly ProjectWallFieldName[]>
 > = {
+  "Smart Collection": { Compact: [], Detailed: [], Preview: [] },
+  "Technical Diagram": { Compact: [], Detailed: [], Preview: [] },
   Decision: {
     Compact: [],
     Detailed: ["Status", "Decision"],
@@ -123,11 +171,23 @@ export type RenameProjectWallInput = z.input<
 export const addProjectWallCardInputSchema = projectWallInputSchema
   .extend({
     density: projectWallDensitySchema.default(DEFAULT_PROJECT_WALL_DENSITY),
+    // The selected Diagram View of a Technical Diagram card (its default view
+    // when omitted). No other source type takes it.
+    diagramViewId: identifierSchema.optional(),
     position: projectWallPositionSchema.default({ x: 0, y: 0 }),
     sourceId: identifierSchema,
     sourceType: projectWallSourceTypeSchema,
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) =>
+      input.diagramViewId === undefined ||
+      input.sourceType === "Technical Diagram",
+    {
+      message: "Only a Technical Diagram card selects a Diagram View.",
+      path: ["diagramViewId"],
+    },
+  );
 export type AddProjectWallCardInput = z.input<
   typeof addProjectWallCardInputSchema
 >;
@@ -266,6 +326,8 @@ export type SetProjectWallCardGroupInput = z.input<
 
 export interface ProjectWallItemRecord {
   density: ProjectWallDensity;
+  /** Selected Diagram View of a Technical Diagram card; otherwise null. */
+  diagramViewId: string | null;
   /** Wall-only group membership; never a relation or classification. */
   groupId: string | null;
   highlight: ProjectWallHighlight | null;
@@ -294,6 +356,8 @@ export interface ProjectWallLinkRecord {
 
 export interface ProjectWallRecord {
   createdAt: string;
+  /** Optional `Focus order`: card ids in presentation sequence, view metadata. */
+  focusOrder: string[];
   groups: ProjectWallGroupRecord[];
   id: string;
   items: ProjectWallItemRecord[];
@@ -319,6 +383,8 @@ export type ProjectWallSourceLookup =
       kind: "found";
       projectId: string;
       status: string | null;
+      /** Live read-only data of a diagram or collection source. */
+      preview?: ProjectWallPreviewData;
       title: string;
       trashed?: boolean;
       values: Partial<Record<ProjectWallFieldName, string | null>>;
@@ -326,10 +392,78 @@ export type ProjectWallSourceLookup =
   | { kind: "inaccessible" };
 
 export interface ProjectWallSourceOption {
+  /** Selected Diagram View of a Technical Diagram option. */
+  diagramViewId?: string;
   id: string;
   sourceType: ProjectWallSourceType;
   title: string;
 }
+
+// --- Read-only previews: Technical Diagram and Smart Collection -----------------
+
+/**
+ * Live read-only preview of the selected Diagram View. `pin` labels it `Live`
+ * (follows the diagram) or `Exact` (an explicitly selected Diagram Version);
+ * the wall can only read it, never edit nodes, links or views.
+ */
+export interface ProjectWallDiagramPreview {
+  diagramType: string;
+  kind: "Technical Diagram";
+  links: Array<{ from: string; label: string | null; to: string }>;
+  nodes: Array<{ id: string; kind: string; label: string }>;
+  pin: "Exact" | "Live";
+  viewName: string | null;
+}
+
+/** One record of a Smart Collection result, as the collection reports it. */
+export interface ProjectWallCollectionRecord {
+  id: string;
+  recordType: string;
+  status: string | null;
+  title: string;
+}
+
+/** Collection result as the owning feature reports it; the wall adds no query. */
+export interface ProjectWallCollectionData {
+  collectionName: string;
+  kind: "Smart Collection";
+  openAllPath: string;
+  records: ProjectWallCollectionRecord[];
+  total: number;
+}
+
+export type ProjectWallPreviewData =
+  | ProjectWallCollectionData
+  | ProjectWallDiagramPreview;
+
+export interface ProjectWallCollectionSummaryItem {
+  id: string;
+  recordType: string;
+  /** The same record is also a card on this wall: one record, not two. */
+  sharedWithCard: boolean;
+  status: string | null;
+  title: string;
+}
+
+/** Read-only live summary block of a named Smart Collection. */
+export interface ProjectWallCollectionPreview {
+  collectionName: string;
+  items: ProjectWallCollectionSummaryItem[];
+  kind: "Smart Collection";
+  limit: number;
+  /** `Open all in source`: the whole result lives in the collection. */
+  openAllPath: string;
+  total: number;
+}
+
+export type ProjectWallCardPreview =
+  | ProjectWallCollectionPreview
+  | ProjectWallDiagramPreview;
+
+/** The live source of a card; its kind is the card's source type. */
+export type ProjectWallSourceReference = Omit<RecordReferenceView, "kind"> & {
+  kind: ProjectWallSourceType;
+};
 
 // --- Views ------------------------------------------------------------------
 
@@ -351,8 +485,12 @@ export interface ProjectWallCardView {
   locked: boolean;
   placedAt: string;
   position: ProjectWallPosition;
+  /** Read-only live preview of a diagram or collection source; else null. */
+  preview: ProjectWallCardPreview | null;
+  /** `Shared source`: this record also appears inside a collection block here. */
+  sharedSource: boolean;
   /** The live master record: `source.recordId` is the source id itself. */
-  source: RecordReferenceView;
+  source: ProjectWallSourceReference;
   sourceType: ProjectWallSourceType;
 }
 
@@ -364,6 +502,8 @@ export type ProjectWallLinkView = ProjectWallLinkRecord;
 export interface ProjectWallView {
   cards: ProjectWallCardView[];
   createdAt: string;
+  /** Optional `Focus order` of `Presentation Mode`; wall view metadata. */
+  focusOrder: string[];
   groups: ProjectWallGroupView[];
   id: string;
   links: ProjectWallLinkView[];
@@ -398,6 +538,37 @@ export function projectWallCardFields(
 }
 
 /**
+ * Resolves a card source through the common broken-reference presentation. A
+ * diagram or collection source reuses its rules and only changes the kind and
+ * the path that `Open Source Record` follows.
+ */
+function resolveSourceReference(
+  projectId: string,
+  item: Pick<ProjectWallItemRecord, "placedAt" | "sourceId" | "sourceType">,
+  lookup: ProjectWallSourceLookup | undefined,
+): ProjectWallSourceReference {
+  const { sourceId, sourceType } = item;
+  const extra =
+    sourceType === "Smart Collection" || sourceType === "Technical Diagram";
+  const base = resolveRecordReference({
+    flowProjectId: projectId,
+    kind: extra ? "Work" : sourceType,
+    lookup: lookup as RecordLookup | undefined,
+    placedAt: item.placedAt,
+    recordId: sourceId,
+  });
+  return extra
+    ? {
+        ...base,
+        kind: sourceType,
+        openPath: base.openPath
+          ? projectWallExtraSourcePath(projectId, sourceType, sourceId)
+          : null,
+      }
+    : { ...base, kind: sourceType };
+}
+
+/**
  * Builds the wall view. Each card resolves its source id through the common
  * broken-reference presentation: a trashed, archived, deleted or inaccessible
  * record is explained and never retargeted. Broken cards show no fields.
@@ -406,35 +577,64 @@ export function buildProjectWallView(
   record: ProjectWallRecord,
   lookups: ReadonlyMap<string, ProjectWallSourceLookup>,
 ): ProjectWallView {
-  return {
-    cards: record.items.map((item) => {
-      const lookup = lookups.get(
-        recordLookupKey(item.sourceType, item.sourceId),
-      );
-      const source = resolveRecordReference({
-        flowProjectId: record.projectId,
-        kind: item.sourceType,
-        lookup: lookup as RecordLookup | undefined,
-        placedAt: item.placedAt,
-        recordId: item.sourceId,
-      });
-      return {
-        density: item.density,
-        fields:
-          source.broken?.reason === "Archived" || !source.broken
-            ? projectWallCardFields(item.sourceType, item.density, lookup)
-            : [],
-        groupId: item.groupId,
-        highlight: item.highlight,
-        id: item.id,
-        locked: item.locked,
-        placedAt: item.placedAt,
-        position: item.position,
-        source,
-        sourceType: item.sourceType,
+  const onWall = new Set(
+    record.items.map((item) =>
+      projectWallLookupKey(item.sourceType, item.sourceId),
+    ),
+  );
+  const shown = new Set<string>();
+  const cards = record.items.map((item): ProjectWallCardView => {
+    const lookup = lookups.get(
+      projectWallLookupKey(item.sourceType, item.sourceId),
+    );
+    const source = resolveSourceReference(record.projectId, item, lookup);
+    const readable =
+      source.broken === null || source.broken.reason === "Archived";
+    const data =
+      readable && lookup?.kind === "found" ? lookup.preview : undefined;
+    let preview: ProjectWallCardPreview | null = null;
+    if (data?.kind === "Technical Diagram") {
+      preview = data;
+    } else if (data?.kind === "Smart Collection") {
+      preview = {
+        collectionName: data.collectionName,
+        items: data.records
+          .slice(0, PROJECT_WALL_COLLECTION_SUMMARY_LIMIT)
+          .map((entry) => {
+            const key = `${entry.recordType}:${entry.id}`;
+            shown.add(key);
+            return { ...entry, sharedWithCard: onWall.has(key) };
+          }),
+        kind: "Smart Collection",
+        limit: PROJECT_WALL_COLLECTION_SUMMARY_LIMIT,
+        openAllPath: data.openAllPath,
+        total: data.total,
       };
-    }),
+    }
+    return {
+      density: item.density,
+      fields: readable
+        ? projectWallCardFields(item.sourceType, item.density, lookup)
+        : [],
+      groupId: item.groupId,
+      highlight: item.highlight,
+      id: item.id,
+      locked: item.locked,
+      placedAt: item.placedAt,
+      position: item.position,
+      preview,
+      sharedSource: false,
+      source,
+      sourceType: item.sourceType,
+    };
+  });
+  return {
+    cards: cards.map((card) => ({
+      ...card,
+      sharedSource: shown.has(`${card.sourceType}:${card.source.recordId}`),
+    })),
     createdAt: record.createdAt,
+    focusOrder: record.focusOrder,
     groups: record.groups,
     id: record.id,
     links: record.links,
@@ -444,11 +644,16 @@ export function buildProjectWallView(
   };
 }
 
-/** The relation endpoint a card stands for: its live source record. */
+/**
+ * The relation endpoint a card stands for: its live source record. A Smart
+ * Collection block summarizes records and is not a relation endpoint (null).
+ */
 export function projectWallCardEndpoint(
   card: Pick<ProjectWallItemRecord, "sourceId" | "sourceType">,
-): RelationEndpoint {
-  return { recordId: card.sourceId, recordType: card.sourceType };
+): RelationEndpoint | null {
+  return card.sourceType === "Smart Collection"
+    ? null
+    : { recordId: card.sourceId, recordType: card.sourceType };
 }
 
 // --- Seams ------------------------------------------------------------------
@@ -463,6 +668,7 @@ export interface ProjectWallStore {
     accountId: string,
     input: {
       density: ProjectWallDensity;
+      diagramViewId: string | null;
       id: string;
       placedAt: string;
       position: ProjectWallPosition;
@@ -520,7 +726,7 @@ export interface ProjectWallStore {
   ) => Promise<ProjectWallSummary[] | null>;
   lookupSources: (
     accountId: string,
-    refs: Array<{ id: string; sourceType: ProjectWallSourceType }>,
+    refs: Array<{ id: string; sourceType: ProjectWallRecordSourceType }>,
   ) => Promise<Map<string, ProjectWallSourceLookup>>;
   moveCards: (
     accountId: string,
@@ -578,6 +784,11 @@ export interface ProjectWallStore {
       wallId: string;
     },
   ) => Promise<boolean>;
+  /** Replaces the `Focus order` with existing cards of the wall; [] clears it. */
+  setFocusOrder: (
+    accountId: string,
+    input: { cardIds: string[]; projectId: string; wallId: string },
+  ) => Promise<boolean>;
   setGroupCollapsed: (
     accountId: string,
     input: {
@@ -620,6 +831,11 @@ export interface ProjectWallAccess {
     accountId: string,
     input: DrawProjectWallLinkInput,
   ) => Promise<ProjectWallView>;
+  /** Dated `Frozen copy` of a group or region; writes nothing. */
+  exportSnapshot: (
+    accountId: string,
+    input: ExportProjectWallSnapshotInput,
+  ) => Promise<ProjectWallSnapshotOutput>;
   get: (
     accountId: string,
     projectId: string,
@@ -635,6 +851,10 @@ export interface ProjectWallAccess {
     accountId: string,
     input: PreviewProjectWallPersistentRelationInput,
   ) => Promise<ProjectWallRelationPreview>;
+  previewSnapshot: (
+    accountId: string,
+    input: PreviewProjectWallSnapshotInput,
+  ) => Promise<ProjectWallSnapshotPreview>;
   removeCard: (
     accountId: string,
     input: RemoveProjectWallCardInput,
@@ -659,6 +879,10 @@ export interface ProjectWallAccess {
     accountId: string,
     input: SetProjectWallCardLockInput,
   ) => Promise<ProjectWallView>;
+  setFocusOrder: (
+    accountId: string,
+    input: SetProjectWallFocusOrderInput,
+  ) => Promise<ProjectWallView>;
   setGroupCollapsed: (
     accountId: string,
     input: SetProjectWallGroupCollapsedInput,
@@ -677,6 +901,19 @@ export interface ProjectWallAccess {
 export interface ProjectWallRelationPreview {
   linkId: string;
   relation: RelationPreview;
+}
+
+/** Read-only diagram seam of the Technical Diagrams feature; no write method. */
+export interface ProjectWallDiagrams {
+  get: TechnicalDiagramsAccess["get"];
+  list: TechnicalDiagramsAccess["list"];
+  listViews: TechnicalDiagramsAccess["listViews"];
+}
+
+/** Read-only seam of the Smart Collections feature; membership stays there. */
+export interface ProjectWallCollections {
+  getView: SmartCollectionsAccess["getView"];
+  listViews: SmartCollectionsAccess["listViews"];
 }
 
 /** The only part of the relations seam a wall uses. */

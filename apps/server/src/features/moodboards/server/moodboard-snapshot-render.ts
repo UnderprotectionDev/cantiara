@@ -106,8 +106,12 @@ export class SnapshotRendererBusyError extends Error {
 
 let activeRenders = 0;
 
-async function withPage<TResult>(
-  pages: readonly SnapshotRenderPage[],
+/**
+ * Runs one static HTML document in a script-less, network-less Chromium page.
+ * Shared by every internal PNG/PDF snapshot (Moodboard, Project Wall).
+ */
+export async function withSnapshotHtmlPage<TResult>(
+  html: string,
   use: (page: Page) => Promise<TResult>,
 ) {
   if (activeRenders >= 2) {
@@ -129,9 +133,7 @@ async function withPage<TResult>(
     );
     const page = await context.newPage();
     page.setDefaultTimeout(30_000);
-    await page.setContent(snapshotDocumentHtml(pages), {
-      waitUntil: "load",
-    });
+    await page.setContent(html, { waitUntil: "load" });
     return await use(page);
   } finally {
     try {
@@ -145,7 +147,7 @@ async function withPage<TResult>(
 /** Playwright Chromium renderer, following the Documents PDF boundary. */
 export const playwrightSnapshotRenderer: SnapshotRenderer = {
   pdf: (pages) =>
-    withPage(pages, async (page) =>
+    withSnapshotHtmlPage(snapshotDocumentHtml(pages), async (page) =>
       page.pdf({
         height: "793px",
         printBackground: true,
@@ -153,7 +155,7 @@ export const playwrightSnapshotRenderer: SnapshotRenderer = {
       }),
     ),
   png: (pages) =>
-    withPage(pages, (page) => {
+    withSnapshotHtmlPage(snapshotDocumentHtml(pages), (page) => {
       const sections = page.locator("section.page");
       return Promise.all(
         pages.map((_, index) =>

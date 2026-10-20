@@ -84,6 +84,7 @@ import { createDatabaseProjectShell } from "./features/project-shell/server/proj
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
 import { createDatabaseProjectWall } from "./features/project-wall/server/project-wall-database";
+import { playwrightProjectWallSnapshotRenderer } from "./features/project-wall/server/project-wall-snapshot-render";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
 import { createDatabaseRecordTable } from "./features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "./features/record-discovery/server/universal-search-database";
@@ -226,7 +227,11 @@ export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
-export const projectWall = createDatabaseProjectWall(db, relations);
+export const projectWall = createDatabaseProjectWall(db, relations, {
+  collections: smartCollections,
+  diagrams: technicalDiagrams,
+  renderer: playwrightProjectWallSnapshotRenderer,
+});
 export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
   createDatabaseUsageLinkMutationContracts(db);

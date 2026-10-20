@@ -1,13 +1,21 @@
 // biome-ignore-all lint/suspicious/useAwait: Store seam methods are async; the memory store resolves synchronously.
 import type {
+  ProjectWallCollections,
+  ProjectWallDiagrams,
   ProjectWallItemRecord,
   ProjectWallRecord,
+  ProjectWallRecordSourceType,
   ProjectWallRelations,
   ProjectWallSourceLookup,
-  ProjectWallSourceType,
   ProjectWallStore,
 } from "@cantiara/api/project-wall";
-import { recordLookupKey } from "@cantiara/api/user-flow";
+import { projectWallLookupKey } from "@cantiara/api/project-wall";
+import type {
+  ProjectWallSnapshotData,
+  ProjectWallSnapshotRenderer,
+} from "@cantiara/api/project-wall-presentation";
+import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 
 import { ProjectWallProjectReadOnlyError } from "./project-wall";
 
@@ -16,7 +24,7 @@ export interface FakeSourceRecord {
   id: string;
   ownerAccountId: string;
   projectId: string;
-  sourceType: ProjectWallSourceType;
+  sourceType: ProjectWallRecordSourceType;
   status: string | null;
   title: string;
   trashed?: boolean;
@@ -40,7 +48,7 @@ export function createFakeProjectWallStore(input: {
 }) {
   const sources = new Map(
     input.sources.map((source) => [
-      recordLookupKey(source.sourceType, source.id),
+      projectWallLookupKey(source.sourceType, source.id),
       structuredClone(source),
     ]),
   );
@@ -82,6 +90,7 @@ export function createFakeProjectWallStore(input: {
       }
       const added: ProjectWallItemRecord = {
         density: card.density,
+        diagramViewId: card.diagramViewId,
         groupId: null,
         highlight: null,
         id: card.id,
@@ -186,6 +195,7 @@ export function createFakeProjectWallStore(input: {
       const stamp = tick();
       const created: ProjectWallRecord = {
         createdAt: stamp,
+        focusOrder: [],
         groups: [],
         id: wall.id,
         items: [],
@@ -250,7 +260,7 @@ export function createFakeProjectWallStore(input: {
     async lookupSources(accountId, refs) {
       const lookups = new Map<string, ProjectWallSourceLookup>();
       for (const { id, sourceType } of refs) {
-        const key = recordLookupKey(sourceType, id);
+        const key = projectWallLookupKey(sourceType, id);
         const source = sources.get(key);
         if (!source) {
           continue;
@@ -293,6 +303,7 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       wall.items = wall.items.filter(({ id }) => id !== card.cardId);
+      wall.focusOrder = wall.focusOrder.filter((id) => id !== card.cardId);
       wall.links = wall.links.filter(
         ({ fromCardId, toCardId }) =>
           fromCardId !== card.cardId && toCardId !== card.cardId,
@@ -323,6 +334,15 @@ export function createFakeProjectWallStore(input: {
       return true;
     },
 
+    async setFocusOrder(accountId, change) {
+      const wall = ownedWall(accountId, change.projectId, change.wallId);
+      if (!wall) {
+        return false;
+      }
+      wall.focusOrder = [...change.cardIds];
+      return true;
+    },
+
     async setCardHighlight(accountId, change) {
       const card = item(
         ownedWall(accountId, change.projectId, change.wallId) ?? {
@@ -342,25 +362,29 @@ export function createFakeProjectWallStore(input: {
     /** A deep snapshot of every master record, to prove a wall change left it untouched. */
     sourceSnapshot: () => structuredClone([...sources.values()]),
     /** Master-record edit by the owning feature, e.g. renaming a Work. */
-    editSource(sourceType: ProjectWallSourceType, id: string, title: string) {
-      const source = sources.get(recordLookupKey(sourceType, id));
+    editSource(
+      sourceType: ProjectWallRecordSourceType,
+      id: string,
+      title: string,
+    ) {
+      const source = sources.get(projectWallLookupKey(sourceType, id));
       if (source) {
         source.title = title;
       }
     },
     /** Source lifecycle by the owning feature: archive or trash a record. */
     setSourceLifecycle(
-      sourceType: ProjectWallSourceType,
+      sourceType: ProjectWallRecordSourceType,
       id: string,
       lifecycle: { archived?: boolean; trashed?: boolean },
     ) {
-      const source = sources.get(recordLookupKey(sourceType, id));
+      const source = sources.get(projectWallLookupKey(sourceType, id));
       if (source) {
         Object.assign(source, lifecycle);
       }
     },
-    removeSource(sourceType: ProjectWallSourceType, id: string) {
-      sources.delete(recordLookupKey(sourceType, id));
+    removeSource(sourceType: ProjectWallRecordSourceType, id: string) {
+      sources.delete(projectWallLookupKey(sourceType, id));
     },
     store,
     wallRows: () => structuredClone([...walls.values()]),
@@ -428,4 +452,171 @@ export function createFakeProjectWallRelations() {
     },
   };
   return { calls, relations, rows: () => structuredClone(rows) };
+}
+
+export interface FakeDiagram {
+  id: string;
+  model: TechnicalDiagramSource["model"];
+  ownerAccountId: string;
+  projectId: string;
+  title: string;
+  views: Array<{ id: string; name: string; selectedNodeIds: string[] }>;
+}
+
+/**
+ * Read-only stand-in for the Technical Diagrams feature. It exposes exactly
+ * the read methods the wall may hold; `rename` is the owning feature's edit.
+ */
+export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
+  const diagrams = new Map(input.map((diagram) => [diagram.id, diagram]));
+  function source(
+    accountId: string,
+    diagram: FakeDiagram | undefined,
+    view: FakeDiagram["views"][number] | null,
+  ): TechnicalDiagramSource | null {
+    if (!diagram || diagram.ownerAccountId !== accountId) {
+      return null;
+    }
+    return {
+      authorityMode: "Product-authored Model",
+      id: diagram.id,
+      model: structuredClone(diagram.model),
+      projectId: diagram.projectId,
+      title: diagram.title,
+      type: "Technical Architecture",
+      view: view ? structuredClone(view) : null,
+    };
+  }
+  const access: ProjectWallDiagrams = {
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async get(accountId, diagramId, viewId) {
+      const diagram = diagrams.get(diagramId);
+      const view = viewId
+        ? (diagram?.views.find(({ id }) => id === viewId) ?? null)
+        : (diagram?.views.find(({ name }) => name === "Default") ?? null);
+      if (viewId && !view) {
+        return null;
+      }
+      return source(accountId, diagram, view);
+    },
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async list(accountId, projectId) {
+      return [...diagrams.values()]
+        .filter((diagram) => diagram.projectId === projectId)
+        .flatMap((diagram) => source(accountId, diagram, null) ?? []);
+    },
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async listViews(accountId, diagramId) {
+      const diagram = diagrams.get(diagramId);
+      return diagram?.ownerAccountId === accountId
+        ? structuredClone(diagram.views)
+        : null;
+    },
+  };
+  return {
+    access,
+    rename(id: string, title: string) {
+      const diagram = diagrams.get(id);
+      if (diagram) {
+        diagram.title = title;
+      }
+    },
+    snapshot: () => structuredClone([...diagrams.values()]),
+  };
+}
+
+export interface FakeCollection {
+  id: string;
+  name: string;
+  ownerAccountId: string;
+  projectId: string;
+  works: Array<{ id: string; key: string; status: string; title: string }>;
+}
+
+/**
+ * Read-only stand-in for the Smart Collections feature. Membership lives
+ * here; `calls` records every `getView` so a test can prove the wall asks the
+ * collection and runs no query of its own.
+ */
+export function createFakeProjectWallCollections(input: FakeCollection[]) {
+  const collections = new Map(
+    input.map((collection) => [collection.id, structuredClone(collection)]),
+  );
+  const calls: Array<{ readOnly: boolean; viewId: string }> = [];
+  function view(collection: FakeCollection): SmartCollectionViewSource {
+    return {
+      collectionId: collection.id,
+      collectionName: collection.name,
+      conditions: [],
+      documents: [],
+      id: collection.id,
+      isSubscribed: false,
+      name: collection.name,
+      notifyOnLeave: false,
+      presentation: "List",
+      projectId: collection.projectId,
+      projectSourceRecords: [],
+      scope: { projectIds: [collection.projectId] },
+      sourceType: "Work",
+      workspaceId: "workspace-1",
+      works: collection.works.map((work) => ({
+        createdAt: "2026-01-01T00:00:00.000Z",
+        effort: null,
+        id: work.id,
+        key: work.key,
+        membershipReasons: [],
+        projectId: collection.projectId,
+        status: work.status,
+        statusChangedAt: "2026-01-01T00:00:00.000Z",
+        title: work.title,
+        type: "Task",
+      })),
+    } as unknown as SmartCollectionViewSource;
+  }
+  const access: ProjectWallCollections = {
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async getView(accountId, viewId, options) {
+      calls.push({ readOnly: options?.readOnly === true, viewId });
+      const collection = collections.get(viewId);
+      return collection?.ownerAccountId === accountId ? view(collection) : null;
+    },
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async listViews(accountId, projectId) {
+      return [...collections.values()]
+        .filter(
+          (collection) =>
+            collection.projectId === projectId &&
+            collection.ownerAccountId === accountId,
+        )
+        .map(view);
+    },
+  };
+  return {
+    access,
+    calls,
+    removeWork(viewId: string, workId: string) {
+      const collection = collections.get(viewId);
+      if (collection) {
+        collection.works = collection.works.filter(({ id }) => id !== workId);
+      }
+    },
+  };
+}
+
+/** Records what the renderer was asked to freeze; returns fixed bytes. */
+export function createFakeSnapshotRenderer() {
+  const rendered: ProjectWallSnapshotData[] = [];
+  const renderer: ProjectWallSnapshotRenderer = {
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async pdf(data) {
+      rendered.push(structuredClone(data));
+      return new TextEncoder().encode("%PDF fake");
+    },
+    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async png(data) {
+      rendered.push(structuredClone(data));
+      return new Uint8Array([137, 80, 78, 71]);
+    },
+  };
+  return { rendered, renderer };
 }

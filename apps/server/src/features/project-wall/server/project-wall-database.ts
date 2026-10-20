@@ -1,24 +1,29 @@
-import type {
-  ProjectWallAccess,
-  ProjectWallDensity,
-  ProjectWallFieldName,
-  ProjectWallGroupRecord,
-  ProjectWallHighlight,
-  ProjectWallItemRecord,
-  ProjectWallLinkRecord,
-  ProjectWallRecord,
-  ProjectWallRelations,
-  ProjectWallSourceLookup,
-  ProjectWallSourceType,
-  ProjectWallStore,
+import {
+  type ProjectWallAccess,
+  type ProjectWallCollections,
+  type ProjectWallDensity,
+  type ProjectWallDiagrams,
+  type ProjectWallFieldName,
+  type ProjectWallGroupRecord,
+  type ProjectWallHighlight,
+  type ProjectWallItemRecord,
+  type ProjectWallLinkRecord,
+  type ProjectWallRecord,
+  type ProjectWallRecordSourceType,
+  type ProjectWallRelations,
+  type ProjectWallSourceLookup,
+  type ProjectWallSourceType,
+  type ProjectWallStore,
+  projectWallLookupKey,
 } from "@cantiara/api/project-wall";
-import { recordLookupKey } from "@cantiara/api/user-flow";
+import type { ProjectWallSnapshotRenderer } from "@cantiara/api/project-wall-presentation";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { project } from "@cantiara/db/schema/project";
 import {
   projectWall,
+  projectWallFocusStep,
   projectWallGroup,
   projectWallItem,
   projectWallLink,
@@ -102,6 +107,7 @@ type WallRow = typeof projectWall.$inferSelect;
 function toItem(row: ItemRow): ProjectWallItemRecord {
   return {
     density: row.density as ProjectWallDensity,
+    diagramViewId: row.diagramViewId,
     groupId: row.groupId,
     highlight: row.highlight as ProjectWallHighlight | null,
     id: row.id,
@@ -134,9 +140,11 @@ function toRecord(
   items: ItemRow[],
   groups: GroupRow[] = [],
   links: LinkRow[] = [],
+  focusOrder: string[] = [],
 ): ProjectWallRecord {
   return {
     createdAt: row.createdAt.toISOString(),
+    focusOrder,
     groups: groups.map(toGroup),
     id: row.id,
     items: items.map(toItem),
@@ -164,7 +172,7 @@ interface SourceRow {
  */
 async function readSourceRows(
   database: Database,
-  sourceType: ProjectWallSourceType,
+  sourceType: ProjectWallRecordSourceType,
   ids: string[],
 ): Promise<SourceRow[]> {
   switch (sourceType) {
@@ -267,6 +275,7 @@ export function createDatabaseProjectWallStore(
           .insert(projectWallItem)
           .values({
             density: input.density,
+            diagramViewId: input.diagramViewId,
             id: input.id,
             placedAt: new Date(input.placedAt),
             positionX: input.position.x,
@@ -442,6 +451,47 @@ export function createDatabaseProjectWallStore(
       });
     },
 
+    async setFocusOrder(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // View metadata only: the steps are references to this wall's cards.
+        await tx
+          .delete(projectWallFocusStep)
+          .where(eq(projectWallFocusStep.wallId, input.wallId));
+        if (input.cardIds.length > 0) {
+          const known = await tx
+            .select({ id: projectWallItem.id })
+            .from(projectWallItem)
+            .where(
+              and(
+                eq(projectWallItem.wallId, input.wallId),
+                inArray(projectWallItem.id, input.cardIds),
+              ),
+            );
+          if (known.length !== input.cardIds.length) {
+            return false;
+          }
+          await tx.insert(projectWallFocusStep).values(
+            input.cardIds.map((itemId, position) => ({
+              itemId,
+              position,
+              wallId: input.wallId,
+            })),
+          );
+        }
+        return true;
+      });
+    },
+
     async setCardLocked(accountId, input) {
       return await database.transaction(async (tx) => {
         if (
@@ -539,7 +589,7 @@ export function createDatabaseProjectWallStore(
         .from(projectWallItem)
         .where(eq(projectWallItem.wallId, wallId))
         .orderBy(asc(projectWallItem.placedAt), asc(projectWallItem.id));
-      const [groups, links] = await Promise.all([
+      const [groups, links, steps] = await Promise.all([
         database
           .select()
           .from(projectWallGroup)
@@ -550,8 +600,19 @@ export function createDatabaseProjectWallStore(
           .from(projectWallLink)
           .where(eq(projectWallLink.wallId, wallId))
           .orderBy(asc(projectWallLink.createdAt), asc(projectWallLink.id)),
+        database
+          .select({ itemId: projectWallFocusStep.itemId })
+          .from(projectWallFocusStep)
+          .where(eq(projectWallFocusStep.wallId, wallId))
+          .orderBy(asc(projectWallFocusStep.position)),
       ]);
-      return toRecord(wall, items, groups, links);
+      return toRecord(
+        wall,
+        items,
+        groups,
+        links,
+        steps.map(({ itemId }) => itemId),
+      );
     },
 
     async listSourceOptions(accountId, projectId) {
@@ -622,7 +683,7 @@ export function createDatabaseProjectWallStore(
 
     async lookupSources(accountId, refs) {
       const lookups = new Map<string, ProjectWallSourceLookup>();
-      const idsByType = new Map<ProjectWallSourceType, string[]>();
+      const idsByType = new Map<ProjectWallRecordSourceType, string[]>();
       for (const { id, sourceType } of refs) {
         idsByType.set(sourceType, [...(idsByType.get(sourceType) ?? []), id]);
       }
@@ -631,7 +692,7 @@ export function createDatabaseProjectWallStore(
           for (const row of await readSourceRows(database, sourceType, ids)) {
             // A record of another account is "No access": no name, no state.
             lookups.set(
-              recordLookupKey(sourceType, row.id),
+              projectWallLookupKey(sourceType, row.id),
               row.ownerAccountId === accountId
                 ? {
                     archived: row.archived,
@@ -782,8 +843,14 @@ export function createDatabaseProjectWallStore(
 export function createDatabaseProjectWall(
   database: Database,
   relations: ProjectWallRelations,
+  options: {
+    collections?: ProjectWallCollections;
+    diagrams?: ProjectWallDiagrams;
+    renderer?: ProjectWallSnapshotRenderer;
+  } = {},
 ): ProjectWallAccess {
   return createProjectWall(createDatabaseProjectWallStore(database), {
+    ...options,
     relations,
   });
 }

@@ -553,6 +553,7 @@ describe("Project Wall: no freehand drawing or Sketch card", () => {
     expect(Object.keys(view).sort()).toEqual([
       "cards",
       "createdAt",
+      "focusOrder",
       "groups",
       "id",
       "links",
