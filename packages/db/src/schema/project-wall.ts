@@ -13,7 +13,6 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { user } from "./auth";
 import { project } from "./project";
 
 /**
@@ -220,9 +219,7 @@ export interface ProjectWallViewportState {
 export const projectWallViewport = pgTable(
   "project_wall_viewport",
   {
-    accountId: text("account_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    accountId: text("account_id").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     viewport: jsonb("viewport").$type<ProjectWallViewportState>().notNull(),
     wallId: text("wall_id")
