@@ -20,6 +20,7 @@ export * from "./focus-period";
 export * from "./moodboard";
 export * from "./open-question";
 export * from "./personal-reminders";
+export * from "./planned-test";
 export * from "./prioritization-session";
 export * from "./priority-metrics";
 export * from "./production-incident";

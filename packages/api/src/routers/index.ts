@@ -238,6 +238,24 @@ import {
   workReviewLaterInputSchema,
 } from "../personal-reminders";
 import {
+  createPlannedTestCaseInputSchema,
+  createPlannedTestCaseVersionInputSchema,
+  createTestHandoffInputSchema,
+  linkSessionTestInputSchema,
+  linkTestHandoffSessionTestInputSchema,
+  plannedTestCaseProjectInputSchema,
+  plannedTestCaseVersionInputSchema,
+  plannedTestRelationTargetsInputSchema,
+  produceTestHandoffPackageInputSchema,
+  recordSessionTestInputSchema,
+  sessionTestProjectInputSchema,
+  testHandoffContextTargetsInputSchema,
+  testHandoffPackageInputSchema,
+  testHandoffProjectInputSchema,
+  transitionTestHandoffInputSchema,
+  updateTestHandoffInputSchema,
+} from "../planned-tests";
+import {
   closePrioritizationSessionInputSchema,
   closePrioritizationSessionMutationInputSchema,
   createPrioritizationSessionInputSchema,
@@ -1072,6 +1090,13 @@ function requireScreens(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.screens;
+}
+
+function requirePlannedTests(context: Context) {
+  if (!context.plannedTests) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.plannedTests;
 }
 
 function requireSpecChangeReview(context: Context) {
@@ -2947,6 +2972,113 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
       });
     }
     throw error;
+  }
+}
+
+interface PlannedTestFailure {
+  /** `null` passes the error's own message, which names a section and kind only, never a value. */
+  message: string | null;
+  status: "BAD_REQUEST" | "NOT_FOUND" | "PRECONDITION_FAILED";
+}
+
+const PLANNED_TEST_FAILURES: Record<string, PlannedTestFailure> = {
+  PLANNED_TEST_CASE_NOT_FOUND: {
+    message: "Planned Test Case is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PLANNED_TEST_NO_CHANGE: {
+    message:
+      "Nothing changed. Change the Planned Test Case before saving a new version.",
+    status: "BAD_REQUEST",
+  },
+  PLANNED_TEST_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  PLANNED_TEST_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  PLANNED_TEST_RELATION_TARGET_UNAVAILABLE: {
+    message:
+      "A relation target is not an existing, active record of this Project.",
+    status: "BAD_REQUEST",
+  },
+  PLANNED_TEST_VERSION_CONFLICT: {
+    message:
+      "Planned Test Case changed since it was loaded. Reload and try again.",
+    status: "PRECONDITION_FAILED",
+  },
+  PLANNED_TEST_VERSION_NOT_FOUND: {
+    message: "Planned Test Case version is unavailable.",
+    status: "NOT_FOUND",
+  },
+  SESSION_TEST_ALREADY_BOUND: {
+    message:
+      "This Session Test is already bound to a Planned Test Case version. A bind does not move.",
+    status: "BAD_REQUEST",
+  },
+  SESSION_TEST_ALREADY_IN_HANDOFF: {
+    message: "This Session Test already arrived on a Test Handoff.",
+    status: "BAD_REQUEST",
+  },
+  SESSION_TEST_NOT_FOUND: {
+    message: "Session Test is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_HANDOFF_LOCKED: {
+    message:
+      "A shared Test Handoff is history. Open a new Test Handoff instead of rewriting it.",
+    status: "BAD_REQUEST",
+  },
+  TEST_HANDOFF_NOT_FOUND: {
+    message: "Test Handoff is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_HANDOFF_PACKAGE_BLOCKED: { message: null, status: "BAD_REQUEST" },
+  TEST_HANDOFF_PACKAGE_STALE: {
+    message: "The package changed since the preview. Preview it again.",
+    status: "PRECONDITION_FAILED",
+  },
+  TEST_HANDOFF_PACKAGE_STATE: { message: null, status: "BAD_REQUEST" },
+  TEST_HANDOFF_SCOPE_MISMATCH: {
+    message:
+      "This Session Test is bound to a Planned Test Case version the Test Handoff did not select.",
+    status: "BAD_REQUEST",
+  },
+  TEST_HANDOFF_STATE_CONFLICT: {
+    message: "Test Handoff changed since it was loaded. Reload and try again.",
+    status: "PRECONDITION_FAILED",
+  },
+  TEST_HANDOFF_TRANSITION_NOT_ALLOWED: {
+    message: "A Test Handoff cannot move to that state from here.",
+    status: "BAD_REQUEST",
+  },
+};
+
+async function runPlannedTestOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(PLANNED_TEST_FAILURES, error.code)
+      ? PLANNED_TEST_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Package refused."),
+    });
   }
 }
 
@@ -5455,6 +5587,167 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  projectPlannedTestCases: protectedProcedure
+    .input(plannedTestCaseProjectInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createPlannedTestCase: protectedProcedure
+    .input(createPlannedTestCaseInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).create(context.session.user.id, input),
+      ),
+    ),
+  createPlannedTestCaseVersion: protectedProcedure
+    .input(createPlannedTestCaseVersionInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).createVersion(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectSessionTests: protectedProcedure
+    .input(sessionTestProjectInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).sessionTests(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  recordSessionTest: protectedProcedure
+    .input(recordSessionTestInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).recordSessionTest(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkSessionTest: protectedProcedure
+    .input(linkSessionTestInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).linkSessionTest(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestHandoffs: protectedProcedure
+    .input(testHandoffProjectInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).handoffs(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createTestHandoff: protectedProcedure
+    .input(createTestHandoffInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).createHandoff(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateTestHandoff: protectedProcedure
+    .input(updateTestHandoffInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).updateHandoff(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  transitionTestHandoff: protectedProcedure
+    .input(transitionTestHandoffInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).transitionHandoff(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkTestHandoffSessionTest: protectedProcedure
+    .input(linkTestHandoffSessionTestInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).linkHandoffSessionTest(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewTestHandoffPackage: protectedProcedure
+    .input(testHandoffPackageInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).previewPackage(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  produceTestHandoffPackage: protectedProcedure
+    .input(produceTestHandoffPackageInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).producePackage(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestHandoffPackages: protectedProcedure
+    .input(testHandoffPackageInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).packages(context.session.user.id, input),
+      ),
+    ),
+  testHandoffContextTargets: protectedProcedure
+    .input(testHandoffContextTargetsInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).contextTargets(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  plannedTestCaseVersion: protectedProcedure
+    .input(plannedTestCaseVersionInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).version(context.session.user.id, input),
+      ),
+    ),
+  plannedTestRelationTargets: protectedProcedure
+    .input(plannedTestRelationTargetsInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).relationTargets(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   projectScreens: protectedProcedure

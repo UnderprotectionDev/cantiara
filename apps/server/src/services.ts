@@ -69,6 +69,7 @@ import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
+import { createDatabasePlannedTests } from "./features/planned-tests/server/planned-tests-database";
 import { createPrioritizationSessionsAccess } from "./features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "./features/prioritization-sessions/server/prioritization-sessions-database";
 import { createDatabasePrioritizationSessionMutationContracts } from "./features/prioritization-sessions/server/prioritization-sessions-mutation-database";
@@ -242,6 +243,7 @@ export const tagMutationContracts = createDatabaseTagMutationContracts(
 export const contacts = createDatabaseContacts(db);
 export const feedback = createDatabaseFeedbackWithFeed(db);
 export const screens = createDatabaseScreens(db);
+export const plannedTests = createDatabasePlannedTests(db);
 export const specChangeReview = createSpecChangeReview(
   createDatabaseSpecChangeReviewStore(db),
   documents,
