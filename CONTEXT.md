@@ -1354,6 +1354,11 @@ Bir Test Açığının yalnız kurucunun ilerlettiği aşaması: `Open`, `Planne
 UI: `Open`, `Planned`, `Met by result`, `Not needed`.
 _Avoid_: coverage yüzdesi, kalite skoru, otomatik kapanış, Geçti/Kaldı durumu
 
+**Test Açığı kapanışı**:
+Kurucunun bir Test Açığını açık seçimle `Met by result` veya `Not needed` yapması. `Met by result` kurucunun seçtiği kesin Oturum Testlerini ve isteğe bağlı gerekçeyi taşır; seçimsiz uygulanmaz. `Not needed` gerekçeyi ve varsa ilgili Kararı korur. Kapanış kaydı silmez, kesin ilişkileri ve kararı geçmişte tutar; kapanmış açık yeniden planlanmaz veya yeniden kapatılmaz.
+UI: `Mark as Met by result`, `Mark as Not needed`.
+_Avoid_: coverage yüzdesi, otomatik kapanış, sonuç geldi diye kapatma, silme
+
 **Test değerlendirmesi**:
 Kullanıcının belirli bir bağlamdaki kesin test kayıtlarını belirli bir anda nasıl yorumladığını koruyan tarihsel snapshot; sonraki sonuçlarla güncellenen kalite skoru veya yayın kapısı değildir.
 _Avoid_: Ürün kabul kanıtı, canlı test özeti, otomatik readiness kararı

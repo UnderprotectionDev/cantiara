@@ -1,15 +1,22 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Controls bind to the form fields.
 import type {
   PlannedTestCaseRecord,
+  SessionTestRecord,
   TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
-import { TEST_GAP_LABEL, type TestGapRecord } from "@cantiara/api/test-gaps";
+import {
+  TEST_GAP_LABEL,
+  type TestGapDecisionTarget,
+  type TestGapRecord,
+} from "@cantiara/api/test-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import {
+  type CloseFormValues,
+  EMPTY_CLOSE_FORM,
   EMPTY_GAP_FORM,
   errorText,
   type GapFormValues,
@@ -21,6 +28,12 @@ import {
 } from "./test-gap-relations-field";
 
 export type SubmitGap = (values: GapFormValues) => Promise<unknown>;
+
+export type CloseGap = (
+  gap: TestGapRecord,
+  values: CloseFormValues,
+) => Promise<unknown>;
+export type LoadDecisions = () => Promise<TestGapDecisionTarget[]>;
 
 export interface CaseVersionRef {
   caseId: string;
@@ -310,24 +323,241 @@ function PlanningControls({
   );
 }
 
+/**
+ * Closing is the founder's explicit decision. `Met by result` is only possible
+ * with the Session Tests the founder ticks; `Not needed` needs a rationale.
+ * Nothing here is derived from a result count, so no figure can close a Gap.
+ */
+function CloseForm({
+  loadDecisions,
+  onClose,
+  record,
+  sessionTests,
+}: {
+  loadDecisions: LoadDecisions;
+  onClose: CloseGap;
+  record: TestGapRecord;
+  sessionTests: SessionTestRecord[];
+}) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const [values, setValues] = useState<CloseFormValues>(EMPTY_CLOSE_FORM);
+  const [decisions, setDecisions] = useState<TestGapDecisionTarget[]>([]);
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState(false);
+  const met = values.outcome === "Met by result";
+  useEffect(() => {
+    if (open) {
+      loadDecisions()
+        .then(setDecisions)
+        .catch(() => setDecisions([]));
+    }
+  }, [open, loadDecisions]);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(undefined);
+    setPending(true);
+    try {
+      await onClose(record, values);
+      setOpen(false);
+      setValues(EMPTY_CLOSE_FORM);
+    } catch (caught) {
+      setError(errorText(caught, `${TEST_GAP_LABEL} was not closed.`));
+    } finally {
+      setPending(false);
+    }
+  }
+  if (!open) {
+    return (
+      <Button
+        aria-label={`Close ${record.title}`}
+        onClick={() => setOpen(true)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        Close Test Gap
+      </Button>
+    );
+  }
+  return (
+    <form
+      aria-label={`Close ${record.title}`}
+      className="space-y-3 rounded-md border border-border/70 p-3 text-sm"
+      onSubmit={submit}
+    >
+      {error ? (
+        <p className="text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <fieldset className="space-y-1">
+        <legend>Close as</legend>
+        {(["Met by result", "Not needed"] as const).map((outcome) => (
+          <label
+            className="flex items-center gap-2"
+            htmlFor={`${id}-${outcome}`}
+            key={outcome}
+          >
+            <input
+              checked={values.outcome === outcome}
+              disabled={pending}
+              id={`${id}-${outcome}`}
+              name={`${id}-outcome`}
+              onChange={() => setValues({ ...values, outcome })}
+              type="radio"
+              value={outcome}
+            />
+            {outcome}
+          </label>
+        ))}
+      </fieldset>
+      {met ? (
+        <fieldset className="space-y-1">
+          <legend>Session Tests that meet this Test Gap</legend>
+          {sessionTests.length === 0 ? (
+            <p className="text-muted-foreground">
+              This Project has no Session Tests to select yet.
+            </p>
+          ) : (
+            sessionTests.map((item) => (
+              <label
+                className="flex items-center gap-2"
+                htmlFor={`${id}-st-${item.id}`}
+                key={item.id}
+              >
+                <input
+                  checked={values.sessionTestIds.includes(item.id)}
+                  disabled={pending}
+                  id={`${id}-st-${item.id}`}
+                  onChange={(event) =>
+                    setValues({
+                      ...values,
+                      sessionTestIds: event.target.checked
+                        ? [...values.sessionTestIds, item.id]
+                        : values.sessionTestIds.filter(
+                            (selected) => selected !== item.id,
+                          ),
+                    })
+                  }
+                  type="checkbox"
+                />
+                {item.title}
+              </label>
+            ))
+          )}
+        </fieldset>
+      ) : (
+        <div className="grid gap-1">
+          <label htmlFor={`${id}-decision`}>Decision (optional)</label>
+          <NativeSelect
+            disabled={pending}
+            id={`${id}-decision`}
+            onChange={(event) =>
+              setValues({ ...values, decisionId: event.target.value })
+            }
+            value={values.decisionId}
+          >
+            <option value="">No Decision</option>
+            {decisions.map((item) => (
+              <option key={item.targetId} value={item.targetId}>
+                {item.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      )}
+      <div className="grid gap-1">
+        <label htmlFor={`${id}-rationale`}>
+          {met ? "Rationale (optional)" : "Rationale"}
+        </label>
+        <Textarea
+          disabled={pending}
+          id={`${id}-rationale`}
+          onChange={(event) =>
+            setValues({ ...values, rationale: event.target.value })
+          }
+          required={!met}
+          rows={3}
+          value={values.rationale}
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={pending || (met && values.sessionTestIds.length === 0)}
+          type="submit"
+        >
+          {`Mark as ${values.outcome}`}
+        </Button>
+        <Button
+          disabled={pending}
+          onClick={() => setOpen(false)}
+          type="button"
+          variant="outline"
+        >
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ClosureDetails({ record }: { record: TestGapRecord }) {
+  const { closure } = record;
+  if (!closure) {
+    return null;
+  }
+  return (
+    <div>
+      <dt className="font-medium">Closure</dt>
+      <dd className="space-y-1">
+        <p>{closure.outcome}</p>
+        {closure.rationale ? (
+          <p className="whitespace-pre-wrap">{closure.rationale}</p>
+        ) : null}
+        {closure.sessionTests.length > 0 ? (
+          <ul aria-label="Session Tests that met this Test Gap">
+            {closure.sessionTests.map((item) => (
+              <li key={item.id}>{`Session Test: ${item.title}`}</li>
+            ))}
+          </ul>
+        ) : null}
+        {closure.decision ? (
+          <p>
+            {closure.decision.state === "resolved"
+              ? `Decision: ${closure.decision.label}`
+              : `Decision: unavailable (${closure.decision.brokenReason ?? "No access"})`}
+          </p>
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
 function GapItem({
   cases,
   handoffs,
+  loadDecisions,
+  onClose,
   onPlanCase,
   onPlanHandoff,
   onUnplanCase,
   onUnplanHandoff,
   readOnly,
   record,
+  sessionTests,
 }: {
   cases: PlannedTestCaseRecord[];
   handoffs: TestHandoffRecord[];
+  loadDecisions: LoadDecisions;
+  onClose: CloseGap;
   onPlanCase: PlanWithCase;
   onPlanHandoff: PlanWithHandoff;
   onUnplanCase: PlanWithCase;
   onUnplanHandoff: PlanWithHandoff;
   readOnly: boolean;
   record: TestGapRecord;
+  sessionTests: SessionTestRecord[];
 }) {
   return (
     <li className="space-y-2 rounded-lg border border-border/70 p-4">
@@ -366,12 +596,21 @@ function GapItem({
               onPlanHandoff={onPlanHandoff}
               onUnplanCase={onUnplanCase}
               onUnplanHandoff={onUnplanHandoff}
-              readOnly={readOnly}
+              readOnly={readOnly || record.closure !== null}
               record={record}
             />
           </dd>
         </div>
+        <ClosureDetails record={record} />
       </dl>
+      {readOnly || record.closure ? null : (
+        <CloseForm
+          loadDecisions={loadDecisions}
+          onClose={onClose}
+          record={record}
+          sessionTests={sessionTests}
+        />
+      )}
     </li>
   );
 }
@@ -385,24 +624,30 @@ export function TestGapsView({
   cases,
   gaps,
   handoffs,
+  loadDecisions,
   loadTargets,
+  onClose,
   onCreate,
   onPlanCase,
   onPlanHandoff,
   onUnplanCase,
   onUnplanHandoff,
   readOnly,
+  sessionTests,
 }: {
   cases: PlannedTestCaseRecord[];
   gaps: TestGapRecord[];
   handoffs: TestHandoffRecord[];
+  loadDecisions: LoadDecisions;
   loadTargets: LoadGapRelationTargets;
+  onClose: CloseGap;
   onCreate: SubmitGap;
   onPlanCase: PlanWithCase;
   onPlanHandoff: PlanWithHandoff;
   onUnplanCase: PlanWithCase;
   onUnplanHandoff: PlanWithHandoff;
   readOnly: boolean;
+  sessionTests: SessionTestRecord[];
 }) {
   return (
     <section aria-labelledby="test-gaps-heading" className="space-y-4">
@@ -425,12 +670,15 @@ export function TestGapsView({
               cases={cases}
               handoffs={handoffs}
               key={record.id}
+              loadDecisions={loadDecisions}
+              onClose={onClose}
               onPlanCase={onPlanCase}
               onPlanHandoff={onPlanHandoff}
               onUnplanCase={onUnplanCase}
               onUnplanHandoff={onUnplanHandoff}
               readOnly={readOnly}
               record={record}
+              sessionTests={sessionTests}
             />
           ))}
         </ul>

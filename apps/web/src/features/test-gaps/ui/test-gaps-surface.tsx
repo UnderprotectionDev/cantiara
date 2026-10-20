@@ -1,5 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project.
-import type { TestGapRelationTargetType } from "@cantiara/api/test-gaps";
+import type {
+  TestGapRecord,
+  TestGapRelationTargetType,
+} from "@cantiara/api/test-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
@@ -7,6 +10,11 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import { toRelationInputs } from "../lib/test-gap-form";
 import { TestGapsView } from "./test-gaps-view";
+
+/** The state the founder saw when closing; only a planning state can be closed. */
+function planningState(gap: TestGapRecord): "Open" | "Planned" {
+  return gap.state === "Planned" ? "Planned" : "Open";
+}
 
 /** The Tests area's Test Gap list; it files, plans and closes nothing by itself. */
 export default function TestGapsSurface({ projectId }: { projectId: string }) {
@@ -19,6 +27,13 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
   const handoffs = useQuery(
     orpc.projectTestHandoffs.queryOptions({ input: { projectId } }),
   );
+  const sessionTests = useQuery(
+    orpc.projectSessionTests.queryOptions({ input: { projectId } }),
+  );
+  const loadDecisions = useCallback(
+    () => client.testGapDecisionTargets({ projectId }),
+    [projectId],
+  );
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: options.queryKey });
   const loadTargets = useCallback(
@@ -26,10 +41,15 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
       client.testGapRelationTargets({ projectId, targetType }),
     [projectId],
   );
-  if (gaps.isPending || cases.isPending || handoffs.isPending) {
+  if (
+    gaps.isPending ||
+    cases.isPending ||
+    handoffs.isPending ||
+    sessionTests.isPending
+  ) {
     return <p role="status">Loading Test Gaps…</p>;
   }
-  if (!(gaps.data && cases.data && handoffs.data)) {
+  if (!(gaps.data && cases.data && handoffs.data && sessionTests.data)) {
     return (
       <div className="space-y-3">
         <p role="alert">Test Gaps are unavailable.</p>
@@ -38,6 +58,7 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
             gaps.refetch().catch(() => undefined);
             cases.refetch().catch(() => undefined);
             handoffs.refetch().catch(() => undefined);
+            sessionTests.refetch().catch(() => undefined);
           }}
         >
           Retry
@@ -50,7 +71,35 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
       cases={cases.data.cases}
       gaps={gaps.data.gaps}
       handoffs={handoffs.data.handoffs}
+      loadDecisions={loadDecisions}
       loadTargets={loadTargets}
+      onClose={async (gap, values) => {
+        try {
+          await runOnlineOnlyWrite(() =>
+            client.closeTestGap(
+              values.outcome === "Met by result"
+                ? {
+                    expectedState: planningState(gap),
+                    gapId: gap.id,
+                    outcome: "Met by result",
+                    projectId,
+                    rationale: values.rationale,
+                    sessionTestIds: values.sessionTestIds,
+                  }
+                : {
+                    decisionId: values.decisionId || null,
+                    expectedState: planningState(gap),
+                    gapId: gap.id,
+                    outcome: "Not needed",
+                    projectId,
+                    rationale: values.rationale,
+                  },
+            ),
+          );
+        } finally {
+          await refresh();
+        }
+      }}
       onCreate={async (values) => {
         await runOnlineOnlyWrite(() =>
           client.createTestGap({
@@ -103,6 +152,7 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
         }
       }}
       readOnly={gaps.data.readOnly}
+      sessionTests={sessionTests.data.sessionTests}
     />
   );
 }

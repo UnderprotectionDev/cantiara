@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Each refusal case is asserted in sequence against one store.
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
 import { plannedTestCaseVersion } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
@@ -10,6 +11,7 @@ import {
   testGap,
   testGapCaseBind,
   testGapHandoffBind,
+  testGapMetSessionTest,
   testGapRelation,
 } from "@cantiara/db/schema/test-gap";
 import { work } from "@cantiara/db/schema/work";
@@ -26,10 +28,14 @@ import {
 import { createDatabasePlannedTests } from "../../planned-tests/server/planned-tests-database";
 import {
   TestGapCaseVersionNotFoundError,
+  TestGapClosedError,
+  TestGapDecisionUnavailableError,
   TestGapHandoffNotFoundError,
   TestGapProjectNotFoundError,
   TestGapProjectReadOnlyError,
   TestGapRelationTargetError,
+  TestGapSessionTestNotFoundError,
+  TestGapStateConflictError,
 } from "./test-gaps";
 import { createDatabaseTestGaps } from "./test-gaps-database";
 
@@ -49,6 +55,8 @@ describeDatabase("Test Gaps PostgreSQL integration", () => {
   const archivedProjectId = `project-archived-${suffix}`;
   const siblingProjectId = `project-sibling-${suffix}`;
   const ids = {
+    decision: `decision-${suffix}`,
+    siblingDecision: `sibling-decision-${suffix}`,
     document: `document-${suffix}`,
     feature: `feature-${suffix}`,
     release: `release-${suffix}`,
@@ -137,6 +145,20 @@ describeDatabase("Test Gaps PostgreSQL integration", () => {
       { id: ids.risk, projectId, title: "Double charge" },
       { id: ids.siblingRisk, projectId: siblingProjectId, title: "Sibling" },
     ]);
+    await db.insert(decision).values([
+      {
+        decision: "Skip wallet tests",
+        id: ids.decision,
+        projectId,
+        title: "Skip wallet tests",
+      },
+      {
+        decision: "Sibling",
+        id: ids.siblingDecision,
+        projectId: siblingProjectId,
+        title: "Sibling decision",
+      },
+    ]);
     await db
       .insert(projectRelease)
       .values({ id: ids.release, name: "Release 1.0", projectId });
@@ -213,6 +235,9 @@ describeDatabase("Test Gaps PostgreSQL integration", () => {
       .from(testGap)
       .where(eq(testGap.id, created.id));
     expect(Object.keys(row ?? {}).sort()).toEqual([
+      "closedAt",
+      "closureDecisionId",
+      "closureRationale",
       "createdAt",
       "id",
       "projectId",
@@ -431,6 +456,221 @@ describeDatabase("Test Gaps PostgreSQL integration", () => {
           .from(plannedTestCaseVersion)
           .where(eq(plannedTestCaseVersion.caseId, caseId)),
       ).toHaveLength(2);
+    });
+  });
+
+  describe("closure", () => {
+    const definition = {
+      expectedBehavior: "The coupon applies once.",
+      preconditions: "Signed-in customer.",
+      purpose: "Check coupon stacking.",
+      scope: "Mobile.",
+      title: "Stack coupons",
+    };
+
+    async function stage() {
+      const db = requireDatabase();
+      const planned = createDatabasePlannedTests(db);
+      const access = createDatabaseTestGaps(db);
+      const scenario = await planned.create(accountId, {
+        ...definition,
+        projectId,
+      });
+      const android = await planned.recordSessionTest(accountId, {
+        binding: { caseId: scenario.id, version: 1 },
+        projectId,
+        title: "Stacked coupons on Android",
+      });
+      const ios = await planned.recordSessionTest(accountId, {
+        binding: { caseId: scenario.id, version: 1 },
+        projectId,
+        title: "Stacked coupons on iOS",
+      });
+      const siblingCase = await planned.create(accountId, {
+        ...definition,
+        projectId: siblingProjectId,
+      });
+      const foreign = await planned.recordSessionTest(accountId, {
+        binding: { caseId: siblingCase.id, version: 1 },
+        projectId: siblingProjectId,
+        title: "Sibling try",
+      });
+      const filed = await access.create(accountId, {
+        projectId,
+        rationale: "Never tried on mobile.",
+        title: "Mobile coupon stacking untested",
+      });
+      return { access, android, db, filed, foreign, ios, scenario };
+    }
+
+    test("Met by result stores the selected Session Tests and keeps the Gap", async () => {
+      const { access, android, db, filed, ios, scenario } = await stage();
+      await access.bindCase(accountId, {
+        caseId: scenario.id,
+        gapId: filed.id,
+        projectId,
+        version: 1,
+      });
+
+      const closed = await access.close(accountId, {
+        expectedState: "Planned",
+        gapId: filed.id,
+        outcome: "Met by result",
+        projectId,
+        rationale: "Both platforms stacked.",
+        sessionTestIds: [ios.id, android.id],
+      });
+
+      expect(closed).toMatchObject({
+        caseBinds: [{ caseId: scenario.id, version: 1 }],
+        closure: {
+          decision: null,
+          outcome: "Met by result",
+          rationale: "Both platforms stacked.",
+        },
+        state: "Met by result",
+      });
+      expect(closed.closure?.sessionTests.map(({ id }) => id).sort()).toEqual(
+        [android.id, ios.id].sort(),
+      );
+      expect((await access.list(accountId, projectId)).gaps).toEqual([closed]);
+      expect(
+        await db
+          .select()
+          .from(testGapMetSessionTest)
+          .where(eq(testGapMetSessionTest.gapId, filed.id)),
+      ).toHaveLength(2);
+      expect(
+        await db.select().from(testGap).where(eq(testGap.id, filed.id)),
+      ).toHaveLength(1);
+    });
+
+    test("refuses a Session Test of another Project and writes nothing", async () => {
+      const { access, android, db, filed, foreign } = await stage();
+
+      await expect(
+        access.close(accountId, {
+          expectedState: "Open",
+          gapId: filed.id,
+          outcome: "Met by result",
+          projectId,
+          sessionTestIds: [android.id, foreign.id],
+        }),
+      ).rejects.toBeInstanceOf(TestGapSessionTestNotFoundError);
+      expect((await access.list(accountId, projectId)).gaps[0]).toMatchObject({
+        closure: null,
+        state: "Open",
+      });
+      expect(await db.select().from(testGapMetSessionTest)).toEqual([]);
+    });
+
+    test("Not needed keeps the rationale and a Decision of this Project only", async () => {
+      const { access, filed } = await stage();
+
+      await expect(
+        access.close(accountId, {
+          decisionId: ids.siblingDecision,
+          expectedState: "Open",
+          gapId: filed.id,
+          outcome: "Not needed",
+          projectId,
+          rationale: "Out of scope.",
+        }),
+      ).rejects.toBeInstanceOf(TestGapDecisionUnavailableError);
+      const closed = await access.close(accountId, {
+        decisionId: ids.decision,
+        expectedState: "Open",
+        gapId: filed.id,
+        outcome: "Not needed",
+        projectId,
+        rationale: "Out of scope.",
+      });
+
+      expect(closed).toMatchObject({
+        closure: {
+          decision: {
+            id: ids.decision,
+            label: "Skip wallet tests",
+            state: "resolved",
+          },
+          rationale: "Out of scope.",
+          sessionTests: [],
+        },
+        state: "Not needed",
+      });
+      expect(await access.decisionTargets(accountId, projectId)).toEqual([
+        { label: "Skip wallet tests", targetId: ids.decision },
+      ]);
+    });
+
+    test("a closed Gap is history and a stale view of the state is refused", async () => {
+      const { access, android, filed, scenario } = await stage();
+      await access.bindCase(accountId, {
+        caseId: scenario.id,
+        gapId: filed.id,
+        projectId,
+        version: 1,
+      });
+
+      await expect(
+        access.close(accountId, {
+          expectedState: "Open",
+          gapId: filed.id,
+          outcome: "Met by result",
+          projectId,
+          sessionTestIds: [android.id],
+        }),
+      ).rejects.toBeInstanceOf(TestGapStateConflictError);
+      await access.close(accountId, {
+        expectedState: "Planned",
+        gapId: filed.id,
+        outcome: "Met by result",
+        projectId,
+        sessionTestIds: [android.id],
+      });
+
+      await expect(
+        access.unbindCase(accountId, {
+          caseId: scenario.id,
+          gapId: filed.id,
+          projectId,
+          version: 1,
+        }),
+      ).rejects.toBeInstanceOf(TestGapClosedError);
+      await expect(
+        access.close(accountId, {
+          expectedState: "Planned",
+          gapId: filed.id,
+          outcome: "Not needed",
+          projectId,
+          rationale: "No.",
+        }),
+      ).rejects.toBeInstanceOf(TestGapClosedError);
+    });
+
+    test("a Decision that is removed reads as broken and the closure stays", async () => {
+      const { access, db, filed } = await stage();
+      await access.close(accountId, {
+        decisionId: ids.decision,
+        expectedState: "Open",
+        gapId: filed.id,
+        outcome: "Not needed",
+        projectId,
+        rationale: "Out of scope.",
+      });
+
+      await db.delete(decision).where(eq(decision.id, ids.decision));
+
+      expect(
+        (await access.list(accountId, projectId)).gaps[0]?.closure,
+      ).toMatchObject({
+        decision: {
+          brokenReason: "Permanently deleted",
+          id: ids.decision,
+          state: "broken",
+        },
+        rationale: "Out of scope.",
+      });
     });
   });
 });

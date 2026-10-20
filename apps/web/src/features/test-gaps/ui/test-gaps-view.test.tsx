@@ -3,6 +3,7 @@
 import type {
   PlannedTestCaseRecord,
   PlannedTestCaseVersionRecord,
+  SessionTestRecord,
   TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 import type { TestGapRecord } from "@cantiara/api/test-gaps";
@@ -24,12 +25,13 @@ const FORBIDDEN_WORDS = [
   /product gap/i,
 ];
 
-const CLOSE_ACTIONS = /close|met by result|not needed|resolve|done/i;
+const DELETE_ACTIONS = /\bdelete\b|\bremove (test )?gap\b|\breopen\b|coverage/i;
 
 const timestamp = "2026-10-01T09:00:00.000Z";
 
 const record: TestGapRecord = {
   caseBinds: [],
+  closure: null,
   createdAt: timestamp,
   handoffBinds: [],
   id: "g1",
@@ -91,6 +93,27 @@ const plannedCases: PlannedTestCaseRecord[] = [
   },
 ];
 
+const sessionTestRecords: SessionTestRecord[] = [
+  {
+    bind: null,
+    createdAt: timestamp,
+    expectedBehavior: "Stacked.",
+    id: "st1",
+    projectId: "p1",
+    purpose: "Android",
+    title: "Stacked coupons on Android",
+  },
+  {
+    bind: null,
+    createdAt: timestamp,
+    expectedBehavior: "Stacked.",
+    id: "st2",
+    projectId: "p1",
+    purpose: "iOS",
+    title: "Stacked coupons on iOS",
+  },
+];
+
 const handoffRecords = [
   { id: "h1", state: "Shared", title: "Mobile pass" },
 ] as unknown as TestHandoffRecord[];
@@ -102,6 +125,9 @@ afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
 });
+
+const loadDecisions = () =>
+  Promise.resolve([{ label: "Skip wallet tests", targetId: "d1" }]);
 
 const loadTargets = () =>
   Promise.resolve([
@@ -124,13 +150,16 @@ function mount(props: Partial<Parameters<typeof TestGapsView>[0]> = {}) {
         cases={plannedCases}
         gaps={[]}
         handoffs={handoffRecords}
+        loadDecisions={loadDecisions}
         loadTargets={loadTargets}
+        onClose={vi.fn().mockResolvedValue(undefined)}
         onCreate={vi.fn().mockResolvedValue(undefined)}
         onPlanCase={vi.fn().mockResolvedValue(undefined)}
         onPlanHandoff={vi.fn().mockResolvedValue(undefined)}
         onUnplanCase={vi.fn().mockResolvedValue(undefined)}
         onUnplanHandoff={vi.fn().mockResolvedValue(undefined)}
         readOnly={false}
+        sessionTests={sessionTestRecords}
         {...props}
       />,
     );
@@ -381,11 +410,162 @@ test("an archived Project offers no planning controls", () => {
   );
 });
 
-test("offers no close, met or not-needed action in this surface", () => {
-  mount({ gaps: [{ ...record, state: "Planned" }] });
+function chooseOutcome(outcome: string) {
+  const radio = [...document.querySelectorAll('input[type="radio"]')].find(
+    (item) => (item as HTMLInputElement).value === outcome,
+  ) as HTMLInputElement;
+  act(() => radio.click());
+}
 
-  const buttons = [...document.querySelectorAll("button")].map(
-    (item) => item.textContent,
+function tick(title: string) {
+  const box = [...document.querySelectorAll('input[type="checkbox"]')].find(
+    (item) => item.parentElement?.textContent === title,
+  ) as HTMLInputElement;
+  act(() => box.click());
+}
+
+function type(label: string, value: string) {
+  const form = document.querySelector('form[aria-label^="Close "]');
+  const found = [...(form?.querySelectorAll("label") ?? [])].find(
+    (item) => item.textContent === label,
   );
-  expect(buttons.join(" ")).not.toMatch(CLOSE_ACTIONS);
+  const control = (
+    found?.htmlFor ? document.getElementById(found.htmlFor) : null
+  ) as HTMLTextAreaElement | null;
+  if (!control) {
+    throw new Error(`No ${label} control in the close form`);
+  }
+  act(() => {
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )?.set?.call(control, value);
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function openClose() {
+  await act(async () => {
+    (
+      document.querySelector(
+        'button[aria-label="Close Mobile coupon stacking untested"]',
+      ) as HTMLButtonElement
+    ).click();
+    await Promise.resolve();
+  });
+}
+
+const submitClose = () => submit("Close Mobile coupon stacking untested");
+
+test("Met by result cannot be submitted until Session Tests are selected, then cites exactly those", async () => {
+  const onClose = vi.fn().mockResolvedValue(undefined);
+  mount({ gaps: [record], onClose });
+  await openClose();
+
+  const markButton = () =>
+    [...document.querySelectorAll("button")].find(
+      (item) => item.textContent === "Mark as Met by result",
+    ) as HTMLButtonElement;
+  expect(markButton().disabled).toBe(true);
+  expect(document.body.textContent).toContain(
+    "Session Tests that meet this Test Gap",
+  );
+
+  tick("Stacked coupons on iOS");
+  expect(markButton().disabled).toBe(false);
+  type("Rationale (optional)", "iOS stacked correctly.");
+  await submitClose();
+
+  expect(onClose).toHaveBeenCalledWith(record, {
+    decisionId: "",
+    outcome: "Met by result",
+    rationale: "iOS stacked correctly.",
+    sessionTestIds: ["st2"],
+  });
+});
+
+test("Not needed asks for a rationale and an optional Decision and selects no Session Test", async () => {
+  const onClose = vi.fn().mockResolvedValue(undefined);
+  mount({ gaps: [record], onClose });
+  await openClose();
+
+  chooseOutcome("Not needed");
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(document.body.textContent).not.toContain(
+    "Session Tests that meet this Test Gap",
+  );
+  const decision = labelled("Decision (optional)");
+  act(() => {
+    decision.value = "d1";
+    decision.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  type("Rationale", "Wallet payments are out of scope.");
+  await submitClose();
+
+  expect(onClose).toHaveBeenCalledWith(record, {
+    decisionId: "d1",
+    outcome: "Not needed",
+    rationale: "Wallet payments are out of scope.",
+    sessionTestIds: [],
+  });
+});
+
+test("a refused closure is announced and keeps the form", async () => {
+  mount({
+    gaps: [record],
+    onClose: vi.fn().mockRejectedValue(new Error("Test Gap changed.")),
+  });
+  await openClose();
+  chooseOutcome("Not needed");
+  type("Rationale", "No.");
+  await submitClose();
+
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+    "Test Gap changed.",
+  );
+  expect(document.querySelector('form[aria-label^="Close "]')).not.toBeNull();
+});
+
+test("a closed Gap shows its closure history and offers neither planning nor closing", () => {
+  mount({
+    gaps: [
+      {
+        ...record,
+        caseBinds: [{ caseId: "c1", title: "Stack coupons", version: 1 }],
+        closure: {
+          closedAt: timestamp,
+          decision: {
+            brokenReason: "In Trash",
+            id: "d1",
+            label: null,
+            state: "broken",
+          },
+          outcome: "Not needed",
+          rationale: "Wallet payments are out of scope.",
+          sessionTests: [{ id: "st1", title: "Stacked coupons on Android" }],
+        },
+        state: "Not needed",
+      },
+    ],
+  });
+
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Not needed");
+  expect(text).toContain("Wallet payments are out of scope.");
+  expect(text).toContain("Session Test: Stacked coupons on Android");
+  expect(text).toContain("Decision: unavailable (In Trash)");
+  expect(text).toContain("Planned Test Case: Stack coupons, version 1");
+  expect(text).not.toContain("Link Test Handoff");
+  expect(document.querySelector('button[aria-label^="Close "]')).toBeNull();
+  expect(text).not.toMatch(DELETE_ACTIONS);
+});
+
+test("an archived Project offers no closing and no deleting", () => {
+  mount({ gaps: [record], readOnly: true });
+
+  expect(document.querySelector('button[aria-label^="Close "]')).toBeNull();
+  expect(document.body.textContent).not.toMatch(DELETE_ACTIONS);
 });

@@ -61,3 +61,17 @@ export function toRelationInputs(
       : { targetId: draft.targetId, targetType: draft.targetType },
   );
 }
+
+export interface CloseFormValues {
+  decisionId: string;
+  outcome: "Met by result" | "Not needed";
+  rationale: string;
+  sessionTestIds: string[];
+}
+
+export const EMPTY_CLOSE_FORM: CloseFormValues = {
+  decisionId: "",
+  outcome: "Met by result",
+  rationale: "",
+  sessionTestIds: [],
+};

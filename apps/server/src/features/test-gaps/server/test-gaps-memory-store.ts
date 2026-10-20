@@ -24,7 +24,8 @@ export interface GapCatalogEntry {
   sections?: { id: string; label: string }[];
   state?: CatalogState;
   targetId: string;
-  targetType: TestGapRelationTargetType;
+  /** `Decision` is a closure reference, not a support relation family. */
+  targetType: TestGapRelationTargetType | "Decision";
 }
 
 /**
@@ -49,7 +50,52 @@ export function createGapHarness(
       const entry = catalog.get(key(type, id));
       return entry && entry.projectId === scopeProjectId ? entry : null;
     };
+    const decisionEntry = (id: string) => lookup("Decision", id);
     return {
+      bindDecision: (decisionId) => {
+        const entry = decisionEntry(decisionId);
+        return Promise.resolve(
+          entry && (entry.state ?? "active") === "active" ? entry.label : null,
+        );
+      },
+      decisionCandidates: () =>
+        Promise.resolve(
+          [...catalog.values()]
+            .filter(
+              (entry) =>
+                entry.targetType === "Decision" &&
+                entry.projectId === scopeProjectId &&
+                (entry.state ?? "active") === "active",
+            )
+            .map(({ label, targetId }) => ({ label, targetId })),
+        ),
+      readDecision: (decisionId) => {
+        const entry = decisionEntry(decisionId);
+        const state = entry?.state ?? "active";
+        if (!entry || state === "gone") {
+          return Promise.resolve({
+            reason: "Permanently deleted" as const,
+            state: "broken" as const,
+          });
+        }
+        if (state === "trashed") {
+          return Promise.resolve({
+            reason: "In Trash" as const,
+            state: "broken" as const,
+          });
+        }
+        if (state === "archived") {
+          return Promise.resolve({
+            reason: "Archived" as const,
+            state: "broken" as const,
+          });
+        }
+        return Promise.resolve({
+          label: entry.label,
+          sectionLabel: null,
+          state: "resolved" as const,
+        });
+      },
       bind: (relation) => {
         const entry = lookup(relation.targetType, relation.targetId);
         if (!entry || (entry.state ?? "active") !== "active") {
@@ -86,7 +132,7 @@ export function createGapHarness(
                 label: entry.label,
                 sections: entry.sections ?? [],
                 targetId: entry.targetId,
-                targetType: entry.targetType,
+                targetType: type,
               }),
             ),
         ),
@@ -154,6 +200,28 @@ export function createGapHarness(
         }
       };
       return await work({
+        closeGap: (gapId, expected, to, closure) => {
+          const found = gaps.get(gapId);
+          if (!found || found.state !== expected) {
+            return Promise.resolve(false);
+          }
+          patch(gapId, {
+            closure,
+            state: to,
+            stateChangedAt: closure.closedAt,
+            updatedAt: closure.closedAt,
+          });
+          return Promise.resolve(true);
+        },
+        findSessionTests: (ids) =>
+          Promise.resolve(
+            ids.flatMap((id) => {
+              const found = planned.sessionTests.get(id);
+              return found && found.projectId === scopeProjectId
+                ? [{ id, title: found.title }]
+                : [];
+            }),
+          ),
         addCaseBind: (gapId, ref) => {
           const found = gaps.get(gapId);
           const scenario = planned.cases.get(ref.caseId);

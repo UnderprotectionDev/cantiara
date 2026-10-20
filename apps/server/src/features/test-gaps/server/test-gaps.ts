@@ -1,4 +1,5 @@
 import {
+  closeTestGapInputSchema,
   createTestGapInputSchema,
   duplicateTestGapRelation,
   stateAfterBind,
@@ -6,12 +7,14 @@ import {
   type TestGapRecord,
   type TestGapRelationInput,
   type TestGapStore,
+  type TestGapStoredClosure,
   type TestGapStoredRecord,
   type TestGapStoredRelation,
   type TestGapsAccess,
   type TestGapTargetResolver,
   type TestGapTransaction,
   testGapCaseBindInputSchema,
+  testGapDecisionTargetsInputSchema,
   testGapHandoffBindInputSchema,
   testGapProjectInputSchema,
   testGapRelationTargetsInputSchema,
@@ -85,6 +88,68 @@ export class TestGapStateConflictError extends Error {
   }
 }
 
+/** A closed Gap is history: its binds, selection and rationale are not rewritten. */
+export class TestGapClosedError extends Error {
+  readonly code = "TEST_GAP_CLOSED" as const;
+
+  constructor(gapId: string) {
+    super(`Test Gap ${gapId} is closed and its history is fixed.`);
+    this.name = "TestGapClosedError";
+  }
+}
+
+/** A selected Session Test is not a Session Test of this Project. */
+export class TestGapSessionTestNotFoundError extends Error {
+  readonly code = "TEST_GAP_SESSION_TEST_NOT_FOUND" as const;
+
+  constructor(sessionTestId: string) {
+    super(`Session Test ${sessionTestId} was not found.`);
+    this.name = "TestGapSessionTestNotFoundError";
+  }
+}
+
+/** The Decision a `Not needed` closure would keep is not a Decision of this Project. */
+export class TestGapDecisionUnavailableError extends Error {
+  readonly code = "TEST_GAP_DECISION_UNAVAILABLE" as const;
+
+  constructor(decisionId: string) {
+    super(
+      `Decision ${decisionId} is not an available Decision of this Project.`,
+    );
+    this.name = "TestGapDecisionUnavailableError";
+  }
+}
+
+async function toClosureView(
+  resolver: TestGapTargetResolver,
+  closure: TestGapStoredClosure | null,
+) {
+  if (!closure) {
+    return null;
+  }
+  const live = closure.decisionId
+    ? await resolver.readDecision(closure.decisionId)
+    : null;
+  return {
+    closedAt: closure.closedAt,
+    decision:
+      closure.decisionId && live
+        ? {
+            brokenReason: live.state === "broken" ? live.reason : null,
+            id: closure.decisionId,
+            label: live.state === "resolved" ? live.label : null,
+            state: live.state,
+          }
+        : null,
+    outcome: closure.outcome,
+    rationale: closure.rationale,
+    sessionTests: closure.sessionTests.map(({ sessionTestId, title }) => ({
+      id: sessionTestId,
+      title,
+    })),
+  };
+}
+
 async function toGapRecord(
   resolver: TestGapTargetResolver,
   stored: TestGapStoredRecord,
@@ -107,6 +172,7 @@ async function toGapRecord(
   );
   return {
     caseBinds: stored.caseBinds,
+    closure: await toClosureView(resolver, stored.closure),
     createdAt: stored.createdAt,
     handoffBinds: stored.handoffBinds,
     id: stored.id,
@@ -156,6 +222,9 @@ async function planGap(
         throw new TestGapProjectReadOnlyError(projectId);
       }
       const before = await requireGap(transaction, gapId, true);
+      if (before.closure) {
+        throw new TestGapClosedError(gapId);
+      }
       const outcome = await change(transaction, before);
       if (outcome === "unchanged") {
         return await toGapRecord(transaction.resolver, before);
@@ -215,6 +284,36 @@ async function bindRelations(
       };
     }),
   );
+}
+
+/** Every selected Session Test must be one of this Project; order is the founder's. */
+async function selectedSessionTests(
+  transaction: TestGapTransaction,
+  ids: readonly string[],
+) {
+  const found = new Map(
+    (await transaction.findSessionTests(ids)).map((item) => [item.id, item]),
+  );
+  return ids.map((id) => {
+    const item = found.get(id);
+    if (!item) {
+      throw new TestGapSessionTestNotFoundError(id);
+    }
+    return { sessionTestId: id, title: item.title };
+  });
+}
+
+async function keptDecision(
+  resolver: TestGapTargetResolver,
+  decisionId: string | null,
+) {
+  if (decisionId === null) {
+    return null;
+  }
+  if ((await resolver.bindDecision(decisionId)) === null) {
+    throw new TestGapDecisionUnavailableError(decisionId);
+  }
+  return decisionId;
 }
 
 /**
@@ -299,6 +398,87 @@ export function createTestGaps(store: TestGapStore): TestGapsAccess {
       );
     },
 
+    async close(accountId, rawInput) {
+      const input = closeTestGapInputSchema.parse(rawInput);
+      const closed = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new TestGapProjectReadOnlyError(input.projectId);
+          }
+          const gap = await requireGap(transaction, input.gapId, true);
+          if (gap.closure) {
+            throw new TestGapClosedError(gap.id);
+          }
+          if (gap.state !== input.expectedState) {
+            throw new TestGapStateConflictError(gap.id);
+          }
+          const closedAt = new Date().toISOString();
+          const closure: TestGapStoredClosure =
+            input.outcome === "Met by result"
+              ? {
+                  closedAt,
+                  decisionId: null,
+                  outcome: input.outcome,
+                  rationale: input.rationale,
+                  sessionTests: await selectedSessionTests(
+                    transaction,
+                    input.sessionTestIds,
+                  ),
+                }
+              : {
+                  closedAt,
+                  decisionId: await keptDecision(
+                    transaction.resolver,
+                    input.decisionId,
+                  ),
+                  outcome: input.outcome,
+                  rationale: input.rationale,
+                  sessionTests: [],
+                };
+          if (
+            !(await transaction.closeGap(
+              gap.id,
+              gap.state,
+              input.outcome,
+              closure,
+            ))
+          ) {
+            throw new TestGapStateConflictError(gap.id);
+          }
+          return await toGapRecord(transaction.resolver, {
+            ...gap,
+            closure,
+            state: input.outcome,
+            stateChangedAt: closedAt,
+            updatedAt: closedAt,
+          });
+        },
+      );
+      if (!closed) {
+        throw new TestGapProjectNotFoundError(input.projectId);
+      }
+      return closed;
+    },
+
+    async decisionTargets(accountId, rawProjectId) {
+      const { projectId } = testGapDecisionTargetsInputSchema.parse({
+        projectId: rawProjectId,
+      });
+      const targets = await store.run(
+        accountId,
+        projectId,
+        "read",
+        (transaction) => transaction.resolver.decisionCandidates(),
+      );
+      if (!targets) {
+        throw new TestGapProjectNotFoundError(projectId);
+      }
+      return targets;
+    },
+
     async create(accountId, rawInput) {
       const input = createTestGapInputSchema.parse(rawInput);
       const created = await store.run(
@@ -312,6 +492,7 @@ export function createTestGaps(store: TestGapStore): TestGapsAccess {
           const now = new Date().toISOString();
           const stored: TestGapStoredRecord = {
             caseBinds: [],
+            closure: null,
             createdAt: now,
             handoffBinds: [],
             id: crypto.randomUUID(),

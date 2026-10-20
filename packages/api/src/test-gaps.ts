@@ -139,6 +139,101 @@ export function stateAfterUnbind(
   return state === "Planned" && remainingBinds === 0 ? "Open" : state;
 }
 
+/** The two closures. Both are the founder's explicit choice; neither deletes the Gap. */
+export const TEST_GAP_CLOSURE_OUTCOMES = [
+  "Met by result",
+  "Not needed",
+] as const;
+export const testGapClosureOutcomeSchema = z.enum(TEST_GAP_CLOSURE_OUTCOMES);
+export type TestGapClosureOutcome = z.infer<typeof testGapClosureOutcomeSchema>;
+
+export const TEST_GAP_SESSION_TEST_MAX = 100;
+
+const optionalText = z
+  .string()
+  .trim()
+  .max(
+    TEST_GAP_TEXT_MAX,
+    `Rationale must be ${TEST_GAP_TEXT_MAX} characters or fewer.`,
+  )
+  .nullish()
+  .transform((value) => (value ? value : null));
+
+const closeBase = {
+  /** The state the founder saw, so a concurrent move is refused. */
+  expectedState: z.enum(["Open", "Planned"]),
+  gapId: identifierSchema,
+  projectId: identifierSchema,
+};
+
+/**
+ * Closing a Gap. `Met by result` needs the exact Session Tests the founder
+ * selected (at least one, each once) and takes an optional rationale;
+ * `Not needed` needs a rationale and may keep a related Decision. There is no
+ * way to close from a count, a ratio or a bind: the selected Session Tests are
+ * the whole of the closure.
+ */
+export const closeTestGapInputSchema = z.discriminatedUnion("outcome", [
+  z
+    .object({
+      ...closeBase,
+      outcome: z.literal("Met by result"),
+      rationale: optionalText,
+      sessionTestIds: z
+        .array(identifierSchema)
+        .min(1, "Select at least one Session Test that meets this Test Gap.")
+        .max(
+          TEST_GAP_SESSION_TEST_MAX,
+          `Select at most ${TEST_GAP_SESSION_TEST_MAX} Session Tests.`,
+        )
+        .refine((ids) => new Set(ids).size === ids.length, {
+          message: "Each Session Test can be selected once.",
+        }),
+    })
+    .strict(),
+  z
+    .object({
+      ...closeBase,
+      decisionId: identifierSchema
+        .nullish()
+        .transform((value) => value ?? null),
+      outcome: z.literal("Not needed"),
+      rationale: requiredText("Rationale", TEST_GAP_TEXT_MAX),
+    })
+    .strict(),
+]);
+export type CloseTestGapInput = z.input<typeof closeTestGapInputSchema>;
+export type ParsedCloseTestGapInput = z.output<typeof closeTestGapInputSchema>;
+
+export const testGapDecisionTargetsInputSchema = testGapProjectInputSchema;
+
+export interface TestGapStoredClosure {
+  closedAt: string;
+  decisionId: string | null;
+  outcome: TestGapClosureOutcome;
+  rationale: string | null;
+  /** Selected Session Tests in the order the founder picked them. */
+  sessionTests: { sessionTestId: string; title: string }[];
+}
+
+export interface TestGapClosureView {
+  closedAt: string;
+  decision: {
+    brokenReason: BrokenReferenceReason | null;
+    id: string;
+    label: string | null;
+    state: "broken" | "resolved";
+  } | null;
+  outcome: TestGapClosureOutcome;
+  rationale: string | null;
+  sessionTests: { id: string; title: string }[];
+}
+
+export interface TestGapDecisionTarget {
+  label: string;
+  targetId: string;
+}
+
 /** Exact Planned Test Case version a Gap is planned against. Never "latest". */
 export const testGapCaseBindInputSchema = z
   .object({
@@ -184,6 +279,7 @@ export interface TestGapStoredRelation {
 
 export interface TestGapStoredRecord {
   caseBinds: TestGapStoredCaseBind[];
+  closure: TestGapStoredClosure | null;
   createdAt: string;
   handoffBinds: TestGapStoredHandoffBind[];
   id: string;
@@ -224,6 +320,7 @@ export const testGapRelationViewSchema = z
 
 export interface TestGapRecord {
   caseBinds: TestGapStoredCaseBind[];
+  closure: TestGapClosureView | null;
   createdAt: string;
   handoffBinds: TestGapStoredHandoffBind[];
   id: string;
@@ -266,10 +363,14 @@ export interface TestGapTargetResolver {
   bind: (
     relation: TestGapRelationInput,
   ) => Promise<{ label: string; sectionLabel: string | null } | null>;
+  /** The Decision a `Not needed` closure keeps, or `null` when it is not in this Project. */
+  bindDecision: (decisionId: string) => Promise<string | null>;
   candidates: (
     targetType: TestGapRelationTargetType,
   ) => Promise<TestGapRelationTarget[]>;
+  decisionCandidates: () => Promise<TestGapDecisionTarget[]>;
   read: (relation: TestGapStoredRelation) => Promise<TestGapTargetLive>;
+  readDecision: (decisionId: string) => Promise<TestGapTargetLive>;
 }
 
 export interface TestGapCaseRef {
@@ -283,6 +384,17 @@ export interface TestGapTransaction {
   addCaseBind: (gapId: string, ref: TestGapCaseRef) => Promise<boolean>;
   /** Resolves `false` when the bind already exists. */
   addHandoffBind: (gapId: string, handoffId: string) => Promise<boolean>;
+  /**
+   * Closes the Gap only while it is still in `expected` (`Open` or `Planned`),
+   * writing the state, the closure and the selected Session Tests together.
+   * Resolves `false` otherwise, so a concurrent move is refused.
+   */
+  closeGap: (
+    gapId: string,
+    expected: TestGapState,
+    to: TestGapClosureOutcome,
+    closure: TestGapStoredClosure,
+  ) => Promise<boolean>;
   /** The exact Planned Test Case version row, or `null` when it is not in this Project. */
   findCaseVersion: (ref: TestGapCaseRef) => Promise<{ title: string } | null>;
   /** When `lock` is true the Gap row is held until the unit of work ends. */
@@ -294,6 +406,10 @@ export interface TestGapTransaction {
   findHandoff: (
     handoffId: string,
   ) => Promise<{ handoffState: string; title: string } | null>;
+  /** The Session Tests of this Project among `ids`, with their titles. */
+  findSessionTests: (
+    ids: readonly string[],
+  ) => Promise<{ id: string; title: string }[]>;
   insertGap: (record: TestGapStoredRecord) => Promise<void>;
   listGaps: () => Promise<TestGapStoredRecord[]>;
   /** True for an archived Project, which stays readable but takes no writes. */
@@ -336,11 +452,24 @@ export interface TestGapsAccess {
     accountId: string,
     input: TestGapHandoffBindInput,
   ) => Promise<TestGapRecord>;
+  /**
+   * Closes a Gap by the founder's explicit choice: `Met by result` with the
+   * selected Session Tests, or `Not needed` with a rationale. Never deletes.
+   */
+  close: (
+    accountId: string,
+    input: CloseTestGapInput,
+  ) => Promise<TestGapRecord>;
   /** Files a Test Gap by hand. The only way a Gap comes to exist. */
   create: (
     accountId: string,
     input: CreateTestGapInput,
   ) => Promise<TestGapRecord>;
+  /** Decisions a `Not needed` closure can keep. */
+  decisionTargets: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<TestGapDecisionTarget[]>;
   list: (accountId: string, projectId: string) => Promise<TestGapList>;
   /** Selectable support records, by family. */
   relationTargets: (

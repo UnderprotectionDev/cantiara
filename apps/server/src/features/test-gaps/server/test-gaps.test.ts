@@ -275,6 +275,7 @@ describe("Test Gap is not a coverage figure, a Bug, a Risk or a Product Gap", ()
 
     expect(Object.keys([...harness.gaps.values()][0] ?? {}).sort()).toEqual([
       "caseBinds",
+      "closure",
       "createdAt",
       "handoffBinds",
       "id",
@@ -365,7 +366,9 @@ describe("The product never files a Test Gap on its own", () => {
     expect(Object.keys(testGaps).sort()).toEqual([
       "bindCase",
       "bindHandoff",
+      "close",
       "create",
+      "decisionTargets",
       "list",
       "relationTargets",
       "unbindCase",

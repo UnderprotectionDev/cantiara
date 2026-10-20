@@ -505,8 +505,10 @@ import {
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
 import {
+  closeTestGapInputSchema,
   createTestGapInputSchema,
   testGapCaseBindInputSchema,
+  testGapDecisionTargetsInputSchema,
   testGapHandoffBindInputSchema,
   testGapProjectInputSchema,
   testGapRelationTargetsInputSchema,
@@ -3214,6 +3216,19 @@ interface TestGapFailure {
 }
 
 const TEST_GAP_FAILURES: Record<string, TestGapFailure> = {
+  TEST_GAP_CLOSED: {
+    message:
+      "This Test Gap is closed and its history is fixed. Its relations and decision are not rewritten.",
+    status: "BAD_REQUEST",
+  },
+  TEST_GAP_DECISION_UNAVAILABLE: {
+    message: "The Decision is not an available Decision of this Project.",
+    status: "BAD_REQUEST",
+  },
+  TEST_GAP_SESSION_TEST_NOT_FOUND: {
+    message: "A selected Session Test is unavailable.",
+    status: "NOT_FOUND",
+  },
   TEST_GAP_CASE_VERSION_NOT_FOUND: {
     message: "Planned Test Case version is unavailable.",
     status: "NOT_FOUND",
@@ -6194,6 +6209,23 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runTestGapOperation(() =>
         requireTestGaps(context).create(context.session.user.id, input),
+      ),
+    ),
+  closeTestGap: protectedProcedure
+    .input(closeTestGapInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).close(context.session.user.id, input),
+      ),
+    ),
+  testGapDecisionTargets: protectedProcedure
+    .input(testGapDecisionTargetsInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).decisionTargets(
+          context.session.user.id,
+          input.projectId,
+        ),
       ),
     ),
   bindTestGapCase: protectedProcedure

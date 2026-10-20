@@ -239,7 +239,9 @@ describe("Test Gap planning is at most Planned", () => {
     expect(Object.keys(harness.testGaps).sort()).toEqual([
       "bindCase",
       "bindHandoff",
+      "close",
       "create",
+      "decisionTargets",
       "list",
       "relationTargets",
       "unbindCase",

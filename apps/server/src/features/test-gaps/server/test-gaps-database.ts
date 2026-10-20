@@ -1,6 +1,7 @@
 // biome-ignore-all lint/performance/noAwaitInLoops: Relation rows are inserted in their stored order.
 import type { PlannedTestRelationInput } from "@cantiara/api/planned-tests";
 import type {
+  TestGapClosureOutcome,
   TestGapRelationInput,
   TestGapRelationTarget,
   TestGapRelationTargetType,
@@ -15,6 +16,7 @@ import type { Database } from "@cantiara/db";
 import {
   plannedTestCase,
   plannedTestCaseVersion,
+  sessionTest,
   testHandoff,
 } from "@cantiara/db/schema/planned-test";
 import { projectRelease } from "@cantiara/db/schema/project-release";
@@ -22,6 +24,7 @@ import {
   testGap,
   testGapCaseBind,
   testGapHandoffBind,
+  testGapMetSessionTest,
   testGapRelation,
 } from "@cantiara/db/schema/test-gap";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
@@ -63,6 +66,14 @@ function createGapResolver(
     return row?.name ?? null;
   }
 
+  const decisionRelation = (decisionId: string) => ({
+    documentRevision: null,
+    id: "decision",
+    sectionId: null,
+    targetId: decisionId,
+    targetType: "Decision" as const,
+  });
+
   return {
     bind: async (relation: TestGapRelationInput) => {
       if (relation.targetType === "Project Release") {
@@ -70,6 +81,10 @@ function createGapResolver(
         return label === null ? null : { label, sectionLabel: null };
       }
       return await owned.bind(relation as PlannedTestRelationInput);
+    },
+    bindDecision: async (decisionId: string) => {
+      const live = await owned.read(decisionRelation(decisionId));
+      return live.state === "resolved" ? live.label : null;
     },
     candidates: async (
       targetType: TestGapRelationTargetType,
@@ -93,6 +108,11 @@ function createGapResolver(
         (candidate) => ({ ...candidate, targetType }),
       );
     },
+    decisionCandidates: async () =>
+      (await owned.candidates("Decision")).map(({ label, targetId }) => ({
+        label,
+        targetId,
+      })),
     read: async (
       relation: TestGapStoredRelation,
     ): Promise<TestGapTargetLive> => {
@@ -107,6 +127,8 @@ function createGapResolver(
         targetType: relation.targetType as OwnedFamily,
       });
     },
+    readDecision: async (decisionId: string) =>
+      await owned.read(decisionRelation(decisionId)),
   };
 }
 
@@ -159,10 +181,39 @@ async function toStoredGaps(
       asc(testGapHandoffBind.createdAt),
       asc(testGapHandoffBind.handoffId),
     );
+  const metRows = await executor
+    .select({
+      gapId: testGapMetSessionTest.gapId,
+      sessionTestId: testGapMetSessionTest.sessionTestId,
+      title: sessionTest.title,
+    })
+    .from(testGapMetSessionTest)
+    .innerJoin(
+      sessionTest,
+      eq(sessionTest.id, testGapMetSessionTest.sessionTestId),
+    )
+    .where(inArray(testGapMetSessionTest.gapId, gapIds))
+    .orderBy(
+      asc(testGapMetSessionTest.createdAt),
+      asc(testGapMetSessionTest.sessionTestId),
+    );
   return rows.map((row) => ({
     caseBinds: caseBindRows
       .filter((bind) => bind.gapId === row.id)
       .map(({ caseId, title, version }) => ({ caseId, title, version })),
+    closure:
+      row.closedAt &&
+      (row.state === "Met by result" || row.state === "Not needed")
+        ? {
+            closedAt: row.closedAt.toISOString(),
+            decisionId: row.closureDecisionId,
+            outcome: row.state as TestGapClosureOutcome,
+            rationale: row.closureRationale,
+            sessionTests: metRows
+              .filter((met) => met.gapId === row.id)
+              .map(({ sessionTestId, title }) => ({ sessionTestId, title })),
+          }
+        : null,
     createdAt: row.createdAt.toISOString(),
     handoffBinds: handoffBindRows
       .filter((bind) => bind.gapId === row.id)
@@ -219,6 +270,54 @@ export function createDatabaseTestGapStore(database: Database): TestGapStore {
                 .returning({ gapId: testGapHandoffBind.gapId });
               return inserted.length === 1;
             },
+            // One statement writes the state, the closure columns and, below,
+            // the selected Session Tests; the state moves only while it is
+            // still the one the caller saw.
+            closeGap: async (gapId, expected, to, closure) => {
+              const updated = await executor
+                .update(testGap)
+                .set({
+                  closedAt: new Date(closure.closedAt),
+                  closureDecisionId: closure.decisionId,
+                  closureRationale: closure.rationale,
+                  state: to,
+                  stateChangedAt: new Date(closure.closedAt),
+                  updatedAt: new Date(closure.closedAt),
+                })
+                .where(
+                  and(
+                    eq(testGap.id, gapId),
+                    eq(testGap.projectId, owned.id),
+                    eq(testGap.state, expected),
+                  ),
+                )
+                .returning({ id: testGap.id });
+              if (updated.length !== 1) {
+                return false;
+              }
+              for (const [position, item] of closure.sessionTests.entries()) {
+                await executor.insert(testGapMetSessionTest).values({
+                  createdAt: new Date(
+                    new Date(closure.closedAt).getTime() + position,
+                  ),
+                  gapId,
+                  sessionTestId: item.sessionTestId,
+                });
+              }
+              return true;
+            },
+            findSessionTests: async (ids) =>
+              ids.length === 0
+                ? []
+                : await executor
+                    .select({ id: sessionTest.id, title: sessionTest.title })
+                    .from(sessionTest)
+                    .where(
+                      and(
+                        inArray(sessionTest.id, [...ids]),
+                        eq(sessionTest.projectId, owned.id),
+                      ),
+                    ),
             findCaseVersion: async (ref) => {
               const [row] = await executor
                 .select({ title: plannedTestCaseVersion.title })

@@ -10,7 +10,11 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-import { plannedTestCaseVersion, testHandoff } from "./planned-test";
+import {
+  plannedTestCaseVersion,
+  sessionTest,
+  testHandoff,
+} from "./planned-test";
 import { project } from "./project";
 
 /**
@@ -24,6 +28,9 @@ export const testGap = pgTable(
   "project_test_gap",
   {
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    closedAt: timestamp("closed_at"),
+    closureDecisionId: text("closure_decision_id"),
+    closureRationale: text("closure_rationale"),
     id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
@@ -150,5 +157,42 @@ export const testGapHandoffBind = pgTable(
       foreignColumns: [testHandoff.id],
       name: "project_test_gap_handoff_bind_handoff_fk",
     }).onDelete("cascade"),
+  ],
+);
+
+/**
+ * The exact Session Tests the founder selected when choosing `Met by result`.
+ * Closure is a cited set, never a percentage: a row exists only because the
+ * founder picked that Session Test, and nothing else writes this table. The
+ * rows are inserted with the closure and never rewritten, so the citation
+ * stays in history. `closure_decision_id` on the Gap is a polymorphic Decision
+ * reference with no foreign key: the Decision's owner reads it at view time and
+ * a gone Decision reads as broken, never as another record.
+ */
+export const testGapMetSessionTest = pgTable(
+  "project_test_gap_met_session_test",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    gapId: text("gap_id").notNull(),
+    sessionTestId: text("session_test_id").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.gapId, table.sessionTestId],
+      name: "project_test_gap_met_session_test_pk",
+    }),
+    foreignKey({
+      columns: [table.gapId],
+      foreignColumns: [testGap.id],
+      name: "project_test_gap_met_session_test_gap_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionTestId],
+      foreignColumns: [sessionTest.id],
+      name: "project_test_gap_met_session_test_session_test_fk",
+    }).onDelete("cascade"),
+    index("project_test_gap_met_session_test_session_idx").on(
+      table.sessionTestId,
+    ),
   ],
 );

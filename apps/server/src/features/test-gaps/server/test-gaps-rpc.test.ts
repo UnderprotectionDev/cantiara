@@ -111,6 +111,64 @@ describe("Test Gaps RPC seam", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  test("closes a Gap only with the selected Session Tests or a rationale", async () => {
+    const harness = createGapHarness();
+    const context = {
+      session: { session: { id: "session" }, user: { id: accountId } },
+      plannedTests: harness.planned.plannedTests,
+      testGaps: harness.testGaps,
+    } as Context;
+    const client = createRouterClient(appRouter, { context });
+    const tried = await client.recordSessionTest({
+      expectedBehavior: "Refund shown.",
+      projectId,
+      purpose: "Ad hoc refund try.",
+      title: "Refund try",
+    });
+    const first = await client.createTestGap(gap);
+    const second = await client.createTestGap({ ...gap, title: "Other gap" });
+
+    const met = await client.closeTestGap({
+      expectedState: "Open",
+      gapId: first.id,
+      outcome: "Met by result",
+      projectId,
+      sessionTestIds: [tried.id],
+    });
+    const declined = await client.closeTestGap({
+      expectedState: "Open",
+      gapId: second.id,
+      outcome: "Not needed",
+      projectId,
+      rationale: "Out of scope.",
+    });
+
+    expect(met).toMatchObject({
+      closure: { sessionTests: [{ id: tried.id }] },
+      state: "Met by result",
+    });
+    expect(declined.state).toBe("Not needed");
+    expect(await client.testGapDecisionTargets({ projectId })).toEqual([]);
+    await expect(
+      client.closeTestGap({
+        expectedState: "Open",
+        gapId: first.id,
+        outcome: "Not needed",
+        projectId,
+        rationale: "Again.",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      client.closeTestGap({
+        expectedState: "Open",
+        gapId: "missing",
+        outcome: "Met by result",
+        projectId,
+        sessionTestIds: [tried.id],
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
   test("maps refusals to named errors without leaking record content", async () => {
     const { client } = setup();
 
@@ -140,8 +198,10 @@ describe("Test Gaps RPC seam", () => {
     expect(procedures.sort()).toEqual([
       "bindTestGapCase",
       "bindTestGapHandoff",
+      "closeTestGap",
       "createTestGap",
       "projectTestGaps",
+      "testGapDecisionTargets",
       "testGapRelationTargets",
       "unbindTestGapCase",
       "unbindTestGapHandoff",
