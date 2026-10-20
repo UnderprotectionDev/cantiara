@@ -81,6 +81,7 @@ function actions(): ProjectWallActions {
   return {
     onAddCard: vi.fn(async () => undefined),
     onCreate: vi.fn(async () => undefined),
+    onCreateFromSkeleton: vi.fn(async () => undefined),
     onCreateGroup: vi.fn(async () => undefined),
     onCreateRelation: vi.fn(async () => undefined),
     onDelete: vi.fn(async () => undefined),
@@ -457,5 +458,39 @@ describe("Project Wall: Visual links, groups and Lock Position", () => {
     expect(html).not.toMatch(SKETCH_OR_FREEHAND);
     expect(html).not.toContain("<canvas");
     expect(html).not.toMatch(FOREIGN_SURFACES);
+  });
+
+  test("offers Create from Sitemap / Customer Journey only when selected", () => {
+    const none = mount(
+      <ProjectWallLayout
+        actions={actions()}
+        canvas={<p>canvas</p>}
+        options={options}
+        selected={null}
+        skeletons={[]}
+        walls={[]}
+      />,
+    );
+    expect(buttonNamed(none, "Create from Sitemap")).toBeUndefined();
+    expect(buttonNamed(none, "Create from Customer Journey")).toBeUndefined();
+    act(() => root?.unmount());
+    host?.remove();
+
+    const handlers = actions();
+    const container = mount(
+      <ProjectWallLayout
+        actions={handlers}
+        canvas={<p>canvas</p>}
+        options={options}
+        selected={null}
+        skeletons={["Customer Journey"]}
+        walls={[]}
+      />,
+    );
+    expect(buttonNamed(container, "Create from Sitemap")).toBeUndefined();
+    act(() => buttonNamed(container, "Create from Customer Journey")?.click());
+    expect(handlers.onCreateFromSkeleton).toHaveBeenCalledWith(
+      "Customer Journey",
+    );
   });
 });

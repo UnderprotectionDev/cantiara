@@ -1,3 +1,7 @@
+import {
+  resolveProjectShellConfiguration,
+  starterConfigurationSchema,
+} from "@cantiara/api/project-shell";
 import type {
   ProjectWallAccess,
   ProjectWallDensity,
@@ -510,6 +514,76 @@ export function createDatabaseProjectWallStore(
           .returning();
         return row ? toRecord(row, []) : null;
       });
+    },
+
+    async createWallWithGroups(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (!(await requireWritableProject(tx, accountId, input.projectId))) {
+          return null;
+        }
+        const [wall] = await tx
+          .insert(projectWall)
+          .values({
+            id: input.id,
+            projectId: input.projectId,
+            title: input.title,
+          })
+          .returning();
+        if (!wall) {
+          return null;
+        }
+        // Explicit, strictly increasing timestamps keep the heading order:
+        // groups are read back by creation time.
+        const base = Date.now();
+        const groups =
+          input.groups.length === 0
+            ? []
+            : await tx
+                .insert(projectWallGroup)
+                .values(
+                  input.groups.map((group, index) => ({
+                    createdAt: new Date(base + index),
+                    id: group.id,
+                    title: group.title,
+                    wallId: input.id,
+                  })),
+                )
+                .returning();
+        return toRecord(
+          wall,
+          [],
+          [...groups].sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+          ),
+        );
+      });
+    },
+
+    async selectedSkeletons(accountId, projectId) {
+      const [owned] = await database
+        .select({
+          configuration: project.configuration,
+          starterConfiguration: project.starterConfiguration,
+        })
+        .from(project)
+        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .where(
+          and(
+            eq(project.id, projectId),
+            eq(workspace.ownerAccountId, accountId),
+          ),
+        );
+      if (!owned) {
+        return null;
+      }
+      // The shell records the selection as catalog metadata only.
+      const { starterSkeletons } = resolveProjectShellConfiguration(
+        owned.configuration,
+        starterConfigurationSchema.parse(owned.starterConfiguration),
+      );
+      return starterSkeletons.flatMap((selection) =>
+        selection.surface === "Project Wall" ? [selection.skeleton] : [],
+      );
     },
 
     async deleteWall(accountId, projectId, wallId) {

@@ -53,6 +53,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Grubu daralt | `Collapse group` | Grup üyelerini duvar görünümünde gizleme; kayıt durumu değişmez |
 | Grubu aç | `Expand group` | Daraltılmış grubun üyelerini yeniden gösterme |
 | Grubu sil | `Delete group` | Yalnız grubu silme; kartlar gruptan çıkar, kaynak kayıtlar değişmez |
+| Sitemap iskeletinden oluştur | `Create from Sitemap` | Kabuğun `Sitemap` seçtiği Projede `Primary Navigation`, `Secondary Navigation`, `Utility`, `External` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
+| Customer Journey iskeletinden oluştur | `Create from Customer Journey` | Kabuğun `Customer Journey` seçtiği Projede `Awareness`, `Consideration`, `Onboarding`, `Core Use`, `Retention` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |

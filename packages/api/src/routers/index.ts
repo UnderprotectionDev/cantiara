@@ -308,6 +308,7 @@ import {
 } from "../project-source-records";
 import {
   addProjectWallCardInputSchema,
+  createProjectWallFromSkeletonInputSchema,
   createProjectWallGroupInputSchema,
   createProjectWallInputSchema,
   createProjectWallPersistentRelationInputSchema,
@@ -1095,6 +1096,8 @@ const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
   PROJECT_WALL_PROJECT_READ_ONLY: "Archived Projects are read-only.",
   PROJECT_WALL_RELATION_PREVIEW_REQUIRED:
     "Review the current relation preview before confirming.",
+  PROJECT_WALL_SKELETON_NOT_SELECTED:
+    "This skeleton is not selected for this Project.",
   PROJECT_WALL_SOURCE_UNAVAILABLE:
     "The record is not an active Work, Decision or Risk of this Project.",
 };
@@ -3889,6 +3892,26 @@ export const appRouter = {
         requireProjectWall(context).sourceOptions(
           context.session.user.id,
           input.projectId,
+        ),
+      ),
+    ),
+  projectWallSkeletons: protectedProcedure
+    .input(projectWallProjectInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).skeletons(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createProjectWallFromSkeleton: protectedProcedure
+    .input(createProjectWallFromSkeletonInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).createFromSkeleton(
+          context.session.user.id,
+          input,
         ),
       ),
     ),

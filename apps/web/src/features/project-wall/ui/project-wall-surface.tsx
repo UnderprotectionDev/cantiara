@@ -32,6 +32,9 @@ export default function ProjectWallSurface({
     input: selectedId ? { projectId, wallId: selectedId } : skipToken,
   });
   const wall = useQuery(wallOptions);
+  const skeletons = useQuery(
+    orpc.projectWallSkeletons.queryOptions({ input: { projectId } }),
+  );
   const sourceOptions = useQuery(
     orpc.projectWallSourceOptions.queryOptions({ input: { projectId } }),
   );
@@ -61,6 +64,14 @@ export default function ProjectWallSurface({
 
   const wallId = wall.data?.id;
   const actions: ProjectWallActions = {
+    onCreateFromSkeleton: async (skeleton) => {
+      const created = await write(() =>
+        client.createProjectWallFromSkeleton({ projectId, skeleton }),
+      );
+      if (created) {
+        setChosenId(created.id);
+      }
+    },
     onCreateGroup: (title) =>
       write(() =>
         client.createProjectWallGroup({
@@ -245,6 +256,7 @@ export default function ProjectWallSurface({
         }
         options={sourceOptions.data ?? []}
         selected={wall.data ?? null}
+        skeletons={skeletons.data ?? []}
         walls={walls.data}
       />
       {error ? <p role="alert">{error}</p> : null}
