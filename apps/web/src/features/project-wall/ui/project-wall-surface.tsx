@@ -105,6 +105,39 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
         }),
       ),
+    onExportSnapshot: async (scope, format) => {
+      // A snapshot reads the wall; it is not a write, so nothing refetches.
+      try {
+        const output = await client.exportProjectWallSnapshot({
+          ...scope,
+          format,
+          projectId,
+          wallId: wallId ?? "",
+        });
+        return output.files;
+      } catch {
+        setError("Snapshot could not be created.");
+      }
+    },
+    onPreviewSnapshot: async (scope) => {
+      try {
+        return await client.previewProjectWallSnapshot({
+          ...scope,
+          projectId,
+          wallId: wallId ?? "",
+        });
+      } catch {
+        setError("Snapshot could not be created.");
+      }
+    },
+    onSetFocusOrder: (cardIds) =>
+      write(() =>
+        client.setProjectWallFocusOrder({
+          cardIds,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      ),
     onToggleGroup: (groupId, collapsed) =>
       write(() =>
         client.setProjectWallGroupCollapsed({
@@ -123,6 +156,7 @@ export default function ProjectWallSurface({
         }),
       ),
     onAddCard: (source: {
+      diagramViewId?: string;
       sourceId: string;
       sourceType: ProjectWallSourceType;
     }) =>

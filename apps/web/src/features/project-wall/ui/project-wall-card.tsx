@@ -2,11 +2,13 @@
 import {
   PROJECT_WALL_DENSITIES,
   PROJECT_WALL_HIGHLIGHTS,
+  type ProjectWallCardPreview,
   type ProjectWallCardView,
   type ProjectWallDensity,
   type ProjectWallGroupView,
   type ProjectWallHighlight,
 } from "@cantiara/api/project-wall";
+import { PROJECT_WALL_PRESENTATION_LABELS } from "@cantiara/api/project-wall-presentation";
 import { Button } from "@cantiara/ui/components/button";
 import {
   NativeSelect,
@@ -31,6 +33,82 @@ export interface ProjectWallCardActions {
   onHighlight: (cardId: string, highlight: ProjectWallHighlight | null) => void;
   onLock: (cardId: string, locked: boolean) => void;
   onRemove: (cardId: string) => void;
+}
+
+/**
+ * Read-only previews. A Technical Diagram shows the selected Diagram View
+ * labeled `Live` or `Exact`; a Smart Collection shows a limited live summary
+ * with `Open all in source`. Neither offers any edit control on the wall.
+ */
+function ProjectWallPreview({
+  card,
+  preview,
+}: {
+  card: ProjectWallCardView;
+  preview: ProjectWallCardPreview;
+}) {
+  if (preview.kind === "Technical Diagram") {
+    const label =
+      preview.pin === "Exact"
+        ? PROJECT_WALL_PRESENTATION_LABELS.exact
+        : PROJECT_WALL_PRESENTATION_LABELS.live;
+    return (
+      <section
+        aria-label={`Diagram preview: ${preview.viewName ?? "Default"}`}
+        className="space-y-1 text-xs"
+      >
+        <p className="text-muted-foreground">
+          {label} · {preview.diagramType} · {preview.viewName ?? "Default"} view
+        </p>
+        <ul className="space-y-0.5">
+          {preview.nodes.map((node) => (
+            <li key={node.id}>
+              {node.kind}: {node.label}
+            </li>
+          ))}
+        </ul>
+        {preview.links.length > 0 ? (
+          <ul aria-label="Diagram links" className="text-muted-foreground">
+            {preview.links.map((link) => (
+              <li key={`${link.from}-${link.to}`}>
+                {link.from} → {link.to}
+                {link.label ? ` (${link.label})` : ""}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+    );
+  }
+  return (
+    <section
+      aria-label={`Collection summary: ${preview.collectionName}`}
+      className="space-y-1 text-xs"
+      data-density={card.density}
+    >
+      <p className="text-muted-foreground">
+        {preview.total} result{preview.total === 1 ? "" : "s"}, showing{" "}
+        {preview.items.length} of {preview.limit} at most
+      </p>
+      <ul className="space-y-0.5">
+        {preview.items.map((item) => (
+          <li key={`${item.recordType}:${item.id}`}>
+            {item.recordType}: {item.title}
+            {item.status ? ` · ${item.status}` : ""}
+            {item.sharedWithCard ? (
+              <span className="text-muted-foreground">
+                {" "}
+                · {PROJECT_WALL_PRESENTATION_LABELS.sharedSource}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <a className="text-primary underline" href={preview.openAllPath}>
+        {PROJECT_WALL_PRESENTATION_LABELS.openAllInSource}
+      </a>
+    </section>
+  );
 }
 
 /**
@@ -82,6 +160,15 @@ export function ProjectWallCard({
             </div>
           ))}
         </dl>
+      ) : null}
+      {card.preview ? (
+        <ProjectWallPreview card={card} preview={card.preview} />
+      ) : null}
+      {card.sharedSource ? (
+        <p className="text-muted-foreground text-xs">
+          {PROJECT_WALL_PRESENTATION_LABELS.sharedSource}: this record is also
+          listed in a Smart Collection block on this wall.
+        </p>
       ) : null}
       {canOpen ? (
         <a

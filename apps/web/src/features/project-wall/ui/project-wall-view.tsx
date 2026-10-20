@@ -18,9 +18,18 @@ import {
   type ProjectWallNarrativeActions,
   ProjectWallNarrativePanel,
 } from "./project-wall-narrative";
+import {
+  ProjectWallFocusOrderEditor,
+  type ProjectWallPresentationActions,
+  ProjectWallPresentationView,
+  ProjectWallSnapshotPanel,
+} from "./project-wall-presentation";
 
-export interface ProjectWallActions extends ProjectWallNarrativeActions {
+export interface ProjectWallActions
+  extends ProjectWallNarrativeActions,
+    ProjectWallPresentationActions {
   onAddCard: (source: {
+    diagramViewId?: string;
     sourceId: string;
     sourceType: ProjectWallSourceType;
   }) => Promise<unknown>;
@@ -30,8 +39,10 @@ export interface ProjectWallActions extends ProjectWallNarrativeActions {
   onSelect: (wallId: string) => void;
 }
 
-function optionKey(option: Pick<ProjectWallSourceOption, "id" | "sourceType">) {
-  return `${option.sourceType}:${option.id}`;
+function optionKey(
+  option: Pick<ProjectWallSourceOption, "diagramViewId" | "id" | "sourceType">,
+) {
+  return `${option.sourceType}:${option.id}${option.diagramViewId ? `:${option.diagramViewId}` : ""}`;
 }
 
 function CreateWallForm({
@@ -115,7 +126,10 @@ export function AddCardForm({
   /** Records already on this wall: one live card per record per wall. */
   placed: ReadonlySet<string>;
 }) {
-  const available = options.filter((option) => !placed.has(optionKey(option)));
+  // One live card per record per wall, whichever Diagram View it selects.
+  const available = options.filter(
+    (option) => !placed.has(`${option.sourceType}:${option.id}`),
+  );
   const [selected, setSelected] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -125,7 +139,11 @@ export function AddCardForm({
     if (!option) {
       return;
     }
-    await onAddCard({ sourceId: option.id, sourceType: option.sourceType });
+    await onAddCard({
+      ...(option.diagramViewId ? { diagramViewId: option.diagramViewId } : {}),
+      sourceId: option.id,
+      sourceType: option.sourceType,
+    });
     setSelected("");
   }
   return (
@@ -181,6 +199,16 @@ export function ProjectWallLayout({
       (card) => `${card.sourceType}:${card.source.recordId}`,
     ),
   );
+  const [presenting, setPresenting] = useState(false);
+  if (selected && presenting) {
+    // Presentation Mode hides every editing tool; exit returns to this view.
+    return (
+      <ProjectWallPresentationView
+        onExit={() => setPresenting(false)}
+        wall={selected}
+      />
+    );
+  }
   return (
     <section aria-label="Project Wall" className="space-y-4">
       <h2 className="font-semibold text-lg">Project Wall</h2>
@@ -218,6 +246,13 @@ export function ProjectWallLayout({
             >
               Delete Project Wall
             </Button>
+            <Button
+              onClick={() => setPresenting(true)}
+              type="button"
+              variant="outline"
+            >
+              Presentation Mode
+            </Button>
           </div>
           <AddCardForm
             key={selected.id}
@@ -226,6 +261,8 @@ export function ProjectWallLayout({
             placed={placed}
           />
           <ProjectWallNarrativePanel actions={actions} wall={selected} />
+          <ProjectWallFocusOrderEditor actions={actions} wall={selected} />
+          <ProjectWallSnapshotPanel actions={actions} wall={selected} />
           <p className="text-muted-foreground text-xs">
             Cards are live references. Moving a card or changing its density
             never edits the source record; edit content with Open Source Record.

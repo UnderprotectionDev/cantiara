@@ -167,10 +167,13 @@ function LinkRow({
 }) {
   const from = cards.find((card) => card.id === link.fromCardId);
   const to = cards.find((card) => card.id === link.toCardId);
+  // A Smart Collection block summarizes records and is not a relation endpoint.
   const kinds = RELATION_KIND_OPTIONS.filter(
     (option) =>
       from !== undefined &&
       to !== undefined &&
+      from.sourceType !== "Smart Collection" &&
+      to.sourceType !== "Smart Collection" &&
       isAllowedRelationEndpoints(option, from.sourceType, to.sourceType),
   );
   const [kind, setKind] = useState<RelationKind>(kinds[0] ?? "Related");
