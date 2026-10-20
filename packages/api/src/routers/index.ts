@@ -240,12 +240,17 @@ import {
 import {
   createPlannedTestCaseInputSchema,
   createPlannedTestCaseVersionInputSchema,
+  createTestHandoffInputSchema,
   linkSessionTestInputSchema,
+  linkTestHandoffSessionTestInputSchema,
   plannedTestCaseProjectInputSchema,
   plannedTestCaseVersionInputSchema,
   plannedTestRelationTargetsInputSchema,
   recordSessionTestInputSchema,
   sessionTestProjectInputSchema,
+  testHandoffProjectInputSchema,
+  transitionTestHandoffInputSchema,
+  updateTestHandoffInputSchema,
 } from "../planned-tests";
 import {
   closePrioritizationSessionInputSchema,
@@ -2938,6 +2943,7 @@ const PLANNED_TEST_UNAVAILABLE_MESSAGES: Record<string, string> = {
   PLANNED_TEST_PROJECT_NOT_FOUND: "Project is unavailable.",
   PLANNED_TEST_VERSION_NOT_FOUND: "Planned Test Case version is unavailable.",
   SESSION_TEST_NOT_FOUND: "Session Test is unavailable.",
+  TEST_HANDOFF_NOT_FOUND: "Test Handoff is unavailable.",
 };
 
 const PLANNED_TEST_REJECTED_MESSAGES: Record<string, string> = {
@@ -2946,6 +2952,14 @@ const PLANNED_TEST_REJECTED_MESSAGES: Record<string, string> = {
   PLANNED_TEST_PROJECT_READ_ONLY: "Archived Projects are read-only.",
   SESSION_TEST_ALREADY_BOUND:
     "This Session Test is already bound to a Planned Test Case version. A bind does not move.",
+  SESSION_TEST_ALREADY_IN_HANDOFF:
+    "This Session Test already arrived on a Test Handoff.",
+  TEST_HANDOFF_LOCKED:
+    "A shared Test Handoff is history. Open a new Test Handoff instead of rewriting it.",
+  TEST_HANDOFF_SCOPE_MISMATCH:
+    "This Session Test is bound to a Planned Test Case version the Test Handoff did not select.",
+  TEST_HANDOFF_TRANSITION_NOT_ALLOWED:
+    "A Test Handoff cannot move to that state from here.",
   PLANNED_TEST_RELATION_TARGET_UNAVAILABLE:
     "A relation target is not an existing, active record of this Project.",
 };
@@ -2959,13 +2973,18 @@ async function runPlannedTestOperation<T>(
     if (!isRecord(error) || typeof error.code !== "string") {
       throw error;
     }
-    if (error.code === "PLANNED_TEST_VERSION_CONFLICT") {
+    if (
+      error.code === "PLANNED_TEST_VERSION_CONFLICT" ||
+      error.code === "TEST_HANDOFF_STATE_CONFLICT"
+    ) {
       throw new ORPCError("PRECONDITION_FAILED", {
         cause: error,
         data: { code: error.code },
         defined: true,
         message:
-          "Planned Test Case changed since it was loaded. Reload and try again.",
+          error.code === "TEST_HANDOFF_STATE_CONFLICT"
+            ? "Test Handoff changed since it was loaded. Reload and try again."
+            : "Planned Test Case changed since it was loaded. Reload and try again.",
       });
     }
     const rejected = PLANNED_TEST_REJECTED_MESSAGES[error.code];
@@ -5510,6 +5529,56 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runPlannedTestOperation(() =>
         requirePlannedTests(context).linkSessionTest(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestHandoffs: protectedProcedure
+    .input(testHandoffProjectInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).handoffs(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createTestHandoff: protectedProcedure
+    .input(createTestHandoffInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).createHandoff(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  updateTestHandoff: protectedProcedure
+    .input(updateTestHandoffInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).updateHandoff(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  transitionTestHandoff: protectedProcedure
+    .input(transitionTestHandoffInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).transitionHandoff(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkTestHandoffSessionTest: protectedProcedure
+    .input(linkTestHandoffSessionTestInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).linkHandoffSessionTest(
           context.session.user.id,
           input,
         ),

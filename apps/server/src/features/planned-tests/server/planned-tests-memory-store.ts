@@ -5,6 +5,7 @@ import type {
   PlannedTestStoredCase,
   PlannedTestTargetResolver,
   SessionTestStoredRecord,
+  TestHandoffStoredRecord,
 } from "@cantiara/api/planned-tests";
 
 import { createPlannedTests } from "./planned-tests";
@@ -39,6 +40,7 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
   }
   const cases = new Map<string, PlannedTestStoredCase>();
   const sessionTests = new Map<string, SessionTestStoredRecord>();
+  const handoffs = new Map<string, TestHandoffStoredRecord>();
 
   function resolverFor(scopeProjectId: string): PlannedTestTargetResolver {
     function lookup(type: string, id: string) {
@@ -147,6 +149,12 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
             found && found.projectId === scopeProjectId ? found : null,
           );
         },
+        findHandoff: (handoffId) => {
+          const found = handoffs.get(handoffId);
+          return Promise.resolve(
+            found && found.projectId === scopeProjectId ? found : null,
+          );
+        },
         findSessionTest: (sessionTestId) => {
           const found = sessionTests.get(sessionTestId);
           return Promise.resolve(
@@ -157,9 +165,29 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
           cases.set(record.id, record);
           return Promise.resolve();
         },
+        insertHandoff: (record) => {
+          handoffs.set(record.id, record);
+          return Promise.resolve();
+        },
         insertSessionTest: (record) => {
           sessionTests.set(record.id, record);
           return Promise.resolve();
+        },
+        linkHandoffSessionTest: (handoffId, sessionTestId, linkedAt) => {
+          const found = handoffs.get(handoffId);
+          const taken = [...handoffs.values()].some((record) =>
+            record.sessionTests.some(
+              (item) => item.sessionTestId === sessionTestId,
+            ),
+          );
+          if (!found || taken) {
+            return Promise.resolve(false);
+          }
+          handoffs.set(handoffId, {
+            ...found,
+            sessionTests: [...found.sessionTests, { linkedAt, sessionTestId }],
+          });
+          return Promise.resolve(true);
         },
         linkSessionTest: (sessionTestId, ref, linkedAt) => {
           const found = sessionTests.get(sessionTestId);
@@ -175,6 +203,12 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
           });
           return Promise.resolve(true);
         },
+        listHandoffs: () =>
+          Promise.resolve(
+            [...handoffs.values()].filter(
+              (record) => record.projectId === scopeProjectId,
+            ),
+          ),
         listSessionTests: () =>
           Promise.resolve(
             [...sessionTests.values()].filter(
@@ -188,7 +222,27 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
             ),
           ),
         readOnly: scopeProjectId === archivedProjectId,
+        replaceHandoffContent: (handoffId, content, updatedAt) => {
+          const found = handoffs.get(handoffId);
+          if (found) {
+            handoffs.set(handoffId, { ...found, ...content, updatedAt });
+          }
+          return Promise.resolve();
+        },
         resolver: resolverFor(scopeProjectId),
+        setHandoffState: (handoffId, expected, to, changedAt) => {
+          const found = handoffs.get(handoffId);
+          if (!found || found.state !== expected) {
+            return Promise.resolve(false);
+          }
+          handoffs.set(handoffId, {
+            ...found,
+            state: to,
+            stateChangedAt: changedAt,
+            updatedAt: changedAt,
+          });
+          return Promise.resolve(true);
+        },
       });
     },
   };
@@ -196,6 +250,7 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
   return {
     cases,
     catalog,
+    handoffs,
     plannedTests: createPlannedTests(store),
     sessionTests,
     setState(type: string, id: string, state: CatalogState) {

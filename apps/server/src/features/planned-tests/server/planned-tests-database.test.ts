@@ -8,6 +8,8 @@ import {
   plannedTestCaseRelation,
   plannedTestCaseVersion,
   sessionTest,
+  testHandoff,
+  testHandoffScenario,
 } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
@@ -35,6 +37,11 @@ import {
   PlannedTestVersionConflictError,
   PlannedTestVersionNotFoundError,
   SessionTestAlreadyBoundError,
+  SessionTestAlreadyInHandoffError,
+  TestHandoffLockedError,
+  TestHandoffScopeMismatchError,
+  TestHandoffStateConflictError,
+  TestHandoffTransitionError,
 } from "./planned-tests";
 import { createDatabasePlannedTests } from "./planned-tests-database";
 
@@ -669,6 +676,209 @@ describeDatabase("Planned Tests PostgreSQL integration", () => {
     ).rejects.toThrow();
     await expect(
       db.insert(sessionTest).values({ ...base, purpose: "p" }),
+    ).rejects.toThrow();
+  });
+
+  test("a Test Handoff keeps exact versions, moves only as asked and never closes itself", async () => {
+    const access = createDatabasePlannedTests(requireDatabase());
+    const created = await access.create(accountId, newCase());
+    const handoff = await access.createHandoff(accountId, {
+      buildContext: { branch: "main", commit: "abc1234" },
+      dueDate: "2026-11-02",
+      projectId,
+      purpose: "Check checkout on staging.",
+      scenarios: [{ caseId: created.id, version: 1 }],
+      targetExecutor: "Claude Code",
+      title: "Checkout round 1",
+    });
+    await access.createVersion(accountId, {
+      ...content,
+      caseId: created.id,
+      changeKind: "Meaningful change",
+      expectedVersion: 1,
+      projectId,
+      scope: "Card and wallet.",
+    });
+    for (const [expectedState, to] of [
+      ["Draft", "Ready to share"],
+      ["Ready to share", "Shared"],
+    ] as const) {
+      await access.transitionHandoff(accountId, {
+        expectedState,
+        handoffId: handoff.id,
+        projectId,
+        to,
+      });
+    }
+    const arrived = await access.recordSessionTest(accountId, {
+      binding: { caseId: created.id, version: 1 },
+      projectId,
+      title: "Pay with the saved card",
+    });
+    const linked = await access.linkHandoffSessionTest(accountId, {
+      handoffId: handoff.id,
+      projectId,
+      sessionTestId: arrived.id,
+    });
+
+    expect(linked).toMatchObject({
+      buildContext: { branch: "main", build: null, commit: "abc1234" },
+      dueDate: "2026-11-02",
+      packageVersion: 0,
+      scenarios: [{ summary: "Pinned to v1, current v2", version: 1 }],
+      state: "Shared",
+      suggestion: { state: "Result received" },
+      targetExecutor: "Claude Code",
+    });
+    const [listed] = (await access.handoffs(accountId, projectId)).handoffs;
+    expect(listed).toMatchObject({
+      sessionTests: [{ id: arrived.id }],
+      state: "Shared",
+    });
+
+    await expect(
+      access.transitionHandoff(accountId, {
+        expectedState: "Draft",
+        handoffId: handoff.id,
+        projectId,
+        to: "Canceled",
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffStateConflictError);
+    await expect(
+      access.transitionHandoff(accountId, {
+        expectedState: "Shared",
+        handoffId: handoff.id,
+        projectId,
+        to: "Draft",
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffTransitionError);
+    await expect(
+      access.updateHandoff(accountId, {
+        handoffId: handoff.id,
+        projectId,
+        purpose: "Rewritten.",
+        title: "x",
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffLockedError);
+    await expect(
+      access.linkHandoffSessionTest(accountId, {
+        handoffId: handoff.id,
+        projectId,
+        sessionTestId: arrived.id,
+      }),
+    ).rejects.toBeInstanceOf(SessionTestAlreadyInHandoffError);
+  });
+
+  test("a Test Handoff selects only exact versions of this Project and replaces them while editable", async () => {
+    const access = createDatabasePlannedTests(requireDatabase());
+    const created = await access.create(accountId, newCase());
+    const sibling = await access.create(
+      accountId,
+      newCase({ projectId: siblingProjectId, title: "Sibling case" }),
+    );
+
+    await expect(
+      access.createHandoff(accountId, {
+        projectId,
+        purpose: "p",
+        scenarios: [{ caseId: sibling.id, version: 1 }],
+        title: "x",
+      }),
+    ).rejects.toBeInstanceOf(PlannedTestCaseNotFoundError);
+    await expect(
+      access.createHandoff(accountId, {
+        projectId,
+        purpose: "p",
+        scenarios: [{ caseId: created.id, version: 5 }],
+        title: "x",
+      }),
+    ).rejects.toBeInstanceOf(PlannedTestVersionNotFoundError);
+    await expect(
+      access.handoffs(otherAccountId, projectId),
+    ).rejects.toBeInstanceOf(PlannedTestProjectNotFoundError);
+    await expect(
+      access.createHandoff(accountId, {
+        projectId: archivedProjectId,
+        purpose: "p",
+        title: "x",
+      }),
+    ).rejects.toBeInstanceOf(PlannedTestProjectReadOnlyError);
+
+    const handoff = await access.createHandoff(accountId, {
+      projectId,
+      purpose: "p",
+      scenarios: [{ caseId: created.id, version: 1 }],
+      title: "x",
+    });
+    const edited = await access.updateHandoff(accountId, {
+      handoffId: handoff.id,
+      projectId,
+      purpose: "p2",
+      scenarios: [],
+      title: "x",
+    });
+    expect(edited.scenarios).toEqual([]);
+
+    // A recorded scope mismatch is refused: v2 was never selected.
+    await access.createVersion(accountId, {
+      ...content,
+      caseId: created.id,
+      changeKind: "Meaningful change",
+      expectedVersion: 1,
+      projectId,
+      scope: "Changed.",
+    });
+    const onV2 = await access.recordSessionTest(accountId, {
+      binding: { caseId: created.id, version: 2 },
+      projectId,
+      title: "On v2",
+    });
+    const withV1 = await access.updateHandoff(accountId, {
+      handoffId: handoff.id,
+      projectId,
+      purpose: "p3",
+      scenarios: [{ caseId: created.id, version: 1 }],
+      title: "x",
+    });
+    expect(withV1.scenarios).toHaveLength(1);
+    await expect(
+      access.linkHandoffSessionTest(accountId, {
+        handoffId: handoff.id,
+        projectId,
+        sessionTestId: onV2.id,
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffScopeMismatchError);
+  });
+
+  test("the database refuses a state outside the six, a negative package version and a missing version", async () => {
+    const db = requireDatabase();
+    const access = createDatabasePlannedTests(db);
+    const created = await access.create(accountId, newCase());
+    const handoff = await access.createHandoff(accountId, {
+      projectId,
+      purpose: "p",
+      title: "x",
+    });
+
+    await expect(
+      db
+        .update(testHandoff)
+        .set({ state: "Passed" })
+        .where(eq(testHandoff.id, handoff.id)),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .update(testHandoff)
+        .set({ packageVersion: -1 })
+        .where(eq(testHandoff.id, handoff.id)),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(testHandoffScenario).values({
+        caseId: created.id,
+        handoffId: handoff.id,
+        position: 0,
+        version: 9,
+      }),
     ).rejects.toThrow();
   });
 

@@ -13,6 +13,8 @@ import type {
   PlannedTestVersionKind,
   SessionTestBindOrigin,
   SessionTestStoredRecord,
+  TestHandoffState,
+  TestHandoffStoredRecord,
 } from "@cantiara/api/planned-tests";
 import type { BrokenReferenceReason } from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
@@ -23,6 +25,9 @@ import {
   plannedTestCaseRelation,
   plannedTestCaseVersion,
   sessionTest,
+  testHandoff,
+  testHandoffScenario,
+  testHandoffSessionTest,
 } from "@cantiara/db/schema/planned-test";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
@@ -502,6 +507,92 @@ function toStoredSessionTest(
   };
 }
 
+const HANDOFF_CONTENT_COLUMNS = (
+  content: Pick<
+    TestHandoffStoredRecord,
+    "buildContext" | "dueDate" | "purpose" | "targetExecutor" | "title"
+  >,
+) => ({
+  buildBranch: content.buildContext.branch,
+  buildCommit: content.buildContext.commit,
+  buildName: content.buildContext.build,
+  buildRepository: content.buildContext.repository,
+  buildTargetEnvironment: content.buildContext.targetEnvironment,
+  dueDate: content.dueDate,
+  purpose: content.purpose,
+  targetExecutor: content.targetExecutor,
+  title: content.title,
+});
+
+async function toStoredHandoffs(
+  executor: Executor,
+  rows: (typeof testHandoff.$inferSelect)[],
+): Promise<TestHandoffStoredRecord[]> {
+  if (rows.length === 0) {
+    return [];
+  }
+  const ids = rows.map(({ id }) => id);
+  const scenarios = await executor
+    .select()
+    .from(testHandoffScenario)
+    .where(inArray(testHandoffScenario.handoffId, ids))
+    .orderBy(asc(testHandoffScenario.position));
+  const links = await executor
+    .select()
+    .from(testHandoffSessionTest)
+    .where(inArray(testHandoffSessionTest.handoffId, ids))
+    .orderBy(
+      asc(testHandoffSessionTest.linkedAt),
+      asc(testHandoffSessionTest.sessionTestId),
+    );
+  return rows.map((row) => ({
+    buildContext: {
+      branch: row.buildBranch,
+      build: row.buildName,
+      commit: row.buildCommit,
+      repository: row.buildRepository,
+      targetEnvironment: row.buildTargetEnvironment,
+    },
+    createdAt: row.createdAt.toISOString(),
+    dueDate: row.dueDate,
+    id: row.id,
+    packageVersion: row.packageVersion,
+    projectId: row.projectId,
+    purpose: row.purpose,
+    scenarios: scenarios
+      .filter(({ handoffId }) => handoffId === row.id)
+      .map(({ caseId, version }) => ({ caseId, version })),
+    sessionTests: links
+      .filter(({ handoffId }) => handoffId === row.id)
+      .map(({ linkedAt, sessionTestId }) => ({
+        linkedAt: linkedAt.toISOString(),
+        sessionTestId,
+      })),
+    state: row.state as TestHandoffState,
+    stateChangedAt: row.stateChangedAt.toISOString(),
+    targetExecutor: row.targetExecutor,
+    title: row.title,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+}
+
+async function insertHandoffScenarios(
+  executor: Executor,
+  handoffId: string,
+  scenarios: TestHandoffStoredRecord["scenarios"],
+) {
+  if (scenarios.length > 0) {
+    await executor.insert(testHandoffScenario).values(
+      scenarios.map(({ caseId, version }, position) => ({
+        caseId,
+        handoffId,
+        position,
+        version,
+      })),
+    );
+  }
+}
+
 export function createDatabasePlannedTestStore(
   database: Database,
 ): PlannedTestStore {
@@ -544,6 +635,23 @@ export function createDatabasePlannedTestStore(
               const [stored] = await toStoredCases(executor, [row]);
               return stored ?? null;
             },
+            findHandoff: async (handoffId, lock) => {
+              const query = executor
+                .select()
+                .from(testHandoff)
+                .where(
+                  and(
+                    eq(testHandoff.id, handoffId),
+                    eq(testHandoff.projectId, owned.id),
+                  ),
+                );
+              const [row] = lock ? await query.for("update") : await query;
+              if (!row) {
+                return null;
+              }
+              const [stored] = await toStoredHandoffs(executor, [row]);
+              return stored ?? null;
+            },
             findSessionTest: async (sessionTestId, lock) => {
               const query = executor
                 .select()
@@ -569,6 +677,23 @@ export function createDatabasePlannedTestStore(
                 await insertVersion(executor, version);
               }
             },
+            insertHandoff: async (record) => {
+              await executor.insert(testHandoff).values({
+                ...HANDOFF_CONTENT_COLUMNS(record),
+                createdAt: new Date(record.createdAt),
+                id: record.id,
+                packageVersion: record.packageVersion,
+                projectId: owned.id,
+                state: record.state,
+                stateChangedAt: new Date(record.stateChangedAt),
+                updatedAt: new Date(record.updatedAt),
+              });
+              await insertHandoffScenarios(
+                executor,
+                record.id,
+                record.scenarios,
+              );
+            },
             insertSessionTest: async (record) => {
               await executor.insert(sessionTest).values({
                 bindOrigin: record.bindOrigin,
@@ -582,6 +707,24 @@ export function createDatabasePlannedTestStore(
                 scenarioVersion: record.scenarioVersion,
                 title: record.title,
               });
+            },
+            // The session test id is the primary key, so a second Handoff (or a
+            // repeat) conflicts and nothing is written.
+            linkHandoffSessionTest: async (
+              handoffId,
+              sessionTestId,
+              linkedAt,
+            ) => {
+              const inserted = await executor
+                .insert(testHandoffSessionTest)
+                .values({
+                  handoffId,
+                  linkedAt: new Date(linkedAt),
+                  sessionTestId,
+                })
+                .onConflictDoNothing()
+                .returning({ id: testHandoffSessionTest.sessionTestId });
+              return inserted.length === 1;
             },
             // Only the bind columns are written, and only while there is none,
             // so the recorded content and an existing bind can never change.
@@ -616,6 +759,15 @@ export function createDatabasePlannedTestStore(
                     asc(plannedTestCase.id),
                   ),
               ),
+            listHandoffs: async () =>
+              await toStoredHandoffs(
+                executor,
+                await executor
+                  .select()
+                  .from(testHandoff)
+                  .where(eq(testHandoff.projectId, owned.id))
+                  .orderBy(desc(testHandoff.createdAt), asc(testHandoff.id)),
+              ),
             listSessionTests: async () =>
               (
                 await executor
@@ -625,7 +777,43 @@ export function createDatabasePlannedTestStore(
                   .orderBy(desc(sessionTest.createdAt), asc(sessionTest.id))
               ).map(toStoredSessionTest),
             readOnly: owned.archivedAt !== null,
+            replaceHandoffContent: async (handoffId, content, updatedAt) => {
+              await executor
+                .update(testHandoff)
+                .set({
+                  ...HANDOFF_CONTENT_COLUMNS(content),
+                  updatedAt: new Date(updatedAt),
+                })
+                .where(eq(testHandoff.id, handoffId));
+              await executor
+                .delete(testHandoffScenario)
+                .where(eq(testHandoffScenario.handoffId, handoffId));
+              await insertHandoffScenarios(
+                executor,
+                handoffId,
+                content.scenarios,
+              );
+            },
             resolver: createResolver(executor, owned.id),
+            // The state moves only while it is still the one the caller saw.
+            setHandoffState: async (handoffId, expected, to, changedAt) => {
+              const updated = await executor
+                .update(testHandoff)
+                .set({
+                  state: to,
+                  stateChangedAt: new Date(changedAt),
+                  updatedAt: new Date(changedAt),
+                })
+                .where(
+                  and(
+                    eq(testHandoff.id, handoffId),
+                    eq(testHandoff.projectId, owned.id),
+                    eq(testHandoff.state, expected),
+                  ),
+                )
+                .returning({ id: testHandoff.id });
+              return updated.length === 1;
+            },
           });
         },
         mode === "read"

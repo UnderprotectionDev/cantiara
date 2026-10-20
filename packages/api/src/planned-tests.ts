@@ -376,6 +376,352 @@ export function toSessionTestRecord(
   };
 }
 
+/**
+ * Test Handoff lifecycle (spec 53, ticket 03). A Test Handoff is a light
+ * historical Project record of requested external test work and the Session
+ * Tests that come back. It is NOT a Test Session, NOT a runner or CI
+ * orchestrator and NOT Work's external execution handoff (ADR-0015, spec 24):
+ * it shares none of that contract's types, states or tables. The states
+ * describe the handoff PROCESS, never a test result, and no state is entered by
+ * the product on its own: a linked Session Test only yields a `suggestion`.
+ * The surface has no start, run, poll, schedule or remote-cancel operation.
+ */
+export const TEST_HANDOFF_LABEL = "Test Handoff";
+export const TEST_HANDOFF_STATES = [
+  "Draft",
+  "Ready to share",
+  "Shared",
+  "Result received",
+  "Closed",
+  "Canceled",
+] as const;
+export const testHandoffStateSchema = z.enum(TEST_HANDOFF_STATES);
+export type TestHandoffState = z.infer<typeof testHandoffStateSchema>;
+
+/**
+ * The only founder-driven moves. `Closed` and `Canceled` are final: a late
+ * report may still be linked to a canceled Handoff, but it is never reopened.
+ * `Result received` may fall back to `Shared` when more results are expected.
+ * Only the founder moves a Handoff; nothing here is reached by a linked report.
+ */
+export const TEST_HANDOFF_TRANSITIONS: Record<
+  TestHandoffState,
+  readonly TestHandoffState[]
+> = {
+  Canceled: [],
+  Closed: [],
+  Draft: ["Ready to share", "Canceled"],
+  "Ready to share": ["Draft", "Shared", "Canceled"],
+  "Result received": ["Shared", "Closed"],
+  Shared: ["Result received", "Closed", "Canceled"],
+};
+
+export function canTransitionTestHandoff(
+  from: TestHandoffState,
+  to: TestHandoffState,
+) {
+  return TEST_HANDOFF_TRANSITIONS[from].includes(to);
+}
+
+/** Content is editable only until it is shared; a shared Handoff is history. */
+export const TEST_HANDOFF_EDITABLE_STATES: readonly TestHandoffState[] = [
+  "Draft",
+  "Ready to share",
+];
+
+export const TEST_HANDOFF_SCENARIO_MAX = 100;
+export const TEST_HANDOFF_EXECUTOR_SUGGESTIONS = [
+  "Me",
+  "Codex",
+  "Claude Code",
+  "Conductor",
+] as const;
+
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+/**
+ * A founder-typed build context value. Text is kept as typed; a URL must be
+ * plain http(s) with no credentials, query or fragment, because those are the
+ * places tokens travel and this value is later copied into a package.
+ */
+function contextValue(label: string) {
+  return z
+    .string()
+    .trim()
+    .max(255, `${label} must be 255 characters or fewer.`)
+    .nullish()
+    .transform((value) => (value ? value : null))
+    .superRefine((value, context) => {
+      if (value === null || !URL_SCHEME.test(value)) {
+        return;
+      }
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        context.addIssue({
+          code: "custom",
+          message: `${label} is not a valid URL.`,
+        });
+        return;
+      }
+      const safe =
+        (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+        !parsed.username &&
+        !parsed.password &&
+        !parsed.search &&
+        !parsed.hash;
+      if (!safe) {
+        context.addIssue({
+          code: "custom",
+          message: `${label} must be an http(s) URL without credentials, query or fragment.`,
+        });
+      }
+    });
+}
+
+/** Founder-typed `product_build_context`. The product never reads GitHub or CI. */
+export const testHandoffBuildContextSchema = z
+  .object({
+    branch: contextValue("Branch"),
+    build: contextValue("Build"),
+    commit: contextValue("Commit"),
+    repository: contextValue("Repository"),
+    targetEnvironment: contextValue("Target environment"),
+  })
+  .strict();
+export type TestHandoffBuildContext = z.output<
+  typeof testHandoffBuildContextSchema
+>;
+export const EMPTY_TEST_HANDOFF_BUILD_CONTEXT: TestHandoffBuildContext = {
+  branch: null,
+  build: null,
+  commit: null,
+  repository: null,
+  targetEnvironment: null,
+};
+
+const dueDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be a calendar date.")
+  .refine(
+    (value) => new Date(`${value}T00:00:00Z`).toISOString().startsWith(value),
+    "Due date must be a calendar date.",
+  )
+  .nullish()
+  .transform((value) => (value ? value : null));
+
+const handoffScenariosSchema = z
+  .array(plannedTestCaseVersionRefSchema)
+  .max(
+    TEST_HANDOFF_SCENARIO_MAX,
+    `A ${TEST_HANDOFF_LABEL} selects at most ${TEST_HANDOFF_SCENARIO_MAX} versions.`,
+  )
+  .default([])
+  .refine(
+    (refs) => new Set(refs.map(({ caseId }) => caseId)).size === refs.length,
+    "Select one version per Planned Test Case.",
+  );
+
+/**
+ * Target executor is free text on purpose: the founder, Codex, Claude Code,
+ * Conductor or any named external tool. The suggestions above are not a closed
+ * runtime list and nothing dispatches on them.
+ */
+export const testHandoffFieldsSchema = z
+  .object({
+    buildContext: testHandoffBuildContextSchema.prefault({}),
+    dueDate: dueDateSchema,
+    purpose: requiredText("Purpose and scope", PLANNED_TEST_TEXT_MAX),
+    scenarios: handoffScenariosSchema,
+    targetExecutor: z
+      .string()
+      .trim()
+      .max(120, "Target executor must be 120 characters or fewer.")
+      .nullish()
+      .transform((value) => (value ? value : null)),
+    title: requiredText("Title", 255),
+  })
+  .strict();
+
+export const createTestHandoffInputSchema = testHandoffFieldsSchema
+  .extend({ projectId: identifierSchema })
+  .strict();
+export type CreateTestHandoffInput = z.input<
+  typeof createTestHandoffInputSchema
+>;
+
+/** Full replace of the editable content, like a new case version. */
+export const updateTestHandoffInputSchema = testHandoffFieldsSchema
+  .extend({ handoffId: identifierSchema, projectId: identifierSchema })
+  .strict();
+export type UpdateTestHandoffInput = z.input<
+  typeof updateTestHandoffInputSchema
+>;
+
+/** `expectedState` is the state the founder saw, so a stale click is refused. */
+export const transitionTestHandoffInputSchema = z
+  .object({
+    expectedState: testHandoffStateSchema,
+    handoffId: identifierSchema,
+    projectId: identifierSchema,
+    to: testHandoffStateSchema,
+  })
+  .strict();
+export type TransitionTestHandoffInput = z.input<
+  typeof transitionTestHandoffInputSchema
+>;
+
+/** Links an arriving Session Test to a Handoff, once. Spec 54 owns acceptance. */
+export const linkTestHandoffSessionTestInputSchema = z
+  .object({
+    handoffId: identifierSchema,
+    projectId: identifierSchema,
+    sessionTestId: identifierSchema,
+  })
+  .strict();
+export type LinkTestHandoffSessionTestInput = z.input<
+  typeof linkTestHandoffSessionTestInputSchema
+>;
+
+export const testHandoffProjectInputSchema = plannedTestCaseProjectInputSchema;
+
+export interface TestHandoffStoredRecord {
+  buildContext: TestHandoffBuildContext;
+  createdAt: string;
+  /** Calendar date `YYYY-MM-DD`, or `null`. */
+  dueDate: string | null;
+  id: string;
+  /**
+   * Package version counter. `0` means no package was produced yet; the package
+   * export (ticket 04) is the only writer and increments it per produced package.
+   */
+  packageVersion: number;
+  projectId: string;
+  purpose: string;
+  /** Selected exact versions in the order the founder chose. */
+  scenarios: PlannedTestCaseVersionRef[];
+  /** Arriving Session Tests, oldest link first. */
+  sessionTests: { linkedAt: string; sessionTestId: string }[];
+  state: TestHandoffState;
+  stateChangedAt: string;
+  targetExecutor: string | null;
+  title: string;
+  updatedAt: string;
+}
+
+export interface TestHandoffScenarioView {
+  caseId: string;
+  currentVersion: number;
+  /** Explicit difference, e.g. "Pinned to v1, current v3". */
+  summary: string;
+  title: string;
+  version: number;
+}
+
+export interface TestHandoffSuggestion {
+  reason: string;
+  state: "Result received";
+}
+
+export interface TestHandoffRecord {
+  allowedTransitions: TestHandoffState[];
+  buildContext: TestHandoffBuildContext;
+  createdAt: string;
+  dueDate: string | null;
+  editable: boolean;
+  id: string;
+  packageVersion: number;
+  projectId: string;
+  purpose: string;
+  /** A report arrived after cancel: shown as attention, state is unchanged. */
+  resultAfterCancel: boolean;
+  scenarios: TestHandoffScenarioView[];
+  sessionTests: SessionTestRecord[];
+  state: TestHandoffState;
+  stateChangedAt: string;
+  /**
+   * Only a suggestion. The product never moves or closes a Handoff because a
+   * Session Test arrived; the founder makes `Result received` explicit.
+   */
+  suggestion: TestHandoffSuggestion | null;
+  targetExecutor: string | null;
+  title: string;
+  updatedAt: string;
+}
+
+export interface TestHandoffList {
+  handoffs: TestHandoffRecord[];
+  readOnly: boolean;
+}
+
+export function toTestHandoffRecord(
+  stored: TestHandoffStoredRecord,
+  cases: ReadonlyMap<string, PlannedTestStoredCase>,
+  sessionTests: ReadonlyMap<string, SessionTestStoredRecord>,
+): TestHandoffRecord {
+  const scenarios = stored.scenarios.map((ref): TestHandoffScenarioView => {
+    const scenario = cases.get(ref.caseId);
+    const pinned = scenario?.versions.find(
+      ({ version }) => version === ref.version,
+    );
+    if (!(scenario && pinned)) {
+      throw new Error(`Test Handoff ${stored.id} lost a pinned version.`);
+    }
+    return {
+      caseId: ref.caseId,
+      currentVersion: scenario.currentVersion,
+      summary: `Pinned to v${ref.version}, ${
+        ref.version === scenario.currentVersion
+          ? "current"
+          : `current v${scenario.currentVersion}`
+      }`,
+      title: pinned.title,
+      version: ref.version,
+    };
+  });
+  const arrived = stored.sessionTests.flatMap(({ sessionTestId }) => {
+    const found = sessionTests.get(sessionTestId);
+    if (!found) {
+      return [];
+    }
+    return [
+      toSessionTestRecord(
+        found,
+        found.scenarioId ? (cases.get(found.scenarioId) ?? null) : null,
+      ),
+    ];
+  });
+  return {
+    allowedTransitions: [...TEST_HANDOFF_TRANSITIONS[stored.state]],
+    buildContext: stored.buildContext,
+    createdAt: stored.createdAt,
+    dueDate: stored.dueDate,
+    editable: TEST_HANDOFF_EDITABLE_STATES.includes(stored.state),
+    id: stored.id,
+    packageVersion: stored.packageVersion,
+    projectId: stored.projectId,
+    purpose: stored.purpose,
+    resultAfterCancel: stored.state === "Canceled" && arrived.length > 0,
+    scenarios,
+    sessionTests: arrived,
+    state: stored.state,
+    stateChangedAt: stored.stateChangedAt,
+    suggestion:
+      stored.state === "Shared" && arrived.length > 0
+        ? {
+            reason: `${arrived.length} linked ${
+              arrived.length === 1 ? "Session Test" : "Session Tests"
+            } arrived. Mark Result received when you have read them; the ${TEST_HANDOFF_LABEL} stays open until you close it.`,
+            state: "Result received",
+          }
+        : null,
+    targetExecutor: stored.targetExecutor,
+    title: stored.title,
+    updatedAt: stored.updatedAt,
+  };
+}
+
 export interface PlannedTestStoredRelation {
   documentRevision: number | null;
   id: string;
@@ -505,12 +851,27 @@ export interface PlannedTestTransaction {
     caseId: string,
     lock: boolean,
   ) => Promise<PlannedTestStoredCase | null>;
+  /** When `lock` is true the Handoff row is held until the unit of work ends. */
+  findHandoff: (
+    handoffId: string,
+    lock: boolean,
+  ) => Promise<TestHandoffStoredRecord | null>;
   findSessionTest: (
     sessionTestId: string,
     lock: boolean,
   ) => Promise<SessionTestStoredRecord | null>;
   insertCase: (record: PlannedTestStoredCase) => Promise<void>;
+  insertHandoff: (record: TestHandoffStoredRecord) => Promise<void>;
   insertSessionTest: (record: SessionTestStoredRecord) => Promise<void>;
+  /**
+   * Attaches a Session Test to a Handoff. Resolves `false` when the Session
+   * Test already arrived on a Handoff, so a link can never be moved.
+   */
+  linkHandoffSessionTest: (
+    handoffId: string,
+    sessionTestId: string,
+    linkedAt: string,
+  ) => Promise<boolean>;
   /**
    * Sets the bind of a Session Test that has none. Resolves `false` when it
    * already had one, so a bind can never be moved.
@@ -521,10 +882,35 @@ export interface PlannedTestTransaction {
     linkedAt: string,
   ) => Promise<boolean>;
   listCases: () => Promise<PlannedTestStoredCase[]>;
+  listHandoffs: () => Promise<TestHandoffStoredRecord[]>;
   listSessionTests: () => Promise<SessionTestStoredRecord[]>;
   /** True for an archived Project, which stays readable but takes no writes. */
   readOnly: boolean;
+  /** Replaces the editable content and selected versions of a Handoff. */
+  replaceHandoffContent: (
+    handoffId: string,
+    content: Pick<
+      TestHandoffStoredRecord,
+      | "buildContext"
+      | "dueDate"
+      | "purpose"
+      | "scenarios"
+      | "targetExecutor"
+      | "title"
+    >,
+    updatedAt: string,
+  ) => Promise<void>;
   resolver: PlannedTestTargetResolver;
+  /**
+   * Moves a Handoff only while it is still in `expected`. Resolves `false`
+   * otherwise, so a concurrent move is refused rather than overwritten.
+   */
+  setHandoffState: (
+    handoffId: string,
+    expected: TestHandoffState,
+    to: TestHandoffState,
+    changedAt: string,
+  ) => Promise<boolean>;
 }
 
 export interface PlannedTestStore {
@@ -542,10 +928,20 @@ export interface PlannedTestsAccess {
     accountId: string,
     input: CreatePlannedTestCaseInput,
   ) => Promise<PlannedTestCaseRecord>;
+  createHandoff: (
+    accountId: string,
+    input: CreateTestHandoffInput,
+  ) => Promise<TestHandoffRecord>;
   createVersion: (
     accountId: string,
     input: CreatePlannedTestCaseVersionInput,
   ) => Promise<PlannedTestCaseRecord>;
+  handoffs: (accountId: string, projectId: string) => Promise<TestHandoffList>;
+  /** Attaches an arriving Session Test; never moves the Handoff's state. */
+  linkHandoffSessionTest: (
+    accountId: string,
+    input: LinkTestHandoffSessionTestInput,
+  ) => Promise<TestHandoffRecord>;
   /** Binds an ad hoc Session Test to one exact version, once. */
   linkSessionTest: (
     accountId: string,
@@ -564,6 +960,15 @@ export interface PlannedTestsAccess {
     accountId: string,
     projectId: string,
   ) => Promise<SessionTestList>;
+  /** The only way a Handoff changes state, and only as the founder asks. */
+  transitionHandoff: (
+    accountId: string,
+    input: TransitionTestHandoffInput,
+  ) => Promise<TestHandoffRecord>;
+  updateHandoff: (
+    accountId: string,
+    input: UpdateTestHandoffInput,
+  ) => Promise<TestHandoffRecord>;
   /** Exactly the requested version, with its relations resolved live. */
   version: (
     accountId: string,

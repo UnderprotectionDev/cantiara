@@ -1,9 +1,12 @@
 import {
+  canTransitionTestHandoff,
   createPlannedTestCaseInputSchema,
   createPlannedTestCaseVersionInputSchema,
+  createTestHandoffInputSchema,
   duplicatePlannedTestRelation,
   isSamePlannedTestContent,
   linkSessionTestInputSchema,
+  linkTestHandoffSessionTestInputSchema,
   type PlannedTestCaseRecord,
   type PlannedTestCaseVersionRecord,
   type PlannedTestCaseVersionRef,
@@ -22,7 +25,15 @@ import {
   relationKey,
   type SessionTestStoredRecord,
   sessionTestProjectInputSchema,
+  TEST_HANDOFF_EDITABLE_STATES,
+  type TestHandoffRecord,
+  type TestHandoffState,
+  type TestHandoffStoredRecord,
+  testHandoffProjectInputSchema,
   toSessionTestRecord,
+  toTestHandoffRecord,
+  transitionTestHandoffInputSchema,
+  updateTestHandoffInputSchema,
 } from "@cantiara/api/planned-tests";
 
 export class PlannedTestProjectNotFoundError extends Error {
@@ -97,6 +108,67 @@ export class SessionTestAlreadyBoundError extends Error {
   constructor(sessionTestId: string) {
     super(`Session Test ${sessionTestId} is already bound and cannot move.`);
     this.name = "SessionTestAlreadyBoundError";
+  }
+}
+
+export class TestHandoffNotFoundError extends Error {
+  readonly code = "TEST_HANDOFF_NOT_FOUND" as const;
+
+  constructor(handoffId: string) {
+    super(`Test Handoff ${handoffId} was not found.`);
+    this.name = "TestHandoffNotFoundError";
+  }
+}
+
+/** The move is not in the process table. */
+export class TestHandoffTransitionError extends Error {
+  readonly code = "TEST_HANDOFF_TRANSITION_NOT_ALLOWED" as const;
+
+  constructor(from: TestHandoffState, to: TestHandoffState) {
+    super(`A Test Handoff cannot move from ${from} to ${to}.`);
+    this.name = "TestHandoffTransitionError";
+  }
+}
+
+/** The founder acted on a state the Handoff is no longer in. */
+export class TestHandoffStateConflictError extends Error {
+  readonly code = "TEST_HANDOFF_STATE_CONFLICT" as const;
+
+  constructor(handoffId: string) {
+    super(`Test Handoff ${handoffId} changed since it was loaded.`);
+    this.name = "TestHandoffStateConflictError";
+  }
+}
+
+/** Shared and later Handoffs are history; their content is not rewritten. */
+export class TestHandoffLockedError extends Error {
+  readonly code = "TEST_HANDOFF_LOCKED" as const;
+
+  constructor(handoffId: string) {
+    super(`Test Handoff ${handoffId} is shared and its content is fixed.`);
+    this.name = "TestHandoffLockedError";
+  }
+}
+
+/** A bound Session Test names a version this Handoff did not select. */
+export class TestHandoffScopeMismatchError extends Error {
+  readonly code = "TEST_HANDOFF_SCOPE_MISMATCH" as const;
+
+  constructor(sessionTestId: string, handoffId: string) {
+    super(
+      `Session Test ${sessionTestId} is bound to a version Test Handoff ${handoffId} did not select.`,
+    );
+    this.name = "TestHandoffScopeMismatchError";
+  }
+}
+
+/** A Session Test arrives on one Handoff, once. */
+export class SessionTestAlreadyInHandoffError extends Error {
+  readonly code = "SESSION_TEST_ALREADY_IN_HANDOFF" as const;
+
+  constructor(sessionTestId: string) {
+    super(`Session Test ${sessionTestId} already arrived on a Test Handoff.`);
+    this.name = "SessionTestAlreadyInHandoffError";
   }
 }
 
@@ -234,6 +306,39 @@ async function requireExactVersion(
   return scenario;
 }
 
+async function presentHandoff(
+  transaction: PlannedTestTransaction,
+  stored: TestHandoffStoredRecord,
+): Promise<TestHandoffRecord> {
+  const cases = new Map(
+    (await transaction.listCases()).map((record) => [record.id, record]),
+  );
+  const sessionTests = new Map(
+    (await transaction.listSessionTests()).map((record) => [record.id, record]),
+  );
+  return toTestHandoffRecord(stored, cases, sessionTests);
+}
+
+async function requireHandoff(
+  transaction: PlannedTestTransaction,
+  handoffId: string,
+  lock: boolean,
+) {
+  const stored = await transaction.findHandoff(handoffId, lock);
+  if (!stored) {
+    throw new TestHandoffNotFoundError(handoffId);
+  }
+  return stored;
+}
+
+/** Every selected ref must be an existing exact version of this Project. */
+async function requireSelectedVersions(
+  transaction: PlannedTestTransaction,
+  refs: readonly PlannedTestCaseVersionRef[],
+) {
+  await Promise.all(refs.map((ref) => requireExactVersion(transaction, ref)));
+}
+
 /**
  * Planned Tests and Handoff seam, case half. A Planned Test Case is versioned
  * intent: the only writes are `create` (version 1) and `createVersion`, which
@@ -352,6 +457,132 @@ export function createPlannedTests(
         throw new PlannedTestProjectNotFoundError(input.projectId);
       }
       return saved;
+    },
+
+    async createHandoff(accountId, rawInput) {
+      const input = createTestHandoffInputSchema.parse(rawInput);
+      const created = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          await requireSelectedVersions(transaction, input.scenarios);
+          const now = new Date().toISOString();
+          const stored: TestHandoffStoredRecord = {
+            buildContext: input.buildContext,
+            createdAt: now,
+            dueDate: input.dueDate,
+            id: crypto.randomUUID(),
+            packageVersion: 0,
+            projectId: input.projectId,
+            purpose: input.purpose,
+            scenarios: input.scenarios,
+            sessionTests: [],
+            state: "Draft",
+            stateChangedAt: now,
+            targetExecutor: input.targetExecutor,
+            title: input.title,
+            updatedAt: now,
+          };
+          await transaction.insertHandoff(stored);
+          return await presentHandoff(transaction, stored);
+        },
+      );
+      if (!created) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return created;
+    },
+
+    async handoffs(accountId, projectId) {
+      const parsed = testHandoffProjectInputSchema.parse({ projectId });
+      const listed = await store.run(
+        accountId,
+        parsed.projectId,
+        "read",
+        async (transaction) => {
+          const cases = new Map(
+            (await transaction.listCases()).map((record) => [
+              record.id,
+              record,
+            ]),
+          );
+          const sessionTests = new Map(
+            (await transaction.listSessionTests()).map((record) => [
+              record.id,
+              record,
+            ]),
+          );
+          const handoffs = (await transaction.listHandoffs()).map((stored) =>
+            toTestHandoffRecord(stored, cases, sessionTests),
+          );
+          return { handoffs, readOnly: transaction.readOnly };
+        },
+      );
+      if (!listed) {
+        throw new PlannedTestProjectNotFoundError(parsed.projectId);
+      }
+      return listed;
+    },
+
+    async linkHandoffSessionTest(accountId, rawInput) {
+      const input = linkTestHandoffSessionTestInputSchema.parse(rawInput);
+      const linked = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          const handoff = await requireHandoff(
+            transaction,
+            input.handoffId,
+            true,
+          );
+          const sessionTest = await transaction.findSessionTest(
+            input.sessionTestId,
+            true,
+          );
+          if (!sessionTest) {
+            throw new SessionTestNotFoundError(input.sessionTestId);
+          }
+          if (
+            sessionTest.scenarioId !== null &&
+            !handoff.scenarios.some(
+              ({ caseId, version }) =>
+                caseId === sessionTest.scenarioId &&
+                version === sessionTest.scenarioVersion,
+            )
+          ) {
+            throw new TestHandoffScopeMismatchError(sessionTest.id, handoff.id);
+          }
+          const linkedAt = new Date().toISOString();
+          // Only the link is written: state, content and package version stay.
+          const attached = await transaction.linkHandoffSessionTest(
+            handoff.id,
+            sessionTest.id,
+            linkedAt,
+          );
+          if (!attached) {
+            throw new SessionTestAlreadyInHandoffError(sessionTest.id);
+          }
+          return await presentHandoff(transaction, {
+            ...handoff,
+            sessionTests: [
+              ...handoff.sessionTests,
+              { linkedAt, sessionTestId: sessionTest.id },
+            ],
+          });
+        },
+      );
+      if (!linked) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return linked;
     },
 
     async linkSessionTest(accountId, rawInput) {
@@ -501,6 +732,97 @@ export function createPlannedTests(
         throw new PlannedTestProjectNotFoundError(parsed.projectId);
       }
       return listed;
+    },
+
+    async transitionHandoff(accountId, rawInput) {
+      const input = transitionTestHandoffInputSchema.parse(rawInput);
+      const moved = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          const handoff = await requireHandoff(
+            transaction,
+            input.handoffId,
+            true,
+          );
+          if (handoff.state !== input.expectedState) {
+            throw new TestHandoffStateConflictError(handoff.id);
+          }
+          if (!canTransitionTestHandoff(handoff.state, input.to)) {
+            throw new TestHandoffTransitionError(handoff.state, input.to);
+          }
+          const changedAt = new Date().toISOString();
+          const set = await transaction.setHandoffState(
+            handoff.id,
+            handoff.state,
+            input.to,
+            changedAt,
+          );
+          if (!set) {
+            throw new TestHandoffStateConflictError(handoff.id);
+          }
+          return await presentHandoff(transaction, {
+            ...handoff,
+            state: input.to,
+            stateChangedAt: changedAt,
+            updatedAt: changedAt,
+          });
+        },
+      );
+      if (!moved) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return moved;
+    },
+
+    async updateHandoff(accountId, rawInput) {
+      const input = updateTestHandoffInputSchema.parse(rawInput);
+      const saved = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          const handoff = await requireHandoff(
+            transaction,
+            input.handoffId,
+            true,
+          );
+          if (!TEST_HANDOFF_EDITABLE_STATES.includes(handoff.state)) {
+            throw new TestHandoffLockedError(handoff.id);
+          }
+          await requireSelectedVersions(transaction, input.scenarios);
+          const updatedAt = new Date().toISOString();
+          const content = {
+            buildContext: input.buildContext,
+            dueDate: input.dueDate,
+            purpose: input.purpose,
+            scenarios: input.scenarios,
+            targetExecutor: input.targetExecutor,
+            title: input.title,
+          };
+          await transaction.replaceHandoffContent(
+            handoff.id,
+            content,
+            updatedAt,
+          );
+          return await presentHandoff(transaction, {
+            ...handoff,
+            ...content,
+            updatedAt,
+          });
+        },
+      );
+      if (!saved) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return saved;
     },
 
     async version(accountId, rawInput) {

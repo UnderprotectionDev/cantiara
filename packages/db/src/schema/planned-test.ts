@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  date,
   foreignKey,
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -168,5 +170,118 @@ export const sessionTest = pgTable(
       "project_session_test_title_check",
       sql`length(btrim(${table.title})) between 1 and 255`,
     ),
+  ],
+);
+
+/**
+ * Test Handoff (spec 53, ticket 03): a light historical Project record of
+ * requested external test work. Its own table, deliberately separate from
+ * Work's external execution handoff (ADR-0015): no work_id, no return record,
+ * no reconciliation and no result column. `state` is the handoff PROCESS; the
+ * product writes it only when the founder asks. The `build_*` columns are the
+ * founder-typed `product_build_context`; nothing reads GitHub or CI to fill
+ * them. `package_version` is the counter the package export (ticket 04)
+ * increments per produced package: 0 means none was produced yet.
+ * `target_executor` is free text, not a closed vendor list.
+ */
+export const testHandoff = pgTable(
+  "project_test_handoff",
+  {
+    buildBranch: text("build_branch"),
+    buildCommit: text("build_commit"),
+    buildName: text("build_name"),
+    buildRepository: text("build_repository"),
+    buildTargetEnvironment: text("build_target_environment"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    dueDate: date("due_date", { mode: "string" }),
+    id: text("id").primaryKey(),
+    packageVersion: integer("package_version").default(0).notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    state: text("state").default("Draft").notNull(),
+    stateChangedAt: timestamp("state_changed_at").defaultNow().notNull(),
+    targetExecutor: text("target_executor"),
+    title: text("title").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("project_test_handoff_project_idx").on(table.projectId),
+    check(
+      "project_test_handoff_state_check",
+      sql`${table.state} in ('Draft', 'Ready to share', 'Shared', 'Result received', 'Closed', 'Canceled')`,
+    ),
+    check(
+      "project_test_handoff_package_version_check",
+      sql`${table.packageVersion} >= 0`,
+    ),
+    check(
+      "project_test_handoff_title_check",
+      sql`length(btrim(${table.title})) between 1 and 255`,
+    ),
+  ],
+);
+
+/**
+ * Exact Planned Test Case versions a Handoff selected. The composite foreign
+ * key names one immutable version row, so a Handoff can never mean "latest" and
+ * no case edit moves it. One version per case per Handoff.
+ */
+export const testHandoffScenario = pgTable(
+  "project_test_handoff_scenario",
+  {
+    caseId: text("case_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    handoffId: text("handoff_id").notNull(),
+    position: integer("position").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.handoffId, table.caseId],
+      name: "project_test_handoff_scenario_pk",
+    }),
+    foreignKey({
+      columns: [table.handoffId],
+      foreignColumns: [testHandoff.id],
+      name: "project_test_handoff_scenario_handoff_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.caseId, table.version],
+      foreignColumns: [
+        plannedTestCaseVersion.caseId,
+        plannedTestCaseVersion.version,
+      ],
+      name: "project_test_handoff_scenario_version_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
+ * An arriving Session Test linked to a Handoff. A Session Test arrives on at
+ * most one Handoff (primary key on `session_test_id`). The link carries no
+ * state: linking never advances the Handoff, it only lets the product suggest
+ * `Result received`. Report acceptance and review belong to specs 54 and 57.
+ */
+export const testHandoffSessionTest = pgTable(
+  "project_test_handoff_session_test",
+  {
+    handoffId: text("handoff_id").notNull(),
+    linkedAt: timestamp("linked_at").defaultNow().notNull(),
+    sessionTestId: text("session_test_id").primaryKey(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.handoffId],
+      foreignColumns: [testHandoff.id],
+      name: "project_test_handoff_session_test_handoff_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sessionTestId],
+      foreignColumns: [sessionTest.id],
+      name: "project_test_handoff_session_test_session_test_fk",
+    }).onDelete("cascade"),
+    index("project_test_handoff_session_test_handoff_idx").on(table.handoffId),
   ],
 );
