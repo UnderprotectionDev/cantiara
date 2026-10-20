@@ -285,10 +285,11 @@ describe("Planned Tests and Handoff seam: Planned Test Case versions", () => {
 });
 
 describe("Planned Tests and Handoff seam: not a runner, session or package", () => {
-  test("the public interface has no run, result or package operation; the only Test Handoff operations are open, edit, move, link and list", () => {
+  test("the public interface has no run, start or result operation; the only Test Handoff operations are open, edit, move, link, list and preview, produce and read the package", () => {
     const { plannedTests } = createMemoryHarness();
 
     expect(Object.keys(plannedTests).sort()).toEqual([
+      "contextTargets",
       "create",
       "createHandoff",
       "createVersion",
@@ -296,6 +297,9 @@ describe("Planned Tests and Handoff seam: not a runner, session or package", () 
       "linkHandoffSessionTest",
       "linkSessionTest",
       "list",
+      "packages",
+      "previewPackage",
+      "producePackage",
       "recordSessionTest",
       "relationTargets",
       "sessionTests",

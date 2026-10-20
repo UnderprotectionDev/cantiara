@@ -9,13 +9,16 @@ import {
   plannedTestCaseVersion,
   sessionTest,
   testHandoff,
+  testHandoffAdHocScope,
+  testHandoffContextRef,
+  testHandoffPackage,
   testHandoffScenario,
 } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import { risk } from "@cantiara/db/schema/risk";
-import { screen } from "@cantiara/db/schema/screen";
+import { screen, screenWireframeVersion } from "@cantiara/db/schema/screen";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
@@ -39,6 +42,9 @@ import {
   SessionTestAlreadyBoundError,
   SessionTestAlreadyInHandoffError,
   TestHandoffLockedError,
+  TestHandoffPackageBlockedError,
+  TestHandoffPackageStaleError,
+  TestHandoffPackageStateError,
   TestHandoffScopeMismatchError,
   TestHandoffStateConflictError,
   TestHandoffTransitionError,
@@ -223,6 +229,10 @@ describeDatabase("Planned Tests PostgreSQL integration", () => {
       projectId,
       title: "Checkout screen",
     });
+    await db.insert(screenWireframeVersion).values([
+      { id: `wire-1-${suffix}`, screenId: ids.screen, version: 1 },
+      { id: `wire-2-${suffix}`, screenId: ids.screen, version: 2 },
+    ]);
   });
 
   afterEach(async () => {
@@ -880,6 +890,272 @@ describeDatabase("Planned Tests PostgreSQL integration", () => {
         version: 9,
       }),
     ).rejects.toThrow();
+  });
+
+  test("produces a snapshot package from stored rows, increments the version with it and keeps it after later edits", async () => {
+    const db = requireDatabase();
+    const access = createDatabasePlannedTests(db);
+    const created = await access.create(accountId, newCase());
+    const handoff = await access.createHandoff(accountId, {
+      adHocScope: [{ expectedBehavior: "Tax shown.", intent: "Tax line." }],
+      buildContext: { branch: "main", commit: "abc1234" },
+      contextRefs: [
+        { kind: "Work", targetId: ids.task },
+        { kind: "Feature", targetId: ids.feature },
+        {
+          documentRevision: 3,
+          kind: "Document",
+          sectionId: "payment",
+          targetId: ids.document,
+        },
+        { kind: "Wireframe", targetId: ids.screen, wireframeVersion: 2 },
+      ],
+      environmentPreconditions: "Staging tenant.",
+      projectId,
+      purpose: "Check checkout.",
+      scenarios: [{ caseId: created.id, version: 1 }],
+      title: "Round 1",
+    });
+    const [reloaded] = (await access.handoffs(accountId, projectId)).handoffs;
+    expect(reloaded?.contextRefs.map(({ label }) => label)).toEqual([
+      "Build checkout",
+      "Saved cards",
+      "Checkout spec",
+      "Checkout screen",
+    ]);
+    expect(reloaded?.adHocScope).toEqual([
+      { expectedBehavior: "Tax shown.", intent: "Tax line." },
+    ]);
+
+    // A Draft is not shareable yet.
+    await expect(
+      access.producePackage(accountId, {
+        expectedPackageVersion: 1,
+        handoffId: handoff.id,
+        previewFingerprint: "a".repeat(64),
+        projectId,
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffPackageStateError);
+    await access.transitionHandoff(accountId, {
+      expectedState: "Draft",
+      handoffId: handoff.id,
+      projectId,
+      to: "Ready to share",
+    });
+    const preview = await access.previewPackage(accountId, {
+      handoffId: handoff.id,
+      projectId,
+    });
+    expect(preview).toMatchObject({ blockers: [], canProduce: true });
+    expect(
+      (await db.select().from(testHandoffPackage)).filter(
+        ({ handoffId }) => handoffId === handoff.id,
+      ),
+    ).toEqual([]);
+
+    const first = await access.producePackage(accountId, {
+      expectedPackageVersion: 1,
+      handoffId: handoff.id,
+      previewFingerprint: preview.fingerprint ?? "",
+      projectId,
+    });
+    expect(first.package).toMatchObject({
+      handoff_package_version: 1,
+      project: { id: projectId, name: "Tests" },
+      schema_version: "test-handoff-package/1",
+    });
+    expect(first.package.document_context).toEqual([
+      {
+        document_id: ids.document,
+        revision: 3,
+        section_id: "payment",
+        title: "Checkout spec",
+      },
+    ]);
+    const [row] = await db
+      .select()
+      .from(testHandoff)
+      .where(eq(testHandoff.id, handoff.id));
+    expect(row).toMatchObject({ packageVersion: 1, state: "Ready to share" });
+
+    // The same confirm cannot claim the version twice.
+    await expect(
+      access.producePackage(accountId, {
+        expectedPackageVersion: 1,
+        handoffId: handoff.id,
+        previewFingerprint: preview.fingerprint ?? "",
+        projectId,
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffPackageStaleError);
+
+    // Later edits of the case, the Work and the Handoff leave the copy alone.
+    await access.createVersion(accountId, {
+      ...content,
+      caseId: created.id,
+      changeKind: "Meaningful change",
+      expectedVersion: 1,
+      projectId,
+      scope: "Rewritten.",
+    });
+    await db
+      .update(work)
+      .set({ title: "Renamed work" })
+      .where(eq(work.id, ids.task));
+    const stored = await access.packages(accountId, {
+      handoffId: handoff.id,
+      projectId,
+    });
+    expect(stored.packages).toHaveLength(1);
+    expect(stored.packages[0]?.json).toBe(first.json);
+    expect(stored.packages[0]?.markdown).toBe(first.markdown);
+
+    const next = await access.previewPackage(accountId, {
+      handoffId: handoff.id,
+      projectId,
+    });
+    const second = await access.producePackage(accountId, {
+      expectedPackageVersion: 2,
+      handoffId: handoff.id,
+      previewFingerprint: next.fingerprint ?? "",
+      projectId,
+    });
+    expect(second.package.work_context[0]?.title).toBe("Renamed work");
+    expect(second.package.scenarios[0]?.scope).toBe(content.scope);
+    expect(
+      (
+        await access.packages(accountId, { handoffId: handoff.id, projectId })
+      ).packages.map(({ packageVersion }) => packageVersion),
+    ).toEqual([2, 1]);
+  });
+
+  test("a trashed selection or a secret in a copied case blocks the package, and another account cannot read it", async () => {
+    const db = requireDatabase();
+    const access = createDatabasePlannedTests(db);
+    const token = `ghp_${"a1B2c3D4e5F6g7H8i9J0".repeat(2)}`;
+    const leaky = await access.create(
+      accountId,
+      newCase({ scope: `Sign in with ${token}` }),
+    );
+    const handoff = await access.createHandoff(accountId, {
+      contextRefs: [{ kind: "Work", targetId: ids.task }],
+      projectId,
+      purpose: "p",
+      scenarios: [{ caseId: leaky.id, version: 1 }],
+      title: "x",
+    });
+    await access.transitionHandoff(accountId, {
+      expectedState: "Draft",
+      handoffId: handoff.id,
+      projectId,
+      to: "Ready to share",
+    });
+
+    const blocked = await access.previewPackage(accountId, {
+      handoffId: handoff.id,
+      projectId,
+    });
+    expect(blocked.blockers).toMatchObject([
+      { kind: "secret", path: "scenarios[0].scope" },
+    ]);
+    expect(JSON.stringify(blocked)).not.toContain(token);
+
+    await db
+      .update(work)
+      .set({ trashedAt: new Date() })
+      .where(eq(work.id, ids.task));
+    const trashed = await access.previewPackage(accountId, {
+      handoffId: handoff.id,
+      projectId,
+    });
+    expect(trashed.blockers.map(({ kind }) => kind)).toEqual(["unavailable"]);
+    await expect(
+      access.producePackage(accountId, {
+        expectedPackageVersion: 1,
+        handoffId: handoff.id,
+        previewFingerprint: "a".repeat(64),
+        projectId,
+      }),
+    ).rejects.toBeInstanceOf(TestHandoffPackageBlockedError);
+    expect(
+      (
+        await db
+          .select()
+          .from(testHandoffPackage)
+          .where(eq(testHandoffPackage.handoffId, handoff.id))
+      ).length,
+    ).toBe(0);
+    await expect(
+      access.packages(otherAccountId, { handoffId: handoff.id, projectId }),
+    ).rejects.toBeInstanceOf(PlannedTestProjectNotFoundError);
+  });
+
+  test("context refs are exact, Project-scoped and refused by the database when malformed", async () => {
+    const db = requireDatabase();
+    const access = createDatabasePlannedTests(db);
+    const rejected = [
+      { kind: "Work" as const, targetId: ids.siblingWork },
+      { kind: "Work" as const, targetId: ids.feature },
+      {
+        documentRevision: 1,
+        kind: "Document" as const,
+        sectionId: null,
+        targetId: ids.document,
+      },
+      {
+        documentRevision: 3,
+        kind: "Document" as const,
+        sectionId: "missing",
+        targetId: ids.document,
+      },
+      { kind: "Wireframe" as const, targetId: ids.screen, wireframeVersion: 7 },
+    ];
+    for (const ref of rejected) {
+      await expect(
+        access.createHandoff(accountId, {
+          contextRefs: [ref],
+          projectId,
+          purpose: "p",
+          title: "x",
+        }),
+      ).rejects.toBeInstanceOf(PlannedTestRelationTargetError);
+    }
+    const handoff = await access.createHandoff(accountId, {
+      adHocScope: [{ expectedBehavior: "b", intent: "i" }],
+      projectId,
+      purpose: "p",
+      title: "x",
+    });
+    await expect(
+      db.insert(testHandoffContextRef).values({
+        handoffId: handoff.id,
+        kind: "Work",
+        position: 0,
+        targetId: ids.task,
+        wireframeVersion: 1,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(testHandoffContextRef).values({
+        handoffId: handoff.id,
+        kind: "Latest",
+        position: 0,
+        targetId: ids.task,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(testHandoffPackage).values({
+        createdAt: new Date(),
+        handoffId: handoff.id,
+        json: "{}",
+        markdown: "",
+        packageVersion: 0,
+      }),
+    ).rejects.toThrow();
+    expect(
+      (await db.select().from(testHandoffAdHocScope)).filter(
+        ({ handoffId }) => handoffId === handoff.id,
+      ),
+    ).toHaveLength(1);
   });
 
   test("an archived Project stays readable and refuses writes", async () => {

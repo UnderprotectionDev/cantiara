@@ -5,6 +5,9 @@ import type {
   PlannedTestStoredCase,
   PlannedTestTargetResolver,
   SessionTestStoredRecord,
+  TestHandoffContextCandidate,
+  TestHandoffContextRef,
+  TestHandoffPackageStored,
   TestHandoffStoredRecord,
 } from "@cantiara/api/planned-tests";
 
@@ -13,6 +16,7 @@ import { createPlannedTests } from "./planned-tests";
 export const accountId = "account-1";
 export const projectId = "project-1";
 export const archivedProjectId = "project-archived";
+export const projectName = "Checkout Revamp";
 
 export type CatalogState = "active" | "archived" | "trashed" | "gone";
 
@@ -25,6 +29,8 @@ export interface CatalogEntry {
   state?: CatalogState;
   targetId: string;
   targetType: PlannedTestRelationTargetType;
+  /** Screen only: the exact Wireframe versions that exist. */
+  wireframeVersions?: number[];
 }
 
 /**
@@ -41,13 +47,87 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
   const cases = new Map<string, PlannedTestStoredCase>();
   const sessionTests = new Map<string, SessionTestStoredRecord>();
   const handoffs = new Map<string, TestHandoffStoredRecord>();
+  const packages = new Map<string, TestHandoffPackageStored[]>();
 
   function resolverFor(scopeProjectId: string): PlannedTestTargetResolver {
     function lookup(type: string, id: string) {
       const entry = catalog.get(key(type, id));
       return entry && entry.projectId === scopeProjectId ? entry : null;
     }
+    const contextEntry = (ref: TestHandoffContextRef) =>
+      lookup(ref.kind === "Wireframe" ? "Screen" : ref.kind, ref.targetId);
     return {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: One branch per context kind mirrors the owner resolvers.
+      bindContext: (ref) => {
+        const entry = contextEntry(ref);
+        if (!entry || (entry.state ?? "active") !== "active") {
+          return Promise.resolve(null);
+        }
+        if (ref.kind === "Document") {
+          const sectionKnown =
+            ref.sectionId === null ||
+            entry.sections?.some(({ id }) => id === ref.sectionId);
+          return Promise.resolve(
+            ref.documentRevision === entry.documentRevision && sectionKnown
+              ? entry.label
+              : null,
+          );
+        }
+        if (ref.kind === "Wireframe") {
+          return Promise.resolve(
+            entry.wireframeVersions?.includes(ref.wireframeVersion)
+              ? entry.label
+              : null,
+          );
+        }
+        return Promise.resolve(entry.label);
+      },
+      contextCandidates: (kind) =>
+        Promise.resolve(
+          [...catalog.values()]
+            .filter(
+              (entry) =>
+                entry.targetType === (kind === "Wireframe" ? "Screen" : kind) &&
+                entry.projectId === scopeProjectId &&
+                (entry.state ?? "active") === "active",
+            )
+            .map(
+              (entry): TestHandoffContextCandidate => ({
+                documentRevision: entry.documentRevision ?? null,
+                kind,
+                label: entry.label,
+                sections: entry.sections ?? [],
+                targetId: entry.targetId,
+                wireframeVersions: entry.wireframeVersions ?? [],
+              }),
+            ),
+        ),
+      readContext: (ref) => {
+        const entry = contextEntry(ref);
+        const state = entry?.state ?? "active";
+        if (!entry || state === "gone") {
+          return Promise.resolve({
+            reason: "Permanently deleted" as const,
+            state: "broken" as const,
+          });
+        }
+        if (state === "trashed") {
+          return Promise.resolve({
+            reason: "In Trash" as const,
+            state: "broken" as const,
+          });
+        }
+        if (state === "archived") {
+          return Promise.resolve({
+            reason: "Archived" as const,
+            state: "broken" as const,
+          });
+        }
+        return Promise.resolve({
+          label: entry.label,
+          state: "resolved" as const,
+        });
+      },
       bind: (relation) => {
         const entry = lookup(relation.targetType, relation.targetId);
         if (!entry || (entry.state ?? "active") !== "active") {
@@ -130,6 +210,34 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
         return null;
       }
       return await work({
+        bumpPackageVersion: (handoffId, expected) => {
+          const found = handoffs.get(handoffId);
+          if (!found || found.packageVersion !== expected) {
+            return Promise.resolve(false);
+          }
+          handoffs.set(handoffId, { ...found, packageVersion: expected + 1 });
+          return Promise.resolve(true);
+        },
+        insertPackage: (record) => {
+          packages.set(record.handoffId, [
+            ...(packages.get(record.handoffId) ?? []),
+            record,
+          ]);
+          return Promise.resolve();
+        },
+        listPackages: (handoffId) =>
+          Promise.resolve(
+            [...(packages.get(handoffId) ?? [])].sort(
+              (left, right) => right.packageVersion - left.packageVersion,
+            ),
+          ),
+        project: {
+          id: scopeProjectId,
+          name:
+            scopeProjectId === archivedProjectId
+              ? "Archived project"
+              : projectName,
+        },
         appendVersion: (caseId, version, updatedAt) => {
           const current = cases.get(caseId);
           if (!current) {
@@ -251,6 +359,7 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
     cases,
     catalog,
     handoffs,
+    packages,
     plannedTests: createPlannedTests(store),
     sessionTests,
     setState(type: string, id: string, state: CatalogState) {

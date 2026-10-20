@@ -3,6 +3,10 @@ import {
   type BrokenReferenceReason,
   brokenReferenceReasonSchema,
 } from "./relations";
+import {
+  findSecretKinds,
+  type TestHandoffPackageJson,
+} from "./test-handoff-package";
 
 /**
  * Planned Tests and Handoff seam, case half (spec 53, ticket 01).
@@ -524,15 +528,137 @@ const handoffScenariosSchema = z
   );
 
 /**
+ * Founder-typed Handoff text never carries a secret. The scan names the kind of
+ * secret and never repeats the value; the same scan runs again over the whole
+ * package when it is previewed or produced.
+ */
+function secretFree(label: string) {
+  return (value: string | null, context: z.RefinementCtx) => {
+    if (value === null) {
+      return;
+    }
+    const kinds = findSecretKinds(value);
+    if (kinds.length > 0) {
+      context.addIssue({
+        code: "custom",
+        message: `${label} looks like it contains a secret (${kinds.join(", ")}). Remove it: a ${TEST_HANDOFF_LABEL} package never carries secrets, tokens or credentials.`,
+      });
+    }
+  };
+}
+
+export const TEST_HANDOFF_AD_HOC_MAX = 50;
+export const TEST_HANDOFF_CONTEXT_REF_MAX = 50;
+
+/** Founder-written intent that is not a Planned Test Case. Mints no id or version. */
+export const testHandoffAdHocItemSchema = z
+  .object({
+    expectedBehavior: requiredText(
+      "Ad hoc expected behavior",
+      PLANNED_TEST_TEXT_MAX,
+    ).superRefine(secretFree("Ad hoc expected behavior")),
+    intent: requiredText("Ad hoc intent", PLANNED_TEST_TEXT_MAX).superRefine(
+      secretFree("Ad hoc intent"),
+    ),
+  })
+  .strict();
+export type TestHandoffAdHocItem = z.output<typeof testHandoffAdHocItemSchema>;
+
+const handoffAdHocScopeSchema = z
+  .array(testHandoffAdHocItemSchema)
+  .max(
+    TEST_HANDOFF_AD_HOC_MAX,
+    `A ${TEST_HANDOFF_LABEL} holds at most ${TEST_HANDOFF_AD_HOC_MAX} ad hoc items.`,
+  )
+  .default([]);
+
+/**
+ * Records the founder adds to a Handoff as package context. Every reference is
+ * exact: a Document names its revision (and optionally a stable section), a
+ * Wireframe names its Screen and an exact version. Technical Diagrams have no
+ * version yet, so they cannot be referenced exactly and are not selectable.
+ */
+export const TEST_HANDOFF_CONTEXT_KINDS = [
+  "Work",
+  "Feature",
+  "Document",
+  "Wireframe",
+] as const;
+export const testHandoffContextKindSchema = z.enum(TEST_HANDOFF_CONTEXT_KINDS);
+export type TestHandoffContextKind = z.infer<
+  typeof testHandoffContextKindSchema
+>;
+
+export const testHandoffContextRefSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("Work"), targetId: identifierSchema }).strict(),
+  z.object({ kind: z.literal("Feature"), targetId: identifierSchema }).strict(),
+  z
+    .object({
+      documentRevision: z.number().int().min(0).safe(),
+      kind: z.literal("Document"),
+      sectionId: identifierSchema.nullish().transform((value) => value ?? null),
+      targetId: identifierSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("Wireframe"),
+      targetId: identifierSchema,
+      wireframeVersion: versionNumberSchema,
+    })
+    .strict(),
+]);
+export type TestHandoffContextRef = z.output<
+  typeof testHandoffContextRefSchema
+>;
+
+export function testHandoffContextRefKey(ref: TestHandoffContextRef) {
+  return JSON.stringify([
+    ref.kind,
+    ref.targetId,
+    ref.kind === "Document" ? ref.documentRevision : null,
+    ref.kind === "Document" ? ref.sectionId : null,
+    ref.kind === "Wireframe" ? ref.wireframeVersion : null,
+  ]);
+}
+
+const handoffContextRefsSchema = z
+  .array(testHandoffContextRefSchema)
+  .max(
+    TEST_HANDOFF_CONTEXT_REF_MAX,
+    `A ${TEST_HANDOFF_LABEL} selects at most ${TEST_HANDOFF_CONTEXT_REF_MAX} context records.`,
+  )
+  .default([])
+  .refine(
+    (refs) => new Set(refs.map(testHandoffContextRefKey)).size === refs.length,
+    "Select each context record once.",
+  );
+
+/**
  * Target executor is free text on purpose: the founder, Codex, Claude Code,
  * Conductor or any named external tool. The suggestions above are not a closed
  * runtime list and nothing dispatches on them.
  */
 export const testHandoffFieldsSchema = z
   .object({
+    adHocScope: handoffAdHocScopeSchema,
     buildContext: testHandoffBuildContextSchema.prefault({}),
+    contextRefs: handoffContextRefsSchema,
     dueDate: dueDateSchema,
-    purpose: requiredText("Purpose and scope", PLANNED_TEST_TEXT_MAX),
+    environmentPreconditions: z
+      .string()
+      .trim()
+      .max(
+        PLANNED_TEST_TEXT_MAX,
+        `Environment preconditions must be ${PLANNED_TEST_TEXT_MAX} characters or fewer.`,
+      )
+      .nullish()
+      .transform((value) => (value ? value : null))
+      .superRefine(secretFree("Environment preconditions")),
+    purpose: requiredText(
+      "Purpose and scope",
+      PLANNED_TEST_TEXT_MAX,
+    ).superRefine(secretFree("Purpose and scope")),
     scenarios: handoffScenariosSchema,
     targetExecutor: z
       .string()
@@ -540,7 +666,7 @@ export const testHandoffFieldsSchema = z
       .max(120, "Target executor must be 120 characters or fewer.")
       .nullish()
       .transform((value) => (value ? value : null)),
-    title: requiredText("Title", 255),
+    title: requiredText("Title", 255).superRefine(secretFree("Title")),
   })
   .strict();
 
@@ -586,15 +712,56 @@ export type LinkTestHandoffSessionTestInput = z.input<
 
 export const testHandoffProjectInputSchema = plannedTestCaseProjectInputSchema;
 
+export const testHandoffContextTargetsInputSchema = z
+  .object({ kind: testHandoffContextKindSchema, projectId: identifierSchema })
+  .strict();
+export type TestHandoffContextTargetsInput = z.input<
+  typeof testHandoffContextTargetsInputSchema
+>;
+
+export const testHandoffPackageInputSchema = z
+  .object({ handoffId: identifierSchema, projectId: identifierSchema })
+  .strict();
+export type TestHandoffPackageInput = z.input<
+  typeof testHandoffPackageInputSchema
+>;
+
+/**
+ * Confirm carries the package version and fingerprint the founder previewed,
+ * so a package is only produced from what was shown. A change in between is a
+ * conflict, never a silently different package.
+ */
+export const produceTestHandoffPackageInputSchema =
+  testHandoffPackageInputSchema
+    .extend({
+      expectedPackageVersion: versionNumberSchema,
+      previewFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    })
+    .strict();
+export type ProduceTestHandoffPackageInput = z.input<
+  typeof produceTestHandoffPackageInputSchema
+>;
+
+/** Only a shared-ready Handoff produces a package; a Draft is not shareable yet. */
+export const TEST_HANDOFF_PACKAGE_STATES: readonly TestHandoffState[] = [
+  "Ready to share",
+  "Shared",
+];
+
 export interface TestHandoffStoredRecord {
+  adHocScope: TestHandoffAdHocItem[];
   buildContext: TestHandoffBuildContext;
+  /** Founder-selected work, document and design records, in chosen order. */
+  contextRefs: TestHandoffContextRef[];
   createdAt: string;
   /** Calendar date `YYYY-MM-DD`, or `null`. */
   dueDate: string | null;
+  environmentPreconditions: string | null;
   id: string;
   /**
-   * Package version counter. `0` means no package was produced yet; the package
-   * export (ticket 04) is the only writer and increments it per produced package.
+   * Package version counter. `0` means no package was produced yet; producing a
+   * package (ticket 04) is the only writer and increments it in the same
+   * transaction that stores the package.
    */
   packageVersion: number;
   projectId: string;
@@ -624,12 +791,20 @@ export interface TestHandoffSuggestion {
   state: "Result received";
 }
 
+export type TestHandoffContextRefView = TestHandoffContextRef & {
+  brokenReason: BrokenReferenceReason | null;
+  label: string | null;
+};
+
 export interface TestHandoffRecord {
+  adHocScope: TestHandoffAdHocItem[];
   allowedTransitions: TestHandoffState[];
   buildContext: TestHandoffBuildContext;
+  contextRefs: TestHandoffContextRefView[];
   createdAt: string;
   dueDate: string | null;
   editable: boolean;
+  environmentPreconditions: string | null;
   id: string;
   packageVersion: number;
   projectId: string;
@@ -659,6 +834,7 @@ export function toTestHandoffRecord(
   stored: TestHandoffStoredRecord,
   cases: ReadonlyMap<string, PlannedTestStoredCase>,
   sessionTests: ReadonlyMap<string, SessionTestStoredRecord>,
+  contextLive: ReadonlyMap<string, TestHandoffContextLive> = new Map(),
 ): TestHandoffRecord {
   const scenarios = stored.scenarios.map((ref): TestHandoffScenarioView => {
     const scenario = cases.get(ref.caseId);
@@ -693,11 +869,21 @@ export function toTestHandoffRecord(
     ];
   });
   return {
+    adHocScope: stored.adHocScope,
     allowedTransitions: [...TEST_HANDOFF_TRANSITIONS[stored.state]],
     buildContext: stored.buildContext,
+    contextRefs: stored.contextRefs.map((ref) => {
+      const live = contextLive.get(testHandoffContextRefKey(ref));
+      return {
+        ...ref,
+        brokenReason: live?.state === "broken" ? live.reason : null,
+        label: live?.state === "resolved" ? live.label : null,
+      };
+    }),
     createdAt: stored.createdAt,
     dueDate: stored.dueDate,
     editable: TEST_HANDOFF_EDITABLE_STATES.includes(stored.state),
+    environmentPreconditions: stored.environmentPreconditions,
     id: stored.id,
     packageVersion: stored.packageVersion,
     projectId: stored.projectId,
@@ -811,6 +997,23 @@ export interface PlannedTestRelationTarget {
   targetType: PlannedTestRelationTargetType;
 }
 
+/** What a live owner resolver says about a Handoff context record. */
+export type TestHandoffContextLive =
+  | { label: string; state: "resolved" }
+  | { reason: BrokenReferenceReason; state: "broken" };
+
+export interface TestHandoffContextCandidate {
+  /** Document only: the current revision, which the reference will pin. */
+  documentRevision: number | null;
+  kind: TestHandoffContextKind;
+  label: string;
+  /** Document only: stable sections of the current revision. */
+  sections: { id: string; label: string }[];
+  targetId: string;
+  /** Wireframe only: the exact versions that exist for the Screen. */
+  wireframeVersions: number[];
+}
+
 /** What a live owner resolver says about a relation the founder is binding now. */
 export interface PlannedTestBoundTarget {
   label: string;
@@ -828,16 +1031,86 @@ export interface PlannedTestTargetResolver {
   bind: (
     relation: PlannedTestRelationInput,
   ) => Promise<PlannedTestBoundTarget | null>;
+  /**
+   * Pins a Handoff context record: `null` unless it is an existing, active
+   * record of this Project (a Document must still be at the named revision and
+   * hold the named section; a Wireframe version must exist).
+   */
+  bindContext: (ref: TestHandoffContextRef) => Promise<string | null>;
   candidates: (
     targetType: PlannedTestRelationTargetType,
   ) => Promise<PlannedTestRelationTarget[]>;
+  contextCandidates: (
+    kind: TestHandoffContextKind,
+  ) => Promise<TestHandoffContextCandidate[]>;
   read: (
     relation: PlannedTestStoredRelation,
   ) => Promise<
     | { label: string; sectionLabel: string | null; state: "resolved" }
     | { reason: BrokenReferenceReason; state: "broken" }
   >;
+  /** Reads an already pinned context record against its owner's current state. */
+  readContext: (ref: TestHandoffContextRef) => Promise<TestHandoffContextLive>;
 }
+
+/**
+ * One produced package, persisted exactly as it was handed out. `json` and
+ * `markdown` are the two renderings of the same package version; a later case,
+ * spec or Screen edit never touches them.
+ */
+export interface TestHandoffPackageStored {
+  createdAt: string;
+  handoffId: string;
+  json: string;
+  markdown: string;
+  packageVersion: number;
+}
+
+export interface TestHandoffPackageRecord extends TestHandoffPackageStored {
+  package: TestHandoffPackageJson;
+  schemaVersion: TestHandoffPackageJson["schema_version"];
+}
+
+export type TestHandoffPackageBlockerKind = "secret" | "state" | "unavailable";
+
+/** Something that stops the package from being produced; never carries a value. */
+export interface TestHandoffPackageBlocker {
+  kind: TestHandoffPackageBlockerKind;
+  message: string;
+  path: string | null;
+}
+
+/**
+ * Closed-world preview. It lists exactly what the package will contain and
+ * what it never contains. With any blocker the rendering is withheld, so a
+ * blocked preview can never be copied out as a package.
+ */
+export interface TestHandoffPackagePreview {
+  blockers: TestHandoffPackageBlocker[];
+  canProduce: boolean;
+  excluded: string[];
+  /** Fingerprint of the package content (without `created_at`), or `null`. */
+  fingerprint: string | null;
+  handoffId: string;
+  included: { count: number; section: string }[];
+  json: string | null;
+  markdown: string | null;
+  nextPackageVersion: number;
+}
+
+export interface TestHandoffPackageList {
+  handoffId: string;
+  packages: TestHandoffPackageRecord[];
+}
+
+export const TEST_HANDOFF_PACKAGE_EXCLUDED = [
+  "Records you did not select",
+  "Records you cannot access, in Trash or archived",
+  "Secrets, tokens and credentials",
+  "Redacted values",
+  "Attachments (none are approved for this package)",
+  "Anything GitHub or CI could report",
+] as const;
 
 /** One Project-scoped unit of work; a write holds the case rows it touches. */
 export interface PlannedTestTransaction {
@@ -846,6 +1119,11 @@ export interface PlannedTestTransaction {
     version: PlannedTestStoredVersion,
     updatedAt: string,
   ) => Promise<void>;
+  /**
+   * Increments the package counter only while it is still `expected`. Resolves
+   * `false` otherwise, so two producers can never both claim one version.
+   */
+  bumpPackageVersion: (handoffId: string, expected: number) => Promise<boolean>;
   /** When `lock` is true the case row is held until the unit of work ends. */
   findCase: (
     caseId: string,
@@ -862,6 +1140,7 @@ export interface PlannedTestTransaction {
   ) => Promise<SessionTestStoredRecord | null>;
   insertCase: (record: PlannedTestStoredCase) => Promise<void>;
   insertHandoff: (record: TestHandoffStoredRecord) => Promise<void>;
+  insertPackage: (record: TestHandoffPackageStored) => Promise<void>;
   insertSessionTest: (record: SessionTestStoredRecord) => Promise<void>;
   /**
    * Attaches a Session Test to a Handoff. Resolves `false` when the Session
@@ -883,7 +1162,11 @@ export interface PlannedTestTransaction {
   ) => Promise<boolean>;
   listCases: () => Promise<PlannedTestStoredCase[]>;
   listHandoffs: () => Promise<TestHandoffStoredRecord[]>;
+  /** Produced packages of one Handoff, newest version first. */
+  listPackages: (handoffId: string) => Promise<TestHandoffPackageStored[]>;
   listSessionTests: () => Promise<SessionTestStoredRecord[]>;
+  /** The Project the unit of work belongs to; its name goes into the package. */
+  project: { id: string; name: string };
   /** True for an archived Project, which stays readable but takes no writes. */
   readOnly: boolean;
   /** Replaces the editable content and selected versions of a Handoff. */
@@ -891,8 +1174,11 @@ export interface PlannedTestTransaction {
     handoffId: string,
     content: Pick<
       TestHandoffStoredRecord,
+      | "adHocScope"
       | "buildContext"
+      | "contextRefs"
       | "dueDate"
+      | "environmentPreconditions"
       | "purpose"
       | "scenarios"
       | "targetExecutor"
@@ -924,6 +1210,11 @@ export interface PlannedTestStore {
 }
 
 export interface PlannedTestsAccess {
+  /** Selectable context records for a Handoff, by kind. */
+  contextTargets: (
+    accountId: string,
+    input: TestHandoffContextTargetsInput,
+  ) => Promise<TestHandoffContextCandidate[]>;
   create: (
     accountId: string,
     input: CreatePlannedTestCaseInput,
@@ -948,6 +1239,24 @@ export interface PlannedTestsAccess {
     input: LinkSessionTestInput,
   ) => Promise<SessionTestRecord>;
   list: (accountId: string, projectId: string) => Promise<PlannedTestCaseList>;
+  /** Produced packages of one Handoff, exactly as they were handed out. */
+  packages: (
+    accountId: string,
+    input: TestHandoffPackageInput,
+  ) => Promise<TestHandoffPackageList>;
+  /** Writes nothing. Lists what a package would hold and what blocks it. */
+  previewPackage: (
+    accountId: string,
+    input: TestHandoffPackageInput,
+  ) => Promise<TestHandoffPackagePreview>;
+  /**
+   * Confirms a previewed package: stores it and increments the package version
+   * in one transaction. It starts nothing and moves no Handoff state.
+   */
+  producePackage: (
+    accountId: string,
+    input: ProduceTestHandoffPackageInput,
+  ) => Promise<TestHandoffPackageRecord>;
   recordSessionTest: (
     accountId: string,
     input: RecordSessionTestInput,

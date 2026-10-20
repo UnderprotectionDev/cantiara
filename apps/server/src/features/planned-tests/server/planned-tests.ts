@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   canTransitionTestHandoff,
   createPlannedTestCaseInputSchema,
@@ -21,20 +23,41 @@ import {
   plannedTestCaseProjectInputSchema,
   plannedTestCaseVersionInputSchema,
   plannedTestRelationTargetsInputSchema,
+  produceTestHandoffPackageInputSchema,
   recordSessionTestInputSchema,
   relationKey,
   type SessionTestStoredRecord,
   sessionTestProjectInputSchema,
   TEST_HANDOFF_EDITABLE_STATES,
+  TEST_HANDOFF_LABEL,
+  TEST_HANDOFF_PACKAGE_EXCLUDED,
+  TEST_HANDOFF_PACKAGE_STATES,
+  type TestHandoffContextLive,
+  type TestHandoffContextRef,
+  type TestHandoffPackageBlocker,
+  type TestHandoffPackagePreview,
+  type TestHandoffPackageRecord,
+  type TestHandoffPackageStored,
   type TestHandoffRecord,
   type TestHandoffState,
   type TestHandoffStoredRecord,
+  testHandoffContextRefKey,
+  testHandoffContextTargetsInputSchema,
+  testHandoffPackageInputSchema,
   testHandoffProjectInputSchema,
   toSessionTestRecord,
   toTestHandoffRecord,
   transitionTestHandoffInputSchema,
   updateTestHandoffInputSchema,
 } from "@cantiara/api/planned-tests";
+import {
+  buildTestHandoffPackage,
+  renderTestHandoffPackageJson,
+  renderTestHandoffPackageMarkdown,
+  scanTestHandoffPackageForSecrets,
+  type TestHandoffPackageJson,
+  type TestHandoffPackageSource,
+} from "@cantiara/api/test-handoff-package";
 
 export class PlannedTestProjectNotFoundError extends Error {
   readonly code = "PLANNED_TEST_PROJECT_NOT_FOUND" as const;
@@ -172,6 +195,44 @@ export class SessionTestAlreadyInHandoffError extends Error {
   }
 }
 
+/** A Draft, finished or canceled Handoff is not shareable, so it makes no package. */
+export class TestHandoffPackageStateError extends Error {
+  readonly code = "TEST_HANDOFF_PACKAGE_STATE" as const;
+
+  constructor(state: TestHandoffState) {
+    super(
+      `A ${TEST_HANDOFF_LABEL} in ${state} cannot produce a package. Mark it Ready to share first.`,
+    );
+    this.name = "TestHandoffPackageStateError";
+  }
+}
+
+/** Something in the package is unavailable or looks like a secret. */
+export class TestHandoffPackageBlockedError extends Error {
+  readonly code = "TEST_HANDOFF_PACKAGE_BLOCKED" as const;
+  readonly blockers: TestHandoffPackageBlocker[];
+
+  constructor(blockers: TestHandoffPackageBlocker[]) {
+    super(
+      `The package was not produced: ${blockers.map(({ message }) => message).join(" ")}`,
+    );
+    this.name = "TestHandoffPackageBlockedError";
+    this.blockers = blockers;
+  }
+}
+
+/** The previewed package version or content is no longer what would be produced. */
+export class TestHandoffPackageStaleError extends Error {
+  readonly code = "TEST_HANDOFF_PACKAGE_STALE" as const;
+
+  constructor(handoffId: string) {
+    super(
+      `The package of ${TEST_HANDOFF_LABEL} ${handoffId} changed since the preview. Preview it again.`,
+    );
+    this.name = "TestHandoffPackageStaleError";
+  }
+}
+
 /** The relation names no existing, active record of this Project (or repeats one). */
 export class PlannedTestRelationTargetError extends Error {
   readonly code = "PLANNED_TEST_RELATION_TARGET_UNAVAILABLE" as const;
@@ -306,6 +367,188 @@ async function requireExactVersion(
   return scenario;
 }
 
+async function resolveContext(
+  resolver: PlannedTestTargetResolver,
+  refs: readonly TestHandoffContextRef[],
+) {
+  const entries = await Promise.all(
+    refs.map(
+      async (ref): Promise<[string, TestHandoffContextLive]> => [
+        testHandoffContextRefKey(ref),
+        await resolver.readContext(ref),
+      ],
+    ),
+  );
+  return new Map(entries);
+}
+
+/**
+ * Every context record a Handoff selects must be an existing, active record of
+ * this Project, pinned exactly. A record the Handoff already held is carried
+ * over untouched, so one that later went away cannot make the rest uneditable.
+ */
+async function bindContextRefs(
+  resolver: PlannedTestTargetResolver,
+  refs: readonly TestHandoffContextRef[],
+  carried: readonly TestHandoffContextRef[],
+) {
+  const carriedKeys = new Set(carried.map(testHandoffContextRefKey));
+  await Promise.all(
+    refs.map(async (ref) => {
+      if (carriedKeys.has(testHandoffContextRefKey(ref))) {
+        return;
+      }
+      if ((await resolver.bindContext(ref)) === null) {
+        throw new PlannedTestRelationTargetError({
+          targetId: ref.targetId,
+          targetType: ref.kind === "Wireframe" ? "Screen" : ref.kind,
+        });
+      }
+    }),
+  );
+}
+
+const PACKAGE_INCLUDED_SECTIONS = [
+  ["scenarios", (pkg: TestHandoffPackageJson) => pkg.scenarios.length],
+  ["ad_hoc_scope", (pkg: TestHandoffPackageJson) => pkg.ad_hoc_scope.length],
+  ["work_context", (pkg: TestHandoffPackageJson) => pkg.work_context.length],
+  [
+    "document_context",
+    (pkg: TestHandoffPackageJson) => pkg.document_context.length,
+  ],
+  [
+    "design_references",
+    (pkg: TestHandoffPackageJson) => pkg.design_references.length,
+  ],
+] as const;
+
+/** Content fingerprint: everything the founder previewed except the clock. */
+function packageFingerprint(pkg: TestHandoffPackageJson) {
+  return createHash("sha256")
+    .update(JSON.stringify({ ...pkg, created_at: null }))
+    .digest("hex");
+}
+
+interface CollectedPackage {
+  blockers: TestHandoffPackageBlocker[];
+  package: TestHandoffPackageJson | null;
+}
+
+const CONTEXT_SECTION: Record<TestHandoffContextRef["kind"], string> = {
+  Document: "document_context",
+  Feature: "work_context",
+  Wireframe: "design_references",
+  Work: "work_context",
+};
+
+/**
+ * Builds the package of one Handoff from exact stored selections only. Case
+ * content is read from the exact `(case_id, version)` row, never the head, and
+ * every selected record must still resolve; an unavailable record or anything
+ * that looks like a secret is a blocker and the package is not built.
+ */
+async function collectPackage(
+  transaction: PlannedTestTransaction,
+  handoff: TestHandoffStoredRecord,
+  packageVersion: number,
+  createdAt: string,
+): Promise<CollectedPackage> {
+  const blockers: TestHandoffPackageBlocker[] = [];
+  if (!TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state)) {
+    blockers.push({
+      kind: "state",
+      message: new TestHandoffPackageStateError(handoff.state).message,
+      path: null,
+    });
+    return { blockers, package: null };
+  }
+  const scenarios: TestHandoffPackageSource["scenarios"] = await Promise.all(
+    handoff.scenarios.map(async (ref) => {
+      const scenario = await requireExactVersion(transaction, ref);
+      const version = scenario.versions.find(
+        (item) => item.version === ref.version,
+      );
+      if (!version) {
+        throw new PlannedTestVersionNotFoundError(ref.caseId, ref.version);
+      }
+      return {
+        caseId: ref.caseId,
+        expectedBehavior: version.expectedBehavior,
+        notes: version.notes,
+        preconditions: version.preconditions,
+        purpose: version.purpose,
+        scope: version.scope,
+        title: version.title,
+        version: version.version,
+      };
+    }),
+  );
+  const workContext: TestHandoffPackageSource["workContext"] = [];
+  const documentContext: TestHandoffPackageSource["documentContext"] = [];
+  const designReferences: TestHandoffPackageSource["designReferences"] = [];
+  const live = await resolveContext(transaction.resolver, handoff.contextRefs);
+  for (const ref of handoff.contextRefs) {
+    const resolved = live.get(testHandoffContextRefKey(ref));
+    if (resolved?.state !== "resolved") {
+      blockers.push({
+        kind: "unavailable",
+        message: `A selected ${ref.kind} is ${(resolved?.state === "broken" ? resolved.reason : "unavailable").toLowerCase()} and cannot enter the package. Remove it from the ${TEST_HANDOFF_LABEL}.`,
+        path: CONTEXT_SECTION[ref.kind],
+      });
+      continue;
+    }
+    if (ref.kind === "Document") {
+      documentContext.push({
+        documentId: ref.targetId,
+        revision: ref.documentRevision,
+        sectionId: ref.sectionId,
+        title: resolved.label,
+      });
+    } else if (ref.kind === "Wireframe") {
+      designReferences.push({
+        screenId: ref.targetId,
+        title: resolved.label,
+        wireframeVersion: ref.wireframeVersion,
+      });
+    } else {
+      workContext.push({ id: ref.targetId, title: resolved.label });
+    }
+  }
+  if (blockers.length > 0) {
+    return { blockers, package: null };
+  }
+  const built = buildTestHandoffPackage({
+    adHocScope: handoff.adHocScope,
+    buildContext: handoff.buildContext,
+    createdAt,
+    designReferences,
+    documentContext,
+    environmentPreconditions: handoff.environmentPreconditions,
+    handoffId: handoff.id,
+    packageVersion,
+    project: transaction.project,
+    purpose: handoff.purpose,
+    scenarios,
+    title: handoff.title,
+    workContext,
+  });
+  for (const finding of scanTestHandoffPackageForSecrets(built)) {
+    blockers.push({
+      kind: "secret",
+      message: `${finding.path} looks like it contains a secret (${finding.kind}). Remove it from the source; a package never carries secrets.`,
+      path: finding.path,
+    });
+  }
+  return { blockers, package: blockers.length > 0 ? null : built };
+}
+
+function toPackageRecord(
+  stored: TestHandoffPackageStored,
+): TestHandoffPackageRecord {
+  const parsed = JSON.parse(stored.json) as TestHandoffPackageJson;
+  return { ...stored, package: parsed, schemaVersion: parsed.schema_version };
+}
+
 async function presentHandoff(
   transaction: PlannedTestTransaction,
   stored: TestHandoffStoredRecord,
@@ -316,7 +559,12 @@ async function presentHandoff(
   const sessionTests = new Map(
     (await transaction.listSessionTests()).map((record) => [record.id, record]),
   );
-  return toTestHandoffRecord(stored, cases, sessionTests);
+  return toTestHandoffRecord(
+    stored,
+    cases,
+    sessionTests,
+    await resolveContext(transaction.resolver, stored.contextRefs),
+  );
 }
 
 async function requireHandoff(
@@ -459,6 +707,149 @@ export function createPlannedTests(
       return saved;
     },
 
+    async contextTargets(accountId, rawInput) {
+      const input = testHandoffContextTargetsInputSchema.parse(rawInput);
+      const targets = await store.run(
+        accountId,
+        input.projectId,
+        "read",
+        (transaction) => transaction.resolver.contextCandidates(input.kind),
+      );
+      if (!targets) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return targets;
+    },
+
+    async packages(accountId, rawInput) {
+      const input = testHandoffPackageInputSchema.parse(rawInput);
+      const listed = await store.run(
+        accountId,
+        input.projectId,
+        "read",
+        async (transaction) => {
+          const handoff = await requireHandoff(
+            transaction,
+            input.handoffId,
+            false,
+          );
+          return (await transaction.listPackages(handoff.id)).map(
+            toPackageRecord,
+          );
+        },
+      );
+      if (!listed) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return { handoffId: input.handoffId, packages: listed };
+    },
+
+    async previewPackage(accountId, rawInput) {
+      const input = testHandoffPackageInputSchema.parse(rawInput);
+      const preview = await store.run(
+        accountId,
+        input.projectId,
+        "read",
+        async (transaction): Promise<TestHandoffPackagePreview> => {
+          const handoff = await requireHandoff(
+            transaction,
+            input.handoffId,
+            false,
+          );
+          const nextPackageVersion = handoff.packageVersion + 1;
+          const { blockers, package: built } = await collectPackage(
+            transaction,
+            handoff,
+            nextPackageVersion,
+            new Date().toISOString(),
+          );
+          // A blocked preview withholds the rendering, so it cannot be copied
+          // out as if it were a package.
+          return {
+            blockers,
+            canProduce: built !== null && !transaction.readOnly,
+            excluded: [...TEST_HANDOFF_PACKAGE_EXCLUDED],
+            fingerprint: built ? packageFingerprint(built) : null,
+            handoffId: handoff.id,
+            included: built
+              ? PACKAGE_INCLUDED_SECTIONS.map(([section, count]) => ({
+                  count: count(built),
+                  section,
+                }))
+              : [],
+            json: built ? renderTestHandoffPackageJson(built) : null,
+            markdown: built ? renderTestHandoffPackageMarkdown(built) : null,
+            nextPackageVersion,
+          };
+        },
+      );
+      if (!preview) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return preview;
+    },
+
+    async producePackage(accountId, rawInput) {
+      const input = produceTestHandoffPackageInputSchema.parse(rawInput);
+      const produced = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          const handoff = await requireHandoff(
+            transaction,
+            input.handoffId,
+            true,
+          );
+          if (!TEST_HANDOFF_PACKAGE_STATES.includes(handoff.state)) {
+            throw new TestHandoffPackageStateError(handoff.state);
+          }
+          const packageVersion = handoff.packageVersion + 1;
+          if (input.expectedPackageVersion !== packageVersion) {
+            throw new TestHandoffPackageStaleError(handoff.id);
+          }
+          const createdAt = new Date().toISOString();
+          const { blockers, package: built } = await collectPackage(
+            transaction,
+            handoff,
+            packageVersion,
+            createdAt,
+          );
+          if (!built) {
+            throw new TestHandoffPackageBlockedError(blockers);
+          }
+          if (packageFingerprint(built) !== input.previewFingerprint) {
+            throw new TestHandoffPackageStaleError(handoff.id);
+          }
+          // Counter and stored package move together or not at all. Only the
+          // package is written: the Handoff state and content stay as they are.
+          const bumped = await transaction.bumpPackageVersion(
+            handoff.id,
+            handoff.packageVersion,
+          );
+          if (!bumped) {
+            throw new TestHandoffPackageStaleError(handoff.id);
+          }
+          const stored: TestHandoffPackageStored = {
+            createdAt,
+            handoffId: handoff.id,
+            json: renderTestHandoffPackageJson(built),
+            markdown: renderTestHandoffPackageMarkdown(built),
+            packageVersion,
+          };
+          await transaction.insertPackage(stored);
+          return toPackageRecord(stored);
+        },
+      );
+      if (!produced) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return produced;
+    },
+
     async createHandoff(accountId, rawInput) {
       const input = createTestHandoffInputSchema.parse(rawInput);
       const created = await store.run(
@@ -470,11 +861,15 @@ export function createPlannedTests(
             throw new PlannedTestProjectReadOnlyError(input.projectId);
           }
           await requireSelectedVersions(transaction, input.scenarios);
+          await bindContextRefs(transaction.resolver, input.contextRefs, []);
           const now = new Date().toISOString();
           const stored: TestHandoffStoredRecord = {
+            adHocScope: input.adHocScope,
             buildContext: input.buildContext,
+            contextRefs: input.contextRefs,
             createdAt: now,
             dueDate: input.dueDate,
+            environmentPreconditions: input.environmentPreconditions,
             id: crypto.randomUUID(),
             packageVersion: 0,
             projectId: input.projectId,
@@ -516,8 +911,15 @@ export function createPlannedTests(
               record,
             ]),
           );
-          const handoffs = (await transaction.listHandoffs()).map((stored) =>
-            toTestHandoffRecord(stored, cases, sessionTests),
+          const handoffs = await Promise.all(
+            (await transaction.listHandoffs()).map(async (stored) =>
+              toTestHandoffRecord(
+                stored,
+                cases,
+                sessionTests,
+                await resolveContext(transaction.resolver, stored.contextRefs),
+              ),
+            ),
           );
           return { handoffs, readOnly: transaction.readOnly };
         },
@@ -798,10 +1200,18 @@ export function createPlannedTests(
             throw new TestHandoffLockedError(handoff.id);
           }
           await requireSelectedVersions(transaction, input.scenarios);
+          await bindContextRefs(
+            transaction.resolver,
+            input.contextRefs,
+            handoff.contextRefs,
+          );
           const updatedAt = new Date().toISOString();
           const content = {
+            adHocScope: input.adHocScope,
             buildContext: input.buildContext,
+            contextRefs: input.contextRefs,
             dueDate: input.dueDate,
+            environmentPreconditions: input.environmentPreconditions,
             purpose: input.purpose,
             scenarios: input.scenarios,
             targetExecutor: input.targetExecutor,

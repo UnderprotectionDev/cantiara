@@ -13,6 +13,10 @@ import type {
   PlannedTestVersionKind,
   SessionTestBindOrigin,
   SessionTestStoredRecord,
+  TestHandoffContextCandidate,
+  TestHandoffContextKind,
+  TestHandoffContextLive,
+  TestHandoffContextRef,
   TestHandoffState,
   TestHandoffStoredRecord,
 } from "@cantiara/api/planned-tests";
@@ -26,13 +30,16 @@ import {
   plannedTestCaseVersion,
   sessionTest,
   testHandoff,
+  testHandoffAdHocScope,
+  testHandoffContextRef,
+  testHandoffPackage,
   testHandoffScenario,
   testHandoffSessionTest,
 } from "@cantiara/db/schema/planned-test";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
 import { risk } from "@cantiara/db/schema/risk";
-import { screen } from "@cantiara/db/schema/screen";
+import { screen, screenWireframeVersion } from "@cantiara/db/schema/screen";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -386,7 +393,193 @@ function createResolver(
     }
   }
 
-  return { bind, candidates, read };
+  async function wireframeVersions(screenIds: string[]) {
+    if (screenIds.length === 0) {
+      return new Map<string, number[]>();
+    }
+    const rows = await executor
+      .select({
+        screenId: screenWireframeVersion.screenId,
+        version: screenWireframeVersion.version,
+      })
+      .from(screenWireframeVersion)
+      .where(inArray(screenWireframeVersion.screenId, screenIds))
+      .orderBy(asc(screenWireframeVersion.version));
+    const byScreen = new Map<string, number[]>();
+    for (const row of rows) {
+      byScreen.set(row.screenId, [
+        ...(byScreen.get(row.screenId) ?? []),
+        row.version,
+      ]);
+    }
+    return byScreen;
+  }
+
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: One switch maps each context kind to its owner record and visibility.
+  async function readContext(
+    ref: TestHandoffContextRef,
+  ): Promise<TestHandoffContextLive> {
+    switch (ref.kind) {
+      case "Work":
+      case "Feature": {
+        const row = await workRow(executor, projectId, ref.targetId, ref.kind);
+        if (!row) {
+          return broken("Permanently deleted");
+        }
+        const hidden = visibility(row);
+        return hidden
+          ? broken(hidden)
+          : { label: row.title, state: "resolved" };
+      }
+      case "Document": {
+        const row = await documentRow(executor, projectId, ref.targetId);
+        if (!row) {
+          return broken("Permanently deleted");
+        }
+        const hidden = visibility(row);
+        return hidden
+          ? broken(hidden)
+          : { label: row.title, state: "resolved" };
+      }
+      default: {
+        const row = await screenRow(executor, projectId, ref.targetId);
+        if (!row) {
+          return broken("Permanently deleted");
+        }
+        const hidden = visibility(row);
+        if (hidden) {
+          return broken(hidden);
+        }
+        const versions = await wireframeVersions([row.id]);
+        return versions.get(row.id)?.includes(ref.wireframeVersion)
+          ? { label: row.title, state: "resolved" }
+          : broken("Permanently deleted");
+      }
+    }
+  }
+
+  async function bindContext(ref: TestHandoffContextRef) {
+    const live = await readContext(ref);
+    if (live.state !== "resolved") {
+      return null;
+    }
+    if (ref.kind !== "Document") {
+      return live.label;
+    }
+    // A Document reference pins the revision the founder is looking at now.
+    const row = await documentRow(executor, projectId, ref.targetId);
+    if (!row || row.revision !== ref.documentRevision) {
+      return null;
+    }
+    if (
+      ref.sectionId !== null &&
+      !documentSectionById(row.body, ref.sectionId)
+    ) {
+      return null;
+    }
+    return live.label;
+  }
+
+  async function contextCandidates(
+    kind: TestHandoffContextKind,
+  ): Promise<TestHandoffContextCandidate[]> {
+    const plain = (
+      rows: { id: string; title: string }[],
+    ): TestHandoffContextCandidate[] =>
+      rows.map(({ id, title }) => ({
+        documentRevision: null,
+        kind,
+        label: title,
+        sections: [],
+        targetId: id,
+        wireframeVersions: [],
+      }));
+    switch (kind) {
+      case "Work":
+      case "Feature": {
+        const rows = await executor
+          .select({
+            archivedAt: work.archivedAt,
+            id: work.id,
+            status: work.status,
+            title: work.title,
+            trashedAt: work.trashedAt,
+            type: work.type,
+          })
+          .from(work)
+          .where(eq(work.projectId, projectId))
+          .orderBy(asc(work.title), asc(work.id))
+          .limit(CANDIDATE_LIMIT);
+        return plain(
+          rows.filter(
+            (row) =>
+              (row.type === "Feature") === (kind === "Feature") &&
+              !visibility(row),
+          ),
+        );
+      }
+      case "Document": {
+        const rows = await executor
+          .select({
+            archivedAt: documentTable.archivedAt,
+            body: documentTable.body,
+            id: documentTable.id,
+            revision: documentTable.revision,
+            title: documentTable.title,
+          })
+          .from(documentTable)
+          .where(eq(documentTable.projectId, projectId))
+          .orderBy(asc(documentTable.title), asc(documentTable.id))
+          .limit(CANDIDATE_LIMIT);
+        return rows
+          .filter((row) => !visibility(row))
+          .map(
+            (row): TestHandoffContextCandidate => ({
+              documentRevision: row.revision,
+              kind,
+              label: row.title,
+              sections: documentSections(row.body).map((section) => ({
+                id: section.id,
+                label: section.heading,
+              })),
+              targetId: row.id,
+              wireframeVersions: [],
+            }),
+          );
+      }
+      default: {
+        const rows = (
+          await executor
+            .select({
+              archivedAt: screen.archivedAt,
+              id: screen.id,
+              title: screen.title,
+              trashedAt: screen.trashedAt,
+            })
+            .from(screen)
+            .where(eq(screen.projectId, projectId))
+            .orderBy(asc(screen.title), asc(screen.id))
+            .limit(CANDIDATE_LIMIT)
+        ).filter((row) => !visibility(row));
+        const versions = await wireframeVersions(rows.map(({ id }) => id));
+        return plain(rows)
+          .map((candidate) => ({
+            ...candidate,
+            wireframeVersions: versions.get(candidate.targetId) ?? [],
+          }))
+          .filter((candidate) => candidate.wireframeVersions.length > 0);
+      }
+    }
+  }
+
+  return {
+    bind,
+    bindContext,
+    candidates,
+    contextCandidates,
+    read,
+    readContext,
+  };
 }
 
 function toStoredVersion(
@@ -510,7 +703,12 @@ function toStoredSessionTest(
 const HANDOFF_CONTENT_COLUMNS = (
   content: Pick<
     TestHandoffStoredRecord,
-    "buildContext" | "dueDate" | "purpose" | "targetExecutor" | "title"
+    | "buildContext"
+    | "dueDate"
+    | "environmentPreconditions"
+    | "purpose"
+    | "targetExecutor"
+    | "title"
   >,
 ) => ({
   buildBranch: content.buildContext.branch,
@@ -519,6 +717,7 @@ const HANDOFF_CONTENT_COLUMNS = (
   buildRepository: content.buildContext.repository,
   buildTargetEnvironment: content.buildContext.targetEnvironment,
   dueDate: content.dueDate,
+  environmentPreconditions: content.environmentPreconditions,
   purpose: content.purpose,
   targetExecutor: content.targetExecutor,
   title: content.title,
@@ -537,6 +736,16 @@ async function toStoredHandoffs(
     .from(testHandoffScenario)
     .where(inArray(testHandoffScenario.handoffId, ids))
     .orderBy(asc(testHandoffScenario.position));
+  const adHoc = await executor
+    .select()
+    .from(testHandoffAdHocScope)
+    .where(inArray(testHandoffAdHocScope.handoffId, ids))
+    .orderBy(asc(testHandoffAdHocScope.position));
+  const contextRefs = await executor
+    .select()
+    .from(testHandoffContextRef)
+    .where(inArray(testHandoffContextRef.handoffId, ids))
+    .orderBy(asc(testHandoffContextRef.position));
   const links = await executor
     .select()
     .from(testHandoffSessionTest)
@@ -546,6 +755,9 @@ async function toStoredHandoffs(
       asc(testHandoffSessionTest.sessionTestId),
     );
   return rows.map((row) => ({
+    adHocScope: adHoc
+      .filter(({ handoffId }) => handoffId === row.id)
+      .map(({ expectedBehavior, intent }) => ({ expectedBehavior, intent })),
     buildContext: {
       branch: row.buildBranch,
       build: row.buildName,
@@ -553,8 +765,32 @@ async function toStoredHandoffs(
       repository: row.buildRepository,
       targetEnvironment: row.buildTargetEnvironment,
     },
+    contextRefs: contextRefs
+      .filter(({ handoffId }) => handoffId === row.id)
+      .map((ref): TestHandoffContextRef => {
+        if (ref.kind === "Document") {
+          return {
+            documentRevision: ref.documentRevision ?? 0,
+            kind: "Document",
+            sectionId: ref.sectionId,
+            targetId: ref.targetId,
+          };
+        }
+        if (ref.kind === "Wireframe") {
+          return {
+            kind: "Wireframe",
+            targetId: ref.targetId,
+            wireframeVersion: ref.wireframeVersion ?? 1,
+          };
+        }
+        return {
+          kind: ref.kind === "Feature" ? "Feature" : "Work",
+          targetId: ref.targetId,
+        };
+      }),
     createdAt: row.createdAt.toISOString(),
     dueDate: row.dueDate,
+    environmentPreconditions: row.environmentPreconditions,
     id: row.id,
     packageVersion: row.packageVersion,
     projectId: row.projectId,
@@ -593,6 +829,37 @@ async function insertHandoffScenarios(
   }
 }
 
+async function insertHandoffContent(
+  executor: Executor,
+  handoffId: string,
+  content: Pick<TestHandoffStoredRecord, "adHocScope" | "contextRefs">,
+) {
+  if (content.adHocScope.length > 0) {
+    await executor.insert(testHandoffAdHocScope).values(
+      content.adHocScope.map(({ expectedBehavior, intent }, position) => ({
+        expectedBehavior,
+        handoffId,
+        intent,
+        position,
+      })),
+    );
+  }
+  if (content.contextRefs.length > 0) {
+    await executor.insert(testHandoffContextRef).values(
+      content.contextRefs.map((ref, position) => ({
+        documentRevision: ref.kind === "Document" ? ref.documentRevision : null,
+        handoffId,
+        kind: ref.kind,
+        position,
+        sectionId: ref.kind === "Document" ? ref.sectionId : null,
+        targetId: ref.targetId,
+        wireframeVersion:
+          ref.kind === "Wireframe" ? ref.wireframeVersion : null,
+      })),
+    );
+  }
+}
+
 export function createDatabasePlannedTestStore(
   database: Database,
 ): PlannedTestStore {
@@ -608,6 +875,47 @@ export function createDatabasePlannedTestStore(
             return null;
           }
           return await unitOfWork({
+            // The counter moves only from the value the caller read, in the
+            // same transaction that stores the package, so two producers can
+            // never both claim one version.
+            bumpPackageVersion: async (handoffId, expected) => {
+              const updated = await executor
+                .update(testHandoff)
+                .set({ packageVersion: expected + 1 })
+                .where(
+                  and(
+                    eq(testHandoff.id, handoffId),
+                    eq(testHandoff.projectId, owned.id),
+                    eq(testHandoff.packageVersion, expected),
+                  ),
+                )
+                .returning({ id: testHandoff.id });
+              return updated.length === 1;
+            },
+            insertPackage: async (record) => {
+              await executor.insert(testHandoffPackage).values({
+                createdAt: new Date(record.createdAt),
+                handoffId: record.handoffId,
+                json: record.json,
+                markdown: record.markdown,
+                packageVersion: record.packageVersion,
+              });
+            },
+            listPackages: async (handoffId) =>
+              (
+                await executor
+                  .select()
+                  .from(testHandoffPackage)
+                  .where(eq(testHandoffPackage.handoffId, handoffId))
+                  .orderBy(desc(testHandoffPackage.packageVersion))
+              ).map((row) => ({
+                createdAt: row.createdAt.toISOString(),
+                handoffId: row.handoffId,
+                json: row.json,
+                markdown: row.markdown,
+                packageVersion: row.packageVersion,
+              })),
+            project: { id: owned.id, name: owned.project.name },
             appendVersion: async (caseId, version, updatedAt) => {
               await insertVersion(executor, version);
               await executor
@@ -693,6 +1001,7 @@ export function createDatabasePlannedTestStore(
                 record.id,
                 record.scenarios,
               );
+              await insertHandoffContent(executor, record.id, record);
             },
             insertSessionTest: async (record) => {
               await executor.insert(sessionTest).values({
@@ -793,6 +1102,13 @@ export function createDatabasePlannedTestStore(
                 handoffId,
                 content.scenarios,
               );
+              await executor
+                .delete(testHandoffAdHocScope)
+                .where(eq(testHandoffAdHocScope.handoffId, handoffId));
+              await executor
+                .delete(testHandoffContextRef)
+                .where(eq(testHandoffContextRef.handoffId, handoffId));
+              await insertHandoffContent(executor, handoffId, content);
             },
             resolver: createResolver(executor, owned.id),
             // The state moves only while it is still the one the caller saw.

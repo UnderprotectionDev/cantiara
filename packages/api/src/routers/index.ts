@@ -246,8 +246,11 @@ import {
   plannedTestCaseProjectInputSchema,
   plannedTestCaseVersionInputSchema,
   plannedTestRelationTargetsInputSchema,
+  produceTestHandoffPackageInputSchema,
   recordSessionTestInputSchema,
   sessionTestProjectInputSchema,
+  testHandoffContextTargetsInputSchema,
+  testHandoffPackageInputSchema,
   testHandoffProjectInputSchema,
   transitionTestHandoffInputSchema,
   updateTestHandoffInputSchema,
@@ -2964,6 +2967,15 @@ const PLANNED_TEST_REJECTED_MESSAGES: Record<string, string> = {
     "A relation target is not an existing, active record of this Project.",
 };
 
+const PLANNED_TEST_CONFLICT_MESSAGES: Record<string, string> = {
+  PLANNED_TEST_VERSION_CONFLICT:
+    "Planned Test Case changed since it was loaded. Reload and try again.",
+  TEST_HANDOFF_PACKAGE_STALE:
+    "The package changed since the preview. Preview it again.",
+  TEST_HANDOFF_STATE_CONFLICT:
+    "Test Handoff changed since it was loaded. Reload and try again.",
+};
+
 async function runPlannedTestOperation<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
@@ -2975,16 +2987,26 @@ async function runPlannedTestOperation<T>(
     }
     if (
       error.code === "PLANNED_TEST_VERSION_CONFLICT" ||
-      error.code === "TEST_HANDOFF_STATE_CONFLICT"
+      error.code === "TEST_HANDOFF_STATE_CONFLICT" ||
+      error.code === "TEST_HANDOFF_PACKAGE_STALE"
     ) {
       throw new ORPCError("PRECONDITION_FAILED", {
         cause: error,
         data: { code: error.code },
         defined: true,
-        message:
-          error.code === "TEST_HANDOFF_STATE_CONFLICT"
-            ? "Test Handoff changed since it was loaded. Reload and try again."
-            : "Planned Test Case changed since it was loaded. Reload and try again.",
+        message: PLANNED_TEST_CONFLICT_MESSAGES[error.code] ?? "",
+      });
+    }
+    if (
+      error.code === "TEST_HANDOFF_PACKAGE_STATE" ||
+      error.code === "TEST_HANDOFF_PACKAGE_BLOCKED"
+    ) {
+      // These messages name the section and kind only, never a value.
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: error instanceof Error ? error.message : "Package refused.",
       });
     }
     const rejected = PLANNED_TEST_REJECTED_MESSAGES[error.code];
@@ -5579,6 +5601,43 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runPlannedTestOperation(() =>
         requirePlannedTests(context).linkHandoffSessionTest(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewTestHandoffPackage: protectedProcedure
+    .input(testHandoffPackageInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).previewPackage(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  produceTestHandoffPackage: protectedProcedure
+    .input(produceTestHandoffPackageInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).producePackage(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestHandoffPackages: protectedProcedure
+    .input(testHandoffPackageInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).packages(context.session.user.id, input),
+      ),
+    ),
+  testHandoffContextTargets: protectedProcedure
+    .input(testHandoffContextTargetsInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).contextTargets(
           context.session.user.id,
           input,
         ),

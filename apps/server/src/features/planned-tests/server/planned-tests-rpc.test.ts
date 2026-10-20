@@ -32,6 +32,7 @@ const definition = {
 };
 
 const PLANNED_TEST_PROCEDURE = /planned ?test/i;
+const SECRET_WORD = /secret/i;
 
 describe("Planned Tests RPC seam", () => {
   test("creates, versions and reads an exact version for the authenticated account", async () => {
@@ -346,12 +347,125 @@ describe("Test Handoff RPC seam", () => {
     expect(names.sort()).toEqual([
       "createTestHandoff",
       "linkTestHandoffSessionTest",
+      "previewTestHandoffPackage",
+      "produceTestHandoffPackage",
+      "projectTestHandoffPackages",
       "projectTestHandoffs",
+      "testHandoffContextTargets",
       "transitionTestHandoff",
       "updateTestHandoff",
     ]);
     expect(names.filter((name) => RUNNER_VERB.test(name))).toEqual([]);
     // Work's external execution handoff (ADR-0015) is a different contract.
     expect(names.filter((name) => EXTERNAL_WORD.test(name))).toEqual([]);
+  });
+});
+
+describe("Test Handoff package RPC seam", () => {
+  async function ready() {
+    const { client } = setup();
+    const created = await client.createPlannedTestCase({
+      ...definition,
+      projectId,
+    });
+    const handoff = await client.createTestHandoff({
+      projectId,
+      purpose: "Check checkout on staging.",
+      scenarios: [{ caseId: created.id, version: 1 }],
+      title: "Checkout round 1",
+    });
+    return { client, handoff };
+  }
+
+  test("previews, produces and reads a package; produce moves no state", async () => {
+    const { client, handoff } = await ready();
+    await client.transitionTestHandoff({
+      expectedState: "Draft",
+      handoffId: handoff.id,
+      projectId,
+      to: "Ready to share",
+    });
+
+    const preview = await client.previewTestHandoffPackage({
+      handoffId: handoff.id,
+      projectId,
+    });
+    const produced = await client.produceTestHandoffPackage({
+      expectedPackageVersion: preview.nextPackageVersion,
+      handoffId: handoff.id,
+      previewFingerprint: preview.fingerprint ?? "",
+      projectId,
+    });
+    const listed = await client.projectTestHandoffPackages({
+      handoffId: handoff.id,
+      projectId,
+    });
+
+    expect(produced.package.schema_version).toBe("test-handoff-package/1");
+    expect(produced.package.handoff_package_version).toBe(1);
+    expect(listed.packages).toHaveLength(1);
+    expect(
+      (await client.projectTestHandoffs({ projectId })).handoffs[0],
+    ).toMatchObject({ packageVersion: 1, state: "Ready to share" });
+  });
+
+  test("maps refusals to RPC errors without echoing a secret", async () => {
+    const { client, handoff } = await ready();
+
+    await expect(
+      client.previewTestHandoffPackage({ handoffId: "missing", projectId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client.produceTestHandoffPackage({
+        expectedPackageVersion: 1,
+        handoffId: handoff.id,
+        previewFingerprint: "a".repeat(64),
+        projectId,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await client.transitionTestHandoff({
+      expectedState: "Draft",
+      handoffId: handoff.id,
+      projectId,
+      to: "Ready to share",
+    });
+    await expect(
+      client.produceTestHandoffPackage({
+        expectedPackageVersion: 1,
+        handoffId: handoff.id,
+        previewFingerprint: "a".repeat(64),
+        projectId,
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const token = `ghp_${"x9Y8z7W6v5U4t3S2r1Q0".repeat(2)}`;
+    const refused = client.updateTestHandoff({
+      environmentPreconditions: `token ${token}`,
+      handoffId: handoff.id,
+      projectId,
+      purpose: "p",
+      title: "t",
+    });
+    await expect(refused).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await refused.catch((error: { data?: unknown; message: string }) => {
+      const shown = JSON.stringify(error.data) + error.message;
+      expect(shown).toMatch(SECRET_WORD);
+      expect(shown).not.toContain(token);
+    });
+  });
+
+  test("blocks anonymous access", async () => {
+    const { client } = setup(false);
+
+    await expect(
+      client.previewTestHandoffPackage({ handoffId: "h", projectId }),
+    ).rejects.toThrow();
+    await expect(
+      client.produceTestHandoffPackage({
+        expectedPackageVersion: 1,
+        handoffId: "h",
+        previewFingerprint: "a".repeat(64),
+        projectId,
+      }),
+    ).rejects.toThrow();
   });
 });
