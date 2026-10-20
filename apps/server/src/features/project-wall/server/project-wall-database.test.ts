@@ -3,7 +3,12 @@ import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { project } from "@cantiara/db/schema/project";
-import { projectWallItem } from "@cantiara/db/schema/project-wall";
+import {
+  projectWallGroup,
+  projectWallItem,
+  projectWallLink,
+} from "@cantiara/db/schema/project-wall";
+import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -14,12 +19,16 @@ import {
   expect,
   test,
 } from "vitest";
-
+import { createDatabaseRelations } from "../../relations/server/relations";
 import {
   ProjectWallCardDuplicateError,
   ProjectWallProjectReadOnlyError,
 } from "./project-wall";
 import { createDatabaseProjectWall } from "./project-wall-database";
+
+function wallAccess(db: ReturnType<typeof createDb>) {
+  return createDatabaseProjectWall(db, createDatabaseRelations(db));
+}
 
 const databaseUrl = process.env.ACCOUNT_ACCESS_DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -111,7 +120,7 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
   });
 
   test("live card identity equals the source id and the same record sits on many walls", async () => {
-    const access = createDatabaseProjectWall(requireDatabase());
+    const access = wallAccess(requireDatabase());
     const first = await access.create(accountId, { projectId, title: "One" });
     const second = await access.create(accountId, { projectId, title: "Two" });
     for (const wall of [first, second]) {
@@ -155,7 +164,7 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
 
   test("move, density and highlight write wall rows and never the source", async () => {
     const db = requireDatabase();
-    const access = createDatabaseProjectWall(db);
+    const access = wallAccess(db);
     const wall = await access.create(accountId, { projectId, title: "Story" });
     const view = await access.addCard(accountId, {
       projectId,
@@ -201,7 +210,7 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
 
   test("deleting a wall removes only wall rows", async () => {
     const db = requireDatabase();
-    const access = createDatabaseProjectWall(db);
+    const access = wallAccess(db);
     const wall = await access.create(accountId, { projectId, title: "Gone" });
     await access.addCard(accountId, {
       projectId,
@@ -219,7 +228,7 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
   });
 
   test("another account and an archived Project cannot use a wall", async () => {
-    const access = createDatabaseProjectWall(requireDatabase());
+    const access = wallAccess(requireDatabase());
     const wall = await access.create(accountId, { projectId, title: "Mine" });
     await expect(
       access.get(otherAccountId, projectId, wall.id),
@@ -235,5 +244,83 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
     await expect(
       access.create(accountId, { projectId: archivedProjectId, title: "No" }),
     ).rejects.toBeInstanceOf(ProjectWallProjectReadOnlyError);
+  });
+
+  test("a Visual link, group and Lock Position write wall rows and no relation row", async () => {
+    const db = requireDatabase();
+    const access = wallAccess(db);
+    const wall = await access.create(accountId, { projectId, title: "Story" });
+    await access.addCard(accountId, {
+      projectId,
+      sourceId: workId,
+      sourceType: "Work",
+      wallId: wall.id,
+    });
+    const placed = await access.addCard(accountId, {
+      position: { x: 10, y: 10 },
+      projectId,
+      sourceId: decisionId,
+      sourceType: "Decision",
+      wallId: wall.id,
+    });
+    const [from, to] = placed.cards;
+    const base = { projectId, wallId: wall.id };
+    const [workBefore] = await db
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+
+    await access.drawLink(accountId, {
+      ...base,
+      fromCardId: from?.id ?? "",
+      label: "informs",
+      toCardId: to?.id ?? "",
+    });
+    const grouped = await access.createGroup(accountId, {
+      ...base,
+      title: "Onboarding",
+    });
+    await access.setCardGroup(accountId, {
+      ...base,
+      cardId: from?.id ?? "",
+      groupId: grouped.groups[0]?.id ?? "",
+    });
+    await access.setCardLock(accountId, {
+      ...base,
+      cardId: from?.id ?? "",
+      locked: true,
+    });
+    const moved = await access.moveCards(accountId, {
+      ...base,
+      moves: [{ cardId: from?.id ?? "", position: { x: 999, y: 999 } }],
+    });
+
+    expect(moved.cards[0]?.position).toEqual({ x: 0, y: 0 });
+    expect(moved.cards[0]?.locked).toBe(true);
+    expect(moved.links).toHaveLength(1);
+    expect(await db.select().from(projectWallLink)).not.toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(workRelation)
+        .where(eq(workRelation.sourceWorkId, workId)),
+    ).toEqual([]);
+    const [workAfter] = await db.select().from(work).where(eq(work.id, workId));
+    expect(workAfter).toEqual(workBefore);
+
+    // Deleting a group keeps its cards; the group row is gone.
+    await access.deleteGroup(accountId, {
+      ...base,
+      groupId: grouped.groups[0]?.id ?? "",
+    });
+    const after = await access.get(accountId, projectId, wall.id);
+    expect(after.cards).toHaveLength(2);
+    expect(after.cards[0]?.groupId).toBeNull();
+    expect(
+      await db
+        .select()
+        .from(projectWallGroup)
+        .where(eq(projectWallGroup.wallId, wall.id)),
+    ).toEqual([]);
   });
 });

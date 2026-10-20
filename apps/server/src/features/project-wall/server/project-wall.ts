@@ -2,21 +2,41 @@ import {
   type AddProjectWallCardInput,
   addProjectWallCardInputSchema,
   buildProjectWallView,
+  type CreateProjectWallGroupInput,
   type CreateProjectWallInput,
+  type CreateProjectWallPersistentRelationInput,
+  createProjectWallGroupInputSchema,
   createProjectWallInputSchema,
+  createProjectWallPersistentRelationInputSchema,
+  type DrawProjectWallLinkInput,
+  drawProjectWallLinkInputSchema,
   type MoveProjectWallCardsInput,
   moveProjectWallCardsInputSchema,
+  type PreviewProjectWallPersistentRelationInput,
   type ProjectWallAccess,
+  type ProjectWallGroupInput,
   type ProjectWallRecord,
+  type ProjectWallRelations,
   type ProjectWallStore,
+  previewProjectWallPersistentRelationInputSchema,
+  projectWallCardEndpoint,
+  projectWallGroupInputSchema,
   type RemoveProjectWallCardInput,
   type RenameProjectWallInput,
   removeProjectWallCardInputSchema,
   renameProjectWallInputSchema,
   type SetProjectWallCardDensityInput,
+  type SetProjectWallCardGroupInput,
   type SetProjectWallCardHighlightInput,
+  type SetProjectWallCardLockInput,
+  type SetProjectWallGroupCollapsedInput,
   setProjectWallCardDensityInputSchema,
+  setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
+  setProjectWallCardLockInputSchema,
+  setProjectWallGroupCollapsedInputSchema,
+  type UnbindProjectWallLinkInput,
+  unbindProjectWallLinkInputSchema,
 } from "@cantiara/api/project-wall";
 import { recordLookupKey } from "@cantiara/api/user-flow";
 
@@ -78,9 +98,42 @@ export class ProjectWallCardDuplicateError extends Error {
   }
 }
 
+export class ProjectWallLinkNotFoundError extends Error {
+  readonly code = "PROJECT_WALL_LINK_NOT_FOUND" as const;
+
+  constructor(linkId: string) {
+    super(`Visual link ${linkId} is not on this Project Wall.`);
+    this.name = "ProjectWallLinkNotFoundError";
+  }
+}
+
+export class ProjectWallGroupNotFoundError extends Error {
+  readonly code = "PROJECT_WALL_GROUP_NOT_FOUND" as const;
+
+  constructor(groupId: string) {
+    super(`Group ${groupId} is not on this Project Wall.`);
+    this.name = "ProjectWallGroupNotFoundError";
+  }
+}
+
+/** A Visual link becomes a relation only after its current preview. */
+export class ProjectWallRelationPreviewRequiredError extends Error {
+  readonly code = "PROJECT_WALL_RELATION_PREVIEW_REQUIRED" as const;
+
+  constructor() {
+    super("Review the current relation preview before confirming.");
+    this.name = "ProjectWallRelationPreviewRequiredError";
+  }
+}
+
 export interface ProjectWallOptions {
   generateId?: () => string;
   now?: () => Date;
+  /**
+   * The catalog relations seam. The wall never writes a relation itself: it
+   * previews and then asks this seam, and only on an explicit confirmation.
+   */
+  relations?: ProjectWallRelations;
 }
 
 /**
@@ -95,6 +148,7 @@ export function createProjectWall(
 ): ProjectWallAccess {
   const generateId = options.generateId ?? (() => crypto.randomUUID());
   const now = options.now ?? (() => new Date());
+  const { relations } = options;
 
   async function view(accountId: string, record: ProjectWallRecord) {
     const lookups =
@@ -136,6 +190,64 @@ export function createProjectWall(
       }
     }
     return wall;
+  }
+
+  async function requireLink(
+    accountId: string,
+    projectId: string,
+    wallId: string,
+    linkId: string,
+  ) {
+    const wall = await load(accountId, projectId, wallId);
+    const link = wall.links.find(({ id }) => id === linkId);
+    if (!link) {
+      throw new ProjectWallLinkNotFoundError(linkId);
+    }
+    return { link, wall };
+  }
+
+  async function requireGroup(
+    accountId: string,
+    projectId: string,
+    wallId: string,
+    groupId: string,
+  ) {
+    const wall = await load(accountId, projectId, wallId);
+    if (!wall.groups.some(({ id }) => id === groupId)) {
+      throw new ProjectWallGroupNotFoundError(groupId);
+    }
+    return wall;
+  }
+
+  /** From -> source, To -> target: the line direction is the relation direction. */
+  async function previewLinkRelation(
+    accountId: string,
+    input: PreviewProjectWallPersistentRelationInput,
+  ) {
+    if (!relations) {
+      throw new Error("Project Wall has no relations seam configured.");
+    }
+    const { link, wall } = await requireLink(
+      accountId,
+      input.projectId,
+      input.wallId,
+      input.linkId,
+    );
+    const endpoint = (cardId: string) => {
+      const card = wall.items.find(({ id }) => id === cardId);
+      if (!card) {
+        throw new ProjectWallCardNotFoundError(cardId);
+      }
+      return projectWallCardEndpoint(card);
+    };
+    const source = endpoint(link.fromCardId);
+    const target = endpoint(link.toCardId);
+    const relation = await relations.previewCreate(accountId, {
+      kind: input.kind,
+      source,
+      target,
+    });
+    return { link, relation, relations, source, target };
   }
 
   return {
@@ -183,6 +295,42 @@ export function createProjectWall(
       return reload(accountId, input.projectId, input.wallId);
     },
 
+    async createGroup(accountId, rawInput: CreateProjectWallGroupInput) {
+      const input = createProjectWallGroupInputSchema.parse(rawInput);
+      const created = await store.createGroup(accountId, {
+        id: generateId(),
+        projectId: input.projectId,
+        title: input.title,
+        wallId: input.wallId,
+      });
+      if (!created) {
+        throw new ProjectWallNotFoundError(input.wallId);
+      }
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async createPersistentRelation(
+      accountId,
+      rawInput: CreateProjectWallPersistentRelationInput,
+    ) {
+      const input =
+        createProjectWallPersistentRelationInputSchema.parse(rawInput);
+      // Recompute the preview from the live link and cards: a stale, foreign
+      // or missing preview id never reaches the relations write.
+      const preview = await previewLinkRelation(accountId, input);
+      if (preview.relation.previewId !== input.previewId) {
+        throw new ProjectWallRelationPreviewRequiredError();
+      }
+      return preview.relations.create(accountId, {
+        baseRevision: input.baseRevision,
+        clientIdempotencyKey: input.clientIdempotencyKey,
+        kind: input.kind,
+        previewId: input.previewId,
+        source: preview.source,
+        target: preview.target,
+      });
+    },
+
     async create(accountId, rawInput: CreateProjectWallInput) {
       const input = createProjectWallInputSchema.parse(rawInput);
       const created = await store.createWall(accountId, {
@@ -194,6 +342,39 @@ export function createProjectWall(
         throw new ProjectWallProjectNotFoundError(input.projectId);
       }
       return view(accountId, created);
+    },
+
+    async deleteGroup(accountId, rawInput: ProjectWallGroupInput) {
+      const input = projectWallGroupInputSchema.parse(rawInput);
+      await requireGroup(
+        accountId,
+        input.projectId,
+        input.wallId,
+        input.groupId,
+      );
+      await store.deleteGroup(accountId, input);
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async drawLink(accountId, rawInput: DrawProjectWallLinkInput) {
+      const input = drawProjectWallLinkInputSchema.parse(rawInput);
+      await requireCard(accountId, input.projectId, input.wallId, [
+        input.fromCardId,
+        input.toCardId,
+      ]);
+      // Wall view state only: no relation row is written for a Visual link.
+      const added = await store.addLink(accountId, {
+        fromCardId: input.fromCardId,
+        id: generateId(),
+        label: input.label,
+        projectId: input.projectId,
+        toCardId: input.toCardId,
+        wallId: input.wallId,
+      });
+      if (!added) {
+        throw new ProjectWallNotFoundError(input.wallId);
+      }
+      return reload(accountId, input.projectId, input.wallId);
     },
 
     async delete(accountId, projectId, wallId) {
@@ -216,16 +397,35 @@ export function createProjectWall(
 
     async moveCards(accountId, rawInput: MoveProjectWallCardsInput) {
       const input = moveProjectWallCardsInputSchema.parse(rawInput);
-      await requireCard(
+      const wall = await requireCard(
         accountId,
         input.projectId,
         input.wallId,
         input.moves.map(({ cardId }) => cardId),
       );
-      if (!(await store.moveCards(accountId, input))) {
+      // `Lock Position` fixes a card in manual drag; the rest of a
+      // multi-select still moves.
+      const locked = new Set(
+        wall.items.filter((item) => item.locked).map(({ id }) => id),
+      );
+      const moves = input.moves.filter(({ cardId }) => !locked.has(cardId));
+      if (moves.length === 0) {
+        return view(accountId, wall);
+      }
+      if (!(await store.moveCards(accountId, { ...input, moves }))) {
         throw new ProjectWallNotFoundError(input.wallId);
       }
       return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async previewPersistentRelation(
+      accountId,
+      rawInput: PreviewProjectWallPersistentRelationInput,
+    ) {
+      const input =
+        previewProjectWallPersistentRelationInputSchema.parse(rawInput);
+      const { link, relation } = await previewLinkRelation(accountId, input);
+      return { linkId: link.id, relation };
     },
 
     async removeCard(accountId, rawInput: RemoveProjectWallCardInput) {
@@ -254,6 +454,23 @@ export function createProjectWall(
       return reload(accountId, input.projectId, input.wallId);
     },
 
+    async setCardGroup(accountId, rawInput: SetProjectWallCardGroupInput) {
+      const input = setProjectWallCardGroupInputSchema.parse(rawInput);
+      await requireCard(accountId, input.projectId, input.wallId, [
+        input.cardId,
+      ]);
+      if (input.groupId !== null) {
+        await requireGroup(
+          accountId,
+          input.projectId,
+          input.wallId,
+          input.groupId,
+        );
+      }
+      await store.setCardGroup(accountId, input);
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
     async setCardHighlight(
       accountId,
       rawInput: SetProjectWallCardHighlightInput,
@@ -266,12 +483,43 @@ export function createProjectWall(
       return reload(accountId, input.projectId, input.wallId);
     },
 
+    async setCardLock(accountId, rawInput: SetProjectWallCardLockInput) {
+      const input = setProjectWallCardLockInputSchema.parse(rawInput);
+      await requireCard(accountId, input.projectId, input.wallId, [
+        input.cardId,
+      ]);
+      await store.setCardLocked(accountId, input);
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async setGroupCollapsed(
+      accountId,
+      rawInput: SetProjectWallGroupCollapsedInput,
+    ) {
+      const input = setProjectWallGroupCollapsedInputSchema.parse(rawInput);
+      await requireGroup(
+        accountId,
+        input.projectId,
+        input.wallId,
+        input.groupId,
+      );
+      await store.setGroupCollapsed(accountId, input);
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
     async sourceOptions(accountId, projectId) {
       const sources = await store.listSourceOptions(accountId, projectId);
       if (!sources) {
         throw new ProjectWallProjectNotFoundError(projectId);
       }
       return sources;
+    },
+
+    async unbindLink(accountId, rawInput: UnbindProjectWallLinkInput) {
+      const input = unbindProjectWallLinkInputSchema.parse(rawInput);
+      await requireLink(accountId, input.projectId, input.wallId, input.linkId);
+      await store.removeLink(accountId, input);
+      return reload(accountId, input.projectId, input.wallId);
     },
   };
 }

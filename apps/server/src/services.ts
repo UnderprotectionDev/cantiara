@@ -133,7 +133,6 @@ export const stopSmartCollectionSubscriptionSignalWorker =
   smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
 export const userFlow = createDatabaseUserFlow(db);
-export const projectWall = createDatabaseProjectWall(db);
 export const moodboards = createDatabaseMoodboards(db);
 export const moodboardPersonalViews = createDatabaseMoodboardPersonalViews(db);
 export const moodboardMutationContracts =
@@ -227,6 +226,7 @@ export const prioritizationSessionMutationContracts =
   createDatabasePrioritizationSessionMutationContracts(db);
 export const workspaceOverview = createDatabaseWorkspaceOverview(db);
 export const relations = createDatabaseRelations(db);
+export const projectWall = createDatabaseProjectWall(db, relations);
 export const usageLinks = createDatabaseUsageLinks(db);
 export const usageLinkMutationContracts =
   createDatabaseUsageLinkMutationContracts(db);

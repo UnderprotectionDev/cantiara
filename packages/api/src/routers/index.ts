@@ -308,14 +308,23 @@ import {
 } from "../project-source-records";
 import {
   addProjectWallCardInputSchema,
+  createProjectWallGroupInputSchema,
   createProjectWallInputSchema,
+  createProjectWallPersistentRelationInputSchema,
+  drawProjectWallLinkInputSchema,
   moveProjectWallCardsInputSchema,
+  previewProjectWallPersistentRelationInputSchema,
+  projectWallGroupInputSchema,
   projectWallInputSchema,
   projectWallProjectInputSchema,
   removeProjectWallCardInputSchema,
   renameProjectWallInputSchema,
   setProjectWallCardDensityInputSchema,
+  setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
+  setProjectWallCardLockInputSchema,
+  setProjectWallGroupCollapsedInputSchema,
+  unbindProjectWallLinkInputSchema,
 } from "../project-wall";
 import type { RecordActionsAccess } from "../record-actions";
 import {
@@ -1074,6 +1083,8 @@ function requireProjectWall(context: Context) {
 
 const PROJECT_WALL_UNAVAILABLE_MESSAGES: Record<string, string> = {
   PROJECT_WALL_CARD_NOT_FOUND: "Card is not on this Project Wall.",
+  PROJECT_WALL_GROUP_NOT_FOUND: "Group is not on this Project Wall.",
+  PROJECT_WALL_LINK_NOT_FOUND: "Visual link is not on this Project Wall.",
   PROJECT_WALL_NOT_FOUND: "Project Wall is unavailable.",
   PROJECT_WALL_PROJECT_NOT_FOUND: "Project is unavailable.",
 };
@@ -1082,6 +1093,8 @@ const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
   PROJECT_WALL_CARD_DUPLICATE:
     "This record is already a card on this Project Wall.",
   PROJECT_WALL_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  PROJECT_WALL_RELATION_PREVIEW_REQUIRED:
+    "Review the current relation preview before confirming.",
   PROJECT_WALL_SOURCE_UNAVAILABLE:
     "The record is not an active Work, Decision or Risk of this Project.",
 };
@@ -3943,6 +3956,85 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runProjectWallOperation(() =>
         requireProjectWall(context).removeCard(context.session.user.id, input),
+      ),
+    ),
+  drawProjectWallLink: protectedProcedure
+    .input(drawProjectWallLinkInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).drawLink(context.session.user.id, input),
+      ),
+    ),
+  unbindProjectWallLink: protectedProcedure
+    .input(unbindProjectWallLinkInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).unbindLink(context.session.user.id, input),
+      ),
+    ),
+  previewProjectWallPersistentRelation: protectedProcedure
+    .input(previewProjectWallPersistentRelationInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        runProjectWallOperation(() =>
+          requireProjectWall(context).previewPersistentRelation(
+            context.session.user.id,
+            input,
+          ),
+        ),
+      ),
+    ),
+  createProjectWallPersistentRelation: protectedProcedure
+    .input(createProjectWallPersistentRelationInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        runProjectWallOperation(() =>
+          requireProjectWall(context).createPersistentRelation(
+            context.session.user.id,
+            input,
+          ),
+        ),
+      ),
+    ),
+  setProjectWallCardLock: protectedProcedure
+    .input(setProjectWallCardLockInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardLock(context.session.user.id, input),
+      ),
+    ),
+  createProjectWallGroup: protectedProcedure
+    .input(createProjectWallGroupInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).createGroup(context.session.user.id, input),
+      ),
+    ),
+  deleteProjectWallGroup: protectedProcedure
+    .input(projectWallGroupInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).deleteGroup(context.session.user.id, input),
+      ),
+    ),
+  setProjectWallGroupCollapsed: protectedProcedure
+    .input(setProjectWallGroupCollapsedInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setGroupCollapsed(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectWallCardGroup: protectedProcedure
+    .input(setProjectWallCardGroupInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardGroup(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   userFlows: protectedProcedure

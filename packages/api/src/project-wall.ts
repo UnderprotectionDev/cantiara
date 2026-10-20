@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import {
+  type RelationCreateInput,
+  type RelationCreatePreviewInput,
+  type RelationEndpoint,
+  type RelationMutationResult,
+  type RelationPreview,
+  relationKindSchema,
+} from "./relations";
 import {
   type RecordLookup,
   type RecordReferenceView,
@@ -169,22 +178,126 @@ export type RemoveProjectWallCardInput = z.input<
   typeof removeProjectWallCardInputSchema
 >;
 
+// --- Visual links, groups and Lock Position -----------------------------------
+
+/**
+ * A `Visual link` is directed (`From` -> `To`) and labeled wall narrative. It
+ * is wall view state: drawing one never writes a relation row.
+ */
+export const drawProjectWallLinkInputSchema = projectWallInputSchema
+  .extend({
+    fromCardId: identifierSchema,
+    label: z.string().trim().min(1, "Label is required.").max(120),
+    toCardId: identifierSchema,
+  })
+  .strict()
+  .refine((input) => input.fromCardId !== input.toCardId, {
+    message: "A Visual link needs two different cards.",
+    path: ["toCardId"],
+  });
+export type DrawProjectWallLinkInput = z.input<
+  typeof drawProjectWallLinkInputSchema
+>;
+
+export const unbindProjectWallLinkInputSchema = projectWallInputSchema
+  .extend({ linkId: identifierSchema })
+  .strict();
+export type UnbindProjectWallLinkInput = z.input<
+  typeof unbindProjectWallLinkInputSchema
+>;
+
+export const previewProjectWallPersistentRelationInputSchema =
+  projectWallInputSchema
+    .extend({ kind: relationKindSchema, linkId: identifierSchema })
+    .strict();
+export type PreviewProjectWallPersistentRelationInput = z.input<
+  typeof previewProjectWallPersistentRelationInputSchema
+>;
+
+/** Writing needs the preview id of the same link, kind and card endpoints. */
+export const createProjectWallPersistentRelationInputSchema =
+  humanMutationEnvelopeSchema
+    .extend({
+      kind: relationKindSchema,
+      linkId: identifierSchema,
+      previewId: identifierSchema,
+      projectId: identifierSchema,
+      wallId: identifierSchema,
+    })
+    .strict();
+export type CreateProjectWallPersistentRelationInput = z.input<
+  typeof createProjectWallPersistentRelationInputSchema
+>;
+
+export const setProjectWallCardLockInputSchema = projectWallInputSchema
+  .extend({ cardId: identifierSchema, locked: z.boolean() })
+  .strict();
+export type SetProjectWallCardLockInput = z.input<
+  typeof setProjectWallCardLockInputSchema
+>;
+
+// Groups are single-level and named: no parent group, no colour, no kind.
+export const createProjectWallGroupInputSchema = projectWallInputSchema
+  .extend({ title: projectWallTitleSchema })
+  .strict();
+export type CreateProjectWallGroupInput = z.input<
+  typeof createProjectWallGroupInputSchema
+>;
+
+export const projectWallGroupInputSchema = projectWallInputSchema
+  .extend({ groupId: identifierSchema })
+  .strict();
+export type ProjectWallGroupInput = z.input<typeof projectWallGroupInputSchema>;
+
+export const setProjectWallGroupCollapsedInputSchema =
+  projectWallGroupInputSchema.extend({ collapsed: z.boolean() }).strict();
+export type SetProjectWallGroupCollapsedInput = z.input<
+  typeof setProjectWallGroupCollapsedInputSchema
+>;
+
+export const setProjectWallCardGroupInputSchema = projectWallInputSchema
+  .extend({ cardId: identifierSchema, groupId: identifierSchema.nullable() })
+  .strict();
+export type SetProjectWallCardGroupInput = z.input<
+  typeof setProjectWallCardGroupInputSchema
+>;
+
 // --- Stored records ---------------------------------------------------------
 
 export interface ProjectWallItemRecord {
   density: ProjectWallDensity;
+  /** Wall-only group membership; never a relation or classification. */
+  groupId: string | null;
   highlight: ProjectWallHighlight | null;
   id: string;
+  /** View-local `Lock Position`; says nothing about the source record. */
+  locked: boolean;
   placedAt: string;
   position: ProjectWallPosition;
   sourceId: string;
   sourceType: ProjectWallSourceType;
 }
 
+export interface ProjectWallGroupRecord {
+  collapsed: boolean;
+  id: string;
+  title: string;
+}
+
+/** A directed, labeled line between two cards of one wall; not a relation. */
+export interface ProjectWallLinkRecord {
+  fromCardId: string;
+  id: string;
+  label: string;
+  toCardId: string;
+}
+
 export interface ProjectWallRecord {
   createdAt: string;
+  groups: ProjectWallGroupRecord[];
   id: string;
   items: ProjectWallItemRecord[];
+  links: ProjectWallLinkRecord[];
   projectId: string;
   title: string;
   updatedAt: string;
@@ -230,8 +343,12 @@ export interface ProjectWallCardView {
   density: ProjectWallDensity;
   /** Product-chosen source fields for this type at this density. */
   fields: ProjectWallCardField[];
+  /** Wall-only group membership; `null` when ungrouped. */
+  groupId: string | null;
   highlight: ProjectWallHighlight | null;
   id: string;
+  /** `Lock Position`: fixes this card in manual drag, view-local. */
+  locked: boolean;
   placedAt: string;
   position: ProjectWallPosition;
   /** The live master record: `source.recordId` is the source id itself. */
@@ -239,10 +356,17 @@ export interface ProjectWallCardView {
   sourceType: ProjectWallSourceType;
 }
 
+export type ProjectWallGroupView = ProjectWallGroupRecord;
+
+/** A `Visual link`: wall narrative only, never counted as a record relation. */
+export type ProjectWallLinkView = ProjectWallLinkRecord;
+
 export interface ProjectWallView {
   cards: ProjectWallCardView[];
   createdAt: string;
+  groups: ProjectWallGroupView[];
   id: string;
+  links: ProjectWallLinkView[];
   projectId: string;
   title: string;
   updatedAt: string;
@@ -300,8 +424,10 @@ export function buildProjectWallView(
           source.broken?.reason === "Archived" || !source.broken
             ? projectWallCardFields(item.sourceType, item.density, lookup)
             : [],
+        groupId: item.groupId,
         highlight: item.highlight,
         id: item.id,
+        locked: item.locked,
         placedAt: item.placedAt,
         position: item.position,
         source,
@@ -309,11 +435,20 @@ export function buildProjectWallView(
       };
     }),
     createdAt: record.createdAt,
+    groups: record.groups,
     id: record.id,
+    links: record.links,
     projectId: record.projectId,
     title: record.title,
     updatedAt: record.updatedAt,
   };
+}
+
+/** The relation endpoint a card stands for: its live source record. */
+export function projectWallCardEndpoint(
+  card: Pick<ProjectWallItemRecord, "sourceId" | "sourceType">,
+): RelationEndpoint {
+  return { recordId: card.sourceId, recordType: card.sourceType };
 }
 
 // --- Seams ------------------------------------------------------------------
@@ -337,10 +472,34 @@ export interface ProjectWallStore {
       wallId: string;
     },
   ) => Promise<ProjectWallItemRecord | null>;
+  addLink: (
+    accountId: string,
+    input: {
+      fromCardId: string;
+      id: string;
+      label: string;
+      projectId: string;
+      toCardId: string;
+      wallId: string;
+    },
+  ) => Promise<ProjectWallLinkRecord | null>;
+  createGroup: (
+    accountId: string,
+    input: {
+      id: string;
+      projectId: string;
+      title: string;
+      wallId: string;
+    },
+  ) => Promise<ProjectWallGroupRecord | null>;
   createWall: (
     accountId: string,
     input: { id: string; projectId: string; title: string },
   ) => Promise<ProjectWallRecord | null>;
+  deleteGroup: (
+    accountId: string,
+    input: { groupId: string; projectId: string; wallId: string },
+  ) => Promise<boolean>;
   deleteWall: (
     accountId: string,
     projectId: string,
@@ -375,6 +534,10 @@ export interface ProjectWallStore {
     accountId: string,
     input: { cardId: string; projectId: string; wallId: string },
   ) => Promise<boolean>;
+  removeLink: (
+    accountId: string,
+    input: { linkId: string; projectId: string; wallId: string },
+  ) => Promise<boolean>;
   renameWall: (
     accountId: string,
     input: { projectId: string; title: string; wallId: string },
@@ -388,11 +551,38 @@ export interface ProjectWallStore {
       wallId: string;
     },
   ) => Promise<boolean>;
+  setCardGroup: (
+    accountId: string,
+    input: {
+      cardId: string;
+      groupId: string | null;
+      projectId: string;
+      wallId: string;
+    },
+  ) => Promise<boolean>;
   setCardHighlight: (
     accountId: string,
     input: {
       cardId: string;
       highlight: ProjectWallHighlight | null;
+      projectId: string;
+      wallId: string;
+    },
+  ) => Promise<boolean>;
+  setCardLocked: (
+    accountId: string,
+    input: {
+      cardId: string;
+      locked: boolean;
+      projectId: string;
+      wallId: string;
+    },
+  ) => Promise<boolean>;
+  setGroupCollapsed: (
+    accountId: string,
+    input: {
+      collapsed: boolean;
+      groupId: string;
       projectId: string;
       wallId: string;
     },
@@ -408,11 +598,28 @@ export interface ProjectWallAccess {
     accountId: string,
     input: CreateProjectWallInput,
   ) => Promise<ProjectWallView>;
+  createGroup: (
+    accountId: string,
+    input: CreateProjectWallGroupInput,
+  ) => Promise<ProjectWallView>;
+  /** Writes the catalog relation only after its preview id is presented. */
+  createPersistentRelation: (
+    accountId: string,
+    input: CreateProjectWallPersistentRelationInput,
+  ) => Promise<RelationMutationResult>;
   delete: (
     accountId: string,
     projectId: string,
     wallId: string,
   ) => Promise<void>;
+  deleteGroup: (
+    accountId: string,
+    input: ProjectWallGroupInput,
+  ) => Promise<ProjectWallView>;
+  drawLink: (
+    accountId: string,
+    input: DrawProjectWallLinkInput,
+  ) => Promise<ProjectWallView>;
   get: (
     accountId: string,
     projectId: string,
@@ -423,6 +630,11 @@ export interface ProjectWallAccess {
     accountId: string,
     input: MoveProjectWallCardsInput,
   ) => Promise<ProjectWallView>;
+  /** Previews the catalog relation of a Visual link; writes nothing. */
+  previewPersistentRelation: (
+    accountId: string,
+    input: PreviewProjectWallPersistentRelationInput,
+  ) => Promise<ProjectWallRelationPreview>;
   removeCard: (
     accountId: string,
     input: RemoveProjectWallCardInput,
@@ -435,12 +647,46 @@ export interface ProjectWallAccess {
     accountId: string,
     input: SetProjectWallCardDensityInput,
   ) => Promise<ProjectWallView>;
+  setCardGroup: (
+    accountId: string,
+    input: SetProjectWallCardGroupInput,
+  ) => Promise<ProjectWallView>;
   setCardHighlight: (
     accountId: string,
     input: SetProjectWallCardHighlightInput,
+  ) => Promise<ProjectWallView>;
+  setCardLock: (
+    accountId: string,
+    input: SetProjectWallCardLockInput,
+  ) => Promise<ProjectWallView>;
+  setGroupCollapsed: (
+    accountId: string,
+    input: SetProjectWallGroupCollapsedInput,
   ) => Promise<ProjectWallView>;
   sourceOptions: (
     accountId: string,
     projectId: string,
   ) => Promise<ProjectWallSourceOption[]>;
+  unbindLink: (
+    accountId: string,
+    input: UnbindProjectWallLinkInput,
+  ) => Promise<ProjectWallView>;
+}
+
+/** The catalog relation a Visual link would become, shown before any write. */
+export interface ProjectWallRelationPreview {
+  linkId: string;
+  relation: RelationPreview;
+}
+
+/** The only part of the relations seam a wall uses. */
+export interface ProjectWallRelations {
+  create: (
+    accountId: string,
+    input: RelationCreateInput,
+  ) => Promise<RelationMutationResult>;
+  previewCreate: (
+    accountId: string,
+    input: RelationCreatePreviewInput,
+  ) => Promise<RelationPreview>;
 }
