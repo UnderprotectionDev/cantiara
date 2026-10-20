@@ -211,7 +211,7 @@ describe("test-report/1 envelope", () => {
   });
 
   test("scenario_id and scenario_version come together or not at all", async () => {
-    const harness = createMemoryHarness(["case-1@2"]);
+    const harness = createMemoryHarness({ scenarios: ["case-1@2"] });
     const withTest = (extra: Record<string, unknown>) =>
       envelope({
         tests: [{ external_test_id: "t", title: "T", ...extra }],
@@ -238,7 +238,10 @@ describe("test-report/1 envelope", () => {
     const missing = await rejectionOf(
       harness.testReports.accept(
         userCaller,
-        json(withTest({ scenario_id: "case-1", scenario_version: 9 })),
+        json({
+          ...withTest({ scenario_id: "case-1", scenario_version: 9 }),
+          external_session_id: "another-run",
+        }),
       ),
     );
     expect(missing.code).toBe("reference_not_found");

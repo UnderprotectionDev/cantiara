@@ -192,4 +192,51 @@ describeDatabase("Test Report Acceptance PostgreSQL integration", () => {
       }),
     ).rejects.toMatchObject({ code: "project_not_authorized" });
   });
+
+  test("a retry is a duplicate receipt, a changed body is identity_conflict, and neither adds a row", async () => {
+    const access = createDatabaseTestReports(requireDatabase());
+    const sent = report();
+    const first = await access.accept(caller, { ingress: "MCP", report: sent });
+    const again = await access.accept(caller, { ingress: "MCP", report: sent });
+    expect(again.outcome).toBe("duplicate");
+    expect(again.session.id).toBe(first.session.id);
+    await expect(
+      access.accept(caller, {
+        ingress: "MCP",
+        report: { ...sent, tests: [{ external_test_id: "a", title: "A" }] },
+      }),
+    ).rejects.toMatchObject({ code: "identity_conflict" });
+    const db = requireDatabase();
+    expect(
+      await db
+        .select()
+        .from(testSession)
+        .where(eq(testSession.projectId, projectId)),
+    ).toHaveLength(1);
+  });
+
+  test("a relation to another Project's Work is reference_scope_mismatch and writes nothing", async () => {
+    const access = createDatabaseTestReports(requireDatabase());
+    await expect(
+      access.accept(caller, {
+        ingress: "MCP",
+        report: report({
+          tests: [
+            {
+              external_test_id: "a",
+              relations: [{ target_id: "missing-work", target_type: "work" }],
+              title: "A",
+            },
+          ],
+        }),
+      }),
+    ).rejects.toMatchObject({ code: "reference_not_found" });
+    const db = requireDatabase();
+    expect(
+      await db
+        .select()
+        .from(testSession)
+        .where(eq(testSession.projectId, projectId)),
+    ).toEqual([]);
+  });
 });

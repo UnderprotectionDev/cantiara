@@ -526,8 +526,12 @@ export interface TestSessionStoredRecord {
     version: string | null;
   };
   externalSessionId: string;
+  /** Canonical content fingerprint; transport metadata and the executor are not in it. */
+  fingerprint: string;
   handoffId: string | null;
   handoffPackageVersion: number | null;
+  /** State the bound Handoff was in when the report arrived (`Canceled` is kept as history). */
+  handoffStateAtAccept: string | null;
   id: string;
   ingress: TestReportIngress;
   projectId: string;
@@ -565,7 +569,8 @@ export function toTestSessionRecord(
 }
 
 export interface TestReportReceipt {
-  outcome: "created";
+  /** `duplicate` returns the prior acceptance; no new session, signal or counter. */
+  outcome: "created" | "duplicate";
   session: TestSessionRecord;
 }
 
@@ -574,13 +579,52 @@ export interface TestSessionList {
   sessions: TestSessionRecord[];
 }
 
-/** The reference checks a report needs from the Project; a test double in tickets 01. */
+/** Records an external report may relate to besides a Handoff (PRD 10 allow-list). */
+export type TestReportLookupType = Exclude<
+  TestReportRelationTargetType,
+  "test_handoff"
+>;
+export type TestReportLookup = "found" | "missing" | "other_project";
+
+/** The Handoff facts a report is checked against. */
+export interface TestReportHandoffRef {
+  id: string;
+  /** The produced package version; `0` until a package was produced. */
+  packageVersion: number;
+  /** The exact Planned Test Case versions the package carries. */
+  scenarios: { caseId: string; version: number }[];
+  state: string;
+}
+
+/**
+ * One unit of work. Everything a failed accept touched is rolled back with it:
+ * the Test Session, its Session Tests and any later signal, counter or
+ * attachment link written in the same transaction.
+ */
 export interface TestReportTransaction {
-  insertSession: (record: TestSessionStoredRecord) => Promise<void>;
+  /** `other_project` when the id belongs to another Project; `null` when it does not exist. */
+  findHandoff: (
+    handoffId: string,
+  ) => Promise<TestReportHandoffRef | "other_project" | null>;
+  /** The prior acceptance for ingress + verified reporter + external session id. */
+  findSessionByIdentity: (
+    ingress: TestReportIngress,
+    reporterId: string,
+    externalSessionId: string,
+  ) => Promise<TestSessionStoredRecord | null>;
+  /**
+   * Resolves `false` when the identity was taken meanwhile; nothing is written
+   * then, and the caller re-reads the prior acceptance.
+   */
+  insertSession: (record: TestSessionStoredRecord) => Promise<boolean>;
   listSessions: () => Promise<TestSessionStoredRecord[]>;
   readOnly: boolean;
-  /** Whether this exact Planned Test Case version exists in the Project. */
-  scenarioVersionExists: (caseId: string, version: number) => Promise<boolean>;
+  /** Existence and Project scope of an allow-listed record (a case needs its exact version). */
+  resolveReference: (
+    type: TestReportLookupType,
+    id: string,
+    version: number | null,
+  ) => Promise<TestReportLookup>;
 }
 
 export interface TestReportStore {
@@ -596,8 +640,10 @@ export interface TestReportStore {
 export interface TestReportAcceptanceAccess {
   /**
    * The only write. One Test Session with all its Session Tests is stored, or
-   * the call throws `TestReportRejectedError` and nothing is written. It opens
-   * no review, release gate or notification.
+   * the call throws `TestReportRejectedError` and nothing is written. The same
+   * ingress + reporter + external session id with the same canonical content
+   * returns the prior receipt as `duplicate`; with different content it is
+   * `identity_conflict`. It opens no review, release gate or notification.
    */
   accept: (
     caller: TestReportCaller,

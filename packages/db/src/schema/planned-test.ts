@@ -142,8 +142,10 @@ export const testSession = pgTable(
     executorType: text("executor_type").notNull(),
     executorVersion: text("executor_version"),
     externalSessionId: text("external_session_id").notNull(),
+    fingerprint: text("fingerprint"),
     handoffId: text("handoff_id"),
     handoffPackageVersion: integer("handoff_package_version"),
+    handoffStateAtAccept: text("handoff_state_at_accept"),
     id: text("id").primaryKey(),
     ingress: text("ingress").notNull(),
     projectId: text("project_id")
@@ -180,6 +182,40 @@ export const testSession = pgTable(
       "project_test_session_handoff_check",
       sql`(${table.handoffId} is null) = (${table.handoffPackageVersion} is null)`,
     ),
+  ],
+);
+
+/**
+ * Idempotency boundary of a reported Test Session (spec 54, ticket 02): the
+ * primary key is ingress + verified reporter + external session id inside one
+ * Project, so a retry can never open a second session. The executor is display
+ * attribution and is deliberately not in the key. A separate table, because
+ * the shared-database rules do not let a unique key land on an existing one.
+ */
+export const testSessionIdentity = pgTable(
+  "project_test_session_identity",
+  {
+    externalSessionId: text("external_session_id").notNull(),
+    ingress: text("ingress").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reporterId: text("reporter_id").notNull(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => testSession.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.projectId,
+        table.ingress,
+        table.reporterId,
+        table.externalSessionId,
+      ],
+      name: "project_test_session_identity_pk",
+    }),
+    index("project_test_session_identity_session_idx").on(table.sessionId),
   ],
 );
 
