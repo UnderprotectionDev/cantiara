@@ -7,6 +7,7 @@ import { document } from "@cantiara/db/schema/document";
 import {
   plannedTestCaseRelation,
   plannedTestCaseVersion,
+  sessionTest,
 } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
@@ -32,6 +33,8 @@ import {
   PlannedTestProjectReadOnlyError,
   PlannedTestRelationTargetError,
   PlannedTestVersionConflictError,
+  PlannedTestVersionNotFoundError,
+  SessionTestAlreadyBoundError,
 } from "./planned-tests";
 import { createDatabasePlannedTests } from "./planned-tests-database";
 
@@ -553,6 +556,120 @@ describeDatabase("Planned Tests PostgreSQL integration", () => {
         version: 1,
       }),
     ).rejects.toBeInstanceOf(PlannedTestCaseNotFoundError);
+  });
+
+  test("a Session Test bind stays on its exact version and a late link never rewrites content", async () => {
+    const access = createDatabasePlannedTests(requireDatabase());
+    const created = await access.create(accountId, newCase());
+    const bound = await access.recordSessionTest(accountId, {
+      binding: { caseId: created.id, version: 1 },
+      projectId,
+      title: "Pay with the saved card",
+    });
+    const adHoc = await access.recordSessionTest(accountId, {
+      expectedBehavior: "Tax is shown.",
+      projectId,
+      purpose: "Check tax display.",
+      title: "Tax line",
+    });
+    await access.createVersion(accountId, {
+      ...content,
+      caseId: created.id,
+      changeKind: "Editorial change",
+      expectedVersion: 1,
+      projectId,
+      scope: "Card payment only; coupons are out of scope.",
+    });
+    await access.createVersion(accountId, {
+      ...content,
+      caseId: created.id,
+      changeKind: "Meaningful change",
+      expectedBehavior: "Changed.",
+      expectedVersion: 2,
+      projectId,
+    });
+    const linked = await access.linkSessionTest(accountId, {
+      caseId: created.id,
+      projectId,
+      sessionTestId: adHoc.id,
+      version: 3,
+    });
+
+    expect(linked).toMatchObject({
+      expectedBehavior: "Tax is shown.",
+      purpose: "Check tax display.",
+    });
+    const { sessionTests } = await access.sessionTests(accountId, projectId);
+    expect(sessionTests.find(({ id }) => id === bound.id)?.bind).toMatchObject({
+      executedVersion: 1,
+      pinnedVersion: 1,
+      summary: "Bound to v1, current v3",
+      validatesCurrentVersion: false,
+    });
+    expect(sessionTests.find(({ id }) => id === adHoc.id)).toMatchObject({
+      bind: {
+        executedVersion: null,
+        origin: "Linked later",
+        pinnedVersion: 3,
+        validatesCurrentVersion: false,
+      },
+      expectedBehavior: "Tax is shown.",
+      purpose: "Check tax display.",
+    });
+    for (const sessionTestId of [bound.id, adHoc.id]) {
+      await expect(
+        access.linkSessionTest(accountId, {
+          caseId: created.id,
+          projectId,
+          sessionTestId,
+          version: 2,
+        }),
+      ).rejects.toBeInstanceOf(SessionTestAlreadyBoundError);
+    }
+    await expect(
+      access.recordSessionTest(accountId, {
+        binding: { caseId: created.id, version: 9 },
+        projectId,
+        title: "x",
+      }),
+    ).rejects.toBeInstanceOf(PlannedTestVersionNotFoundError);
+    await expect(
+      access.recordSessionTest(accountId, {
+        binding: { caseId: created.id, version: 1 },
+        projectId: siblingProjectId,
+        title: "x",
+      }),
+    ).rejects.toBeInstanceOf(PlannedTestCaseNotFoundError);
+    await expect(
+      access.sessionTests(otherAccountId, projectId),
+    ).rejects.toBeInstanceOf(PlannedTestProjectNotFoundError);
+  });
+
+  test("the database refuses a half bind, a moved content split and a missing version", async () => {
+    const db = requireDatabase();
+    const access = createDatabasePlannedTests(db);
+    const created = await access.create(accountId, newCase());
+    const base = { id: crypto.randomUUID(), projectId, title: "x" };
+
+    await expect(
+      db.insert(sessionTest).values({
+        ...base,
+        expectedBehavior: "e",
+        purpose: "p",
+        scenarioId: created.id,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(sessionTest).values({
+        ...base,
+        bindOrigin: "Bound when recorded",
+        scenarioId: created.id,
+        scenarioVersion: 7,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.insert(sessionTest).values({ ...base, purpose: "p" }),
+    ).rejects.toThrow();
   });
 
   test("an archived Project stays readable and refuses writes", async () => {

@@ -4,6 +4,7 @@ import type {
   PlannedTestStore,
   PlannedTestStoredCase,
   PlannedTestTargetResolver,
+  SessionTestStoredRecord,
 } from "@cantiara/api/planned-tests";
 
 import { createPlannedTests } from "./planned-tests";
@@ -37,6 +38,7 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
     catalog.set(key(entry.targetType, entry.targetId), { ...entry });
   }
   const cases = new Map<string, PlannedTestStoredCase>();
+  const sessionTests = new Map<string, SessionTestStoredRecord>();
 
   function resolverFor(scopeProjectId: string): PlannedTestTargetResolver {
     function lookup(type: string, id: string) {
@@ -145,10 +147,40 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
             found && found.projectId === scopeProjectId ? found : null,
           );
         },
+        findSessionTest: (sessionTestId) => {
+          const found = sessionTests.get(sessionTestId);
+          return Promise.resolve(
+            found && found.projectId === scopeProjectId ? found : null,
+          );
+        },
         insertCase: (record) => {
           cases.set(record.id, record);
           return Promise.resolve();
         },
+        insertSessionTest: (record) => {
+          sessionTests.set(record.id, record);
+          return Promise.resolve();
+        },
+        linkSessionTest: (sessionTestId, ref, linkedAt) => {
+          const found = sessionTests.get(sessionTestId);
+          if (!found || found.scenarioId !== null) {
+            return Promise.resolve(false);
+          }
+          sessionTests.set(sessionTestId, {
+            ...found,
+            bindOrigin: "Linked later",
+            linkedAt,
+            scenarioId: ref.caseId,
+            scenarioVersion: ref.version,
+          });
+          return Promise.resolve(true);
+        },
+        listSessionTests: () =>
+          Promise.resolve(
+            [...sessionTests.values()].filter(
+              (record) => record.projectId === scopeProjectId,
+            ),
+          ),
         listCases: () =>
           Promise.resolve(
             [...cases.values()].filter(
@@ -165,6 +197,7 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
     cases,
     catalog,
     plannedTests: createPlannedTests(store),
+    sessionTests,
     setState(type: string, id: string, state: CatalogState) {
       const entry = catalog.get(key(type, id));
       if (entry) {

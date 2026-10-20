@@ -240,9 +240,12 @@ import {
 import {
   createPlannedTestCaseInputSchema,
   createPlannedTestCaseVersionInputSchema,
+  linkSessionTestInputSchema,
   plannedTestCaseProjectInputSchema,
   plannedTestCaseVersionInputSchema,
   plannedTestRelationTargetsInputSchema,
+  recordSessionTestInputSchema,
+  sessionTestProjectInputSchema,
 } from "../planned-tests";
 import {
   closePrioritizationSessionInputSchema,
@@ -2934,12 +2937,15 @@ const PLANNED_TEST_UNAVAILABLE_MESSAGES: Record<string, string> = {
   PLANNED_TEST_CASE_NOT_FOUND: "Planned Test Case is unavailable.",
   PLANNED_TEST_PROJECT_NOT_FOUND: "Project is unavailable.",
   PLANNED_TEST_VERSION_NOT_FOUND: "Planned Test Case version is unavailable.",
+  SESSION_TEST_NOT_FOUND: "Session Test is unavailable.",
 };
 
 const PLANNED_TEST_REJECTED_MESSAGES: Record<string, string> = {
   PLANNED_TEST_NO_CHANGE:
     "Nothing changed. Change the Planned Test Case before saving a new version.",
   PLANNED_TEST_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  SESSION_TEST_ALREADY_BOUND:
+    "This Session Test is already bound to a Planned Test Case version. A bind does not move.",
   PLANNED_TEST_RELATION_TARGET_UNAVAILABLE:
     "A relation target is not an existing, active record of this Project.",
 };
@@ -5474,6 +5480,36 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runPlannedTestOperation(() =>
         requirePlannedTests(context).createVersion(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectSessionTests: protectedProcedure
+    .input(sessionTestProjectInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).sessionTests(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  recordSessionTest: protectedProcedure
+    .input(recordSessionTestInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).recordSessionTest(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  linkSessionTest: protectedProcedure
+    .input(linkSessionTestInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).linkSessionTest(
           context.session.user.id,
           input,
         ),

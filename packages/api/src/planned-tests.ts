@@ -202,6 +202,180 @@ export type PlannedTestCaseVersionRef = z.infer<
   typeof plannedTestCaseVersionRefSchema
 >;
 
+/**
+ * Session Test bind (spec 53, ticket 02). An Oturum Testi (`Session Test`) is
+ * bound, if at all, to an EXACT `scenario_id` + `scenario_version`; the bind is
+ * the same `PlannedTestCaseVersionRef` the case half exposes, never "latest".
+ * There is no rebind: the only bind transition is ad hoc -> linked, once. The
+ * parent Test Session, results, review and report intake belong to spec 54/57.
+ */
+export const SESSION_TEST_LABEL = "Session Test";
+export const SESSION_TEST_BIND_ORIGINS = [
+  "Bound when recorded",
+  "Linked later",
+] as const;
+export const sessionTestBindOriginSchema = z.enum(SESSION_TEST_BIND_ORIGINS);
+export type SessionTestBindOrigin = z.infer<typeof sessionTestBindOriginSchema>;
+
+/**
+ * Ad hoc tests keep the then-current purpose and expected behavior on the
+ * Session Test itself. A bound test takes its definition from the pinned
+ * version and must not also carry a copy that could drift from it.
+ */
+export const recordSessionTestInputSchema = z
+  .object({
+    binding: plannedTestCaseVersionRefSchema.nullish(),
+    expectedBehavior: requiredText(
+      "Expected behavior",
+      PLANNED_TEST_TEXT_MAX,
+    ).optional(),
+    projectId: identifierSchema,
+    purpose: requiredText("Purpose", PLANNED_TEST_TEXT_MAX).optional(),
+    title: requiredText("Title", 255),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const adHoc = !value.binding;
+    for (const field of ["purpose", "expectedBehavior"] as const) {
+      const present = value[field] !== undefined;
+      if (adHoc && !present) {
+        context.addIssue({
+          code: "custom",
+          message: "An ad hoc Session Test records its then-current content.",
+          path: [field],
+        });
+      }
+      if (!adHoc && present) {
+        context.addIssue({
+          code: "custom",
+          message: "A bound Session Test takes its content from the version.",
+          path: [field],
+        });
+      }
+    }
+  });
+export type RecordSessionTestInput = z.input<
+  typeof recordSessionTestInputSchema
+>;
+export type ParsedRecordSessionTestInput = z.output<
+  typeof recordSessionTestInputSchema
+>;
+
+/** Links an ad hoc Session Test to one exact version, once. No rebind. */
+export const linkSessionTestInputSchema = plannedTestCaseVersionRefSchema
+  .extend({ projectId: identifierSchema, sessionTestId: identifierSchema })
+  .strict();
+export type LinkSessionTestInput = z.input<typeof linkSessionTestInputSchema>;
+
+export const sessionTestProjectInputSchema = plannedTestCaseProjectInputSchema;
+
+export interface SessionTestStoredRecord {
+  bindOrigin: SessionTestBindOrigin | null;
+  createdAt: string;
+  expectedBehavior: string | null;
+  id: string;
+  linkedAt: string | null;
+  projectId: string;
+  purpose: string | null;
+  scenarioId: string | null;
+  scenarioVersion: number | null;
+  title: string;
+}
+
+/**
+ * What the bind says about the case today. `executedVersion` is the only
+ * statement of what was actually tried against a case version: it is the bound
+ * version when the bind was made at record time and `null` for a late link, so
+ * a late link never shows its version as executed or validated.
+ */
+export interface SessionTestBindView {
+  caseId: string;
+  /** Versions added after the bound one, with how each differed. */
+  changesSinceBound: { changeKind: PlannedTestVersionKind; version: number }[];
+  currentVersion: number;
+  /** Version that was executed; `null` for a late link. */
+  executedVersion: number | null;
+  linkedAt: string | null;
+  origin: SessionTestBindOrigin;
+  pinnedTitle: string;
+  pinnedVersion: number;
+  /** Explicit version difference, e.g. "Bound to v1, current v3". */
+  summary: string;
+  /** True only when the executed version is the current one. */
+  validatesCurrentVersion: boolean;
+}
+
+export interface SessionTestRecord {
+  bind: SessionTestBindView | null;
+  createdAt: string;
+  /** Recorded content: ad hoc and late-linked tests only. */
+  expectedBehavior: string | null;
+  id: string;
+  projectId: string;
+  purpose: string | null;
+  title: string;
+}
+
+export interface SessionTestList {
+  readOnly: boolean;
+  sessionTests: SessionTestRecord[];
+}
+
+export function describeSessionTestBind(
+  stored: SessionTestStoredRecord,
+  scenario: PlannedTestStoredCase,
+): SessionTestBindView {
+  const pinnedVersion = stored.scenarioVersion;
+  const pinned = scenario.versions.find(
+    ({ version }) => version === pinnedVersion,
+  );
+  if (!pinned || stored.bindOrigin === null) {
+    throw new Error(`Session Test ${stored.id} lost its pinned version.`);
+  }
+  const executedVersion =
+    stored.bindOrigin === "Bound when recorded" ? pinned.version : null;
+  const current =
+    pinned.version === scenario.currentVersion
+      ? "current"
+      : `current v${scenario.currentVersion}`;
+  const summary =
+    executedVersion === null
+      ? `Linked later to v${pinned.version}, not executed against it, ${current}`
+      : `Bound to v${pinned.version}, ${current}`;
+  return {
+    caseId: scenario.id,
+    changesSinceBound: scenario.versions
+      .filter(({ version }) => version > pinned.version)
+      .map(({ changeKind, version }) => ({ changeKind, version })),
+    currentVersion: scenario.currentVersion,
+    executedVersion,
+    linkedAt: stored.linkedAt,
+    origin: stored.bindOrigin,
+    pinnedTitle: pinned.title,
+    pinnedVersion: pinned.version,
+    summary,
+    validatesCurrentVersion: executedVersion === scenario.currentVersion,
+  };
+}
+
+export function toSessionTestRecord(
+  stored: SessionTestStoredRecord,
+  scenario: PlannedTestStoredCase | null,
+): SessionTestRecord {
+  return {
+    bind:
+      stored.scenarioId !== null && scenario
+        ? describeSessionTestBind(stored, scenario)
+        : null,
+    createdAt: stored.createdAt,
+    expectedBehavior: stored.expectedBehavior,
+    id: stored.id,
+    projectId: stored.projectId,
+    purpose: stored.purpose,
+    title: stored.title,
+  };
+}
+
 export interface PlannedTestStoredRelation {
   documentRevision: number | null;
   id: string;
@@ -331,8 +505,23 @@ export interface PlannedTestTransaction {
     caseId: string,
     lock: boolean,
   ) => Promise<PlannedTestStoredCase | null>;
+  findSessionTest: (
+    sessionTestId: string,
+    lock: boolean,
+  ) => Promise<SessionTestStoredRecord | null>;
   insertCase: (record: PlannedTestStoredCase) => Promise<void>;
+  insertSessionTest: (record: SessionTestStoredRecord) => Promise<void>;
+  /**
+   * Sets the bind of a Session Test that has none. Resolves `false` when it
+   * already had one, so a bind can never be moved.
+   */
+  linkSessionTest: (
+    sessionTestId: string,
+    ref: PlannedTestCaseVersionRef,
+    linkedAt: string,
+  ) => Promise<boolean>;
   listCases: () => Promise<PlannedTestStoredCase[]>;
+  listSessionTests: () => Promise<SessionTestStoredRecord[]>;
   /** True for an archived Project, which stays readable but takes no writes. */
   readOnly: boolean;
   resolver: PlannedTestTargetResolver;
@@ -357,11 +546,24 @@ export interface PlannedTestsAccess {
     accountId: string,
     input: CreatePlannedTestCaseVersionInput,
   ) => Promise<PlannedTestCaseRecord>;
+  /** Binds an ad hoc Session Test to one exact version, once. */
+  linkSessionTest: (
+    accountId: string,
+    input: LinkSessionTestInput,
+  ) => Promise<SessionTestRecord>;
   list: (accountId: string, projectId: string) => Promise<PlannedTestCaseList>;
+  recordSessionTest: (
+    accountId: string,
+    input: RecordSessionTestInput,
+  ) => Promise<SessionTestRecord>;
   relationTargets: (
     accountId: string,
     input: PlannedTestRelationTargetsInput,
   ) => Promise<PlannedTestRelationTarget[]>;
+  sessionTests: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<SessionTestList>;
   /** Exactly the requested version, with its relations resolved live. */
   version: (
     accountId: string,

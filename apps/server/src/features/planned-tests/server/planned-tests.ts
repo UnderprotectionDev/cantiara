@@ -3,8 +3,10 @@ import {
   createPlannedTestCaseVersionInputSchema,
   duplicatePlannedTestRelation,
   isSamePlannedTestContent,
+  linkSessionTestInputSchema,
   type PlannedTestCaseRecord,
   type PlannedTestCaseVersionRecord,
+  type PlannedTestCaseVersionRef,
   type PlannedTestRelationInput,
   type PlannedTestStore,
   type PlannedTestStoredCase,
@@ -12,10 +14,15 @@ import {
   type PlannedTestStoredVersion,
   type PlannedTestsAccess,
   type PlannedTestTargetResolver,
+  type PlannedTestTransaction,
   plannedTestCaseProjectInputSchema,
   plannedTestCaseVersionInputSchema,
   plannedTestRelationTargetsInputSchema,
+  recordSessionTestInputSchema,
   relationKey,
+  type SessionTestStoredRecord,
+  sessionTestProjectInputSchema,
+  toSessionTestRecord,
 } from "@cantiara/api/planned-tests";
 
 export class PlannedTestProjectNotFoundError extends Error {
@@ -71,6 +78,25 @@ export class PlannedTestProjectReadOnlyError extends Error {
   constructor(projectId: string) {
     super(`Project ${projectId} is archived and read-only.`);
     this.name = "PlannedTestProjectReadOnlyError";
+  }
+}
+
+export class SessionTestNotFoundError extends Error {
+  readonly code = "SESSION_TEST_NOT_FOUND" as const;
+
+  constructor(sessionTestId: string) {
+    super(`Session Test ${sessionTestId} was not found.`);
+    this.name = "SessionTestNotFoundError";
+  }
+}
+
+/** A bind is exact and final: it is never moved to another version or case. */
+export class SessionTestAlreadyBoundError extends Error {
+  readonly code = "SESSION_TEST_ALREADY_BOUND" as const;
+
+  constructor(sessionTestId: string) {
+    super(`Session Test ${sessionTestId} is already bound and cannot move.`);
+    this.name = "SessionTestAlreadyBoundError";
   }
 }
 
@@ -193,6 +219,21 @@ async function bindRelations(
   );
 }
 
+/** The case holding exactly this version, or the matching not-found refusal. */
+async function requireExactVersion(
+  transaction: PlannedTestTransaction,
+  ref: PlannedTestCaseVersionRef,
+): Promise<PlannedTestStoredCase> {
+  const scenario = await transaction.findCase(ref.caseId, false);
+  if (!scenario) {
+    throw new PlannedTestCaseNotFoundError(ref.caseId);
+  }
+  if (!scenario.versions.some(({ version }) => version === ref.version)) {
+    throw new PlannedTestVersionNotFoundError(ref.caseId, ref.version);
+  }
+  return scenario;
+}
+
 /**
  * Planned Tests and Handoff seam, case half. A Planned Test Case is versioned
  * intent: the only writes are `create` (version 1) and `createVersion`, which
@@ -313,6 +354,55 @@ export function createPlannedTests(
       return saved;
     },
 
+    async linkSessionTest(accountId, rawInput) {
+      const input = linkSessionTestInputSchema.parse(rawInput);
+      const linked = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          const stored = await transaction.findSessionTest(
+            input.sessionTestId,
+            true,
+          );
+          if (!stored) {
+            throw new SessionTestNotFoundError(input.sessionTestId);
+          }
+          if (stored.scenarioId !== null) {
+            throw new SessionTestAlreadyBoundError(stored.id);
+          }
+          const scenario = await requireExactVersion(transaction, input);
+          const linkedAt = new Date().toISOString();
+          const moved = await transaction.linkSessionTest(
+            stored.id,
+            { caseId: input.caseId, version: input.version },
+            linkedAt,
+          );
+          if (!moved) {
+            throw new SessionTestAlreadyBoundError(stored.id);
+          }
+          // Only the bind changes: the recorded content stays exactly as it was.
+          return toSessionTestRecord(
+            {
+              ...stored,
+              bindOrigin: "Linked later",
+              linkedAt,
+              scenarioId: input.caseId,
+              scenarioVersion: input.version,
+            },
+            scenario,
+          );
+        },
+      );
+      if (!linked) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return linked;
+    },
+
     async list(accountId, projectId) {
       const parsed = plannedTestCaseProjectInputSchema.parse({ projectId });
       const listed = await store.run(
@@ -333,6 +423,41 @@ export function createPlannedTests(
       return listed;
     },
 
+    async recordSessionTest(accountId, rawInput) {
+      const input = recordSessionTestInputSchema.parse(rawInput);
+      const recorded = await store.run(
+        accountId,
+        input.projectId,
+        "write",
+        async (transaction) => {
+          if (transaction.readOnly) {
+            throw new PlannedTestProjectReadOnlyError(input.projectId);
+          }
+          const scenario = input.binding
+            ? await requireExactVersion(transaction, input.binding)
+            : null;
+          const stored: SessionTestStoredRecord = {
+            bindOrigin: input.binding ? "Bound when recorded" : null,
+            createdAt: new Date().toISOString(),
+            expectedBehavior: input.expectedBehavior ?? null,
+            id: crypto.randomUUID(),
+            linkedAt: null,
+            projectId: input.projectId,
+            purpose: input.purpose ?? null,
+            scenarioId: input.binding?.caseId ?? null,
+            scenarioVersion: input.binding?.version ?? null,
+            title: input.title,
+          };
+          await transaction.insertSessionTest(stored);
+          return toSessionTestRecord(stored, scenario);
+        },
+      );
+      if (!recorded) {
+        throw new PlannedTestProjectNotFoundError(input.projectId);
+      }
+      return recorded;
+    },
+
     async relationTargets(accountId, rawInput) {
       const input = plannedTestRelationTargetsInputSchema.parse(rawInput);
       const targets = await store.run(
@@ -345,6 +470,37 @@ export function createPlannedTests(
         throw new PlannedTestProjectNotFoundError(input.projectId);
       }
       return targets;
+    },
+
+    async sessionTests(accountId, projectId) {
+      const parsed = sessionTestProjectInputSchema.parse({ projectId });
+      const listed = await store.run(
+        accountId,
+        parsed.projectId,
+        "read",
+        async (transaction) => {
+          const cases = new Map(
+            (await transaction.listCases()).map((record) => [
+              record.id,
+              record,
+            ]),
+          );
+          const sessionTests = (await transaction.listSessionTests()).map(
+            (stored) =>
+              toSessionTestRecord(
+                stored,
+                stored.scenarioId
+                  ? (cases.get(stored.scenarioId) ?? null)
+                  : null,
+              ),
+          );
+          return { readOnly: transaction.readOnly, sessionTests };
+        },
+      );
+      if (!listed) {
+        throw new PlannedTestProjectNotFoundError(parsed.projectId);
+      }
+      return listed;
     },
 
     async version(accountId, rawInput) {

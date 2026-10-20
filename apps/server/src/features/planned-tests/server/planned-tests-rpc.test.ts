@@ -68,6 +68,60 @@ describe("Planned Tests RPC seam", () => {
     ).toMatchObject([{ targetId: "r1" }]);
   });
 
+  test("pins a Session Test to an exact version and refuses to move the bind", async () => {
+    const { client } = setup();
+    const created = await client.createPlannedTestCase({
+      ...definition,
+      projectId,
+    });
+    const adHoc = await client.recordSessionTest({
+      expectedBehavior: "Tax is shown.",
+      projectId,
+      purpose: "Check tax display.",
+      title: "Tax line",
+    });
+    await client.createPlannedTestCaseVersion({
+      ...definition,
+      caseId: created.id,
+      changeKind: "Editorial change",
+      expectedVersion: 1,
+      projectId,
+      scope: "Card payment, reworded.",
+    });
+
+    const linked = await client.linkSessionTest({
+      caseId: created.id,
+      projectId,
+      sessionTestId: adHoc.id,
+      version: 1,
+    });
+    const listed = await client.projectSessionTests({ projectId });
+
+    expect(linked.bind).toMatchObject({
+      executedVersion: null,
+      summary: "Linked later to v1, not executed against it, current v2",
+    });
+    expect(listed.sessionTests).toHaveLength(1);
+    await expect(
+      client.linkSessionTest({
+        caseId: created.id,
+        projectId,
+        sessionTestId: adHoc.id,
+        version: 2,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      client.recordSessionTest({
+        binding: { caseId: created.id, version: 9 },
+        projectId,
+        title: "x",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client.projectSessionTests({ projectId }),
+    ).resolves.toBeTruthy();
+  });
+
   test("blocks anonymous access", async () => {
     const { client } = setup(false);
 

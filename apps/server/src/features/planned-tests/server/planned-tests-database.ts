@@ -11,6 +11,8 @@ import type {
   PlannedTestStoredVersion,
   PlannedTestTargetResolver,
   PlannedTestVersionKind,
+  SessionTestBindOrigin,
+  SessionTestStoredRecord,
 } from "@cantiara/api/planned-tests";
 import type { BrokenReferenceReason } from "@cantiara/api/relations";
 import type { Database } from "@cantiara/db";
@@ -20,6 +22,7 @@ import {
   plannedTestCase,
   plannedTestCaseRelation,
   plannedTestCaseVersion,
+  sessionTest,
 } from "@cantiara/db/schema/planned-test";
 import { projectGoal } from "@cantiara/db/schema/project-goal";
 import { projectMilestone } from "@cantiara/db/schema/project-milestone";
@@ -27,7 +30,7 @@ import { risk } from "@cantiara/db/schema/risk";
 import { screen } from "@cantiara/db/schema/screen";
 import { source, sourceVersion } from "@cantiara/db/schema/source";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import {
   type FeedbackExecutor,
   findOwnedProject,
@@ -482,6 +485,23 @@ async function insertVersion(
   }
 }
 
+function toStoredSessionTest(
+  row: typeof sessionTest.$inferSelect,
+): SessionTestStoredRecord {
+  return {
+    bindOrigin: row.bindOrigin as SessionTestBindOrigin | null,
+    createdAt: row.createdAt.toISOString(),
+    expectedBehavior: row.expectedBehavior,
+    id: row.id,
+    linkedAt: row.linkedAt?.toISOString() ?? null,
+    projectId: row.projectId,
+    purpose: row.purpose,
+    scenarioId: row.scenarioId,
+    scenarioVersion: row.scenarioVersion,
+    title: row.title,
+  };
+}
+
 export function createDatabasePlannedTestStore(
   database: Database,
 ): PlannedTestStore {
@@ -524,6 +544,19 @@ export function createDatabasePlannedTestStore(
               const [stored] = await toStoredCases(executor, [row]);
               return stored ?? null;
             },
+            findSessionTest: async (sessionTestId, lock) => {
+              const query = executor
+                .select()
+                .from(sessionTest)
+                .where(
+                  and(
+                    eq(sessionTest.id, sessionTestId),
+                    eq(sessionTest.projectId, owned.id),
+                  ),
+                );
+              const [row] = lock ? await query.for("update") : await query;
+              return row ? toStoredSessionTest(row) : null;
+            },
             insertCase: async (record) => {
               await executor.insert(plannedTestCase).values({
                 createdAt: new Date(record.createdAt),
@@ -535,6 +568,41 @@ export function createDatabasePlannedTestStore(
               for (const version of record.versions) {
                 await insertVersion(executor, version);
               }
+            },
+            insertSessionTest: async (record) => {
+              await executor.insert(sessionTest).values({
+                bindOrigin: record.bindOrigin,
+                createdAt: new Date(record.createdAt),
+                expectedBehavior: record.expectedBehavior,
+                id: record.id,
+                linkedAt: record.linkedAt ? new Date(record.linkedAt) : null,
+                projectId: owned.id,
+                purpose: record.purpose,
+                scenarioId: record.scenarioId,
+                scenarioVersion: record.scenarioVersion,
+                title: record.title,
+              });
+            },
+            // Only the bind columns are written, and only while there is none,
+            // so the recorded content and an existing bind can never change.
+            linkSessionTest: async (sessionTestId, ref, linkedAt) => {
+              const updated = await executor
+                .update(sessionTest)
+                .set({
+                  bindOrigin: "Linked later",
+                  linkedAt: new Date(linkedAt),
+                  scenarioId: ref.caseId,
+                  scenarioVersion: ref.version,
+                })
+                .where(
+                  and(
+                    eq(sessionTest.id, sessionTestId),
+                    eq(sessionTest.projectId, owned.id),
+                    isNull(sessionTest.scenarioId),
+                  ),
+                )
+                .returning({ id: sessionTest.id });
+              return updated.length === 1;
             },
             listCases: async () =>
               await toStoredCases(
@@ -548,6 +616,14 @@ export function createDatabasePlannedTestStore(
                     asc(plannedTestCase.id),
                   ),
               ),
+            listSessionTests: async () =>
+              (
+                await executor
+                  .select()
+                  .from(sessionTest)
+                  .where(eq(sessionTest.projectId, owned.id))
+                  .orderBy(desc(sessionTest.createdAt), asc(sessionTest.id))
+              ).map(toStoredSessionTest),
             readOnly: owned.archivedAt !== null,
             resolver: createResolver(executor, owned.id),
           });

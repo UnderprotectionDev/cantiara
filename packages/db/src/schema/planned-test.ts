@@ -117,3 +117,56 @@ export const plannedTestCaseRelation = pgTable(
     ),
   ],
 );
+
+/**
+ * Session Test (Oturum Testi) bind, ticket 02. Project-scoped and deliberately
+ * minimal: no parent Test Session, result, review state or evidence (spec 54
+ * and 57 add those). The bind is the composite foreign key
+ * `(scenario_id, scenario_version)` to one immutable version row, so it names an
+ * exact version and no case edit can move it. `purpose` and `expected_behavior`
+ * hold the then-current content of an ad hoc test and are never rewritten by a
+ * later link; a test bound when recorded keeps both null because the pinned
+ * version already holds its definition. `bind_origin` records whether the
+ * version was bound when recorded or linked later, so a late link is never read
+ * as the version having been executed.
+ */
+export const sessionTest = pgTable(
+  "project_session_test",
+  {
+    bindOrigin: text("bind_origin"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expectedBehavior: text("expected_behavior"),
+    id: text("id").primaryKey(),
+    linkedAt: timestamp("linked_at"),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    purpose: text("purpose"),
+    scenarioId: text("scenario_id"),
+    scenarioVersion: integer("scenario_version"),
+    title: text("title").notNull(),
+  },
+  (table) => [
+    index("project_session_test_project_idx").on(table.projectId),
+    foreignKey({
+      columns: [table.scenarioId, table.scenarioVersion],
+      foreignColumns: [
+        plannedTestCaseVersion.caseId,
+        plannedTestCaseVersion.version,
+      ],
+      name: "project_session_test_scenario_version_fk",
+    }).onDelete("cascade"),
+    check(
+      "project_session_test_bind_check",
+      sql`(${table.scenarioId} is null and ${table.scenarioVersion} is null and ${table.bindOrigin} is null and ${table.linkedAt} is null) or (${table.scenarioId} is not null and ${table.scenarioVersion} is not null and ${table.bindOrigin} in ('Bound when recorded', 'Linked later') and ((${table.bindOrigin} = 'Linked later') = (${table.linkedAt} is not null)))`,
+    ),
+    check(
+      "project_session_test_content_check",
+      sql`((${table.purpose} is null) = (${table.expectedBehavior} is null)) and (${table.purpose} is not null or ${table.bindOrigin} = 'Bound when recorded')`,
+    ),
+    check(
+      "project_session_test_title_check",
+      sql`length(btrim(${table.title})) between 1 and 255`,
+    ),
+  ],
+);
