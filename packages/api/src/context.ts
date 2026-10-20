@@ -67,6 +67,7 @@ import type { SmartLinkPreviewAccess } from "./smart-link-preview";
 import type { SourceEvidenceAccess } from "./source-evidence";
 import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
+import type { SpecChangeReviewAccess } from "./spec-change-review";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { UserFlowAccess } from "./user-flow";
@@ -217,6 +218,7 @@ export interface Context {
   sourceEvidence?: SourceEvidenceAccess;
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
+  specChangeReview?: SpecChangeReviewAccess;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;

@@ -110,6 +110,9 @@ const ProjectTechnicalDiagramsSurface = lazy(
 const UserFlowSurface = lazy(
   () => import("@/features/user-flow/ui/user-flow-surface"),
 );
+const SpecChangeReviewSurface = lazy(
+  () => import("@/features/spec-change-review/ui/spec-change-review-surface"),
+);
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
@@ -153,6 +156,16 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
         <ProjectSmartCollectionsSurface
           projectId={projectId}
           selectedViewId={selectedViewId}
+        />
+      </Suspense>
+    );
+  }
+  if (activeHash === "spec-change-reviews") {
+    return (
+      <Suspense fallback={<p>Loading Spec Change Review…</p>}>
+        <SpecChangeReviewSurface
+          key={`spec-change-review:${projectId}`}
+          projectId={projectId}
         />
       </Suspense>
     );

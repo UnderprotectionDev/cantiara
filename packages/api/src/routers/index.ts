@@ -420,6 +420,10 @@ import {
   sourceSelectionSchema,
 } from "../sources-and-freshness";
 import {
+  specChangeReviewInputSchema,
+  specChangeReviewProjectInputSchema,
+} from "../spec-change-review";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -1052,6 +1056,13 @@ function requireScreens(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.screens;
+}
+
+function requireSpecChangeReview(context: Context) {
+  if (!context.specChangeReview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.specChangeReview;
 }
 
 function requireUserFlow(context: Context) {
@@ -2904,6 +2915,35 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
       });
     }
     const message = SCREEN_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
+}
+
+const SPEC_CHANGE_REVIEW_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SPEC_CHANGE_REVIEW_NOT_FOUND: "Spec Change Review is unavailable.",
+  SPEC_CHANGE_REVIEW_PROJECT_NOT_FOUND: "Project is unavailable.",
+  SPEC_CHANGE_REVIEW_VERSION_UNAVAILABLE:
+    "The Document version of this Spec Change Review is unavailable.",
+};
+
+async function runSpecChangeReviewOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const message = SPEC_CHANGE_REVIEW_UNAVAILABLE_MESSAGES[error.code];
     if (message) {
       throw new ORPCError("NOT_FOUND", {
         cause: error,
@@ -5555,6 +5595,23 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runScreenOperation(() =>
         requireScreens(context).resolveTarget(context.session.user.id, input),
+      ),
+    ),
+  projectSpecChangeReviews: protectedProcedure
+    .input(specChangeReviewProjectInputSchema)
+    .handler(({ context, input }) =>
+      runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  specChangeReview: protectedProcedure
+    .input(specChangeReviewInputSchema)
+    .handler(({ context, input }) =>
+      runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).get(context.session.user.id, input),
       ),
     ),
   contacts: protectedProcedure.handler(({ context }) =>
