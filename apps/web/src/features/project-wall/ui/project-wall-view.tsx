@@ -14,7 +14,12 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { type FormEvent, type ReactNode, useState } from "react";
 
-export interface ProjectWallActions {
+import {
+  type ProjectWallNarrativeActions,
+  ProjectWallNarrativePanel,
+} from "./project-wall-narrative";
+
+export interface ProjectWallActions extends ProjectWallNarrativeActions {
   onAddCard: (source: {
     sourceId: string;
     sourceType: ProjectWallSourceType;
@@ -220,6 +225,7 @@ export function ProjectWallLayout({
             options={options}
             placed={placed}
           />
+          <ProjectWallNarrativePanel actions={actions} wall={selected} />
           <p className="text-muted-foreground text-xs">
             Cards are live references. Moving a card or changing its density
             never edits the source record; edit content with Open Source Record.

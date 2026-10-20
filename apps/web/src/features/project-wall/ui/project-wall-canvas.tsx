@@ -1,9 +1,13 @@
 import type {
   ProjectWallCardView,
+  ProjectWallGroupView,
+  ProjectWallLinkView,
   ProjectWallPosition,
 } from "@cantiara/api/project-wall";
 import {
   applyNodeChanges,
+  type Edge,
+  MarkerType,
   type Node,
   type NodeChange,
   type NodeProps,
@@ -19,12 +23,22 @@ import {
 import "@xyflow/react/dist/style.css";
 
 type WallNode = Node<
-  { actions: ProjectWallCardActions; card: ProjectWallCardView },
+  {
+    actions: ProjectWallCardActions;
+    card: ProjectWallCardView;
+    groups: ProjectWallGroupView[];
+  },
   "card"
 >;
 
 function WallCardNode({ data }: NodeProps<WallNode>) {
-  return <ProjectWallCard actions={data.actions} card={data.card} />;
+  return (
+    <ProjectWallCard
+      actions={data.actions}
+      card={data.card}
+      groups={data.groups}
+    />
+  );
 }
 
 const NODE_TYPES = { card: WallCardNode };
@@ -32,23 +46,51 @@ const NODE_TYPES = { card: WallCardNode };
 interface CanvasProps {
   actions: ProjectWallCardActions;
   cards: ProjectWallCardView[];
+  groups: ProjectWallGroupView[];
+  links: ProjectWallLinkView[];
   /** Reports a dropped card; the wall persists wall view state, never the source. */
   onMove: (
     moves: Array<{ cardId: string; position: ProjectWallPosition }>,
   ) => void;
 }
 
-function Canvas({ actions, cards, onMove }: CanvasProps) {
+function Canvas({ actions, cards, groups, links, onMove }: CanvasProps) {
+  const hiddenCards = useMemo(() => {
+    const collapsed = new Set(
+      groups.filter((group) => group.collapsed).map(({ id }) => id),
+    );
+    return new Set(
+      cards
+        .filter((card) => card.groupId && collapsed.has(card.groupId))
+        .map(({ id }) => id),
+    );
+  }, [cards, groups]);
   const modelNodes = useMemo<WallNode[]>(
     () =>
       cards.map((card) => ({
-        data: { actions, card },
-        draggable: true,
+        data: { actions, card, groups },
+        // `Lock Position` fixes the card in manual drag.
+        draggable: !card.locked,
+        hidden: hiddenCards.has(card.id),
         id: card.id,
         position: card.position,
         type: "card",
       })),
-    [actions, cards],
+    [actions, cards, groups, hiddenCards],
+  );
+  // A Visual link is a drawn, labeled arrow; it is not a record relation.
+  const edges = useMemo<Edge[]>(
+    () =>
+      links.map((link) => ({
+        hidden:
+          hiddenCards.has(link.fromCardId) || hiddenCards.has(link.toCardId),
+        id: link.id,
+        label: link.label,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        source: link.fromCardId,
+        target: link.toCardId,
+      })),
+    [hiddenCards, links],
   );
   const [nodes, setNodes] = useState(modelNodes);
   useEffect(() => setNodes(modelNodes), [modelNodes]);
@@ -76,6 +118,8 @@ function Canvas({ actions, cards, onMove }: CanvasProps) {
     >
       <ReactFlow<WallNode>
         deleteKeyCode={null}
+        edges={edges}
+        edgesFocusable={false}
         fitView
         maxZoom={2}
         minZoom={0.1}
