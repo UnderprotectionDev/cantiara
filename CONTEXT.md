@@ -1067,7 +1067,7 @@ Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını k
 _Avoid_: kaynak dondurma, kayıt kilidi
 
 **Donmuş kopya**:
-Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; canlı kartların yerine geçmez, duvarı kilitlemez ve paylaşım kapsamını genişletmez ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Frozen copy`.
+Seçili Proje Duvarı grubu veya bölgesinin tarihli PNG/PDF iç snapshot'ı; canlı kartların yerine geçmez, duvarı kilitlemez ve paylaşım kapsamını genişletmez ([Proje Duvarı](docs/prd/04-workspace-and-projects.md#proje-duvarı)). UI: `Snapshot`, `Preview`, `PNG`, `PDF`, `Frozen copy`.
 _Avoid_: Dış yüzey, Build in Public, onaylı snapshot revizyonu, canlı bağlantı
 
 **Wireframe yüzeyi**:
