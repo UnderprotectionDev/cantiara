@@ -56,6 +56,7 @@ import {
   PRIORITY_MAP_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
+  SPEC_CHANGE_REVIEW_HASH,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
@@ -160,7 +161,7 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
       </Suspense>
     );
   }
-  if (activeHash === "spec-change-reviews") {
+  if (activeHash === SPEC_CHANGE_REVIEW_HASH) {
     return (
       <Suspense fallback={<p>Loading Spec Change Review…</p>}>
         <SpecChangeReviewSurface

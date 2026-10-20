@@ -2976,15 +2976,6 @@ async function runSpecChangeReviewOperation<T>(
         message: "This candidate already has follow-up Work.",
       });
     }
-    if (error.code === "SPEC_CHANGE_REVIEW_FOLLOW_UP_STALE") {
-      throw new ORPCError("PRECONDITION_FAILED", {
-        cause: error,
-        data: { code: error.code },
-        defined: true,
-        message:
-          "The follow-up preview is out of date. Preview Create Follow-up Work again.",
-      });
-    }
     const message = SPEC_CHANGE_REVIEW_UNAVAILABLE_MESSAGES[error.code];
     if (message) {
       throw new ORPCError("NOT_FOUND", {

@@ -10,8 +10,12 @@ import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { document } from "@cantiara/db/schema/document";
+import { feedback } from "@cantiara/db/schema/feedback";
 import { openQuestion } from "@cantiara/db/schema/open-question";
+import { productionIncident } from "@cantiara/db/schema/production-incident";
 import { project } from "@cantiara/db/schema/project";
+import { projectMilestone } from "@cantiara/db/schema/project-milestone";
+import { projectRelease } from "@cantiara/db/schema/project-release";
 import { risk } from "@cantiara/db/schema/risk";
 import {
   specChangeReview,
@@ -19,22 +23,81 @@ import {
   specChangeReviewMark,
 } from "@cantiara/db/schema/spec-change-review";
 import { technicalDiagram } from "@cantiara/db/schema/technical-diagram";
+import { validationRecord } from "@cantiara/db/schema/validation-record";
 import { work } from "@cantiara/db/schema/work";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 
+/** One landed owning store that names itself with a readable record title. */
 interface TitledTable {
   id: PgColumn;
   projectId: PgColumn;
+  table: PgTable;
   title: PgColumn;
 }
 
-const TITLED_TABLES: Record<string, TitledTable & PgTable> = {
-  Assumption: assumption as unknown as TitledTable & PgTable,
-  Decision: decision as unknown as TitledTable & PgTable,
-  "Open Question": openQuestion as unknown as TitledTable & PgTable,
-  Risk: risk as unknown as TitledTable & PgTable,
-  "Technical Diagram": technicalDiagram as unknown as TitledTable & PgTable,
+const TITLED_TABLES: Record<string, TitledTable> = {
+  Assumption: {
+    id: assumption.id,
+    projectId: assumption.projectId,
+    table: assumption,
+    title: assumption.title,
+  },
+  Decision: {
+    id: decision.id,
+    projectId: decision.projectId,
+    table: decision,
+    title: decision.title,
+  },
+  Feedback: {
+    id: feedback.id,
+    projectId: feedback.projectId,
+    table: feedback,
+    title: feedback.title,
+  },
+  Milestone: {
+    id: projectMilestone.id,
+    projectId: projectMilestone.projectId,
+    table: projectMilestone,
+    title: projectMilestone.title,
+  },
+  "Open Question": {
+    id: openQuestion.id,
+    projectId: openQuestion.projectId,
+    table: openQuestion,
+    title: openQuestion.title,
+  },
+  "Production Incident": {
+    id: productionIncident.id,
+    projectId: productionIncident.projectId,
+    table: productionIncident,
+    title: productionIncident.title,
+  },
+  // A Release names itself `name`; the queue reads that name as its title.
+  "Project Release": {
+    id: projectRelease.id,
+    projectId: projectRelease.projectId,
+    table: projectRelease,
+    title: projectRelease.name,
+  },
+  Risk: {
+    id: risk.id,
+    projectId: risk.projectId,
+    table: risk,
+    title: risk.title,
+  },
+  "Technical Diagram": {
+    id: technicalDiagram.id,
+    projectId: technicalDiagram.projectId,
+    table: technicalDiagram,
+    title: technicalDiagram.title,
+  },
+  "Validation Record": {
+    id: validationRecord.id,
+    projectId: validationRecord.projectId,
+    table: validationRecord,
+    title: validationRecord.title,
+  },
 };
 
 type Resolutions = Map<string, SpecCandidateRecordResolution>;
@@ -173,7 +236,7 @@ async function resolveTitled(
       projectId: table.projectId,
       title: table.title,
     })
-    .from(table)
+    .from(table.table)
     .innerJoin(project, eq(table.projectId, project.id))
     .innerJoin(workspace, eq(project.workspaceId, workspace.id))
     .where(
@@ -205,10 +268,13 @@ async function resolveTitled(
 }
 
 /**
- * Resolves candidate records the account owns. Record types without a
- * resolver here fail closed (omitted, so the shared broken-reference
- * presentation reads `No access`), like the shared relation endpoint
- * resolvers: an unknown record is never named.
+ * Resolves candidate records the account owns. Landed titled stores
+ * (`TITLED_TABLES`), Works and Documents resolve; the remaining closed
+ * usage-surface types (Source, User Research Session, Smart Collection View,
+ * the Test records) have no landed readable store yet and fail closed
+ * (omitted, so the shared broken-reference presentation reads `No access`),
+ * like the shared relation endpoint resolvers: an unknown record is never
+ * named.
  */
 export async function resolveCandidateRecords(
   database: Database,

@@ -69,6 +69,7 @@ function renderCard(
   relations: readonly RelationView[] = [],
   workContextLayouts?: Partial<WorkContextLayouts>,
   priorityValues?: WorkContextPriorityValues,
+  workOverride?: WorkProfile,
 ) {
   const queryClient = new QueryClient();
   queryClient.setQueryData(
@@ -95,7 +96,7 @@ function renderCard(
       <QueryClientProvider client={queryClient}>
         <WorkContextCard
           priorityValues={priorityValues}
-          work={work}
+          work={workOverride ?? work}
           workContextLayouts={workContextLayouts}
           workStatusLabels={statusLabels}
         />
@@ -160,6 +161,32 @@ describe("Work Context Card initial fields", () => {
 
     expect(html).toContain("Copy Context as Markdown");
     expect(html).not.toContain("Create Context");
+  });
+
+  test("offers Spec Change Review on a Feature with a Primary spec", () => {
+    const feature = {
+      ...work,
+      id: "feature-1",
+      key: "PAY-2",
+      primarySpecId: "spec-1",
+      title: "Checkout feature",
+      type: "Feature",
+    } satisfies WorkProfile;
+    const html = renderCard(
+      workStatusLabels,
+      [],
+      undefined,
+      undefined,
+      feature,
+    );
+
+    expect(html).toContain(">Spec Change Review</button>");
+  });
+
+  test("offers no Spec Change Review without a Primary spec", () => {
+    const html = renderCard(workStatusLabels);
+
+    expect(html).not.toContain("Spec Change Review");
   });
 
   test("renders live source names, status, and source links in the why chain", () => {

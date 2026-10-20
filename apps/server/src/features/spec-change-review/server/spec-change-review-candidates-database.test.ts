@@ -3,12 +3,15 @@ import { appRouter } from "@cantiara/api/routers/index";
 import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { evidenceBinding } from "@cantiara/db/schema/evidence";
+import { feedback } from "@cantiara/db/schema/feedback";
 import {
   mutationHistory,
   mutationReceipt,
   mutationStaging,
 } from "@cantiara/db/schema/mutation";
 import { project } from "@cantiara/db/schema/project";
+import { projectMilestone } from "@cantiara/db/schema/project-milestone";
+import { projectRelease } from "@cantiara/db/schema/project-release";
 import { usageLink, workRelation } from "@cantiara/db/schema/relation";
 import { specChangeReviewMark } from "@cantiara/db/schema/spec-change-review";
 import { work } from "@cantiara/db/schema/work";
@@ -249,6 +252,71 @@ describeDatabase("Spec Change Review candidates PostgreSQL integration", () => {
         state: "Affected",
       }),
     ).rejects.toThrow();
+  });
+
+  it("resolves a candidate of every landed titled store, including a Release name", async () => {
+    const { review, spec } = await openReview();
+    await database?.insert(projectMilestone).values({
+      id: "milestone-surface",
+      projectId,
+      title: "Queue launch",
+    });
+    await database?.insert(feedback).values({
+      id: "feedback-surface",
+      occurredAt: new Date(),
+      originalMessage: "The import loses my tags.",
+      projectId,
+      title: "Import loses tags",
+    });
+    await database?.insert(projectRelease).values({
+      id: "release-surface",
+      name: "Queue 1.0",
+      projectId,
+    });
+    await database?.insert(usageLink).values([
+      {
+        id: crypto.randomUUID(),
+        kind: "Live block",
+        sourceRecordId: spec.id,
+        sourceRecordType: "Document",
+        surfaceRecordId: "feedback-surface",
+        surfaceRecordType: "Feedback",
+        workspaceId,
+      },
+      {
+        id: crypto.randomUUID(),
+        kind: "Live block",
+        sourceRecordId: spec.id,
+        sourceRecordType: "Document",
+        surfaceRecordId: "milestone-surface",
+        surfaceRecordType: "Milestone",
+        workspaceId,
+      },
+      {
+        id: crypto.randomUUID(),
+        kind: "Live block",
+        sourceRecordId: spec.id,
+        sourceRecordType: "Document",
+        surfaceRecordId: "release-surface",
+        surfaceRecordType: "Project Release",
+        workspaceId,
+      },
+    ]);
+
+    const detail = await client().specChangeReview({ reviewId: review.id });
+    const titled = detail.candidates.filter(
+      ({ identity }) => identity.recordType !== "Work",
+    );
+    expect(
+      titled.map(({ record }) => `${record.recordType}:${record.title}`),
+    ).toEqual([
+      "Feedback:Import loses tags",
+      "Milestone:Queue launch",
+      "Project Release:Queue 1.0",
+    ]);
+    expect(titled.every(({ record: { broken } }) => broken === null)).toBe(
+      true,
+    );
   });
 
   it("derives version-pinned evidence and keeps the prior pair's notes on that pair", async () => {

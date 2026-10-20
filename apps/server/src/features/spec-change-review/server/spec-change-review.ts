@@ -60,15 +60,6 @@ export class SpecChangeReviewFollowUpExistsError extends Error {
   }
 }
 
-export class SpecChangeReviewFollowUpStaleError extends Error {
-  readonly code = "SPEC_CHANGE_REVIEW_FOLLOW_UP_STALE" as const;
-
-  constructor(reviewId: string) {
-    super(`The follow-up preview of Spec Change Review ${reviewId} is stale.`);
-    this.name = "SpecChangeReviewFollowUpStaleError";
-  }
-}
-
 export class SpecChangeReviewVersionUnavailableError extends Error {
   readonly code = "SPEC_CHANGE_REVIEW_VERSION_UNAVAILABLE" as const;
 
