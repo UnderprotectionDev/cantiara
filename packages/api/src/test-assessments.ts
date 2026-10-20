@@ -84,11 +84,7 @@ export const recordTestAssessmentInputSchema = z
     projectId: identifierSchema,
     sessionIds: sourceIdsSchema,
   })
-  .strict()
-  .refine((input) => input.sessionIds.length > 0, {
-    message: "Cite at least one Test Session.",
-    path: ["sessionIds"],
-  });
+  .strict();
 export type RecordTestAssessmentInput = z.infer<
   typeof recordTestAssessmentInputSchema
 >;

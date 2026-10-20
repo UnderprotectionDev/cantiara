@@ -127,7 +127,7 @@ function RecordForm({
       </div>
       {(
         [
-          ["sessionIds", "Test Session ids", true],
+          ["sessionIds", "Test Session ids", false],
           ["gapIds", "Test Gap ids", false],
           ["followUpWorkIds", "Follow-up Work ids", false],
         ] as const

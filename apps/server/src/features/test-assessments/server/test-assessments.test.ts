@@ -110,11 +110,14 @@ describe("Test Assessments dated snapshot", () => {
     expect(records).toEqual([]);
   });
 
-  test("needs at least one cited Test Session and de-duplicates ids", async () => {
+  test("de-duplicates cited ids and allows an Undecided snapshot with no sessions yet", async () => {
     const { testAssessments } = setup();
-    await expect(
-      testAssessments.record(accountId, { ...releaseInput, sessionIds: [] }),
-    ).rejects.toThrow("Cite at least one Test Session.");
+    const empty = await testAssessments.record(accountId, {
+      ...releaseInput,
+      decision: "Undecided",
+      sessionIds: [],
+    });
+    expect(empty.sessionIds).toEqual([]);
     const saved = await testAssessments.record(accountId, {
       ...releaseInput,
       sessionIds: ["session-1", "session-1"],
