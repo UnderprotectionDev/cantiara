@@ -505,6 +505,14 @@ import {
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
 import {
+  recordTestAssessmentInputSchema,
+  testAssessmentContextTargetsInputSchema,
+  testAssessmentContextTargetsOutputSchema,
+  testAssessmentListOutputSchema,
+  testAssessmentProjectInputSchema,
+  testAssessmentRecordSchema,
+} from "../test-assessments";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -1202,6 +1210,13 @@ async function runProjectWallOperation<T>(
     }
     throw error;
   }
+}
+
+function requireTestAssessments(context: Context) {
+  if (!context.testAssessments) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testAssessments;
 }
 
 function requirePlannedTests(context: Context) {
@@ -3167,6 +3182,48 @@ const PLANNED_TEST_FAILURES: Record<string, PlannedTestFailure> = {
     status: "BAD_REQUEST",
   },
 };
+
+const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
+  TEST_ASSESSMENT_CONTEXT_UNAVAILABLE: {
+    message: "The chosen context is not an available record of this Project.",
+    status: "BAD_REQUEST",
+  },
+  TEST_ASSESSMENT_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_ASSESSMENT_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
+};
+
+async function runTestAssessmentOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
+      ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
 
 async function runPlannedTestOperation<T>(
   operation: () => Promise<T>,
@@ -5946,6 +6003,36 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  projectTestAssessments: protectedProcedure
+    .input(testAssessmentProjectInputSchema)
+    .output(testAssessmentListOutputSchema)
+    .handler(({ context, input }) =>
+      runTestAssessmentOperation(() =>
+        requireTestAssessments(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  recordTestAssessment: protectedProcedure
+    .input(recordTestAssessmentInputSchema)
+    .output(testAssessmentRecordSchema)
+    .handler(({ context, input }) =>
+      runTestAssessmentOperation(() =>
+        requireTestAssessments(context).record(context.session.user.id, input),
+      ),
+    ),
+  testAssessmentContextTargets: protectedProcedure
+    .input(testAssessmentContextTargetsInputSchema)
+    .output(testAssessmentContextTargetsOutputSchema)
+    .handler(({ context, input }) =>
+      runTestAssessmentOperation(() =>
+        requireTestAssessments(context).contextTargets(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   projectPlannedTestCases: protectedProcedure
