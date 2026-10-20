@@ -277,6 +277,55 @@ test("lists Gaps with rationale and live or broken support relations", () => {
   expect(text).toContain("Risk: unavailable (In Trash)");
 });
 
+test("the count opens exactly the Open and Planned set that produced the number", () => {
+  mount({
+    gaps: [
+      { ...record, state: "Planned" },
+      { ...record, id: "g2", title: "Refund flow untested" },
+      {
+        ...record,
+        closure: {
+          closedAt: timestamp,
+          decision: null,
+          outcome: "Met by result",
+          rationale: "Covered by the checkout session tests.",
+          sessionTests: [],
+        },
+        id: "g3",
+        state: "Met by result",
+        title: "Checkout flow untested",
+      },
+    ],
+  });
+
+  const summary = document.querySelector("summary");
+  expect(summary?.textContent).toContain("Open and planned Test Gaps: 2");
+  const shown = [
+    ...document.querySelectorAll('[aria-label="Test Gaps in this count"] li'),
+  ];
+  expect(shown.map((item) => item.textContent)).toEqual([
+    "Mobile coupon stacking untested (Planned)",
+    "Refund flow untested (Open)",
+  ]);
+  expect(shown.map((item) => item.textContent).join(" ")).not.toContain(
+    "Checkout flow untested",
+  );
+});
+
+test("the count shows zero and an empty set when every Gap is closed", () => {
+  mount({
+    gaps: [
+      { ...record, id: "g3", state: "Met by result" },
+      { ...record, id: "g4", state: "Not needed" },
+    ],
+  });
+
+  expect(document.querySelector("summary")?.textContent).toContain(
+    "Open and planned Test Gaps: 0",
+  );
+  expect(document.body.textContent).toContain("No open or planned Test Gaps.");
+});
+
 test("an archived Project lists Gaps without a filing form", () => {
   mount({ gaps: [record], readOnly: true });
 

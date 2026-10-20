@@ -25,6 +25,7 @@ import {
   diagramView,
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
+import { testGap } from "@cantiara/db/schema/test-gap";
 import { work, workRetiredIdentity } from "@cantiara/db/schema/work";
 import {
   and,
@@ -166,6 +167,9 @@ function isClosed(
   }
   if (recordType === "Production Incident") {
     return status === "Resolved";
+  }
+  if (recordType === "Test Gap") {
+    return status !== "Open" && status !== "Planned";
   }
   return closureResult !== null;
 }
@@ -766,6 +770,56 @@ async function searchProductionIncidentRecords({
   return results;
 }
 
+async function searchTestGapRecords({
+  accountId,
+  database,
+  input,
+  query,
+}: SearchContext) {
+  const results: Candidate[] = [];
+  const gapText = textContent([testGap.rationale]);
+  const gapTitle = textContent([testGap.title]);
+  const gapRows = await database
+    .select({
+      id: testGap.id,
+      projectArchivedAt: project.archivedAt,
+      projectId: project.id,
+      projectName: project.name,
+      status: testGap.state,
+      text: gapText,
+      title: testGap.title,
+      titleKeyMatch: query ? matches(query, gapTitle) : sql<boolean>`false`,
+      updatedAt: testGap.updatedAt,
+    })
+    .from(testGap)
+    .innerJoin(project, eq(testGap.projectId, project.id))
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .where(
+      projectConditions(accountId, input, textContent([gapTitle, gapText])),
+    );
+  results.push(
+    ...gapRows.map((row) =>
+      candidate(
+        {
+          archived: false,
+          id: row.id,
+          indexedText: row.text,
+          projectArchivedAt: row.projectArchivedAt,
+          projectId: row.projectId,
+          projectName: row.projectName,
+          recordType: "Test Gap",
+          status: row.status,
+          title: row.title,
+          titleKeyMatch: row.titleKeyMatch,
+          updatedAt: row.updatedAt,
+        },
+        query,
+      ),
+    ),
+  );
+  return results;
+}
+
 const projectRecordFamilySearches: [
   UniversalSearchRecordType,
   (context: SearchContext) => Promise<Candidate[]>,
@@ -777,6 +831,7 @@ const projectRecordFamilySearches: [
   ["Milestone", searchMilestoneRecords],
   ["Project Release", searchProjectReleaseRecords],
   ["Production Incident", searchProductionIncidentRecords],
+  ["Test Gap", searchTestGapRecords],
 ];
 
 async function searchProjectRecords(

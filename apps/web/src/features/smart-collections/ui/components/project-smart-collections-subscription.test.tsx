@@ -57,6 +57,7 @@ const baseView: SmartCollectionViewSource = {
   collectionName: "Active Work",
   conditions: {},
   documents: [],
+  gaps: [],
   id: "view-1",
   isSubscribed: false,
   name: "Default",

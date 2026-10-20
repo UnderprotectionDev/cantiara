@@ -194,6 +194,7 @@ async function toStoredGaps(
     )
     .where(inArray(testGapMetSessionTest.gapId, gapIds))
     .orderBy(
+      asc(testGapMetSessionTest.position),
       asc(testGapMetSessionTest.createdAt),
       asc(testGapMetSessionTest.sessionTestId),
     );
@@ -297,15 +298,18 @@ export function createDatabaseTestGapStore(database: Database): TestGapStore {
               }
               for (const [position, item] of closure.sessionTests.entries()) {
                 await executor.insert(testGapMetSessionTest).values({
-                  createdAt: new Date(
-                    new Date(closure.closedAt).getTime() + position,
-                  ),
+                  createdAt: new Date(closure.closedAt),
                   gapId,
+                  position,
                   sessionTestId: item.sessionTestId,
                 });
               }
               return true;
             },
+            // The Session Test rows are locked the way the Gap row is: a
+            // concurrent deletion then waits for this closure, so the citation
+            // insert cannot hit a foreign key violation from a delete that
+            // committed mid-unit-of-work.
             findSessionTests: async (ids) =>
               ids.length === 0
                 ? []
@@ -317,7 +321,8 @@ export function createDatabaseTestGapStore(database: Database): TestGapStore {
                         inArray(sessionTest.id, [...ids]),
                         eq(sessionTest.projectId, owned.id),
                       ),
-                    ),
+                    )
+                    .for("update"),
             findCaseVersion: async (ref) => {
               const [row] = await executor
                 .select({ title: plannedTestCaseVersion.title })

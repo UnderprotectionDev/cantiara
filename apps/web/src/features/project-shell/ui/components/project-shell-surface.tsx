@@ -58,6 +58,7 @@ import {
   projectSourceRecordFromHash,
   ROADMAP_HASH,
   SPEC_CHANGE_REVIEW_HASH,
+  testGapRecordFromHash,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
@@ -145,8 +146,15 @@ function projectDesignSurface(activeHash: string, projectId: string) {
   ) : null;
 }
 
-function projectTestsSurface(activeHash: string, projectId: string) {
-  return ["tests", "project-area-tests"].includes(activeHash) ? (
+function projectTestsSurface(
+  activeHash: string,
+  projectId: string,
+  gapSourceId: string | null,
+) {
+  const isTestsSurface =
+    ["tests", "project-area-tests"].includes(activeHash) ||
+    gapSourceId !== null;
+  return isTestsSurface ? (
     <div className="space-y-10">
       <PlannedTestsSurface
         key={`planned-tests:${projectId}`}
@@ -470,7 +478,11 @@ function ProjectShellContent({
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const uncertaintySurface =
     projectDesignSurface(activeHash, projectId) ??
-    projectTestsSurface(activeHash, projectId) ??
+    projectTestsSurface(
+      activeHash,
+      projectId,
+      testGapRecordFromHash(activeHash),
+    ) ??
     projectUncertaintySurface(
       projectId,
       accountId,

@@ -268,6 +268,39 @@ function CollectionMembers({
     );
   }
 
+  if (view.sourceType === "Test Gap") {
+    if (view.gaps.length === 0) {
+      return <p>No Test Gap matches this view.</p>;
+    }
+    return (
+      <ul className="list-inside list-disc space-y-2">
+        {view.gaps.map((record) => (
+          <CollectionMember
+            key={record.id}
+            reasons={record.membershipReasons}
+            record={{
+              id: record.id,
+              projectId: record.projectId,
+              recordName: record.title,
+              sourceType: view.sourceType,
+              sourceViewId: view.id,
+              status: record.state,
+              workspaceId: view.workspaceId,
+            }}
+            target={{
+              kind: "test-gap",
+              gapId: record.id,
+              label: record.title,
+              projectId: record.projectId,
+            }}
+          >
+            {record.title}
+          </CollectionMember>
+        ))}
+      </ul>
+    );
+  }
+
   if (view.projectSourceRecords.length === 0) {
     return <p>No {view.sourceType} matches this view.</p>;
   }

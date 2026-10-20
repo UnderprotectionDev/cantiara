@@ -10,6 +10,7 @@ import {
   PROJECT_RELEASE_STATUS_OPTIONS,
   RISK_LIFE_OPTIONS,
 } from "./project-source-records";
+import { TEST_GAP_STATES, testGapStateSchema } from "./test-gaps";
 import {
   WORK_STATUS_OPTIONS,
   workStatusSchema,
@@ -26,11 +27,14 @@ export const SMART_COLLECTION_PROJECT_SOURCE_TYPES = [
   "Production Incident",
 ] as const;
 
+// Test Gap is a Project master owned by its own module (spec 55), not a
+// Project source record; its membership filter is the Gap state.
 export const SMART_COLLECTION_SOURCE_TYPES = [
   "Work",
   "Document",
   "Wiki Document",
   ...SMART_COLLECTION_PROJECT_SOURCE_TYPES,
+  "Test Gap",
 ] as const;
 
 export type SmartCollectionProjectSourceType =
@@ -53,6 +57,7 @@ export const SMART_COLLECTION_STATUS_OPTIONS: Partial<
   Milestone: MILESTONE_STATUS_OPTIONS,
   "Project Release": PROJECT_RELEASE_STATUS_OPTIONS,
   "Production Incident": PRODUCTION_INCIDENT_STATUS_OPTIONS,
+  "Test Gap": TEST_GAP_STATES,
 };
 
 const projectSourceStatusSchema = z.enum([
@@ -68,6 +73,7 @@ const projectSourceStatusSchema = z.enum([
 const collectionStatusSchema = z.union([
   workStatusSchema,
   projectSourceStatusSchema,
+  testGapStateSchema,
 ]);
 
 const smartCollectionConditionsSchema = z
@@ -199,6 +205,14 @@ export interface SmartCollectionViewSource {
     type: string;
     projectId: string | null;
     workspaceId: string | null;
+    membershipReasons: string[];
+  }>;
+  /** Test Gap members; populated only for a `Test Gap` collection. */
+  gaps: Array<{
+    id: string;
+    state: (typeof TEST_GAP_STATES)[number];
+    projectId: string;
+    title: string;
     membershipReasons: string[];
   }>;
   id: string;

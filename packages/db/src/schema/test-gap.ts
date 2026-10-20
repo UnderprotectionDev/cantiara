@@ -165,15 +165,18 @@ export const testGapHandoffBind = pgTable(
  * Closure is a cited set, never a percentage: a row exists only because the
  * founder picked that Session Test, and nothing else writes this table. The
  * rows are inserted with the closure and never rewritten, so the citation
- * stays in history. `closure_decision_id` on the Gap is a polymorphic Decision
- * reference with no foreign key: the Decision's owner reads it at view time and
- * a gone Decision reads as broken, never as another record.
+ * stays in history; `position` keeps the founder's pick order without bending
+ * `created_at` into a sequence counter. `closure_decision_id` on the Gap is a
+ * polymorphic Decision reference with no foreign key: the Decision's owner
+ * reads it at view time and a gone Decision reads as broken, never as another
+ * record.
  */
 export const testGapMetSessionTest = pgTable(
   "project_test_gap_met_session_test",
   {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     gapId: text("gap_id").notNull(),
+    position: integer("position"),
     sessionTestId: text("session_test_id").notNull(),
   },
   (table) => [

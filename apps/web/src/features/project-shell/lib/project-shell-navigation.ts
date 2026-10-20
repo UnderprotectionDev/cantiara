@@ -152,6 +152,28 @@ export function workRecordHash(workId: string) {
   return `${WORK_RECORD_HASH_PREFIX}${encodeURIComponent(workId)}`;
 }
 
+// A Test Gap is not a Project source record: it owns the Tests area, so its
+// hash opens that area with the record anchored inside it.
+export const TEST_GAP_RECORD_HASH_PREFIX = "source-test-gap-";
+
+export function testGapRecordHash(gapId: string) {
+  return `${TEST_GAP_RECORD_HASH_PREFIX}${encodeURIComponent(gapId)}`;
+}
+
+export function testGapRecordFromHash(hash: string): string | null {
+  if (!hash.startsWith(TEST_GAP_RECORD_HASH_PREFIX)) {
+    return null;
+  }
+  try {
+    const gapId = decodeURIComponent(
+      hash.slice(TEST_GAP_RECORD_HASH_PREFIX.length),
+    );
+    return gapId || null;
+  } catch {
+    return null;
+  }
+}
+
 export function documentRecordHash(documentId: string) {
   return `${DOCUMENT_RECORD_HASH_PREFIX}${encodeURIComponent(documentId)}`;
 }

@@ -560,7 +560,10 @@ function GapItem({
   sessionTests: SessionTestRecord[];
 }) {
   return (
-    <li className="space-y-2 rounded-lg border border-border/70 p-4">
+    <li
+      className="space-y-2 rounded-lg border border-border/70 p-4"
+      id={`source-test-gap-${record.id}`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="font-medium">{record.title}</h4>
         <span className="rounded-md border border-border/70 px-2 py-0.5 text-sm">
@@ -616,6 +619,44 @@ function GapItem({
 }
 
 /**
+ * The Tests area's derived count (spec 55 story 17). The number is read from
+ * the same records the list shows, and opening the count reveals exactly the
+ * `Open`/`Planned` records that produced it — never a coverage figure.
+ */
+function OpenAndPlannedGaps({ gaps }: { gaps: TestGapRecord[] }) {
+  const openAndPlanned = gaps.filter(
+    (gap) => gap.state === "Open" || gap.state === "Planned",
+  );
+  return (
+    <details className="rounded-md border border-border/70 p-3">
+      <summary className="cursor-pointer font-medium">
+        {`Open and planned Test Gaps: ${openAndPlanned.length}`}
+      </summary>
+      {openAndPlanned.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          No open or planned Test Gaps.
+        </p>
+      ) : (
+        <ul aria-label="Test Gaps in this count" className="space-y-1 text-sm">
+          {openAndPlanned.map((gap) => (
+            <li key={gap.id}>
+              <a
+                aria-label={`Open ${gap.title}`}
+                className="underline"
+                href={`#source-test-gap-${gap.id}`}
+              >
+                {gap.title}
+              </a>
+              {` (${gap.state})`}
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
+
+/**
  * The Tests area's Test Gap list. A management view of records the founder
  * filed: not a phase, a runner or a coverage figure, and nothing here files a
  * Gap on its own.
@@ -661,6 +702,7 @@ export function TestGapsView({
       ) : (
         <GapForm loadTargets={loadTargets} onSubmit={onCreate} />
       )}
+      <OpenAndPlannedGaps gaps={gaps} />
       {gaps.length === 0 ? (
         <p className="text-muted-foreground text-sm">No Test Gaps filed.</p>
       ) : (

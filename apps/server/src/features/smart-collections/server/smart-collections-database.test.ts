@@ -20,6 +20,7 @@ import {
   smartCollectionSubscriptionMembership,
   smartCollectionView,
 } from "@cantiara/db/schema/smart-collection";
+import { testGap } from "@cantiara/db/schema/test-gap";
 import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
@@ -134,6 +135,7 @@ describe("Smart Collections condition contract", () => {
       ["Milestone", "Reached"],
       ["Project Release", "Published"],
       ["Production Incident", "Resolved"],
+      ["Test Gap", "Met by result"],
     ] as const;
 
     for (const [sourceType, status] of sourceFilters) {
@@ -146,6 +148,13 @@ describe("Smart Collections condition contract", () => {
         }).success,
       ).toBe(true);
     }
+    expect(
+      createSmartCollectionInputSchema.safeParse({
+        ...baseInput,
+        sourceType: "Test Gap",
+        conditions: { status: "In Progress" },
+      }).success,
+    ).toBe(false);
     expect(
       createSmartCollectionInputSchema.safeParse({
         ...baseInput,
@@ -546,6 +555,51 @@ describeDatabase(
       expect(
         (await access.getView(accountId, view.id))?.projectSourceRecords,
       ).toEqual([]);
+    });
+
+    test("recomputes Test Gap membership when its state changes", async () => {
+      if (!database) {
+        throw new Error("MIGRATION_TEST_DATABASE_URL is required");
+      }
+      const testedGapId = `test-gap-${crypto.randomUUID()}`;
+      const metGapId = `test-gap-${crypto.randomUUID()}`;
+      await database.insert(testGap).values([
+        {
+          id: testedGapId,
+          projectId: projectAId,
+          rationale: "Checkout on mobile was never tried.",
+          state: "Planned",
+          title: "Mobile checkout untested",
+        },
+        {
+          id: metGapId,
+          projectId: projectAId,
+          closedAt: new Date(),
+          closureRationale: "Covered by the checkout session tests.",
+          rationale: "Coupon stacking was never tried.",
+          state: "Met by result",
+          title: "Coupon stacking untested",
+        },
+      ]);
+
+      const access = createDatabaseSmartCollections(database);
+      const view = await access.create(accountId, {
+        clientIdempotencyKey: crypto.randomUUID(),
+        projectId: projectAId,
+        name: "Open test gaps",
+        sourceType: "Test Gap",
+        viewName: "Default",
+        presentation: "List",
+        conditions: { status: "Planned" },
+      });
+      expect(view.gaps.map(({ id }) => id)).toEqual([testedGapId]);
+      expect(view.gaps[0]?.membershipReasons).toContain("Status: Planned");
+
+      await database
+        .update(testGap)
+        .set({ state: "Met by result" })
+        .where(eq(testGap.id, testedGapId));
+      expect((await access.getView(accountId, view.id))?.gaps).toEqual([]);
     });
 
     test("recomputes live membership for every persisted Project source type", async () => {

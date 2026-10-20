@@ -24,6 +24,7 @@ function emptyView(
     collectionName: "Review",
     conditions: {},
     documents: [],
+    gaps: [],
     id,
     isSubscribed: false,
     name: "Default",
@@ -97,14 +98,14 @@ const views: SmartCollectionViewSource[] = [
   },
 ];
 
-function renderSurface() {
+function renderSurface(collectionViews = views) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { staleTime: Number.POSITIVE_INFINITY } },
   });
   const viewsOptions = orpc.smartCollectionViews.queryOptions({
     input: { projectId },
   });
-  queryClient.setQueryData(viewsOptions.queryKey, views);
+  queryClient.setQueryData(viewsOptions.queryKey, collectionViews);
   const projectsOptions = orpc.projects.queryOptions();
   queryClient.setQueryData(projectsOptions.queryKey, []);
 
@@ -140,5 +141,29 @@ describe("Smart Collection source preview actions", () => {
     expect(html).not.toContain(
       'href="/projects/project-1#source-decision-decision-1"',
     );
+  });
+
+  test("renders Test Gap members with their state and the shared open action", () => {
+    const html = renderSurface([
+      {
+        ...emptyView("test-gap-view", "Test Gap"),
+        gaps: [
+          {
+            id: "g1",
+            membershipReasons: ["Project: Cantiara", "Status: Open"],
+            projectId,
+            state: "Open" as const,
+            title: "Mobile coupon stacking untested",
+          },
+        ],
+      },
+    ]);
+
+    expect(html).toContain("Mobile coupon stacking untested");
+    expect(html).toContain("Status: Open");
+    expect(html).toContain(
+      'aria-label="Open source record: Mobile coupon stacking untested"',
+    );
+    expect(html).not.toContain('href="/projects/project-1#source-test-gap-g1"');
   });
 });

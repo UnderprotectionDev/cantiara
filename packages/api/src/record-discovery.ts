@@ -116,6 +116,7 @@ export const universalSearchRecordTypes = [
   "Milestone",
   "Project Release",
   "Production Incident",
+  "Test Gap",
   "Technical Diagram",
   "Document",
   "File Attachment",

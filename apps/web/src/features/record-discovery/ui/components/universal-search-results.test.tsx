@@ -63,6 +63,30 @@ test("shows the source type, state, scope, highlighted context, and source link"
   expect(universalSearchRecordTypes).toContain("File Attachment");
 });
 
+test("opens a Test Gap hit at its Tests area record", () => {
+  const markup = renderToStaticMarkup(
+    <UniversalSearchResults
+      query="PostgreSQL"
+      results={[
+        {
+          ...result,
+          closureResult: null,
+          id: "gap-1",
+          recordType: "Test Gap",
+          snippet: "PostgreSQL coupon stacking was never tried",
+          status: "Planned",
+          title: "Mobile checkout untested",
+        },
+      ]}
+    />,
+  );
+
+  expect(markup).toContain("Test Gap");
+  expect(markup).toContain("Planned");
+  expect(markup).toContain('href="/projects/project-1#source-test-gap-gap-1"');
+  expect(markup).toContain('aria-label="Open Mobile checkout untested"');
+});
+
 test("renders result titles and matched context as escaped text", () => {
   const markup = renderToStaticMarkup(
     <UniversalSearchResults
