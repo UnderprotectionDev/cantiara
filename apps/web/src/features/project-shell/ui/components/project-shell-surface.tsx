@@ -78,6 +78,7 @@ import {
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectSourcesSurface from "@/features/sources-and-freshness/ui/components/project-sources-surface";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
+import TestAssessmentsSurface from "@/features/test-assessments/ui/test-assessments-surface";
 import TestSessionsSurface from "@/features/test-report/ui/test-sessions-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
@@ -154,6 +155,10 @@ function projectTestsSurface(activeHash: string, projectId: string) {
       />
       <TestSessionsSurface
         key={`test-sessions:${projectId}`}
+        projectId={projectId}
+      />
+      <TestAssessmentsSurface
+        key={`test-assessments:${projectId}`}
         projectId={projectId}
       />
     </div>

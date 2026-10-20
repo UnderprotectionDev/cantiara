@@ -1380,6 +1380,7 @@ _Avoid_: Bug, başarısız test sonucu, otomatik coverage açığı
 
 **Test değerlendirmesi**:
 Kullanıcının belirli bir bağlamdaki kesin test kayıtlarını belirli bir anda nasıl yorumladığını koruyan tarihsel snapshot; sonraki sonuçlarla güncellenen kalite skoru veya yayın kapısı değildir.
+UI: `Test Assessment`; kararlar `Acceptable`, `Follow-up needed`, `Undecided`; sonradan gelen bağlam bildirimi `New test context after this assessment`; Testler alanı bölümü `Recent Test Assessments`.
 _Avoid_: Ürün kabul kanıtı, canlı test özeti, otomatik readiness kararı
 
 ## Sürüm ve ürün kabulü

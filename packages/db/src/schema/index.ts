@@ -42,6 +42,7 @@ export * from "./source";
 export * from "./spec-change-review";
 export * from "./tags";
 export * from "./technical-diagram";
+export * from "./test-assessment";
 export * from "./user-flow";
 export * from "./validation-record";
 export * from "./work";

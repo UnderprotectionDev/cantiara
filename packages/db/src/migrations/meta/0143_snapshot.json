@@ -1,5 +1,5 @@
 {
-  "id": "1534e3f9-ac1b-49c6-8d70-4114a3fe8127",
+  "id": "9804562e-9003-4d45-9c06-8486c29caafa",
   "prevId": "1661d544-c167-4631-aabb-f0d3235915b8",
   "version": "7",
   "dialect": "postgresql",
@@ -8264,20 +8264,8 @@
           "notNull": true,
           "default": "now()"
         },
-        "evidence": {
-          "name": "evidence",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "expected_behavior": {
           "name": "expected_behavior",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "external_test_id": {
-          "name": "external_test_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8294,45 +8282,15 @@
           "primaryKey": false,
           "notNull": false
         },
-        "normalized_result": {
-          "name": "normalized_result",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "project_id": {
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "purpose": {
           "name": "purpose",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "raw_result": {
-          "name": "raw_result",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "relations": {
-          "name": "relations",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
@@ -8345,12 +8303,6 @@
         "scenario_version": {
           "name": "scenario_version",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -8376,42 +8328,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "project_session_test_session_idx": {
-          "name": "project_session_test_session_idx",
-          "columns": [
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "project_session_test_session_external_idx": {
-          "name": "project_session_test_session_external_idx",
-          "columns": [
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "external_test_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -8420,15 +8336,6 @@
           "tableFrom": "project_session_test",
           "tableTo": "project",
           "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_session_test_session_id_project_test_session_id_fk": {
-          "name": "project_session_test_session_id_project_test_session_id_fk",
-          "tableFrom": "project_session_test",
-          "tableTo": "project_test_session",
-          "columnsFrom": ["session_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -8964,64 +8871,40 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.project_test_session": {
-      "name": "project_test_session",
+    "public.project_test_assessment": {
+      "name": "project_test_assessment",
       "schema": "",
       "columns": {
-        "accepted_at": {
-          "name": "accepted_at",
+        "assessed_at": {
+          "name": "assessed_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
         },
-        "context": {
-          "name": "context",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ended_at": {
-          "name": "ended_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "executor_name": {
-          "name": "executor_name",
+        "assessor_account_id": {
+          "name": "assessor_account_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "executor_type": {
-          "name": "executor_type",
+        "context_id": {
+          "name": "context_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "executor_version": {
-          "name": "executor_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "external_session_id": {
-          "name": "external_session_id",
+        "context_kind": {
+          "name": "context_kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "handoff_id": {
-          "name": "handoff_id",
+        "decision": {
+          "name": "decision",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "handoff_package_version": {
-          "name": "handoff_package_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "id": {
           "name": "id",
@@ -9029,77 +8912,22 @@
           "primaryKey": true,
           "notNull": true
         },
-        "ingress": {
-          "name": "ingress",
+        "known_limits": {
+          "name": "known_limits",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "project_id": {
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "raw_report": {
-          "name": "raw_report",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reported_at": {
-          "name": "reported_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reported_at_text": {
-          "name": "reported_at_text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reporter_id": {
-          "name": "reporter_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reporter_kind": {
-          "name": "reporter_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "review_state": {
-          "name": "review_state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'Unreviewed'"
-        },
-        "schema_version": {
-          "name": "schema_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "summary": {
-          "name": "summary",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "project_test_session_project_idx": {
-          "name": "project_test_session_project_idx",
+        "project_test_assessment_project_idx": {
+          "name": "project_test_assessment_project_idx",
           "columns": [
             {
               "expression": "project_id",
@@ -9108,7 +8936,28 @@
               "nulls": "last"
             },
             {
-              "expression": "accepted_at",
+              "expression": "assessed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "project_test_assessment_context_idx": {
+          "name": "project_test_assessment_context_idx",
+          "columns": [
+            {
+              "expression": "context_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "context_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9121,9 +8970,9 @@
         }
       },
       "foreignKeys": {
-        "project_test_session_project_id_project_id_fk": {
-          "name": "project_test_session_project_id_project_id_fk",
-          "tableFrom": "project_test_session",
+        "project_test_assessment_project_id_project_id_fk": {
+          "name": "project_test_assessment_project_id_project_id_fk",
+          "tableFrom": "project_test_assessment",
           "tableTo": "project",
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
@@ -9135,21 +8984,70 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "project_test_session_ingress_check": {
-          "name": "project_test_session_ingress_check",
-          "value": "\"project_test_session\".\"ingress\" in ('Application', 'File import', 'MCP')"
+        "project_test_assessment_context_kind_check": {
+          "name": "project_test_assessment_context_kind_check",
+          "value": "\"project_test_assessment\".\"context_kind\" in ('Feature', 'Handoff', 'Project Release')"
         },
-        "project_test_session_executor_type_check": {
-          "name": "project_test_session_executor_type_check",
-          "value": "\"project_test_session\".\"executor_type\" in ('user', 'ai_agent', 'external_tool')"
+        "project_test_assessment_decision_check": {
+          "name": "project_test_assessment_decision_check",
+          "value": "\"project_test_assessment\".\"decision\" in ('Acceptable', 'Follow-up needed', 'Undecided')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.project_test_assessment_source": {
+      "name": "project_test_assessment_source",
+      "schema": "",
+      "columns": {
+        "assessment_id": {
+          "name": "assessment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
-        "project_test_session_reporter_kind_check": {
-          "name": "project_test_session_reporter_kind_check",
-          "value": "\"project_test_session\".\"reporter_kind\" in ('user', 'integration')"
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         },
-        "project_test_session_handoff_check": {
-          "name": "project_test_session_handoff_check",
-          "value": "(\"project_test_session\".\"handoff_id\" is null) = (\"project_test_session\".\"handoff_package_version\" is null)"
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_kind": {
+          "name": "source_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_test_assessment_source_assessment_id_project_test_assessment_id_fk": {
+          "name": "project_test_assessment_source_assessment_id_project_test_assessment_id_fk",
+          "tableFrom": "project_test_assessment_source",
+          "tableTo": "project_test_assessment",
+          "columnsFrom": ["assessment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "project_test_assessment_source_pk": {
+          "name": "project_test_assessment_source_pk",
+          "columns": ["assessment_id", "source_kind", "source_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "project_test_assessment_source_kind_check": {
+          "name": "project_test_assessment_source_kind_check",
+          "value": "\"project_test_assessment_source\".\"source_kind\" in ('Test Session', 'Test Gap', 'Follow-up Work')"
         }
       },
       "isRLSEnabled": false
