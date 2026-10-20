@@ -1291,6 +1291,21 @@ _Avoid_: en güncel senaryoya bağlama, bağı yeni sürüme taşıma, geriye d�
 UI: `Test Handoff`.
 _Avoid_: Dış yürütme devri, Test Oturumu, ajan çalıştırması
 
+**Test Handoff durumu**:
+Bir Test Handoff'unun yalnız kurucunun ilerlettiği süreç aşaması: `Draft`, `Ready to share`, `Shared`, `Result received`, `Closed` veya `Canceled`; testin sonucunu, geçip kalmayı ya da doğrulamayı anlatmaz. `Closed` ve `Canceled` son durumdur; `Canceled` yalnız bu kaydı değiştirir, dış aracı durdurmaz.
+UI: `Draft`, `Ready to share`, `Shared`, `Result received`, `Closed`, `Canceled`, `Mark as …`.
+_Avoid_: test sonucu, Geçti/Kaldı durumu, Dış yürütme devri durumu, uzaktan iptal
+
+**Sonuç alındı önerisi**:
+Paylaşılmış bir Test Handoff'una bağlı Oturum Testi geldiğinde ürünün gösterdiği, kurucunun açıkça kabul etmesi gereken `Result received` önerisi; durumu değiştirmez ve Handoff'u kapatmaz. İptal edilmiş Handoff'a geç gelen sonuç yalnız `Result arrived after cancel` notu üretir, Handoff yeniden açılmaz.
+UI: `Mark as Result received`.
+_Avoid_: otomatik kapanış, otomatik durum geçişi, sonuç geldi diye kapatma
+
+**Test Handoff teknik bağlamı**:
+Kurucunun Handoff'a elle yazdığı repository, branch, commit, build ve hedef ortam adı ya da güvenli URL alanları (`product_build_context`); ürün bunları GitHub'dan veya CI'dan okumaz, kimlik bilgisi, sorgu ya da fragment taşıyan URL'yi reddeder.
+UI: `Technical context`, `Repository`, `Branch`, `Commit`, `Build`, `Target environment`.
+_Avoid_: GitHub'dan çekilen bağlam, CI durumu, ilişki hedefi
+
 **Test Handoff dışa aktarması**:
 Bir Test Handoff'undan kullanıcının seçtiği kesin kapsamla üretilen, aynı `handoff_package_version` ve açık `schema_version` değerlerini taşıyan tarihsel Markdown ve JSON kopyaları; kendini yenilemez, secret taşımaz ve test başlatmaz.
 UI: `Markdown package`, `JSON package`.
