@@ -939,6 +939,13 @@
       "when": 1792482859398,
       "tag": "0133_nostalgic_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1792483843656,
+      "tag": "0134_heavy_the_hunter",
+      "breakpoints": true
     }
   ]
 }

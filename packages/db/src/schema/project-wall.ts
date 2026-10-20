@@ -4,7 +4,9 @@ import {
   check,
   doublePrecision,
   index,
+  integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -78,6 +80,9 @@ export const projectWallItem = pgTable(
   "project_wall_item",
   {
     density: text("density").default("Preview").notNull(),
+    // Selected Diagram View of a `Technical Diagram` card; null for the default
+    // view and for every other source type. Wall view state, never a copy.
+    diagramViewId: text("diagram_view_id"),
     // Wall-only membership; deleting a group keeps its cards.
     groupId: text("group_id").references(() => projectWallGroup.id, {
       onDelete: "set null",
@@ -106,7 +111,7 @@ export const projectWallItem = pgTable(
     index("project_wall_item_group_idx").on(table.groupId),
     check(
       "project_wall_item_source_type_check",
-      sql`${table.sourceType} in ('Work', 'Decision', 'Risk')`,
+      sql`${table.sourceType} in ('Work', 'Decision', 'Risk', 'Technical Diagram', 'Smart Collection')`,
     ),
     check(
       "project_wall_item_density_check",
@@ -151,6 +156,38 @@ export const projectWallLink = pgTable(
     check(
       "project_wall_link_distinct_check",
       sql`${table.fromItemId} <> ${table.toItemId}`,
+    ),
+  ],
+);
+
+/**
+ * Optional `Focus order` of `Presentation Mode`: wall view metadata that only
+ * lists existing cards of this wall in a sequence. It owns no content, so there
+ * is no second presentation document or content copy.
+ */
+export const projectWallFocusStep = pgTable(
+  "project_wall_focus_step",
+  {
+    itemId: text("item_id")
+      .notNull()
+      .references(() => projectWallItem.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    wallId: text("wall_id")
+      .notNull()
+      .references(() => projectWall.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.wallId, table.itemId],
+      name: "project_wall_focus_step_pk",
+    }),
+    uniqueIndex("project_wall_focus_step_position_uidx").on(
+      table.wallId,
+      table.position,
+    ),
+    check(
+      "project_wall_focus_step_position_check",
+      sql`${table.position} >= 0`,
     ),
   ],
 );
