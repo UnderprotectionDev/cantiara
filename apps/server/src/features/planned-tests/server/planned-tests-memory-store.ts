@@ -123,8 +123,13 @@ export function createMemoryHarness(entries: CatalogEntry[] = []) {
             state: "broken" as const,
           });
         }
+        const pinnedSectionId = "sectionId" in ref ? ref.sectionId : undefined;
+        const section = pinnedSectionId
+          ? entry.sections?.find(({ id }) => id === pinnedSectionId)
+          : undefined;
         return Promise.resolve({
           label: entry.label,
+          sectionLabel: section?.label ?? null,
           state: "resolved" as const,
         });
       },

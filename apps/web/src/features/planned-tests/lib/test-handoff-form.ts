@@ -53,12 +53,19 @@ export const EMPTY_TEST_HANDOFF_FORM: TestHandoffFormValues = {
 export function describeContextRef(
   ref: TestHandoffContextRef,
   label: string | null,
+  sectionLabel?: string | null,
 ) {
   const name = label ?? ref.targetId;
   if (ref.kind === "Document") {
-    return `Document: ${name}, revision ${ref.documentRevision}${
-      ref.sectionId ? `, section ${ref.sectionId}` : ""
-    }`;
+    let section = "";
+    if (ref.sectionId) {
+      if (sectionLabel === null) {
+        section = ", section no longer exists";
+      } else {
+        section = `, section ${sectionLabel ?? ref.sectionId}`;
+      }
+    }
+    return `Document: ${name}, revision ${ref.documentRevision}${section}`;
   }
   if (ref.kind === "Wireframe") {
     return `Wireframe: ${name}, version ${ref.wireframeVersion}`;
@@ -78,8 +85,8 @@ export function formFromHandoff(
     build: handoff.buildContext.build ?? "",
     commit: handoff.buildContext.commit ?? "",
     contextRefs: handoff.contextRefs.map(
-      ({ brokenReason: _broken, label, ...ref }) => ({
-        label: describeContextRef(ref, label),
+      ({ brokenReason: _broken, label, sectionLabel, ...ref }) => ({
+        label: describeContextRef(ref, label, sectionLabel),
         ref,
       }),
     ),

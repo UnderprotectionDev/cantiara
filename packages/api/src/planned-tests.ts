@@ -794,6 +794,8 @@ export interface TestHandoffSuggestion {
 export type TestHandoffContextRefView = TestHandoffContextRef & {
   brokenReason: BrokenReferenceReason | null;
   label: string | null;
+  /** Document only; `null` when the pinned section no longer exists. */
+  sectionLabel: string | null;
 };
 
 export interface TestHandoffRecord {
@@ -878,6 +880,8 @@ export function toTestHandoffRecord(
         ...ref,
         brokenReason: live?.state === "broken" ? live.reason : null,
         label: live?.state === "resolved" ? live.label : null,
+        sectionLabel:
+          live?.state === "resolved" ? (live.sectionLabel ?? null) : null,
       };
     }),
     createdAt: stored.createdAt,
@@ -999,7 +1003,12 @@ export interface PlannedTestRelationTarget {
 
 /** What a live owner resolver says about a Handoff context record. */
 export type TestHandoffContextLive =
-  | { label: string; state: "resolved" }
+  | {
+      label: string;
+      /** Document only; `null` when the pinned section no longer exists. */
+      sectionLabel: string | null;
+      state: "resolved";
+    }
   | { reason: BrokenReferenceReason; state: "broken" };
 
 export interface TestHandoffContextCandidate {

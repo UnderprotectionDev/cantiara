@@ -558,6 +558,82 @@ test("the form takes ad hoc scope and environment preconditions as the founder's
   );
 });
 
+test("a Document context ref whose section is gone says so while the reference stays exact", () => {
+  mount({
+    handoffs: [
+      handoff({
+        contextRefs: [
+          {
+            brokenReason: null,
+            documentRevision: 3,
+            kind: "Document",
+            label: "Checkout spec",
+            sectionId: "payment",
+            sectionLabel: "Payment",
+            targetId: "d1",
+          },
+          {
+            brokenReason: null,
+            documentRevision: 3,
+            kind: "Document",
+            label: "Checkout spec",
+            sectionId: "setup",
+            sectionLabel: null,
+            targetId: "d1",
+          },
+        ],
+      }),
+    ],
+  });
+
+  const text = document.body.textContent ?? "";
+  expect(text).toContain(
+    "Document: Checkout spec, revision 3, section Payment",
+  );
+  expect(text).toContain(
+    "Document: Checkout spec, revision 3, section no longer exists",
+  );
+});
+
+test("removing one of two identical ad hoc items removes exactly that one", async () => {
+  mount({ handoffs: [] });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  act(() => {
+    button("Add ad hoc item").click();
+  });
+  act(() => {
+    button("Add ad hoc item").click();
+  });
+  for (const field of [
+    "test-handoff-new-adhoc-intent-0",
+    "test-handoff-new-adhoc-intent-1",
+  ]) {
+    setValue(field, "Check tax.");
+  }
+  for (const field of [
+    "test-handoff-new-adhoc-expected-0",
+    "test-handoff-new-adhoc-expected-1",
+  ]) {
+    setValue(field, "Tax is shown.");
+  }
+  act(() => {
+    button("Remove ad hoc item 1").click();
+  });
+
+  expect(control("test-handoff-new-adhoc-intent-0").value).toBe("Check tax.");
+  expect(control("test-handoff-new-adhoc-expected-0").value).toBe(
+    "Tax is shown.",
+  );
+  expect(document.body.textContent).toContain("Remove ad hoc item 1");
+  expect(document.body.textContent).not.toContain("Remove ad hoc item 2");
+  expect(document.getElementById("test-handoff-new-adhoc-intent-1")).toBeNull();
+  expect(
+    document.getElementById("test-handoff-new-adhoc-expected-1"),
+  ).toBeNull();
+});
+
 test("adds an exact Document revision and a Wireframe version as package context", async () => {
   const onCreate = vi.fn().mockResolvedValue(undefined);
   const candidates: Record<string, unknown[]> = {

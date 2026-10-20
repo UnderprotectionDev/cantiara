@@ -160,6 +160,58 @@ describe("Test Handoff carries the requested external test work", () => {
     ).toHaveLength(1);
   });
 
+  test("a Document section deleted after the selection reads as gone while the reference stays exact", async () => {
+    const harness = await setup();
+    harness.catalog.set("Document:doc-1", {
+      documentRevision: 2,
+      label: "Checkout spec",
+      projectId,
+      sections: [{ id: "s1", label: "Payment" }],
+      targetId: "doc-1",
+      targetType: "Document",
+    });
+    await openHandoff(harness, {
+      contextRefs: [
+        {
+          documentRevision: 2,
+          kind: "Document",
+          sectionId: "s1",
+          targetId: "doc-1",
+        },
+      ],
+    });
+
+    const [pinned] = (await harness.plannedTests.handoffs(accountId, projectId))
+      .handoffs;
+    expect(pinned?.contextRefs[0]).toEqual({
+      documentRevision: 2,
+      kind: "Document",
+      sectionId: "s1",
+      targetId: "doc-1",
+      brokenReason: null,
+      label: "Checkout spec",
+      sectionLabel: "Payment",
+    });
+
+    // The founder deletes the section, not the document.
+    const entry = harness.catalog.get("Document:doc-1");
+    if (entry) {
+      entry.sections = [];
+    }
+    const [stillThere] = (
+      await harness.plannedTests.handoffs(accountId, projectId)
+    ).handoffs;
+    expect(stillThere?.contextRefs[0]).toEqual({
+      documentRevision: 2,
+      kind: "Document",
+      sectionId: "s1",
+      targetId: "doc-1",
+      brokenReason: null,
+      label: "Checkout spec",
+      sectionLabel: null,
+    });
+  });
+
   test("target executor is free text and optional, due date is optional", async () => {
     const harness = await setup();
     for (const executor of ["Me", "Codex", "Claude Code", "Conductor"]) {

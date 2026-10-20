@@ -429,7 +429,7 @@ function createResolver(
         const hidden = visibility(row);
         return hidden
           ? broken(hidden)
-          : { label: row.title, state: "resolved" };
+          : { label: row.title, sectionLabel: null, state: "resolved" };
       }
       case "Document": {
         const row = await documentRow(executor, projectId, ref.targetId);
@@ -437,9 +437,20 @@ function createResolver(
           return broken("Permanently deleted");
         }
         const hidden = visibility(row);
-        return hidden
-          ? broken(hidden)
-          : { label: row.title, state: "resolved" };
+        if (hidden) {
+          return broken(hidden);
+        }
+        // A pinned section reads against the owner's current state: a section
+        // that no longer exists keeps the record available but reads as gone,
+        // exactly like a case relation's missing section.
+        const section = ref.sectionId
+          ? documentSectionById(row.body, ref.sectionId)
+          : null;
+        return {
+          label: row.title,
+          sectionLabel: section?.heading ?? null,
+          state: "resolved",
+        };
       }
       default: {
         const row = await screenRow(executor, projectId, ref.targetId);
@@ -452,7 +463,7 @@ function createResolver(
         }
         const versions = await wireframeVersions([row.id]);
         return versions.get(row.id)?.includes(ref.wireframeVersion)
-          ? { label: row.title, state: "resolved" }
+          ? { label: row.title, sectionLabel: null, state: "resolved" }
           : broken("Permanently deleted");
       }
     }
@@ -471,10 +482,7 @@ function createResolver(
     if (!row || row.revision !== ref.documentRevision) {
       return null;
     }
-    if (
-      ref.sectionId !== null &&
-      !documentSectionById(row.body, ref.sectionId)
-    ) {
+    if (ref.sectionId !== null && live.sectionLabel === null) {
       return null;
     }
     return live.label;

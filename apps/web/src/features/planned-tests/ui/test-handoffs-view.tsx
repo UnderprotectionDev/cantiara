@@ -699,8 +699,11 @@ function HandoffItem({
         <div className="space-y-1 text-sm">
           <p className="font-medium">Ad hoc scope</p>
           <ul aria-label={`Ad hoc scope of ${handoff.title}`}>
-            {handoff.adHocScope.map((item) => (
-              <li key={`${item.intent}:${item.expectedBehavior}`}>
+            {handoff.adHocScope.map((item, index) => (
+              <li
+                // biome-ignore lint/suspicious/noArrayIndexKey: Ad hoc items have no identity and are stored and removed by position.
+                key={index}
+              >
                 {`${item.intent} Expected: ${item.expectedBehavior}`}
               </li>
             ))}
@@ -713,7 +716,7 @@ function HandoffItem({
           <ul aria-label={`Package context of ${handoff.title}`}>
             {handoff.contextRefs.map((ref) => (
               <li key={JSON.stringify(ref)}>
-                {describeContextRef(ref, ref.label)}
+                {describeContextRef(ref, ref.label, ref.sectionLabel)}
                 {ref.brokenReason
                   ? ` (${ref.brokenReason}: it cannot enter the package until you remove it)`
                   : ""}

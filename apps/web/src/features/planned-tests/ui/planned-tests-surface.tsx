@@ -115,6 +115,9 @@ export default function PlannedTestsSurface({
         }}
         readOnly={cases.data.readOnly}
       />
+      {handoffs.isPending || sessionTests.isPending ? (
+        <p role="status">Loading Test Handoffs…</p>
+      ) : null}
       {handoffs.data && sessionTests.data ? (
         <TestHandoffsView
           cases={cases.data.cases}
@@ -194,6 +197,24 @@ export default function PlannedTestsSurface({
           sessionTests={sessionTests.data.sessionTests}
         />
       ) : null}
+      {handoffs.isPending ||
+      sessionTests.isPending ||
+      (handoffs.data && sessionTests.data) ? null : (
+        <div className="space-y-3">
+          <p role="alert">Test Handoffs are unavailable.</p>
+          <Button
+            onClick={() => {
+              handoffs.refetch().catch(() => undefined);
+              sessionTests.refetch().catch(() => undefined);
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+      {sessionTests.isPending ? (
+        <p role="status">Loading Session Tests…</p>
+      ) : null}
       {sessionTests.data ? (
         <SessionTestsView
           cases={cases.data.cases}
@@ -229,6 +250,14 @@ export default function PlannedTestsSurface({
           sessionTests={sessionTests.data.sessionTests}
         />
       ) : null}
+      {sessionTests.isPending || sessionTests.data ? null : (
+        <div className="space-y-3">
+          <p role="alert">Session Tests are unavailable.</p>
+          <Button onClick={() => sessionTests.refetch().catch(() => undefined)}>
+            Retry
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

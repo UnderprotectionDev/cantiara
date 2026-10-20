@@ -1158,6 +1158,46 @@ describeDatabase("Planned Tests PostgreSQL integration", () => {
     ).toHaveLength(1);
   });
 
+  test("a Document context ref whose section is deleted reads as gone but stays exact", async () => {
+    const db = requireDatabase();
+    const access = createDatabasePlannedTests(db);
+    const created = await access.create(accountId, newCase());
+    const handoff = await access.createHandoff(accountId, {
+      contextRefs: [
+        {
+          documentRevision: 3,
+          kind: "Document",
+          sectionId: "payment",
+          targetId: ids.document,
+        },
+      ],
+      projectId,
+      purpose: "p",
+      scenarios: [{ caseId: created.id, version: 1 }],
+      title: "Section ref",
+    });
+    expect(handoff.contextRefs[0]).toMatchObject({
+      brokenReason: null,
+      label: "Checkout spec",
+      sectionLabel: "Payment",
+    });
+
+    // The founder deletes the Payment section; the document stays.
+    await db
+      .update(document)
+      .set({ body: "# Checkout {#checkout}\n\nCard flow.\n" })
+      .where(eq(document.id, ids.document));
+    const [reloaded] = (await access.handoffs(accountId, projectId)).handoffs;
+    expect(reloaded?.contextRefs[0]).toEqual(
+      expect.objectContaining({
+        brokenReason: null,
+        label: "Checkout spec",
+        sectionId: "payment",
+        sectionLabel: null,
+      }),
+    );
+  });
+
   test("an archived Project stays readable and refuses writes", async () => {
     const access = createDatabasePlannedTests(requireDatabase());
 
