@@ -1,0 +1,268 @@
+import { z } from "zod";
+import {
+  type BrokenReferenceReason,
+  brokenReferenceReasonSchema,
+} from "./relations";
+
+/**
+ * Test Gaps seam (spec 55).
+ *
+ * A Test Gap (Test Açığı) is a Project master record the founder writes by
+ * hand: a title, a rationale and support relations. This contract names no
+ * coverage, score, severity, result, runner or auto-create concept: the write
+ * surface is `create` (and, in later tickets, the manual bind and close
+ * operations), and every input is `.strict()` so none of those can be smuggled
+ * in. Nothing here is reachable from a failed Session Test, a missing case
+ * relation, an executor note, a spec change, a GitHub check or similarity.
+ */
+
+const identifierSchema = z.string().trim().min(1).max(255);
+
+export const TEST_GAP_LABEL = "Test Gap";
+export const TEST_GAPS_AREA_LABEL = "Tests";
+
+export const TEST_GAP_TEXT_MAX = 10_000;
+export const TEST_GAP_RELATION_MAX = 50;
+
+function requiredText(label: string, max: number) {
+  return z
+    .string()
+    .trim()
+    .min(1, `${label} is required.`)
+    .max(max, `${label} must be ${max} characters or fewer.`);
+}
+
+/**
+ * Support relation families: Feature, Work, spec section (a Document revision
+ * and optional stable section), Risk and Project Release. A relation is
+ * evidence for the founder's judgement; binding one never writes the target's
+ * status, priority or publish fitness.
+ */
+export const TEST_GAP_RELATION_TARGET_TYPES = [
+  "Feature",
+  "Work",
+  "Document",
+  "Risk",
+  "Project Release",
+] as const;
+export const testGapRelationTargetTypeSchema = z.enum(
+  TEST_GAP_RELATION_TARGET_TYPES,
+);
+export type TestGapRelationTargetType = z.infer<
+  typeof testGapRelationTargetTypeSchema
+>;
+
+const plainRelationSchema = z
+  .object({
+    targetId: identifierSchema,
+    targetType: z.enum(["Feature", "Work", "Risk", "Project Release"]),
+  })
+  .strict();
+
+/** A spec section relation names the exact Document revision and, optionally, a stable section. */
+const documentRelationSchema = z
+  .object({
+    documentRevision: z.number().int().nonnegative().safe(),
+    sectionId: identifierSchema.optional(),
+    targetId: identifierSchema,
+    targetType: z.literal("Document"),
+  })
+  .strict();
+
+export const testGapRelationInputSchema = z.union([
+  plainRelationSchema,
+  documentRelationSchema,
+]);
+export type TestGapRelationInput = z.output<typeof testGapRelationInputSchema>;
+
+export const createTestGapInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    rationale: requiredText("Rationale", TEST_GAP_TEXT_MAX),
+    relations: z
+      .array(testGapRelationInputSchema)
+      .max(
+        TEST_GAP_RELATION_MAX,
+        `A ${TEST_GAP_LABEL} has at most ${TEST_GAP_RELATION_MAX} relations.`,
+      )
+      .default([]),
+    title: requiredText("Title", 255),
+  })
+  .strict();
+export type CreateTestGapInput = z.input<typeof createTestGapInputSchema>;
+
+export const testGapProjectInputSchema = z
+  .object({ projectId: identifierSchema })
+  .strict();
+
+export const testGapRelationTargetsInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    targetType: testGapRelationTargetTypeSchema,
+  })
+  .strict();
+export type TestGapRelationTargetsInput = z.input<
+  typeof testGapRelationTargetsInputSchema
+>;
+
+export interface TestGapStoredRelation {
+  documentRevision: number | null;
+  id: string;
+  sectionId: string | null;
+  targetId: string;
+  targetType: TestGapRelationTargetType;
+}
+
+export interface TestGapStoredRecord {
+  createdAt: string;
+  id: string;
+  projectId: string;
+  rationale: string;
+  relations: TestGapStoredRelation[];
+  title: string;
+  updatedAt: string;
+}
+
+export interface TestGapRelationView {
+  brokenReason: BrokenReferenceReason | null;
+  documentRevision: number | null;
+  id: string;
+  label: string | null;
+  sectionId: string | null;
+  sectionLabel: string | null;
+  state: "broken" | "resolved";
+  targetId: string;
+  targetType: TestGapRelationTargetType;
+}
+
+export const testGapRelationViewSchema = z
+  .object({
+    brokenReason: brokenReferenceReasonSchema.nullable(),
+    documentRevision: z.number().int().nonnegative().nullable(),
+    id: identifierSchema,
+    label: z.string().nullable(),
+    sectionId: z.string().nullable(),
+    sectionLabel: z.string().nullable(),
+    state: z.enum(["resolved", "broken"]),
+    targetId: identifierSchema,
+    targetType: testGapRelationTargetTypeSchema,
+  })
+  .strict();
+
+export interface TestGapRecord {
+  createdAt: string;
+  id: string;
+  projectId: string;
+  rationale: string;
+  relations: TestGapRelationView[];
+  title: string;
+  updatedAt: string;
+}
+
+export interface TestGapList {
+  gaps: TestGapRecord[];
+  readOnly: boolean;
+}
+
+export interface TestGapRelationTarget {
+  /** Current revision; present for a Document, which relates by exact revision. */
+  documentRevision: number | null;
+  label: string;
+  /** Stable sections of the current revision; present for a Document. */
+  sections: { id: string; label: string }[];
+  targetId: string;
+  targetType: TestGapRelationTargetType;
+}
+
+export type TestGapTargetLive =
+  | { label: string; sectionLabel: string | null; state: "resolved" }
+  | { reason: BrokenReferenceReason; state: "broken" };
+
+/**
+ * Live resolvers of the support families' owner records, scoped to one account
+ * and Project. `bind` returns `null` for anything that is not an existing,
+ * active record of this Project, so a title-only or placeholder relation can
+ * never be saved. `read` reports an existing relation against the owner's
+ * current state and names a gone target as broken, never as another record.
+ */
+export interface TestGapTargetResolver {
+  bind: (
+    relation: TestGapRelationInput,
+  ) => Promise<{ label: string; sectionLabel: string | null } | null>;
+  candidates: (
+    targetType: TestGapRelationTargetType,
+  ) => Promise<TestGapRelationTarget[]>;
+  read: (relation: TestGapStoredRelation) => Promise<TestGapTargetLive>;
+}
+
+/** One Project-scoped unit of work. */
+export interface TestGapTransaction {
+  insertGap: (record: TestGapStoredRecord) => Promise<void>;
+  listGaps: () => Promise<TestGapStoredRecord[]>;
+  /** True for an archived Project, which stays readable but takes no writes. */
+  readOnly: boolean;
+  resolver: TestGapTargetResolver;
+}
+
+export interface TestGapStore {
+  /** Resolves to `null` when the account does not own the Project. */
+  run: <T>(
+    accountId: string,
+    projectId: string,
+    mode: "read" | "write",
+    work: (transaction: TestGapTransaction) => Promise<T>,
+  ) => Promise<T | null>;
+}
+
+export interface TestGapsAccess {
+  /** Files a Test Gap by hand. The only way a Gap comes to exist. */
+  create: (
+    accountId: string,
+    input: CreateTestGapInput,
+  ) => Promise<TestGapRecord>;
+  list: (accountId: string, projectId: string) => Promise<TestGapList>;
+  /** Selectable support records, by family. */
+  relationTargets: (
+    accountId: string,
+    input: TestGapRelationTargetsInput,
+  ) => Promise<TestGapRelationTarget[]>;
+}
+
+export function testGapRelationKey(
+  relation: Pick<
+    TestGapStoredRelation,
+    "documentRevision" | "sectionId" | "targetId" | "targetType"
+  >,
+) {
+  return JSON.stringify([
+    relation.targetType,
+    relation.targetId,
+    relation.documentRevision,
+    relation.sectionId,
+  ]);
+}
+
+export function testGapRelationInputKey(relation: TestGapRelationInput) {
+  return testGapRelationKey({
+    documentRevision:
+      "documentRevision" in relation ? relation.documentRevision : null,
+    sectionId: "sectionId" in relation ? (relation.sectionId ?? null) : null,
+    targetId: relation.targetId,
+    targetType: relation.targetType,
+  });
+}
+
+/** The first repeated relation, or `null`. Repeats are refused, not merged. */
+export function duplicateTestGapRelation(
+  relations: readonly TestGapRelationInput[],
+) {
+  const seen = new Set<string>();
+  for (const relation of relations) {
+    const key = testGapRelationInputKey(relation);
+    if (seen.has(key)) {
+      return relation;
+    }
+    seen.add(key);
+  }
+  return null;
+}

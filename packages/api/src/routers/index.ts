@@ -505,6 +505,11 @@ import {
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
 import {
+  createTestGapInputSchema,
+  testGapProjectInputSchema,
+  testGapRelationTargetsInputSchema,
+} from "../test-gaps";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -1209,6 +1214,13 @@ function requirePlannedTests(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.plannedTests;
+}
+
+function requireTestGaps(context: Context) {
+  if (!context.testGaps) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testGaps;
 }
 
 function requireSpecChangeReview(context: Context) {
@@ -3190,6 +3202,49 @@ async function runPlannedTestOperation<T>(
       message:
         failure.message ??
         (error instanceof Error ? error.message : "Package refused."),
+    });
+  }
+}
+
+interface TestGapFailure {
+  message: string;
+  status: "BAD_REQUEST" | "NOT_FOUND" | "PRECONDITION_FAILED";
+}
+
+const TEST_GAP_FAILURES: Record<string, TestGapFailure> = {
+  TEST_GAP_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_GAP_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  TEST_GAP_RELATION_TARGET_UNAVAILABLE: {
+    message:
+      "A relation target is not an existing, active record of this Project.",
+    status: "BAD_REQUEST",
+  },
+};
+
+async function runTestGapOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(TEST_GAP_FAILURES, error.code)
+      ? TEST_GAP_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message: failure.message,
     });
   }
 }
@@ -6104,6 +6159,30 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runPlannedTestOperation(() =>
         requirePlannedTests(context).relationTargets(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestGaps: protectedProcedure
+    .input(testGapProjectInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).list(context.session.user.id, input.projectId),
+      ),
+    ),
+  createTestGap: protectedProcedure
+    .input(createTestGapInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).create(context.session.user.id, input),
+      ),
+    ),
+  testGapRelationTargets: protectedProcedure
+    .input(testGapRelationTargetsInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).relationTargets(
           context.session.user.id,
           input,
         ),

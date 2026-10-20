@@ -73,6 +73,7 @@ import type { SpecChangeReviewAccess } from "./spec-change-review";
 import type { SpecChangeReviewMutationContracts } from "./spec-change-review-candidates";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
+import type { TestGapsAccess } from "./test-gaps";
 import type { UserFlowAccess } from "./user-flow";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
@@ -228,6 +229,7 @@ export interface Context {
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
+  testGaps?: TestGapsAccess;
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;

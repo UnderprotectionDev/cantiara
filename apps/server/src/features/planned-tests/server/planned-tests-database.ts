@@ -189,7 +189,7 @@ async function documentRow(
  * Document, the exact revision and section), so a title can never stand in for
  * a record and a missing owner record can never be bound.
  */
-function createResolver(
+export function createResolver(
   executor: Executor,
   projectId: string,
 ): PlannedTestTargetResolver {
