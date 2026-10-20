@@ -10,6 +10,7 @@ import {
   toRelationInputs,
 } from "../lib/planned-test-form";
 import { PlannedTestsView } from "./planned-tests-view";
+import { SessionTestsView } from "./session-tests-view";
 
 function definition(values: CaseFormValues) {
   return {
@@ -34,8 +35,14 @@ export default function PlannedTestsSurface({
     input: { projectId },
   });
   const cases = useQuery(options);
+  const sessionOptions = orpc.projectSessionTests.queryOptions({
+    input: { projectId },
+  });
+  const sessionTests = useQuery(sessionOptions);
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: options.queryKey });
+  const refreshSessionTests = () =>
+    queryClient.invalidateQueries({ queryKey: sessionOptions.queryKey });
   const loadTargets = useCallback(
     (targetType: PlannedTestRelationTargetType) =>
       client.plannedTestRelationTargets({ projectId, targetType }),
@@ -55,31 +62,68 @@ export default function PlannedTestsSurface({
     );
   }
   return (
-    <PlannedTestsView
-      cases={cases.data.cases}
-      loadTargets={loadTargets}
-      onCreate={async (values) => {
-        await runOnlineOnlyWrite(() =>
-          client.createPlannedTestCase({ projectId, ...definition(values) }),
-        );
-        await refresh();
-      }}
-      onCreateVersion={async (record, values) => {
-        try {
+    <div className="space-y-10">
+      <PlannedTestsView
+        cases={cases.data.cases}
+        loadTargets={loadTargets}
+        onCreate={async (values) => {
           await runOnlineOnlyWrite(() =>
-            client.createPlannedTestCaseVersion({
-              caseId: record.id,
-              changeKind: values.changeKind,
-              expectedVersion: record.current.version,
-              projectId,
-              ...definition(values),
-            }),
+            client.createPlannedTestCase({ projectId, ...definition(values) }),
           );
-        } finally {
           await refresh();
-        }
-      }}
-      readOnly={cases.data.readOnly}
-    />
+        }}
+        onCreateVersion={async (record, values) => {
+          try {
+            await runOnlineOnlyWrite(() =>
+              client.createPlannedTestCaseVersion({
+                caseId: record.id,
+                changeKind: values.changeKind,
+                expectedVersion: record.current.version,
+                projectId,
+                ...definition(values),
+              }),
+            );
+          } finally {
+            await refresh();
+          }
+        }}
+        readOnly={cases.data.readOnly}
+      />
+      {sessionTests.data ? (
+        <SessionTestsView
+          cases={cases.data.cases}
+          onLink={async (sessionTestId, ref) => {
+            try {
+              await runOnlineOnlyWrite(() =>
+                client.linkSessionTest({ ...ref, projectId, sessionTestId }),
+              );
+            } finally {
+              await refreshSessionTests();
+            }
+          }}
+          onRecord={async (values) => {
+            await runOnlineOnlyWrite(() =>
+              client.recordSessionTest(
+                values.binding
+                  ? {
+                      binding: values.binding,
+                      projectId,
+                      title: values.title,
+                    }
+                  : {
+                      expectedBehavior: values.expectedBehavior,
+                      projectId,
+                      purpose: values.purpose,
+                      title: values.title,
+                    },
+              ),
+            );
+            await refreshSessionTests();
+          }}
+          readOnly={sessionTests.data.readOnly}
+          sessionTests={sessionTests.data.sessionTests}
+        />
+      ) : null}
+    </div>
   );
 }

@@ -1281,6 +1281,11 @@ Bir Planlı Test Senaryosunun her anlamlı veya yalnız editoryal değişiklikte
 UI: `Version`, `Meaningful change`, `Editorial change`.
 _Avoid_: en güncel sürüm, canlı senaryo, senaryo durumu
 
+**Oturum Testi bağı**:
+Bir Oturum Testinin kesin `scenario_id` + `scenario_version` ile Planlı Test Senaryosu sürümüne tarihsel bağı; sonraki düzenleme, hatta yalnız editoryal olan, bağı taşımaz ve sürüm farkı açıkça görünür (örn. `Bound to v1, current v3`). Ad hoc test sonradan `Linked later` ile bağlanırsa kayıtlı amaç ve beklenen davranış yeniden yazılmaz ve o sürüm uygulanmış sayılmaz (`executedVersion` boş kalır).
+UI: `Bound to v…`, `Linked later`, `Link to Planned Test Case version`.
+_Avoid_: en güncel senaryoya bağlama, bağı yeni sürüme taşıma, geriye dönük doğrulanmış sürüm
+
 **Test Handoff'u**:
 Ürün dışında yapılması istenen test çalışmasının amacını, seçili senaryo sürümlerini ve dönen Test Oturumlarını yöneten Proje ana kaydı; testi yürütmez ve sonuç geldiğinde kendiliğinden kapanmaz.
 UI: `Test Handoff`.
