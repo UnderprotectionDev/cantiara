@@ -18,6 +18,7 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { toMark } from "./spec-change-review-candidates-database";
+import { createDatabaseFollowUpContract } from "./spec-change-review-follow-up-database";
 
 async function ownsReview(
   executor: MutationDatabaseExecutor,
@@ -137,6 +138,8 @@ export function createDatabaseSpecChangeReviewMutationContracts(
   database: Database,
 ): SpecChangeReviewMutationContracts {
   return {
+    followUp: (accountId) =>
+      createDatabaseFollowUpContract(database, accountId),
     mark: (accountId) =>
       createDatabaseMutationContract<SpecChangeReviewMarkValue>(database, {
         target: createMarkTarget(accountId),

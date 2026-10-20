@@ -12,8 +12,15 @@ import {
   type SpecCandidateLink,
   type SpecCandidateRecordResolution,
   type SpecChangeReviewMark,
+  specCandidateKey,
   specCandidateRecordKey,
 } from "@cantiara/api/spec-change-review-candidates";
+import {
+  buildSpecFollowUpPlan,
+  previewSpecChangeReviewFollowUpInputSchema,
+  type SpecChangeReviewFollowUp,
+  specFollowUpPreview,
+} from "@cantiara/api/spec-change-review-follow-up";
 
 export class SpecChangeReviewNotFoundError extends Error {
   readonly code = "SPEC_CHANGE_REVIEW_NOT_FOUND" as const;
@@ -33,6 +40,35 @@ export class SpecChangeReviewProjectNotFoundError extends Error {
   }
 }
 
+export class SpecChangeReviewCandidateUnavailableError extends Error {
+  readonly code = "SPEC_CHANGE_REVIEW_CANDIDATE_UNAVAILABLE" as const;
+
+  constructor(reviewId: string) {
+    super(`Spec Change Review ${reviewId} candidate is unavailable.`);
+    this.name = "SpecChangeReviewCandidateUnavailableError";
+  }
+}
+
+export class SpecChangeReviewFollowUpExistsError extends Error {
+  readonly code = "SPEC_CHANGE_REVIEW_FOLLOW_UP_EXISTS" as const;
+
+  constructor(reviewId: string) {
+    super(
+      `Spec Change Review ${reviewId} candidate already has follow-up Work.`,
+    );
+    this.name = "SpecChangeReviewFollowUpExistsError";
+  }
+}
+
+export class SpecChangeReviewFollowUpStaleError extends Error {
+  readonly code = "SPEC_CHANGE_REVIEW_FOLLOW_UP_STALE" as const;
+
+  constructor(reviewId: string) {
+    super(`The follow-up preview of Spec Change Review ${reviewId} is stale.`);
+    this.name = "SpecChangeReviewFollowUpStaleError";
+  }
+}
+
 export class SpecChangeReviewVersionUnavailableError extends Error {
   readonly code = "SPEC_CHANGE_REVIEW_VERSION_UNAVAILABLE" as const;
 
@@ -48,6 +84,11 @@ export interface SpecChangeReviewStore {
     accountId: string,
     reviewId: string,
   ) => Promise<SpecChangeReviewSummary | null>;
+  /** The follow-up Work links of one review, with the live Work key and title. */
+  followUps: (
+    accountId: string,
+    reviewId: string,
+  ) => Promise<SpecChangeReviewFollowUp[]>;
   /** Newest first; `null` when the Project is not the account's. */
   list: (
     accountId: string,
@@ -85,7 +126,7 @@ export function createSpecChangeReview(
   store: SpecChangeReviewStore,
   documents: Pick<DocumentsAccess, "getVersion">,
 ): SpecChangeReviewAccess {
-  return {
+  const access: SpecChangeReviewAccess = {
     async get(accountId, rawInput) {
       const input = specChangeReviewInputSchema.parse(rawInput);
       const review = await store.find(accountId, input.reviewId);
@@ -119,7 +160,7 @@ export function createSpecChangeReview(
         next: { body: next.body, revision: next.revision },
         previous: { body: previous.body, revision: previous.revision },
       });
-      const [resolutions, marks] = await Promise.all([
+      const [resolutions, marks, followUps] = await Promise.all([
         store.resolveRecords(accountId, [
           ...new Map(
             drafts.map(({ identity }) => [
@@ -132,11 +173,13 @@ export function createSpecChangeReview(
           ).values(),
         ]),
         store.marks(accountId, review.id),
+        store.followUps(accountId, review.id),
       ]);
       return {
         candidates: composeSpecCandidates({
           drafts,
           establishedAt: review.createdAt,
+          followUps,
           marks,
           nextRevision: review.nextRevision,
           previousRevision: review.previousRevision,
@@ -156,6 +199,28 @@ export function createSpecChangeReview(
         review,
       };
     },
+    async previewFollowUp(accountId, rawInput) {
+      const input = previewSpecChangeReviewFollowUpInputSchema.parse(rawInput);
+      const detail = await access.get(accountId, { reviewId: input.reviewId });
+      const candidate = detail.candidates.find(
+        ({ key }) => key === specCandidateKey(input.candidate),
+      );
+      // A broken candidate leaks no title and cannot be followed up.
+      if (!candidate || candidate.record.broken) {
+        throw new SpecChangeReviewCandidateUnavailableError(input.reviewId);
+      }
+      if (candidate.followUp) {
+        throw new SpecChangeReviewFollowUpExistsError(input.reviewId);
+      }
+      return specFollowUpPreview(
+        buildSpecFollowUpPlan({
+          candidate,
+          review: detail.review,
+          title: input.title,
+          workType: input.workType,
+        }),
+      );
+    },
     async list(accountId, rawProjectId) {
       const { projectId } = specChangeReviewProjectInputSchema.parse({
         projectId: rawProjectId,
@@ -167,4 +232,5 @@ export function createSpecChangeReview(
       return reviews;
     },
   };
+  return access;
 }

@@ -2,6 +2,10 @@ import { diffLines } from "diff";
 import { z } from "zod";
 import { type DocumentSection, documentSections } from "./documents";
 import type { SpecChangeReviewCandidate } from "./spec-change-review-candidates";
+import type {
+  PreviewSpecChangeReviewFollowUpInput,
+  SpecChangeReviewFollowUpPreview,
+} from "./spec-change-review-follow-up";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -39,6 +43,7 @@ export interface SpecChangeReviewSummary extends SpecChangeReviewRecord {
   documentTitle: string;
   featureKey: string;
   featureTitle: string;
+  projectName: string;
 }
 
 export type SpecDiffLineKind = "added" | "removed" | "unchanged" | "omitted";
@@ -95,6 +100,14 @@ export interface SpecChangeReviewAccess {
     accountId: string,
     projectId: string,
   ) => Promise<SpecChangeReviewSummary[]>;
+  /**
+   * Read-only `Create Follow-up Work` preview of one candidate. Nothing exists
+   * until the confirm command; an inaccessible candidate has no preview.
+   */
+  previewFollowUp: (
+    accountId: string,
+    input: PreviewSpecChangeReviewFollowUpInput,
+  ) => Promise<SpecChangeReviewFollowUpPreview>;
 }
 
 const CONTEXT_LINES = 2;

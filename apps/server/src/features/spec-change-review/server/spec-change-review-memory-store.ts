@@ -19,6 +19,13 @@ import {
   specCandidateRecordKey,
   specChangeReviewMarkPayloadSchema,
 } from "@cantiara/api/spec-change-review-candidates";
+import {
+  type SpecChangeReviewFollowUp,
+  type SpecChangeReviewFollowUpPlan,
+  type SpecChangeReviewFollowUpValue,
+  specChangeReviewFollowUpPayloadSchema,
+  specFollowUpOrigin,
+} from "@cantiara/api/spec-change-review-follow-up";
 
 import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import {
@@ -29,6 +36,19 @@ import {
 export interface MemoryFeatureWork extends PrimarySpecBinding {
   key: string;
   title: string;
+}
+
+/** A Work the follow-up created, as the Work lifecycle would hold it. */
+export interface MemoryCreatedWork {
+  description: string;
+  id: string;
+  key: string;
+  origin: ReturnType<typeof specFollowUpOrigin>;
+  plan: SpecChangeReviewFollowUpPlan;
+  projectId: string;
+  status: string;
+  title: string;
+  type: string;
 }
 
 export interface MemorySpecDocument {
@@ -54,9 +74,23 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
     string,
     MutationReceipt<SpecChangeReviewMarkValue>
   >();
+  const followUps = new Map<string, SpecChangeReviewFollowUp>();
+  const followUpReceipts = new Map<
+    string,
+    MutationReceipt<SpecChangeReviewFollowUpValue>
+  >();
+  const createdWorks: MemoryCreatedWork[] = [];
   let sequence = 0;
 
   const store: SpecChangeReviewStore = {
+    followUps: (account, reviewId) =>
+      Promise.resolve(
+        account === accountId
+          ? [...followUps.values()].filter(
+              (followUp) => followUp.reviewId === reviewId,
+            )
+          : [],
+      ),
     marks: (account, reviewId) =>
       Promise.resolve(
         account === accountId
@@ -119,6 +153,87 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
   };
 
   const contracts: SpecChangeReviewMutationContracts = {
+    followUp: (account) => ({
+      mutate: async <TPayload extends MutationPayload>(
+        command: MutationCommand<TPayload>,
+        apply: MutationApply<SpecChangeReviewFollowUpValue, TPayload>,
+      ) => {
+        const payload = specChangeReviewFollowUpPayloadSchema.parse(
+          command.payload,
+        );
+        const review = reviews.find(({ id }) => id === payload.reviewId);
+        if (account !== accountId || !review || command.kind !== "human") {
+          throw Object.assign(new Error("Target record was not found."), {
+            code: "TARGET_NOT_FOUND",
+          });
+        }
+        const replay = followUpReceipts.get(command.clientIdempotencyKey);
+        if (replay) {
+          return replay as MutationReceipt<never>;
+        }
+        const current = followUps.get(command.targetId);
+        const currentRevision = current?.revision ?? 0;
+        const currentValue = { followUp: current ?? null, plan: null };
+        if (command.baseRevision !== currentRevision || current) {
+          throw new MutationStaleBaseRevisionError({
+            id: command.targetId,
+            revision: currentRevision,
+            value: currentValue,
+          });
+        }
+        const committedAt = new Date().toISOString();
+        const applied = await apply({
+          committedAt,
+          currentRevision,
+          currentValue,
+          payload: command.payload,
+        });
+        if (!(applied.followUp && applied.plan)) {
+          throw new Error("A follow-up needs its plan.");
+        }
+        const key = `${review.featureKey.split("-")[0]}-${100 + createdWorks.length}`;
+        createdWorks.push({
+          description: applied.plan.work.description,
+          id: payload.workId,
+          key,
+          origin: specFollowUpOrigin(applied.plan),
+          plan: applied.plan,
+          projectId: review.projectId,
+          status: applied.plan.work.startingStatus,
+          title: applied.plan.work.title,
+          type: applied.plan.work.type,
+        });
+        const nextValue = {
+          followUp: { ...applied.followUp, workKey: key },
+          plan: applied.plan,
+        };
+        followUps.set(command.targetId, nextValue.followUp);
+        const receipt = {
+          actor: command.actor,
+          committedAt,
+          id: `follow-up-receipt-${followUpReceipts.size + 1}`,
+          nextValue,
+          origin: {
+            clientIdempotencyKey: command.clientIdempotencyKey,
+            kind: "human" as const,
+          },
+          payloadFingerprint: "0".repeat(64),
+          previousValue: currentValue,
+          revision: currentRevision + 1,
+          targetId: command.targetId,
+        };
+        followUpReceipts.set(command.clientIdempotencyKey, receipt);
+        return receipt as MutationReceipt<never>;
+      },
+      replay: (command) =>
+        Promise.resolve(
+          command.kind === "human"
+            ? ((followUpReceipts.get(
+                command.clientIdempotencyKey,
+              ) as MutationReceipt<never>) ?? null)
+            : null,
+        ),
+    }),
     mark: (account) => ({
       mutate: async <TPayload extends MutationPayload>(
         command: MutationCommand<TPayload>,
@@ -200,6 +315,8 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
       records.set(specCandidateRecordKey({ recordId, recordType }), resolution);
     },
     contracts,
+    createdWorks,
+    marks,
     addDocument(source: MemorySpecDocument) {
       documents.set(source.id, source);
     },
@@ -240,6 +357,7 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
           nextRevision,
           previousRevision: nextRevision - 1,
           projectId: source.projectId,
+          projectName: "Cantiara",
         });
       }
     },

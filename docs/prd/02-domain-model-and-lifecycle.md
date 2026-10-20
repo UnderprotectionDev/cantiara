@@ -1122,6 +1122,8 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Gözden geçirildi (Spec Change Review) | `Reviewed` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; Geri Bildirim `İncelendi` veya İş durumu değildir |
 | Etkilenmedi (Spec Change Review) | `Not affected` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; hedef kaydı yazmaz |
 | Takip işi oluştur (Spec Change Review) | `Create Follow-up Work` | Spec Change Review adayında önizlemeli tek İş oluşturma; inceleme sonucunu kapatmaz |
+| Başlangıç durumu (Spec Change Review takip İşi) | `Starting status` | Takip İşi önizlemesinde yeni İşin açılacağı İş akışı durumu |
+| Değişen spec sürümleri | `Changed spec versions` | Takip İşi önizlemesinde Birincil spec Belgesinin önceki ve yeni sürümü; İş bu sürümlere `Köken konumu` ile bağlanır |
 | Karşılaştır | `Compare` | İki Belge sürümünün gövde farkını gösterme |
 | Geri yükle | `Restore` | Seçilen Belge sürümünü yeni uç olarak yazma; geçmişi silmez |
 | Canlı İş bloğu | `Live Work block` | Belgeye gömülen, kaynak İş kimliğini kopyasız izleyen eyleme açık kart |

@@ -10,6 +10,10 @@ import { useState } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 import type { MarkCandidate } from "./spec-change-review-candidates";
+import type {
+  ConfirmFollowUp,
+  PreviewFollowUp,
+} from "./spec-change-review-follow-up-dialog";
 import { SpecChangeReviewView } from "./spec-change-review-view";
 
 export default function SpecChangeReviewSurface({
@@ -45,6 +49,36 @@ export default function SpecChangeReviewSurface({
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: detailOptions.queryKey }),
   });
+  const previewFollowUp: PreviewFollowUp = (candidate, workType) =>
+    detail.data
+      ? client.previewSpecChangeReviewFollowUp({
+          candidate: candidate.identity,
+          reviewId: detail.data.review.id,
+          workType,
+        })
+      : Promise.reject(new Error("No review is open."));
+  const confirmFollowUp: ConfirmFollowUp = async (
+    candidate,
+    preview,
+    identity,
+  ) => {
+    if (!detail.data) {
+      throw new Error("No review is open.");
+    }
+    try {
+      return await client.createSpecChangeReviewFollowUp({
+        baseRevision: 0,
+        candidate: candidate.identity,
+        clientIdempotencyKey: identity.key,
+        previewFingerprint: preview.fingerprint,
+        reviewId: detail.data.review.id,
+        workId: identity.workId,
+        workType: preview.plan.work.type,
+      });
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: detailOptions.queryKey });
+    }
+  };
   if (queue.isPending) {
     return <p role="status">Loading Spec Change Review…</p>;
   }
@@ -75,11 +109,13 @@ export default function SpecChangeReviewSurface({
       <SpecChangeReviewView
         detail={detail.data}
         markStatus={markStatus}
+        onConfirmFollowUp={confirmFollowUp}
         onMark={(...args) =>
           detail.data
             ? mark.mutate({ args, reviewId: detail.data.review.id })
             : undefined
         }
+        onPreviewFollowUp={previewFollowUp}
         onSelect={setSelectedId}
         reviews={queue.data}
         selectedId={selectedId}

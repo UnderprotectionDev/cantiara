@@ -8,6 +8,11 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useId, useState } from "react";
+import {
+  type ConfirmFollowUp,
+  type PreviewFollowUp,
+  SpecFollowUpDialog,
+} from "./spec-change-review-follow-up-dialog";
 
 export type MarkCandidate = (
   candidate: SpecChangeReviewCandidate,
@@ -35,12 +40,17 @@ function candidateScope(candidate: SpecChangeReviewCandidate) {
 
 function CandidateRow({
   candidate,
+  onConfirmFollowUp,
   onMark,
+  onPreviewFollowUp,
 }: {
   candidate: SpecChangeReviewCandidate;
+  onConfirmFollowUp?: ConfirmFollowUp;
   onMark?: MarkCandidate;
+  onPreviewFollowUp?: PreviewFollowUp;
 }) {
   const [note, setNote] = useState(candidate.review.note ?? "");
+  const [followUpOpen, setFollowUpOpen] = useState(false);
   const noteId = useId();
   const name = candidateName(candidate);
   const saved = candidate.review.state;
@@ -88,6 +98,33 @@ function CandidateRow({
       >
         Save note
       </Button>
+      {candidate.followUp ? (
+        <p>
+          Follow-up Work:{" "}
+          {candidate.followUp.workKey
+            ? `${candidate.followUp.workKey} ${candidate.followUp.workTitle ?? ""}`.trim()
+            : "no longer available"}
+        </p>
+      ) : null}
+      {candidate.followUp || candidate.record.broken ? null : (
+        <Button
+          disabled={!(onPreviewFollowUp && onConfirmFollowUp)}
+          onClick={() => setFollowUpOpen(true)}
+          type="button"
+          variant="outline"
+        >
+          Create Follow-up Work
+        </Button>
+      )}
+      {followUpOpen && onPreviewFollowUp && onConfirmFollowUp ? (
+        <SpecFollowUpDialog
+          candidate={candidate}
+          name={name}
+          onClose={() => setFollowUpOpen(false)}
+          onConfirm={onConfirmFollowUp}
+          onPreview={onPreviewFollowUp}
+        />
+      ) : null}
     </li>
   );
 }
@@ -99,11 +136,15 @@ function CandidateRow({
  */
 export function SpecChangeReviewCandidates({
   candidates,
+  onConfirmFollowUp,
   onMark,
+  onPreviewFollowUp,
   status,
 }: {
   candidates: SpecChangeReviewCandidate[];
+  onConfirmFollowUp?: ConfirmFollowUp;
   onMark?: MarkCandidate;
+  onPreviewFollowUp?: PreviewFollowUp;
   status?: string;
 }) {
   return (
@@ -121,7 +162,9 @@ export function SpecChangeReviewCandidates({
               candidate={candidate}
               // The saved note is part of the key so a refetch resets the draft.
               key={`${candidate.key}|${candidate.review.revision}`}
+              onConfirmFollowUp={onConfirmFollowUp}
               onMark={onMark}
+              onPreviewFollowUp={onPreviewFollowUp}
             />
           ))}
         </ul>

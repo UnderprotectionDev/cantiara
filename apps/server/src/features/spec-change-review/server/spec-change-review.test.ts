@@ -311,6 +311,7 @@ describe("Spec Change Review: what opens the queue", () => {
       "nextRevision",
       "previousRevision",
       "projectId",
+      "projectName",
     ]);
   });
 

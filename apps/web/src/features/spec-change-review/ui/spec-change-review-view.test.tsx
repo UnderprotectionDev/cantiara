@@ -23,6 +23,7 @@ const review: SpecChangeReviewSummary = {
   nextRevision: 2,
   previousRevision: 1,
   projectId: "project-1",
+  projectName: "Cantiara",
 };
 
 const candidate = (
@@ -30,6 +31,7 @@ const candidate = (
 ): SpecChangeReviewCandidate => ({
   changedSection: null,
   documentLevel: true,
+  followUp: null,
   identity: { recordId: "work-2", recordType: "Work", sectionId: null },
   key: "Work|work-2|",
   nextRevision: 2,

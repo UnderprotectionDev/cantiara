@@ -109,3 +109,41 @@ export const specChangeReviewMark = pgTable(
     ),
   ],
 );
+
+/**
+ * The link between one candidate of one exact version pair and the single Work
+ * `Create Follow-up Work` opened for it. The row exists only after a confirmed
+ * preview; it never carries or changes review metadata, so abandoning or
+ * deleting the Work later leaves the review result as it was. `work_id` has no
+ * foreign key on purpose: the Work lifecycle owns the Work and its undo.
+ * `section_id` is `''` for a Document-level candidate.
+ */
+export const specChangeReviewFollowUp = pgTable(
+  "spec_change_review_follow_up",
+  {
+    actorId: text("actor_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    recordId: text("record_id").notNull(),
+    recordType: text("record_type").notNull(),
+    revision: integer("revision").default(1).notNull(),
+    reviewId: text("review_id")
+      .notNull()
+      .references(() => specChangeReview.id, { onDelete: "cascade" }),
+    sectionId: text("section_id").default("").notNull(),
+    workId: text("work_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("spec_change_review_follow_up_candidate_uidx").on(
+      table.reviewId,
+      table.recordType,
+      table.recordId,
+      table.sectionId,
+    ),
+    index("spec_change_review_follow_up_work_idx").on(table.workId),
+    check(
+      "spec_change_review_follow_up_revision_check",
+      sql`${table.revision} >= 1`,
+    ),
+  ],
+);

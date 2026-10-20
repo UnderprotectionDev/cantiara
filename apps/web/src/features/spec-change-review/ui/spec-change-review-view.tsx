@@ -18,6 +18,10 @@ import {
   type MarkCandidate,
   SpecChangeReviewCandidates,
 } from "./spec-change-review-candidates";
+import type {
+  ConfirmFollowUp,
+  PreviewFollowUp,
+} from "./spec-change-review-follow-up-dialog";
 
 function sectionHeading(section: SpecSectionChange) {
   if (section.sectionId === null) {
@@ -71,11 +75,15 @@ function DiffLines({ lines }: { lines: SpecDiffLine[] }) {
 function ReviewDiff({
   detail,
   markStatus,
+  onConfirmFollowUp,
   onMark,
+  onPreviewFollowUp,
 }: {
   detail: SpecChangeReviewDetail;
   markStatus?: string;
+  onConfirmFollowUp?: ConfirmFollowUp;
   onMark?: MarkCandidate;
+  onPreviewFollowUp?: PreviewFollowUp;
 }) {
   const { diff, review } = detail;
   const [current, setCurrent] = useState<number | null>(null);
@@ -142,7 +150,9 @@ function ReviewDiff({
       </ol>
       <SpecChangeReviewCandidates
         candidates={detail.candidates}
+        onConfirmFollowUp={onConfirmFollowUp}
         onMark={onMark}
+        onPreviewFollowUp={onPreviewFollowUp}
         status={markStatus}
       />
     </div>
@@ -152,7 +162,9 @@ function ReviewDiff({
 export interface SpecChangeReviewViewProps {
   detail?: SpecChangeReviewDetail;
   markStatus?: string;
+  onConfirmFollowUp?: ConfirmFollowUp;
   onMark?: MarkCandidate;
+  onPreviewFollowUp?: PreviewFollowUp;
   onSelect: (reviewId: string) => void;
   reviews: SpecChangeReviewSummary[];
   selectedId?: string;
@@ -162,7 +174,9 @@ export interface SpecChangeReviewViewProps {
 export function SpecChangeReviewView({
   detail,
   markStatus,
+  onConfirmFollowUp,
   onMark,
+  onPreviewFollowUp,
   onSelect,
   reviews,
   selectedId,
@@ -198,7 +212,9 @@ export function SpecChangeReviewView({
           detail={detail}
           key={detail.review.id}
           markStatus={markStatus}
+          onConfirmFollowUp={onConfirmFollowUp}
           onMark={onMark}
+          onPreviewFollowUp={onPreviewFollowUp}
         />
       ) : null}
     </section>

@@ -13,6 +13,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import type { SpecChangeReviewStore } from "./spec-change-review";
 import {
+  readFollowUps,
   readMarks,
   resolveCandidateRecords,
 } from "./spec-change-review-candidates-database";
@@ -77,6 +78,7 @@ function toSummary(row: {
   documentTitle: string;
   featureKey: string;
   featureTitle: string;
+  projectName: string;
 }): SpecChangeReviewSummary {
   return {
     createdAt: row.review.createdAt.toISOString(),
@@ -89,6 +91,7 @@ function toSummary(row: {
     nextRevision: row.review.nextRevision,
     previousRevision: row.review.previousRevision,
     projectId: row.review.projectId,
+    projectName: row.projectName,
   };
 }
 
@@ -101,6 +104,7 @@ export function createDatabaseSpecChangeReviewStore(
         documentTitle: document.title,
         featureKey: work.key,
         featureTitle: work.title,
+        projectName: project.name,
         review: specChangeReview,
       })
       .from(specChangeReview)
@@ -110,6 +114,8 @@ export function createDatabaseSpecChangeReviewStore(
       .innerJoin(work, eq(specChangeReview.featureId, work.id));
 
   return {
+    followUps: (accountId, reviewId) =>
+      readFollowUps(database, accountId, reviewId),
     marks: (accountId, reviewId) => readMarks(database, accountId, reviewId),
     recordedLinks: (accountId, review) =>
       readRecordedLinks(database, accountId, review),

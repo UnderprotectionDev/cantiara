@@ -10,6 +10,10 @@ import type {
   SpecSectionChangeKind,
   SpecVersionDiff,
 } from "./spec-change-review";
+import type {
+  SpecChangeReviewFollowUp,
+  SpecChangeReviewFollowUpContract,
+} from "./spec-change-review-follow-up";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -142,6 +146,8 @@ export interface SpecChangeReviewCandidate {
   changedSection: SpecCandidateChangedSection | null;
   /** `Document-level candidate`: no exact section bind; never tied to a span. */
   documentLevel: boolean;
+  /** The Work this candidate already opened, if any; the review result is unchanged by it. */
+  followUp: SpecChangeReviewFollowUp | null;
   identity: SpecCandidateIdentity;
   key: string;
   nextRevision: number;
@@ -317,6 +323,7 @@ export function candidateRecordView(
 export function composeSpecCandidates(input: {
   drafts: readonly SpecCandidateDraft[];
   establishedAt: string;
+  followUps?: readonly SpecChangeReviewFollowUp[];
   marks: readonly SpecChangeReviewMark[];
   nextRevision: number;
   previousRevision: number;
@@ -325,11 +332,18 @@ export function composeSpecCandidates(input: {
   const marks = new Map(
     input.marks.map((mark) => [specCandidateKey(mark.candidate), mark]),
   );
+  const followUps = new Map(
+    (input.followUps ?? []).map((followUp) => [
+      specCandidateKey(followUp.candidate),
+      followUp,
+    ]),
+  );
   return input.drafts.map((draft) => {
     const mark = marks.get(specCandidateKey(draft.identity));
     return {
       changedSection: draft.changedSection,
       documentLevel: draft.identity.sectionId === null,
+      followUp: followUps.get(specCandidateKey(draft.identity)) ?? null,
       identity: draft.identity,
       key: specCandidateKey(draft.identity),
       nextRevision: input.nextRevision,
@@ -395,6 +409,7 @@ export type SpecChangeReviewMarkContract =
   MutationContract<SpecChangeReviewMarkValue>;
 
 export interface SpecChangeReviewMutationContracts {
+  followUp: (accountId: string) => SpecChangeReviewFollowUpContract;
   mark: (accountId: string) => SpecChangeReviewMarkContract;
 }
 

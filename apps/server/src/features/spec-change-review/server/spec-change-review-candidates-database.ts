@@ -4,6 +4,7 @@ import {
   specCandidateRecordKey,
   specReviewStateSchema,
 } from "@cantiara/api/spec-change-review-candidates";
+import type { SpecChangeReviewFollowUp } from "@cantiara/api/spec-change-review-follow-up";
 import type { Database } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -14,6 +15,7 @@ import { project } from "@cantiara/db/schema/project";
 import { risk } from "@cantiara/db/schema/risk";
 import {
   specChangeReview,
+  specChangeReviewFollowUp,
   specChangeReviewMark,
 } from "@cantiara/db/schema/spec-change-review";
 import { technicalDiagram } from "@cantiara/db/schema/technical-diagram";
@@ -274,4 +276,60 @@ export async function readMarks(
       ),
     );
   return rows.map(({ mark }) => toMark(mark));
+}
+
+export function toFollowUp(
+  row: typeof specChangeReviewFollowUp.$inferSelect,
+  live: { key: string; title: string } | null,
+): SpecChangeReviewFollowUp {
+  return {
+    candidate: {
+      recordId: row.recordId,
+      recordType: row.recordType,
+      sectionId: row.sectionId === "" ? null : row.sectionId,
+    },
+    createdAt: row.createdAt.toISOString(),
+    id: row.id,
+    reviewId: row.reviewId,
+    revision: row.revision,
+    workId: row.workId,
+    workKey: live?.key ?? null,
+    workTitle: live?.title ?? null,
+  };
+}
+
+/** Follow-up links of one review with the live key and title of each Work. */
+export async function readFollowUps(
+  database: Database,
+  accountId: string,
+  reviewId: string,
+): Promise<SpecChangeReviewFollowUp[]> {
+  const rows = await database
+    .select({
+      followUp: specChangeReviewFollowUp,
+      workKey: work.key,
+      workTitle: work.title,
+    })
+    .from(specChangeReviewFollowUp)
+    .innerJoin(
+      specChangeReview,
+      eq(specChangeReviewFollowUp.reviewId, specChangeReview.id),
+    )
+    .innerJoin(project, eq(specChangeReview.projectId, project.id))
+    .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+    .leftJoin(work, eq(specChangeReviewFollowUp.workId, work.id))
+    .where(
+      and(
+        eq(specChangeReviewFollowUp.reviewId, reviewId),
+        eq(workspace.ownerAccountId, accountId),
+      ),
+    );
+  return rows.map(({ followUp, workKey, workTitle }) =>
+    toFollowUp(
+      followUp,
+      workKey !== null && workTitle !== null
+        ? { key: workKey, title: workTitle }
+        : null,
+    ),
+  );
 }
