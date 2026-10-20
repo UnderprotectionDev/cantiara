@@ -1,6 +1,7 @@
 import { diffLines } from "diff";
 import { z } from "zod";
 import { type DocumentSection, documentSections } from "./documents";
+import type { SpecChangeReviewCandidate } from "./spec-change-review-candidates";
 
 const identifierSchema = z.string().trim().min(1).max(255);
 
@@ -75,6 +76,8 @@ export interface SpecDiffVersion {
 }
 
 export interface SpecChangeReviewDetail {
+  /** Recorded-link candidates of this exact version pair. */
+  candidates: SpecChangeReviewCandidate[];
   diff: SpecVersionDiff;
   next: { revision: number; title: string; type: string };
   previous: { revision: number; title: string; type: string };

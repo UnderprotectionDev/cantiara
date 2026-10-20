@@ -424,6 +424,14 @@ import {
   specChangeReviewProjectInputSchema,
 } from "../spec-change-review";
 import {
+  markSpecChangeReviewCandidateInputSchema,
+  type SpecChangeReviewMark,
+  type SpecChangeReviewMarkValue,
+  specCandidateKey,
+  specChangeReviewMarkId,
+  specChangeReviewMarkPayloadSchema,
+} from "../spec-change-review-candidates";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -1063,6 +1071,13 @@ function requireSpecChangeReview(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.specChangeReview;
+}
+
+function requireSpecChangeReviewMutationContracts(context: Context) {
+  if (!context.specChangeReviewMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.specChangeReviewMutationContracts;
 }
 
 function requireUserFlow(context: Context) {
@@ -5614,6 +5629,75 @@ export const appRouter = {
         requireSpecChangeReview(context).get(context.session.user.id, input),
       ),
     ),
+  markSpecChangeReviewCandidate: protectedProcedure
+    .input(markSpecChangeReviewCandidateInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = specChangeReviewMarkPayloadSchema.parse({
+        ...payloadInput,
+        note: payloadInput.note === "" ? null : payloadInput.note,
+      });
+      const accountId = context.session.user.id;
+      // Only a candidate of the recorded-link closure of this exact pair can be marked.
+      const detail = await runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).get(accountId, {
+          reviewId: payload.reviewId,
+        }),
+      );
+      if (
+        !detail.candidates.some(
+          ({ key }) => key === specCandidateKey(payload.candidate),
+        )
+      ) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Spec Change Review candidate is unavailable.",
+        });
+      }
+      const targetId = await specChangeReviewMarkId(
+        payload.reviewId,
+        payload.candidate,
+      );
+      const mutation =
+        requireSpecChangeReviewMutationContracts(context).mark(accountId);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId,
+          },
+          ({ committedAt, currentRevision, payload: mutationPayload }) =>
+            ({
+              mark: {
+                candidate: mutationPayload.candidate,
+                id: targetId,
+                note: mutationPayload.note,
+                reviewId: mutationPayload.reviewId,
+                revision: currentRevision + 1,
+                state: mutationPayload.state,
+                updatedAt: committedAt,
+              } satisfies SpecChangeReviewMark,
+            }) satisfies SpecChangeReviewMarkValue,
+        );
+        if (!receipt.nextValue.mark) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.mark;
+      } catch (error) {
+        if (isRecord(error) && error.code === "TARGET_NOT_FOUND") {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            defined: true,
+            message: "Spec Change Review candidate is unavailable.",
+          });
+        }
+        rethrowUsageLinkMutationError(error, targetId);
+      }
+    }),
   contacts: protectedProcedure.handler(({ context }) =>
     runContactOperation(() =>
       requireContacts(context).listContacts(context.session.user.id),

@@ -68,6 +68,7 @@ import type { SourceEvidenceAccess } from "./source-evidence";
 import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
 import type { SpecChangeReviewAccess } from "./spec-change-review";
+import type { SpecChangeReviewMutationContracts } from "./spec-change-review-candidates";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { UserFlowAccess } from "./user-flow";
@@ -219,6 +220,7 @@ export interface Context {
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
   specChangeReview?: SpecChangeReviewAccess;
+  specChangeReviewMutationContracts?: SpecChangeReviewMutationContracts;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;

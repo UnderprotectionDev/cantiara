@@ -6,6 +6,7 @@ import {
   type SpecChangeReviewDetail,
   type SpecChangeReviewSummary,
 } from "@cantiara/api/spec-change-review";
+import type { SpecChangeReviewCandidate } from "@cantiara/api/spec-change-review-candidates";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 
@@ -24,7 +25,30 @@ const review: SpecChangeReviewSummary = {
   projectId: "project-1",
 };
 
+const candidate = (
+  overrides: Partial<SpecChangeReviewCandidate>,
+): SpecChangeReviewCandidate => ({
+  changedSection: null,
+  documentLevel: true,
+  identity: { recordId: "work-2", recordType: "Work", sectionId: null },
+  key: "Work|work-2|",
+  nextRevision: 2,
+  previousRevision: 1,
+  reasons: [{ detail: "Implements", kind: "Explicit relation" }],
+  record: {
+    broken: null,
+    label: "CAN-2",
+    projectId: "project-1",
+    recordId: "work-2",
+    recordType: "Work",
+    title: "Wire the queue",
+  },
+  review: { note: null, revision: 0, state: "Waiting", updatedAt: null },
+  ...overrides,
+});
+
 const detail: SpecChangeReviewDetail = {
+  candidates: [],
   diff: diffSpecVersions(
     { body: "## Goals {#goals}\nShip it.\n", title: "Spec", type: "Spec" },
     { body: "## Goals {#goals}\nShip it well.\n", title: "Spec", type: "Spec" },
@@ -70,4 +94,86 @@ test("the diff walk is keyboard operable and screen-reader labelled", () => {
   expect(html).toContain("Goals (Changed)");
   expect(html).toContain("Removed: ");
   expect(html).toContain("Added: ");
+});
+
+test("each candidate offers exactly the three states, marked one at a time", () => {
+  const html = render({
+    detail: {
+      ...detail,
+      candidates: [
+        candidate({}),
+        candidate({
+          changedSection: {
+            change: "Changed",
+            heading: "Goals",
+            sectionId: "goals",
+          },
+          documentLevel: false,
+          identity: {
+            recordId: "doc-1",
+            recordType: "Document",
+            sectionId: "goals",
+          },
+          key: "Document|doc-1|goals",
+          review: {
+            note: "Wording only.",
+            revision: 1,
+            state: "Not affected",
+            updatedAt: "2026-10-02T09:00:00.000Z",
+          },
+        }),
+      ],
+    },
+    onMark: () => undefined,
+    selectedId: review.id,
+  });
+
+  expect(html).toContain('aria-label="Review candidates"');
+  expect(html).toContain("Document-level candidate");
+  expect(html).toContain("Changed section: Goals (Changed)");
+  expect(html).toContain("Version 1 → Version 2");
+  expect(html).toContain("Why: Explicit relation (Implements)");
+  for (const state of ["Waiting", "Reviewed", "Not affected"]) {
+    expect(html).toContain(`${state}</button>`);
+  }
+  expect(html).toContain('aria-pressed="true"');
+  expect(html).toContain("<fieldset");
+  expect(html).toContain("Review status of CAN-2 Wire the queue");
+  expect(html).toContain("Status: Not affected");
+  expect(html).not.toContain("All affected");
+  expect(html).not.toContain("Mark all");
+});
+
+test("an inaccessible candidate shows the broken reference and no title", () => {
+  const html = render({
+    detail: {
+      ...detail,
+      candidates: [
+        candidate({
+          record: {
+            broken: {
+              canOpenSourceRecord: false,
+              establishedAt: "2026-10-01T09:00:00.000Z",
+              reason: "No access",
+            },
+            label: null,
+            projectId: null,
+            recordId: "work-2",
+            recordType: "Work",
+            title: null,
+          },
+        }),
+      ],
+    },
+    selectedId: review.id,
+  });
+
+  expect(html).toContain("Work unavailable (No access)");
+  expect(html).not.toContain("Wire the queue");
+});
+
+test("explains an empty candidate set", () => {
+  expect(render({ detail, selectedId: review.id })).toContain(
+    "No recorded links point to this Primary spec.",
+  );
 });

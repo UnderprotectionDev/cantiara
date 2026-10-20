@@ -1,9 +1,15 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Retry binds to the queue query.
 import { Button } from "@cantiara/ui/components/button";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
+import type { MarkCandidate } from "./spec-change-review-candidates";
 import { SpecChangeReviewView } from "./spec-change-review-view";
 
 export default function SpecChangeReviewSurface({
@@ -12,14 +18,33 @@ export default function SpecChangeReviewSurface({
   projectId: string;
 }) {
   const [selectedId, setSelectedId] = useState<string>();
+  const queryClient = useQueryClient();
   const queue = useQuery(
     orpc.projectSpecChangeReviews.queryOptions({ input: { projectId } }),
   );
-  const detail = useQuery(
-    orpc.specChangeReview.queryOptions({
-      input: selectedId ? { reviewId: selectedId } : skipToken,
-    }),
-  );
+  const detailOptions = orpc.specChangeReview.queryOptions({
+    input: selectedId ? { reviewId: selectedId } : skipToken,
+  });
+  const detail = useQuery(detailOptions);
+  const mark = useMutation({
+    mutationFn: ({
+      args: [candidate, state, note],
+      reviewId,
+    }: {
+      args: Parameters<MarkCandidate>;
+      reviewId: string;
+    }) =>
+      client.markSpecChangeReviewCandidate({
+        baseRevision: candidate.review.revision,
+        candidate: candidate.identity,
+        clientIdempotencyKey: crypto.randomUUID(),
+        note,
+        reviewId,
+        state,
+      }),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: detailOptions.queryKey }),
+  });
   if (queue.isPending) {
     return <p role="status">Loading Spec Change Review…</p>;
   }
@@ -37,10 +62,24 @@ export default function SpecChangeReviewSurface({
       </div>
     );
   }
+  let markStatus = "";
+  if (mark.isPending) {
+    markStatus = "Saving review status…";
+  } else if (mark.isError) {
+    markStatus = "The review status could not be saved. Reload and try again.";
+  } else if (mark.isSuccess) {
+    markStatus = `Marked ${mark.data.state}.`;
+  }
   return (
     <div className="space-y-3">
       <SpecChangeReviewView
         detail={detail.data}
+        markStatus={markStatus}
+        onMark={(...args) =>
+          detail.data
+            ? mark.mutate({ args, reviewId: detail.data.review.id })
+            : undefined
+        }
         onSelect={setSelectedId}
         reviews={queue.data}
         selectedId={selectedId}

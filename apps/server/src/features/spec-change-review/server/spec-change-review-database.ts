@@ -12,6 +12,11 @@ import { and, desc, eq } from "drizzle-orm";
 
 import type { MutationDatabaseExecutor } from "../../mutation-and-undo/server/mutation-contract-database";
 import type { SpecChangeReviewStore } from "./spec-change-review";
+import {
+  readMarks,
+  resolveCandidateRecords,
+} from "./spec-change-review-candidates-database";
+import { readRecordedLinks } from "./spec-change-review-links-database";
 
 /**
  * Opens a Spec Change Review for every Feature whose `Primary spec` is the
@@ -105,6 +110,11 @@ export function createDatabaseSpecChangeReviewStore(
       .innerJoin(work, eq(specChangeReview.featureId, work.id));
 
   return {
+    marks: (accountId, reviewId) => readMarks(database, accountId, reviewId),
+    recordedLinks: (accountId, review) =>
+      readRecordedLinks(database, accountId, review),
+    resolveRecords: (accountId, records) =>
+      resolveCandidateRecords(database, accountId, records),
     async find(accountId, reviewId) {
       const [row] = await reviewRows()
         .where(

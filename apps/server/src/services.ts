@@ -106,6 +106,7 @@ import {
 import { createDatabaseSourcesAndFreshness } from "./features/sources-and-freshness/server/sources-database";
 import { createSpecChangeReview } from "./features/spec-change-review/server/spec-change-review";
 import { createDatabaseSpecChangeReviewStore } from "./features/spec-change-review/server/spec-change-review-database";
+import { createDatabaseSpecChangeReviewMutationContracts } from "./features/spec-change-review/server/spec-change-review-mark-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -245,6 +246,8 @@ export const specChangeReview = createSpecChangeReview(
   createDatabaseSpecChangeReviewStore(db),
   documents,
 );
+export const specChangeReviewMutationContracts =
+  createDatabaseSpecChangeReviewMutationContracts(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

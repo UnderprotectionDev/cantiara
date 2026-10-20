@@ -6,6 +6,14 @@ import {
   specChangeReviewInputSchema,
   specChangeReviewProjectInputSchema,
 } from "@cantiara/api/spec-change-review";
+import {
+  composeSpecCandidates,
+  deriveSpecCandidates,
+  type SpecCandidateLink,
+  type SpecCandidateRecordResolution,
+  type SpecChangeReviewMark,
+  specCandidateRecordKey,
+} from "@cantiara/api/spec-change-review-candidates";
 
 export class SpecChangeReviewNotFoundError extends Error {
   readonly code = "SPEC_CHANGE_REVIEW_NOT_FOUND" as const;
@@ -45,6 +53,28 @@ export interface SpecChangeReviewStore {
     accountId: string,
     projectId: string,
   ) => Promise<SpecChangeReviewSummary[] | null>;
+  /** The explicit marks of one review; candidates without a row are `Waiting`. */
+  marks: (
+    accountId: string,
+    reviewId: string,
+  ) => Promise<SpecChangeReviewMark[]>;
+  /**
+   * Every recorded link from the review's spec Document to another record
+   * inside the account's Workspace. It reads link tables only; it has no
+   * title, text or embedding input.
+   */
+  recordedLinks: (
+    accountId: string,
+    review: SpecChangeReviewSummary,
+  ) => Promise<SpecCandidateLink[]>;
+  /**
+   * Resolves candidate records for this account. A record that is missing,
+   * another account's or in another Workspace is omitted, never described.
+   */
+  resolveRecords: (
+    accountId: string,
+    records: { recordId: string; recordType: string }[],
+  ) => Promise<Map<string, SpecCandidateRecordResolution>>;
 }
 
 /**
@@ -82,8 +112,37 @@ export function createSpecChangeReview(
           review.nextRevision,
         );
       }
+      const diff = diffSpecVersions(previous, next);
+      const drafts = deriveSpecCandidates({
+        diff,
+        links: await store.recordedLinks(accountId, review),
+        next: { body: next.body, revision: next.revision },
+        previous: { body: previous.body, revision: previous.revision },
+      });
+      const [resolutions, marks] = await Promise.all([
+        store.resolveRecords(accountId, [
+          ...new Map(
+            drafts.map(({ identity }) => [
+              specCandidateRecordKey(identity),
+              {
+                recordId: identity.recordId,
+                recordType: identity.recordType,
+              },
+            ]),
+          ).values(),
+        ]),
+        store.marks(accountId, review.id),
+      ]);
       return {
-        diff: diffSpecVersions(previous, next),
+        candidates: composeSpecCandidates({
+          drafts,
+          establishedAt: review.createdAt,
+          marks,
+          nextRevision: review.nextRevision,
+          previousRevision: review.previousRevision,
+          resolutions,
+        }),
+        diff,
         next: {
           revision: next.revision,
           title: next.title,

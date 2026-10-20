@@ -1,10 +1,26 @@
 import type { DocumentsAccess } from "@cantiara/api/documents";
+import type {
+  MutationApply,
+  MutationCommand,
+  MutationPayload,
+  MutationReceipt,
+} from "@cantiara/api/mutation-and-undo";
 import {
   featuresBoundToPrimarySpec,
   type PrimarySpecBinding,
   type SpecChangeReviewSummary,
 } from "@cantiara/api/spec-change-review";
+import {
+  type SpecCandidateLink,
+  type SpecCandidateRecordResolution,
+  type SpecChangeReviewMark,
+  type SpecChangeReviewMarkValue,
+  type SpecChangeReviewMutationContracts,
+  specCandidateRecordKey,
+  specChangeReviewMarkPayloadSchema,
+} from "@cantiara/api/spec-change-review-candidates";
 
+import { MutationStaleBaseRevisionError } from "../../mutation-and-undo/server/mutation-contract";
 import {
   createSpecChangeReview,
   type SpecChangeReviewStore,
@@ -31,9 +47,38 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
   const works: MemoryFeatureWork[] = [];
   const documents = new Map<string, MemorySpecDocument>();
   const reviews: SpecChangeReviewSummary[] = [];
+  const links = new Map<string, SpecCandidateLink[]>();
+  const records = new Map<string, SpecCandidateRecordResolution>();
+  const marks = new Map<string, SpecChangeReviewMark>();
+  const receipts = new Map<
+    string,
+    MutationReceipt<SpecChangeReviewMarkValue>
+  >();
   let sequence = 0;
 
   const store: SpecChangeReviewStore = {
+    marks: (account, reviewId) =>
+      Promise.resolve(
+        account === accountId
+          ? [...marks.values()].filter((mark) => mark.reviewId === reviewId)
+          : [],
+      ),
+    recordedLinks: (account, review) =>
+      Promise.resolve(
+        account === accountId ? (links.get(review.documentId) ?? []) : [],
+      ),
+    resolveRecords: (account, wanted) =>
+      Promise.resolve(
+        new Map(
+          account === accountId
+            ? wanted.flatMap((record) => {
+                const key = specCandidateRecordKey(record);
+                const resolution = records.get(key);
+                return resolution ? [[key, resolution] as const] : [];
+              })
+            : [],
+        ),
+      ),
     find: (account, reviewId) =>
       Promise.resolve(
         account === accountId
@@ -73,8 +118,88 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
     },
   };
 
+  const contracts: SpecChangeReviewMutationContracts = {
+    mark: (account) => ({
+      mutate: async <TPayload extends MutationPayload>(
+        command: MutationCommand<TPayload>,
+        apply: MutationApply<SpecChangeReviewMarkValue, TPayload>,
+      ) => {
+        const payload = specChangeReviewMarkPayloadSchema.parse(
+          command.payload,
+        );
+        const review = reviews.find(({ id }) => id === payload.reviewId);
+        if (account !== accountId || !review || command.kind !== "human") {
+          throw Object.assign(new Error("Target record was not found."), {
+            code: "TARGET_NOT_FOUND",
+          });
+        }
+        const replay = receipts.get(command.clientIdempotencyKey);
+        if (replay) {
+          return replay as MutationReceipt<never>;
+        }
+        const current = marks.get(command.targetId);
+        const currentRevision = current?.revision ?? 0;
+        const currentValue = { mark: current ?? null };
+        if (command.baseRevision !== currentRevision) {
+          throw new MutationStaleBaseRevisionError({
+            id: command.targetId,
+            revision: currentRevision,
+            value: currentValue,
+          });
+        }
+        const committedAt = new Date().toISOString();
+        const nextValue = await apply({
+          committedAt,
+          currentRevision,
+          currentValue,
+          payload: command.payload,
+        });
+        if (nextValue.mark) {
+          marks.set(command.targetId, nextValue.mark);
+        }
+        const receipt = {
+          actor: command.actor,
+          committedAt,
+          id: `receipt-${receipts.size + 1}`,
+          nextValue,
+          origin: {
+            clientIdempotencyKey: command.clientIdempotencyKey,
+            kind: "human" as const,
+          },
+          payloadFingerprint: "0".repeat(64),
+          previousValue: currentValue,
+          revision: currentRevision + 1,
+          targetId: command.targetId,
+        };
+        receipts.set(command.clientIdempotencyKey, receipt);
+        return receipt as MutationReceipt<never>;
+      },
+      replay: (command) =>
+        Promise.resolve(
+          command.kind === "human"
+            ? ((receipts.get(
+                command.clientIdempotencyKey,
+              ) as MutationReceipt<never>) ?? null)
+            : null,
+        ),
+    }),
+  };
+
   return {
     access: createSpecChangeReview(store, documentAccess),
+    /** Records one recorded link from a spec Document to a candidate record. */
+    addLink(documentId: string, link: SpecCandidateLink) {
+      links.set(documentId, [...(links.get(documentId) ?? []), link]);
+    },
+    /** Makes a record readable by the account; unregistered records are `No access`. */
+    addRecord(
+      recordType: string,
+      recordId: string,
+      resolution: SpecCandidateRecordResolution,
+    ) {
+      records.set(specCandidateRecordKey({ recordId, recordType }), resolution);
+    },
+    contracts,
     addDocument(source: MemorySpecDocument) {
       documents.set(source.id, source);
     },
@@ -82,6 +207,7 @@ export function createMemorySpecChangeReview(accountId = "account-1") {
       works.push(work);
     },
     reviews,
+    works,
     /** Saves a new version of a Document and opens the queue when it applies. */
     saveVersion(
       documentId: string,

@@ -1117,6 +1117,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Belge sürümü | `Version` | Belgenin veritabanındaki uygulama değişikliği; Git commit değildir |
 | Spec değişikliği inceleme kuyruğu | `Spec Change Review` | Özelliğin Birincil spec Belge sürüm çiftinin inceleme kuyruğu; spec gövdesi, Git diff veya dış review aracı değildir |
 | Belge düzeyinde aday | `Document-level candidate` | Kesin bölüm bağı olmayan Spec Change Review adayı; belirli bir metin değişikliğine yorulmaz |
+| Aday nedeni (Spec Change Review) | `Why` | Adayın kayıtlı bağ türü: `Primary spec`, `Stable section reference`, `Inline reference`, `Live content use`, `Version-pinned evidence`, `Explicit relation`; benzerlik veya AI nedeni yoktur |
 | Bekliyor (Spec Change Review) | `Waiting` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; İş akışı durumu veya Geri Bildirim `İncelendi` değildir |
 | Gözden geçirildi (Spec Change Review) | `Reviewed` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; Geri Bildirim `İncelendi` veya İş durumu değildir |
 | Etkilenmedi (Spec Change Review) | `Not affected` | Spec Change Review adayının bu sürüm çiftindeki inceleme üstverisi; hedef kaydı yazmaz |

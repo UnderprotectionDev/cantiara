@@ -14,6 +14,10 @@ import {
   walkIndex,
   walkStatus,
 } from "../lib/diff-walk";
+import {
+  type MarkCandidate,
+  SpecChangeReviewCandidates,
+} from "./spec-change-review-candidates";
 
 function sectionHeading(section: SpecSectionChange) {
   if (section.sectionId === null) {
@@ -64,7 +68,15 @@ function DiffLines({ lines }: { lines: SpecDiffLine[] }) {
   );
 }
 
-function ReviewDiff({ detail }: { detail: SpecChangeReviewDetail }) {
+function ReviewDiff({
+  detail,
+  markStatus,
+  onMark,
+}: {
+  detail: SpecChangeReviewDetail;
+  markStatus?: string;
+  onMark?: MarkCandidate;
+}) {
   const { diff, review } = detail;
   const [current, setCurrent] = useState<number | null>(null);
   const count = diff.sections.length;
@@ -128,12 +140,19 @@ function ReviewDiff({ detail }: { detail: SpecChangeReviewDetail }) {
           </li>
         ))}
       </ol>
+      <SpecChangeReviewCandidates
+        candidates={detail.candidates}
+        onMark={onMark}
+        status={markStatus}
+      />
     </div>
   );
 }
 
 export interface SpecChangeReviewViewProps {
   detail?: SpecChangeReviewDetail;
+  markStatus?: string;
+  onMark?: MarkCandidate;
   onSelect: (reviewId: string) => void;
   reviews: SpecChangeReviewSummary[];
   selectedId?: string;
@@ -142,6 +161,8 @@ export interface SpecChangeReviewViewProps {
 /** The `Spec Change Review` queue: one row per exact Document version pair. */
 export function SpecChangeReviewView({
   detail,
+  markStatus,
+  onMark,
   onSelect,
   reviews,
   selectedId,
@@ -172,7 +193,14 @@ export function SpecChangeReviewView({
           ))}
         </ul>
       )}
-      {detail ? <ReviewDiff detail={detail} key={detail.review.id} /> : null}
+      {detail ? (
+        <ReviewDiff
+          detail={detail}
+          key={detail.review.id}
+          markStatus={markStatus}
+          onMark={onMark}
+        />
+      ) : null}
     </section>
   );
 }
