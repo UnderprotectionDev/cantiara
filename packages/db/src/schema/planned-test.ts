@@ -194,6 +194,7 @@ export const testHandoff = pgTable(
     buildTargetEnvironment: text("build_target_environment"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     dueDate: date("due_date", { mode: "string" }),
+    environmentPreconditions: text("environment_preconditions"),
     id: text("id").primaryKey(),
     packageVersion: integer("package_version").default(0).notNull(),
     projectId: text("project_id")
@@ -283,5 +284,104 @@ export const testHandoffSessionTest = pgTable(
       name: "project_test_handoff_session_test_session_test_fk",
     }).onDelete("cascade"),
     index("project_test_handoff_session_test_handoff_idx").on(table.handoffId),
+  ],
+);
+
+/**
+ * Founder-written ad hoc scope of a Handoff (`ad_hoc_scope[]` in the package).
+ * Plain text rows: no case id, no version and no link to a Planned Test Case,
+ * because the product mints none from this text.
+ */
+export const testHandoffAdHocScope = pgTable(
+  "project_test_handoff_ad_hoc_scope",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expectedBehavior: text("expected_behavior").notNull(),
+    handoffId: text("handoff_id").notNull(),
+    intent: text("intent").notNull(),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.handoffId, table.position],
+      name: "project_test_handoff_ad_hoc_scope_pk",
+    }),
+    foreignKey({
+      columns: [table.handoffId],
+      foreignColumns: [testHandoff.id],
+      name: "project_test_handoff_ad_hoc_scope_handoff_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
+ * Work, Feature, Document and Wireframe records the founder added to a Handoff
+ * as package context. `target_id` is polymorphic with no foreign key (the
+ * owner's live resolver reads it); a Document names its revision and optional
+ * section, a Wireframe names an exact version, so a row never means "latest".
+ */
+export const testHandoffContextRef = pgTable(
+  "project_test_handoff_context_ref",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    documentRevision: integer("document_revision"),
+    handoffId: text("handoff_id").notNull(),
+    kind: text("kind").notNull(),
+    position: integer("position").notNull(),
+    sectionId: text("section_id"),
+    targetId: text("target_id").notNull(),
+    wireframeVersion: integer("wireframe_version"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.handoffId, table.position],
+      name: "project_test_handoff_context_ref_pk",
+    }),
+    foreignKey({
+      columns: [table.handoffId],
+      foreignColumns: [testHandoff.id],
+      name: "project_test_handoff_context_ref_handoff_fk",
+    }).onDelete("cascade"),
+    check(
+      "project_test_handoff_context_ref_kind_check",
+      sql`${table.kind} in ('Work', 'Feature', 'Document', 'Wireframe')`,
+    ),
+    check(
+      "project_test_handoff_context_ref_exact_check",
+      sql`(${table.kind} = 'Document' and ${table.documentRevision} is not null and ${table.documentRevision} >= 0 and ${table.wireframeVersion} is null) or (${table.kind} = 'Wireframe' and ${table.wireframeVersion} is not null and ${table.wireframeVersion} >= 1 and ${table.documentRevision} is null and ${table.sectionId} is null) or (${table.kind} in ('Work', 'Feature') and ${table.documentRevision} is null and ${table.sectionId} is null and ${table.wireframeVersion} is null)`,
+    ),
+  ],
+);
+
+/**
+ * A produced Test Handoff package (ticket 04), stored exactly as handed out:
+ * the JSON and Markdown renderings of one `(handoff_id, package_version)`.
+ * Rows are only inserted; there is no update path, so a later case, spec or
+ * Screen edit cannot change a produced package. `json` is text, not jsonb, so
+ * the delivered bytes survive unchanged.
+ */
+export const testHandoffPackage = pgTable(
+  "project_test_handoff_package",
+  {
+    createdAt: timestamp("created_at").notNull(),
+    handoffId: text("handoff_id").notNull(),
+    json: text("json").notNull(),
+    markdown: text("markdown").notNull(),
+    packageVersion: integer("package_version").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.handoffId, table.packageVersion],
+      name: "project_test_handoff_package_pk",
+    }),
+    foreignKey({
+      columns: [table.handoffId],
+      foreignColumns: [testHandoff.id],
+      name: "project_test_handoff_package_handoff_fk",
+    }).onDelete("cascade"),
+    check(
+      "project_test_handoff_package_version_check",
+      sql`${table.packageVersion} >= 1`,
+    ),
   ],
 );
