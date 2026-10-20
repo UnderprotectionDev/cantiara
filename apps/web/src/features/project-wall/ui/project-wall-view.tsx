@@ -1,5 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Forms close over their own draft fields and the displayed wall.
 import type {
+  ProjectWallSkeleton,
   ProjectWallSourceOption,
   ProjectWallSourceType,
   ProjectWallSummary,
@@ -25,6 +26,7 @@ export interface ProjectWallActions extends ProjectWallNarrativeActions {
     sourceType: ProjectWallSourceType;
   }) => Promise<unknown>;
   onCreate: (title: string) => Promise<unknown>;
+  onCreateFromSkeleton: (skeleton: ProjectWallSkeleton) => Promise<unknown>;
   onDelete: (wallId: string) => Promise<unknown>;
   onRename: (wallId: string, title: string) => Promise<unknown>;
   onSelect: (wallId: string) => void;
@@ -168,12 +170,15 @@ export function ProjectWallLayout({
   canvas,
   options,
   selected,
+  skeletons = [],
   walls,
 }: {
   actions: ProjectWallActions;
   canvas: ReactNode;
   options: ProjectWallSourceOption[];
   selected: ProjectWallView | null;
+  /** Skeletons the Project shell selected; none means no offer. */
+  skeletons?: ProjectWallSkeleton[];
   walls: ProjectWallSummary[];
 }) {
   const placed = new Set(
@@ -185,6 +190,20 @@ export function ProjectWallLayout({
     <section aria-label="Project Wall" className="space-y-4">
       <h2 className="font-semibold text-lg">Project Wall</h2>
       <CreateWallForm onCreate={actions.onCreate} />
+      {skeletons.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {skeletons.map((skeleton) => (
+            <Button
+              key={skeleton}
+              onClick={() => actions.onCreateFromSkeleton(skeleton)}
+              type="button"
+              variant="outline"
+            >
+              Create from {skeleton}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       {walls.length === 0 ? (
         <p>No Project Wall yet.</p>
       ) : (
