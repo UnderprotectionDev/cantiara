@@ -1354,6 +1354,16 @@ Test raporunu ürüne teslim eden doğrulanmış kullanıcı ya da entegrasyon k
 UI: `Reporter`.
 _Avoid_: Yürüten, rapor yükündeki actor alanı
 
+**Bildirilen ham sonuç**:
+Bir Oturum Testinde dış aracın ya da kullanıcının sonucu ifade ettiği, geriye dönük yeniden yazılmayan özgün metin; normalize edilmiş sonuçtan ayrı korunur.
+UI: yok; yalnız saklanır.
+_Avoid_: düzeltilmiş sonuç, temizlenmiş sonuç
+
+**Normalize edilmiş sonuç**:
+Ham sonucun kapalı alias kataloğuyla (`test-report/1`) `Geçti`, `Kaldı`, `Bloke`, `Atlandı`, `Sonuçsuz` veya `Bildirilmedi` değerine eşlenmiş ortak sunumu; katalog dışı ifade `Bildirilmedi` olur, çelişki reddedilir, oturum düzeyinde geçti/kaldı hükmü hesaplanmaz ve `ürün tarafından doğrulandı` anlamına gelmez.
+UI: `Passed`, `Failed`, `Blocked`, `Skipped`, `Inconclusive`, `Not reported`.
+_Avoid_: doğrulanmış sonuç, oturum sonucu, kalite puanı
+
 **Giriş yolu**:
 Test raporunun ürüne geldiği yol: `Uygulama` (manuel form), `Dosya içe aktarma` veya `MCP`; kaydın saklanan bir olgusudur, ayrı kayıt türü ya da kuyruk değildir ve güven ya da önem puanı üretmez.
 UI: `Ingress`.

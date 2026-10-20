@@ -20,6 +20,7 @@ import {
 } from "@cantiara/api/test-report";
 import { testReportFingerprint } from "@cantiara/api/test-report-identity";
 import { parseTestReportFile } from "@cantiara/api/test-report-import";
+import { normalizeReportedResult } from "@cantiara/api/test-report-result";
 
 /** The report as the manual form writes it: the product supplies the envelope fields. */
 function manualEnvelope(
@@ -69,13 +70,28 @@ function rawEnvelope(input: AcceptTestReportInput): unknown {
   }
 }
 
+/** The normalized layer; the raw statement is stored beside it, never rewritten. */
+function normalizedResultOf(
+  test: TestReportV1["tests"][number],
+  position: number,
+) {
+  const result = normalizeReportedResult(
+    test.raw_result,
+    test.normalized_result,
+  );
+  if (result.status === "conflict") {
+    throw rejection("result_conflict", `tests[${position}].normalized_result`);
+  }
+  return result.normalized;
+}
+
 /** The older in-Project Session Test content check needs a purpose; a report states what was tried. */
 function toStoredTests(report: TestReportV1): SessionTestReportStoredRecord[] {
   return report.tests.map((test, position) => ({
     evidence: test.evidence ?? [],
     externalTestId: test.external_test_id,
     id: crypto.randomUUID(),
-    normalizedResult: test.normalized_result ?? "not_reported",
+    normalizedResult: normalizedResultOf(test, position),
     notes: test.notes ?? null,
     position,
     rawResult: test.raw_result ?? null,
