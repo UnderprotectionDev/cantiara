@@ -90,7 +90,9 @@ import {
   createDatabaseTags,
 } from "../src/features/tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "../src/features/technical-diagrams/server/technical-diagrams-database";
+import { createDatabaseTestAssessments } from "../src/features/test-assessments/server/test-assessments-database";
 import { createDatabaseTestGaps } from "../src/features/test-gaps/server/test-gaps-database";
+import { createDatabaseTestReports } from "../src/features/test-report/server/test-report-database";
 import { createWorkContextAccess } from "../src/features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "../src/features/work-drafts/server/work-drafts-database";
 import { createDatabaseWorkLifecycle } from "../src/features/work-lifecycle/server/work-lifecycle-database";
@@ -356,6 +358,8 @@ const app = createApp({
   screens: createDatabaseScreens(database),
   plannedTests: createDatabasePlannedTests(database),
   testGaps: createDatabaseTestGaps(database),
+  testReports: createDatabaseTestReports(database),
+  testAssessments: createDatabaseTestAssessments(database),
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
   customFields,

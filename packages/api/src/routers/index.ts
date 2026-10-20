@@ -505,6 +505,14 @@ import {
   mermaidConversionInputSchema,
 } from "../technical-diagrams";
 import {
+  recordTestAssessmentInputSchema,
+  testAssessmentContextTargetsInputSchema,
+  testAssessmentContextTargetsOutputSchema,
+  testAssessmentListOutputSchema,
+  testAssessmentProjectInputSchema,
+  testAssessmentRecordSchema,
+} from "../test-assessments";
+import {
   closeTestGapInputSchema,
   createTestGapInputSchema,
   testGapCaseBindInputSchema,
@@ -513,6 +521,11 @@ import {
   testGapProjectInputSchema,
   testGapRelationTargetsInputSchema,
 } from "../test-gaps";
+import {
+  applicationTestReportInputSchema,
+  TestReportRejectedError,
+  testSessionProjectInputSchema,
+} from "../test-report";
 import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
@@ -1213,6 +1226,13 @@ async function runProjectWallOperation<T>(
   }
 }
 
+function requireTestAssessments(context: Context) {
+  if (!context.testAssessments) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testAssessments;
+}
+
 function requirePlannedTests(context: Context) {
   if (!context.plannedTests) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -1225,6 +1245,35 @@ function requireTestGaps(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.testGaps;
+}
+
+function requireTestReports(context: Context) {
+  if (!context.testReports) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testReports;
+}
+
+/** A refusal carries the closed code, a safe field path and a fixable explanation, never payload. */
+async function runTestReportOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof TestReportRejectedError) {
+      throw new ORPCError(
+        error.code === "project_not_authorized" ? "NOT_FOUND" : "BAD_REQUEST",
+        {
+          cause: error,
+          data: { code: error.code, fieldPath: error.fieldPath },
+          defined: true,
+          message: error.explanation,
+        },
+      );
+    }
+    throw error;
+  }
 }
 
 function requireSpecChangeReview(context: Context) {
@@ -3183,6 +3232,48 @@ const PLANNED_TEST_FAILURES: Record<string, PlannedTestFailure> = {
     status: "BAD_REQUEST",
   },
 };
+
+const TEST_ASSESSMENT_FAILURES: Record<string, PlannedTestFailure> = {
+  TEST_ASSESSMENT_CONTEXT_UNAVAILABLE: {
+    message: "The chosen context is not an available record of this Project.",
+    status: "BAD_REQUEST",
+  },
+  TEST_ASSESSMENT_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_ASSESSMENT_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  TEST_ASSESSMENT_SOURCE_UNAVAILABLE: { message: null, status: "BAD_REQUEST" },
+};
+
+async function runTestAssessmentOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(TEST_ASSESSMENT_FAILURES, error.code)
+      ? TEST_ASSESSMENT_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message:
+        failure.message ??
+        (error instanceof Error ? error.message : "Request refused."),
+    });
+  }
+}
 
 async function runPlannedTestOperation<T>(
   operation: () => Promise<T>,
@@ -6036,6 +6127,36 @@ export const appRouter = {
         requireFeedback(context).setStatus(context.session.user.id, input),
       ),
     ),
+  projectTestAssessments: protectedProcedure
+    .input(testAssessmentProjectInputSchema)
+    .output(testAssessmentListOutputSchema)
+    .handler(({ context, input }) =>
+      runTestAssessmentOperation(() =>
+        requireTestAssessments(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  recordTestAssessment: protectedProcedure
+    .input(recordTestAssessmentInputSchema)
+    .output(testAssessmentRecordSchema)
+    .handler(({ context, input }) =>
+      runTestAssessmentOperation(() =>
+        requireTestAssessments(context).record(context.session.user.id, input),
+      ),
+    ),
+  testAssessmentContextTargets: protectedProcedure
+    .input(testAssessmentContextTargetsInputSchema)
+    .output(testAssessmentContextTargetsOutputSchema)
+    .handler(({ context, input }) =>
+      runTestAssessmentOperation(() =>
+        requireTestAssessments(context).contextTargets(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   projectPlannedTestCases: protectedProcedure
     .input(plannedTestCaseProjectInputSchema)
     .handler(({ context, input }) =>
@@ -6059,6 +6180,29 @@ export const appRouter = {
       runPlannedTestOperation(() =>
         requirePlannedTests(context).createVersion(
           context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestSessions: protectedProcedure
+    .input(testSessionProjectInputSchema)
+    .handler(({ context, input }) =>
+      runTestReportOperation(() =>
+        requireTestReports(context).sessions(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  acceptTestReport: protectedProcedure
+    .input(applicationTestReportInputSchema)
+    .handler(({ context, input }) =>
+      runTestReportOperation(() =>
+        requireTestReports(context).accept(
+          {
+            accountId: context.session.user.id,
+            reporter: { id: context.session.user.id, kind: "user" },
+          },
           input,
         ),
       ),
