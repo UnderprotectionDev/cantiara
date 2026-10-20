@@ -320,6 +320,7 @@ import {
   projectWallProjectInputSchema,
   removeProjectWallCardInputSchema,
   renameProjectWallInputSchema,
+  reorderProjectWallCardsInputSchema,
   setProjectWallCardDensityInputSchema,
   setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
@@ -332,6 +333,10 @@ import {
   previewProjectWallSnapshotInputSchema,
   setProjectWallFocusOrderInputSchema,
 } from "../project-wall-presentation";
+import {
+  projectWallViewportInputSchema,
+  saveProjectWallViewportInputSchema,
+} from "../project-wall-viewport";
 import type { RecordActionsAccess } from "../record-actions";
 import {
   applyRecordActionInputSchema,
@@ -3960,6 +3965,37 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runProjectWallOperation(() =>
         requireProjectWall(context).moveCards(context.session.user.id, input),
+      ),
+    ),
+  reorderProjectWallCards: protectedProcedure
+    .input(reorderProjectWallCardsInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).reorderCards(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectWallViewport: protectedProcedure
+    .input(projectWallViewportInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).viewport(
+          context.session.user.id,
+          input.projectId,
+          input.wallId,
+        ),
+      ),
+    ),
+  saveProjectWallViewport: protectedProcedure
+    .input(saveProjectWallViewportInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).saveViewport(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   setProjectWallCardDensity: protectedProcedure

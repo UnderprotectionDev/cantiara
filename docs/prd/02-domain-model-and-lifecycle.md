@@ -50,7 +50,7 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | İlişkiyi onayla | `Confirm Create Persistent Relation` | `Create Persistent Relation` önizlemesini okuduktan sonra katalog ilişkisini yazan açık onay |
 | Grup | `Group` | Duvardaki tek seviyeli, adlı, kalıcı sınıflandırma olmayan kart kümesi; ilişki değildir |
 | Grup oluştur | `Create Group` | Duvara adlı grup ekleme |
-| Grubu daralt | `Collapse group` | Grup üyelerini duvar görünümünde gizleme; kayıt durumu değişmez |
+| Grubu daralt | `Collapse group` | Grup üyelerini kullanıcının kendi duvar görünümünde gizleme (kişisel viewport durumu, oturumlar arası korunur); kayıt durumu değişmez |
 | Grubu aç | `Expand group` | Daraltılmış grubun üyelerini yeniden gösterme |
 | Grubu sil | `Delete group` | Yalnız grubu silme; kartlar gruptan çıkar, kaynak kayıtlar değişmez |
 | Sitemap iskeletinden oluştur | `Create from Sitemap` | Kabuğun `Sitemap` seçtiği Projede `Primary Navigation`, `Secondary Navigation`, `Utility`, `External` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
@@ -58,6 +58,17 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Sunum Kipi (duvar) | `Presentation Mode` | Proje Duvarı düzenleme araçlarını gizleyen salt okunur kip; çıkışta aynı duvar görünümüne döner, içerik kopyası üretmez |
 | Odak sırası | `Focus order` | Proje Duvarı Sunum Kipi'nde isteğe bağlı kart sırası; görünüm üstverisidir, ikinci dosya veya içerik kopyası değildir |
 | Duvar snapshot'ı | `Snapshot` | Seçili grup veya bölgenin tarihli PNG/PDF iç çıktısı; `Preview` ile okunur |
+| Duvar kartını yukarı taşı | `Move up` | Proje Duvarı `Outline` sıralamasında kartı kendi bölümü içinde bir adım öne alma; konumu ve kaynak kaydı değiştirmez |
+| Duvar kartını aşağı taşı | `Move down` | Proje Duvarı `Outline` sıralamasında kartı kendi bölümü içinde bir adım arkaya alma; konumu ve kaynak kaydı değiştirmez |
+| Görsel bağlantıyı bağla | `Bind` | `Outline` inceleme panelinde seçili karttan (`From`) seçilen karta (`To`) etiketli görsel bağlantı kurma; ilişki satırı yazmaz |
+| Seçimi grupla | `Group selection` | `Outline`'da seçili kartlardan adlı tek seviyeli grup kurma; sınıflandırma veya ilişki değildir |
+| Sola hizala / Ortala / Sağa hizala | `Align Left`, `Align Center`, `Align Right` | Seçili duvar kartlarını ortak kenara veya eksene hizalama; `Lock Position` kartları yerinde kalır |
+| Üste hizala / Ortaya hizala / Alta hizala | `Align Top`, `Align Middle`, `Align Bottom` | Seçili duvar kartlarını ortak üst, orta veya alt hizaya getirme; `Lock Position` kartları yerinde kalır |
+| Yatay dağıt / Dikey dağıt | `Distribute Horizontally`, `Distribute Vertically` | Üç veya daha çok seçili kartı dış iki kart arasında eşit aralıkla yerleştirme; `Lock Position` kartları yerinde kalır |
+| En öne getir / En arkaya gönder | `Bring to Front`, `Send to Back` | Seçili kartların z-sırasını (aynı zamanda `Outline` sırası) değiştirme; konum ve kaynak kayıt değişmez |
+| Otomatik yerleşimi önizle | `Preview Auto-layout` | Seçili (yoksa tüm) kartların ızgara yerleşimini yazmadan gösterme; `Lock Position` kartları yerinde kalır |
+| Otomatik yerleşimi uygula | `Apply Auto-layout` | Önizlenen yerleşimi duvar konumu olarak yazma; kaynak kaydı değiştirmez |
+| Otomatik yerleşimi geri al | `Undo Auto-layout` | Uygulanan otomatik yerleşimden önceki konumlara dönme |
 | Donmuş kopya | `Frozen copy` | Snapshot'ın adı; paylaşım izni değildir, paylaşım kapsamını genişletmez, duvarı kilitlemez |
 | Canlı önizleme | `Live` | Teknik Diyagram kartının seçili Diyagram Görünümünü güncel gösterdiği etiket |
 | Kesin önizleme | `Exact` | Teknik Diyagram kartının açıkça seçilmiş Diyagram Sürümüne sabitlendiği etiket |

@@ -4,10 +4,12 @@ import { user, workspace } from "@cantiara/db/schema/auth";
 import { decision } from "@cantiara/db/schema/decision";
 import { project } from "@cantiara/db/schema/project";
 import {
+  projectWall,
   projectWallFocusStep,
   projectWallGroup,
   projectWallItem,
   projectWallLink,
+  projectWallViewport,
 } from "@cantiara/db/schema/project-wall";
 import { workRelation } from "@cantiara/db/schema/relation";
 import { work } from "@cantiara/db/schema/work";
@@ -451,5 +453,76 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
       wallId: wall.id,
     });
     expect(cleared.focusOrder).toEqual([]);
+  });
+
+  test("personal viewport and card order are wall rows outside the wall and sources", async () => {
+    const db = requireDatabase();
+    const access = wallAccess(db);
+    const wall = await access.create(accountId, { projectId, title: "Story" });
+    await access.addCard(accountId, {
+      projectId,
+      sourceId: workId,
+      sourceType: "Work",
+      wallId: wall.id,
+    });
+    const view = await access.addCard(accountId, {
+      projectId,
+      sourceId: decisionId,
+      sourceType: "Decision",
+      wallId: wall.id,
+    });
+    const ids = view.cards.map(({ id }) => id);
+    // A new card lands on top; reordering rewrites the order only.
+    const reordered = await access.reorderCards(accountId, {
+      cardIds: [...ids].reverse(),
+      projectId,
+      wallId: wall.id,
+    });
+    expect(reordered.cards.map(({ id }) => id)).toEqual([...ids].reverse());
+
+    const [workBefore] = await db
+      .select()
+      .from(work)
+      .where(eq(work.id, workId));
+    const [wallBefore] = await db
+      .select()
+      .from(projectWall)
+      .where(eq(projectWall.id, wall.id));
+    const saved = {
+      center: { x: 10, y: 20 },
+      collapsed: [],
+      zoom: 0.75,
+    };
+    await access.saveViewport(accountId, {
+      projectId,
+      viewport: saved,
+      wallId: wall.id,
+    });
+    expect(await access.viewport(accountId, projectId, wall.id)).toEqual(saved);
+    // Not another account's view, not part of the wall or the source.
+    await expect(
+      access.viewport(otherAccountId, projectId, wall.id),
+    ).rejects.toThrow();
+    const rows = await db
+      .select()
+      .from(projectWallViewport)
+      .where(eq(projectWallViewport.wallId, wall.id));
+    expect(rows.map((row) => row.accountId)).toEqual([accountId]);
+    const [wallAfter] = await db
+      .select()
+      .from(projectWall)
+      .where(eq(projectWall.id, wall.id));
+    expect(wallAfter).toEqual(wallBefore);
+    const [workAfter] = await db.select().from(work).where(eq(work.id, workId));
+    expect(workAfter).toEqual(workBefore);
+
+    // Deleting the wall removes the personal viewport with it.
+    await access.delete(accountId, projectId, wall.id);
+    expect(
+      await db
+        .select()
+        .from(projectWallViewport)
+        .where(eq(projectWallViewport.wallId, wall.id)),
+    ).toEqual([]);
   });
 });

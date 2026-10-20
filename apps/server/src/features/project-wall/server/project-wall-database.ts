@@ -31,10 +31,11 @@ import {
   projectWallGroup,
   projectWallItem,
   projectWallLink,
+  projectWallViewport,
 } from "@cantiara/db/schema/project-wall";
 import { risk } from "@cantiara/db/schema/risk";
 import { work } from "@cantiara/db/schema/work";
-import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import {
   createProjectWall,
@@ -287,6 +288,8 @@ export function createDatabaseProjectWallStore(
             sourceId: input.sourceId,
             sourceType: input.sourceType,
             wallId: input.wallId,
+            // A new card lands on top of the existing order.
+            zOrder: sql`coalesce((select max(z_order) + 1 from project_wall_item where wall_id = ${input.wallId}), 0)`,
           })
           .onConflictDoNothing()
           .returning();
@@ -453,6 +456,53 @@ export function createDatabaseProjectWallStore(
           .returning({ id: projectWallItem.id });
         return changed.length > 0;
       });
+    },
+
+    async setCardOrder(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // One statement for the whole order: the Outline of a 2,000 card wall
+        // must not cost 2,000 round trips.
+        const rows = input.cardIds.map(
+          (id, index) => sql`(${id}::text, ${index}::integer)`,
+        );
+        await tx.execute(
+          sql`update project_wall_item as item set z_order = ordered.position from (values ${sql.join(rows, sql`, `)}) as ordered(id, position) where item.id = ordered.id and item.wall_id = ${input.wallId}`,
+        );
+        return true;
+      });
+    },
+
+    async findViewport(accountId, wallId) {
+      const [row] = await database
+        .select({ viewport: projectWallViewport.viewport })
+        .from(projectWallViewport)
+        .where(
+          and(
+            eq(projectWallViewport.accountId, accountId),
+            eq(projectWallViewport.wallId, wallId),
+          ),
+        );
+      return row?.viewport ?? null;
+    },
+
+    async saveViewport(accountId, wallId, viewport) {
+      await database
+        .insert(projectWallViewport)
+        .values({ accountId, viewport, wallId })
+        .onConflictDoUpdate({
+          set: { updatedAt: new Date(), viewport },
+          target: [projectWallViewport.accountId, projectWallViewport.wallId],
+        });
     },
 
     async setFocusOrder(accountId, input) {
@@ -662,7 +712,11 @@ export function createDatabaseProjectWallStore(
         .select()
         .from(projectWallItem)
         .where(eq(projectWallItem.wallId, wallId))
-        .orderBy(asc(projectWallItem.placedAt), asc(projectWallItem.id));
+        .orderBy(
+          asc(projectWallItem.zOrder),
+          asc(projectWallItem.placedAt),
+          asc(projectWallItem.id),
+        );
       const [groups, links, steps] = await Promise.all([
         database
           .select()

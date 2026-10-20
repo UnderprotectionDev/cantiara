@@ -34,8 +34,10 @@ import {
   projectWallSkeletonHeadings,
   type RemoveProjectWallCardInput,
   type RenameProjectWallInput,
+  type ReorderProjectWallCardsInput,
   removeProjectWallCardInputSchema,
   renameProjectWallInputSchema,
+  reorderProjectWallCardsInputSchema,
   type SetProjectWallCardDensityInput,
   type SetProjectWallCardGroupInput,
   type SetProjectWallCardHighlightInput,
@@ -61,6 +63,11 @@ import {
   type SetProjectWallFocusOrderInput,
   setProjectWallFocusOrderInputSchema,
 } from "@cantiara/api/project-wall-presentation";
+import {
+  liveCollapsedGroups,
+  type SaveProjectWallViewportInput,
+  saveProjectWallViewportInputSchema,
+} from "@cantiara/api/project-wall-viewport";
 
 export class ProjectWallProjectNotFoundError extends Error {
   readonly code = "PROJECT_WALL_PROJECT_NOT_FOUND" as const;
@@ -744,6 +751,55 @@ export function createProjectWall(
         throw new ProjectWallNotFoundError(input.wallId);
       }
       return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async reorderCards(accountId, rawInput: ReorderProjectWallCardsInput) {
+      const input = reorderProjectWallCardsInputSchema.parse(rawInput);
+      const wall = await requireCard(
+        accountId,
+        input.projectId,
+        input.wallId,
+        input.cardIds,
+      );
+      // Every card exactly once: a partial or repeated list would silently
+      // drop or double a card in the order.
+      const listed = new Set(input.cardIds);
+      if (
+        listed.size !== input.cardIds.length ||
+        input.cardIds.length !== wall.items.length
+      ) {
+        const missing = wall.items.find(({ id }) => !listed.has(id));
+        throw new ProjectWallCardNotFoundError(
+          missing?.id ?? input.cardIds[0] ?? "",
+        );
+      }
+      if (!(await store.setCardOrder(accountId, input))) {
+        throw new ProjectWallNotFoundError(input.wallId);
+      }
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async viewport(accountId, projectId, wallId) {
+      const wall = await load(accountId, projectId, wallId);
+      const saved = await store.findViewport(accountId, wall.id);
+      return saved
+        ? {
+            ...saved,
+            collapsed: liveCollapsedGroups(wall.groups, saved.collapsed),
+          }
+        : null;
+    },
+
+    async saveViewport(accountId, rawInput: SaveProjectWallViewportInput) {
+      const input = saveProjectWallViewportInputSchema.parse(rawInput);
+      const wall = await load(accountId, input.projectId, input.wallId);
+      // Personal working position: it writes no wall, card or source data.
+      const viewport = {
+        ...input.viewport,
+        collapsed: liveCollapsedGroups(wall.groups, input.viewport.collapsed),
+      };
+      await store.saveViewport(accountId, wall.id, viewport);
+      return viewport;
     },
 
     async previewPersistentRelation(

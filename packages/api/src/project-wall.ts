@@ -9,6 +9,11 @@ import type {
   ProjectWallSnapshotPreview,
   SetProjectWallFocusOrderInput,
 } from "./project-wall-presentation";
+import type {
+  ProjectWallViewport,
+  ProjectWallViewportStore,
+  SaveProjectWallViewportInput,
+} from "./project-wall-viewport";
 import {
   type RelationCreateInput,
   type RelationCreatePreviewInput,
@@ -255,6 +260,17 @@ export const setProjectWallCardHighlightInputSchema = projectWallInputSchema
   .strict();
 export type SetProjectWallCardHighlightInput = z.input<
   typeof setProjectWallCardHighlightInputSchema
+>;
+
+/**
+ * The wall's card order: the Outline order and the z-order (last is on top).
+ * It lists every card of the wall exactly once and is wall view state only.
+ */
+export const reorderProjectWallCardsInputSchema = projectWallInputSchema
+  .extend({ cardIds: z.array(identifierSchema).min(1).max(20_000) })
+  .strict();
+export type ReorderProjectWallCardsInput = z.input<
+  typeof reorderProjectWallCardsInputSchema
 >;
 
 export const removeProjectWallCardInputSchema = projectWallInputSchema
@@ -689,7 +705,7 @@ export function projectWallCardEndpoint(
  * writes a source record: moving, restyling or removing a card touches only
  * wall rows.
  */
-export interface ProjectWallStore {
+export interface ProjectWallStore extends ProjectWallViewportStore {
   addCard: (
     accountId: string,
     input: {
@@ -825,6 +841,11 @@ export interface ProjectWallStore {
       wallId: string;
     },
   ) => Promise<boolean>;
+  /** Rewrites the card order (z-order); the ids are the wall's cards, each once. */
+  setCardOrder: (
+    accountId: string,
+    input: { cardIds: string[]; projectId: string; wallId: string },
+  ) => Promise<boolean>;
   /** Replaces the `Focus order` with existing cards of the wall; [] clears it. */
   setFocusOrder: (
     accountId: string,
@@ -909,6 +930,16 @@ export interface ProjectWallAccess {
     accountId: string,
     input: RenameProjectWallInput,
   ) => Promise<ProjectWallView>;
+  /** Writes the Outline / z-order of the cards; no position or source changes. */
+  reorderCards: (
+    accountId: string,
+    input: ReorderProjectWallCardsInput,
+  ) => Promise<ProjectWallView>;
+  /** Saves the personal viewport only; writes no wall, card or source data. */
+  saveViewport: (
+    accountId: string,
+    input: SaveProjectWallViewportInput,
+  ) => Promise<ProjectWallViewport>;
   setCardDensity: (
     accountId: string,
     input: SetProjectWallCardDensityInput,
@@ -946,6 +977,12 @@ export interface ProjectWallAccess {
     accountId: string,
     input: UnbindProjectWallLinkInput,
   ) => Promise<ProjectWallView>;
+  /** The account's personal viewport of this wall; null when none was saved. */
+  viewport: (
+    accountId: string,
+    projectId: string,
+    wallId: string,
+  ) => Promise<ProjectWallViewport | null>;
 }
 
 /** The catalog relation a Visual link would become, shown before any write. */
