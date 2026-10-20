@@ -314,6 +314,7 @@ import {
   createProjectWallPersistentRelationInputSchema,
   drawProjectWallLinkInputSchema,
   moveProjectWallCardsInputSchema,
+  PROJECT_WALL_SOURCE_TYPES,
   previewProjectWallPersistentRelationInputSchema,
   projectWallGroupInputSchema,
   projectWallInputSchema,
@@ -1100,6 +1101,8 @@ const PROJECT_WALL_UNAVAILABLE_MESSAGES: Record<string, string> = {
   PROJECT_WALL_PROJECT_NOT_FOUND: "Project is unavailable.",
 };
 
+const PROJECT_WALL_SOURCE_TYPE_LIST = `${PROJECT_WALL_SOURCE_TYPES.slice(0, -1).join(", ")} or ${PROJECT_WALL_SOURCE_TYPES.at(-1)}`;
+
 const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
   PROJECT_WALL_CARD_DUPLICATE:
     "This record is already a card on this Project Wall.",
@@ -1111,8 +1114,7 @@ const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
   PROJECT_WALL_RELATION_UNAVAILABLE:
     "A Smart Collection block cannot be a relation endpoint.",
   PROJECT_WALL_SNAPSHOT_FAILED: "The Project Wall snapshot could not be taken.",
-  PROJECT_WALL_SOURCE_UNAVAILABLE:
-    "The record is not an active Work, Decision, Risk, Technical Diagram or Smart Collection of this Project.",
+  PROJECT_WALL_SOURCE_UNAVAILABLE: `The record is not an active ${PROJECT_WALL_SOURCE_TYPE_LIST} of this Project.`,
 };
 
 async function runProjectWallOperation<T>(

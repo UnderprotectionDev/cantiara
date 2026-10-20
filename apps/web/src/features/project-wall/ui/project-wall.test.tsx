@@ -29,6 +29,7 @@ const SHARING_UI =
   /Share link|Copy link|Publish|Build in Public|External Surface/i;
 const FOREIGN_SURFACES = /Wireframe|Moodboard|Wiki/;
 const NESTED_OR_WORKSPACE = /Workspace wall|Sub-wall|Nested|Parent wall/i;
+const EXACT_OR_PIN = /Exact|Pin/;
 const NOW = "2026-10-20T09:00:00.000Z";
 let root: Root | null = null;
 let host: HTMLElement | null = null;
@@ -578,6 +579,7 @@ describe("Project Wall read-only previews", () => {
       <ProjectWallCard actions={CARD_ACTIONS} card={diagramCard()} />,
     );
     expect(html).toContain("Live");
+    expect(html).not.toMatch(EXACT_OR_PIN);
     expect(html).toContain("Core view");
     expect(html).toContain("Service: API");
     expect(html).toContain("Open Source Record");
@@ -761,5 +763,92 @@ describe("Project Wall Snapshot panel", () => {
     expect(host.textContent).not.toMatch(SHARING_UI);
     expect(host.textContent).toContain("PNG");
     expect(host.textContent).toContain("PDF");
+  });
+});
+
+describe("Project Wall in-wall group navigation", () => {
+  function groupedWall(): ProjectWallView {
+    const base = linkedWall();
+    return {
+      ...base,
+      cards: base.cards.map((item) =>
+        item.id === "card-1" ? { ...item, groupId: "group-1" } : item,
+      ),
+    };
+  }
+
+  function mountGroups(
+    selected: ProjectWallView,
+    canvas: (shown: ProjectWallView) => React.ReactNode,
+  ) {
+    return mount(
+      <ProjectWallLayout
+        actions={actions()}
+        canvas={canvas}
+        options={options}
+        selected={selected}
+        walls={[summary]}
+      />,
+    );
+  }
+
+  const showCards = (shown: ProjectWallView) => (
+    <p data-testid="shown">{shown.cards.map(({ id }) => id).join(",")}</p>
+  );
+
+  function rerender(
+    container: HTMLElement,
+    selected: ProjectWallView,
+    canvas: (shown: ProjectWallView) => React.ReactNode,
+  ) {
+    act(() =>
+      root?.render(
+        <ProjectWallLayout
+          actions={actions()}
+          canvas={canvas}
+          options={options}
+          selected={selected}
+          walls={[summary]}
+        />,
+      ),
+    );
+    return container;
+  }
+
+  test("Open group focuses the canvas on that group and Show full wall returns", () => {
+    const container = mountGroups(groupedWall(), showCards);
+    expect(container.querySelector('[data-testid="shown"]')?.textContent).toBe(
+      "card-1,card-2",
+    );
+    act(() => buttonNamed(container, "Open group: Onboarding")?.click());
+    expect(container.querySelector('[data-testid="shown"]')?.textContent).toBe(
+      "card-1",
+    );
+    act(() => buttonNamed(container, "Show full wall")?.click());
+    expect(container.querySelector('[data-testid="shown"]')?.textContent).toBe(
+      "card-1,card-2",
+    );
+  });
+
+  test("a deleted group is explained in place without switching groups", () => {
+    const container = mountGroups(groupedWall(), showCards);
+    act(() => buttonNamed(container, "Open group: Onboarding")?.click());
+    const withoutGroup: ProjectWallView = {
+      ...groupedWall(),
+      cards: groupedWall().cards.map((item) => ({ ...item, groupId: null })),
+      groups: [{ collapsed: false, id: "group-2", title: "Other" }],
+    };
+    rerender(container, withoutGroup, showCards);
+    expect(container.textContent).toContain(
+      "This group is no longer available.",
+    );
+    expect(container.querySelector('[data-testid="shown"]')).toBeNull();
+    act(() => buttonNamed(container, "Show full wall")?.click());
+    expect(container.textContent).not.toContain(
+      "This group is no longer available.",
+    );
+    expect(container.querySelector('[data-testid="shown"]')?.textContent).toBe(
+      "card-1,card-2",
+    );
   });
 });

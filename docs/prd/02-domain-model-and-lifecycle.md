@@ -73,6 +73,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Canlı önizleme | `Live` | Teknik Diyagram kartının seçili Diyagram Görünümünü güncel gösterdiği etiket |
 | Kesin önizleme | `Exact` | Teknik Diyagram kartının açıkça seçilmiş Diyagram Sürümüne sabitlendiği etiket |
 | Hepsini kaynakta aç | `Open all in source` | Akıllı Koleksiyon bloğunun sınırlı özetinden tüm sonucu koleksiyonun kendisinde açma |
+| Grubu aç | `Open group` | Proje Duvarı tuvali ve `Outline`'ı adlı grubun kartlarına odaklayan görünüm-yerel gezinme; kaydedilmez, kaynak kaydı değiştirmez |
+| Tam duvarı göster | `Show full wall` | Açılmış gruptan tüm duvara güvenli dönüş |
+| Grup artık yok | `This group is no longer available.` | Silinmiş veya erişilemeyen grup hedefinin başka gruba yönlendirmeden yerinde açıklaması |
+| Yeniden adlandır | `Rename`, `Rename Project Wall` | Proje Duvarı adını değiştirme; kaynak kayıtları değiştirmez |
+| Kart seç / Kayıt seç | `Select a card`, `Select a record` | Görsel bağlantı uçları ve canlı kart yerleştirme için seçim yer tutucuları |
+| Grupsuz / Vurgusuz | `No group`, `No highlight` | Proje Duvarı kartının grup ve vurgu seçimi boş değerleri |
+| İlişki türü | `Relation kind` | `Create Persistent Relation` önizlemesinde ilişki türü seçimi |
+| Snapshot grubu | `Snapshot group` | Duvar snapshot'ı için grup kapsamı seçimi |
+| Duvar anlatısı | `Wall narrative` | Görsel bağlantılar ve tek seviyeli grupların bölümü; kayıt ilişkisi değildir |
 | Ortak kaynak | `Shared source` | Aynı kaydın duvarda hem kart hem Akıllı Koleksiyon özeti içinde göründüğünü belirten not; iki kayıt değildir |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |

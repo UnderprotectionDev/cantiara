@@ -362,11 +362,11 @@ export default function ProjectWallSurface({
     <div className="space-y-2">
       <ProjectWallLayout
         actions={actions}
-        canvas={
-          shownWall && personal.isReady ? (
+        canvas={(focusedWall) =>
+          personal.isReady ? (
             <ProjectWallScene
               cardActions={cardActions}
-              key={shownWall.id}
+              key={focusedWall.id}
               onExpandAll={() => setCollapsed([])}
               onMove={onMove}
               onReorder={onReorder}
@@ -376,11 +376,11 @@ export default function ProjectWallSurface({
                 )
               }
               onViewportChange={(view) => {
-                lastView.current = { ...view, wallId: shownWall.id };
+                lastView.current = { ...view, wallId: focusedWall.id };
                 saveView(collapsedRef.current);
               }}
               onViewportReady={(view) => {
-                lastView.current = { ...view, wallId: shownWall.id };
+                lastView.current = { ...view, wallId: focusedWall.id };
               }}
               outlineActions={{
                 onDrawLink: actions.onDrawLink,
@@ -388,7 +388,7 @@ export default function ProjectWallSurface({
                 onUnbindLink: actions.onUnbindLink,
               }}
               saved={personal.saved}
-              wall={shownWall}
+              wall={focusedWall}
             />
           ) : (
             <p role="status">Loading Project Wall…</p>

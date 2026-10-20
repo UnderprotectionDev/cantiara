@@ -15,6 +15,7 @@ import {
 } from "@cantiara/ui/components/native-select";
 import { type FormEvent, type ReactNode, useState } from "react";
 
+import { focusProjectWallGroup } from "../lib/project-wall-group-focus";
 import {
   type ProjectWallNarrativeActions,
   ProjectWallNarrativePanel,
@@ -179,6 +180,50 @@ export function AddCardForm({
   );
 }
 
+function renderCanvas(
+  canvas: ReactNode | ((shown: ProjectWallView) => ReactNode),
+  shown: ProjectWallView,
+) {
+  return typeof canvas === "function" ? canvas(shown) : canvas;
+}
+
+/** View-local in-wall navigation: open a named group, then return safely. */
+function ProjectWallGroupNav({
+  onOpen,
+  onShowFullWall,
+  openGroupId,
+  wall,
+}: {
+  onOpen: (groupId: string) => void;
+  onShowFullWall: () => void;
+  openGroupId: string | null;
+  wall: ProjectWallView;
+}) {
+  if (wall.groups.length === 0 && !openGroupId) {
+    return null;
+  }
+  return (
+    <nav aria-label="Open group" className="flex flex-wrap gap-2">
+      {wall.groups.map((group) => (
+        <Button
+          aria-pressed={openGroupId === group.id}
+          key={group.id}
+          onClick={() => onOpen(group.id)}
+          type="button"
+          variant="outline"
+        >
+          Open group: {group.title}
+        </Button>
+      ))}
+      {openGroupId ? (
+        <Button onClick={onShowFullWall} type="button" variant="outline">
+          Show full wall
+        </Button>
+      ) : null}
+    </nav>
+  );
+}
+
 /**
  * Project Wall chrome: named flat walls of this Project, the add-card picker
  * and the canvas slot. Nothing here edits a source record.
@@ -192,7 +237,8 @@ export function ProjectWallLayout({
   walls,
 }: {
   actions: ProjectWallActions;
-  canvas: ReactNode;
+  /** The canvas; a function receives the wall shown after group focus. */
+  canvas: ReactNode | ((shown: ProjectWallView) => ReactNode);
   options: ProjectWallSourceOption[];
   selected: ProjectWallView | null;
   /** Skeletons the Project shell selected; none means no offer. */
@@ -205,6 +251,17 @@ export function ProjectWallLayout({
     ),
   );
   const [presenting, setPresenting] = useState(false);
+  // In-wall navigation is view-local state: nothing here is saved.
+  const [opened, setOpened] = useState<{
+    groupId: string;
+    wallId: string;
+  } | null>(null);
+  const openGroupId =
+    selected && opened?.wallId === selected.id ? opened.groupId : null;
+  const focused =
+    selected && openGroupId
+      ? focusProjectWallGroup(selected, openGroupId)
+      : selected;
   if (selected && presenting) {
     // Presentation Mode hides every editing tool; exit returns to this view.
     return (
@@ -286,7 +343,17 @@ export function ProjectWallLayout({
             Cards are live references. Moving a card or changing its density
             never edits the source record; edit content with Open Source Record.
           </p>
-          {canvas}
+          <ProjectWallGroupNav
+            onOpen={(groupId) => setOpened({ groupId, wallId: selected.id })}
+            onShowFullWall={() => setOpened(null)}
+            openGroupId={openGroupId}
+            wall={selected}
+          />
+          {focused ? (
+            renderCanvas(canvas, focused)
+          ) : (
+            <p role="status">This group is no longer available.</p>
+          )}
         </div>
       ) : null}
     </section>
