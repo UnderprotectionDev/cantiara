@@ -1276,10 +1276,35 @@ Tekrar kullanılabilir test niyetini, önkoşullarını ve beklenen davranışı
 UI: `Planned Test Case`.
 _Avoid_: Test Oturumu, test script'i, kabul sonucu
 
+**Planlı Test Senaryosu sürümü**:
+Bir Planlı Test Senaryosunun her anlamlı veya yalnız editoryal değişiklikte eklenen, sonradan değişmeyen tam tanımı; bağ ve Handoff kesin sürümü seçer, senaryonun "en güncel" hâlini değil.
+UI: `Version`, `Meaningful change`, `Editorial change`.
+_Avoid_: en güncel sürüm, canlı senaryo, senaryo durumu
+
+**Oturum Testi bağı**:
+Bir Oturum Testinin kesin `scenario_id` + `scenario_version` ile Planlı Test Senaryosu sürümüne tarihsel bağı; sonraki düzenleme, hatta yalnız editoryal olan, bağı taşımaz ve sürüm farkı açıkça görünür (örn. `Bound to v1, current v3`). Ad hoc test sonradan `Linked later` ile bağlanırsa kayıtlı amaç ve beklenen davranış yeniden yazılmaz ve o sürüm uygulanmış sayılmaz (`executedVersion` boş kalır).
+UI: `Bound to v…`, `Linked later`, `Link to Planned Test Case version`.
+_Avoid_: en güncel senaryoya bağlama, bağı yeni sürüme taşıma, geriye dönük doğrulanmış sürüm
+
 **Test Handoff'u**:
 Ürün dışında yapılması istenen test çalışmasının amacını, seçili senaryo sürümlerini ve dönen Test Oturumlarını yöneten Proje ana kaydı; testi yürütmez ve sonuç geldiğinde kendiliğinden kapanmaz.
 UI: `Test Handoff`.
 _Avoid_: Dış yürütme devri, Test Oturumu, ajan çalıştırması
+
+**Test Handoff durumu**:
+Bir Test Handoff'unun yalnız kurucunun ilerlettiği süreç aşaması: `Draft`, `Ready to share`, `Shared`, `Result received`, `Closed` veya `Canceled`; testin sonucunu, geçip kalmayı ya da doğrulamayı anlatmaz. `Closed` ve `Canceled` son durumdur; `Canceled` yalnız bu kaydı değiştirir, dış aracı durdurmaz.
+UI: `Draft`, `Ready to share`, `Shared`, `Result received`, `Closed`, `Canceled`, `Mark as …`.
+_Avoid_: test sonucu, Geçti/Kaldı durumu, Dış yürütme devri durumu, uzaktan iptal
+
+**Sonuç alındı önerisi**:
+Paylaşılmış bir Test Handoff'una bağlı Oturum Testi geldiğinde ürünün gösterdiği, kurucunun açıkça kabul etmesi gereken `Result received` önerisi; durumu değiştirmez ve Handoff'u kapatmaz. İptal edilmiş Handoff'a geç gelen sonuç yalnız `Result arrived after cancel` notu üretir, Handoff yeniden açılmaz.
+UI: `Mark as Result received`.
+_Avoid_: otomatik kapanış, otomatik durum geçişi, sonuç geldi diye kapatma
+
+**Test Handoff teknik bağlamı**:
+Kurucunun Handoff'a elle yazdığı repository, branch, commit, build ve hedef ortam adı ya da güvenli URL alanları (`product_build_context`); ürün bunları GitHub'dan veya CI'dan okumaz, kimlik bilgisi, sorgu ya da fragment taşıyan URL'yi reddeder.
+UI: `Technical context`, `Repository`, `Branch`, `Commit`, `Build`, `Target environment`.
+_Avoid_: GitHub'dan çekilen bağlam, CI durumu, ilişki hedefi
 
 **Test Handoff dışa aktarması**:
 Bir Test Handoff'undan kullanıcının seçtiği kesin kapsamla üretilen, aynı `handoff_package_version` ve açık `schema_version` değerlerini taşıyan tarihsel Markdown ve JSON kopyaları; kendini yenilemez, secret taşımaz ve test başlatmaz.
@@ -1290,6 +1315,20 @@ _Avoid_: Gidiş paketi, yayın artefaktı, canlı senkron
 Aynı Test Handoff dışa aktarmasının artan tarihsel numarası; üretilmiş kopyanın senaryo, ilişki ve bağlamını sonraki kaynak değişikliklerinden ayırır.
 UI: `Package version`.
 _Avoid_: en güncel sürüm, canlı paket sürümü
+
+**Test Handoff paket bağlamı**:
+Kurucunun bir Test Handoff'una paket için eklediği, kesin sürümlü bağlam: serbest metin `Ad hoc scope` (senaryo, sürüm ya da kimlik üretmez), `Environment preconditions` metni ve kesin `Package context` kayıtları (İş, Özellik, belirli revision/bölümde Belge, kesin sürümde Wireframe). Teknik Diyagramın sürümü olmadığından seçilemez; seçilmeyen ya da erişilemeyen kayıt pakete girmez.
+UI: `Ad hoc scope`, `Environment preconditions`, `Package context`.
+_Avoid_: en güncel belge, otomatik bağlam, tahmin edilen ortam, ilişki hedefi
+
+**Test Handoff paket önizlemesi**:
+Test Handoff dışa aktarmasının kapalı-dünya önizleme ve onay adımı; hiçbir şey yazmadan pakete girecekleri ve hiç girmeyecekleri listeler, engel varsa (secret, erişilemeyen kayıt, paylaşıma hazır olmayan durum) Markdown ve JSON gösterimini hiç vermez. Onay önizlenen sürümü ve parmak izini taşır; yalnız `Ready to share` veya `Shared` durumda paket üretilir ve üretmek durumu değiştirmez, hiçbir aracı başlatmaz ve yetki vermez.
+UI: `Preview package`, `Produce package version …`, `Never included`.
+_Avoid_: dışa aktarmayı otomatik onaylama, üretince Shared yapma, paketi gönderme, test başlatma, yazma yetkisi
+
+**Paket secret taraması**:
+Kurucunun yazdığı Handoff metninde ve pakete kopyalanacak her dizgede özel anahtar, token, API anahtarı, kimlik bilgili URL veya `password = …` benzeri değeri tanıyan savunma amaçlı tarama; kaydı ya da paketi engeller, türü ve yolu söyler, değeri asla yansıtmaz. Secret'sızlığın kanıtı değildir.
+_Avoid_: secret yönetimi, redaksiyon, sızıntı temizliği
 
 **Test raporu**:
 Bir test yürütücüsünün Test Report Acceptance seam'ine sunduğu, `test-report/1` sürümlü zarf; Test Oturumu ve Oturum Testlerini üretmek için taşınabilir rapor içeriğidir, bağımsız ana kayıt veya Ürün kabul kanıtı değildir.

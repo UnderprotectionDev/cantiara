@@ -69,6 +69,7 @@ import { createDatabaseMoodboardMutationContracts } from "./features/moodboards/
 import { createDatabaseMutationContract } from "./features/mutation-and-undo/server/mutation-contract-database";
 import { createPersonalReminderWorker } from "./features/personal-reminders/server/personal-reminder-worker";
 import { createDatabasePersonalReminders } from "./features/personal-reminders/server/personal-reminders-database";
+import { createDatabasePlannedTests } from "./features/planned-tests/server/planned-tests-database";
 import { createPrioritizationSessionsAccess } from "./features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "./features/prioritization-sessions/server/prioritization-sessions-database";
 import { createDatabasePrioritizationSessionMutationContracts } from "./features/prioritization-sessions/server/prioritization-sessions-mutation-database";
@@ -106,6 +107,9 @@ import {
   sweepSmartCollectionSubscriptionSignals,
 } from "./features/smart-collections/server/smart-collections-database";
 import { createDatabaseSourcesAndFreshness } from "./features/sources-and-freshness/server/sources-database";
+import { createSpecChangeReview } from "./features/spec-change-review/server/spec-change-review";
+import { createDatabaseSpecChangeReviewStore } from "./features/spec-change-review/server/spec-change-review-database";
+import { createDatabaseSpecChangeReviewMutationContracts } from "./features/spec-change-review/server/spec-change-review-mark-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -246,6 +250,13 @@ export const tagMutationContracts = createDatabaseTagMutationContracts(
 export const contacts = createDatabaseContacts(db);
 export const feedback = createDatabaseFeedbackWithFeed(db);
 export const screens = createDatabaseScreens(db);
+export const plannedTests = createDatabasePlannedTests(db);
+export const specChangeReview = createSpecChangeReview(
+  createDatabaseSpecChangeReviewStore(db),
+  documents,
+);
+export const specChangeReviewMutationContracts =
+  createDatabaseSpecChangeReviewMutationContracts(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

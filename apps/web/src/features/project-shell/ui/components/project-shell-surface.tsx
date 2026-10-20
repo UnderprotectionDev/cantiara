@@ -28,6 +28,7 @@ import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-
 import FeedSurface from "@/features/feedback/ui/feed-surface";
 import FeedbackSurface from "@/features/feedback/ui/feedback-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
+import PlannedTestsSurface from "@/features/planned-tests/ui/planned-tests-surface";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
 import ProjectOverviewSurface from "@/features/project-overview/ui/components/project-overview-surface";
@@ -56,6 +57,7 @@ import {
   PRIORITY_MAP_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
+  SPEC_CHANGE_REVIEW_HASH,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
@@ -113,6 +115,9 @@ const ProjectWallSurface = lazy(
 const UserFlowSurface = lazy(
   () => import("@/features/user-flow/ui/user-flow-surface"),
 );
+const SpecChangeReviewSurface = lazy(
+  () => import("@/features/spec-change-review/ui/spec-change-review-surface"),
+);
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
@@ -136,6 +141,15 @@ function projectDesignSurface(activeHash: string, projectId: string) {
         />
       </Suspense>
     </div>
+  ) : null;
+}
+
+function projectTestsSurface(activeHash: string, projectId: string) {
+  return ["tests", "project-area-tests"].includes(activeHash) ? (
+    <PlannedTestsSurface
+      key={`planned-tests:${projectId}`}
+      projectId={projectId}
+    />
   ) : null;
 }
 
@@ -164,6 +178,16 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
         <ProjectSmartCollectionsSurface
           projectId={projectId}
           selectedViewId={selectedViewId}
+        />
+      </Suspense>
+    );
+  }
+  if (activeHash === SPEC_CHANGE_REVIEW_HASH) {
+    return (
+      <Suspense fallback={<p>Loading Spec Change Review…</p>}>
+        <SpecChangeReviewSurface
+          key={`spec-change-review:${projectId}`}
+          projectId={projectId}
         />
       </Suspense>
     );
@@ -442,6 +466,7 @@ function ProjectShellContent({
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const uncertaintySurface =
     projectDesignSurface(activeHash, projectId) ??
+    projectTestsSurface(activeHash, projectId) ??
     projectUncertaintySurface(
       projectId,
       accountId,

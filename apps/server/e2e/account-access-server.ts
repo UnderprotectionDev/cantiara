@@ -61,6 +61,7 @@ import { createDatabaseMoodboards } from "../src/features/moodboards/server/mood
 import { createDatabaseMoodboardMutationContracts } from "../src/features/moodboards/server/moodboards-mutation-database";
 import { createDatabaseMutationContract } from "../src/features/mutation-and-undo/server/mutation-contract-database";
 import { createDatabasePersonalReminders } from "../src/features/personal-reminders/server/personal-reminders-database";
+import { createDatabasePlannedTests } from "../src/features/planned-tests/server/planned-tests-database";
 import { createPrioritizationSessionsAccess } from "../src/features/prioritization-sessions/server/prioritization-sessions";
 import { createDatabasePrioritizationSessions } from "../src/features/prioritization-sessions/server/prioritization-sessions-database";
 import { createDatabasePrioritizationSessionMutationContracts } from "../src/features/prioritization-sessions/server/prioritization-sessions-mutation-database";
@@ -352,6 +353,7 @@ const app = createApp({
   contacts: createDatabaseContacts(database),
   feedback: createDatabaseFeedbackWithFeed(database),
   screens: createDatabaseScreens(database),
+  plannedTests: createDatabasePlannedTests(database),
   completionEffectsPreferences,
   completionEffectsPreferencesMutationContract,
   customFields,

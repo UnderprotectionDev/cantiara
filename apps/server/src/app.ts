@@ -56,6 +56,7 @@ import type {
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
+import type { PlannedTestsAccess } from "@cantiara/api/planned-tests";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -91,6 +92,8 @@ import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
 import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
 import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
+import type { SpecChangeReviewAccess } from "@cantiara/api/spec-change-review";
+import type { SpecChangeReviewMutationContracts } from "@cantiara/api/spec-change-review-candidates";
 import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
@@ -200,6 +203,7 @@ export interface AppDependencies {
   mutationContract?: MutationContract<MutationPayload>;
   nodeEnv: string;
   personalReminders?: PersonalRemindersAccess;
+  plannedTests?: PlannedTestsAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
@@ -222,6 +226,8 @@ export interface AppDependencies {
   sourceEvidence?: SourceEvidenceAccess;
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
+  specChangeReview?: SpecChangeReviewAccess;
+  specChangeReviewMutationContracts?: SpecChangeReviewMutationContracts;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   tauriSessionAccess?: TauriSessionAccess;
@@ -1250,6 +1256,10 @@ export function createApp(dependencies: AppDependencies) {
       contacts: dependencies.contacts,
       feedback: dependencies.feedback,
       screens: dependencies.screens,
+      plannedTests: dependencies.plannedTests,
+      specChangeReview: dependencies.specChangeReview,
+      specChangeReviewMutationContracts:
+        dependencies.specChangeReviewMutationContracts,
       relations: dependencies.relations,
       trustedProxyIps: dependencies.trustedProxyIps,
       usageLinkMutationContracts: dependencies.usageLinkMutationContracts,

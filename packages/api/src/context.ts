@@ -34,6 +34,7 @@ import type {
 } from "./moodboards";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type { PersonalRemindersAccess } from "./personal-reminders";
+import type { PlannedTestsAccess } from "./planned-tests";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -68,6 +69,8 @@ import type { SmartLinkPreviewAccess } from "./smart-link-preview";
 import type { SourceEvidenceAccess } from "./source-evidence";
 import type { SourceRecheckAccess } from "./source-recheck";
 import type { SourcesAndFreshnessAccess } from "./sources-and-freshness";
+import type { SpecChangeReviewAccess } from "./spec-change-review";
+import type { SpecChangeReviewMutationContracts } from "./spec-change-review-candidates";
 import type { TagMutationContracts, TagsAccess } from "./tags";
 import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { UserFlowAccess } from "./user-flow";
@@ -195,6 +198,7 @@ export interface Context {
   moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
+  plannedTests?: PlannedTestsAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
@@ -219,6 +223,8 @@ export interface Context {
   sourceEvidence?: SourceEvidenceAccess;
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
+  specChangeReview?: SpecChangeReviewAccess;
+  specChangeReviewMutationContracts?: SpecChangeReviewMutationContracts;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
