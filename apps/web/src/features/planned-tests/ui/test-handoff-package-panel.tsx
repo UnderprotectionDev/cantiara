@@ -8,6 +8,7 @@ import {
 } from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { useEffect, useState } from "react";
+import { errorText } from "../lib/error-text";
 import { downloadPackageText } from "../lib/test-handoff-form";
 
 export type PreviewTestHandoffPackage = (
@@ -20,10 +21,6 @@ export type ProduceTestHandoffPackage = (
 export type LoadTestHandoffPackages = (
   handoff: TestHandoffRecord,
 ) => Promise<TestHandoffPackageRecord[]>;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 const SECTION_LABELS: Record<string, string> = {
   ad_hoc_scope: "Ad hoc scope",

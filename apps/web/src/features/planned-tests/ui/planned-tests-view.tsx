@@ -11,6 +11,7 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { errorText } from "../lib/error-text";
 import {
   type CaseFormValues,
   EMPTY_CASE_FORM,
@@ -36,10 +37,6 @@ const TEXT_FIELDS = [
   { label: "Expected behavior", name: "expectedBehavior", rows: 3 },
   { label: "Notes (optional)", name: "notes", rows: 3 },
 ] as const;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 /**
  * One form for both the first version and every later one. A later version

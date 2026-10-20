@@ -11,6 +11,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { type FormEvent, useState } from "react";
+import { errorText } from "../lib/error-text";
 import {
   describeContextRef,
   EMPTY_TEST_HANDOFF_FORM,
@@ -39,10 +40,6 @@ export type LinkTestHandoffSessionTest = (
   handoff: TestHandoffRecord,
   sessionTestId: string,
 ) => Promise<unknown>;
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 type TextField = Exclude<
   keyof TestHandoffFormValues,
@@ -468,7 +465,7 @@ const CONTEXT_LABELS = [
   ["targetEnvironment", "Target environment"],
 ] as const;
 
-function LinkForm({
+function LinkArrivingSessionTestForm({
   candidates,
   handoff,
   onLink,
@@ -758,7 +755,11 @@ function HandoffItem({
       {readOnly ? null : (
         <>
           <TransitionControls handoff={handoff} onTransition={onTransition} />
-          <LinkForm candidates={linkable} handoff={handoff} onLink={onLink} />
+          <LinkArrivingSessionTestForm
+            candidates={linkable}
+            handoff={handoff}
+            onLink={onLink}
+          />
           {handoff.editable && !editing ? (
             <Button
               onClick={() => setEditing(true)}

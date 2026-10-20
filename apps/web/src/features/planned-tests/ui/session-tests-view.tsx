@@ -9,6 +9,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { type FormEvent, useState } from "react";
+import { errorText } from "../lib/error-text";
 
 export interface RecordSessionTestValues {
   binding: PlannedTestCaseVersionRef | null;
@@ -26,10 +27,6 @@ export type LinkSessionTest = (
 ) => Promise<unknown>;
 
 const AD_HOC = "";
-
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
 
 function optionValue(ref: PlannedTestCaseVersionRef) {
   return `${ref.caseId}@${ref.version}`;
@@ -164,7 +161,7 @@ function RecordForm({
   );
 }
 
-function LinkForm({
+function LinkScenarioVersionForm({
   cases,
   onLink,
   sessionTest,
@@ -288,7 +285,11 @@ function SessionTestItem({
         </dl>
       ) : null}
       {bind || readOnly ? null : (
-        <LinkForm cases={cases} onLink={onLink} sessionTest={sessionTest} />
+        <LinkScenarioVersionForm
+          cases={cases}
+          onLink={onLink}
+          sessionTest={sessionTest}
+        />
       )}
     </li>
   );
