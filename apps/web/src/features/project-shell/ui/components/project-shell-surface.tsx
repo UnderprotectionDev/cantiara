@@ -107,6 +107,9 @@ const ProjectTechnicalDiagramsSurface = lazy(
       "@/features/technical-diagrams/ui/components/project-technical-diagrams-surface"
     ),
 );
+const ProjectWallSurface = lazy(
+  () => import("@/features/project-wall/ui/project-wall-surface"),
+);
 const UserFlowSurface = lazy(
   () => import("@/features/user-flow/ui/user-flow-surface"),
 );
@@ -124,7 +127,15 @@ function decodedSourceId(value: string) {
 
 function projectDesignSurface(activeHash: string, projectId: string) {
   return ["design", "project-area-design"].includes(activeHash) ? (
-    <ScreensSurface key={`screens:${projectId}`} projectId={projectId} />
+    <div className="flex flex-col gap-8">
+      <ScreensSurface key={`screens:${projectId}`} projectId={projectId} />
+      <Suspense fallback={<p>Loading Project Wall…</p>}>
+        <ProjectWallSurface
+          key={`project-wall:${projectId}`}
+          projectId={projectId}
+        />
+      </Suspense>
+    </div>
   ) : null;
 }
 

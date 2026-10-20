@@ -37,6 +37,9 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Duvarı oluştur | `Create Project Wall` | Adlandırılmış düz Proje Duvarı açma |
 | Proje Duvarı yok | `No Project Wall yet.` | Henüz duvar açılmamış boş durum |
 | Canlı kart yerleştir | `Place live card` | Mevcut ana kaydı kopyasız canlı kart olarak duvara referanslama |
+| Vurgu | `Highlight` | Proje Duvarı kartının sınırlı erişilebilir palet vurgusu; durum, öncelik veya ilişki değildir |
+| Duvardan kaldır | `Remove from Project Wall` | Canlı kartı yalnız duvardan çıkarma; kaynak kayıt silinmez ve değişmez |
+| Proje Duvarı sil | `Delete Project Wall` | Duvarı ve yerleşimini silme; kaynak kayıtlar değişmez |
 | Görsel bağlantı | `Visual link` | Kartlar arasında yönlü etiketli anlatı çizgisi; kayıt ilişkisi değildir |
 | Kalıcı ilişki oluştur | `Create Persistent Relation` | Görsel çizgiden önizlemeli katalog ilişkisi yazma |
 | Konumu kilitle | `Lock Position` | Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını kısıtlamaz |
