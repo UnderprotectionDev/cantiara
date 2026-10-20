@@ -513,6 +513,11 @@ import {
   testAssessmentRecordSchema,
 } from "../test-assessments";
 import {
+  applicationTestReportInputSchema,
+  TestReportRejectedError,
+  testSessionProjectInputSchema,
+} from "../test-report";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -1224,6 +1229,35 @@ function requirePlannedTests(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.plannedTests;
+}
+
+function requireTestReports(context: Context) {
+  if (!context.testReports) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testReports;
+}
+
+/** A refusal carries the closed code, a safe field path and a fixable explanation, never payload. */
+async function runTestReportOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof TestReportRejectedError) {
+      throw new ORPCError(
+        error.code === "project_not_authorized" ? "NOT_FOUND" : "BAD_REQUEST",
+        {
+          cause: error,
+          data: { code: error.code, fieldPath: error.fieldPath },
+          defined: true,
+          message: error.explanation,
+        },
+      );
+    }
+    throw error;
+  }
 }
 
 function requireSpecChangeReview(context: Context) {
@@ -6058,6 +6092,29 @@ export const appRouter = {
       runPlannedTestOperation(() =>
         requirePlannedTests(context).createVersion(
           context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestSessions: protectedProcedure
+    .input(testSessionProjectInputSchema)
+    .handler(({ context, input }) =>
+      runTestReportOperation(() =>
+        requireTestReports(context).sessions(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  acceptTestReport: protectedProcedure
+    .input(applicationTestReportInputSchema)
+    .handler(({ context, input }) =>
+      runTestReportOperation(() =>
+        requireTestReports(context).accept(
+          {
+            accountId: context.session.user.id,
+            reporter: { id: context.session.user.id, kind: "user" },
+          },
           input,
         ),
       ),

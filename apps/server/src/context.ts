@@ -86,6 +86,7 @@ import type { SpecChangeReviewMutationContracts } from "@cantiara/api/spec-chang
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { TestAssessmentsAccess } from "@cantiara/api/test-assessments";
+import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import type { WebCaptureAccess } from "@cantiara/api/web-capture";
 import type { WorkContextAccess } from "@cantiara/api/work-context";
@@ -166,6 +167,7 @@ export interface CreateContextOptions {
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
   testAssessments?: TestAssessmentsAccess;
+  testReports?: TestReportAcceptanceAccess;
   trustedProxyIps: readonly string[];
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -247,6 +249,7 @@ export async function createContext({
   feedback,
   screens,
   plannedTests,
+  testReports,
   testAssessments,
   specChangeReview,
   specChangeReviewMutationContracts,
@@ -337,6 +340,7 @@ export async function createContext({
     feedback,
     screens,
     plannedTests,
+    testReports,
     testAssessments,
     specChangeReview,
     specChangeReviewMutationContracts,

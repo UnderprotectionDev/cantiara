@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -12,6 +13,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { project } from "./project";
 
 /**
@@ -121,9 +123,160 @@ export const plannedTestCaseRelation = pgTable(
 );
 
 /**
- * Session Test (Oturum Testi) bind, ticket 02. Project-scoped and deliberately
- * minimal: no parent Test Session, result, review state or evidence (spec 54
- * and 57 add those). The bind is the composite foreign key
+ * Test Session (Test Oturumu, spec 54): the reported-history parent of Session
+ * Tests. One table for all three ingresses (`Application`, `File import`,
+ * `MCP`); `ingress` is a stored fact, never a record type, queue or score. The
+ * executor (display attribution), the reporter (verified user or integration
+ * identity, never a payload field) and the ingress are separate columns.
+ * `reported_at` is UTC for comparison and `reported_at_text` keeps the original
+ * RFC 3339 offset. `review_state` only starts at `Unreviewed`; the review
+ * lifecycle belongs to spec 57. There is no score, trust, severity or release
+ * column: a reported result is not Product acceptance evidence.
+ */
+export const testSession = pgTable(
+  "project_test_session",
+  {
+    acceptedAt: timestamp("accepted_at").defaultNow().notNull(),
+    context: jsonb("context").$type<Record<string, string>>(),
+    endedAt: timestamp("ended_at"),
+    executorName: text("executor_name").notNull(),
+    executorType: text("executor_type").notNull(),
+    executorVersion: text("executor_version"),
+    externalSessionId: text("external_session_id").notNull(),
+    fingerprint: text("fingerprint"),
+    handoffId: text("handoff_id"),
+    handoffPackageVersion: integer("handoff_package_version"),
+    handoffStateAtAccept: text("handoff_state_at_accept"),
+    id: text("id").primaryKey(),
+    ingress: text("ingress").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    rawReport: text("raw_report"),
+    reportedAt: timestamp("reported_at").notNull(),
+    reportedAtText: text("reported_at_text").notNull(),
+    reporterId: text("reporter_id").notNull(),
+    reporterKind: text("reporter_kind").notNull(),
+    reviewState: text("review_state").default("Unreviewed").notNull(),
+    schemaVersion: text("schema_version").notNull(),
+    startedAt: timestamp("started_at"),
+    summary: text("summary"),
+  },
+  (table) => [
+    index("project_test_session_project_idx").on(
+      table.projectId,
+      table.acceptedAt,
+    ),
+    check(
+      "project_test_session_ingress_check",
+      sql`${table.ingress} in ('Application', 'File import', 'MCP')`,
+    ),
+    check(
+      "project_test_session_executor_type_check",
+      sql`${table.executorType} in ('user', 'ai_agent', 'external_tool')`,
+    ),
+    check(
+      "project_test_session_reporter_kind_check",
+      sql`${table.reporterKind} in ('user', 'integration')`,
+    ),
+    check(
+      "project_test_session_handoff_check",
+      sql`(${table.handoffId} is null) = (${table.handoffPackageVersion} is null)`,
+    ),
+  ],
+);
+
+/**
+ * Idempotency boundary of a reported Test Session (spec 54, ticket 02): the
+ * primary key is ingress + verified reporter + external session id inside one
+ * Project, so a retry can never open a second session. The executor is display
+ * attribution and is deliberately not in the key. A separate table, because
+ * the shared-database rules do not let a unique key land on an existing one.
+ */
+export const testSessionIdentity = pgTable(
+  "project_test_session_identity",
+  {
+    externalSessionId: text("external_session_id").notNull(),
+    ingress: text("ingress").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reporterId: text("reporter_id").notNull(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => testSession.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.projectId,
+        table.ingress,
+        table.reporterId,
+        table.externalSessionId,
+      ],
+      name: "project_test_session_identity_pk",
+    }),
+    index("project_test_session_identity_session_idx").on(table.sessionId),
+  ],
+);
+
+/**
+ * Attention signals of the Test Report Acceptance (spec 54, ticket 05), written
+ * in the same transaction as the Test Session that caused them. Only the two
+ * ids PRD 04 registers for this feature exist: `unreviewed-test-report` (one
+ * per new file or MCP session, never per Session Test, never for a manual
+ * session, never on a retry) and `handoff-result-after-cancel`. The signal id
+ * is derived from the session, so one session cannot open a type twice. The
+ * Unified Notification Center reads these rows; it is not built here.
+ */
+export const testReportAttentionSignal = pgTable(
+  "project_test_report_attention_signal",
+  {
+    closedAt: timestamp("closed_at"),
+    handoffId: text("handoff_id"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    ownerAccountId: text("owner_account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    presentation: text("presentation").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => testSession.id, { onDelete: "cascade" }),
+    signalId: text("signal_id").primaryKey(),
+    signalType: text("signal_type").notNull(),
+  },
+  (table) => [
+    index("project_test_report_attention_signal_project_idx").on(
+      table.projectId,
+    ),
+    check(
+      "project_test_report_attention_signal_type_check",
+      sql`${table.signalType} in ('unreviewed-test-report', 'handoff-result-after-cancel')`,
+    ),
+    check(
+      "project_test_report_attention_signal_id_check",
+      sql`${table.signalId} = ${table.signalType} || ':' || ${table.sessionId}`,
+    ),
+    check(
+      "project_test_report_attention_signal_presentation_check",
+      sql`(${table.signalType} = 'unreviewed-test-report' and ${table.presentation} = 'Action Required') or (${table.signalType} = 'handoff-result-after-cancel' and ${table.presentation} = 'Information Feed')`,
+    ),
+  ],
+);
+
+/**
+ * Session Test (Oturum Testi) bind, ticket 02. Project-scoped. Spec 54 adds
+ * the nullable report columns (parent Test Session, external id, position, raw
+ * and normalized result, notes, evidence, relations); a standalone Session Test
+ * keeps them all null and a reported one carries the whole set (enforced by
+ * Test Report Acceptance, because the shared-database rules keep checks on an
+ * existing table from narrowing). A reported ad hoc test stores its reported
+ * title as `purpose` and an empty `expected_behavior`, so the older content
+ * check still holds. Review state belongs to the Test Session (spec 57 owns
+ * its lifecycle). The bind is the composite foreign key
  * `(scenario_id, scenario_version)` to one immutable version row, so it names an
  * exact version and no case edit can move it. `purpose` and `expected_behavior`
  * hold the then-current content of an ad hoc test and are never rewritten by a
@@ -137,19 +290,34 @@ export const sessionTest = pgTable(
   {
     bindOrigin: text("bind_origin"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    evidence: jsonb("evidence").$type<unknown[]>(),
     expectedBehavior: text("expected_behavior"),
+    externalTestId: text("external_test_id"),
     id: text("id").primaryKey(),
     linkedAt: timestamp("linked_at"),
+    normalizedResult: text("normalized_result"),
+    notes: text("notes"),
     projectId: text("project_id")
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
+    position: integer("position"),
     purpose: text("purpose"),
+    rawResult: text("raw_result"),
+    relations: jsonb("relations").$type<unknown[]>(),
     scenarioId: text("scenario_id"),
     scenarioVersion: integer("scenario_version"),
+    sessionId: text("session_id").references(() => testSession.id, {
+      onDelete: "cascade",
+    }),
     title: text("title").notNull(),
   },
   (table) => [
     index("project_session_test_project_idx").on(table.projectId),
+    index("project_session_test_session_idx").on(table.sessionId),
+    uniqueIndex("project_session_test_session_external_idx").on(
+      table.sessionId,
+      table.externalTestId,
+    ),
     foreignKey({
       columns: [table.scenarioId, table.scenarioVersion],
       foreignColumns: [

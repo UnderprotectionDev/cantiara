@@ -318,6 +318,19 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Tüm Dosyalar | `All Files` | Sıfır kurulum hazır tür dizini; her Dosya Ekini bir kez gösterir |
 | Planlı Test Senaryosu | `Planned Test Case` | Test dizini alt türü; bağımsız senaryo ana kaydı |
 | Oturum Testi | `Session Test` | Test Oturumunun sahipli deneme öğesi; `All Tests` içinde ayırt edilir |
+| Test Oturumu kaydet | `Record Test Session` | Uygulama içi manuel form; Kaydet'e kadar oturum üretmez |
+| Test Oturumu dosyasını içe aktar | `Import Test Session file` | JSON ya da YAML frontmatter'lı Markdown rapor dosyası; aynı model, `File import` giriş yolu |
+| Yürüten türü | `Executor type` | `User`, `AI agent` veya `External tool`; güven puanı değildir |
+| Yürüten | `Executor` | Testi yürüten kullanıcı ya da araç adı ve sürümü; tarihsel atıf |
+| Raporlayan | `Reporter` | Raporu teslim eden doğrulanmış kullanıcı ya da entegrasyon |
+| Giriş yolu | `Ingress` | `Application`, `File import` veya `MCP`; saklanan olgu, puan değildir |
+| İncelenmedi | `Unreviewed` | Yeni Test Oturumunun başlangıç inceleme durumu; inceleme yaşam döngüsü 57'dedir |
+| Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
+| Kaldı | `Failed` | Normalize bildirilen sonuç |
+| Bloke | `Blocked` | Normalize bildirilen sonuç |
+| Atlandı | `Skipped` | Normalize bildirilen sonuç |
+| Sonuçsuz | `Inconclusive` | Normalize bildirilen sonuç |
+| Bildirilmedi | `Not reported` | Normalize bildirilen sonuç; katalog dışı ya da eksik ham sonuç |
 | Test değerlendirmesi | `Test assessment` | Test dizini alt türü |
 | Teknik Mimari | `Technical Architecture` | Teknik Diyagram türü |
 | Veri Modeli | `Data Model` | Teknik Diyagram türü |

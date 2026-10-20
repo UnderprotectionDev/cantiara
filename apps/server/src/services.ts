@@ -116,6 +116,7 @@ import {
 } from "./features/tags/server/tags-database";
 import { createDatabaseTechnicalDiagrams } from "./features/technical-diagrams/server/technical-diagrams-database";
 import { createDatabaseTestAssessments } from "./features/test-assessments/server/test-assessments-database";
+import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
@@ -252,6 +253,7 @@ export const contacts = createDatabaseContacts(db);
 export const feedback = createDatabaseFeedbackWithFeed(db);
 export const screens = createDatabaseScreens(db);
 export const plannedTests = createDatabasePlannedTests(db);
+export const testReports = createDatabaseTestReports(db);
 export const testAssessments = createDatabaseTestAssessments(db);
 export const specChangeReview = createSpecChangeReview(
   createDatabaseSpecChangeReviewStore(db),

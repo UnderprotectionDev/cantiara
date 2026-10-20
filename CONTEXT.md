@@ -1344,6 +1344,35 @@ Bir Test Oturumu içinde bağımsız olarak denendiği bildirilen davranışı, 
 UI: `Session Test`.
 _Avoid_: Planlı Test Senaryosu, Test Oturumu özeti, GitHub check'i
 
+**Yürüten**:
+Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
+UI: `Executor type`, `Executor`.
+_Avoid_: Raporlayan, Giriş yolu, güvenilir kaynak, ajan puanı
+
+**Raporlayan**:
+Test raporunu ürüne teslim eden doğrulanmış kullanıcı ya da entegrasyon kimliği; bağlamdan gelir, rapor yükünde bir alan olarak taşınmaz.
+UI: `Reporter`.
+_Avoid_: Yürüten, rapor yükündeki actor alanı
+
+**Bildirilen ham sonuç**:
+Bir Oturum Testinde dış aracın ya da kullanıcının sonucu ifade ettiği, geriye dönük yeniden yazılmayan özgün metin; normalize edilmiş sonuçtan ayrı korunur.
+UI: yok; yalnız saklanır.
+_Avoid_: düzeltilmiş sonuç, temizlenmiş sonuç
+
+**Normalize edilmiş sonuç**:
+Ham sonucun kapalı alias kataloğuyla (`test-report/1`) `Geçti`, `Kaldı`, `Bloke`, `Atlandı`, `Sonuçsuz` veya `Bildirilmedi` değerine eşlenmiş ortak sunumu; katalog dışı ifade `Bildirilmedi` olur, çelişki reddedilir, oturum düzeyinde geçti/kaldı hükmü hesaplanmaz ve `ürün tarafından doğrulandı` anlamına gelmez.
+UI: `Passed`, `Failed`, `Blocked`, `Skipped`, `Inconclusive`, `Not reported`.
+_Avoid_: doğrulanmış sonuç, oturum sonucu, kalite puanı
+
+**Maskeli inceleme**:
+Dosya ya da manuel girişte belirsiz bir secret bulgusunda ürünün yalnız alan yolunu gösterdiği, içeriği göstermediği ve hiçbir kayıt oluşturmadığı sonuçtur; kullanıcı hassas değeri kaynaktan çıkarıp raporu yeniden gönderir. Gözetimsiz MCP'de karşılığı reddetmedir; bilinen token her yolda reddedilir.
+_Avoid_: sessiz redaksiyon, kanıtı düzenleme, kısmi kabul
+
+**Giriş yolu**:
+Test raporunun ürüne geldiği yol: `Uygulama` (manuel form), `Dosya içe aktarma` veya `MCP`; kaydın saklanan bir olgusudur, ayrı kayıt türü ya da kuyruk değildir ve güven ya da önem puanı üretmez.
+UI: `Ingress`.
+_Avoid_: kaynak güveni, güven puanı, kayıt türü, kabul kuyruğu
+
 **Test Açığı**:
 Kullanıcının henüz denenmediğini veya yetersiz doğrulandığını düşündüğü alanı ve bu yargının dayanaklarını taşıyan Proje ana kaydı; başarısız test, Bug veya otomatik yayın engeli değildir.
 UI: `Test Gap`.

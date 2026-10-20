@@ -1,0 +1,537 @@
+import {
+  type AcceptTestReportInput,
+  acceptTestReportInputSchema,
+  parseTestReport,
+  rejection,
+  type SessionTestReportStoredRecord,
+  TEST_REPORT_LIMITS,
+  TEST_REPORT_SCHEMA_VERSION,
+  type TestReportAcceptanceAccess,
+  type TestReportCaller,
+  type TestReportHandoffRef,
+  type TestReportLookup,
+  type TestReportMaskedReview,
+  type TestReportRejectedError,
+  type TestReportStore,
+  type TestReportTransaction,
+  type TestReportV1,
+  type TestSessionStoredRecord,
+  testSessionProjectInputSchema,
+  toTestSessionRecord,
+} from "@cantiara/api/test-report";
+import { normalizeReportedResult } from "@cantiara/api/test-report-result";
+import { scanTestReportForSecrets } from "@cantiara/api/test-report-secrets";
+import { testReportFingerprint } from "./test-report-identity";
+import { parseTestReportFile } from "./test-report-import";
+
+/** The report as the manual form writes it: the product supplies the envelope fields. */
+function manualEnvelope(
+  input: Extract<AcceptTestReportInput, { ingress: "Application" }>,
+) {
+  return {
+    executor: input.executor,
+    external_session_id: crypto.randomUUID(),
+    project_id: input.projectId,
+    reported_at: input.reportedAt ?? new Date().toISOString(),
+    schema_version: TEST_REPORT_SCHEMA_VERSION,
+    summary: input.summary,
+    tests: input.tests.map((test) => ({
+      external_test_id: crypto.randomUUID(),
+      normalized_result: test.result,
+      notes: test.notes,
+      raw_result: test.result,
+      title: test.title,
+    })),
+  };
+}
+
+/** Where the report is aimed; MCP names its Project inside the envelope. */
+function targetProjectId(input: AcceptTestReportInput) {
+  if (input.ingress !== "MCP") {
+    return input.projectId;
+  }
+  const { report } = input;
+  const candidate =
+    typeof report === "object" && report !== null
+      ? (report as Record<string, unknown>).project_id
+      : undefined;
+  if (typeof candidate !== "string" || candidate === "") {
+    throw rejection("invalid_field", "project_id");
+  }
+  return candidate;
+}
+
+function rawEnvelope(input: AcceptTestReportInput): unknown {
+  switch (input.ingress) {
+    case "Application":
+      return manualEnvelope(input);
+    case "File import":
+      return parseTestReportFile(input.format, input.content);
+    default:
+      return input.report;
+  }
+}
+
+/** The normalized layer; the raw statement is stored beside it, never rewritten. */
+function normalizedResultOf(
+  test: TestReportV1["tests"][number],
+  position: number,
+) {
+  const result = normalizeReportedResult(
+    test.raw_result,
+    test.normalized_result,
+  );
+  if (result.status === "conflict") {
+    throw rejection("result_conflict", `tests[${position}].normalized_result`);
+  }
+  return result.normalized;
+}
+
+/** The older in-Project Session Test content check needs a purpose; a report states what was tried. */
+function toStoredTests(report: TestReportV1): SessionTestReportStoredRecord[] {
+  return report.tests.map((test, position) => ({
+    evidence: test.evidence ?? [],
+    externalTestId: test.external_test_id,
+    id: crypto.randomUUID(),
+    normalizedResult: normalizedResultOf(test, position),
+    notes: test.notes ?? null,
+    position,
+    rawResult: test.raw_result ?? null,
+    relations: test.relations ?? [],
+    scenarioId: test.scenario_id ?? null,
+    scenarioVersion: test.scenario_version ?? null,
+    title: test.title,
+  }));
+}
+
+type Check = () => Promise<TestReportRejectedError | null>;
+
+/** The first refusal in report order, so the error is stable whatever resolves first. */
+async function firstRefusal(checks: Check[]) {
+  const results = await Promise.all(checks.map((check) => check()));
+  return results.find((result) => result !== null) ?? null;
+}
+
+function lookupRefusal(lookup: TestReportLookup, fieldPath: string) {
+  if (lookup === "missing") {
+    return rejection("reference_not_found", fieldPath);
+  }
+  return lookup === "other_project"
+    ? rejection("reference_scope_mismatch", fieldPath)
+    : null;
+}
+
+/** The Handoff the report is bound to; its package version must match exactly. */
+async function requireHandoff(
+  transaction: TestReportTransaction,
+  report: TestReportV1,
+) {
+  if (report.handoff_id === undefined) {
+    return null;
+  }
+  const found = await transaction.findHandoff(report.handoff_id);
+  if (found === null) {
+    throw rejection("reference_not_found", "handoff_id");
+  }
+  if (found === "other_project") {
+    throw rejection("reference_scope_mismatch", "handoff_id");
+  }
+  if (found.packageVersion !== report.handoff_package_version) {
+    throw rejection("reference_scope_mismatch", "handoff_package_version");
+  }
+  return found;
+}
+
+function inPackage(
+  handoff: TestReportHandoffRef,
+  caseId: string,
+  version: number | undefined,
+) {
+  return handoff.scenarios.some(
+    (scenario) => scenario.caseId === caseId && scenario.version === version,
+  );
+}
+
+async function relationRefusal(
+  transaction: TestReportTransaction,
+  handoff: TestReportHandoffRef | null,
+  relation: NonNullable<TestReportV1["tests"][number]["relations"]>[number],
+  fieldPath: string,
+) {
+  if (relation.target_type === "test_handoff") {
+    const found = await transaction.findHandoff(relation.target_id);
+    if (found === null) {
+      return rejection("reference_not_found", fieldPath);
+    }
+    if (found === "other_project" || (handoff && found.id !== handoff.id)) {
+      return rejection("reference_scope_mismatch", fieldPath);
+    }
+    return null;
+  }
+  const lookup = await transaction.resolveReference(
+    relation.target_type,
+    relation.target_id,
+    relation.scenario_version ?? null,
+  );
+  const refusal = lookupRefusal(lookup, fieldPath);
+  if (refusal) {
+    return refusal;
+  }
+  return relation.target_type === "planned_test_case" &&
+    handoff &&
+    !inPackage(handoff, relation.target_id, relation.scenario_version)
+    ? rejection("reference_scope_mismatch", fieldPath)
+    : null;
+}
+
+/** Every scenario and relation must be a real, in-scope record; nothing is dropped silently. */
+async function requireReferences(
+  transaction: TestReportTransaction,
+  handoff: TestReportHandoffRef | null,
+  report: TestReportV1,
+) {
+  const checks: Check[] = [];
+  report.tests.forEach((test, index) => {
+    const at = `tests[${index}]`;
+    if (test.scenario_id !== undefined && test.scenario_version !== undefined) {
+      const { scenario_id: caseId, scenario_version: version } = test;
+      checks.push(async () => {
+        const refusal = lookupRefusal(
+          await transaction.resolveReference(
+            "planned_test_case",
+            caseId,
+            version,
+          ),
+          `${at}.scenario_id`,
+        );
+        return (
+          refusal ??
+          (handoff && !inPackage(handoff, caseId, version)
+            ? rejection("reference_scope_mismatch", `${at}.scenario_id`)
+            : null)
+        );
+      });
+    }
+    test.relations?.forEach((relation, relationIndex) => {
+      checks.push(() =>
+        relationRefusal(
+          transaction,
+          handoff,
+          relation,
+          `${at}.relations[${relationIndex}].target_id`,
+        ),
+      );
+    });
+  });
+  const refusal = await firstRefusal(checks);
+  if (refusal) {
+    throw refusal;
+  }
+}
+
+/** The raw size is checked before any schema runs; nothing is trimmed. */
+function assertEnvelopeSize(raw: unknown) {
+  let bytes: number;
+  try {
+    bytes = new TextEncoder().encode(JSON.stringify(raw) ?? "").length;
+  } catch {
+    // The serializer message can quote payload text, so it is not chained.
+    // biome-ignore lint/style/useErrorCause: The message quotes payload text and must not be chained.
+    throw rejection("invalid_field");
+  }
+  if (bytes > TEST_REPORT_LIMITS.envelopeBytes) {
+    throw rejection("payload_too_large");
+  }
+}
+
+/**
+ * Every `attachment_ref` must be an accessible File Attachment of this
+ * Project (Trash and other scopes are not). Its current content hash goes into
+ * the fingerprint; the report never uploads or mints an attachment.
+ */
+async function resolveAttachments(
+  transaction: TestReportTransaction,
+  report: TestReportV1,
+) {
+  const refs: { fieldPath: string; id: string }[] = [];
+  report.tests.forEach((test, index) => {
+    test.evidence?.forEach((entry, entryIndex) => {
+      if (entry.type === "attachment_ref") {
+        refs.push({
+          fieldPath: `tests[${index}].evidence[${entryIndex}].value`,
+          id: entry.value,
+        });
+      }
+    });
+  });
+  const ids = [...new Set(refs.map(({ id }) => id))];
+  const found = await Promise.all(
+    ids.map((id) => transaction.resolveAttachment(id)),
+  );
+  const byId = new Map(ids.map((id, index) => [id, found[index]]));
+  const hashes: Record<string, string> = {};
+  for (const { fieldPath, id } of refs) {
+    const attachment = byId.get(id);
+    if (attachment?.status === "found") {
+      hashes[id] = attachment.contentHash;
+      continue;
+    }
+    throw rejection(
+      attachment?.status === "other_project"
+        ? "reference_scope_mismatch"
+        : "reference_not_found",
+      fieldPath,
+    );
+  }
+  return hashes;
+}
+
+function toStoredSession(
+  caller: TestReportCaller,
+  input: AcceptTestReportInput,
+  report: TestReportV1,
+  tests: SessionTestReportStoredRecord[],
+  handoff: TestReportHandoffRef | null,
+  attachmentHashes: Record<string, string>,
+): TestSessionStoredRecord {
+  return {
+    acceptedAt: new Date().toISOString(),
+    context: report.context ?? null,
+    endedAt: report.ended_at ? new Date(report.ended_at).toISOString() : null,
+    executor: {
+      name: report.executor.name,
+      type: report.executor.type,
+      version: report.executor.version ?? null,
+    },
+    externalSessionId: report.external_session_id,
+    fingerprint: testReportFingerprint(report, attachmentHashes),
+    handoffId: report.handoff_id ?? null,
+    handoffPackageVersion: report.handoff_package_version ?? null,
+    handoffStateAtAccept: handoff?.state ?? null,
+    id: crypto.randomUUID(),
+    ingress: input.ingress,
+    projectId: report.project_id,
+    rawReport: report.raw_report ?? null,
+    reportedAt: new Date(report.reported_at).toISOString(),
+    reportedAtText: report.reported_at,
+    reporter: caller.reporter,
+    reviewState: "Unreviewed",
+    schemaVersion: report.schema_version,
+    startedAt: report.started_at
+      ? new Date(report.started_at).toISOString()
+      : null,
+    summary: report.summary ?? null,
+    tests,
+  };
+}
+
+/**
+ * Fail-closed secret screen. A known token rejects the whole report with the
+ * masked path only. An ambiguous finding rejects on unsupervised MCP and asks
+ * for a masked review on file and manual ingress; either way nothing is
+ * stored and the evidence is never edited.
+ */
+function screenForSecrets(
+  report: TestReportV1,
+  ingress: AcceptTestReportInput["ingress"],
+): TestReportMaskedReview | null {
+  const { ambiguous, known } = scanTestReportForSecrets(report);
+  const [firstKnown] = known;
+  if (firstKnown !== undefined) {
+    throw rejection("sensitive_data_detected", firstKnown);
+  }
+  const [firstAmbiguous] = ambiguous;
+  if (firstAmbiguous === undefined) {
+    return null;
+  }
+  if (ingress === "MCP") {
+    throw rejection("sensitive_data_detected", firstAmbiguous);
+  }
+  return {
+    findings: ambiguous.map((fieldPath) => ({ fieldPath })),
+    outcome: "masked_review",
+  };
+}
+
+/**
+ * The only dikkat signals a report may open, written in the session's unit of
+ * work. A manual session opens none; Session Tests never do; a retry never
+ * reaches here because it creates no session.
+ */
+async function produceSignals(
+  transaction: TestReportTransaction,
+  caller: TestReportCaller,
+  session: TestSessionStoredRecord,
+) {
+  const base = {
+    occurredAt: session.acceptedAt,
+    ownerAccountId: caller.accountId,
+    source: {
+      handoffId: session.handoffId,
+      projectId: session.projectId,
+      sessionId: session.id,
+    },
+  };
+  if (session.ingress !== "Application") {
+    await transaction.produceSignal({
+      ...base,
+      presentation: "Action Required",
+      signalId: `unreviewed-test-report:${session.id}`,
+      signalType: "unreviewed-test-report",
+    });
+  }
+  if (session.handoffStateAtAccept === "Canceled") {
+    await transaction.produceSignal({
+      ...base,
+      presentation: "Information Feed",
+      signalId: `handoff-result-after-cancel:${session.id}`,
+      signalType: "handoff-result-after-cancel",
+    });
+  }
+}
+
+/**
+ * The ingress + verified reporter + external session id boundary. The same
+ * canonical content is the prior receipt; different content is a conflict and
+ * never an update. The executor is not part of either.
+ */
+async function priorAcceptance(
+  transaction: TestReportTransaction,
+  caller: TestReportCaller,
+  input: AcceptTestReportInput,
+  report: TestReportV1,
+  attachmentHashes: Record<string, string>,
+) {
+  const prior = await transaction.findSessionByIdentity(
+    input.ingress,
+    caller.reporter.id,
+    report.external_session_id,
+  );
+  if (!prior) {
+    return null;
+  }
+  if (prior.fingerprint !== testReportFingerprint(report, attachmentHashes)) {
+    throw rejection("identity_conflict", "external_session_id");
+  }
+  return { outcome: "duplicate" as const, stored: prior };
+}
+
+/**
+ * Test Report Acceptance. `accept` is the only write: it validates the whole
+ * `test-report/1` envelope first and stores one Test Session with all its
+ * Session Tests in one unit of work, or throws a closed-code refusal and stores
+ * nothing. The reporter comes from the verified caller, never from the payload.
+ * It opens no review, release gate, notification or score.
+ */
+async function acceptInTransaction(
+  transaction: TestReportTransaction,
+  caller: TestReportCaller,
+  input: AcceptTestReportInput,
+) {
+  if (transaction.readOnly) {
+    throw rejection("project_not_authorized");
+  }
+  const raw = rawEnvelope(input);
+  if (input.ingress !== "File import") {
+    assertEnvelopeSize(raw);
+  }
+  const report = parseTestReport(raw, input.ingress);
+  if (input.ingress !== "MCP" && report.project_id !== input.projectId) {
+    throw rejection("reference_scope_mismatch", "project_id");
+  }
+  const review = screenForSecrets(report, input.ingress);
+  if (review) {
+    return review;
+  }
+  const tests = toStoredTests(report);
+  const hashes = await resolveAttachments(transaction, report);
+  const prior = await priorAcceptance(
+    transaction,
+    caller,
+    input,
+    report,
+    hashes,
+  );
+  if (prior) {
+    return prior;
+  }
+  const handoff = await requireHandoff(transaction, report);
+  await requireReferences(transaction, handoff, report);
+  const session = toStoredSession(
+    caller,
+    input,
+    report,
+    tests,
+    handoff,
+    hashes,
+  );
+  if (!(await transaction.insertSession(session))) {
+    // A concurrent delivery won the identity; answer from what it stored.
+    const winner = await priorAcceptance(
+      transaction,
+      caller,
+      input,
+      report,
+      hashes,
+    );
+    if (winner) {
+      return winner;
+    }
+    throw rejection("identity_conflict", "external_session_id");
+  }
+  await produceSignals(transaction, caller, session);
+  return { outcome: "created" as const, stored: session };
+}
+
+export function createTestReportAcceptance(
+  store: TestReportStore,
+): TestReportAcceptanceAccess {
+  const accept = async (
+    caller: TestReportCaller,
+    rawInput: AcceptTestReportInput,
+  ) => {
+    const input = acceptTestReportInputSchema.parse(rawInput);
+    const accepted = await store.run(
+      caller.accountId,
+      targetProjectId(input),
+      "write",
+      (transaction) => acceptInTransaction(transaction, caller, input),
+    );
+    if (!accepted) {
+      throw rejection("project_not_authorized");
+    }
+    if (accepted.outcome === "masked_review") {
+      return accepted;
+    }
+    return {
+      outcome: accepted.outcome,
+      session: toTestSessionRecord(accepted.stored),
+    };
+  };
+
+  return {
+    accept: accept as TestReportAcceptanceAccess["accept"],
+    async sessions(accountId, projectId) {
+      const parsed = testSessionProjectInputSchema.parse({ projectId });
+      const listed = await store.run(
+        accountId,
+        parsed.projectId,
+        "read",
+        async (transaction) => ({
+          readOnly: transaction.readOnly,
+          sessions: (await transaction.listSessions())
+            .sort(
+              (left, right) =>
+                right.reportedAt.localeCompare(left.reportedAt) ||
+                left.id.localeCompare(right.id),
+            )
+            .map(toTestSessionRecord),
+        }),
+      );
+      if (!listed) {
+        throw rejection("project_not_authorized");
+      }
+      return listed;
+    },
+  };
+}
