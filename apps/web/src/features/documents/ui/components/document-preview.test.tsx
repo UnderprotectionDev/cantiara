@@ -91,6 +91,7 @@ test("renders named collection and Diagram View blocks from their resolved sourc
             scope: { projectIds: ["project-1"] },
             workspaceId: "workspace-1",
             documents: [],
+            gaps: [],
             projectSourceRecords: [],
             works: [
               {
@@ -162,6 +163,7 @@ test("renders Document and Project source members with live membership reasons",
             workspaceId: "workspace-1",
             works: [],
             projectSourceRecords: [],
+            gaps: [],
             documents: [
               {
                 id: "document-1",
@@ -197,6 +199,7 @@ test("renders Document and Project source members with live membership reasons",
             workspaceId: "workspace-1",
             works: [],
             documents: [],
+            gaps: [],
             projectSourceRecords: [
               {
                 id: "risk-1",

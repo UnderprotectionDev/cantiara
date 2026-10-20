@@ -42,6 +42,11 @@ export default function ContextRecordPreviewContent({
   if (record.kind === "smart-collection") {
     return <SmartCollectionRecordPreview record={record} />;
   }
+  if (record.kind === "test-gap") {
+    return (
+      <TestGapRecordPreview gapId={record.gapId} projectId={record.projectId} />
+    );
+  }
 
   return (
     <Suspense fallback={<PreviewStatus>Loading source record…</PreviewStatus>}>
@@ -52,6 +57,38 @@ export default function ContextRecordPreviewContent({
         sourceType={record.sourceType}
       />
     </Suspense>
+  );
+}
+
+/**
+ * Closed-world Test Gap preview: only the Gap's own record fields are read,
+ * and the Gap count is never reduced to a coverage figure.
+ */
+function TestGapRecordPreview({
+  gapId,
+  projectId,
+}: {
+  gapId: string;
+  projectId: string;
+}) {
+  const gaps = useQuery(
+    orpc.projectTestGaps.queryOptions({ input: { projectId } }),
+  );
+  if (gaps.isPending) {
+    return <PreviewStatus>Loading source record…</PreviewStatus>;
+  }
+  const gap = gaps.data?.gaps.find((record) => record.id === gapId);
+  if (gaps.isError || !gap || gap.projectId !== projectId) {
+    return (
+      <PreviewStatus role="alert">Source record is unavailable.</PreviewStatus>
+    );
+  }
+  return (
+    <section aria-label="Test Gap record" className="space-y-4">
+      <h2 className="font-semibold text-2xl tracking-tight">{gap.title}</h2>
+      <p className="text-muted-foreground text-sm">{`Test Gap · ${gap.state}`}</p>
+      <p className="whitespace-pre-wrap text-sm">{gap.rationale}</p>
+    </section>
   );
 }
 

@@ -8,6 +8,7 @@ import { Badge } from "@cantiara/ui/components/badge";
 import {
   documentRecordHash,
   projectSourceRecordHash,
+  testGapRecordHash,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 
@@ -46,6 +47,10 @@ function resultHref(result: UniversalSearchResult) {
 
   if (result.recordType === "Technical Diagram" && result.projectId) {
     return `/projects/${encodeURIComponent(result.projectId)}#technical-diagram-${encodeURIComponent(result.id)}`;
+  }
+
+  if (result.recordType === "Test Gap" && result.projectId) {
+    return `/projects/${encodeURIComponent(result.projectId)}#${testGapRecordHash(result.id)}`;
   }
 
   if (result.projectId) {

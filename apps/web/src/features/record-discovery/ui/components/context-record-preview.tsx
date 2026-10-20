@@ -21,6 +21,7 @@ import {
 import {
   documentRecordHash,
   projectSourceRecordHash,
+  testGapRecordHash,
   workRecordHref,
 } from "@/features/project-shell/lib/project-shell-navigation";
 
@@ -41,6 +42,12 @@ export type SourceRecordPreviewTarget =
       projectId: string;
       sourceId: string;
       sourceType: ProjectSourceType;
+    }
+  | {
+      kind: "test-gap";
+      gapId: string;
+      label: string;
+      projectId: string;
     }
   | { kind: "work"; label: string; projectId: string; workId: string }
   | { kind: "project"; label: string; projectId: string }
@@ -68,6 +75,9 @@ export function sourceRecordPreviewHref(target: SourceRecordPreviewTarget) {
   }
   if (target.kind === "work") {
     return workRecordHref(target.projectId, target.workId);
+  }
+  if (target.kind === "test-gap") {
+    return `/projects/${encodeURIComponent(target.projectId)}#${testGapRecordHash(target.gapId)}`;
   }
 
   if (target.kind === "document") {

@@ -98,6 +98,7 @@ import { SUPPORT_REFERENCE_HEADER } from "@cantiara/api/support-reference";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { TestAssessmentsAccess } from "@cantiara/api/test-assessments";
+import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import {
@@ -235,6 +236,7 @@ export interface AppDependencies {
   tauriSessionAccess?: TauriSessionAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
   testAssessments?: TestAssessmentsAccess;
+  testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
   trustedProxyIps: readonly string[];
   universalSearch?: UniversalSearchAccess;
@@ -1261,6 +1263,7 @@ export function createApp(dependencies: AppDependencies) {
       feedback: dependencies.feedback,
       screens: dependencies.screens,
       plannedTests: dependencies.plannedTests,
+      testGaps: dependencies.testGaps,
       testReports: dependencies.testReports,
       testAssessments: dependencies.testAssessments,
       specChangeReview: dependencies.specChangeReview,

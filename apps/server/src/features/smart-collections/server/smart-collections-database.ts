@@ -10,6 +10,7 @@ import {
   SmartCollectionConflictError,
   SmartCollectionUnavailableError,
 } from "@cantiara/api/smart-collections";
+import type { TEST_GAP_STATES } from "@cantiara/api/test-gaps";
 import type { Database } from "@cantiara/db";
 import { assumption } from "@cantiara/db/schema/assumption";
 import { workspace } from "@cantiara/db/schema/auth";
@@ -28,6 +29,7 @@ import {
   smartCollectionSubscriptionMembership,
   smartCollectionView,
 } from "@cantiara/db/schema/smart-collection";
+import { testGap } from "@cantiara/db/schema/test-gap";
 import { work } from "@cantiara/db/schema/work";
 import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
@@ -480,7 +482,8 @@ function getProjectSourceRecords(
   if (
     sourceType === "Work" ||
     sourceType === "Document" ||
-    sourceType === "Wiki Document"
+    sourceType === "Wiki Document" ||
+    sourceType === "Test Gap"
   ) {
     return Promise.resolve([]);
   }
@@ -495,6 +498,47 @@ function getProjectSourceRecords(
 
 function assertNever(value: never): never {
   throw new Error(`Unsupported Smart Collection source type: ${value}`);
+}
+
+/**
+ * Test Gap membership: the Gaps of the scoped Projects that carry the asked
+ * state. The Gap state is the filter field, named `State` in the membership
+ * reason so it is read as the Gap state, not as a generic status column.
+ */
+async function getTestGapMembershipRecords(
+  database: SmartCollectionExecutor,
+  projectIds: string[],
+  projectNames: ReadonlyMap<string, string>,
+  status?: string,
+): Promise<SmartCollectionViewSource["gaps"]> {
+  if (projectIds.length === 0) {
+    return [];
+  }
+  const rows = await database
+    .select({
+      id: testGap.id,
+      projectId: testGap.projectId,
+      state: testGap.state,
+      title: testGap.title,
+    })
+    .from(testGap)
+    .where(
+      and(
+        inArray(testGap.projectId, projectIds),
+        status ? eq(testGap.state, status) : undefined,
+      ),
+    )
+    .orderBy(asc(testGap.projectId), asc(testGap.title));
+  return rows.map((row) => ({
+    id: row.id,
+    membershipReasons: [
+      `Project: ${projectNames.get(row.projectId) ?? "Project scope"}`,
+      ...(status ? [`Status: ${status}`] : []),
+    ],
+    projectId: row.projectId,
+    state: row.state as (typeof TEST_GAP_STATES)[number],
+    title: row.title,
+  }));
 }
 
 function smartCollectionSourcePath(
@@ -512,6 +556,8 @@ function smartCollectionSourcePath(
     case "Document":
     case "Wiki Document":
       return `${recordPath}#document-${recordId}`;
+    case "Test Gap":
+      return `${recordPath}#source-test-gap-${recordId}`;
     case "Decision":
       return `${recordPath}#source-decision-${recordId}`;
     case "Risk":
@@ -546,6 +592,20 @@ function smartCollectionSubscriptionMembers(
       sourceRecordId: record.id,
       sourceRecordTitle: `${record.key} · ${record.title}`,
       sourceRecordType: "Work",
+    }));
+  }
+  if (view.sourceType === "Test Gap") {
+    return view.gaps.map((record) => ({
+      membershipReasons: record.membershipReasons,
+      sourcePath: smartCollectionSourcePath(
+        "Test Gap",
+        record.id,
+        record.projectId,
+      ),
+      sourceProjectId: record.projectId,
+      sourceRecordId: record.id,
+      sourceRecordTitle: record.title,
+      sourceRecordType: "Test Gap",
     }));
   }
   if (view.sourceType === "Document" || view.sourceType === "Wiki Document") {
@@ -809,6 +869,15 @@ async function loadSmartCollectionView(
     projectScope,
     conditions,
   );
+  const gaps =
+    sourceType === "Test Gap"
+      ? await getTestGapMembershipRecords(
+          executor,
+          projectScope.projectIds,
+          projectScope.projectNames,
+          conditions.status,
+        )
+      : [];
 
   return {
     subscription: subscription ?? null,
@@ -816,6 +885,7 @@ async function loadSmartCollectionView(
       collectionId: collection.id,
       collectionName: collection.name,
       conditions,
+      gaps,
       id: view.id,
       isSubscribed: Boolean(subscription),
       name: view.name,
@@ -888,6 +958,7 @@ async function preparedLongStatusView(
     preparedReason: "Long in the same status",
     conditions: {},
     documents: [],
+    gaps: [],
     projectSourceRecords: [],
     works,
     scope: { projectIds: [projectId] },

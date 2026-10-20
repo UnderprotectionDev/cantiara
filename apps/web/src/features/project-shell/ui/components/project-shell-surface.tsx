@@ -58,6 +58,7 @@ import {
   projectSourceRecordFromHash,
   ROADMAP_HASH,
   SPEC_CHANGE_REVIEW_HASH,
+  testGapRecordFromHash,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
@@ -79,6 +80,7 @@ import {
 import ProjectSourcesSurface from "@/features/sources-and-freshness/ui/components/project-sources-surface";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
 import TestAssessmentsSurface from "@/features/test-assessments/ui/test-assessments-surface";
+import TestGapsSurface from "@/features/test-gaps/ui/test-gaps-surface";
 import TestSessionsSurface from "@/features/test-report/ui/test-sessions-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
@@ -146,13 +148,21 @@ function projectDesignSurface(activeHash: string, projectId: string) {
   ) : null;
 }
 
-function projectTestsSurface(activeHash: string, projectId: string) {
-  return ["tests", "project-area-tests"].includes(activeHash) ? (
+function projectTestsSurface(
+  activeHash: string,
+  projectId: string,
+  gapSourceId: string | null,
+) {
+  const isTestsSurface =
+    ["tests", "project-area-tests"].includes(activeHash) ||
+    gapSourceId !== null;
+  return isTestsSurface ? (
     <div className="space-y-10">
       <PlannedTestsSurface
         key={`planned-tests:${projectId}`}
         projectId={projectId}
       />
+      <TestGapsSurface key={`test-gaps:${projectId}`} projectId={projectId} />
       <TestSessionsSurface
         key={`test-sessions:${projectId}`}
         projectId={projectId}
@@ -478,7 +488,11 @@ function ProjectShellContent({
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const uncertaintySurface =
     projectDesignSurface(activeHash, projectId) ??
-    projectTestsSurface(activeHash, projectId) ??
+    projectTestsSurface(
+      activeHash,
+      projectId,
+      testGapRecordFromHash(activeHash),
+    ) ??
     projectUncertaintySurface(
       projectId,
       accountId,

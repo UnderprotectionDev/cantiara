@@ -34,6 +34,7 @@ import {
   diagramView,
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
+import { testGap } from "@cantiara/db/schema/test-gap";
 import { work } from "@cantiara/db/schema/work";
 import { workDraft } from "@cantiara/db/schema/work-draft";
 import { createRouterClient } from "@orpc/server";
@@ -787,6 +788,12 @@ describeDatabase("Record Discovery universal search boundary", () => {
       projectId,
       title: "PostgreSQL Production Incident",
     });
+    await database.insert(testGap).values({
+      id: recordId("universal-test-gap"),
+      projectId,
+      rationale: "PostgreSQL coupon stacking was never tried.",
+      title: "PostgreSQL Test Gap",
+    });
     await database.insert(technicalDiagram).values({
       authorityMode: "Product-authored Model",
       id: recordId("universal-diagram"),
@@ -840,6 +847,13 @@ describeDatabase("Record Discovery universal search boundary", () => {
       matchCount: 1,
       recordType: "Technical Diagram",
       snippet: expect.stringContaining("PostgreSQL schema view"),
+    });
+    expect(
+      results.find(({ id }) => id === recordId("universal-test-gap")),
+    ).toMatchObject({
+      recordType: "Test Gap",
+      status: "Open",
+      title: "PostgreSQL Test Gap",
     });
     expect(
       (await client().searchRecords({ query: "Project table" })).map(
