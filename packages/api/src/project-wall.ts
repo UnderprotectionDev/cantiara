@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
+import { getStarterConfigurationDefinition } from "./project-shell";
 import {
   type RelationCreateInput,
   type RelationCreatePreviewInput,
@@ -111,6 +112,31 @@ export const createProjectWallInputSchema = z
   .strict();
 export type CreateProjectWallInput = z.input<
   typeof createProjectWallInputSchema
+>;
+
+/**
+ * Starter skeletons the Project shell can select for a Project Wall. The shell
+ * records only the selection; this feature materializes the empty headings.
+ */
+export const PROJECT_WALL_SKELETONS = ["Sitemap", "Customer Journey"] as const;
+export const projectWallSkeletonSchema = z.enum(PROJECT_WALL_SKELETONS);
+export type ProjectWallSkeleton = z.infer<typeof projectWallSkeletonSchema>;
+
+/** The exact, ordered empty group headings of a skeleton (catalog-owned). */
+export function projectWallSkeletonHeadings(
+  skeleton: ProjectWallSkeleton,
+): string[] {
+  const selection = getStarterConfigurationDefinition(
+    "Solo SaaS",
+  ).starterSkeletons.find((candidate) => candidate.skeleton === skeleton);
+  return selection ? [...selection.emptyHeadings] : [];
+}
+
+export const createProjectWallFromSkeletonInputSchema = z
+  .object({ projectId: identifierSchema, skeleton: projectWallSkeletonSchema })
+  .strict();
+export type CreateProjectWallFromSkeletonInput = z.input<
+  typeof createProjectWallFromSkeletonInputSchema
 >;
 
 export const renameProjectWallInputSchema = projectWallInputSchema
@@ -496,6 +522,16 @@ export interface ProjectWallStore {
     accountId: string,
     input: { id: string; projectId: string; title: string },
   ) => Promise<ProjectWallRecord | null>;
+  /** One atomic write of a wall and its empty groups, in the given order. */
+  createWallWithGroups: (
+    accountId: string,
+    input: {
+      groups: Array<{ id: string; title: string }>;
+      id: string;
+      projectId: string;
+      title: string;
+    },
+  ) => Promise<ProjectWallRecord | null>;
   deleteGroup: (
     accountId: string,
     input: { groupId: string; projectId: string; wallId: string },
@@ -542,6 +578,11 @@ export interface ProjectWallStore {
     accountId: string,
     input: { projectId: string; title: string; wallId: string },
   ) => Promise<boolean>;
+  /** The Project shell's recorded catalog selection; null when not owned. */
+  selectedSkeletons: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<ProjectWallSkeleton[] | null>;
   setCardDensity: (
     accountId: string,
     input: {
@@ -597,6 +638,11 @@ export interface ProjectWallAccess {
   create: (
     accountId: string,
     input: CreateProjectWallInput,
+  ) => Promise<ProjectWallView>;
+  /** A normal wall with the skeleton's empty headings; needs the selection. */
+  createFromSkeleton: (
+    accountId: string,
+    input: CreateProjectWallFromSkeletonInput,
   ) => Promise<ProjectWallView>;
   createGroup: (
     accountId: string,
@@ -663,6 +709,11 @@ export interface ProjectWallAccess {
     accountId: string,
     input: SetProjectWallGroupCollapsedInput,
   ) => Promise<ProjectWallView>;
+  /** Skeletons the Project shell selected for a Project Wall. */
+  skeletons: (
+    accountId: string,
+    projectId: string,
+  ) => Promise<ProjectWallSkeleton[]>;
   sourceOptions: (
     accountId: string,
     projectId: string,

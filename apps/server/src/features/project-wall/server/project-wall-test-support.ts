@@ -3,6 +3,7 @@ import type {
   ProjectWallItemRecord,
   ProjectWallRecord,
   ProjectWallRelations,
+  ProjectWallSkeleton,
   ProjectWallSourceLookup,
   ProjectWallSourceType,
   ProjectWallStore,
@@ -27,6 +28,8 @@ export interface FakeProject {
   archived?: boolean;
   id: string;
   ownerAccountId: string;
+  /** The Project shell's recorded catalog selection (metadata only). */
+  starterSkeletons?: ProjectWallSkeleton[];
 }
 
 /**
@@ -196,6 +199,37 @@ export function createFakeProjectWallStore(input: {
       };
       walls.set(created.id, created);
       return structuredClone(created);
+    },
+
+    async createWallWithGroups(accountId, wall) {
+      if (!ownedProject(accountId, wall.projectId)) {
+        return null;
+      }
+      const stamp = tick();
+      const created: ProjectWallRecord = {
+        createdAt: stamp,
+        groups: wall.groups.map((group) => ({
+          collapsed: false,
+          id: group.id,
+          title: group.title,
+        })),
+        id: wall.id,
+        items: [],
+        links: [],
+        projectId: wall.projectId,
+        title: wall.title,
+        updatedAt: stamp,
+      };
+      walls.set(created.id, created);
+      return structuredClone(created);
+    },
+
+    async selectedSkeletons(accountId, projectId) {
+      const found = input.projects.find(
+        (candidate) =>
+          candidate.id === projectId && candidate.ownerAccountId === accountId,
+      );
+      return found ? [...(found.starterSkeletons ?? [])] : null;
     },
 
     async deleteWall(accountId, projectId, wallId) {

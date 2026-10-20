@@ -23,6 +23,7 @@ import { createDatabaseRelations } from "../../relations/server/relations";
 import {
   ProjectWallCardDuplicateError,
   ProjectWallProjectReadOnlyError,
+  ProjectWallSkeletonNotSelectedError,
 } from "./project-wall";
 import { createDatabaseProjectWall } from "./project-wall-database";
 
@@ -322,5 +323,58 @@ describeDatabase("Project Wall (PostgreSQL)", () => {
         .from(projectWallGroup)
         .where(eq(projectWallGroup.wallId, wall.id)),
     ).toEqual([]);
+  });
+  test("materializes a selected skeleton as an empty ordinary wall", async () => {
+    const db = requireDatabase();
+    const access = wallAccess(db);
+    const solo = `project-${crypto.randomUUID()}`;
+    await db.insert(project).values({
+      id: solo,
+      name: "Solo",
+      shortCode: `PWS-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      starterConfiguration: "Solo SaaS",
+      workspaceId,
+    });
+
+    // The shell records the selection but creates no wall.
+    expect(await access.skeletons(accountId, solo)).toEqual([
+      "Sitemap",
+      "Customer Journey",
+    ]);
+    expect(await access.list(accountId, solo)).toEqual([]);
+    expect(await access.skeletons(accountId, projectId)).toEqual([]);
+
+    const wall = await access.createFromSkeleton(accountId, {
+      projectId: solo,
+      skeleton: "Customer Journey",
+    });
+    expect(wall.groups.map(({ title }) => title)).toEqual([
+      "Awareness",
+      "Consideration",
+      "Onboarding",
+      "Core Use",
+      "Retention",
+    ]);
+    expect(
+      (await access.get(accountId, solo, wall.id)).groups.map(
+        ({ title }) => title,
+      ),
+    ).toEqual(wall.groups.map(({ title }) => title));
+    expect(wall.cards).toEqual([]);
+    expect(wall.links).toEqual([]);
+    expect(
+      await db
+        .select()
+        .from(projectWallItem)
+        .where(eq(projectWallItem.wallId, wall.id)),
+    ).toEqual([]);
+
+    await expect(
+      access.createFromSkeleton(accountId, {
+        projectId,
+        skeleton: "Sitemap",
+      }),
+    ).rejects.toBeInstanceOf(ProjectWallSkeletonNotSelectedError);
+    expect(await access.list(accountId, projectId)).toEqual([]);
   });
 });

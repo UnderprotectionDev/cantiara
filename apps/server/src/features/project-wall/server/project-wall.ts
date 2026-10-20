@@ -2,9 +2,11 @@ import {
   type AddProjectWallCardInput,
   addProjectWallCardInputSchema,
   buildProjectWallView,
+  type CreateProjectWallFromSkeletonInput,
   type CreateProjectWallGroupInput,
   type CreateProjectWallInput,
   type CreateProjectWallPersistentRelationInput,
+  createProjectWallFromSkeletonInputSchema,
   createProjectWallGroupInputSchema,
   createProjectWallInputSchema,
   createProjectWallPersistentRelationInputSchema,
@@ -21,6 +23,7 @@ import {
   previewProjectWallPersistentRelationInputSchema,
   projectWallCardEndpoint,
   projectWallGroupInputSchema,
+  projectWallSkeletonHeadings,
   type RemoveProjectWallCardInput,
   type RenameProjectWallInput,
   removeProjectWallCardInputSchema,
@@ -95,6 +98,16 @@ export class ProjectWallCardDuplicateError extends Error {
   constructor() {
     super("This record is already a card on this Project Wall.");
     this.name = "ProjectWallCardDuplicateError";
+  }
+}
+
+/** A skeleton materializes only when the Project shell selected it. */
+export class ProjectWallSkeletonNotSelectedError extends Error {
+  readonly code = "PROJECT_WALL_SKELETON_NOT_SELECTED" as const;
+
+  constructor(skeleton: string) {
+    super(`${skeleton} is not selected for this Project.`);
+    this.name = "ProjectWallSkeletonNotSelectedError";
   }
 }
 
@@ -293,6 +306,37 @@ export function createProjectWall(
         throw new ProjectWallNotFoundError(input.wallId);
       }
       return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async createFromSkeleton(
+      accountId,
+      rawInput: CreateProjectWallFromSkeletonInput,
+    ) {
+      const input = createProjectWallFromSkeletonInputSchema.parse(rawInput);
+      const selected = await store.selectedSkeletons(
+        accountId,
+        input.projectId,
+      );
+      if (!selected) {
+        throw new ProjectWallProjectNotFoundError(input.projectId);
+      }
+      if (!selected.includes(input.skeleton)) {
+        throw new ProjectWallSkeletonNotSelectedError(input.skeleton);
+      }
+      // Only the wall and its empty headings: no card, link, task or record.
+      const created = await store.createWallWithGroups(accountId, {
+        groups: projectWallSkeletonHeadings(input.skeleton).map((title) => ({
+          id: generateId(),
+          title,
+        })),
+        id: generateId(),
+        projectId: input.projectId,
+        title: input.skeleton,
+      });
+      if (!created) {
+        throw new ProjectWallProjectNotFoundError(input.projectId);
+      }
+      return view(accountId, created);
     },
 
     async createGroup(accountId, rawInput: CreateProjectWallGroupInput) {
@@ -505,6 +549,14 @@ export function createProjectWall(
       );
       await store.setGroupCollapsed(accountId, input);
       return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async skeletons(accountId, projectId) {
+      const selected = await store.selectedSkeletons(accountId, projectId);
+      if (!selected) {
+        throw new ProjectWallProjectNotFoundError(projectId);
+      }
+      return selected;
     },
 
     async sourceOptions(accountId, projectId) {
