@@ -48,6 +48,7 @@ import type {
   ProjectShellMutationContracts,
 } from "./project-shell";
 import type { ProjectSourceRecordsAccess } from "./project-source-records";
+import type { ProjectWallAccess } from "./project-wall";
 import type { RecordActionsAccess } from "./record-actions";
 import type {
   RecordTableAccess,
@@ -202,6 +203,7 @@ export interface Context {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
+  projectWall?: ProjectWallAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   relations?: RelationsAccess;

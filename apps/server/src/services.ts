@@ -83,6 +83,7 @@ import { createDatabaseProjectGoals } from "./features/project-goals/server/proj
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
 import { createDatabaseProjectSourceRecords } from "./features/project-source-records/server/project-source-records-database";
+import { createDatabaseProjectWall } from "./features/project-wall/server/project-wall-database";
 import { createDatabaseRecordActions } from "./features/record-actions/server/record-actions-database";
 import { createDatabaseRecordTable } from "./features/record-discovery/server/record-table-database";
 import { createDatabaseUniversalSearch } from "./features/record-discovery/server/universal-search-database";
@@ -132,6 +133,7 @@ export const stopSmartCollectionSubscriptionSignalWorker =
   smartCollectionSubscriptionSignalWorker.stop;
 export const technicalDiagrams = createDatabaseTechnicalDiagrams(db);
 export const userFlow = createDatabaseUserFlow(db);
+export const projectWall = createDatabaseProjectWall(db);
 export const moodboards = createDatabaseMoodboards(db);
 export const moodboardPersonalViews = createDatabaseMoodboardPersonalViews(db);
 export const moodboardMutationContracts =
