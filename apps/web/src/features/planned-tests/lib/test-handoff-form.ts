@@ -1,15 +1,30 @@
 import type {
   CreateTestHandoffInput,
   PlannedTestCaseRecord,
+  TestHandoffContextRef,
   TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 
+/** A selected context record with the label the founder saw when choosing it. */
+export interface ContextRefDraft {
+  label: string;
+  ref: TestHandoffContextRef;
+}
+
+export interface AdHocScopeDraft {
+  expectedBehavior: string;
+  intent: string;
+}
+
 /** Selected exact version per Planned Test Case id; absent means not selected. */
 export interface TestHandoffFormValues {
+  adHocScope: AdHocScopeDraft[];
   branch: string;
   build: string;
   commit: string;
+  contextRefs: ContextRefDraft[];
   dueDate: string;
+  environmentPreconditions: string;
   purpose: string;
   repository: string;
   selected: Record<string, number>;
@@ -19,10 +34,13 @@ export interface TestHandoffFormValues {
 }
 
 export const EMPTY_TEST_HANDOFF_FORM: TestHandoffFormValues = {
+  adHocScope: [],
   branch: "",
   build: "",
   commit: "",
+  contextRefs: [],
   dueDate: "",
+  environmentPreconditions: "",
   purpose: "",
   repository: "",
   selected: {},
@@ -31,14 +49,42 @@ export const EMPTY_TEST_HANDOFF_FORM: TestHandoffFormValues = {
   title: "",
 };
 
+/** Words the founder reads for a pinned context record. */
+export function describeContextRef(
+  ref: TestHandoffContextRef,
+  label: string | null,
+) {
+  const name = label ?? ref.targetId;
+  if (ref.kind === "Document") {
+    return `Document: ${name}, revision ${ref.documentRevision}${
+      ref.sectionId ? `, section ${ref.sectionId}` : ""
+    }`;
+  }
+  if (ref.kind === "Wireframe") {
+    return `Wireframe: ${name}, version ${ref.wireframeVersion}`;
+  }
+  return `${ref.kind}: ${name}`;
+}
+
 export function formFromHandoff(
   handoff: TestHandoffRecord,
 ): TestHandoffFormValues {
   return {
+    adHocScope: handoff.adHocScope.map(({ expectedBehavior, intent }) => ({
+      expectedBehavior,
+      intent,
+    })),
     branch: handoff.buildContext.branch ?? "",
     build: handoff.buildContext.build ?? "",
     commit: handoff.buildContext.commit ?? "",
+    contextRefs: handoff.contextRefs.map(
+      ({ brokenReason: _broken, label, ...ref }) => ({
+        label: describeContextRef(ref, label),
+        ref,
+      }),
+    ),
     dueDate: handoff.dueDate ?? "",
+    environmentPreconditions: handoff.environmentPreconditions ?? "",
     purpose: handoff.purpose,
     repository: handoff.buildContext.repository ?? "",
     selected: Object.fromEntries(
@@ -56,6 +102,7 @@ export function toHandoffInput(
   cases: readonly PlannedTestCaseRecord[],
 ): Omit<CreateTestHandoffInput, "projectId"> {
   return {
+    adHocScope: values.adHocScope,
     buildContext: {
       branch: values.branch,
       build: values.build,
@@ -63,7 +110,9 @@ export function toHandoffInput(
       repository: values.repository,
       targetEnvironment: values.targetEnvironment,
     },
+    contextRefs: values.contextRefs.map(({ ref }) => ref),
     dueDate: values.dueDate || null,
+    environmentPreconditions: values.environmentPreconditions,
     purpose: values.purpose,
     scenarios: cases.flatMap((record) => {
       const version = values.selected[record.id];
@@ -72,4 +121,18 @@ export function toHandoffInput(
     targetExecutor: values.targetExecutor,
     title: values.title,
   };
+}
+
+/** Browser-only delivery of an already produced package text. */
+export function downloadPackageText(
+  text: string,
+  type: string,
+  filename: string,
+) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

@@ -1,5 +1,8 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Project and the selected Planned Test Case.
-import type { PlannedTestRelationTargetType } from "@cantiara/api/planned-tests";
+import type {
+  PlannedTestRelationTargetType,
+  TestHandoffContextKind,
+} from "@cantiara/api/planned-tests";
 import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
@@ -56,6 +59,21 @@ export default function PlannedTestsSurface({
       client.plannedTestRelationTargets({ projectId, targetType }),
     [projectId],
   );
+  const loadContextTargets = useCallback(
+    (kind: TestHandoffContextKind) =>
+      client.testHandoffContextTargets({ kind, projectId }),
+    [projectId],
+  );
+  const loadPackages = useCallback(
+    async (handoff: { id: string }) =>
+      (
+        await client.projectTestHandoffPackages({
+          handoffId: handoff.id,
+          projectId,
+        })
+      ).packages,
+    [projectId],
+  );
   if (cases.isPending) {
     return <p role="status">Loading Planned Test Cases…</p>;
   }
@@ -101,6 +119,8 @@ export default function PlannedTestsSurface({
         <TestHandoffsView
           cases={cases.data.cases}
           handoffs={handoffs.data.handoffs}
+          loadContextTargets={loadContextTargets}
+          loadPackages={loadPackages}
           onCreate={async (values) => {
             await runOnlineOnlyWrite(() =>
               client.createTestHandoff({
@@ -117,6 +137,26 @@ export default function PlannedTestsSurface({
                   handoffId: handoff.id,
                   projectId,
                   sessionTestId,
+                }),
+              );
+            } finally {
+              await refreshHandoffs();
+            }
+          }}
+          onPreviewPackage={(handoff) =>
+            client.previewTestHandoffPackage({
+              handoffId: handoff.id,
+              projectId,
+            })
+          }
+          onProducePackage={async (handoff, preview) => {
+            try {
+              return await runOnlineOnlyWrite(() =>
+                client.produceTestHandoffPackage({
+                  expectedPackageVersion: preview.nextPackageVersion,
+                  handoffId: handoff.id,
+                  previewFingerprint: preview.fingerprint ?? "",
+                  projectId,
                 }),
               );
             } finally {

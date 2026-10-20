@@ -4,6 +4,8 @@ import type {
   PlannedTestCaseRecord,
   PlannedTestCaseVersionRecord,
   SessionTestRecord,
+  TestHandoffPackagePreview,
+  TestHandoffPackageRecord,
   TestHandoffRecord,
 } from "@cantiara/api/planned-tests";
 import { TEST_HANDOFF_TRANSITIONS } from "@cantiara/api/planned-tests";
@@ -83,7 +85,10 @@ function handoff(
 ): TestHandoffRecord {
   const state = overrides.state ?? "Draft";
   return {
+    adHocScope: [],
     allowedTransitions: [...TEST_HANDOFF_TRANSITIONS[state]],
+    contextRefs: [],
+    environmentPreconditions: null,
     buildContext: {
       branch: "main",
       build: null,
@@ -119,6 +124,38 @@ function handoff(
   };
 }
 
+function previewOf(
+  overrides: Partial<TestHandoffPackagePreview> = {},
+): TestHandoffPackagePreview {
+  return {
+    blockers: [],
+    canProduce: true,
+    excluded: ["Records you did not select", "Secrets, tokens and credentials"],
+    fingerprint: "f".repeat(64),
+    handoffId: "h1",
+    included: [
+      { count: 1, section: "scenarios" },
+      { count: 0, section: "ad_hoc_scope" },
+    ],
+    json: '{ "schema_version": "test-handoff-package/1" }',
+    markdown: "# Checkout round 1",
+    nextPackageVersion: 1,
+    ...overrides,
+  };
+}
+
+function producedOf(packageVersion = 1): TestHandoffPackageRecord {
+  return {
+    createdAt: timestamp,
+    handoffId: "h1",
+    json: '{ "schema_version": "test-handoff-package/1" }',
+    markdown: "# Checkout round 1",
+    package: {} as TestHandoffPackageRecord["package"],
+    packageVersion,
+    schemaVersion: "test-handoff-package/1",
+  };
+}
+
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
 
@@ -136,8 +173,12 @@ function mount(props: Partial<Parameters<typeof TestHandoffsView>[0]> = {}) {
       <TestHandoffsView
         cases={[planned]}
         handoffs={[handoff()]}
+        loadContextTargets={vi.fn().mockResolvedValue([])}
+        loadPackages={vi.fn().mockResolvedValue([])}
         onCreate={vi.fn().mockResolvedValue(undefined)}
         onLink={vi.fn().mockResolvedValue(undefined)}
+        onPreviewPackage={vi.fn().mockResolvedValue(previewOf())}
+        onProducePackage={vi.fn().mockResolvedValue(producedOf())}
         onTransition={vi.fn().mockResolvedValue(undefined)}
         onUpdate={vi.fn().mockResolvedValue(undefined)}
         readOnly={false}
@@ -369,4 +410,220 @@ test("an archived Project offers no create, move, link or edit control", () => {
   expect(document.querySelectorAll("form")).toHaveLength(0);
   expect(document.querySelectorAll("button")).toHaveLength(0);
   expect(document.body.textContent).toContain("State: Draft");
+});
+
+test("a Draft offers no package preview and says why", () => {
+  mount();
+
+  expect(document.body.textContent).toContain("Mark it Ready to share first");
+  expect(
+    [...document.querySelectorAll("button")].some(
+      (item) => item.textContent === "Preview package",
+    ),
+  ).toBe(false);
+});
+
+test("previews a closed-world package and produces it only on explicit confirm", async () => {
+  const onPreviewPackage = vi.fn().mockResolvedValue(previewOf());
+  const onProducePackage = vi.fn().mockResolvedValue(producedOf());
+  mount({
+    handoffs: [handoff({ state: "Ready to share" })],
+    onPreviewPackage,
+    onProducePackage,
+  });
+
+  await act(async () => {
+    button("Preview package").click();
+    await Promise.resolve();
+  });
+  expect(onProducePackage).not.toHaveBeenCalled();
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Package version 1 will contain");
+  expect(text).toContain("Never included");
+  expect(text).toContain("Secrets, tokens and credentials");
+  expect(text).toContain("Markdown package");
+  expect(text).toContain("JSON package");
+
+  await act(async () => {
+    button("Produce package version 1").click();
+    await Promise.resolve();
+  });
+  expect(onProducePackage).toHaveBeenCalledWith(
+    expect.objectContaining({ id: "h1" }),
+    expect.objectContaining({ fingerprint: "f".repeat(64) }),
+  );
+  expect(document.body.textContent).toContain("Package version 1 produced.");
+  for (const name of [
+    "Copy Markdown package",
+    "Download Markdown package",
+    "Copy JSON package",
+    "Download JSON package",
+  ]) {
+    expect(button(name)).toBeTruthy();
+  }
+});
+
+test("a blocked preview shows the reasons and no rendering or confirm", async () => {
+  mount({
+    handoffs: [handoff({ state: "Shared" })],
+    onPreviewPackage: vi.fn().mockResolvedValue(
+      previewOf({
+        blockers: [
+          {
+            kind: "secret",
+            message:
+              "scenarios[0].scope looks like it contains a secret (GitHub token).",
+            path: "scenarios[0].scope",
+          },
+        ],
+        canProduce: false,
+        fingerprint: null,
+        json: null,
+        markdown: null,
+      }),
+    ),
+  });
+
+  await act(async () => {
+    button("Preview package").click();
+    await Promise.resolve();
+  });
+
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "looks like it contains a secret",
+  );
+  expect(document.body.textContent).not.toContain("Markdown package");
+  expect(
+    [...document.querySelectorAll("button")].some((item) =>
+      item.textContent?.startsWith("Produce package"),
+    ),
+  ).toBe(false);
+});
+
+test("a refused produce is shown and nothing is claimed as produced", async () => {
+  mount({
+    handoffs: [handoff({ state: "Ready to share" })],
+    onProducePackage: vi
+      .fn()
+      .mockRejectedValue(new Error("The package changed since the preview.")),
+  });
+
+  await act(async () => {
+    button("Preview package").click();
+    await Promise.resolve();
+  });
+  await act(async () => {
+    button("Produce package version 1").click();
+    await Promise.resolve();
+  });
+
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+    "The package changed since the preview.",
+  );
+  expect(document.body.textContent).not.toContain("produced.");
+});
+
+test("lists already produced packages with copy and download controls", async () => {
+  mount({
+    handoffs: [handoff({ packageVersion: 2, state: "Shared" })],
+    loadPackages: vi.fn().mockResolvedValue([producedOf(2), producedOf(1)]),
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Package version 2");
+  expect(text).toContain("Package version 1");
+  expect(text).toContain("test-handoff-package/1");
+});
+
+test("the form takes ad hoc scope and environment preconditions as the founder's text", async () => {
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  mount({ handoffs: [], onCreate });
+
+  setValue("test-handoff-new-title", "Round 3");
+  setValue("test-handoff-new-purpose", "Re-check.");
+  setValue("test-handoff-new-preconditions", "Use the staging tenant.");
+  act(() => button("Add ad hoc item").click());
+  setValue("test-handoff-new-adhoc-intent-0", "Check tax.");
+  setValue("test-handoff-new-adhoc-expected-0", "Tax is shown.");
+  await submit("Create Test Handoff");
+
+  expect(onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      adHocScope: [{ expectedBehavior: "Tax is shown.", intent: "Check tax." }],
+      environmentPreconditions: "Use the staging tenant.",
+    }),
+  );
+});
+
+test("adds an exact Document revision and a Wireframe version as package context", async () => {
+  const onCreate = vi.fn().mockResolvedValue(undefined);
+  const candidates: Record<string, unknown[]> = {
+    Document: [
+      {
+        documentRevision: 3,
+        kind: "Document",
+        label: "Checkout spec",
+        sections: [{ id: "payment", label: "Payment" }],
+        targetId: "d1",
+        wireframeVersions: [],
+      },
+    ],
+    Wireframe: [
+      {
+        documentRevision: null,
+        kind: "Wireframe",
+        label: "Checkout screen",
+        sections: [],
+        targetId: "sc1",
+        wireframeVersions: [1, 2],
+      },
+    ],
+  };
+  const loadContextTargets = vi.fn((kind: string) =>
+    Promise.resolve(candidates[kind] ?? []),
+  );
+  mount({
+    handoffs: [],
+    loadContextTargets: loadContextTargets as never,
+    onCreate,
+  });
+
+  setValue("test-handoff-new-title", "Round 4");
+  setValue("test-handoff-new-purpose", "Re-check.");
+  setValue("test-handoff-new-context-kind", "Document");
+  await act(async () => {
+    await Promise.resolve();
+  });
+  setValue("test-handoff-new-context-target", "d1");
+  setValue("test-handoff-new-context-section", "payment");
+  act(() => button("Add context record").click());
+  setValue("test-handoff-new-context-kind", "Wireframe");
+  await act(async () => {
+    await Promise.resolve();
+  });
+  setValue("test-handoff-new-context-target", "sc1");
+  setValue("test-handoff-new-context-version", "2");
+  act(() => button("Add context record").click());
+  await submit("Create Test Handoff");
+
+  expect(onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({
+      contextRefs: [
+        expect.objectContaining({
+          ref: {
+            documentRevision: 3,
+            kind: "Document",
+            sectionId: "payment",
+            targetId: "d1",
+          },
+        }),
+        expect.objectContaining({
+          ref: { kind: "Wireframe", targetId: "sc1", wireframeVersion: 2 },
+        }),
+      ],
+    }),
+  );
 });

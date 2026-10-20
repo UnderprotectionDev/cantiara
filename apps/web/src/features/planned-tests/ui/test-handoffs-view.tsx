@@ -12,10 +12,21 @@ import { Input } from "@cantiara/ui/components/input";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { type FormEvent, useState } from "react";
 import {
+  describeContextRef,
   EMPTY_TEST_HANDOFF_FORM,
   formFromHandoff,
   type TestHandoffFormValues,
 } from "../lib/test-handoff-form";
+import {
+  type LoadTestHandoffContextTargets,
+  TestHandoffContextField,
+} from "./test-handoff-context-field";
+import {
+  type LoadTestHandoffPackages,
+  type PreviewTestHandoffPackage,
+  type ProduceTestHandoffPackage,
+  TestHandoffPackagePanel,
+} from "./test-handoff-package-panel";
 
 export type SubmitTestHandoff = (
   values: TestHandoffFormValues,
@@ -33,7 +44,10 @@ function errorText(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-type TextField = Exclude<keyof TestHandoffFormValues, "selected">;
+type TextField = Exclude<
+  keyof TestHandoffFormValues,
+  "adHocScope" | "contextRefs" | "selected"
+>;
 
 function TextControl({
   disabled,
@@ -147,10 +161,101 @@ function ScenarioPicker({
   );
 }
 
+function AdHocScopeField({
+  disabled,
+  idPrefix,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  idPrefix: string;
+  onChange: (items: TestHandoffFormValues["adHocScope"]) => void;
+  value: TestHandoffFormValues["adHocScope"];
+}) {
+  const update = (
+    index: number,
+    field: "expectedBehavior" | "intent",
+    text: string,
+  ) =>
+    onChange(
+      value.map((item, position) =>
+        position === index ? { ...item, [field]: text } : item,
+      ),
+    );
+  return (
+    <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
+      <legend className="px-1 font-medium text-sm">Ad hoc scope</legend>
+      <p className="text-muted-foreground text-xs">
+        Test intent you write here without a Planned Test Case. It gets no case
+        id and no version.
+      </p>
+      {value.map((item, index) => (
+        <div
+          className="space-y-2 rounded-md border border-border/50 p-3"
+          // biome-ignore lint/suspicious/noArrayIndexKey: Items have no identity and are edited in place by position.
+          key={index}
+        >
+          <div className="grid gap-1 text-sm">
+            <label htmlFor={`${idPrefix}-adhoc-intent-${index}`}>
+              {`Ad hoc intent ${index + 1}`}
+            </label>
+            <Textarea
+              disabled={disabled}
+              id={`${idPrefix}-adhoc-intent-${index}`}
+              onChange={(event) => update(index, "intent", event.target.value)}
+              required
+              rows={2}
+              value={item.intent}
+            />
+          </div>
+          <div className="grid gap-1 text-sm">
+            <label htmlFor={`${idPrefix}-adhoc-expected-${index}`}>
+              {`Ad hoc expected behavior ${index + 1}`}
+            </label>
+            <Textarea
+              disabled={disabled}
+              id={`${idPrefix}-adhoc-expected-${index}`}
+              onChange={(event) =>
+                update(index, "expectedBehavior", event.target.value)
+              }
+              required
+              rows={2}
+              value={item.expectedBehavior}
+            />
+          </div>
+          <Button
+            disabled={disabled}
+            onClick={() =>
+              onChange(value.filter((_, position) => position !== index))
+            }
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {`Remove ad hoc item ${index + 1}`}
+          </Button>
+        </div>
+      ))}
+      <Button
+        disabled={disabled}
+        onClick={() =>
+          onChange([...value, { expectedBehavior: "", intent: "" }])
+        }
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        Add ad hoc item
+      </Button>
+    </fieldset>
+  );
+}
+
 function HandoffForm({
   cases,
   idPrefix,
   initial,
+  loadContextTargets,
   label,
   onCancel,
   onSubmit,
@@ -160,6 +265,7 @@ function HandoffForm({
   idPrefix: string;
   initial: TestHandoffFormValues;
   label: string;
+  loadContextTargets: LoadTestHandoffContextTargets;
   onCancel?: () => void;
   onSubmit: SubmitTestHandoff;
   submitLabel: string;
@@ -300,6 +406,41 @@ function HandoffForm({
           selected={values.selected}
         />
       </fieldset>
+      <AdHocScopeField
+        disabled={pending}
+        idPrefix={idPrefix}
+        onChange={(adHocScope) =>
+          setValues((current) => ({ ...current, adHocScope }))
+        }
+        value={values.adHocScope}
+      />
+      <TestHandoffContextField
+        idPrefix={idPrefix}
+        loadTargets={loadContextTargets}
+        onChange={(contextRefs) =>
+          setValues((current) => ({ ...current, contextRefs }))
+        }
+        value={values.contextRefs}
+      />
+      <div className="grid gap-2 text-sm">
+        <label htmlFor={fieldId("preconditions")}>
+          Environment preconditions
+        </label>
+        <Textarea
+          disabled={pending}
+          id={fieldId("preconditions")}
+          onChange={(event) =>
+            setText("environmentPreconditions")(event.target.value)
+          }
+          rows={3}
+          value={values.environmentPreconditions}
+        />
+        <p className="text-muted-foreground text-xs">
+          Typed by you. The product prepares no environment, account or test
+          data. Do not enter secrets, tokens or credentials: the package refuses
+          them.
+        </p>
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button disabled={pending} type="submit">
           {submitLabel}
@@ -462,7 +603,11 @@ function TransitionControls({
 function HandoffItem({
   cases,
   linkable,
+  loadContextTargets,
+  loadPackages,
   onLink,
+  onPreviewPackage,
+  onProducePackage,
   onTransition,
   onUpdate,
   readOnly,
@@ -471,7 +616,11 @@ function HandoffItem({
   cases: PlannedTestCaseRecord[];
   handoff: TestHandoffRecord;
   linkable: TestHandoffRecord["sessionTests"];
+  loadContextTargets: LoadTestHandoffContextTargets;
+  loadPackages: LoadTestHandoffPackages;
   onLink: LinkTestHandoffSessionTest;
+  onPreviewPackage: PreviewTestHandoffPackage;
+  onProducePackage: ProduceTestHandoffPackage;
   onTransition: TransitionTestHandoff;
   onUpdate: (
     handoff: TestHandoffRecord,
@@ -541,6 +690,41 @@ function HandoffItem({
           </dd>
         </div>
       </dl>
+      {handoff.environmentPreconditions ? (
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">Environment preconditions</p>
+          <p className="whitespace-pre-wrap">
+            {handoff.environmentPreconditions}
+          </p>
+        </div>
+      ) : null}
+      {handoff.adHocScope.length > 0 ? (
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">Ad hoc scope</p>
+          <ul aria-label={`Ad hoc scope of ${handoff.title}`}>
+            {handoff.adHocScope.map((item) => (
+              <li key={`${item.intent}:${item.expectedBehavior}`}>
+                {`${item.intent} Expected: ${item.expectedBehavior}`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {handoff.contextRefs.length > 0 ? (
+        <div className="space-y-1 text-sm">
+          <p className="font-medium">Package context</p>
+          <ul aria-label={`Package context of ${handoff.title}`}>
+            {handoff.contextRefs.map((ref) => (
+              <li key={JSON.stringify(ref)}>
+                {describeContextRef(ref, ref.label)}
+                {ref.brokenReason
+                  ? ` (${ref.brokenReason}: it cannot enter the package until you remove it)`
+                  : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div className="space-y-1 text-sm">
         <p className="font-medium">Planned Test Case versions</p>
         {handoff.scenarios.length === 0 ? (
@@ -591,6 +775,7 @@ function HandoffItem({
               idPrefix={`test-handoff-${handoff.id}-edit`}
               initial={formFromHandoff(handoff)}
               label={`Edit ${TEST_HANDOFF_LABEL}`}
+              loadContextTargets={loadContextTargets}
               onCancel={() => setEditing(false)}
               onSubmit={async (values) => {
                 await onUpdate(handoff, values);
@@ -601,6 +786,13 @@ function HandoffItem({
           ) : null}
         </>
       )}
+      <TestHandoffPackagePanel
+        handoff={handoff}
+        loadPackages={loadPackages}
+        onPreview={onPreviewPackage}
+        onProduce={onProducePackage}
+        readOnly={readOnly}
+      />
     </li>
   );
 }
@@ -614,8 +806,12 @@ function HandoffItem({
 export function TestHandoffsView({
   cases,
   handoffs,
+  loadContextTargets,
+  loadPackages,
   onCreate,
   onLink,
+  onPreviewPackage,
+  onProducePackage,
   onTransition,
   onUpdate,
   readOnly,
@@ -623,8 +819,12 @@ export function TestHandoffsView({
 }: {
   cases: PlannedTestCaseRecord[];
   handoffs: TestHandoffRecord[];
+  loadContextTargets: LoadTestHandoffContextTargets;
+  loadPackages: LoadTestHandoffPackages;
   onCreate: SubmitTestHandoff;
   onLink: LinkTestHandoffSessionTest;
+  onPreviewPackage: PreviewTestHandoffPackage;
+  onProducePackage: ProduceTestHandoffPackage;
   onTransition: TransitionTestHandoff;
   onUpdate: (
     handoff: TestHandoffRecord,
@@ -654,6 +854,7 @@ export function TestHandoffsView({
           idPrefix="test-handoff-new"
           initial={EMPTY_TEST_HANDOFF_FORM}
           label={`Create ${TEST_HANDOFF_LABEL}`}
+          loadContextTargets={loadContextTargets}
           onSubmit={onCreate}
           submitLabel={`Create ${TEST_HANDOFF_LABEL}`}
         />
@@ -683,7 +884,11 @@ export function TestHandoffsView({
                         `${candidate.bind.caseId}@${candidate.bind.pinnedVersion}`,
                       )),
                 )}
+                loadContextTargets={loadContextTargets}
+                loadPackages={loadPackages}
                 onLink={onLink}
+                onPreviewPackage={onPreviewPackage}
+                onProducePackage={onProducePackage}
                 onTransition={onTransition}
                 onUpdate={onUpdate}
                 readOnly={readOnly}
