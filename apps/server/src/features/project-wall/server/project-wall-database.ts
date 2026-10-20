@@ -1,0 +1,1010 @@
+import {
+  resolveProjectShellConfiguration,
+  starterConfigurationSchema,
+} from "@cantiara/api/project-shell";
+import {
+  type ProjectWallAccess,
+  type ProjectWallCollections,
+  type ProjectWallDensity,
+  type ProjectWallDiagrams,
+  type ProjectWallFieldName,
+  type ProjectWallGroupRecord,
+  type ProjectWallHighlight,
+  type ProjectWallItemRecord,
+  type ProjectWallLinkRecord,
+  type ProjectWallRecord,
+  type ProjectWallRecordSourceType,
+  type ProjectWallRelations,
+  type ProjectWallSourceLookup,
+  type ProjectWallSourceType,
+  type ProjectWallStore,
+  projectWallLookupKey,
+} from "@cantiara/api/project-wall";
+import type { ProjectWallSnapshotRenderer } from "@cantiara/api/project-wall-presentation";
+import type { Database } from "@cantiara/db";
+import { workspace } from "@cantiara/db/schema/auth";
+import { decision } from "@cantiara/db/schema/decision";
+import { project } from "@cantiara/db/schema/project";
+import {
+  projectWall,
+  projectWallFocusStep,
+  projectWallGroup,
+  projectWallItem,
+  projectWallLink,
+  projectWallViewport,
+} from "@cantiara/db/schema/project-wall";
+import { risk } from "@cantiara/db/schema/risk";
+import { work } from "@cantiara/db/schema/work";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+
+import {
+  createProjectWall,
+  ProjectWallCardDuplicateError,
+  ProjectWallProjectReadOnlyError,
+} from "./project-wall";
+
+type Executor = Pick<Database, "delete" | "insert" | "select" | "update">;
+
+async function findOwnedProject(
+  executor: Executor,
+  accountId: string,
+  projectId: string,
+) {
+  const [owned] = await executor
+    .select({ archivedAt: project.archivedAt, id: project.id })
+    .from(project)
+    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+    .where(
+      and(eq(project.id, projectId), eq(workspace.ownerAccountId, accountId)),
+    );
+  return owned ?? null;
+}
+
+async function requireWritableProject(
+  executor: Executor,
+  accountId: string,
+  projectId: string,
+) {
+  const owned = await findOwnedProject(executor, accountId, projectId);
+  if (owned?.archivedAt) {
+    throw new ProjectWallProjectReadOnlyError(owned.id);
+  }
+  return owned;
+}
+
+/** A wall of the caller's Project, readable (not necessarily writable). */
+async function findOwnedWall(
+  executor: Executor,
+  accountId: string,
+  projectId: string,
+  wallId: string,
+) {
+  const [wall] = await executor
+    .select({ projectId: projectWall.projectId })
+    .from(projectWall)
+    .innerJoin(project, eq(project.id, projectWall.projectId))
+    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+    .where(
+      and(
+        eq(projectWall.id, wallId),
+        eq(projectWall.projectId, projectId),
+        eq(workspace.ownerAccountId, accountId),
+      ),
+    );
+  return wall ?? null;
+}
+
+/** Card, link, group and focus changes keep the wall's `updatedAt` fresh. */
+async function touchWall(tx: Executor, wallId: string): Promise<void> {
+  await tx
+    .update(projectWall)
+    .set({ updatedAt: new Date() })
+    .where(eq(projectWall.id, wallId));
+}
+
+async function findWritableWall(
+  executor: Executor,
+  accountId: string,
+  projectId: string,
+  wallId: string,
+) {
+  const owned = await requireWritableProject(executor, accountId, projectId);
+  return owned
+    ? await findOwnedWall(executor, accountId, projectId, wallId)
+    : null;
+}
+
+type ItemRow = typeof projectWallItem.$inferSelect;
+type WallRow = typeof projectWall.$inferSelect;
+
+function toItem(row: ItemRow): ProjectWallItemRecord {
+  return {
+    density: row.density as ProjectWallDensity,
+    diagramViewId: row.diagramViewId,
+    groupId: row.groupId,
+    highlight: row.highlight as ProjectWallHighlight | null,
+    id: row.id,
+    locked: row.locked,
+    placedAt: row.placedAt.toISOString(),
+    position: { x: row.positionX, y: row.positionY },
+    sourceId: row.sourceId,
+    sourceType: row.sourceType as ProjectWallSourceType,
+  };
+}
+
+type GroupRow = typeof projectWallGroup.$inferSelect;
+type LinkRow = typeof projectWallLink.$inferSelect;
+
+function toGroup(row: GroupRow): ProjectWallGroupRecord {
+  // The stored collapsed column stays only as a compatibility remainder:
+  // group collapse is personal viewport state (see project_wall_viewport).
+  return { id: row.id, title: row.title };
+}
+
+function toLink(row: LinkRow): ProjectWallLinkRecord {
+  return {
+    fromCardId: row.fromItemId,
+    id: row.id,
+    label: row.label,
+    toCardId: row.toItemId,
+  };
+}
+
+function toRecord(
+  row: WallRow,
+  items: ItemRow[],
+  groups: GroupRow[] = [],
+  links: LinkRow[] = [],
+  focusOrder: string[] = [],
+): ProjectWallRecord {
+  return {
+    createdAt: row.createdAt.toISOString(),
+    focusOrder,
+    groups: groups.map(toGroup),
+    id: row.id,
+    items: items.map(toItem),
+    links: links.map(toLink),
+    projectId: row.projectId,
+    title: row.title,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+interface SourceRow {
+  archived: boolean;
+  id: string;
+  ownerAccountId: string;
+  projectId: string;
+  status: string | null;
+  title: string;
+  trashed: boolean;
+  values: Partial<Record<ProjectWallFieldName, string | null>>;
+}
+
+/**
+ * Reads source rows for lookup only. This module has no insert, update or
+ * delete against a master table: a wall change cannot write a source.
+ */
+async function readSourceRows(
+  database: Database,
+  sourceType: ProjectWallRecordSourceType,
+  ids: string[],
+): Promise<SourceRow[]> {
+  switch (sourceType) {
+    case "Work": {
+      const rows = await database
+        .select({
+          archivedAt: work.archivedAt,
+          description: work.description,
+          id: work.id,
+          key: work.key,
+          ownerAccountId: workspace.ownerAccountId,
+          projectId: work.projectId,
+          status: work.status,
+          title: work.title,
+          trashedAt: work.trashedAt,
+          type: work.type,
+        })
+        .from(work)
+        .innerJoin(project, eq(project.id, work.projectId))
+        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .where(inArray(work.id, ids));
+      return rows.map((row) => ({
+        archived: row.archivedAt !== null,
+        id: row.id,
+        ownerAccountId: row.ownerAccountId,
+        projectId: row.projectId,
+        status: row.status,
+        title: row.title,
+        trashed: row.trashedAt !== null,
+        values: { Description: row.description, Key: row.key, Type: row.type },
+      }));
+    }
+    case "Decision": {
+      const rows = await database
+        .select({
+          decision: decision.decision,
+          id: decision.id,
+          ownerAccountId: workspace.ownerAccountId,
+          projectId: decision.projectId,
+          status: decision.life,
+          title: decision.title,
+        })
+        .from(decision)
+        .innerJoin(project, eq(project.id, decision.projectId))
+        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .where(inArray(decision.id, ids));
+      return rows.map(({ decision: text, ...row }) => ({
+        ...row,
+        archived: false,
+        trashed: false,
+        values: { Decision: text },
+      }));
+    }
+    case "Risk": {
+      const rows = await database
+        .select({
+          id: risk.id,
+          impact: risk.impact,
+          ownerAccountId: workspace.ownerAccountId,
+          probability: risk.probability,
+          projectId: risk.projectId,
+          status: risk.life,
+          title: risk.title,
+        })
+        .from(risk)
+        .innerJoin(project, eq(project.id, risk.projectId))
+        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .where(inArray(risk.id, ids));
+      return rows.map(({ impact, probability, ...row }) => ({
+        ...row,
+        archived: false,
+        trashed: false,
+        values: { Impact: impact, Probability: probability },
+      }));
+    }
+    default:
+      return [];
+  }
+}
+
+const SOURCE_OPTION_LIMIT = 200;
+
+export function createDatabaseProjectWallStore(
+  database: Database,
+): ProjectWallStore {
+  return {
+    async addCard(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return null;
+        }
+        // One writer at a time per wall: two concurrent adds must not compute
+        // the same "on top" order slot.
+        await tx
+          .select({ id: projectWall.id })
+          .from(projectWall)
+          .where(eq(projectWall.id, input.wallId))
+          .for("update");
+        const [row] = await tx
+          .insert(projectWallItem)
+          .values({
+            density: input.density,
+            diagramViewId: input.diagramViewId,
+            id: input.id,
+            placedAt: new Date(input.placedAt),
+            positionX: input.position.x,
+            positionY: input.position.y,
+            sourceId: input.sourceId,
+            sourceType: input.sourceType,
+            wallId: input.wallId,
+            // A new card lands on top of the existing order.
+            zOrder: sql`coalesce((select max(z_order) + 1 from project_wall_item where wall_id = ${input.wallId}), 0)`,
+          })
+          .onConflictDoNothing()
+          .returning();
+        if (!row) {
+          throw new ProjectWallCardDuplicateError();
+        }
+        await touchWall(tx, input.wallId);
+        return toItem(row);
+      });
+    },
+
+    async addLink(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return null;
+        }
+        const ends = await tx
+          .select({ id: projectWallItem.id })
+          .from(projectWallItem)
+          .where(
+            and(
+              eq(projectWallItem.wallId, input.wallId),
+              inArray(projectWallItem.id, [input.fromCardId, input.toCardId]),
+            ),
+          );
+        if (ends.length !== 2) {
+          return null;
+        }
+        // A Visual link is a wall row; it writes no relation row.
+        const [row] = await tx
+          .insert(projectWallLink)
+          .values({
+            fromItemId: input.fromCardId,
+            id: input.id,
+            label: input.label,
+            toItemId: input.toCardId,
+            wallId: input.wallId,
+          })
+          .returning();
+        if (!row) {
+          return null;
+        }
+        await touchWall(tx, input.wallId);
+        return toLink(row);
+      });
+    },
+
+    async createGroup(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return null;
+        }
+        const [row] = await tx
+          .insert(projectWallGroup)
+          .values({
+            id: input.id,
+            title: input.title,
+            wallId: input.wallId,
+          })
+          .returning();
+        if (!row) {
+          return null;
+        }
+        await touchWall(tx, input.wallId);
+        return toGroup(row);
+      });
+    },
+
+    async deleteGroup(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // Member cards fall back to ungrouped (on delete set null).
+        const removed = await tx
+          .delete(projectWallGroup)
+          .where(
+            and(
+              eq(projectWallGroup.id, input.groupId),
+              eq(projectWallGroup.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallGroup.id });
+        if (removed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async removeLink(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        const removed = await tx
+          .delete(projectWallLink)
+          .where(
+            and(
+              eq(projectWallLink.id, input.linkId),
+              eq(projectWallLink.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallLink.id });
+        if (removed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async setCardGroup(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        if (input.groupId !== null) {
+          const [group] = await tx
+            .select({ id: projectWallGroup.id })
+            .from(projectWallGroup)
+            .where(
+              and(
+                eq(projectWallGroup.id, input.groupId),
+                eq(projectWallGroup.wallId, input.wallId),
+              ),
+            );
+          if (!group) {
+            return false;
+          }
+        }
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ groupId: input.groupId })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async setCardOrder(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // One statement for the whole order: the Outline of a 2,000 card wall
+        // must not cost 2,000 round trips.
+        const rows = input.cardIds.map(
+          (id, index) => sql`(${id}::text, ${index}::integer)`,
+        );
+        await tx.execute(
+          sql`update project_wall_item as item set z_order = ordered.position from (values ${sql.join(rows, sql`, `)}) as ordered(id, position) where item.id = ordered.id and item.wall_id = ${input.wallId}`,
+        );
+        return true;
+      });
+    },
+
+    async findViewport(accountId, wallId) {
+      const [row] = await database
+        .select({ viewport: projectWallViewport.viewport })
+        .from(projectWallViewport)
+        .where(
+          and(
+            eq(projectWallViewport.accountId, accountId),
+            eq(projectWallViewport.wallId, wallId),
+          ),
+        );
+      return row?.viewport ?? null;
+    },
+
+    async saveViewport(accountId, wallId, viewport) {
+      await database
+        .insert(projectWallViewport)
+        .values({ accountId, viewport, wallId })
+        .onConflictDoUpdate({
+          set: { updatedAt: new Date(), viewport },
+          target: [projectWallViewport.accountId, projectWallViewport.wallId],
+        });
+    },
+
+    async setFocusOrder(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // View metadata only: the steps are references to this wall's cards.
+        await tx
+          .delete(projectWallFocusStep)
+          .where(eq(projectWallFocusStep.wallId, input.wallId));
+        if (input.cardIds.length > 0) {
+          const known = await tx
+            .select({ id: projectWallItem.id })
+            .from(projectWallItem)
+            .where(
+              and(
+                eq(projectWallItem.wallId, input.wallId),
+                inArray(projectWallItem.id, input.cardIds),
+              ),
+            );
+          if (known.length !== input.cardIds.length) {
+            return false;
+          }
+          await tx.insert(projectWallFocusStep).values(
+            input.cardIds.map((itemId, position) => ({
+              itemId,
+              position,
+              wallId: input.wallId,
+            })),
+          );
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async setCardLocked(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // Only the wall item row: the source record is never touched.
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ locked: input.locked })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async createWall(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (!(await requireWritableProject(tx, accountId, input.projectId))) {
+          return null;
+        }
+        const [row] = await tx
+          .insert(projectWall)
+          .values({
+            id: input.id,
+            projectId: input.projectId,
+            title: input.title,
+          })
+          .returning();
+        return row ? toRecord(row, []) : null;
+      });
+    },
+
+    async createWallWithGroups(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (!(await requireWritableProject(tx, accountId, input.projectId))) {
+          return null;
+        }
+        const [wall] = await tx
+          .insert(projectWall)
+          .values({
+            id: input.id,
+            projectId: input.projectId,
+            title: input.title,
+          })
+          .returning();
+        if (!wall) {
+          return null;
+        }
+        // Explicit, strictly increasing timestamps keep the heading order:
+        // groups are read back by creation time.
+        const base = Date.now();
+        const groups =
+          input.groups.length === 0
+            ? []
+            : await tx
+                .insert(projectWallGroup)
+                .values(
+                  input.groups.map((group, index) => ({
+                    createdAt: new Date(base + index),
+                    id: group.id,
+                    title: group.title,
+                    wallId: input.id,
+                  })),
+                )
+                .returning();
+        return toRecord(
+          wall,
+          [],
+          [...groups].sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+          ),
+        );
+      });
+    },
+
+    async selectedSkeletons(accountId, projectId) {
+      const [owned] = await database
+        .select({
+          configuration: project.configuration,
+          starterConfiguration: project.starterConfiguration,
+        })
+        .from(project)
+        .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+        .where(
+          and(
+            eq(project.id, projectId),
+            eq(workspace.ownerAccountId, accountId),
+          ),
+        );
+      if (!owned) {
+        return null;
+      }
+      // The shell records the selection as catalog metadata only.
+      const { starterSkeletons } = resolveProjectShellConfiguration(
+        owned.configuration,
+        starterConfigurationSchema.parse(owned.starterConfiguration),
+      );
+      return starterSkeletons.flatMap((selection) =>
+        selection.surface === "Project Wall" ? [selection.skeleton] : [],
+      );
+    },
+
+    async deleteWall(accountId, projectId, wallId) {
+      return await database.transaction(async (tx) => {
+        if (!(await findWritableWall(tx, accountId, projectId, wallId))) {
+          return false;
+        }
+        // Cards cascade; only wall rows are removed, never a source record.
+        await tx.delete(projectWall).where(eq(projectWall.id, wallId));
+        return true;
+      });
+    },
+
+    async findWall(accountId, projectId, wallId) {
+      if (!(await findOwnedWall(database, accountId, projectId, wallId))) {
+        return null;
+      }
+      const [wall] = await database
+        .select()
+        .from(projectWall)
+        .where(eq(projectWall.id, wallId));
+      if (!wall) {
+        return null;
+      }
+      const items = await database
+        .select()
+        .from(projectWallItem)
+        .where(eq(projectWallItem.wallId, wallId))
+        .orderBy(
+          asc(projectWallItem.zOrder),
+          asc(projectWallItem.placedAt),
+          asc(projectWallItem.id),
+        );
+      const [groups, links, steps] = await Promise.all([
+        database
+          .select()
+          .from(projectWallGroup)
+          .where(eq(projectWallGroup.wallId, wallId))
+          .orderBy(asc(projectWallGroup.createdAt), asc(projectWallGroup.id)),
+        database
+          .select()
+          .from(projectWallLink)
+          .where(eq(projectWallLink.wallId, wallId))
+          .orderBy(asc(projectWallLink.createdAt), asc(projectWallLink.id)),
+        database
+          .select({ itemId: projectWallFocusStep.itemId })
+          .from(projectWallFocusStep)
+          .where(eq(projectWallFocusStep.wallId, wallId))
+          .orderBy(asc(projectWallFocusStep.position)),
+      ]);
+      return toRecord(
+        wall,
+        items,
+        groups,
+        links,
+        steps.map(({ itemId }) => itemId),
+      );
+    },
+
+    async listSourceOptions(accountId, projectId) {
+      if (!(await findOwnedProject(database, accountId, projectId))) {
+        return null;
+      }
+      const [works, decisions, risks] = await Promise.all([
+        database
+          .select({ id: work.id, title: work.title })
+          .from(work)
+          .where(
+            and(
+              eq(work.projectId, projectId),
+              isNull(work.archivedAt),
+              isNull(work.trashedAt),
+            ),
+          )
+          .orderBy(asc(work.title), asc(work.id))
+          .limit(SOURCE_OPTION_LIMIT),
+        database
+          .select({ id: decision.id, title: decision.title })
+          .from(decision)
+          .where(eq(decision.projectId, projectId))
+          .orderBy(asc(decision.title), asc(decision.id))
+          .limit(SOURCE_OPTION_LIMIT),
+        database
+          .select({ id: risk.id, title: risk.title })
+          .from(risk)
+          .where(eq(risk.projectId, projectId))
+          .orderBy(asc(risk.title), asc(risk.id))
+          .limit(SOURCE_OPTION_LIMIT),
+      ]);
+      return [
+        ...works.map((row) => ({ ...row, sourceType: "Work" as const })),
+        ...decisions.map((row) => ({
+          ...row,
+          sourceType: "Decision" as const,
+        })),
+        ...risks.map((row) => ({ ...row, sourceType: "Risk" as const })),
+      ];
+    },
+
+    async listWalls(accountId, projectId) {
+      if (!(await findOwnedProject(database, accountId, projectId))) {
+        return null;
+      }
+      const walls = await database
+        .select()
+        .from(projectWall)
+        .where(eq(projectWall.projectId, projectId))
+        .orderBy(asc(projectWall.createdAt), asc(projectWall.id));
+      const counts = await database
+        .select({ cards: count(), wallId: projectWallItem.wallId })
+        .from(projectWallItem)
+        .innerJoin(projectWall, eq(projectWall.id, projectWallItem.wallId))
+        .where(eq(projectWall.projectId, projectId))
+        .groupBy(projectWallItem.wallId);
+      const cardCounts = new Map(counts.map((row) => [row.wallId, row.cards]));
+      return walls.map((wall) => ({
+        cardCount: cardCounts.get(wall.id) ?? 0,
+        createdAt: wall.createdAt.toISOString(),
+        id: wall.id,
+        projectId: wall.projectId,
+        title: wall.title,
+        updatedAt: wall.updatedAt.toISOString(),
+      }));
+    },
+
+    async lookupSources(accountId, refs) {
+      const lookups = new Map<string, ProjectWallSourceLookup>();
+      const idsByType = new Map<ProjectWallRecordSourceType, string[]>();
+      for (const { id, sourceType } of refs) {
+        idsByType.set(sourceType, [...(idsByType.get(sourceType) ?? []), id]);
+      }
+      await Promise.all(
+        [...idsByType].map(async ([sourceType, ids]) => {
+          for (const row of await readSourceRows(database, sourceType, ids)) {
+            // A record of another account is "No access": no name, no state.
+            lookups.set(
+              projectWallLookupKey(sourceType, row.id),
+              row.ownerAccountId === accountId
+                ? {
+                    archived: row.archived,
+                    kind: "found",
+                    projectId: row.projectId,
+                    status: row.status,
+                    title: row.title,
+                    trashed: row.trashed,
+                    values: row.values,
+                  }
+                : { kind: "inaccessible" },
+            );
+          }
+        }),
+      );
+      return lookups;
+    },
+
+    async moveCards(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        for (const { cardId, position } of input.moves) {
+          // biome-ignore lint/performance/noAwaitInLoops: One transaction connection runs its statements in order.
+          await tx
+            .update(projectWallItem)
+            .set({ positionX: position.x, positionY: position.y })
+            .where(
+              and(
+                eq(projectWallItem.id, cardId),
+                eq(projectWallItem.wallId, input.wallId),
+                // `Lock Position` fixes the card in manual drag.
+                eq(projectWallItem.locked, false),
+              ),
+            );
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async removeCard(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        const removed = await tx
+          .delete(projectWallItem)
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        if (removed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async renameWall(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        await tx
+          .update(projectWall)
+          .set({ title: input.title })
+          .where(eq(projectWall.id, input.wallId));
+        return true;
+      });
+    },
+
+    async setCardDensity(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ density: input.density })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async setCardHighlight(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ highlight: input.highlight })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+  };
+}
+
+export function createDatabaseProjectWall(
+  database: Database,
+  relations: ProjectWallRelations,
+  options: {
+    collections?: ProjectWallCollections;
+    diagrams?: ProjectWallDiagrams;
+    renderer?: ProjectWallSnapshotRenderer;
+  } = {},
+): ProjectWallAccess {
+  return createProjectWall(createDatabaseProjectWallStore(database), {
+    ...options,
+    relations,
+  });
+}

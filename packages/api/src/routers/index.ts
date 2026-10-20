@@ -324,6 +324,37 @@ import {
   transitionProjectSourceRecordInputSchema,
   updateProjectSourceRecordInputSchema,
 } from "../project-source-records";
+import {
+  addProjectWallCardInputSchema,
+  createProjectWallFromSkeletonInputSchema,
+  createProjectWallGroupInputSchema,
+  createProjectWallInputSchema,
+  createProjectWallPersistentRelationInputSchema,
+  drawProjectWallLinkInputSchema,
+  moveProjectWallCardsInputSchema,
+  PROJECT_WALL_SOURCE_TYPES,
+  previewProjectWallPersistentRelationInputSchema,
+  projectWallGroupInputSchema,
+  projectWallInputSchema,
+  projectWallProjectInputSchema,
+  removeProjectWallCardInputSchema,
+  renameProjectWallInputSchema,
+  reorderProjectWallCardsInputSchema,
+  setProjectWallCardDensityInputSchema,
+  setProjectWallCardGroupInputSchema,
+  setProjectWallCardHighlightInputSchema,
+  setProjectWallCardLockInputSchema,
+  unbindProjectWallLinkInputSchema,
+} from "../project-wall";
+import {
+  exportProjectWallSnapshotInputSchema,
+  previewProjectWallSnapshotInputSchema,
+  setProjectWallFocusOrderInputSchema,
+} from "../project-wall-presentation";
+import {
+  projectWallViewportInputSchema,
+  saveProjectWallViewportInputSchema,
+} from "../project-wall-viewport";
 import type { RecordActionsAccess } from "../record-actions";
 import {
   applyRecordActionInputSchema,
@@ -1090,6 +1121,87 @@ function requireScreens(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.screens;
+}
+
+function requireProjectWall(context: Context) {
+  if (!context.projectWall) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.projectWall;
+}
+
+const PROJECT_WALL_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  PROJECT_WALL_CARD_NOT_FOUND: "Card is not on this Project Wall.",
+  PROJECT_WALL_GROUP_NOT_FOUND: "Group is not on this Project Wall.",
+  PROJECT_WALL_LINK_NOT_FOUND: "Visual link is not on this Project Wall.",
+  PROJECT_WALL_NOT_FOUND: "Project Wall is unavailable.",
+  PROJECT_WALL_PROJECT_NOT_FOUND: "Project is unavailable.",
+};
+
+const PROJECT_WALL_SOURCE_TYPE_LIST = `${PROJECT_WALL_SOURCE_TYPES.slice(0, -1).join(", ")} or ${PROJECT_WALL_SOURCE_TYPES.at(-1)}`;
+
+const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
+  PROJECT_WALL_CARD_DUPLICATE:
+    "This record is already a card on this Project Wall.",
+  PROJECT_WALL_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  PROJECT_WALL_SKELETON_NOT_SELECTED:
+    "This skeleton is not selected for this Project.",
+  PROJECT_WALL_RELATION_UNAVAILABLE:
+    "A Smart Collection block cannot be a relation endpoint.",
+  PROJECT_WALL_SOURCE_UNAVAILABLE: `The record is not an active ${PROJECT_WALL_SOURCE_TYPE_LIST} of this Project.`,
+};
+
+async function runProjectWallOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    // Same stale-preview condition as the relations seam: 412, not 400.
+    if (error.code === "PROJECT_WALL_RELATION_PREVIEW_REQUIRED") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Review the current relation preview before confirming.",
+      });
+    }
+    // The refusal reason is the user's action item; the seam refuses scopes,
+    // it does not truncate them.
+    if (error.code === "PROJECT_WALL_SNAPSHOT_FAILED") {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string" && error.message
+            ? error.message
+            : "The Project Wall snapshot could not be taken.",
+      });
+    }
+    const rejected = PROJECT_WALL_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = PROJECT_WALL_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
 }
 
 function requirePlannedTests(context: Context) {
@@ -3990,6 +4102,253 @@ export const appRouter = {
       }
       return view;
     }),
+  projectWalls: protectedProcedure
+    .input(projectWallProjectInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  projectWall: protectedProcedure
+    .input(projectWallInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).get(
+          context.session.user.id,
+          input.projectId,
+          input.wallId,
+        ),
+      ),
+    ),
+  projectWallSourceOptions: protectedProcedure
+    .input(projectWallProjectInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).sourceOptions(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  projectWallSkeletons: protectedProcedure
+    .input(projectWallProjectInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).skeletons(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createProjectWallFromSkeleton: protectedProcedure
+    .input(createProjectWallFromSkeletonInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).createFromSkeleton(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  createProjectWall: protectedProcedure
+    .input(createProjectWallInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).create(context.session.user.id, input),
+      ),
+    ),
+  renameProjectWall: protectedProcedure
+    .input(renameProjectWallInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).rename(context.session.user.id, input),
+      ),
+    ),
+  deleteProjectWall: protectedProcedure
+    .input(projectWallInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).delete(
+          context.session.user.id,
+          input.projectId,
+          input.wallId,
+        ),
+      ),
+    ),
+  addProjectWallCard: protectedProcedure
+    .input(addProjectWallCardInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).addCard(context.session.user.id, input),
+      ),
+    ),
+  moveProjectWallCards: protectedProcedure
+    .input(moveProjectWallCardsInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).moveCards(context.session.user.id, input),
+      ),
+    ),
+  reorderProjectWallCards: protectedProcedure
+    .input(reorderProjectWallCardsInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).reorderCards(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectWallViewport: protectedProcedure
+    .input(projectWallViewportInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).viewport(
+          context.session.user.id,
+          input.projectId,
+          input.wallId,
+        ),
+      ),
+    ),
+  saveProjectWallViewport: protectedProcedure
+    .input(saveProjectWallViewportInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).saveViewport(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectWallCardDensity: protectedProcedure
+    .input(setProjectWallCardDensityInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardDensity(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectWallCardHighlight: protectedProcedure
+    .input(setProjectWallCardHighlightInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardHighlight(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  removeProjectWallCard: protectedProcedure
+    .input(removeProjectWallCardInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).removeCard(context.session.user.id, input),
+      ),
+    ),
+  drawProjectWallLink: protectedProcedure
+    .input(drawProjectWallLinkInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).drawLink(context.session.user.id, input),
+      ),
+    ),
+  unbindProjectWallLink: protectedProcedure
+    .input(unbindProjectWallLinkInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).unbindLink(context.session.user.id, input),
+      ),
+    ),
+  previewProjectWallPersistentRelation: protectedProcedure
+    .input(previewProjectWallPersistentRelationInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        runProjectWallOperation(() =>
+          requireProjectWall(context).previewPersistentRelation(
+            context.session.user.id,
+            input,
+          ),
+        ),
+      ),
+    ),
+  createProjectWallPersistentRelation: protectedProcedure
+    .input(createProjectWallPersistentRelationInputSchema)
+    .handler(({ context, input }) =>
+      runRelationsOperation(() =>
+        runProjectWallOperation(() =>
+          requireProjectWall(context).createPersistentRelation(
+            context.session.user.id,
+            input,
+          ),
+        ),
+      ),
+    ),
+  setProjectWallCardLock: protectedProcedure
+    .input(setProjectWallCardLockInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardLock(context.session.user.id, input),
+      ),
+    ),
+  createProjectWallGroup: protectedProcedure
+    .input(createProjectWallGroupInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).createGroup(context.session.user.id, input),
+      ),
+    ),
+  deleteProjectWallGroup: protectedProcedure
+    .input(projectWallGroupInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).deleteGroup(context.session.user.id, input),
+      ),
+    ),
+  setProjectWallFocusOrder: protectedProcedure
+    .input(setProjectWallFocusOrderInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setFocusOrder(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewProjectWallSnapshot: protectedProcedure
+    .input(previewProjectWallSnapshotInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).previewSnapshot(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  exportProjectWallSnapshot: protectedProcedure
+    .input(exportProjectWallSnapshotInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).exportSnapshot(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectWallCardGroup: protectedProcedure
+    .input(setProjectWallCardGroupInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardGroup(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
   userFlows: protectedProcedure
     .input(userFlowProjectInputSchema)
     .handler(({ context, input }) =>

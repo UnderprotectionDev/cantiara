@@ -37,9 +37,52 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Proje Duvarı oluştur | `Create Project Wall` | Adlandırılmış düz Proje Duvarı açma |
 | Proje Duvarı yok | `No Project Wall yet.` | Henüz duvar açılmamış boş durum |
 | Canlı kart yerleştir | `Place live card` | Mevcut ana kaydı kopyasız canlı kart olarak duvara referanslama |
+| Vurgu | `Highlight` | Proje Duvarı kartının sınırlı erişilebilir palet vurgusu; durum, öncelik veya ilişki değildir |
+| Duvardan kaldır | `Remove from Project Wall` | Canlı kartı yalnız duvardan çıkarma; kaynak kayıt silinmez ve değişmez |
+| Proje Duvarı sil | `Delete Project Wall` | Duvarı ve yerleşimini silme; kaynak kayıtlar değişmez |
 | Görsel bağlantı | `Visual link` | Kartlar arasında yönlü etiketli anlatı çizgisi; kayıt ilişkisi değildir |
 | Kalıcı ilişki oluştur | `Create Persistent Relation` | Görsel çizgiden önizlemeli katalog ilişkisi yazma |
 | Konumu kilitle | `Lock Position` | Görünüm-yerel konum sabiti; kaynak kaydın düzenlenmesini veya yaşamını kısıtlamaz |
+| Görsel bağlantı ekle | `Add Visual link` | `From` ve `To` kartı ile etiketten yönlü görsel çizgi çizme; ilişki satırı yazmaz |
+| Çizgi başlangıcı | `From` | Görsel bağlantının çıkış kartı; kalıcı ilişkide kaynak uç olur |
+| Çizgi hedefi | `To` | Görsel bağlantının varış kartı; kalıcı ilişkide hedef uç olur |
+| Çizgiyi çöz | `Unbind` | Yalnız görsel çizgiyi kaldırma; kartlar, kaynak kayıtlar ve ilişkiler değişmez |
+| İlişkiyi onayla | `Confirm Create Persistent Relation` | `Create Persistent Relation` önizlemesini okuduktan sonra katalog ilişkisini yazan açık onay |
+| Grup | `Group` | Duvardaki tek seviyeli, adlı, kalıcı sınıflandırma olmayan kart kümesi; ilişki değildir |
+| Grup oluştur | `Create Group` | Duvara adlı grup ekleme |
+| Grubu daralt | `Collapse group` | Grup üyelerini kullanıcının kendi duvar görünümünde gizleme (kişisel viewport durumu, oturumlar arası korunur); kayıt durumu değişmez |
+| Grubu aç | `Expand group` | Daraltılmış grubun üyelerini yeniden gösterme |
+| Grubu sil | `Delete group` | Yalnız grubu silme; kartlar gruptan çıkar, kaynak kayıtlar değişmez |
+| Sitemap iskeletinden oluştur | `Create from Sitemap` | Kabuğun `Sitemap` seçtiği Projede `Primary Navigation`, `Secondary Navigation`, `Utility`, `External` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
+| Customer Journey iskeletinden oluştur | `Create from Customer Journey` | Kabuğun `Customer Journey` seçtiği Projede `Awareness`, `Consideration`, `Onboarding`, `Core Use`, `Retention` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
+| Sunum Kipi (duvar) | `Presentation Mode` | Proje Duvarı düzenleme araçlarını gizleyen salt okunur kip; çıkışta aynı duvar görünümüne döner, içerik kopyası üretmez |
+| Odak sırası | `Focus order` | Proje Duvarı Sunum Kipi'nde isteğe bağlı kart sırası; görünüm üstverisidir, ikinci dosya veya içerik kopyası değildir |
+| Duvar snapshot'ı | `Snapshot` | Seçili grup veya bölgenin tarihli PNG/PDF iç çıktısı; `Preview` ile okunur |
+| Duvar kartını yukarı taşı | `Move up` | Proje Duvarı `Outline` sıralamasında kartı kendi bölümü içinde bir adım öne alma; konumu ve kaynak kaydı değiştirmez |
+| Duvar kartını aşağı taşı | `Move down` | Proje Duvarı `Outline` sıralamasında kartı kendi bölümü içinde bir adım arkaya alma; konumu ve kaynak kaydı değiştirmez |
+| Görsel bağlantıyı bağla | `Bind` | `Outline` inceleme panelinde seçili karttan (`From`) seçilen karta (`To`) etiketli görsel bağlantı kurma; ilişki satırı yazmaz |
+| Seçimi grupla | `Group selection` | `Outline`'da seçili kartlardan adlı tek seviyeli grup kurma; sınıflandırma veya ilişki değildir |
+| Sola hizala / Ortala / Sağa hizala | `Align Left`, `Align Center`, `Align Right` | Seçili duvar kartlarını ortak kenara veya eksene hizalama; `Lock Position` kartları yerinde kalır |
+| Üste hizala / Ortaya hizala / Alta hizala | `Align Top`, `Align Middle`, `Align Bottom` | Seçili duvar kartlarını ortak üst, orta veya alt hizaya getirme; `Lock Position` kartları yerinde kalır |
+| Yatay dağıt / Dikey dağıt | `Distribute Horizontally`, `Distribute Vertically` | Üç veya daha çok seçili kartı dış iki kart arasında eşit aralıkla yerleştirme; `Lock Position` kartları yerinde kalır |
+| En öne getir / En arkaya gönder | `Bring to Front`, `Send to Back` | Seçili kartların z-sırasını (aynı zamanda `Outline` sırası) değiştirme; konum ve kaynak kayıt değişmez |
+| Otomatik yerleşimi önizle | `Preview Auto-layout` | Seçili (yoksa tüm) kartların ızgara yerleşimini yazmadan gösterme; `Lock Position` kartları yerinde kalır |
+| Otomatik yerleşimi uygula | `Apply Auto-layout` | Önizlenen yerleşimi duvar konumu olarak yazma; kaynak kaydı değiştirmez |
+| Otomatik yerleşimi geri al | `Undo Auto-layout` | Uygulanan otomatik yerleşimden önceki konumlara dönme |
+| Donmuş kopya | `Frozen copy` | Snapshot'ın adı; paylaşım izni değildir, paylaşım kapsamını genişletmez, duvarı kilitlemez |
+| Canlı önizleme | `Live` | Teknik Diyagram kartının seçili Diyagram Görünümünü güncel gösterdiği etiket |
+| Kesin önizleme | `Exact` | Teknik Diyagram kartının açıkça seçilmiş Diyagram Sürümüne sabitlendiği etiket |
+| Hepsini kaynakta aç | `Open all in source` | Akıllı Koleksiyon bloğunun sınırlı özetinden tüm sonucu koleksiyonun kendisinde açma |
+| Grubu aç | `Open group` | Proje Duvarı tuvali ve `Outline`'ı adlı grubun kartlarına odaklayan görünüm-yerel gezinme; kaydedilmez, kaynak kaydı değiştirmez |
+| Tam duvarı göster | `Show full wall` | Açılmış gruptan tüm duvara güvenli dönüş |
+| Grup artık yok | `This group is no longer available.` | Silinmiş veya erişilemeyen grup hedefinin başka gruba yönlendirmeden yerinde açıklaması |
+| Yeniden adlandır | `Rename`, `Rename Project Wall` | Proje Duvarı adını değiştirme; kaynak kayıtları değiştirmez |
+| Kart seç / Kayıt seç | `Select a card`, `Select a record` | Görsel bağlantı uçları ve canlı kart yerleştirme için seçim yer tutucuları |
+| Grupsuz / Vurgusuz | `No group`, `No highlight` | Proje Duvarı kartının grup ve vurgu seçimi boş değerleri |
+| İlişki türü | `Relation kind` | `Create Persistent Relation` önizlemesinde ilişki türü seçimi |
+| Snapshot grubu | `Snapshot group` | Duvar snapshot'ı için grup kapsamı seçimi |
+| Duvar anlatısı | `Wall narrative` | Görsel bağlantılar ve tek seviyeli grupların bölümü; kayıt ilişkisi değildir |
+| Ortak kaynak | `Shared source` | Aynı kaydın duvarda hem kart hem Akıllı Koleksiyon özeti içinde göründüğünü belirten not; iki kayıt değildir |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |
