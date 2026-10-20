@@ -15,6 +15,7 @@
     "@cantiara/api": "workspace:*",
     "@cantiara/auth": "workspace:*",
     "@cantiara/db": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",

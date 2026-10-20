@@ -419,6 +419,69 @@ export function assertSupportedSchemaVersion(report: unknown) {
   }
 }
 
+const BINARY_EVIDENCE_KEYS = new Set([
+  "base64",
+  "blob",
+  "bytes",
+  "content",
+  "content_base64",
+  "data",
+  "file",
+  "file_content",
+]);
+const DATA_URI = /data:[^,;\s]*;base64,/i;
+const BASE64_BLOB = /^[A-Za-z0-9+/\s]+={0,2}$/;
+const BASE64_BLOB_MIN = 1024;
+
+/** Whether one evidence entry carries binary content instead of a reference. */
+function carriesBinary(entry: Record<string, unknown>) {
+  if (Object.keys(entry).some((key) => BINARY_EVIDENCE_KEYS.has(key))) {
+    return true;
+  }
+  const { type, value } = entry;
+  if (typeof value !== "string") {
+    return false;
+  }
+  if (DATA_URI.test(value)) {
+    return true;
+  }
+  return (
+    type !== "text_excerpt" &&
+    value.length >= BASE64_BLOB_MIN &&
+    BASE64_BLOB.test(value)
+  );
+}
+
+/**
+ * Binary or base64 evidence is refused as `attachment_rejected` before the
+ * schema runs: a file is uploaded through the normal File Attachment path and
+ * referenced by id, never embedded in the report.
+ */
+function assertNoBinaryEvidence(report: unknown) {
+  const { tests } = report as { tests?: unknown };
+  if (!Array.isArray(tests)) {
+    return;
+  }
+  tests.forEach((test, testIndex) => {
+    const evidence = (test as { evidence?: unknown } | null)?.evidence;
+    if (!Array.isArray(evidence)) {
+      return;
+    }
+    evidence.forEach((entry, entryIndex) => {
+      if (
+        typeof entry === "object" &&
+        entry !== null &&
+        carriesBinary(entry as Record<string, unknown>)
+      ) {
+        throw rejection(
+          "attachment_rejected",
+          `tests[${testIndex}].evidence[${entryIndex}]`,
+        );
+      }
+    });
+  });
+}
+
 /**
  * Validates one parsed report (from JSON, Markdown frontmatter, MCP or the
  * manual form) against the closed envelope. Parsers cannot widen types: the
@@ -429,6 +492,7 @@ export function parseTestReport(
   ingress: TestReportIngress,
 ): TestReportV1 {
   assertSupportedSchemaVersion(report);
+  assertNoBinaryEvidence(report);
   const parsed = testReportV1Schema(ingress).safeParse(report);
   if (!parsed.success) {
     throw rejectionFromZod(parsed.error);
@@ -572,6 +636,27 @@ export interface TestReportReceipt {
   /** `duplicate` returns the prior acceptance; no new session, signal or counter. */
   outcome: "created" | "duplicate";
   session: TestSessionRecord;
+}
+
+/** The only thing the narrow MCP tool answers: no Test Session body, no read access. */
+export interface TestReportMcpReceipt {
+  accepted_at: string;
+  external_session_id: string;
+  fingerprint: string;
+  result: "created" | "duplicate";
+  session_id: string;
+}
+
+export function toTestReportMcpReceipt(
+  receipt: TestReportReceipt,
+): TestReportMcpReceipt {
+  return {
+    accepted_at: receipt.session.acceptedAt,
+    external_session_id: receipt.session.externalSessionId,
+    fingerprint: receipt.session.fingerprint,
+    result: receipt.outcome,
+    session_id: receipt.session.id,
+  };
 }
 
 export interface TestSessionList {

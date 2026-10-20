@@ -331,6 +331,36 @@ describe("test-report/1 envelope", () => {
     expect(harness.sessions.size).toBe(0);
   });
 
+  test("base64 evidence in a file import is attachment_rejected and writes nothing", async () => {
+    const harness = createMemoryHarness();
+    const failure = await rejectionOf(
+      harness.testReports.accept(
+        userCaller,
+        json(
+          envelope({
+            tests: [
+              {
+                evidence: [
+                  {
+                    type: "attachment_ref",
+                    value: "data:image/png;base64,QUJD",
+                  },
+                ],
+                external_test_id: "t",
+                title: "T",
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    expect(failure).toMatchObject({
+      code: "attachment_rejected",
+      fieldPath: "tests[0].evidence[0]",
+    });
+    expect(harness.sessions.size).toBe(0);
+  });
+
   test("the manual form is limited to 200 tests", async () => {
     const harness = createMemoryHarness();
     const failure = await rejectionOf(
