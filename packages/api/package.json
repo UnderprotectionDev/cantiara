@@ -26,6 +26,7 @@
     "canonicalize": "^5.0.0",
     "date-fns": "^4.4.0",
     "diff": "^8.0.4",
+    "yaml": "^2.9.1",
     "zod": "catalog:"
   },
   "devDependencies": {

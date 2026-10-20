@@ -1090,7 +1090,13 @@ export function createDatabasePlannedTestStore(
                 await executor
                   .select()
                   .from(sessionTest)
-                  .where(eq(sessionTest.projectId, owned.id))
+                  // Tests reported inside a Test Session (spec 54) belong to that session.
+                  .where(
+                    and(
+                      eq(sessionTest.projectId, owned.id),
+                      isNull(sessionTest.sessionId),
+                    ),
+                  )
                   .orderBy(desc(sessionTest.createdAt), asc(sessionTest.id))
               ).map(toStoredSessionTest),
             readOnly: owned.archivedAt !== null,

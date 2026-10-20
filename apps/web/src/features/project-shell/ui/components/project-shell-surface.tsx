@@ -78,6 +78,7 @@ import {
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectSourcesSurface from "@/features/sources-and-freshness/ui/components/project-sources-surface";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
+import TestSessionsSurface from "@/features/test-report/ui/test-sessions-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
 import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
 import ValidationRecordsSurface from "@/features/validation-records/ui/validation-records-surface";
@@ -146,10 +147,16 @@ function projectDesignSurface(activeHash: string, projectId: string) {
 
 function projectTestsSurface(activeHash: string, projectId: string) {
   return ["tests", "project-area-tests"].includes(activeHash) ? (
-    <PlannedTestsSurface
-      key={`planned-tests:${projectId}`}
-      projectId={projectId}
-    />
+    <div className="space-y-10">
+      <PlannedTestsSurface
+        key={`planned-tests:${projectId}`}
+        projectId={projectId}
+      />
+      <TestSessionsSurface
+        key={`test-sessions:${projectId}`}
+        projectId={projectId}
+      />
+    </div>
   ) : null;
 }
 

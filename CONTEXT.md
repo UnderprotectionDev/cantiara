@@ -1344,6 +1344,21 @@ Bir Test Oturumu içinde bağımsız olarak denendiği bildirilen davranışı, 
 UI: `Session Test`.
 _Avoid_: Planlı Test Senaryosu, Test Oturumu özeti, GitHub check'i
 
+**Yürüten**:
+Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
+UI: `Executor type`, `Executor`.
+_Avoid_: Raporlayan, Giriş yolu, güvenilir kaynak, ajan puanı
+
+**Raporlayan**:
+Test raporunu ürüne teslim eden doğrulanmış kullanıcı ya da entegrasyon kimliği; bağlamdan gelir, rapor yükünde bir alan olarak taşınmaz.
+UI: `Reporter`.
+_Avoid_: Yürüten, rapor yükündeki actor alanı
+
+**Giriş yolu**:
+Test raporunun ürüne geldiği yol: `Uygulama` (manuel form), `Dosya içe aktarma` veya `MCP`; kaydın saklanan bir olgusudur, ayrı kayıt türü ya da kuyruk değildir ve güven ya da önem puanı üretmez.
+UI: `Ingress`.
+_Avoid_: kaynak güveni, güven puanı, kayıt türü, kabul kuyruğu
+
 **Test Açığı**:
 Kullanıcının henüz denenmediğini veya yetersiz doğrulandığını düşündüğü alanı ve bu yargının dayanaklarını taşıyan Proje ana kaydı; başarısız test, Bug veya otomatik yayın engeli değildir.
 UI: `Test Gap`.
