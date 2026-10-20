@@ -5,7 +5,7 @@ import { findSecretKinds } from "./test-handoff-package";
  * It reuses the Handoff package patterns (`findSecretKinds`) and sorts what
  * they find into two groups: a KNOWN finding is a provider token or key whose
  * shape is distinctive enough to reject the whole report; an AMBIGUOUS finding
- * is a pattern that can also be harmless text. Only the masked field path is
+ * is a pattern that can also be harmless text (a credential assignment such as `password: ...`). Only the masked field path is
  * ever returned, never the matched value, and the scan never edits anything.
  */
 const KNOWN_KINDS = new Set([
@@ -15,6 +15,8 @@ const KNOWN_KINDS = new Set([
   "AWS access key",
   "Slack token",
   "JSON Web Token",
+  "bearer token",
+  "URL with credentials",
 ]);
 
 export interface TestReportSecretFindings {

@@ -19,10 +19,10 @@ import {
   testSessionProjectInputSchema,
   toTestSessionRecord,
 } from "@cantiara/api/test-report";
-import { testReportFingerprint } from "@cantiara/api/test-report-identity";
-import { parseTestReportFile } from "@cantiara/api/test-report-import";
 import { normalizeReportedResult } from "@cantiara/api/test-report-result";
 import { scanTestReportForSecrets } from "@cantiara/api/test-report-secrets";
+import { testReportFingerprint } from "./test-report-identity";
+import { parseTestReportFile } from "./test-report-import";
 
 /** The report as the manual form writes it: the product supplies the envelope fields. */
 function manualEnvelope(
@@ -130,9 +130,11 @@ async function requireHandoff(
     return null;
   }
   const found = await transaction.findHandoff(report.handoff_id);
-  // Another Project's Handoff reads the same as an unknown one.
-  if (found === null || found === "other_project") {
+  if (found === null) {
     throw rejection("reference_not_found", "handoff_id");
+  }
+  if (found === "other_project") {
+    throw rejection("reference_scope_mismatch", "handoff_id");
   }
   if (found.packageVersion !== report.handoff_package_version) {
     throw rejection("reference_scope_mismatch", "handoff_package_version");
@@ -232,14 +234,56 @@ function assertEnvelopeSize(raw: unknown) {
   let bytes: number;
   try {
     bytes = new TextEncoder().encode(JSON.stringify(raw) ?? "").length;
-  } catch (error) {
-    const refusal = rejection("invalid_field");
-    refusal.cause = error;
-    throw refusal;
+  } catch {
+    // The serializer message can quote payload text, so it is not chained.
+    // biome-ignore lint/style/useErrorCause: The message quotes payload text and must not be chained.
+    throw rejection("invalid_field");
   }
   if (bytes > TEST_REPORT_LIMITS.envelopeBytes) {
     throw rejection("payload_too_large");
   }
+}
+
+/**
+ * Every `attachment_ref` must be an accessible File Attachment of this
+ * Project (Trash and other scopes are not). Its current content hash goes into
+ * the fingerprint; the report never uploads or mints an attachment.
+ */
+async function resolveAttachments(
+  transaction: TestReportTransaction,
+  report: TestReportV1,
+) {
+  const refs: { fieldPath: string; id: string }[] = [];
+  report.tests.forEach((test, index) => {
+    test.evidence?.forEach((entry, entryIndex) => {
+      if (entry.type === "attachment_ref") {
+        refs.push({
+          fieldPath: `tests[${index}].evidence[${entryIndex}].value`,
+          id: entry.value,
+        });
+      }
+    });
+  });
+  const ids = [...new Set(refs.map(({ id }) => id))];
+  const found = await Promise.all(
+    ids.map((id) => transaction.resolveAttachment(id)),
+  );
+  const byId = new Map(ids.map((id, index) => [id, found[index]]));
+  const hashes: Record<string, string> = {};
+  for (const { fieldPath, id } of refs) {
+    const attachment = byId.get(id);
+    if (attachment?.status === "found") {
+      hashes[id] = attachment.contentHash;
+      continue;
+    }
+    throw rejection(
+      attachment?.status === "other_project"
+        ? "reference_scope_mismatch"
+        : "reference_not_found",
+      fieldPath,
+    );
+  }
+  return hashes;
 }
 
 function toStoredSession(
@@ -248,6 +292,7 @@ function toStoredSession(
   report: TestReportV1,
   tests: SessionTestReportStoredRecord[],
   handoff: TestReportHandoffRef | null,
+  attachmentHashes: Record<string, string>,
 ): TestSessionStoredRecord {
   return {
     acceptedAt: new Date().toISOString(),
@@ -259,7 +304,7 @@ function toStoredSession(
       version: report.executor.version ?? null,
     },
     externalSessionId: report.external_session_id,
-    fingerprint: testReportFingerprint(report),
+    fingerprint: testReportFingerprint(report, attachmentHashes),
     handoffId: report.handoff_id ?? null,
     handoffPackageVersion: report.handoff_package_version ?? null,
     handoffStateAtAccept: handoff?.state ?? null,
@@ -355,6 +400,7 @@ async function priorAcceptance(
   caller: TestReportCaller,
   input: AcceptTestReportInput,
   report: TestReportV1,
+  attachmentHashes: Record<string, string>,
 ) {
   const prior = await transaction.findSessionByIdentity(
     input.ingress,
@@ -364,7 +410,7 @@ async function priorAcceptance(
   if (!prior) {
     return null;
   }
-  if (prior.fingerprint !== testReportFingerprint(report)) {
+  if (prior.fingerprint !== testReportFingerprint(report, attachmentHashes)) {
     throw rejection("identity_conflict", "external_session_id");
   }
   return { outcome: "duplicate" as const, stored: prior };
@@ -398,16 +444,36 @@ async function acceptInTransaction(
     return review;
   }
   const tests = toStoredTests(report);
-  const prior = await priorAcceptance(transaction, caller, input, report);
+  const hashes = await resolveAttachments(transaction, report);
+  const prior = await priorAcceptance(
+    transaction,
+    caller,
+    input,
+    report,
+    hashes,
+  );
   if (prior) {
     return prior;
   }
   const handoff = await requireHandoff(transaction, report);
   await requireReferences(transaction, handoff, report);
-  const session = toStoredSession(caller, input, report, tests, handoff);
+  const session = toStoredSession(
+    caller,
+    input,
+    report,
+    tests,
+    handoff,
+    hashes,
+  );
   if (!(await transaction.insertSession(session))) {
     // A concurrent delivery won the identity; answer from what it stored.
-    const winner = await priorAcceptance(transaction, caller, input, report);
+    const winner = await priorAcceptance(
+      transaction,
+      caller,
+      input,
+      report,
+      hashes,
+    );
     if (winner) {
       return winner;
     }

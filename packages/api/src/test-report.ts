@@ -736,6 +736,13 @@ export interface TestReportTransaction {
   /** Written in the same unit as the session; a failure rolls the session back. */
   produceSignal: (signal: TestReportAttentionSignal) => Promise<void>;
   readOnly: boolean;
+  /** An accessible File Attachment of this Project and its current content hash. */
+  resolveAttachment: (
+    attachmentId: string,
+  ) => Promise<
+    | { contentHash: string; status: "found" }
+    | { status: "missing" | "other_project" }
+  >;
   /** Existence and Project scope of an allow-listed record (a case needs its exact version). */
   resolveReference: (
     type: TestReportLookupType,

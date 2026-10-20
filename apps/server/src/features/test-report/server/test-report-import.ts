@@ -1,9 +1,9 @@
-import { isMap, isScalar, parseAllDocuments, visit } from "yaml";
 import {
   rejection,
   TEST_REPORT_LIMITS,
   type TestReportRejectedError,
-} from "./test-report";
+} from "@cantiara/api/test-report";
+import { isMap, isScalar, parseAllDocuments, visit } from "yaml";
 
 /**
  * Turns a structured file into the value `parseTestReport` validates. JSON is
@@ -19,17 +19,17 @@ const BOM = /^\uFEFF/;
 const MAX_YAML_NODES = 200_000;
 const MAX_YAML_DEPTH = 32;
 
-function refuse(cause?: unknown): TestReportRejectedError {
-  const error = rejection("invalid_field");
-  error.cause = cause;
-  return error;
+function refuse(): TestReportRejectedError {
+  return rejection("invalid_field");
 }
 
 export function parseTestReportJson(content: string): unknown {
   try {
     return JSON.parse(content);
-  } catch (error) {
-    throw refuse(error);
+  } catch {
+    // The parser message quotes payload text, so it is dropped, not chained.
+    // biome-ignore lint/style/useErrorCause: The message quotes payload text and must not be chained.
+    throw refuse();
   }
 }
 

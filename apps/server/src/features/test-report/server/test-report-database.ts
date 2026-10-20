@@ -11,6 +11,10 @@ import type {
 } from "@cantiara/api/test-report";
 import type { Database } from "@cantiara/db";
 import {
+  fileAttachment,
+  fileAttachmentVersion,
+} from "@cantiara/db/schema/file-attachments";
+import {
   plannedTestCase,
   plannedTestCaseVersion,
   sessionTest,
@@ -381,6 +385,33 @@ export function createDatabaseTestReportStore(
             await attentionSignalSink.produce(executor, signal);
           },
           readOnly: owned.archivedAt !== null,
+          resolveAttachment: async (attachmentId) => {
+            const [row] = await executor
+              .select({
+                contentHash: fileAttachmentVersion.contentHash,
+                lifecycleStatus: fileAttachment.lifecycleStatus,
+                projectId: fileAttachment.projectId,
+              })
+              .from(fileAttachment)
+              .innerJoin(
+                fileAttachmentVersion,
+                and(
+                  eq(fileAttachmentVersion.attachmentId, fileAttachment.id),
+                  eq(
+                    fileAttachmentVersion.version,
+                    fileAttachment.currentVersion,
+                  ),
+                ),
+              )
+              .where(eq(fileAttachment.id, attachmentId))
+              .limit(1);
+            if (!row || row.lifecycleStatus === "Trash") {
+              return { status: "missing" };
+            }
+            return row.projectId === owned.id
+              ? { contentHash: row.contentHash, status: "found" }
+              : { status: "other_project" };
+          },
           resolveReference: (type, id, version) =>
             resolveReference(executor, owned.id, type, id, version),
         });

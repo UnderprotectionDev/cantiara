@@ -159,6 +159,34 @@ describe("known provider tokens reject the whole report", () => {
   });
 });
 
+describe("bearer tokens and credential URLs are high-confidence", () => {
+  test.each([
+    ["a bearer token", `Authorization: Bearer ${"Zx9Yw8Vu7Ts6Rq5P"}abcd`],
+    ["a URL with credentials", "https://deploy:s3cretpass@example.test/path"],
+  ])(
+    "%s rejects the whole report on every ingress with the masked path",
+    async (_name, text) => {
+      for (const [harness, input, caller] of [
+        [
+          createMemoryHarness(),
+          mcp(withTest({ notes: text })),
+          integrationCaller,
+        ],
+        [createMemoryHarness(), file(withTest({ notes: text })), userCaller],
+      ] as const) {
+        const failure = await rejectionOf(
+          harness.testReports.accept(caller, input),
+        );
+        expect(failure).toMatchObject({
+          code: "sensitive_data_detected",
+          fieldPath: "tests[0].notes",
+        });
+        expect(harness.sessions.size).toBe(0);
+      }
+    },
+  );
+});
+
 describe("ambiguous findings", () => {
   const ambiguous = withTest({ notes: AMBIGUOUS });
 

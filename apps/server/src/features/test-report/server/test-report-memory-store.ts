@@ -26,7 +26,17 @@ export interface ReferenceEntry {
   type: string;
 }
 
+export interface AttachmentEntry {
+  contentHash: string;
+  id: string;
+  /** `Trash` is not accessible. */
+  lifecycleStatus?: "Active" | "Archive" | "Trash";
+  projectId: string;
+}
+
 export interface MemoryHarnessOptions {
+  /** File Attachments that exist. */
+  attachments?: AttachmentEntry[];
   /** Handoffs that exist, with the package they last produced. */
   handoffs?: HandoffEntry[];
   /** Allow-listed records that exist (`work`, `feature`, `project_release`, ...). */
@@ -111,6 +121,19 @@ export function createMemoryHarness(options: MemoryHarnessOptions = {}) {
                 (record) => record.projectId === scopeProjectId,
               ),
             ),
+          resolveAttachment: (attachmentId) => {
+            const found = (options.attachments ?? []).find(
+              ({ id }) => id === attachmentId,
+            );
+            if (!found || found.lifecycleStatus === "Trash") {
+              return Promise.resolve({ status: "missing" as const });
+            }
+            return Promise.resolve(
+              found.projectId === scopeProjectId
+                ? { contentHash: found.contentHash, status: "found" as const }
+                : { status: "other_project" as const },
+            );
+          },
           produceSignal: (signal) => {
             if (faults.failOnSignal) {
               return Promise.reject(new Error("Signal sink failed."));

@@ -249,7 +249,7 @@ describe("Handoff checks", () => {
     expect(harness.sessions.size).toBe(0);
   });
 
-  test("an unknown Handoff and another Project's Handoff are reference_not_found", async () => {
+  test("an unknown Handoff is reference_not_found and another Project's is reference_scope_mismatch", async () => {
     const harness = createMemoryHarness({ handoffs });
     const failures = await Promise.all(
       ["handoff-missing", "handoff-foreign"].map((handoffId) =>
@@ -263,12 +263,10 @@ describe("Handoff checks", () => {
         ),
       ),
     );
-    for (const failure of failures) {
-      expect(failure).toMatchObject({
-        code: "reference_not_found",
-        fieldPath: "handoff_id",
-      });
-    }
+    expect(failures.map(({ code, fieldPath }) => [code, fieldPath])).toEqual([
+      ["reference_not_found", "handoff_id"],
+      ["reference_scope_mismatch", "handoff_id"],
+    ]);
     expect(harness.sessions.size).toBe(0);
   });
 
@@ -461,5 +459,67 @@ describe("limits", () => {
       padding: "x".repeat(5 * 1024 * 1024 + 1),
     });
     expect(mcpFailure.code).toBe("payload_too_large");
+  });
+});
+
+describe("attachment_ref evidence", () => {
+  const attachments = [
+    { contentHash: "a".repeat(64), id: "file-1", projectId },
+    {
+      contentHash: "b".repeat(64),
+      id: "file-foreign",
+      projectId: otherProjectId,
+    },
+    {
+      contentHash: "c".repeat(64),
+      id: "file-trashed",
+      lifecycleStatus: "Trash" as const,
+      projectId,
+    },
+  ];
+  const withAttachment = (id: string) =>
+    envelope({
+      tests: [
+        {
+          evidence: [{ type: "attachment_ref", value: id }],
+          external_test_id: "a",
+          title: "A",
+        },
+      ],
+    });
+
+  test("must be an accessible File Attachment of the same Project", async () => {
+    const harness = createMemoryHarness({ attachments });
+    const codes = await Promise.all(
+      ["nope", "file-trashed", "file-foreign"].map(async (id) => {
+        const failure = await rejectionOf(
+          harness.testReports.accept(userCaller, mcp(withAttachment(id))),
+        );
+        return [failure.code, failure.fieldPath];
+      }),
+    );
+    expect(codes).toEqual([
+      ["reference_not_found", "tests[0].evidence[0].value"],
+      ["reference_not_found", "tests[0].evidence[0].value"],
+      ["reference_scope_mismatch", "tests[0].evidence[0].value"],
+    ]);
+    expect(harness.sessions.size).toBe(0);
+    const ok = await harness.testReports.accept(
+      userCaller,
+      mcp(withAttachment("file-1")),
+    );
+    expect(ok.outcome).toBe("created");
+  });
+
+  test("its content hash is part of the fingerprint", async () => {
+    const first = createMemoryHarness({ attachments });
+    const changed = createMemoryHarness({
+      attachments: [{ contentHash: "d".repeat(64), id: "file-1", projectId }],
+    });
+    const [one, two] = await Promise.all([
+      first.testReports.accept(userCaller, mcp(withAttachment("file-1"))),
+      changed.testReports.accept(userCaller, mcp(withAttachment("file-1"))),
+    ]);
+    expect(one.session.fingerprint).not.toBe(two.session.fingerprint);
   });
 });
