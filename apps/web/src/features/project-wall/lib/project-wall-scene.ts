@@ -1,3 +1,4 @@
+import type { ProjectWallGroupView } from "@cantiara/api/project-wall";
 import {
   PROJECT_WALL_CARD_HEIGHT,
   PROJECT_WALL_CARD_WIDTH,
@@ -11,6 +12,12 @@ import {
 export interface Frame {
   height: number;
   width: number;
+}
+
+/** A contract group carrying this account's own view-local collapse. */
+export interface ProjectWallViewGroup extends ProjectWallGroupView {
+  /** The account's own collapse; never the stored, shared group row. */
+  collapsed: boolean;
 }
 
 export interface Transform {

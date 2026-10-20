@@ -1,0 +1,2 @@
+-- parallel-safety: contract project_wall_viewport is a table of this same unmerged branch (0135), so no merged branch can hold old-shape rows; the missing account foreign key must join with the table it completes.
+ALTER TABLE "project_wall_viewport" ADD CONSTRAINT "project_wall_viewport_account_id_user_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;

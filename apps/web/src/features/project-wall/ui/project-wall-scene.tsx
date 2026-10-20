@@ -1,6 +1,7 @@
 import type { ProjectWallView } from "@cantiara/api/project-wall";
 import type { ProjectWallViewport } from "@cantiara/api/project-wall-viewport";
 import { lazy, type ReactNode, Suspense, useState } from "react";
+import type { ProjectWallViewGroup } from "../lib/project-wall-scene";
 import type { ProjectWallCanvasProps } from "./project-wall-canvas";
 import type { ProjectWallCardActions } from "./project-wall-card";
 import {
@@ -9,6 +10,11 @@ import {
 } from "./project-wall-outline";
 
 const ProjectWallCanvas = lazy(() => import("./project-wall-canvas"));
+
+/** The wall that reaches the canvas and Outline: its collapse is personal. */
+export type ProjectWallSceneWall = Omit<ProjectWallView, "groups"> & {
+  groups: ProjectWallViewGroup[];
+};
 
 export interface ProjectWallSceneProps {
   addControls?: ReactNode;
@@ -22,7 +28,7 @@ export interface ProjectWallSceneProps {
   outlineActions: Omit<ProjectWallOutlineActions, "onReorder">;
   saved: ProjectWallViewport | null;
   /** The wall with the account's own group collapse already applied. */
-  wall: ProjectWallView;
+  wall: ProjectWallSceneWall;
 }
 
 /**

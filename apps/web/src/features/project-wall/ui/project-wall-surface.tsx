@@ -3,6 +3,7 @@ import type {
   ProjectWallDensity,
   ProjectWallHighlight,
   ProjectWallPosition,
+  ProjectWallRelationPreview,
   ProjectWallSourceType,
 } from "@cantiara/api/project-wall";
 import {
@@ -16,8 +17,12 @@ import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-she
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalProjectWallView } from "../hooks/use-personal-project-wall-view";
 import type { ProjectWallCardActions } from "./project-wall-card";
-import { ProjectWallScene } from "./project-wall-scene";
 import {
+  ProjectWallScene,
+  type ProjectWallSceneWall,
+} from "./project-wall-scene";
+import {
+  AddCardForm,
   type ProjectWallActions,
   ProjectWallLayout,
 } from "./project-wall-view";
@@ -44,17 +49,24 @@ export default function ProjectWallSurface({
     orpc.projectWallSourceOptions.queryOptions({ input: { projectId } }),
   );
 
+  /**
+   * Runs one wall write and refreshes the wall queries. The result tells the
+   * caller whether the write persisted: `ok: true` with the seam's return
+   * value, or `ok: false` with the reason surfaced as the page error.
+   */
   const write = useCallback(
     async <T,>(operation: () => Promise<T>) => {
       setError(null);
       try {
-        return await runOnlineOnlyWrite(operation);
+        const result = await runOnlineOnlyWrite(operation);
+        return { ok: true as const, result };
       } catch (cause) {
         setError(
-          cause instanceof Error
+          cause instanceof Error && cause.message
             ? cause.message
             : "Project Wall change failed.",
         );
+        return { ok: false as const };
       } finally {
         await queryClient.invalidateQueries({
           queryKey: orpc.projectWalls.key(),
@@ -106,8 +118,8 @@ export default function ProjectWallSurface({
     [saveView, wallId],
   );
   // The wall the canvas, Outline and narrative panel show: the group collapse
-  // is this account's own, never the shared group row.
-  const shownWall = useMemo(
+  // is this account's own, never the stored group row.
+  const shownWall: ProjectWallSceneWall | null = useMemo(
     () =>
       wall.data
         ? {
@@ -123,12 +135,14 @@ export default function ProjectWallSurface({
 
   const actions: ProjectWallActions = {
     onCreateFromSkeleton: async (skeleton) => {
-      const created = await write(() =>
+      const attempt = await write(() =>
         client.createProjectWallFromSkeleton({ projectId, skeleton }),
       );
-      if (created) {
-        setChosenId(created.id);
+      if (attempt.ok) {
+        setChosenId(attempt.result.id);
+        return true;
       }
+      return false;
     },
     onCreateGroup: (title) =>
       write(() =>
@@ -137,7 +151,7 @@ export default function ProjectWallSurface({
           title,
           wallId: wallId ?? "",
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onCreateRelation: ({ baseRevision, kind, linkId, previewId }) =>
       write(() =>
         client.createProjectWallPersistentRelation({
@@ -149,7 +163,7 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onDeleteGroup: (groupId) =>
       write(() =>
         client.deleteProjectWallGroup({
@@ -157,7 +171,7 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onDrawLink: (link) =>
       write(() =>
         client.drawProjectWallLink({
@@ -165,7 +179,7 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onPreviewRelation: (request) =>
       write(() =>
         client.previewProjectWallPersistentRelation({
@@ -173,6 +187,8 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         }),
+      ).then((attempt) =>
+        attempt.ok ? (attempt.result as ProjectWallRelationPreview) : undefined,
       ),
     onExportSnapshot: async (scope, format) => {
       // A snapshot reads the wall; it is not a write, so nothing refetches.
@@ -184,8 +200,13 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
         });
         return output.files;
-      } catch {
-        setError("Snapshot could not be created.");
+      } catch (cause) {
+        // The refusal reason (an oversized scope) is the user's action item.
+        setError(
+          cause instanceof Error && cause.message
+            ? cause.message
+            : "Snapshot could not be created.",
+        );
       }
     },
     onPreviewSnapshot: async (scope) => {
@@ -195,8 +216,12 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         });
-      } catch {
-        setError("Snapshot could not be created.");
+      } catch (cause) {
+        setError(
+          cause instanceof Error && cause.message
+            ? cause.message
+            : "Snapshot could not be created.",
+        );
       }
     },
     onSetFocusOrder: (cardIds) =>
@@ -206,7 +231,7 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onToggleGroup: (groupId, collapsed) => {
       // Collapse is this account's own view, not the shared group row.
       if (collapsed !== collapsedRef.current.includes(groupId)) {
@@ -221,7 +246,7 @@ export default function ProjectWallSurface({
           projectId,
           wallId: wallId ?? "",
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onAddCard: (source: {
       diagramViewId?: string;
       sourceId: string;
@@ -233,21 +258,30 @@ export default function ProjectWallSurface({
           wallId: wallId ?? "",
           ...source,
         }),
-      ),
+      ).then((attempt) => attempt.ok),
     onCreate: async (title) => {
-      const created = await write(() =>
+      const attempt = await write(() =>
         client.createProjectWall({ projectId, title }),
       );
-      if (created) {
-        setChosenId(created.id);
+      if (attempt.ok) {
+        setChosenId(attempt.result.id);
+        return true;
       }
+      return false;
     },
     onDelete: async (id) => {
-      await write(() => client.deleteProjectWall({ projectId, wallId: id }));
-      setChosenId(null);
+      const attempt = await write(() =>
+        client.deleteProjectWall({ projectId, wallId: id }),
+      );
+      if (attempt.ok) {
+        setChosenId(null);
+      }
+      return attempt.ok;
     },
     onRename: (id, title) =>
-      write(() => client.renameProjectWall({ projectId, title, wallId: id })),
+      write(() =>
+        client.renameProjectWall({ projectId, title, wallId: id }),
+      ).then((attempt) => attempt.ok),
     onSelect: setChosenId,
   };
 
@@ -306,30 +340,35 @@ export default function ProjectWallSurface({
     [projectId, wallId, write],
   );
 
-  function onMove(
+  async function onMove(
     moves: Array<{ cardId: string; position: ProjectWallPosition }>,
   ) {
-    write(() =>
-      client.moveProjectWallCards({
-        moves,
-        projectId,
-        wallId: wallId ?? "",
-      }),
-    );
+    // The canvas reverts its optimistic overlay when this resolves false.
+    return (
+      await write(() =>
+        client.moveProjectWallCards({
+          moves,
+          projectId,
+          wallId: wallId ?? "",
+        }),
+      )
+    ).ok;
   }
 
-  function onReorder(cardIds: string[]) {
-    write(() =>
+  async function onReorder(cardIds: string[]) {
+    await write(() =>
       client.reorderProjectWallCards({
         cardIds,
         projectId,
         wallId: wallId ?? "",
       }),
-    );
+    ).then((attempt) => attempt.ok);
   }
 
   // Creates the group, then puts the selected cards into it (wall state only).
+  // A card that fails to join is reported, and a retry converges.
   const groupSelection = (title: string, cardIds: string[]) =>
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Every card joins in its own call so one failure cannot cancel the rest; the summary reports how much joined.
     write(async () => {
       const before = new Set(wall.data?.groups.map(({ id }) => id));
       const created = await client.createProjectWallGroup({
@@ -341,16 +380,34 @@ export default function ProjectWallSurface({
       if (!group) {
         return;
       }
+      let missed = 0;
+      let reason = "";
       for (const cardId of cardIds) {
-        // biome-ignore lint/performance/noAwaitInLoops: Each card joins the group in order.
-        await client.setProjectWallCardGroup({
-          cardId,
-          groupId: group.id,
-          projectId,
-          wallId: wallId ?? "",
-        });
+        try {
+          // biome-ignore lint/performance/noAwaitInLoops: Each card joins the group in order.
+          await client.setProjectWallCardGroup({
+            cardId,
+            groupId: group.id,
+            projectId,
+            wallId: wallId ?? "",
+          });
+        } catch (cause) {
+          if (missed === 0) {
+            reason =
+              cause instanceof Error && cause.message
+                ? cause.message
+                : "Project Wall change failed.";
+          }
+          missed += 1;
+        }
       }
-    });
+      if (missed > 0) {
+        setError(
+          reason ||
+            `${cardIds.length - missed} of ${cardIds.length} cards joined the group; retrying adds the rest.`,
+        );
+      }
+    }).then((attempt) => attempt.ok);
 
   if (walls.isPending) {
     return <p role="status">Loading Project Walls…</p>;
@@ -358,6 +415,11 @@ export default function ProjectWallSurface({
   if (!walls.data) {
     return <p role="alert">Project Walls are unavailable.</p>;
   }
+  const placedIds = new Set(
+    (shownWall?.cards ?? []).map(
+      (card) => `${card.sourceType}:${card.source.recordId}`,
+    ),
+  );
   return (
     <div className="space-y-2">
       <ProjectWallLayout
@@ -365,6 +427,15 @@ export default function ProjectWallSurface({
         canvas={(focusedWall) =>
           personal.isReady ? (
             <ProjectWallScene
+              // The Outline carries the same `Place live card` picker, so a
+              // keyboard-only founder creates cards without a pointer.
+              addControls={
+                <AddCardForm
+                  onAddCard={actions.onAddCard}
+                  options={sourceOptions.data ?? []}
+                  placed={placedIds}
+                />
+              }
               cardActions={cardActions}
               key={focusedWall.id}
               onExpandAll={() => setCollapsed([])}
@@ -400,6 +471,7 @@ export default function ProjectWallSurface({
         walls={walls.data}
       />
       {error ? <p role="alert">{error}</p> : null}
+      {personal.saveError ? <p role="status">{personal.saveError}</p> : null}
     </div>
   );
 }

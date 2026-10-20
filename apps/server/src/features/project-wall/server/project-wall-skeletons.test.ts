@@ -76,7 +76,9 @@ describe("Project Wall: Sitemap and Customer Journey skeletons", () => {
 
     expect(wall.title).toBe("Sitemap");
     expect(wall.groups.map(({ title }) => title)).toEqual(SITEMAP_HEADINGS);
-    expect(wall.groups.every(({ collapsed }) => !collapsed)).toBe(true);
+    expect(wall.groups.every((group) => Object.keys(group).length === 2)).toBe(
+      true,
+    );
   });
 
   test("Customer Journey builds exactly the golden empty headings, in order", async () => {

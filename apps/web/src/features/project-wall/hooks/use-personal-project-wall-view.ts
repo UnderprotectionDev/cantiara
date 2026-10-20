@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 
@@ -39,6 +39,8 @@ export function usePersonalProjectWallView(
         viewport: view,
         wallId: target,
       }),
+    onMutate: () => setSaveError(null),
+    onError: () => setSaveError("Your personal view could not be saved."),
     onSuccess: (saved, { wallId: target }) =>
       queryClient.setQueryData(
         orpc.projectWallViewport.queryOptions({
@@ -49,6 +51,7 @@ export function usePersonalProjectWallView(
   });
   const pending = useRef<Pending | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { mutate } = save;
 
   const flush = useCallback(() => {
@@ -85,6 +88,8 @@ export function usePersonalProjectWallView(
 
   return {
     isReady: wallId === null || query.isSuccess || query.isError,
+    /** The last personal-view save failure, cleared by the next save attempt. */
+    saveError,
     saved: query.data ?? null,
     schedule,
   };

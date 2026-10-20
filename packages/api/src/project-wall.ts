@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { humanMutationEnvelopeSchema } from "./mutation-and-undo";
-import { getStarterConfigurationDefinition } from "./project-shell";
+import { getProjectWallStarterSkeletonHeadings } from "./project-shell";
 import type {
   ExportProjectWallSnapshotInput,
   PreviewProjectWallSnapshotInput,
@@ -179,10 +179,7 @@ export type ProjectWallSkeleton = z.infer<typeof projectWallSkeletonSchema>;
 export function projectWallSkeletonHeadings(
   skeleton: ProjectWallSkeleton,
 ): string[] {
-  const selection = getStarterConfigurationDefinition(
-    "Solo SaaS",
-  ).starterSkeletons.find((candidate) => candidate.skeleton === skeleton);
-  return selection ? [...selection.emptyHeadings] : [];
+  return [...getProjectWallStarterSkeletonHeadings(skeleton)];
 }
 
 export const createProjectWallFromSkeletonInputSchema = z
@@ -267,7 +264,15 @@ export type SetProjectWallCardHighlightInput = z.input<
  * It lists every card of the wall exactly once and is wall view state only.
  */
 export const reorderProjectWallCardsInputSchema = projectWallInputSchema
-  .extend({ cardIds: z.array(identifierSchema).min(1).max(20_000) })
+  .extend({
+    cardIds: z
+      .array(identifierSchema)
+      .min(1)
+      .max(20_000)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Every card of the wall appears exactly once.",
+      }),
+  })
   .strict();
 export type ReorderProjectWallCardsInput = z.input<
   typeof reorderProjectWallCardsInputSchema
@@ -351,12 +356,6 @@ export const projectWallGroupInputSchema = projectWallInputSchema
   .strict();
 export type ProjectWallGroupInput = z.input<typeof projectWallGroupInputSchema>;
 
-export const setProjectWallGroupCollapsedInputSchema =
-  projectWallGroupInputSchema.extend({ collapsed: z.boolean() }).strict();
-export type SetProjectWallGroupCollapsedInput = z.input<
-  typeof setProjectWallGroupCollapsedInputSchema
->;
-
 export const setProjectWallCardGroupInputSchema = projectWallInputSchema
   .extend({ cardId: identifierSchema, groupId: identifierSchema.nullable() })
   .strict();
@@ -383,7 +382,6 @@ export interface ProjectWallItemRecord {
 }
 
 export interface ProjectWallGroupRecord {
-  collapsed: boolean;
   id: string;
   title: string;
 }
@@ -851,15 +849,6 @@ export interface ProjectWallStore extends ProjectWallViewportStore {
     accountId: string,
     input: { cardIds: string[]; projectId: string; wallId: string },
   ) => Promise<boolean>;
-  setGroupCollapsed: (
-    accountId: string,
-    input: {
-      collapsed: boolean;
-      groupId: string;
-      projectId: string;
-      wallId: string;
-    },
-  ) => Promise<boolean>;
 }
 
 export interface ProjectWallAccess {
@@ -959,10 +948,6 @@ export interface ProjectWallAccess {
   setFocusOrder: (
     accountId: string,
     input: SetProjectWallFocusOrderInput,
-  ) => Promise<ProjectWallView>;
-  setGroupCollapsed: (
-    accountId: string,
-    input: SetProjectWallGroupCollapsedInput,
   ) => Promise<ProjectWallView>;
   /** Skeletons the Project shell selected for a Project Wall. */
   skeletons: (

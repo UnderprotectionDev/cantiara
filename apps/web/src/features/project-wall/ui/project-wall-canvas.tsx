@@ -1,7 +1,6 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Toolbar handlers close over the cards and selection of this canvas.
 import type {
   ProjectWallCardView,
-  ProjectWallGroupView,
   ProjectWallLinkView,
   ProjectWallPosition,
 } from "@cantiara/api/project-wall";
@@ -50,6 +49,7 @@ import {
 } from "../lib/project-wall-layout";
 import { hiddenCardIds } from "../lib/project-wall-outline";
 import {
+  type ProjectWallViewGroup,
   transformFromViewport,
   viewportFromTransform,
 } from "../lib/project-wall-scene";
@@ -63,7 +63,7 @@ type WallNode = Node<
   {
     actions: ProjectWallCardActions | undefined;
     card: ProjectWallCardView;
-    groups: ProjectWallGroupView[];
+    groups: ProjectWallViewGroup[];
   },
   "card"
 >;
@@ -97,19 +97,21 @@ const STACK_MOVES: Array<{ label: string; move: StackMove }> = [
   { label: "Send to Back", move: "back" },
 ];
 const VIEWPORT_SAVE_DELAY = 400;
+const QUEUED_MOVE_DELAY = 250;
 
 export interface ProjectWallCanvasProps {
   actions: ProjectWallCardActions;
   cards: ProjectWallCardView[];
   /** Groups with the account's own collapse already applied. */
-  groups: ProjectWallGroupView[];
+  groups: ProjectWallViewGroup[];
   links: ProjectWallLinkView[];
   /** `Fit View` shows every group again, so it drops the view-local collapse. */
   onExpandAll: () => void;
-  /** Reports a dropped, nudged, aligned or laid-out card; wall view state only. */
+  /** Reports a dropped, nudged, aligned or laid-out card; wall view state only.
+   * Resolves `false` when the save failed, so the canvas can revert it. */
   onMove: (
     moves: Array<{ cardId: string; position: ProjectWallPosition }>,
-  ) => void;
+  ) => Promise<boolean>;
   /** Reports the new card order (z-order); wall view state only. */
   onReorder: (cardIds: string[]) => void;
   onSelectionChange: (cardIds: string[]) => void;
@@ -150,8 +152,18 @@ function Canvas({
     () => hiddenCardIds(cards, groups, collapsedIds),
     [cards, collapsedIds, groups],
   );
+  // The scene counts what the canvas really renders: a link whose both ends
+  // are hidden by a collapsed group is not a visible link.
+  const visibleLinkCount = useMemo(
+    () =>
+      links.filter(
+        (link) =>
+          !(hiddenCards.has(link.fromCardId) || hiddenCards.has(link.toCardId)),
+      ).length,
+    [hiddenCards, links],
+  );
   const scene = projectWallSceneStatus({
-    linkCount: links.length,
+    linkCount: visibleLinkCount,
     visibleCardCount: cards.length - hiddenCards.size,
   });
   const selected = useMemo(() => new Set(selection), [selection]);
@@ -173,25 +185,37 @@ function Canvas({
 
   // --- Personal viewport -------------------------------------------------------
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastViewport = useRef<Pick<
+    ProjectWallViewport,
+    "center" | "zoom"
+  > | null>(null);
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
   const reportViewport = useCallback(
     (instance: Pick<ReactFlowInstance, "getViewport">) => {
+      const next = viewportFromTransform(instance.getViewport(), frame());
+      lastViewport.current = next;
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
       }
       saveTimer.current = setTimeout(
-        () =>
-          onViewportChange(
-            viewportFromTransform(instance.getViewport(), frame()),
-          ),
+        () => onViewportChangeRef.current(next),
         VIEWPORT_SAVE_DELAY,
       );
     },
-    [frame, onViewportChange],
+    [frame],
   );
   useEffect(
     () => () => {
+      // Leaving the wall within the debounce window still reports the last
+      // computed viewport: a cleared timer must not drop the personal view.
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        const last = lastViewport.current;
+        if (last) {
+          onViewportChangeRef.current(last);
+        }
       }
     },
     [],
@@ -244,15 +268,18 @@ function Canvas({
   }, [collapsedIds.length, fitNow, onExpandAll]);
 
   // --- Nodes and edges -----------------------------------------------------------
+  // Layout reads what the founder currently sees: the optimistic positions of
+  // moves that have not been reloaded yet come before the saved wall ones, so
+  // nudging, aligning and layout never resurrect a pre-drag position.
   const layoutCards = useMemo<LayoutCard[]>(
     () =>
       cards.map(({ groupId, id, locked, position }) => ({
         groupId,
         id,
         locked,
-        position,
+        position: optimistic.get(id) ?? position,
       })),
-    [cards],
+    [cards, optimistic],
   );
   const previewPositions = useMemo(
     () =>
@@ -264,9 +291,27 @@ function Canvas({
       ),
     [preview],
   );
-  // A reloaded wall carries the committed positions itself.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: The wall reload is the trigger.
-  useEffect(() => setOptimistic(new Map()), [cards]);
+  // The reloaded wall carries committed positions itself: each card's overlay
+  // drops as soon as its saved position equals it. A failed save is reverted
+  // by the move commit instead of waiting for a refetch that never changes.
+  useEffect(() => {
+    setOptimistic((current) => {
+      if (current.size === 0) {
+        return current;
+      }
+      const savedPositions = new Map(
+        cards.map((card) => [card.id, card.position]),
+      );
+      const next = new Map(current);
+      for (const [id, position] of current) {
+        const known = savedPositions.get(id);
+        if (!known || (known.x === position.x && known.y === position.y)) {
+          next.delete(id);
+        }
+      }
+      return next.size === current.size ? current : next;
+    });
+  }, [cards]);
   const modelNodes = useMemo<WallNode[]>(
     () =>
       cards.map((card, index) => ({
@@ -348,7 +393,44 @@ function Canvas({
     [onSelectionChange, selection],
   );
 
-  // --- Keyboard and toolbar operations --------------------------------------------
+  // --- Card moves and keyboard commands -------------------------------------------
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
+  const queued = useRef(new Map<string, ProjectWallPosition>());
+  const queueTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const commit = useCallback((moves: PositionMove[]) => {
+    if (moves.length === 0) {
+      return;
+    }
+    // Any write supersedes the coalesced keyboard nudges.
+    queued.current.clear();
+    if (queueTimer.current) {
+      clearTimeout(queueTimer.current);
+      queueTimer.current = null;
+    }
+    const attempt = Promise.resolve(onMoveRef.current(moves));
+    attempt
+      .then((succeeded) => {
+        if (succeeded !== false) {
+          // Success is confirmed by the reloaded wall carrying the committed
+          // positions; the overlay drop matches it position by position.
+          return;
+        }
+        // A failed save keeps the saved positions: drop this move's overlay.
+        const reverted = new Set(moves.map(({ cardId }) => cardId));
+        setOptimistic((current) => {
+          const next = new Map(current);
+          for (const id of reverted) {
+            next.delete(id);
+          }
+          return next;
+        });
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Immediate send: drags, align, distribute and layout application.
   const applyMoves = useCallback(
     (moves: PositionMove[]) => {
       if (moves.length === 0) {
@@ -361,19 +443,78 @@ function Canvas({
         }
         return next;
       });
-      onMove(moves);
+      commit(moves);
     },
-    [onMove],
+    [commit],
   );
+
+  // Keyboard auto-repeat coalesces into one write of the latest absolute
+  // positions of the same cards instead of one round trip per keypress.
+  const queueMoves = useCallback(
+    (moves: PositionMove[]) => {
+      if (moves.length === 0) {
+        return;
+      }
+      setOptimistic((current) => {
+        const next = new Map(current);
+        for (const move of moves) {
+          next.set(move.cardId, move.position);
+        }
+        return next;
+      });
+      for (const move of moves) {
+        queued.current.set(move.cardId, move.position);
+      }
+      if (queueTimer.current) {
+        clearTimeout(queueTimer.current);
+      }
+      queueTimer.current = setTimeout(() => {
+        queueTimer.current = null;
+        const pending = [...queued.current].map(([cardId, position]) => ({
+          cardId,
+          position,
+        }));
+        queued.current.clear();
+        commit(pending);
+      }, QUEUED_MOVE_DELAY);
+    },
+    [commit],
+  );
+
+  // A manual drag supersedes any shown `Preview Auto-layout` proposal.
+  const dropPreview = useCallback(() => {
+    setPreview(null);
+    setStatus(null);
+  }, []);
+
+  useEffect(
+    () => () => {
+      // A wall left inside the coalescing window still commits its queued moves.
+      if (queueTimer.current) {
+        clearTimeout(queueTimer.current);
+        queueTimer.current = null;
+      }
+      const pending = [...queued.current].map(([cardId, position]) => ({
+        cardId,
+        position,
+      }));
+      queued.current.clear();
+      Promise.resolve(onMoveRef.current(pending)).catch(() => undefined);
+    },
+    [],
+  );
+
   const onNodeDragStop = useCallback(
-    (_event: unknown, _node: WallNode, dragged: WallNode[]) =>
+    (_event: unknown, _node: WallNode, dragged: WallNode[]) => {
+      dropPreview();
       applyMoves(
         dragged.map((node) => ({
           cardId: node.id,
           position: { x: node.position.x, y: node.position.y },
         })),
-      ),
-    [applyMoves],
+      );
+    },
+    [applyMoves, dropPreview],
   );
   const align = (edge: AlignEdge) =>
     applyMoves(alignCards(layoutCards, selection, edge));
@@ -405,22 +546,31 @@ function Canvas({
     [reactFlow, reportViewport],
   );
 
-  const run = (command: WallCommand) => {
+  // `repeat` distinguishes a single keypress from keyboard auto-repeat: a
+  // press moves at once, a held key coalesces into one coalesced write.
+  const run = (command: WallCommand, repeat?: boolean) => {
     switch (command.type) {
       case "align":
+        dropPreview();
         align(command.edge);
         break;
       case "distribute":
+        dropPreview();
         distribute(command.axis);
         break;
-      case "nudge":
-        applyMoves(
-          nudgeCards(layoutCards, selection, {
-            dx: command.dx,
-            dy: command.dy,
-          }),
-        );
+      case "nudge": {
+        dropPreview();
+        const moves = nudgeCards(layoutCards, selection, {
+          dx: command.dx,
+          dy: command.dy,
+        });
+        if (repeat) {
+          queueMoves(moves);
+        } else {
+          applyMoves(moves);
+        }
         break;
+      }
       case "pan":
         pan(command.dx, command.dy);
         break;
@@ -472,15 +622,21 @@ function Canvas({
     const command = commandForKey(event);
     if (command) {
       event.preventDefault();
-      run(command);
+      run(command, event.repeat);
     }
   }
 
   // --- Auto-layout: preview, apply, undo ------------------------------------------
   function startPreview() {
+    // With no selection every VISIBLE card is the target: cards hidden by a
+    // collapsed group must not be rearranged invisibly.
+    const targets =
+      selection.length > 0
+        ? selection
+        : cards.filter(({ id }) => !hiddenCards.has(id)).map(({ id }) => id);
     const proposal = previewAutoLayout(
       layoutCards,
-      selection,
+      targets,
       groups.map(({ id }) => id),
     );
     setApplied(null);

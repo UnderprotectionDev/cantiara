@@ -42,12 +42,10 @@ import {
   type SetProjectWallCardGroupInput,
   type SetProjectWallCardHighlightInput,
   type SetProjectWallCardLockInput,
-  type SetProjectWallGroupCollapsedInput,
   setProjectWallCardDensityInputSchema,
   setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
   setProjectWallCardLockInputSchema,
-  setProjectWallGroupCollapsedInputSchema,
   type UnbindProjectWallLinkInput,
   unbindProjectWallLinkInputSchema,
 } from "@cantiara/api/project-wall";
@@ -179,8 +177,8 @@ export class ProjectWallRelationUnavailableError extends Error {
 export class ProjectWallSnapshotError extends Error {
   readonly code = "PROJECT_WALL_SNAPSHOT_FAILED" as const;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = "ProjectWallSnapshotError";
   }
 }
@@ -235,6 +233,9 @@ export function createProjectWall(
       ref.sourceId,
       ref.diagramViewId ?? undefined,
     );
+    // The diagram seam answers null both for a dead diagram and a foreign
+    // account's diagram; the common presentation then labels it "Permanently
+    // deleted" as a documented approximation of the inaccessible case.
     if (!diagram) {
       return null;
     }
@@ -873,21 +874,6 @@ export function createProjectWall(
         input.cardId,
       ]);
       await store.setCardLocked(accountId, input);
-      return reload(accountId, input.projectId, input.wallId);
-    },
-
-    async setGroupCollapsed(
-      accountId,
-      rawInput: SetProjectWallGroupCollapsedInput,
-    ) {
-      const input = setProjectWallGroupCollapsedInputSchema.parse(rawInput);
-      await requireGroup(
-        accountId,
-        input.projectId,
-        input.wallId,
-        input.groupId,
-      );
-      await store.setGroupCollapsed(accountId, input);
       return reload(accountId, input.projectId, input.wallId);
     },
 

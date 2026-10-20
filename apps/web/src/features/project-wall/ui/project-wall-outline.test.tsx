@@ -3,17 +3,16 @@
 import type {
   ProjectWallCardView,
   ProjectWallLinkView,
-  ProjectWallView,
 } from "@cantiara/api/project-wall";
 import { toggleCollapsedGroup } from "@cantiara/api/project-wall-viewport";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-
 import {
   ProjectWallOutline,
   type ProjectWallOutlineProps,
 } from "./project-wall-outline";
+import type { ProjectWallSceneWall } from "./project-wall-scene";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -25,7 +24,7 @@ let root: Root;
 let latest: {
   collapsed: string[];
   selection: string[];
-  wall: Pick<ProjectWallView, "cards" | "groups" | "links">;
+  wall: Pick<ProjectWallSceneWall, "cards" | "groups" | "links">;
 };
 let linkSequence = 0;
 let groupSequence = 0;
@@ -55,7 +54,7 @@ function card(index: number, overrides: Partial<ProjectWallCardView> = {}) {
   } satisfies ProjectWallCardView;
 }
 
-type Wall = Pick<ProjectWallView, "cards" | "groups" | "links">;
+type Wall = Pick<ProjectWallSceneWall, "cards" | "groups" | "links">;
 
 function Harness({ initial }: { initial: Wall }) {
   const [wall, setWall] = useState(initial);
@@ -80,7 +79,7 @@ function Harness({ initial }: { initial: Wall }) {
           toCardId: input.toCardId,
         };
         setWall((current) => ({ ...current, links: [...current.links, link] }));
-        return Promise.resolve();
+        return Promise.resolve(true);
       },
       onGroupSelection: (title, cardIds) => {
         groupSequence += 1;
@@ -90,9 +89,9 @@ function Harness({ initial }: { initial: Wall }) {
           cards: current.cards.map((entry) =>
             cardIds.includes(entry.id) ? { ...entry, groupId: id } : entry,
           ),
-          groups: [...current.groups, { collapsed: false, id, title }],
+          groups: [...current.groups, { collapsed: true, id, title }],
         }));
-        return Promise.resolve();
+        return Promise.resolve(true);
       },
       onReorder: (cardIds) =>
         setWall((current) => ({
@@ -107,7 +106,7 @@ function Harness({ initial }: { initial: Wall }) {
           ...current,
           links: current.links.filter(({ id }) => id !== linkId),
         }));
-        return Promise.resolve();
+        return Promise.resolve(true);
       },
     },
     cardActions: {

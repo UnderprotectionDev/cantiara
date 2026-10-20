@@ -1,4 +1,10 @@
 import type { ProjectWallView } from "@cantiara/api/project-wall";
+import type { ProjectWallViewGroup } from "./project-wall-scene";
+
+/** A wall that reaches the canvas and Outline: its collapse is personal. */
+export type ProjectWallSceneView = Omit<ProjectWallView, "groups"> & {
+  groups: ProjectWallViewGroup[];
+};
 
 /**
  * View-local focus on one named group: the wall's cards, links and groups
@@ -6,9 +12,9 @@ import type { ProjectWallView } from "@cantiara/api/project-wall";
  * explains it instead of showing another group. Nothing is persisted.
  */
 export function focusProjectWallGroup(
-  wall: ProjectWallView,
+  wall: ProjectWallSceneView,
   groupId: string,
-): ProjectWallView | null {
+): ProjectWallSceneView | null {
   const group = wall.groups.find(({ id }) => id === groupId);
   if (!group) {
     return null;

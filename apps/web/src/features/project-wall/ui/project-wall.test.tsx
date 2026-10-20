@@ -4,7 +4,6 @@ import type {
   ProjectWallRelationPreview,
   ProjectWallSourceOption,
   ProjectWallSummary,
-  ProjectWallView,
 } from "@cantiara/api/project-wall";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -13,6 +12,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { ProjectWallCard } from "./project-wall-card";
 import { ProjectWallNarrativePanel } from "./project-wall-narrative";
+import type { ProjectWallSceneWall } from "./project-wall-scene";
 import {
   type ProjectWallActions,
   ProjectWallLayout,
@@ -71,7 +71,7 @@ function card(
   };
 }
 
-function wall(cards: ProjectWallCardView[]): ProjectWallView {
+function wall(cards: ProjectWallCardView[]): ProjectWallSceneWall {
   return {
     cards,
     createdAt: NOW,
@@ -87,21 +87,21 @@ function wall(cards: ProjectWallCardView[]): ProjectWallView {
 
 function actions(): ProjectWallActions {
   return {
-    onAddCard: vi.fn(async () => undefined),
-    onCreate: vi.fn(async () => undefined),
-    onCreateFromSkeleton: vi.fn(async () => undefined),
-    onCreateGroup: vi.fn(async () => undefined),
-    onCreateRelation: vi.fn(async () => undefined),
-    onDelete: vi.fn(async () => undefined),
-    onDeleteGroup: vi.fn(async () => undefined),
-    onDrawLink: vi.fn(async () => undefined),
+    onAddCard: vi.fn(async () => true),
+    onCreate: vi.fn(async () => true),
+    onCreateFromSkeleton: vi.fn(async () => true),
+    onCreateGroup: vi.fn(async () => true),
+    onCreateRelation: vi.fn(async () => true),
+    onDelete: vi.fn(async () => true),
+    onDeleteGroup: vi.fn(async () => true),
+    onDrawLink: vi.fn(async () => true),
     onExportSnapshot: vi.fn(async () => []),
     onPreviewSnapshot: vi.fn(async () => undefined),
-    onSetFocusOrder: vi.fn(async () => undefined),
+    onSetFocusOrder: vi.fn(async () => true),
     onPreviewRelation: vi.fn(async () => undefined),
     onToggleGroup: vi.fn(async () => undefined),
-    onUnbindLink: vi.fn(async () => undefined),
-    onRename: vi.fn(async () => undefined),
+    onUnbindLink: vi.fn(async () => true),
+    onRename: vi.fn(async () => true),
     onSelect: vi.fn(),
   };
 }
@@ -303,7 +303,7 @@ function buttonNamed(container: HTMLElement, name: string) {
 
 const SKETCH_OR_FREEHAND = /Sketch|Freehand|Draw freehand|Pen tool/i;
 
-function linkedWall(): ProjectWallView {
+function linkedWall(): ProjectWallSceneWall {
   const decisionCard = card({
     id: "card-2",
     source: {
@@ -628,7 +628,7 @@ describe("Project Wall read-only previews", () => {
 });
 
 describe("Project Wall Presentation Mode", () => {
-  function mountLayout(selected: ProjectWallView) {
+  function mountLayout(selected: ProjectWallSceneWall) {
     host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -767,7 +767,7 @@ describe("Project Wall Snapshot panel", () => {
 });
 
 describe("Project Wall in-wall group navigation", () => {
-  function groupedWall(): ProjectWallView {
+  function groupedWall(): ProjectWallSceneWall {
     const base = linkedWall();
     return {
       ...base,
@@ -778,8 +778,8 @@ describe("Project Wall in-wall group navigation", () => {
   }
 
   function mountGroups(
-    selected: ProjectWallView,
-    canvas: (shown: ProjectWallView) => React.ReactNode,
+    selected: ProjectWallSceneWall,
+    canvas: (shown: ProjectWallSceneWall) => React.ReactNode,
   ) {
     return mount(
       <ProjectWallLayout
@@ -792,14 +792,14 @@ describe("Project Wall in-wall group navigation", () => {
     );
   }
 
-  const showCards = (shown: ProjectWallView) => (
+  const showCards = (shown: ProjectWallSceneWall) => (
     <p data-testid="shown">{shown.cards.map(({ id }) => id).join(",")}</p>
   );
 
   function rerender(
     container: HTMLElement,
-    selected: ProjectWallView,
-    canvas: (shown: ProjectWallView) => React.ReactNode,
+    selected: ProjectWallSceneWall,
+    canvas: (shown: ProjectWallSceneWall) => React.ReactNode,
   ) {
     act(() =>
       root?.render(
@@ -833,7 +833,7 @@ describe("Project Wall in-wall group navigation", () => {
   test("a deleted group is explained in place without switching groups", () => {
     const container = mountGroups(groupedWall(), showCards);
     act(() => buttonNamed(container, "Open group: Onboarding")?.click());
-    const withoutGroup: ProjectWallView = {
+    const withoutGroup: ProjectWallSceneWall = {
       ...groupedWall(),
       cards: groupedWall().cards.map((item) => ({ ...item, groupId: null })),
       groups: [{ collapsed: false, id: "group-2", title: "Other" }],

@@ -46,7 +46,7 @@ export type StarterSkeletonSurface =
 
 type DocumentStarterSkeleton =
   (typeof DOCUMENT_STARTER_SKELETONS)[number]["skeleton"];
-type ProjectWallStarterSkeleton = Exclude<
+export type ProjectWallStarterSkeleton = Exclude<
   StarterSkeleton,
   DocumentStarterSkeleton
 >;
@@ -87,6 +87,23 @@ const STARTER_SKELETON_CATALOG = [
   },
   ...DOCUMENT_STARTER_SKELETONS,
 ] as const satisfies readonly StarterSkeletonSelection[];
+
+/**
+ * The exact, ordered empty group headings a Project Wall starter skeleton
+ * creates. The catalog stays the single source; an unknown skeleton is a
+ * programming error and fails loudly instead of silently headingless walls.
+ */
+export function getProjectWallStarterSkeletonHeadings(
+  skeleton: ProjectWallStarterSkeleton,
+): readonly string[] {
+  const selection = STARTER_SKELETON_CATALOG.find(
+    (entry) => entry.skeleton === skeleton && entry.surface === "Project Wall",
+  );
+  if (!selection) {
+    throw new Error(`Unknown Project Wall starter skeleton: ${skeleton}`);
+  }
+  return [...selection.emptyHeadings];
+}
 
 function cloneStarterSkeletons(
   skeletons: readonly StarterSkeletonSelection[],

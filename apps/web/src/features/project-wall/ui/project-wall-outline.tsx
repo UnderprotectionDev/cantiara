@@ -43,11 +43,11 @@ export interface ProjectWallOutlineActions {
     fromCardId: string;
     label: string;
     toCardId: string;
-  }) => Promise<unknown>;
+  }) => Promise<boolean>;
   /** Creates a group and puts the selected cards into it. */
-  onGroupSelection: (title: string, cardIds: string[]) => Promise<unknown>;
+  onGroupSelection: (title: string, cardIds: string[]) => Promise<boolean>;
   onReorder: (cardIds: string[]) => void;
-  onUnbindLink: (linkId: string) => Promise<unknown>;
+  onUnbindLink: (linkId: string) => Promise<boolean>;
 }
 
 export interface ProjectWallOutlineProps {
@@ -393,8 +393,10 @@ function GroupSelectionForm({
     if (!ready) {
       return;
     }
-    await onGroupSelection(title.trim(), [...selection]);
-    setTitle("");
+    if (await onGroupSelection(title.trim(), [...selection])) {
+      // Only a persisted group clears the draft; a failed write keeps it.
+      setTitle("");
+    }
   }
   return (
     <form

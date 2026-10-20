@@ -87,6 +87,11 @@ export function createFakeProjectWallStore(input: {
     return wall.items.find((candidate) => candidate.id === cardId);
   }
 
+  /** Keeps the wall's `updatedAt` as fresh as the database adapter's. */
+  function touch(wall: ProjectWallRecord) {
+    wall.updatedAt = tick();
+  }
+
   const store: ProjectWallStore = {
     async addCard(accountId, card) {
       const wall = ownedWall(accountId, card.projectId, card.wallId);
@@ -106,6 +111,7 @@ export function createFakeProjectWallStore(input: {
         sourceType: card.sourceType,
       };
       wall.items.push(added);
+      touch(wall);
       return structuredClone(added);
     },
 
@@ -121,6 +127,7 @@ export function createFakeProjectWallStore(input: {
         toCardId: link.toCardId,
       };
       wall.links.push(added);
+      touch(wall);
       return structuredClone(added);
     },
 
@@ -129,8 +136,9 @@ export function createFakeProjectWallStore(input: {
       if (!wall) {
         return null;
       }
-      const added = { collapsed: false, id: group.id, title: group.title };
+      const added = { id: group.id, title: group.title };
       wall.groups.push(added);
+      touch(wall);
       return structuredClone(added);
     },
 
@@ -145,6 +153,7 @@ export function createFakeProjectWallStore(input: {
           card.groupId = null;
         }
       }
+      touch(wall);
       return true;
     },
 
@@ -154,6 +163,7 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       wall.links = wall.links.filter(({ id }) => id !== link.linkId);
+      touch(wall);
       return true;
     },
 
@@ -170,26 +180,18 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       card.groupId = change.groupId;
+      touch(wall);
       return true;
     },
 
     async setCardLocked(accountId, change) {
       const wall = ownedWall(accountId, change.projectId, change.wallId);
       const card = wall ? item(wall, change.cardId) : undefined;
-      if (!card) {
+      if (!(wall && card)) {
         return false;
       }
       card.locked = change.locked;
-      return true;
-    },
-
-    async setGroupCollapsed(accountId, change) {
-      const wall = ownedWall(accountId, change.projectId, change.wallId);
-      const group = wall?.groups.find(({ id }) => id === change.groupId);
-      if (!group) {
-        return false;
-      }
-      group.collapsed = change.collapsed;
+      touch(wall);
       return true;
     },
 
@@ -221,7 +223,6 @@ export function createFakeProjectWallStore(input: {
       const created: ProjectWallRecord = {
         createdAt: stamp,
         groups: wall.groups.map((group) => ({
-          collapsed: false,
           id: group.id,
           title: group.title,
         })),
@@ -331,6 +332,7 @@ export function createFakeProjectWallStore(input: {
           card.position = position;
         }
       }
+      touch(wall);
       return true;
     },
 
@@ -345,6 +347,7 @@ export function createFakeProjectWallStore(input: {
         ({ fromCardId, toCardId }) =>
           fromCardId !== card.cardId && toCardId !== card.cardId,
       );
+      touch(wall);
       return true;
     },
 
@@ -354,20 +357,18 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       wall.title = rename.title;
+      touch(wall);
       return true;
     },
 
     async setCardDensity(accountId, change) {
-      const card = item(
-        ownedWall(accountId, change.projectId, change.wallId) ?? {
-          items: [],
-        },
-        change.cardId,
-      );
-      if (!card) {
+      const wall = ownedWall(accountId, change.projectId, change.wallId);
+      const card = item(wall ?? { items: [] }, change.cardId);
+      if (!(wall && card)) {
         return false;
       }
       card.density = change.density;
+      touch(wall);
       return true;
     },
 
@@ -398,20 +399,18 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       wall.focusOrder = [...change.cardIds];
+      touch(wall);
       return true;
     },
 
     async setCardHighlight(accountId, change) {
-      const card = item(
-        ownedWall(accountId, change.projectId, change.wallId) ?? {
-          items: [],
-        },
-        change.cardId,
-      );
-      if (!card) {
+      const wall = ownedWall(accountId, change.projectId, change.wallId);
+      const card = item(wall ?? { items: [] }, change.cardId);
+      if (!(wall && card)) {
         return false;
       }
       card.highlight = change.highlight;
+      touch(wall);
       return true;
     },
   };

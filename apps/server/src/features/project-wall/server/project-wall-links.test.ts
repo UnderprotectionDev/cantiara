@@ -350,7 +350,6 @@ describe("Project Wall: proximity and group membership are not relations", () =>
     });
     const [group] = created.groups;
     expect(group).toEqual({
-      collapsed: false,
       id: expect.any(String),
       title: "Onboarding",
     });
@@ -362,20 +361,15 @@ describe("Project Wall: proximity and group membership are not relations", () =>
         wallId,
       });
     }
-    const collapsed = await seam.setGroupCollapsed(ACCOUNT, {
-      collapsed: true,
-      groupId: group?.id ?? "",
-      projectId: PROJECT,
-      wallId,
-    });
+    const grouped = await seam.get(ACCOUNT, PROJECT, wallId);
 
-    expect(collapsed.groups[0]?.collapsed).toBe(true);
-    expect(collapsed.cards.map((card) => card.groupId)).toEqual([
+    expect(grouped.cards.map((card) => card.groupId)).toEqual([
       group?.id,
       group?.id,
     ]);
-    expect(collapsed.links).toEqual([]);
+    expect(grouped.links).toEqual([]);
     expect(relations.rows()).toEqual([]);
+    expect(relations.calls).toEqual({ create: 0, preview: 0 });
     expect(sourceSnapshot()).toEqual(sourcesBefore);
   });
 

@@ -143,7 +143,8 @@ describe("personal viewport", () => {
     const after = await seam.get(ACCOUNT, PROJECT, wallId);
     expect(after).toEqual(before);
     expect(JSON.stringify(after)).not.toContain("zoom");
-    expect(after.groups.every(({ collapsed }) => !collapsed)).toBe(true);
+    // Collapse has no field on the wall view's groups; it is viewport-only.
+    expect(JSON.stringify(after.groups)).not.toContain("collapsed");
     expect(ctx.sourceSnapshot()).toEqual(sourcesBefore);
 
     const cardIds = after.cards.map(({ id }) => id);
@@ -242,13 +243,15 @@ describe("reorder (Outline order and z-order)", () => {
         wallId,
       }),
     ).rejects.toBeInstanceOf(ProjectWallCardNotFoundError);
+    // A duplicate id is rejected by the contract itself; it can never
+    // degrade into a misleading not-found naming an existing card.
     await expect(
       seam.reorderCards(ACCOUNT, {
         cardIds: [a ?? "", a ?? "", b ?? ""],
         projectId: PROJECT,
         wallId,
       }),
-    ).rejects.toBeInstanceOf(ProjectWallCardNotFoundError);
+    ).rejects.toMatchObject({ name: "ZodError" });
     await expect(
       seam.reorderCards(ACCOUNT, {
         cardIds: ["ghost", "ghost-2", "ghost-3"],

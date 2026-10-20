@@ -94,6 +94,14 @@ async function findOwnedWall(
   return wall ?? null;
 }
 
+/** Card, link, group and focus changes keep the wall's `updatedAt` fresh. */
+async function touchWall(tx: Executor, wallId: string): Promise<void> {
+  await tx
+    .update(projectWall)
+    .set({ updatedAt: new Date() })
+    .where(eq(projectWall.id, wallId));
+}
+
 async function findWritableWall(
   executor: Executor,
   accountId: string,
@@ -128,7 +136,9 @@ type GroupRow = typeof projectWallGroup.$inferSelect;
 type LinkRow = typeof projectWallLink.$inferSelect;
 
 function toGroup(row: GroupRow): ProjectWallGroupRecord {
-  return { collapsed: row.collapsed, id: row.id, title: row.title };
+  // The stored collapsed column stays only as a compatibility remainder:
+  // group collapse is personal viewport state (see project_wall_viewport).
+  return { id: row.id, title: row.title };
 }
 
 function toLink(row: LinkRow): ProjectWallLinkRecord {
@@ -276,6 +286,13 @@ export function createDatabaseProjectWallStore(
         ) {
           return null;
         }
+        // One writer at a time per wall: two concurrent adds must not compute
+        // the same "on top" order slot.
+        await tx
+          .select({ id: projectWall.id })
+          .from(projectWall)
+          .where(eq(projectWall.id, input.wallId))
+          .for("update");
         const [row] = await tx
           .insert(projectWallItem)
           .values({
@@ -296,10 +313,7 @@ export function createDatabaseProjectWallStore(
         if (!row) {
           throw new ProjectWallCardDuplicateError();
         }
-        await tx
-          .update(projectWall)
-          .set({ updatedAt: new Date() })
-          .where(eq(projectWall.id, input.wallId));
+        await touchWall(tx, input.wallId);
         return toItem(row);
       });
     },
@@ -339,7 +353,11 @@ export function createDatabaseProjectWallStore(
             wallId: input.wallId,
           })
           .returning();
-        return row ? toLink(row) : null;
+        if (!row) {
+          return null;
+        }
+        await touchWall(tx, input.wallId);
+        return toLink(row);
       });
     },
 
@@ -363,7 +381,11 @@ export function createDatabaseProjectWallStore(
             wallId: input.wallId,
           })
           .returning();
-        return row ? toGroup(row) : null;
+        if (!row) {
+          return null;
+        }
+        await touchWall(tx, input.wallId);
+        return toGroup(row);
       });
     },
 
@@ -389,7 +411,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallGroup.id });
-        return removed.length > 0;
+        if (removed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
 
@@ -414,7 +440,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallLink.id });
-        return removed.length > 0;
+        if (removed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
 
@@ -454,7 +484,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallItem.id });
-        return changed.length > 0;
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
 
@@ -542,6 +576,7 @@ export function createDatabaseProjectWallStore(
             })),
           );
         }
+        await touchWall(tx, input.wallId);
         return true;
       });
     },
@@ -569,33 +604,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallItem.id });
-        return changed.length > 0;
-      });
-    },
-
-    async setGroupCollapsed(accountId, input) {
-      return await database.transaction(async (tx) => {
-        if (
-          !(await findWritableWall(
-            tx,
-            accountId,
-            input.projectId,
-            input.wallId,
-          ))
-        ) {
+        if (changed.length === 0) {
           return false;
         }
-        const changed = await tx
-          .update(projectWallGroup)
-          .set({ collapsed: input.collapsed })
-          .where(
-            and(
-              eq(projectWallGroup.id, input.groupId),
-              eq(projectWallGroup.wallId, input.wallId),
-            ),
-          )
-          .returning({ id: projectWallGroup.id });
-        return changed.length > 0;
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
 
@@ -865,6 +878,7 @@ export function createDatabaseProjectWallStore(
               ),
             );
         }
+        await touchWall(tx, input.wallId);
         return true;
       });
     },
@@ -890,7 +904,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallItem.id });
-        return removed.length > 0;
+        if (removed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
 
@@ -936,7 +954,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallItem.id });
-        return changed.length > 0;
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
 
@@ -962,7 +984,11 @@ export function createDatabaseProjectWallStore(
             ),
           )
           .returning({ id: projectWallItem.id });
-        return changed.length > 0;
+        if (changed.length === 0) {
+          return false;
+        }
+        await touchWall(tx, input.wallId);
+        return true;
       });
     },
   };

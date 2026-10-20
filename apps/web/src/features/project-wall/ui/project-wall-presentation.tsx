@@ -24,7 +24,7 @@ export interface ProjectWallPresentationActions {
   onPreviewSnapshot: (
     scope: SnapshotScope,
   ) => Promise<ProjectWallSnapshotPreview | undefined>;
-  onSetFocusOrder: (cardIds: string[]) => Promise<unknown>;
+  onSetFocusOrder: (cardIds: string[]) => Promise<boolean>;
 }
 
 export type SnapshotScope =

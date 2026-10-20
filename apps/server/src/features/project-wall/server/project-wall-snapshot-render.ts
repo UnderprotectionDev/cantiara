@@ -4,7 +4,12 @@ import {
   type ProjectWallSnapshotRenderer,
 } from "@cantiara/api/project-wall-presentation";
 
-import { withSnapshotHtmlPage } from "../../moodboards/server/moodboard-snapshot-render";
+import {
+  SnapshotRendererBusyError,
+  withSnapshotHtmlPage,
+} from "../../moodboards/server/moodboard-snapshot-render";
+
+import { ProjectWallSnapshotError } from "./project-wall";
 
 const PAGE_WIDTH = 1122;
 const PAGE_HEIGHT = 793;
@@ -82,19 +87,37 @@ export function projectWallSnapshotHtml(data: ProjectWallSnapshotData) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>${style}@page{size:${PAGE_WIDTH}px ${PAGE_HEIGHT}px;margin:0}</style></head><body><section class="page"><header style="height:${HEADER_HEIGHT}px"><h1>${escapeHtml(data.scopeLabel)}</h1><p>${escapeHtml(data.moment)} (Frozen copy)</p></header><div class="board"><svg aria-hidden="true"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>${links}</svg>${cards}</div><footer>Snapshot generated ${escapeHtml(data.generatedOn)}. ${escapeHtml(PROJECT_WALL_SNAPSHOT_LABELS.noLiveLinksNotice)}</footer></section></body></html>`;
 }
 
+/** The shared Chromium render budget has two concurrent slots and throws its
+ * own busy error. The wall wraps it so the snapshot seam reports a retryable
+ * refusal through the usual snapshot-failed path instead of an unmapped 500. */
+async function render(task: () => Promise<Uint8Array>): Promise<Uint8Array> {
+  try {
+    return await task();
+  } catch (error) {
+    if (error instanceof SnapshotRendererBusyError) {
+      throw new ProjectWallSnapshotError(error.message, { cause: error });
+    }
+    throw error;
+  }
+}
+
 /** Playwright Chromium renderer, shared with the Moodboard snapshot boundary. */
 export const playwrightProjectWallSnapshotRenderer: ProjectWallSnapshotRenderer =
   {
     pdf: (data) =>
-      withSnapshotHtmlPage(projectWallSnapshotHtml(data), (page) =>
-        page.pdf({
-          height: `${PAGE_HEIGHT}px`,
-          printBackground: true,
-          width: `${PAGE_WIDTH}px`,
-        }),
+      render(() =>
+        withSnapshotHtmlPage(projectWallSnapshotHtml(data), (page) =>
+          page.pdf({
+            height: `${PAGE_HEIGHT}px`,
+            printBackground: true,
+            width: `${PAGE_WIDTH}px`,
+          }),
+        ),
       ),
     png: (data) =>
-      withSnapshotHtmlPage(projectWallSnapshotHtml(data), (page) =>
-        page.locator("section.page").screenshot({ type: "png" }),
+      render(() =>
+        withSnapshotHtmlPage(projectWallSnapshotHtml(data), (page) =>
+          page.locator("section.page").screenshot({ type: "png" }),
+        ),
       ),
   };

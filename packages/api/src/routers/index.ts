@@ -326,7 +326,6 @@ import {
   setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
   setProjectWallCardLockInputSchema,
-  setProjectWallGroupCollapsedInputSchema,
   unbindProjectWallLinkInputSchema,
 } from "../project-wall";
 import {
@@ -1107,13 +1106,10 @@ const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
   PROJECT_WALL_CARD_DUPLICATE:
     "This record is already a card on this Project Wall.",
   PROJECT_WALL_PROJECT_READ_ONLY: "Archived Projects are read-only.",
-  PROJECT_WALL_RELATION_PREVIEW_REQUIRED:
-    "Review the current relation preview before confirming.",
   PROJECT_WALL_SKELETON_NOT_SELECTED:
     "This skeleton is not selected for this Project.",
   PROJECT_WALL_RELATION_UNAVAILABLE:
     "A Smart Collection block cannot be a relation endpoint.",
-  PROJECT_WALL_SNAPSHOT_FAILED: "The Project Wall snapshot could not be taken.",
   PROJECT_WALL_SOURCE_UNAVAILABLE: `The record is not an active ${PROJECT_WALL_SOURCE_TYPE_LIST} of this Project.`,
 };
 
@@ -1125,6 +1121,28 @@ async function runProjectWallOperation<T>(
   } catch (error) {
     if (!isRecord(error) || typeof error.code !== "string") {
       throw error;
+    }
+    // Same stale-preview condition as the relations seam: 412, not 400.
+    if (error.code === "PROJECT_WALL_RELATION_PREVIEW_REQUIRED") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "Review the current relation preview before confirming.",
+      });
+    }
+    // The refusal reason is the user's action item; the seam refuses scopes,
+    // it does not truncate them.
+    if (error.code === "PROJECT_WALL_SNAPSHOT_FAILED") {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message:
+          typeof error.message === "string" && error.message
+            ? error.message
+            : "The Project Wall snapshot could not be taken.",
+      });
     }
     const rejected = PROJECT_WALL_REJECTED_MESSAGES[error.code];
     if (rejected) {
@@ -4084,16 +4102,6 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runProjectWallOperation(() =>
         requireProjectWall(context).deleteGroup(context.session.user.id, input),
-      ),
-    ),
-  setProjectWallGroupCollapsed: protectedProcedure
-    .input(setProjectWallGroupCollapsedInputSchema)
-    .handler(({ context, input }) =>
-      runProjectWallOperation(() =>
-        requireProjectWall(context).setGroupCollapsed(
-          context.session.user.id,
-          input,
-        ),
       ),
     ),
   setProjectWallFocusOrder: protectedProcedure

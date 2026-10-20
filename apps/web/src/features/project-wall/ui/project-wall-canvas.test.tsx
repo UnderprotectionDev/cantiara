@@ -169,9 +169,11 @@ describe("canvas keyboard and toolbar without a pointer", () => {
 
     act(() => button("Align Left").click());
     const aligned = (canvas.onMove as ReturnType<typeof vi.fn>).mock.lastCall;
+    // Align works on what the canvas shows: the optimistic, not-yet-saved
+    // positions of the just-nudged cards (their left edge is now 8).
     expect(
       aligned?.[0].map((move: { position: { x: number } }) => move.position.x),
-    ).toEqual([0, 0]);
+    ).toEqual([8, 8]);
 
     act(() => button("Distribute Vertically").click());
     expect(canvas.onMove).toHaveBeenCalled();
@@ -213,6 +215,49 @@ describe("canvas keyboard and toolbar without a pointer", () => {
     press("ArrowRight", {}, field);
     expect(canvas.onMove).not.toHaveBeenCalled();
     field.remove();
+  });
+
+  test("a failed save reverts the optimistic position before the next nudge", async () => {
+    const canvas = props(cards, { selection: ["card-0"] });
+    const onMoveFailed = vi.fn(async () => false);
+    canvas.onMove = onMoveFailed;
+    mount(canvas);
+    press("ArrowRight");
+    expect(onMoveFailed).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      // The failed write settles and the canvas drops its optimistic overlay.
+      await onMoveFailed.mock.results[0]?.value;
+    });
+    press("ArrowRight");
+    // The second nudge starts from the saved position again (x 0), proving
+    // the failed move never accumulated.
+    expect(onMoveFailed).toHaveBeenLastCalledWith([
+      { cardId: "card-0", position: { x: 8, y: 0 } },
+    ]);
+  });
+
+  test("keyboard auto-repeat coalesces nudges into one write", () => {
+    vi.useFakeTimers();
+    try {
+      const canvas = props(cards, { selection: ["card-0"] });
+      mount(canvas);
+      press("ArrowRight");
+      press("ArrowRight", { repeat: true });
+      press("ArrowRight", { repeat: true });
+      // The repeated presses so far only moved the card on screen.
+      expect(canvas.onMove).toHaveBeenCalledTimes(1);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      // The coalesced flush writes the latest absolute position once.
+      const [, flush] = (canvas.onMove as ReturnType<typeof vi.fn>).mock.calls;
+      expect(flush?.[0]).toEqual([
+        { cardId: "card-0", position: { x: 24, y: 0 } },
+      ]);
+      expect(canvas.onMove).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("Lock Position keeps a card fixed in nudge and Align", () => {

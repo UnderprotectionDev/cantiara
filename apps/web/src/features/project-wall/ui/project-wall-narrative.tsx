@@ -17,30 +17,32 @@ import {
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
 import { type FormEvent, useState } from "react";
+import type { ProjectWallSceneWall } from "./project-wall-scene";
 
-/** Wall narrative actions: none of them edits a source record. */
+/** Wall narrative actions: none of them edits a source record. `onX`
+ * actions resolve `true` only when the write persisted. */
 export interface ProjectWallNarrativeActions {
-  onCreateGroup: (title: string) => Promise<unknown>;
+  onCreateGroup: (title: string) => Promise<boolean>;
   /** Writes the catalog relation; reached only from the previewed confirm. */
   onCreateRelation: (input: {
     baseRevision: number;
     kind: RelationKind;
     linkId: string;
     previewId: string;
-  }) => Promise<unknown>;
-  onDeleteGroup: (groupId: string) => Promise<unknown>;
+  }) => Promise<boolean>;
+  onDeleteGroup: (groupId: string) => Promise<boolean>;
   onDrawLink: (input: {
     fromCardId: string;
     label: string;
     toCardId: string;
-  }) => Promise<unknown>;
+  }) => Promise<boolean>;
   /** Previews the catalog relation of a Visual link; writes nothing. */
   onPreviewRelation: (input: {
     kind: RelationKind;
     linkId: string;
   }) => Promise<ProjectWallRelationPreview | undefined>;
   onToggleGroup: (groupId: string, collapsed: boolean) => Promise<unknown>;
-  onUnbindLink: (linkId: string) => Promise<unknown>;
+  onUnbindLink: (linkId: string) => Promise<boolean>;
 }
 
 function cardName(card: ProjectWallCardView | undefined) {
@@ -67,8 +69,12 @@ function DrawLinkForm({
     if (!ready) {
       return;
     }
-    await onDrawLink({ fromCardId: from, label: label.trim(), toCardId: to });
-    setLabel("");
+    if (
+      await onDrawLink({ fromCardId: from, label: label.trim(), toCardId: to })
+    ) {
+      // Only a persisted link clears the label; endpoints stay selected.
+      setLabel("");
+    }
   }
   return (
     <form
@@ -255,7 +261,8 @@ function GroupsPanel({
   wall,
 }: {
   actions: ProjectWallNarrativeActions;
-  wall: ProjectWallView;
+  /** The wall the account sees; its group collapse is this account's view. */
+  wall: ProjectWallSceneWall;
 }) {
   const [title, setTitle] = useState("");
   async function submit(event: FormEvent) {
@@ -264,8 +271,10 @@ function GroupsPanel({
     if (!name) {
       return;
     }
-    await actions.onCreateGroup(name);
-    setTitle("");
+    if (await actions.onCreateGroup(name)) {
+      // Only a persisted group clears the draft; a failed write keeps it.
+      setTitle("");
+    }
   }
   return (
     <div className="space-y-2">
@@ -338,7 +347,8 @@ export function ProjectWallNarrativePanel({
   wall,
 }: {
   actions: ProjectWallNarrativeActions;
-  wall: ProjectWallView;
+  /** The wall the account sees; the groups' collapse is this account's view. */
+  wall: ProjectWallSceneWall;
 }) {
   return (
     <section aria-label="Wall narrative" className="space-y-3">

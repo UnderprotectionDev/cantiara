@@ -26,6 +26,7 @@ import {
   ProjectWallPresentationView,
   ProjectWallSnapshotPanel,
 } from "./project-wall-presentation";
+import type { ProjectWallSceneWall } from "./project-wall-scene";
 
 export interface ProjectWallActions
   extends ProjectWallNarrativeActions,
@@ -34,11 +35,11 @@ export interface ProjectWallActions
     diagramViewId?: string;
     sourceId: string;
     sourceType: ProjectWallSourceType;
-  }) => Promise<unknown>;
-  onCreate: (title: string) => Promise<unknown>;
-  onCreateFromSkeleton: (skeleton: ProjectWallSkeleton) => Promise<unknown>;
-  onDelete: (wallId: string) => Promise<unknown>;
-  onRename: (wallId: string, title: string) => Promise<unknown>;
+  }) => Promise<boolean>;
+  onCreate: (title: string) => Promise<boolean>;
+  onCreateFromSkeleton: (skeleton: ProjectWallSkeleton) => Promise<boolean>;
+  onDelete: (wallId: string) => Promise<boolean>;
+  onRename: (wallId: string, title: string) => Promise<boolean>;
   onSelect: (wallId: string) => void;
 }
 
@@ -60,8 +61,10 @@ function CreateWallForm({
     if (!name) {
       return;
     }
-    await onCreate(name);
-    setTitle("");
+    if (await onCreate(name)) {
+      // Only a persisted wall clears the draft; a failed write keeps it.
+      setTitle("");
+    }
   }
   return (
     <form
@@ -94,6 +97,7 @@ function RenameWallForm({
     event.preventDefault();
     const name = title.trim();
     if (name && name !== wall.title) {
+      // A rename remounts this form with the saved title once it persists.
       await onRename(wall.id, name);
     }
   }
@@ -142,12 +146,18 @@ export function AddCardForm({
     if (!option) {
       return;
     }
-    await onAddCard({
-      ...(option.diagramViewId ? { diagramViewId: option.diagramViewId } : {}),
-      sourceId: option.id,
-      sourceType: option.sourceType,
-    });
-    setSelected("");
+    if (
+      await onAddCard({
+        ...(option.diagramViewId
+          ? { diagramViewId: option.diagramViewId }
+          : {}),
+        sourceId: option.id,
+        sourceType: option.sourceType,
+      })
+    ) {
+      // Only a persisted card drops the selection; a failed write keeps it.
+      setSelected("");
+    }
   }
   return (
     <form
@@ -181,8 +191,8 @@ export function AddCardForm({
 }
 
 function renderCanvas(
-  canvas: ReactNode | ((shown: ProjectWallView) => ReactNode),
-  shown: ProjectWallView,
+  canvas: ReactNode | ((shown: ProjectWallSceneWall) => ReactNode),
+  shown: ProjectWallSceneWall,
 ) {
   return typeof canvas === "function" ? canvas(shown) : canvas;
 }
@@ -238,9 +248,9 @@ export function ProjectWallLayout({
 }: {
   actions: ProjectWallActions;
   /** The canvas; a function receives the wall shown after group focus. */
-  canvas: ReactNode | ((shown: ProjectWallView) => ReactNode);
+  canvas: ReactNode | ((shown: ProjectWallSceneWall) => ReactNode);
   options: ProjectWallSourceOption[];
-  selected: ProjectWallView | null;
+  selected: ProjectWallSceneWall | null;
   /** Skeletons the Project shell selected; none means no offer. */
   skeletons?: ProjectWallSkeleton[];
   walls: ProjectWallSummary[];

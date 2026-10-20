@@ -13,6 +13,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { project } from "./project";
 
 /**
@@ -46,11 +47,15 @@ export const projectWall = pgTable(
 
 /**
  * A named, single-level group: wall view state only. It has no parent group,
- * colour or kind, so it cannot become taxonomy or a relation.
+ * colour or kind, so it cannot become taxonomy or a relation. The collapsed
+ * column is a physical remainder from before collapse moved to the personal
+ * viewport: feature code never reads or writes it, and dropping the column is
+ * a later parallel-safe narrowing migration.
  */
 export const projectWallGroup = pgTable(
   "project_wall_group",
   {
+    // Compatibility remainder: group collapse is personal viewport state.
     collapsed: boolean("collapsed").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
@@ -82,7 +87,11 @@ export const projectWallItem = pgTable(
   {
     density: text("density").default("Preview").notNull(),
     // Selected Diagram View of a `Technical Diagram` card; null for the default
-    // view and for every other source type. Wall view state, never a copy.
+    // view and for every other source type. The invariant is API-enforced (the
+    // input refine in project-wall.ts), not a CHECK: cross-feature references
+    // stay foreign-keyless like moodboard_visual's external references, and
+    // the source type never changes after insert. Wall view state, never a
+    // copy.
     diagramViewId: text("diagram_view_id"),
     // Wall-only membership; deleting a group keeps its cards.
     groupId: text("group_id").references(() => projectWallGroup.id, {
@@ -211,7 +220,9 @@ export interface ProjectWallViewportState {
 export const projectWallViewport = pgTable(
   "project_wall_viewport",
   {
-    accountId: text("account_id").notNull(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     viewport: jsonb("viewport").$type<ProjectWallViewportState>().notNull(),
     wallId: text("wall_id")
