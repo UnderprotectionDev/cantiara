@@ -26,6 +26,17 @@ type Executor = FeedbackExecutor;
 
 const CANDIDATE_LIMIT = 500;
 
+/** Trashed and archived Works are unavailable, like the sibling target resolvers. */
+interface WorkAvailability {
+  archivedAt: Date | null;
+  status: string;
+  trashedAt: Date | null;
+}
+
+function workUnavailable(row: WorkAvailability) {
+  return Boolean(row.trashedAt || row.archivedAt || row.status === "Archived");
+}
+
 async function contextLabel(
   executor: Executor,
   projectId: string,
@@ -56,10 +67,18 @@ async function contextLabel(
     return row?.name ?? null;
   }
   const [row] = await executor
-    .select({ title: work.title, type: work.type })
+    .select({
+      title: work.title,
+      type: work.type,
+      trashedAt: work.trashedAt,
+      archivedAt: work.archivedAt,
+      status: work.status,
+    })
     .from(work)
     .where(and(eq(work.id, context.targetId), eq(work.projectId, projectId)));
-  return row?.type === "Feature" ? row.title : null;
+  // Trashed or archived Works are unavailable; the stored snapshot bytes stay
+  // as saved, only the live label resolves to `null`, like a removed record.
+  return row?.type === "Feature" && !workUnavailable(row) ? row.title : null;
 }
 
 async function toStored(
@@ -140,14 +159,22 @@ export function createDatabaseTestAssessmentStore(
             }
             return (
               await executor
-                .select({ id: work.id, label: work.title })
+                .select({
+                  archivedAt: work.archivedAt,
+                  id: work.id,
+                  label: work.title,
+                  status: work.status,
+                  trashedAt: work.trashedAt,
+                })
                 .from(work)
                 .where(
                   and(eq(work.projectId, owned.id), eq(work.type, "Feature")),
                 )
                 .orderBy(desc(work.updatedAt))
                 .limit(CANDIDATE_LIMIT)
-            ).map((row) => ({ ...row, kind }));
+            )
+              .filter((row) => !workUnavailable(row))
+              .map((row) => ({ id: row.id, kind, label: row.label }));
           },
           // Test Session, Test Gap and bound-context owners (specs 54, 55, 57)
           // report their events here when they exist; none do yet.
@@ -191,16 +218,24 @@ export function createDatabaseTestAssessmentStore(
             ),
           readOnly: owned.archivedAt !== null,
           // Only follow-up Work has an owner record today; session and Gap ids
-          // stay opaque until their owners exist.
+          // stay opaque until their owners exist. Trashed and archived Works
+          // are refused like any other unavailable cited record.
           unknownSources: async (kind, ids) => {
             if (kind !== "Follow-up Work" || ids.length === 0) {
               return [];
             }
             const found = await executor
-              .select({ id: work.id })
+              .select({
+                archivedAt: work.archivedAt,
+                id: work.id,
+                status: work.status,
+                trashedAt: work.trashedAt,
+              })
               .from(work)
               .where(and(eq(work.projectId, owned.id), inArray(work.id, ids)));
-            const known = new Set(found.map(({ id }) => id));
+            const known = new Set(
+              found.filter((row) => !workUnavailable(row)).map(({ id }) => id),
+            );
             return ids.filter((id) => !known.has(id));
           },
         });

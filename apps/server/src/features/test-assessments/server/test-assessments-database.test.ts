@@ -262,6 +262,63 @@ describeDatabase("Test Assessments PostgreSQL integration", () => {
     expect(assessments).toEqual([]);
   });
 
+  test("trashed and archived Works are unavailable contexts and cited ids", async () => {
+    const db = requireDatabase();
+    const access = createDatabaseTestAssessments(db);
+    const featureSnapshot = await access.record(accountId, {
+      ...input(),
+      context: { kind: "Feature", targetId: ids.feature },
+    });
+    await db
+      .update(work)
+      .set({ trashedAt: new Date() })
+      .where(eq(work.id, ids.feature));
+    await db
+      .update(work)
+      .set({ archivedAt: new Date() })
+      .where(eq(work.id, ids.followUp));
+
+    // The saved snapshot keeps its bytes; only the live label drops out.
+    const { assessments } = await access.list(accountId, projectId);
+    expect(assessments[0]?.id).toBe(featureSnapshot.id);
+    expect(assessments[0]?.sessionIds).toEqual(featureSnapshot.sessionIds);
+    expect(assessments[0]?.context).toMatchObject({
+      label: null,
+      targetId: ids.feature,
+    });
+
+    await expect(
+      access.record(accountId, {
+        ...input(),
+        context: { kind: "Feature", targetId: ids.feature },
+      }),
+    ).rejects.toBeInstanceOf(TestAssessmentContextUnavailableError);
+    await expect(
+      access.record(accountId, { ...input(), followUpWorkIds: [ids.followUp] }),
+    ).rejects.toBeInstanceOf(TestAssessmentSourceUnavailableError);
+    await expect(
+      access.contextTargets(accountId, { kind: "Feature", projectId }),
+    ).resolves.toEqual([]);
+
+    // Restoring the records makes them available again.
+    await db
+      .update(work)
+      .set({ archivedAt: null, trashedAt: null })
+      .where(eq(work.id, ids.feature));
+    await db
+      .update(work)
+      .set({ archivedAt: null, trashedAt: null })
+      .where(eq(work.id, ids.followUp));
+    await expect(
+      access.contextTargets(accountId, { kind: "Feature", projectId }),
+    ).resolves.toEqual([
+      { id: ids.feature, kind: "Feature", label: "Saved cards" },
+    ]);
+    await expect(
+      access.record(accountId, { ...input(), followUpWorkIds: [ids.followUp] }),
+    ).resolves.toMatchObject({ decision: "Acceptable" });
+  });
+
   test("recording leaves the Project Release and an Assessment-free Release untouched", async () => {
     const db = requireDatabase();
     const access = createDatabaseTestAssessments(db);
