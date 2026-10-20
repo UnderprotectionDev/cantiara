@@ -238,6 +238,13 @@ import {
   workReviewLaterInputSchema,
 } from "../personal-reminders";
 import {
+  createPlannedTestCaseInputSchema,
+  createPlannedTestCaseVersionInputSchema,
+  plannedTestCaseProjectInputSchema,
+  plannedTestCaseVersionInputSchema,
+  plannedTestRelationTargetsInputSchema,
+} from "../planned-tests";
+import {
   closePrioritizationSessionInputSchema,
   closePrioritizationSessionMutationInputSchema,
   createPrioritizationSessionInputSchema,
@@ -1052,6 +1059,13 @@ function requireScreens(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.screens;
+}
+
+function requirePlannedTests(context: Context) {
+  if (!context.plannedTests) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.plannedTests;
 }
 
 function requireUserFlow(context: Context) {
@@ -2904,6 +2918,60 @@ async function runScreenOperation<T>(operation: () => Promise<T>): Promise<T> {
       });
     }
     const message = SCREEN_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
+  }
+}
+
+const PLANNED_TEST_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  PLANNED_TEST_CASE_NOT_FOUND: "Planned Test Case is unavailable.",
+  PLANNED_TEST_PROJECT_NOT_FOUND: "Project is unavailable.",
+  PLANNED_TEST_VERSION_NOT_FOUND: "Planned Test Case version is unavailable.",
+};
+
+const PLANNED_TEST_REJECTED_MESSAGES: Record<string, string> = {
+  PLANNED_TEST_NO_CHANGE:
+    "Nothing changed. Change the Planned Test Case before saving a new version.",
+  PLANNED_TEST_PROJECT_READ_ONLY: "Archived Projects are read-only.",
+  PLANNED_TEST_RELATION_TARGET_UNAVAILABLE:
+    "A relation target is not an existing, active record of this Project.",
+};
+
+async function runPlannedTestOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "PLANNED_TEST_VERSION_CONFLICT") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message:
+          "Planned Test Case changed since it was loaded. Reload and try again.",
+      });
+    }
+    const rejected = PLANNED_TEST_REJECTED_MESSAGES[error.code];
+    if (rejected) {
+      throw new ORPCError("BAD_REQUEST", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: rejected,
+      });
+    }
+    const message = PLANNED_TEST_UNAVAILABLE_MESSAGES[error.code];
     if (message) {
       throw new ORPCError("NOT_FOUND", {
         cause: error,
@@ -5382,6 +5450,50 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runFeedbackOperation(() =>
         requireFeedback(context).setStatus(context.session.user.id, input),
+      ),
+    ),
+  projectPlannedTestCases: protectedProcedure
+    .input(plannedTestCaseProjectInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  createPlannedTestCase: protectedProcedure
+    .input(createPlannedTestCaseInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).create(context.session.user.id, input),
+      ),
+    ),
+  createPlannedTestCaseVersion: protectedProcedure
+    .input(createPlannedTestCaseVersionInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).createVersion(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  plannedTestCaseVersion: protectedProcedure
+    .input(plannedTestCaseVersionInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).version(context.session.user.id, input),
+      ),
+    ),
+  plannedTestRelationTargets: protectedProcedure
+    .input(plannedTestRelationTargetsInputSchema)
+    .handler(({ context, input }) =>
+      runPlannedTestOperation(() =>
+        requirePlannedTests(context).relationTargets(
+          context.session.user.id,
+          input,
+        ),
       ),
     ),
   projectScreens: protectedProcedure

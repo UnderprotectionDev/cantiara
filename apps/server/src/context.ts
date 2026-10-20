@@ -46,6 +46,7 @@ import type {
   MutationPayload,
 } from "@cantiara/api/mutation-and-undo";
 import type { PersonalRemindersAccess } from "@cantiara/api/personal-reminders";
+import type { PlannedTestsAccess } from "@cantiara/api/planned-tests";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -133,6 +134,7 @@ export interface CreateContextOptions {
   moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
+  plannedTests?: PlannedTestsAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
@@ -235,6 +237,7 @@ export async function createContext({
   contacts,
   feedback,
   screens,
+  plannedTests,
   relations,
   tagMutationContracts,
   trustedProxyIps,
@@ -320,6 +323,7 @@ export async function createContext({
     contacts,
     feedback,
     screens,
+    plannedTests,
     relations,
     auth: null,
     session,

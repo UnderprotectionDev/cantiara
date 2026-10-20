@@ -34,6 +34,7 @@ import type {
 } from "./moodboards";
 import type { MutationContract, MutationPayload } from "./mutation-and-undo";
 import type { PersonalRemindersAccess } from "./personal-reminders";
+import type { PlannedTestsAccess } from "./planned-tests";
 import type {
   PrioritizationSessionMutationContracts,
   PrioritizationSessionsAccess,
@@ -194,6 +195,7 @@ export interface Context {
   moodboards?: MoodboardsAccess;
   mutationContract?: MutationContract<MutationPayload>;
   personalReminders?: PersonalRemindersAccess;
+  plannedTests?: PlannedTestsAccess;
   prioritizationSessionMutationContracts?: PrioritizationSessionMutationContracts;
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;

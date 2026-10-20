@@ -1276,6 +1276,11 @@ Tekrar kullanılabilir test niyetini, önkoşullarını ve beklenen davranışı
 UI: `Planned Test Case`.
 _Avoid_: Test Oturumu, test script'i, kabul sonucu
 
+**Planlı Test Senaryosu sürümü**:
+Bir Planlı Test Senaryosunun her anlamlı veya yalnız editoryal değişiklikte eklenen, sonradan değişmeyen tam tanımı; bağ ve Handoff kesin sürümü seçer, senaryonun "en güncel" hâlini değil.
+UI: `Version`, `Meaningful change`, `Editorial change`.
+_Avoid_: en güncel sürüm, canlı senaryo, senaryo durumu
+
 **Test Handoff'u**:
 Ürün dışında yapılması istenen test çalışmasının amacını, seçili senaryo sürümlerini ve dönen Test Oturumlarını yöneten Proje ana kaydı; testi yürütmez ve sonuç geldiğinde kendiliğinden kapanmaz.
 UI: `Test Handoff`.

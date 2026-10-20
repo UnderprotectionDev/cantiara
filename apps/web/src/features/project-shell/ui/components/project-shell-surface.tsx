@@ -28,6 +28,7 @@ import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-
 import FeedSurface from "@/features/feedback/ui/feed-surface";
 import FeedbackSurface from "@/features/feedback/ui/feedback-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
+import PlannedTestsSurface from "@/features/planned-tests/ui/planned-tests-surface";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
 import ProjectOverviewSurface from "@/features/project-overview/ui/components/project-overview-surface";
@@ -125,6 +126,15 @@ function decodedSourceId(value: string) {
 function projectDesignSurface(activeHash: string, projectId: string) {
   return ["design", "project-area-design"].includes(activeHash) ? (
     <ScreensSurface key={`screens:${projectId}`} projectId={projectId} />
+  ) : null;
+}
+
+function projectTestsSurface(activeHash: string, projectId: string) {
+  return ["tests", "project-area-tests"].includes(activeHash) ? (
+    <PlannedTestsSurface
+      key={`planned-tests:${projectId}`}
+      projectId={projectId}
+    />
   ) : null;
 }
 
@@ -431,6 +441,7 @@ function ProjectShellContent({
     activeHash === "all-tools" || activeHash.startsWith("project-area-");
   const uncertaintySurface =
     projectDesignSurface(activeHash, projectId) ??
+    projectTestsSurface(activeHash, projectId) ??
     projectUncertaintySurface(
       projectId,
       accountId,
