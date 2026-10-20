@@ -3,7 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
-import { toManualInput } from "../lib/test-report-form";
+import { maskedReviewMessage, toManualInput } from "../lib/test-report-form";
 import { TestSessionsView } from "./test-sessions-view";
 
 /** The Tests area's Test Session list; it runs no test and opens no review. */
@@ -35,7 +35,7 @@ export default function TestSessionsSurface({
   return (
     <TestSessionsView
       onImport={async (file) => {
-        await runOnlineOnlyWrite(() =>
+        const result = await runOnlineOnlyWrite(() =>
           client.acceptTestReport({
             content: file.content,
             format: file.format,
@@ -43,12 +43,20 @@ export default function TestSessionsSurface({
             projectId,
           }),
         );
+        const review = maskedReviewMessage(result);
+        if (review) {
+          throw new Error(review);
+        }
         await refresh();
       }}
       onRecord={async (values) => {
-        await runOnlineOnlyWrite(() =>
+        const result = await runOnlineOnlyWrite(() =>
           client.acceptTestReport(toManualInput(projectId, values)),
         );
+        const review = maskedReviewMessage(result);
+        if (review) {
+          throw new Error(review);
+        }
         await refresh();
       }}
       readOnly={sessions.data.readOnly}

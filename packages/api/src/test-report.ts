@@ -659,6 +659,36 @@ export function toTestReportMcpReceipt(
   };
 }
 
+/**
+ * Ambiguous findings on file or manual ingress: nothing was stored, no content
+ * is shown, and the founder removes the value at the source and sends again.
+ */
+export interface TestReportMaskedReview {
+  findings: { fieldPath: string }[];
+  outcome: "masked_review";
+}
+
+/** Registered Unified Notification Center ids this feature may emit (PRD 04). */
+export const TEST_REPORT_SIGNAL_TYPES = [
+  "unreviewed-test-report",
+  "handoff-result-after-cancel",
+] as const;
+export type TestReportSignalType = (typeof TEST_REPORT_SIGNAL_TYPES)[number];
+
+export interface TestReportAttentionSignal {
+  occurredAt: string;
+  ownerAccountId: string;
+  /** `Action Required` for an unreviewed report, `Information Feed` after a cancel. */
+  presentation: "Action Required" | "Information Feed";
+  signalId: string;
+  signalType: TestReportSignalType;
+  source: {
+    handoffId: string | null;
+    projectId: string;
+    sessionId: string;
+  };
+}
+
 export interface TestSessionList {
   readOnly: boolean;
   sessions: TestSessionRecord[];
@@ -703,6 +733,8 @@ export interface TestReportTransaction {
    */
   insertSession: (record: TestSessionStoredRecord) => Promise<boolean>;
   listSessions: () => Promise<TestSessionStoredRecord[]>;
+  /** Written in the same unit as the session; a failure rolls the session back. */
+  produceSignal: (signal: TestReportAttentionSignal) => Promise<void>;
   readOnly: boolean;
   /** Existence and Project scope of an allow-listed record (a case needs its exact version). */
   resolveReference: (
@@ -730,9 +762,13 @@ export interface TestReportAcceptanceAccess {
    * returns the prior receipt as `duplicate`; with different content it is
    * `identity_conflict`. It opens no review, release gate or notification.
    */
-  accept: (
+  accept: <Input extends AcceptTestReportInput>(
     caller: TestReportCaller,
-    input: AcceptTestReportInput,
-  ) => Promise<TestReportReceipt>;
+    input: Input,
+  ) => Promise<
+    Input extends { ingress: "MCP" }
+      ? TestReportReceipt
+      : TestReportMaskedReview | TestReportReceipt
+  >;
   sessions: (accountId: string, projectId: string) => Promise<TestSessionList>;
 }

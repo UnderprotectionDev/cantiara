@@ -8,6 +8,7 @@ import {
   plannedTestCase,
   plannedTestCaseVersion,
   sessionTest,
+  testReportAttentionSignal,
   testSession,
 } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
@@ -234,6 +235,39 @@ describeDatabase("Test Report Acceptance PostgreSQL integration", () => {
     const db = requireDatabase();
     expect(
       await db
+        .select()
+        .from(testSession)
+        .where(eq(testSession.projectId, projectId)),
+    ).toEqual([]);
+  });
+
+  test("a new MCP session writes one unreviewed-test-report signal and a retry adds none", async () => {
+    const access = createDatabaseTestReports(requireDatabase());
+    const sent = report();
+    await access.accept(caller, { ingress: "MCP", report: sent });
+    await access.accept(caller, { ingress: "MCP", report: sent });
+    const rows = await requireDatabase()
+      .select()
+      .from(testReportAttentionSignal)
+      .where(eq(testReportAttentionSignal.projectId, projectId));
+    expect(rows.map(({ signalType }) => signalType)).toEqual([
+      "unreviewed-test-report",
+    ]);
+  });
+
+  test("a known token is sensitive_data_detected and writes nothing", async () => {
+    const access = createDatabaseTestReports(requireDatabase());
+    await expect(
+      access.accept(caller, {
+        ingress: "MCP",
+        report: report({ raw_report: `ghp_${"a1B2c3D4e5".repeat(4)}` }),
+      }),
+    ).rejects.toMatchObject({
+      code: "sensitive_data_detected",
+      fieldPath: "raw_report",
+    });
+    expect(
+      await requireDatabase()
         .select()
         .from(testSession)
         .where(eq(testSession.projectId, projectId)),

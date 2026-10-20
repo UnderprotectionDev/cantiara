@@ -1364,6 +1364,10 @@ Ham sonucun kapalı alias kataloğuyla (`test-report/1`) `Geçti`, `Kaldı`, `Bl
 UI: `Passed`, `Failed`, `Blocked`, `Skipped`, `Inconclusive`, `Not reported`.
 _Avoid_: doğrulanmış sonuç, oturum sonucu, kalite puanı
 
+**Maskeli inceleme**:
+Dosya ya da manuel girişte belirsiz bir secret bulgusunda ürünün yalnız alan yolunu gösterdiği, içeriği göstermediği ve hiçbir kayıt oluşturmadığı sonuçtur; kullanıcı hassas değeri kaynaktan çıkarıp raporu yeniden gönderir. Gözetimsiz MCP'de karşılığı reddetmedir; bilinen token her yolda reddedilir.
+_Avoid_: sessiz redaksiyon, kanıtı düzenleme, kısmi kabul
+
 **Giriş yolu**:
 Test raporunun ürüne geldiği yol: `Uygulama` (manuel form), `Dosya içe aktarma` veya `MCP`; kaydın saklanan bir olgusudur, ayrı kayıt türü ya da kuyruk değildir ve güven ya da önem puanı üretmez.
 UI: `Ingress`.

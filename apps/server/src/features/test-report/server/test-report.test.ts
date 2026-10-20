@@ -6,6 +6,7 @@ import {
 import { describe, expect, test } from "vitest";
 
 import {
+  accepted,
   accountId,
   archivedProjectId,
   createMemoryHarness,
@@ -46,7 +47,9 @@ const json = (value: unknown): AcceptTestReportInput => ({
   projectId,
 });
 
-const mcp = (report: unknown): AcceptTestReportInput => ({
+const mcp = (
+  report: unknown,
+): Extract<AcceptTestReportInput, { ingress: "MCP" }> => ({
   ingress: "MCP",
   report,
 });
@@ -73,12 +76,14 @@ async function rejectionOf(promise: Promise<unknown>) {
 describe("three ingresses write one Test Session model", () => {
   test("manual form, file import and MCP store the same record shape", async () => {
     const harness = createMemoryHarness();
-    const fromForm = await harness.testReports.accept(userCaller, manual);
-    const fromFile = await harness.testReports.accept(
+    const fromForm = await accepted(harness.testReports, userCaller, manual);
+    const fromFile = await accepted(
+      harness.testReports,
       userCaller,
       json(envelope({ external_session_id: "file-1" })),
     );
-    const fromMcp = await harness.testReports.accept(
+    const fromMcp = await accepted(
+      harness.testReports,
       integrationCaller,
       mcp(envelope({ external_session_id: "mcp-1" })),
     );
@@ -119,7 +124,7 @@ describe("three ingresses write one Test Session model", () => {
       "---",
       "Raw run log.",
     ].join("\n");
-    const { session } = await harness.testReports.accept(userCaller, {
+    const { session } = await accepted(harness.testReports, userCaller, {
       content,
       format: "markdown",
       ingress: "File import",
@@ -227,7 +232,8 @@ describe("test-report/1 envelope", () => {
       "invalid_field",
       "invalid_field",
     ]);
-    const bound = await harness.testReports.accept(
+    const bound = await accepted(
+      harness.testReports,
       userCaller,
       json(withTest({ scenario_id: "case-1", scenario_version: 2 })),
     );
@@ -397,7 +403,8 @@ describe("test-report/1 envelope", () => {
 describe("executor, reporter and ingress stay separate", () => {
   test("Codex run imported by the founder keeps three distinct fields and no score", async () => {
     const harness = createMemoryHarness();
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       userCaller,
       json(envelope()),
     );
@@ -415,7 +422,8 @@ describe("executor, reporter and ingress stay separate", () => {
 
   test("the reporter is the verified caller, never a payload field", async () => {
     const harness = createMemoryHarness();
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       integrationCaller,
       mcp(envelope()),
     );
@@ -434,7 +442,8 @@ describe("executor, reporter and ingress stay separate", () => {
 
   test("the original offset is kept beside the UTC time", async () => {
     const harness = createMemoryHarness();
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       userCaller,
       json(envelope()),
     );
@@ -446,7 +455,8 @@ describe("executor, reporter and ingress stay separate", () => {
 describe("a reported result is history, not acceptance", () => {
   test("a reported Passed starts Unreviewed and opens no review or release gate", async () => {
     const harness = createMemoryHarness();
-    const receipt = await harness.testReports.accept(
+    const receipt = await accepted(
+      harness.testReports,
       userCaller,
       json(envelope()),
     );
@@ -468,7 +478,7 @@ describe("a reported result is history, not acceptance", () => {
       (await harness.testReports.sessions(accountId, projectId)).sessions,
     ).toEqual([]);
     expect(harness.sessions.size).toBe(0);
-    const { session } = await harness.testReports.accept(userCaller, manual);
+    const { session } = await accepted(harness.testReports, userCaller, manual);
     expect(session.tests[0]).toMatchObject({
       normalizedResult: "failed",
       rawResult: "failed",

@@ -25,12 +25,16 @@ function setup() {
 describe("Test Report Acceptance RPC seam", () => {
   test("the signed-in app records a manual report and lists it Unreviewed", async () => {
     const client = setup();
-    const { session } = await client.acceptTestReport({
+    const receipt = await client.acceptTestReport({
       executor: { name: "Me", type: "user" },
       ingress: "Application",
       projectId,
       tests: [{ result: "passed", title: "Login works" }],
     });
+    if (receipt.outcome === "masked_review") {
+      throw new Error("Unexpected masked review.");
+    }
+    const { session } = receipt;
     const listed = await client.projectTestSessions({ projectId });
     expect(listed.sessions.map(({ id }) => id)).toEqual([session.id]);
     expect(listed.sessions[0]).toMatchObject({

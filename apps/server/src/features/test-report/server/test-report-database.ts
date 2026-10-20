@@ -1,5 +1,6 @@
 import type {
   SessionTestReportStoredRecord,
+  TestReportAttentionSignal,
   TestReportExecutorType,
   TestReportIngress,
   TestReportLookup,
@@ -15,6 +16,7 @@ import {
   sessionTest,
   testHandoff,
   testHandoffScenario,
+  testReportAttentionSignal,
   testSession,
   testSessionIdentity,
 } from "@cantiara/db/schema/planned-test";
@@ -81,6 +83,33 @@ function toStoredSession(
     tests,
   };
 }
+
+export interface TestReportAttentionSignalSink {
+  produce: (
+    executor: Pick<Executor, "insert">,
+    signal: TestReportAttentionSignal,
+  ) => Promise<void> | void;
+}
+
+export interface DatabaseTestReportOptions {
+  attentionSignalSink?: TestReportAttentionSignalSink;
+}
+
+/** Default sink: the signal row joins the transaction of the session that caused it. */
+const defaultAttentionSignalSink: TestReportAttentionSignalSink = {
+  async produce(executor, signal) {
+    await executor.insert(testReportAttentionSignal).values({
+      handoffId: signal.source.handoffId,
+      occurredAt: new Date(signal.occurredAt),
+      ownerAccountId: signal.ownerAccountId,
+      presentation: signal.presentation,
+      projectId: signal.source.projectId,
+      sessionId: signal.source.sessionId,
+      signalId: signal.signalId,
+      signalType: signal.signalType,
+    });
+  },
+};
 
 type Executor = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -243,7 +272,10 @@ async function resolveReference(
  */
 export function createDatabaseTestReportStore(
   database: Database,
+  options: DatabaseTestReportOptions = {},
 ): TestReportStore {
+  const attentionSignalSink =
+    options.attentionSignalSink ?? defaultAttentionSignalSink;
   return {
     run(accountId, projectId, mode, unitOfWork) {
       return database.transaction(async (executor) => {
@@ -345,6 +377,9 @@ export function createDatabaseTestReportStore(
               ),
             );
           },
+          produceSignal: async (signal) => {
+            await attentionSignalSink.produce(executor, signal);
+          },
           readOnly: owned.archivedAt !== null,
           resolveReference: (type, id, version) =>
             resolveReference(executor, owned.id, type, id, version),
@@ -354,6 +389,11 @@ export function createDatabaseTestReportStore(
   };
 }
 
-export function createDatabaseTestReports(database: Database) {
-  return createTestReportAcceptance(createDatabaseTestReportStore(database));
+export function createDatabaseTestReports(
+  database: Database,
+  options: DatabaseTestReportOptions = {},
+) {
+  return createTestReportAcceptance(
+    createDatabaseTestReportStore(database, options),
+  );
 }

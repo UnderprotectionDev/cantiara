@@ -4,6 +4,7 @@ import type { TestSessionRecord } from "@cantiara/api/test-report";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
+import { maskedReviewMessage } from "../lib/test-report-form";
 import { TestSessionsView } from "./test-sessions-view";
 
 (
@@ -234,4 +235,14 @@ test("an archived Project shows the list without forms", () => {
   mount({ readOnly: true });
   expect(document.querySelector("form")).toBeNull();
   expect(document.body.textContent).toContain("Coupon is single use");
+});
+
+test("a masked review names field paths only and says nothing was saved", () => {
+  expect(maskedReviewMessage({ outcome: "created" })).toBeNull();
+  const message = maskedReviewMessage({
+    findings: [{ fieldPath: "tests[0].notes" }],
+    outcome: "masked_review",
+  });
+  expect(message).toContain("Nothing was saved.");
+  expect(message).toContain("tests[0].notes");
 });

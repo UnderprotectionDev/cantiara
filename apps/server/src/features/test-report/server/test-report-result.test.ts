@@ -7,6 +7,7 @@ import { TEST_REPORT_V1_RESULT_ALIASES } from "@cantiara/api/test-report-result"
 import { describe, expect, test } from "vitest";
 
 import {
+  accepted,
   accountId,
   createMemoryHarness,
   projectId,
@@ -33,14 +34,17 @@ function report(tests: Record<string, unknown>[], extra = {}) {
   };
 }
 
-const mcp = (body: unknown): AcceptTestReportInput => ({
+const mcp = (
+  body: unknown,
+): Extract<AcceptTestReportInput, { ingress: "MCP" }> => ({
   ingress: "MCP",
   report: body,
 });
 
 async function resultsOf(tests: Record<string, unknown>[]) {
   const harness = createMemoryHarness();
-  const { session } = await harness.testReports.accept(
+  const { session } = await accepted(
+    harness.testReports,
     caller,
     mcp(report(tests)),
   );
@@ -139,7 +143,8 @@ describe("two-layer results", () => {
 
   test("mixed Session Test results never become a session verdict", async () => {
     const harness = createMemoryHarness();
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       caller,
       mcp(
         report([
@@ -174,7 +179,7 @@ describe("two-layer results", () => {
 describe("manual results and free text", () => {
   test("the founder picks an English label and the wire value is stored", async () => {
     const harness = createMemoryHarness();
-    const { session } = await harness.testReports.accept(caller, {
+    const { session } = await accepted(harness.testReports, caller, {
       executor: { name: "Me", type: "user" },
       ingress: "Application",
       projectId,
@@ -224,7 +229,8 @@ describe("manual results and free text", () => {
 
   test("a new session is Unreviewed whatever it reports", async () => {
     const harness = createMemoryHarness();
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       caller,
       mcp(report([{ raw_result: "passed" }])),
     );

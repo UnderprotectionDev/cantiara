@@ -5,6 +5,7 @@ import {
 import { describe, expect, test } from "vitest";
 
 import {
+  accepted,
   accountId,
   createMemoryHarness,
   type MemoryHarnessOptions,
@@ -34,7 +35,9 @@ function envelope(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const mcp = (report: unknown): AcceptTestReportInput => ({
+const mcp = (
+  report: unknown,
+): Extract<AcceptTestReportInput, { ingress: "MCP" }> => ({
   ingress: "MCP",
   report,
 });
@@ -92,7 +95,8 @@ describe("atomic accept leaves no residue", () => {
     expect(harness.identities.size).toBe(0);
 
     harness.faults.failAfterSessionInsert = false;
-    const retry = await harness.testReports.accept(
+    const retry = await accepted(
+      harness.testReports,
       integration("i-1"),
       mcp(envelope()),
     );
@@ -133,8 +137,8 @@ describe("idempotent identity", () => {
   test("the same report again returns the prior receipt as duplicate", async () => {
     const harness = createMemoryHarness();
     const caller = integration("i-1");
-    const first = await harness.testReports.accept(caller, mcp(envelope()));
-    const second = await harness.testReports.accept(caller, mcp(envelope()));
+    const first = await accepted(harness.testReports, caller, mcp(envelope()));
+    const second = await accepted(harness.testReports, caller, mcp(envelope()));
     expect(first.outcome).toBe("created");
     expect(second.outcome).toBe("duplicate");
     expect(second.session.id).toBe(first.session.id);
@@ -146,12 +150,14 @@ describe("idempotent identity", () => {
   test("field order and JSON whitespace are not new content", async () => {
     const harness = createMemoryHarness();
     const report = envelope();
-    const first = await harness.testReports.accept(
+    const first = await accepted(
+      harness.testReports,
       userCaller,
       file(JSON.stringify(report)),
     );
     const reordered = Object.fromEntries(Object.entries(report).reverse());
-    const second = await harness.testReports.accept(
+    const second = await accepted(
+      harness.testReports,
       userCaller,
       file(JSON.stringify(reordered, null, 4)),
     );
@@ -162,8 +168,9 @@ describe("idempotent identity", () => {
   test("a different executor name is not part of the key or the content", async () => {
     const harness = createMemoryHarness();
     const caller = integration("i-1");
-    const first = await harness.testReports.accept(caller, mcp(envelope()));
-    const second = await harness.testReports.accept(
+    const first = await accepted(harness.testReports, caller, mcp(envelope()));
+    const second = await accepted(
+      harness.testReports,
       caller,
       mcp(envelope({ executor: { name: "Claude Code", type: "ai_agent" } })),
     );
@@ -175,7 +182,7 @@ describe("idempotent identity", () => {
   test("the same external id with different content is identity_conflict and changes nothing", async () => {
     const harness = createMemoryHarness();
     const caller = integration("i-1");
-    const first = await harness.testReports.accept(caller, mcp(envelope()));
+    const first = await accepted(harness.testReports, caller, mcp(envelope()));
     const failure = await rejectionOf(
       harness.testReports.accept(
         caller,
@@ -287,7 +294,8 @@ describe("Handoff checks", () => {
       harness.testReports.accept(userCaller, mcp(withScenario(4))),
     );
     expect(outside.code).toBe("reference_scope_mismatch");
-    const inside = await harness.testReports.accept(
+    const inside = await accepted(
+      harness.testReports,
       userCaller,
       mcp(withScenario(3)),
     );
@@ -297,7 +305,8 @@ describe("Handoff checks", () => {
 
   test("a report to a Canceled Handoff is history and the Handoff stays Canceled", async () => {
     const harness = createMemoryHarness({ handoffs });
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       userCaller,
       mcp(
         envelope({
@@ -337,7 +346,8 @@ describe("relations allow-list", () => {
       references,
       scenarios: ["case-1@3"],
     });
-    const { session } = await harness.testReports.accept(
+    const { session } = await accepted(
+      harness.testReports,
       userCaller,
       mcp(
         withRelations([

@@ -10,6 +10,7 @@ import {
   type TestReportCaller,
   type TestReportHandoffRef,
   type TestReportLookup,
+  type TestReportMaskedReview,
   type TestReportRejectedError,
   type TestReportStore,
   type TestReportTransaction,
@@ -21,6 +22,7 @@ import {
 import { testReportFingerprint } from "@cantiara/api/test-report-identity";
 import { parseTestReportFile } from "@cantiara/api/test-report-import";
 import { normalizeReportedResult } from "@cantiara/api/test-report-result";
+import { scanTestReportForSecrets } from "@cantiara/api/test-report-secrets";
 
 /** The report as the manual form writes it: the product supplies the envelope fields. */
 function manualEnvelope(
@@ -279,6 +281,71 @@ function toStoredSession(
 }
 
 /**
+ * Fail-closed secret screen. A known token rejects the whole report with the
+ * masked path only. An ambiguous finding rejects on unsupervised MCP and asks
+ * for a masked review on file and manual ingress; either way nothing is
+ * stored and the evidence is never edited.
+ */
+function screenForSecrets(
+  report: TestReportV1,
+  ingress: AcceptTestReportInput["ingress"],
+): TestReportMaskedReview | null {
+  const { ambiguous, known } = scanTestReportForSecrets(report);
+  const [firstKnown] = known;
+  if (firstKnown !== undefined) {
+    throw rejection("sensitive_data_detected", firstKnown);
+  }
+  const [firstAmbiguous] = ambiguous;
+  if (firstAmbiguous === undefined) {
+    return null;
+  }
+  if (ingress === "MCP") {
+    throw rejection("sensitive_data_detected", firstAmbiguous);
+  }
+  return {
+    findings: ambiguous.map((fieldPath) => ({ fieldPath })),
+    outcome: "masked_review",
+  };
+}
+
+/**
+ * The only dikkat signals a report may open, written in the session's unit of
+ * work. A manual session opens none; Session Tests never do; a retry never
+ * reaches here because it creates no session.
+ */
+async function produceSignals(
+  transaction: TestReportTransaction,
+  caller: TestReportCaller,
+  session: TestSessionStoredRecord,
+) {
+  const base = {
+    occurredAt: session.acceptedAt,
+    ownerAccountId: caller.accountId,
+    source: {
+      handoffId: session.handoffId,
+      projectId: session.projectId,
+      sessionId: session.id,
+    },
+  };
+  if (session.ingress !== "Application") {
+    await transaction.produceSignal({
+      ...base,
+      presentation: "Action Required",
+      signalId: `unreviewed-test-report:${session.id}`,
+      signalType: "unreviewed-test-report",
+    });
+  }
+  if (session.handoffStateAtAccept === "Canceled") {
+    await transaction.produceSignal({
+      ...base,
+      presentation: "Information Feed",
+      signalId: `handoff-result-after-cancel:${session.id}`,
+      signalType: "handoff-result-after-cancel",
+    });
+  }
+}
+
+/**
  * The ingress + verified reporter + external session id boundary. The same
  * canonical content is the prior receipt; different content is a conflict and
  * never an update. The executor is not part of either.
@@ -310,75 +377,74 @@ async function priorAcceptance(
  * nothing. The reporter comes from the verified caller, never from the payload.
  * It opens no review, release gate, notification or score.
  */
+async function acceptInTransaction(
+  transaction: TestReportTransaction,
+  caller: TestReportCaller,
+  input: AcceptTestReportInput,
+) {
+  if (transaction.readOnly) {
+    throw rejection("project_not_authorized");
+  }
+  const raw = rawEnvelope(input);
+  if (input.ingress !== "File import") {
+    assertEnvelopeSize(raw);
+  }
+  const report = parseTestReport(raw, input.ingress);
+  if (input.ingress !== "MCP" && report.project_id !== input.projectId) {
+    throw rejection("reference_scope_mismatch", "project_id");
+  }
+  const review = screenForSecrets(report, input.ingress);
+  if (review) {
+    return review;
+  }
+  const tests = toStoredTests(report);
+  const prior = await priorAcceptance(transaction, caller, input, report);
+  if (prior) {
+    return prior;
+  }
+  const handoff = await requireHandoff(transaction, report);
+  await requireReferences(transaction, handoff, report);
+  const session = toStoredSession(caller, input, report, tests, handoff);
+  if (!(await transaction.insertSession(session))) {
+    // A concurrent delivery won the identity; answer from what it stored.
+    const winner = await priorAcceptance(transaction, caller, input, report);
+    if (winner) {
+      return winner;
+    }
+    throw rejection("identity_conflict", "external_session_id");
+  }
+  await produceSignals(transaction, caller, session);
+  return { outcome: "created" as const, stored: session };
+}
+
 export function createTestReportAcceptance(
   store: TestReportStore,
 ): TestReportAcceptanceAccess {
-  return {
-    async accept(caller, rawInput) {
-      const input = acceptTestReportInputSchema.parse(rawInput);
-      const accepted = await store.run(
-        caller.accountId,
-        targetProjectId(input),
-        "write",
-        async (transaction) => {
-          if (transaction.readOnly) {
-            throw rejection("project_not_authorized");
-          }
-          const raw = rawEnvelope(input);
-          if (input.ingress !== "File import") {
-            assertEnvelopeSize(raw);
-          }
-          const report = parseTestReport(raw, input.ingress);
-          if (
-            input.ingress !== "MCP" &&
-            report.project_id !== input.projectId
-          ) {
-            throw rejection("reference_scope_mismatch", "project_id");
-          }
-          const tests = toStoredTests(report);
-          const prior = await priorAcceptance(
-            transaction,
-            caller,
-            input,
-            report,
-          );
-          if (prior) {
-            return prior;
-          }
-          const handoff = await requireHandoff(transaction, report);
-          await requireReferences(transaction, handoff, report);
-          const session = toStoredSession(
-            caller,
-            input,
-            report,
-            tests,
-            handoff,
-          );
-          if (!(await transaction.insertSession(session))) {
-            // A concurrent delivery won the identity; answer from what it stored.
-            const winner = await priorAcceptance(
-              transaction,
-              caller,
-              input,
-              report,
-            );
-            if (winner) {
-              return winner;
-            }
-            throw rejection("identity_conflict", "external_session_id");
-          }
-          return { outcome: "created" as const, stored: session };
-        },
-      );
-      if (!accepted) {
-        throw rejection("project_not_authorized");
-      }
-      return {
-        outcome: accepted.outcome,
-        session: toTestSessionRecord(accepted.stored),
-      };
-    },
+  const accept = async (
+    caller: TestReportCaller,
+    rawInput: AcceptTestReportInput,
+  ) => {
+    const input = acceptTestReportInputSchema.parse(rawInput);
+    const accepted = await store.run(
+      caller.accountId,
+      targetProjectId(input),
+      "write",
+      (transaction) => acceptInTransaction(transaction, caller, input),
+    );
+    if (!accepted) {
+      throw rejection("project_not_authorized");
+    }
+    if (accepted.outcome === "masked_review") {
+      return accepted;
+    }
+    return {
+      outcome: accepted.outcome,
+      session: toTestSessionRecord(accepted.stored),
+    };
+  };
 
+  return {
+    accept: accept as TestReportAcceptanceAccess["accept"],
     async sessions(accountId, projectId) {
       const parsed = testSessionProjectInputSchema.parse({ projectId });
       const listed = await store.run(

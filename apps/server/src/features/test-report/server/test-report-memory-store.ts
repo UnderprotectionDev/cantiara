@@ -1,5 +1,10 @@
 import type {
+  AcceptTestReportInput,
+  TestReportAcceptanceAccess,
+  TestReportAttentionSignal,
+  TestReportCaller,
   TestReportHandoffRef,
+  TestReportReceipt,
   TestReportStore,
   TestSessionStoredRecord,
 } from "@cantiara/api/test-report";
@@ -40,10 +45,14 @@ export interface MemoryHarnessOptions {
 export function createMemoryHarness(options: MemoryHarnessOptions = {}) {
   let sessions = new Map<string, TestSessionStoredRecord>();
   let identities = new Map<string, string>();
+  let signals: TestReportAttentionSignal[] = [];
   const knownScenarios = new Set(options.scenarios ?? []);
   const handoffs = options.handoffs ?? [];
   const references = options.references ?? [];
-  const faults = { failAfterSessionInsert: false as boolean };
+  const faults = {
+    failAfterSessionInsert: false as boolean,
+    failOnSignal: false as boolean,
+  };
 
   const store: TestReportStore = {
     run: async (account, scopeProjectId, _mode, work) => {
@@ -56,6 +65,7 @@ export function createMemoryHarness(options: MemoryHarnessOptions = {}) {
       const snapshot = {
         identities: new Map(identities),
         sessions: new Map(sessions),
+        signals: [...signals],
       };
       try {
         return await work({
@@ -101,6 +111,13 @@ export function createMemoryHarness(options: MemoryHarnessOptions = {}) {
                 (record) => record.projectId === scopeProjectId,
               ),
             ),
+          produceSignal: (signal) => {
+            if (faults.failOnSignal) {
+              return Promise.reject(new Error("Signal sink failed."));
+            }
+            signals.push(signal);
+            return Promise.resolve();
+          },
           readOnly: scopeProjectId === archivedProjectId,
           resolveReference: (type, id, version) => {
             if (type === "planned_test_case") {
@@ -120,7 +137,7 @@ export function createMemoryHarness(options: MemoryHarnessOptions = {}) {
           },
         });
       } catch (error) {
-        ({ identities, sessions } = snapshot);
+        ({ identities, sessions, signals } = snapshot);
         throw error;
       }
     },
@@ -131,9 +148,25 @@ export function createMemoryHarness(options: MemoryHarnessOptions = {}) {
     get identities() {
       return identities;
     },
+    get signals() {
+      return signals;
+    },
     get sessions() {
       return sessions;
     },
     testReports: createTestReportAcceptance(store),
   };
+}
+
+/** Accepts and narrows to a stored receipt; a masked review is a failure in these tests. */
+export async function accepted(
+  access: TestReportAcceptanceAccess,
+  caller: TestReportCaller,
+  input: AcceptTestReportInput,
+): Promise<TestReportReceipt> {
+  const result = await access.accept(caller, input);
+  if (result.outcome === "masked_review") {
+    throw new Error("Unexpected masked review.");
+  }
+  return result;
 }

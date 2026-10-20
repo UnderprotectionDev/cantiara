@@ -13,6 +13,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { user } from "./auth";
 import { project } from "./project";
 
 /**
@@ -216,6 +217,53 @@ export const testSessionIdentity = pgTable(
       name: "project_test_session_identity_pk",
     }),
     index("project_test_session_identity_session_idx").on(table.sessionId),
+  ],
+);
+
+/**
+ * Attention signals of the Test Report Acceptance (spec 54, ticket 05), written
+ * in the same transaction as the Test Session that caused them. Only the two
+ * ids PRD 04 registers for this feature exist: `unreviewed-test-report` (one
+ * per new file or MCP session, never per Session Test, never for a manual
+ * session, never on a retry) and `handoff-result-after-cancel`. The signal id
+ * is derived from the session, so one session cannot open a type twice. The
+ * Unified Notification Center reads these rows; it is not built here.
+ */
+export const testReportAttentionSignal = pgTable(
+  "project_test_report_attention_signal",
+  {
+    closedAt: timestamp("closed_at"),
+    handoffId: text("handoff_id"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    ownerAccountId: text("owner_account_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    presentation: text("presentation").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => testSession.id, { onDelete: "cascade" }),
+    signalId: text("signal_id").primaryKey(),
+    signalType: text("signal_type").notNull(),
+  },
+  (table) => [
+    index("project_test_report_attention_signal_project_idx").on(
+      table.projectId,
+    ),
+    check(
+      "project_test_report_attention_signal_type_check",
+      sql`${table.signalType} in ('unreviewed-test-report', 'handoff-result-after-cancel')`,
+    ),
+    check(
+      "project_test_report_attention_signal_id_check",
+      sql`${table.signalId} = ${table.signalType} || ':' || ${table.sessionId}`,
+    ),
+    check(
+      "project_test_report_attention_signal_presentation_check",
+      sql`(${table.signalType} = 'unreviewed-test-report' and ${table.presentation} = 'Action Required') or (${table.signalType} = 'handoff-result-after-cancel' and ${table.presentation} = 'Information Feed')`,
+    ),
   ],
 );
 

@@ -75,3 +75,18 @@ export function reportFormatOf(fileName: string): "json" | "markdown" | null {
   }
   return MARKDOWN_FILE.test(fileName) ? "markdown" : null;
 }
+
+/**
+ * A masked review stored nothing: the message names only field paths, never
+ * content, and asks for the sensitive value to be removed at its source.
+ */
+export function maskedReviewMessage(result: {
+  findings?: { fieldPath: string }[];
+  outcome: string;
+}) {
+  if (result.outcome !== "masked_review") {
+    return null;
+  }
+  const paths = (result.findings ?? []).map(({ fieldPath }) => fieldPath);
+  return `Nothing was saved. Possible sensitive data in: ${paths.join(", ")}. Remove it from the source and send the report again.`;
+}
