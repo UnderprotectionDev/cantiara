@@ -5,6 +5,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -99,6 +100,8 @@ export const projectWallItem = pgTable(
     wallId: text("wall_id")
       .notNull()
       .references(() => projectWall.id, { onDelete: "cascade" }),
+    // Wall view state: Outline order and z-order (higher is on top).
+    zOrder: integer("z_order").default(0).notNull(),
   },
   (table) => [
     // The same record may sit on many walls, but only once on one wall.
@@ -189,5 +192,36 @@ export const projectWallFocusStep = pgTable(
       "project_wall_focus_step_position_check",
       sql`${table.position} >= 0`,
     ),
+  ],
+);
+
+/**
+ * The account's personal viewport of one Project Wall (center, zoom and
+ * view-local group collapse). It is deliberately not part of the wall, a card,
+ * a relation, a share snapshot or an export, and it is keyed by account so it
+ * is never another user's view. Selection, inspector, edit mode and unsaved
+ * operations have no field.
+ */
+export interface ProjectWallViewportState {
+  center: { x: number; y: number };
+  collapsed: string[];
+  zoom: number;
+}
+
+export const projectWallViewport = pgTable(
+  "project_wall_viewport",
+  {
+    accountId: text("account_id").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    viewport: jsonb("viewport").$type<ProjectWallViewportState>().notNull(),
+    wallId: text("wall_id")
+      .notNull()
+      .references(() => projectWall.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.accountId, table.wallId],
+      name: "project_wall_viewport_pk",
+    }),
   ],
 );

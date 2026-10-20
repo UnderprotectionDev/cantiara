@@ -15,6 +15,7 @@ import type {
   ProjectWallSnapshotData,
   ProjectWallSnapshotRenderer,
 } from "@cantiara/api/project-wall-presentation";
+import type { ProjectWallViewport } from "@cantiara/api/project-wall-viewport";
 import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 
@@ -56,6 +57,7 @@ export function createFakeProjectWallStore(input: {
     ]),
   );
   const walls = new Map<string, ProjectWallRecord>();
+  const viewports = new Map<string, ProjectWallViewport>();
   let clock = 0;
   const tick = () => {
     clock += 1;
@@ -367,6 +369,27 @@ export function createFakeProjectWallStore(input: {
       }
       card.density = change.density;
       return true;
+    },
+
+    async setCardOrder(accountId, change) {
+      const wall = ownedWall(accountId, change.projectId, change.wallId);
+      if (!wall) {
+        return false;
+      }
+      const byId = new Map(wall.items.map((card) => [card.id, card]));
+      wall.items = change.cardIds.flatMap((id) => {
+        const card = byId.get(id);
+        return card ? [card] : [];
+      });
+      return true;
+    },
+
+    async findViewport(accountId, wallId) {
+      return structuredClone(viewports.get(`${accountId}:${wallId}`) ?? null);
+    },
+
+    async saveViewport(accountId, wallId, viewport) {
+      viewports.set(`${accountId}:${wallId}`, structuredClone(viewport));
     },
 
     async setFocusOrder(accountId, change) {
