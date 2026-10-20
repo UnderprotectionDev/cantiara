@@ -56,6 +56,7 @@ import {
   PRIORITY_MAP_HASH,
   projectSourceRecordFromHash,
   ROADMAP_HASH,
+  SPEC_CHANGE_REVIEW_HASH,
   workRecordHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
@@ -110,6 +111,9 @@ const ProjectTechnicalDiagramsSurface = lazy(
 const UserFlowSurface = lazy(
   () => import("@/features/user-flow/ui/user-flow-surface"),
 );
+const SpecChangeReviewSurface = lazy(
+  () => import("@/features/spec-change-review/ui/spec-change-review-surface"),
+);
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),
 );
@@ -153,6 +157,16 @@ function liveSourceRouteForHash(activeHash: string, projectId: string) {
         <ProjectSmartCollectionsSurface
           projectId={projectId}
           selectedViewId={selectedViewId}
+        />
+      </Suspense>
+    );
+  }
+  if (activeHash === SPEC_CHANGE_REVIEW_HASH) {
+    return (
+      <Suspense fallback={<p>Loading Spec Change Review…</p>}>
+        <SpecChangeReviewSurface
+          key={`spec-change-review:${projectId}`}
+          projectId={projectId}
         />
       </Suspense>
     );

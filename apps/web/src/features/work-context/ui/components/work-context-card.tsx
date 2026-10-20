@@ -31,6 +31,7 @@ import {
 } from "react";
 import { useCommandPalette } from "@/features/command-palette/ui/components/command-palette";
 import {
+  SPEC_CHANGE_REVIEW_HASH,
   workRecordHash,
   workRecordHref,
   workRelationsHash,
@@ -216,6 +217,9 @@ export default function WorkContextCard({
           </h4>
         </div>
         <div className="flex flex-wrap items-end justify-end gap-2">
+          {work.type === "Feature" && work.primarySpecId ? (
+            <SpecChangeReviewLink />
+          ) : null}
           <Button
             data-command-id={copyCommand.id}
             disabled={
@@ -493,6 +497,19 @@ function CustomSection({
         <EmptyContextState work={work} />
       ) : null}
     </section>
+  );
+}
+
+/** Opens the Project's `Spec Change Review` queue of this Feature's Primary spec. */
+function SpecChangeReviewLink() {
+  const navigate = useNavigate();
+  const open = useCallback(() => {
+    navigate({ hash: SPEC_CHANGE_REVIEW_HASH, to: "." }).catch(() => undefined);
+  }, [navigate]);
+  return (
+    <Button onClick={open} size="xs" type="button" variant="outline">
+      Spec Change Review
+    </Button>
   );
 }
 

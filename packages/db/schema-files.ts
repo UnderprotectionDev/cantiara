@@ -18,6 +18,7 @@ export const primarySchemaFiles = [
   "./src/schema/decision.ts",
   "./src/schema/risk.ts",
   "./src/schema/screen.ts",
+  "./src/schema/spec-change-review.ts",
   "./src/schema/assumption.ts",
   "./src/schema/validation-record.ts",
   "./src/schema/research-session.ts",

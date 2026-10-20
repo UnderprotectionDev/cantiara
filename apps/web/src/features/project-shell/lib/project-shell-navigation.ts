@@ -201,6 +201,9 @@ export function workRecordHref(projectId: string, workId: string) {
   return `/projects/${encodeURIComponent(projectId)}#${workRecordHash(workId)}`;
 }
 
+/** The project-shell hash of the `Spec Change Review` queue. */
+export const SPEC_CHANGE_REVIEW_HASH = "spec-change-reviews";
+
 export function workRelationsHash(workId: string) {
   return `${WORK_RELATIONS_HASH_PREFIX}${encodeURIComponent(workId)}`;
 }
