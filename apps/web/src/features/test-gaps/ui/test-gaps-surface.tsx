@@ -13,19 +13,33 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const options = orpc.projectTestGaps.queryOptions({ input: { projectId } });
   const gaps = useQuery(options);
+  const cases = useQuery(
+    orpc.projectPlannedTestCases.queryOptions({ input: { projectId } }),
+  );
+  const handoffs = useQuery(
+    orpc.projectTestHandoffs.queryOptions({ input: { projectId } }),
+  );
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: options.queryKey });
   const loadTargets = useCallback(
     (targetType: TestGapRelationTargetType) =>
       client.testGapRelationTargets({ projectId, targetType }),
     [projectId],
   );
-  if (gaps.isPending) {
+  if (gaps.isPending || cases.isPending || handoffs.isPending) {
     return <p role="status">Loading Test Gaps…</p>;
   }
-  if (!gaps.data) {
+  if (!(gaps.data && cases.data && handoffs.data)) {
     return (
       <div className="space-y-3">
         <p role="alert">Test Gaps are unavailable.</p>
-        <Button onClick={() => gaps.refetch().catch(() => undefined)}>
+        <Button
+          onClick={() => {
+            gaps.refetch().catch(() => undefined);
+            cases.refetch().catch(() => undefined);
+            handoffs.refetch().catch(() => undefined);
+          }}
+        >
           Retry
         </Button>
       </div>
@@ -33,7 +47,9 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
   }
   return (
     <TestGapsView
+      cases={cases.data.cases}
       gaps={gaps.data.gaps}
+      handoffs={handoffs.data.handoffs}
       loadTargets={loadTargets}
       onCreate={async (values) => {
         await runOnlineOnlyWrite(() =>
@@ -44,7 +60,47 @@ export default function TestGapsSurface({ projectId }: { projectId: string }) {
             title: values.title,
           }),
         );
-        await queryClient.invalidateQueries({ queryKey: options.queryKey });
+        await refresh();
+      }}
+      onPlanCase={async (gap, ref) => {
+        try {
+          await runOnlineOnlyWrite(() =>
+            client.bindTestGapCase({ ...ref, gapId: gap.id, projectId }),
+          );
+        } finally {
+          await refresh();
+        }
+      }}
+      onPlanHandoff={async (gap, handoffId) => {
+        try {
+          await runOnlineOnlyWrite(() =>
+            client.bindTestGapHandoff({ gapId: gap.id, handoffId, projectId }),
+          );
+        } finally {
+          await refresh();
+        }
+      }}
+      onUnplanCase={async (gap, ref) => {
+        try {
+          await runOnlineOnlyWrite(() =>
+            client.unbindTestGapCase({ ...ref, gapId: gap.id, projectId }),
+          );
+        } finally {
+          await refresh();
+        }
+      }}
+      onUnplanHandoff={async (gap, handoffId) => {
+        try {
+          await runOnlineOnlyWrite(() =>
+            client.unbindTestGapHandoff({
+              gapId: gap.id,
+              handoffId,
+              projectId,
+            }),
+          );
+        } finally {
+          await refresh();
+        }
       }}
       readOnly={gaps.data.readOnly}
     />

@@ -1349,6 +1349,11 @@ Kullanıcının henüz denenmediğini veya yetersiz doğrulandığını düşün
 UI: `Test Gap`.
 _Avoid_: Bug, başarısız test sonucu, otomatik coverage açığı
 
+**Test Açığı durumu**:
+Bir Test Açığının yalnız kurucunun ilerlettiği aşaması: `Open`, `Planned`, `Met by result` veya `Not needed`. Planlı Test Senaryosu sürümüne ya da Test Handoff'una bağlanmak açığı en fazla `Planned` yapar; yeni Oturum Testi sonucu, rapor ilişkisi veya başarısızlık durumu değiştirmez. `Met by result` ve `Not needed` kurucunun açık kapanışıdır, kaydı silmez.
+UI: `Open`, `Planned`, `Met by result`, `Not needed`.
+_Avoid_: coverage yüzdesi, kalite skoru, otomatik kapanış, Geçti/Kaldı durumu
+
 **Test değerlendirmesi**:
 Kullanıcının belirli bir bağlamdaki kesin test kayıtlarını belirli bir anda nasıl yorumladığını koruyan tarihsel snapshot; sonraki sonuçlarla güncellenen kalite skoru veya yayın kapısı değildir.
 _Avoid_: Ürün kabul kanıtı, canlı test özeti, otomatik readiness kararı

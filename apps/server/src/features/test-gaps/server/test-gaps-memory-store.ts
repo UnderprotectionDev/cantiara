@@ -123,6 +123,18 @@ export function createGapHarness(
     };
   }
 
+  /** Handoff state is read live, as the PostgreSQL store joins it. */
+  function withLiveBinds(record: TestGapStoredRecord): TestGapStoredRecord {
+    return {
+      ...record,
+      handoffBinds: record.handoffBinds.map((bind) => ({
+        ...bind,
+        handoffState:
+          planned.handoffs.get(bind.handoffId)?.state ?? bind.handoffState,
+      })),
+    };
+  }
+
   const store: TestGapStore = {
     run: async (account, scopeProjectId, _mode, work) => {
       const owned =
@@ -131,19 +143,133 @@ export function createGapHarness(
       if (!owned) {
         return null;
       }
+      const sameBind = (
+        left: { caseId: string; version: number },
+        right: { caseId: string; version: number },
+      ) => left.caseId === right.caseId && left.version === right.version;
+      const patch = (gapId: string, change: Partial<TestGapStoredRecord>) => {
+        const found = gaps.get(gapId);
+        if (found) {
+          gaps.set(gapId, { ...found, ...change });
+        }
+      };
       return await work({
+        addCaseBind: (gapId, ref) => {
+          const found = gaps.get(gapId);
+          const scenario = planned.cases.get(ref.caseId);
+          const version = scenario?.versions.find(
+            (item) => item.version === ref.version,
+          );
+          if (
+            !(found && version) ||
+            found.caseBinds.some((bind) => sameBind(bind, ref))
+          ) {
+            return Promise.resolve(false);
+          }
+          patch(gapId, {
+            caseBinds: [
+              ...found.caseBinds,
+              {
+                caseId: ref.caseId,
+                title: version.title,
+                version: ref.version,
+              },
+            ],
+          });
+          return Promise.resolve(true);
+        },
+        addHandoffBind: (gapId, handoffId) => {
+          const found = gaps.get(gapId);
+          const handoff = planned.handoffs.get(handoffId);
+          if (
+            !(found && handoff) ||
+            found.handoffBinds.some((bind) => bind.handoffId === handoffId)
+          ) {
+            return Promise.resolve(false);
+          }
+          patch(gapId, {
+            handoffBinds: [
+              ...found.handoffBinds,
+              { handoffId, handoffState: handoff.state, title: handoff.title },
+            ],
+          });
+          return Promise.resolve(true);
+        },
+        findCaseVersion: (ref) => {
+          const found = planned.cases.get(ref.caseId);
+          const version = found?.versions.find(
+            (item) => item.version === ref.version,
+          );
+          return Promise.resolve(
+            found?.projectId === scopeProjectId && version
+              ? { title: version.title }
+              : null,
+          );
+        },
+        findGap: (gapId) => {
+          const found = gaps.get(gapId);
+          return Promise.resolve(
+            found && found.projectId === scopeProjectId
+              ? withLiveBinds(found)
+              : null,
+          );
+        },
+        findHandoff: (handoffId) => {
+          const found = planned.handoffs.get(handoffId);
+          return Promise.resolve(
+            found && found.projectId === scopeProjectId
+              ? { handoffState: found.state, title: found.title }
+              : null,
+          );
+        },
         insertGap: (record) => {
           gaps.set(record.id, record);
           return Promise.resolve();
         },
         listGaps: () =>
           Promise.resolve(
-            [...gaps.values()].filter(
-              (record) => record.projectId === scopeProjectId,
-            ),
+            [...gaps.values()]
+              .filter((record) => record.projectId === scopeProjectId)
+              .map(withLiveBinds),
           ),
         readOnly: scopeProjectId === archivedProjectId,
+        removeCaseBind: (gapId, ref) => {
+          const found = gaps.get(gapId);
+          if (!found?.caseBinds.some((bind) => sameBind(bind, ref))) {
+            return Promise.resolve(false);
+          }
+          patch(gapId, {
+            caseBinds: found.caseBinds.filter((bind) => !sameBind(bind, ref)),
+          });
+          return Promise.resolve(true);
+        },
+        removeHandoffBind: (gapId, handoffId) => {
+          const found = gaps.get(gapId);
+          if (
+            !found?.handoffBinds.some((bind) => bind.handoffId === handoffId)
+          ) {
+            return Promise.resolve(false);
+          }
+          patch(gapId, {
+            handoffBinds: found.handoffBinds.filter(
+              (bind) => bind.handoffId !== handoffId,
+            ),
+          });
+          return Promise.resolve(true);
+        },
         resolver: resolverFor(scopeProjectId),
+        setGapState: (gapId, expected, to, changedAt) => {
+          const found = gaps.get(gapId);
+          if (!found || found.state !== expected) {
+            return Promise.resolve(false);
+          }
+          patch(gapId, {
+            state: to,
+            stateChangedAt: changedAt,
+            updatedAt: changedAt,
+          });
+          return Promise.resolve(true);
+        },
       });
     },
   };

@@ -4,6 +4,7 @@ import type {
   TestGapRelationInput,
   TestGapRelationTarget,
   TestGapRelationTargetType,
+  TestGapState,
   TestGapStore,
   TestGapStoredRecord,
   TestGapStoredRelation,
@@ -11,8 +12,18 @@ import type {
   TestGapTargetResolver,
 } from "@cantiara/api/test-gaps";
 import type { Database } from "@cantiara/db";
+import {
+  plannedTestCase,
+  plannedTestCaseVersion,
+  testHandoff,
+} from "@cantiara/db/schema/planned-test";
 import { projectRelease } from "@cantiara/db/schema/project-release";
-import { testGap, testGapRelation } from "@cantiara/db/schema/test-gap";
+import {
+  testGap,
+  testGapCaseBind,
+  testGapHandoffBind,
+  testGapRelation,
+} from "@cantiara/db/schema/test-gap";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
   type FeedbackExecutor,
@@ -116,8 +127,50 @@ async function toStoredGaps(
       ),
     )
     .orderBy(asc(testGapRelation.position));
+  const gapIds = rows.map(({ id }) => id);
+  const caseBindRows = await executor
+    .select({
+      caseId: testGapCaseBind.caseId,
+      gapId: testGapCaseBind.gapId,
+      title: plannedTestCaseVersion.title,
+      version: testGapCaseBind.version,
+    })
+    .from(testGapCaseBind)
+    .innerJoin(
+      plannedTestCaseVersion,
+      and(
+        eq(plannedTestCaseVersion.caseId, testGapCaseBind.caseId),
+        eq(plannedTestCaseVersion.version, testGapCaseBind.version),
+      ),
+    )
+    .where(inArray(testGapCaseBind.gapId, gapIds))
+    .orderBy(asc(testGapCaseBind.createdAt), asc(testGapCaseBind.caseId));
+  const handoffBindRows = await executor
+    .select({
+      gapId: testGapHandoffBind.gapId,
+      handoffId: testGapHandoffBind.handoffId,
+      handoffState: testHandoff.state,
+      title: testHandoff.title,
+    })
+    .from(testGapHandoffBind)
+    .innerJoin(testHandoff, eq(testHandoff.id, testGapHandoffBind.handoffId))
+    .where(inArray(testGapHandoffBind.gapId, gapIds))
+    .orderBy(
+      asc(testGapHandoffBind.createdAt),
+      asc(testGapHandoffBind.handoffId),
+    );
   return rows.map((row) => ({
+    caseBinds: caseBindRows
+      .filter((bind) => bind.gapId === row.id)
+      .map(({ caseId, title, version }) => ({ caseId, title, version })),
     createdAt: row.createdAt.toISOString(),
+    handoffBinds: handoffBindRows
+      .filter((bind) => bind.gapId === row.id)
+      .map(({ handoffId, handoffState, title }) => ({
+        handoffId,
+        handoffState,
+        title,
+      })),
     id: row.id,
     projectId: row.projectId,
     rationale: row.rationale,
@@ -130,6 +183,8 @@ async function toStoredGaps(
         targetId: relation.targetId,
         targetType: relation.targetType as TestGapRelationTargetType,
       })),
+    state: row.state as TestGapState,
+    stateChangedAt: row.stateChangedAt.toISOString(),
     title: row.title,
     updatedAt: row.updatedAt.toISOString(),
   }));
@@ -148,12 +203,74 @@ export function createDatabaseTestGapStore(database: Database): TestGapStore {
             return null;
           }
           return await unitOfWork({
+            addCaseBind: async (gapId, ref) => {
+              const inserted = await executor
+                .insert(testGapCaseBind)
+                .values({ caseId: ref.caseId, gapId, version: ref.version })
+                .onConflictDoNothing()
+                .returning({ gapId: testGapCaseBind.gapId });
+              return inserted.length === 1;
+            },
+            addHandoffBind: async (gapId, handoffId) => {
+              const inserted = await executor
+                .insert(testGapHandoffBind)
+                .values({ gapId, handoffId })
+                .onConflictDoNothing()
+                .returning({ gapId: testGapHandoffBind.gapId });
+              return inserted.length === 1;
+            },
+            findCaseVersion: async (ref) => {
+              const [row] = await executor
+                .select({ title: plannedTestCaseVersion.title })
+                .from(plannedTestCaseVersion)
+                .innerJoin(
+                  plannedTestCase,
+                  eq(plannedTestCase.id, plannedTestCaseVersion.caseId),
+                )
+                .where(
+                  and(
+                    eq(plannedTestCaseVersion.caseId, ref.caseId),
+                    eq(plannedTestCaseVersion.version, ref.version),
+                    eq(plannedTestCase.projectId, owned.id),
+                  ),
+                );
+              return row ?? null;
+            },
+            findGap: async (gapId, lock) => {
+              const query = executor
+                .select()
+                .from(testGap)
+                .where(
+                  and(eq(testGap.id, gapId), eq(testGap.projectId, owned.id)),
+                );
+              const [row] = await (lock ? query.for("update") : query);
+              return row
+                ? ((await toStoredGaps(executor, [row]))[0] ?? null)
+                : null;
+            },
+            findHandoff: async (handoffId) => {
+              const [row] = await executor
+                .select({
+                  handoffState: testHandoff.state,
+                  title: testHandoff.title,
+                })
+                .from(testHandoff)
+                .where(
+                  and(
+                    eq(testHandoff.id, handoffId),
+                    eq(testHandoff.projectId, owned.id),
+                  ),
+                );
+              return row ?? null;
+            },
             insertGap: async (record) => {
               await executor.insert(testGap).values({
                 createdAt: new Date(record.createdAt),
                 id: record.id,
                 projectId: owned.id,
                 rationale: record.rationale,
+                state: record.state,
+                stateChangedAt: new Date(record.stateChangedAt),
                 title: record.title,
                 updatedAt: new Date(record.updatedAt),
               });
@@ -179,7 +296,51 @@ export function createDatabaseTestGapStore(database: Database): TestGapStore {
                   .orderBy(desc(testGap.createdAt), asc(testGap.id)),
               ),
             readOnly: owned.archivedAt !== null,
+            removeCaseBind: async (gapId, ref) => {
+              const removed = await executor
+                .delete(testGapCaseBind)
+                .where(
+                  and(
+                    eq(testGapCaseBind.gapId, gapId),
+                    eq(testGapCaseBind.caseId, ref.caseId),
+                    eq(testGapCaseBind.version, ref.version),
+                  ),
+                )
+                .returning({ gapId: testGapCaseBind.gapId });
+              return removed.length === 1;
+            },
+            removeHandoffBind: async (gapId, handoffId) => {
+              const removed = await executor
+                .delete(testGapHandoffBind)
+                .where(
+                  and(
+                    eq(testGapHandoffBind.gapId, gapId),
+                    eq(testGapHandoffBind.handoffId, handoffId),
+                  ),
+                )
+                .returning({ gapId: testGapHandoffBind.gapId });
+              return removed.length === 1;
+            },
             resolver: createGapResolver(executor, owned.id),
+            // The state moves only while it is still the one the caller saw.
+            setGapState: async (gapId, expected, to, changedAt) => {
+              const updated = await executor
+                .update(testGap)
+                .set({
+                  state: to,
+                  stateChangedAt: new Date(changedAt),
+                  updatedAt: new Date(changedAt),
+                })
+                .where(
+                  and(
+                    eq(testGap.id, gapId),
+                    eq(testGap.projectId, owned.id),
+                    eq(testGap.state, expected),
+                  ),
+                )
+                .returning({ id: testGap.id });
+              return updated.length === 1;
+            },
           });
         },
         mode === "read"

@@ -105,6 +105,75 @@ export type TestGapRelationTargetsInput = z.input<
   typeof testGapRelationTargetsInputSchema
 >;
 
+/**
+ * Test Gap states (spec 55). `Open` and `Planned` are reached by planning:
+ * binding a Planned Test Case version or a Test Handoff lifts a Gap to at most
+ * `Planned`. `Met by result` and `Not needed` are the founder's explicit
+ * closure, never reached by a bind, a new Session Test or an incoming report.
+ */
+export const TEST_GAP_STATES = [
+  "Open",
+  "Planned",
+  "Met by result",
+  "Not needed",
+] as const;
+export const testGapStateSchema = z.enum(TEST_GAP_STATES);
+export type TestGapState = z.infer<typeof testGapStateSchema>;
+
+/** The states planning can reach. A bind never goes past `Planned`. */
+export const TEST_GAP_PLANNING_STATES: readonly TestGapState[] = [
+  "Open",
+  "Planned",
+];
+
+/** A bind lifts `Open` to `Planned` and leaves every other state alone. */
+export function stateAfterBind(state: TestGapState): TestGapState {
+  return state === "Open" ? "Planned" : state;
+}
+
+/** Removing the last bind of a `Planned` Gap returns it to `Open`. */
+export function stateAfterUnbind(
+  state: TestGapState,
+  remainingBinds: number,
+): TestGapState {
+  return state === "Planned" && remainingBinds === 0 ? "Open" : state;
+}
+
+/** Exact Planned Test Case version a Gap is planned against. Never "latest". */
+export const testGapCaseBindInputSchema = z
+  .object({
+    caseId: identifierSchema,
+    gapId: identifierSchema,
+    projectId: identifierSchema,
+    version: z.number().int().min(1).safe(),
+  })
+  .strict();
+export type TestGapCaseBindInput = z.input<typeof testGapCaseBindInputSchema>;
+
+export const testGapHandoffBindInputSchema = z
+  .object({
+    gapId: identifierSchema,
+    handoffId: identifierSchema,
+    projectId: identifierSchema,
+  })
+  .strict();
+export type TestGapHandoffBindInput = z.input<
+  typeof testGapHandoffBindInputSchema
+>;
+
+export interface TestGapStoredCaseBind {
+  caseId: string;
+  title: string;
+  version: number;
+}
+
+export interface TestGapStoredHandoffBind {
+  handoffId: string;
+  /** The Handoff process state, shown as is: it never moves the Gap. */
+  handoffState: string;
+  title: string;
+}
+
 export interface TestGapStoredRelation {
   documentRevision: number | null;
   id: string;
@@ -114,11 +183,15 @@ export interface TestGapStoredRelation {
 }
 
 export interface TestGapStoredRecord {
+  caseBinds: TestGapStoredCaseBind[];
   createdAt: string;
+  handoffBinds: TestGapStoredHandoffBind[];
   id: string;
   projectId: string;
   rationale: string;
   relations: TestGapStoredRelation[];
+  state: TestGapState;
+  stateChangedAt: string;
   title: string;
   updatedAt: string;
 }
@@ -150,11 +223,15 @@ export const testGapRelationViewSchema = z
   .strict();
 
 export interface TestGapRecord {
+  caseBinds: TestGapStoredCaseBind[];
   createdAt: string;
+  handoffBinds: TestGapStoredHandoffBind[];
   id: string;
   projectId: string;
   rationale: string;
   relations: TestGapRelationView[];
+  state: TestGapState;
+  stateChangedAt: string;
   title: string;
   updatedAt: string;
 }
@@ -195,13 +272,47 @@ export interface TestGapTargetResolver {
   read: (relation: TestGapStoredRelation) => Promise<TestGapTargetLive>;
 }
 
+export interface TestGapCaseRef {
+  caseId: string;
+  version: number;
+}
+
 /** One Project-scoped unit of work. */
 export interface TestGapTransaction {
+  /** Resolves `false` when the bind already exists. */
+  addCaseBind: (gapId: string, ref: TestGapCaseRef) => Promise<boolean>;
+  /** Resolves `false` when the bind already exists. */
+  addHandoffBind: (gapId: string, handoffId: string) => Promise<boolean>;
+  /** The exact Planned Test Case version row, or `null` when it is not in this Project. */
+  findCaseVersion: (ref: TestGapCaseRef) => Promise<{ title: string } | null>;
+  /** When `lock` is true the Gap row is held until the unit of work ends. */
+  findGap: (
+    gapId: string,
+    lock: boolean,
+  ) => Promise<TestGapStoredRecord | null>;
+  /** The Handoff of this Project, or `null`. */
+  findHandoff: (
+    handoffId: string,
+  ) => Promise<{ handoffState: string; title: string } | null>;
   insertGap: (record: TestGapStoredRecord) => Promise<void>;
   listGaps: () => Promise<TestGapStoredRecord[]>;
   /** True for an archived Project, which stays readable but takes no writes. */
   readOnly: boolean;
+  /** Resolves `false` when there was no such bind. */
+  removeCaseBind: (gapId: string, ref: TestGapCaseRef) => Promise<boolean>;
+  /** Resolves `false` when there was no such bind. */
+  removeHandoffBind: (gapId: string, handoffId: string) => Promise<boolean>;
   resolver: TestGapTargetResolver;
+  /**
+   * Moves the Gap only while it is still in `expected`. Resolves `false`
+   * otherwise, so a concurrent move is refused rather than overwritten.
+   */
+  setGapState: (
+    gapId: string,
+    expected: TestGapState,
+    to: TestGapState,
+    changedAt: string,
+  ) => Promise<boolean>;
 }
 
 export interface TestGapStore {
@@ -215,6 +326,16 @@ export interface TestGapStore {
 }
 
 export interface TestGapsAccess {
+  /** Plans a Gap against one exact Planned Test Case version: at most `Planned`. */
+  bindCase: (
+    accountId: string,
+    input: TestGapCaseBindInput,
+  ) => Promise<TestGapRecord>;
+  /** Plans a Gap against a Test Handoff: at most `Planned`. */
+  bindHandoff: (
+    accountId: string,
+    input: TestGapHandoffBindInput,
+  ) => Promise<TestGapRecord>;
   /** Files a Test Gap by hand. The only way a Gap comes to exist. */
   create: (
     accountId: string,
@@ -226,6 +347,14 @@ export interface TestGapsAccess {
     accountId: string,
     input: TestGapRelationTargetsInput,
   ) => Promise<TestGapRelationTarget[]>;
+  unbindCase: (
+    accountId: string,
+    input: TestGapCaseBindInput,
+  ) => Promise<TestGapRecord>;
+  unbindHandoff: (
+    accountId: string,
+    input: TestGapHandoffBindInput,
+  ) => Promise<TestGapRecord>;
 }
 
 export function testGapRelationKey(

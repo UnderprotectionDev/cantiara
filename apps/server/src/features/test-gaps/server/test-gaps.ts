@@ -1,6 +1,8 @@
 import {
   createTestGapInputSchema,
   duplicateTestGapRelation,
+  stateAfterBind,
+  stateAfterUnbind,
   type TestGapRecord,
   type TestGapRelationInput,
   type TestGapStore,
@@ -8,6 +10,9 @@ import {
   type TestGapStoredRelation,
   type TestGapsAccess,
   type TestGapTargetResolver,
+  type TestGapTransaction,
+  testGapCaseBindInputSchema,
+  testGapHandoffBindInputSchema,
   testGapProjectInputSchema,
   testGapRelationTargetsInputSchema,
 } from "@cantiara/api/test-gaps";
@@ -42,6 +47,44 @@ export class TestGapRelationTargetError extends Error {
   }
 }
 
+export class TestGapNotFoundError extends Error {
+  readonly code = "TEST_GAP_NOT_FOUND" as const;
+
+  constructor(gapId: string) {
+    super(`Test Gap ${gapId} was not found.`);
+    this.name = "TestGapNotFoundError";
+  }
+}
+
+/** The bind names no exact Planned Test Case version of this Project. */
+export class TestGapCaseVersionNotFoundError extends Error {
+  readonly code = "TEST_GAP_CASE_VERSION_NOT_FOUND" as const;
+
+  constructor(caseId: string, version: number) {
+    super(`Planned Test Case ${caseId} has no version ${version}.`);
+    this.name = "TestGapCaseVersionNotFoundError";
+  }
+}
+
+export class TestGapHandoffNotFoundError extends Error {
+  readonly code = "TEST_GAP_HANDOFF_NOT_FOUND" as const;
+
+  constructor(handoffId: string) {
+    super(`Test Handoff ${handoffId} was not found.`);
+    this.name = "TestGapHandoffNotFoundError";
+  }
+}
+
+/** The Gap moved while the founder acted on the state they saw. */
+export class TestGapStateConflictError extends Error {
+  readonly code = "TEST_GAP_STATE_CONFLICT" as const;
+
+  constructor(gapId: string) {
+    super(`Test Gap ${gapId} changed since it was loaded.`);
+    this.name = "TestGapStateConflictError";
+  }
+}
+
 async function toGapRecord(
   resolver: TestGapTargetResolver,
   stored: TestGapStoredRecord,
@@ -63,14 +106,88 @@ async function toGapRecord(
     }),
   );
   return {
+    caseBinds: stored.caseBinds,
     createdAt: stored.createdAt,
+    handoffBinds: stored.handoffBinds,
     id: stored.id,
     projectId: stored.projectId,
     rationale: stored.rationale,
     relations,
+    state: stored.state,
+    stateChangedAt: stored.stateChangedAt,
     title: stored.title,
     updatedAt: stored.updatedAt,
   };
+}
+
+async function requireGap(
+  transaction: TestGapTransaction,
+  gapId: string,
+  lock: boolean,
+) {
+  const stored = await transaction.findGap(gapId, lock);
+  if (!stored) {
+    throw new TestGapNotFoundError(gapId);
+  }
+  return stored;
+}
+
+/**
+ * Applies a planning change to a Gap and settles its state. A bind lifts
+ * `Open` to `Planned` and nothing else; removing the last bind of a `Planned`
+ * Gap returns it to `Open`. A closed Gap keeps its state and its closure.
+ */
+async function planGap(
+  store: TestGapStore,
+  accountId: string,
+  projectId: string,
+  gapId: string,
+  change: (
+    transaction: TestGapTransaction,
+    gap: TestGapStoredRecord,
+  ) => Promise<"bound" | "unbound" | "unchanged">,
+) {
+  const planned = await store.run(
+    accountId,
+    projectId,
+    "write",
+    async (transaction) => {
+      if (transaction.readOnly) {
+        throw new TestGapProjectReadOnlyError(projectId);
+      }
+      const before = await requireGap(transaction, gapId, true);
+      const outcome = await change(transaction, before);
+      if (outcome === "unchanged") {
+        return await toGapRecord(transaction.resolver, before);
+      }
+      const after = await requireGap(transaction, gapId, true);
+      const next =
+        outcome === "bound"
+          ? stateAfterBind(after.state)
+          : stateAfterUnbind(
+              after.state,
+              after.caseBinds.length + after.handoffBinds.length,
+            );
+      if (next === after.state) {
+        return await toGapRecord(transaction.resolver, after);
+      }
+      const changedAt = new Date().toISOString();
+      if (
+        !(await transaction.setGapState(gapId, after.state, next, changedAt))
+      ) {
+        throw new TestGapStateConflictError(gapId);
+      }
+      return await toGapRecord(transaction.resolver, {
+        ...after,
+        state: next,
+        stateChangedAt: changedAt,
+      });
+    },
+  );
+  if (!planned) {
+    throw new TestGapProjectNotFoundError(projectId);
+  }
+  return planned;
 }
 
 /** Every relation must resolve live: a title or placeholder id is never saved. */
@@ -108,6 +225,80 @@ async function bindRelations(
  */
 export function createTestGaps(store: TestGapStore): TestGapsAccess {
   return {
+    async bindCase(accountId, rawInput) {
+      const input = testGapCaseBindInputSchema.parse(rawInput);
+      return await planGap(
+        store,
+        accountId,
+        input.projectId,
+        input.gapId,
+        async (transaction) => {
+          const ref = { caseId: input.caseId, version: input.version };
+          if (!(await transaction.findCaseVersion(ref))) {
+            throw new TestGapCaseVersionNotFoundError(
+              input.caseId,
+              input.version,
+            );
+          }
+          return (await transaction.addCaseBind(input.gapId, ref))
+            ? "bound"
+            : "unchanged";
+        },
+      );
+    },
+
+    async bindHandoff(accountId, rawInput) {
+      const input = testGapHandoffBindInputSchema.parse(rawInput);
+      return await planGap(
+        store,
+        accountId,
+        input.projectId,
+        input.gapId,
+        async (transaction) => {
+          if (!(await transaction.findHandoff(input.handoffId))) {
+            throw new TestGapHandoffNotFoundError(input.handoffId);
+          }
+          return (await transaction.addHandoffBind(
+            input.gapId,
+            input.handoffId,
+          ))
+            ? "bound"
+            : "unchanged";
+        },
+      );
+    },
+
+    async unbindCase(accountId, rawInput) {
+      const input = testGapCaseBindInputSchema.parse(rawInput);
+      return await planGap(
+        store,
+        accountId,
+        input.projectId,
+        input.gapId,
+        async (transaction) =>
+          (await transaction.removeCaseBind(input.gapId, {
+            caseId: input.caseId,
+            version: input.version,
+          }))
+            ? "unbound"
+            : "unchanged",
+      );
+    },
+
+    async unbindHandoff(accountId, rawInput) {
+      const input = testGapHandoffBindInputSchema.parse(rawInput);
+      return await planGap(
+        store,
+        accountId,
+        input.projectId,
+        input.gapId,
+        async (transaction) =>
+          (await transaction.removeHandoffBind(input.gapId, input.handoffId))
+            ? "unbound"
+            : "unchanged",
+      );
+    },
+
     async create(accountId, rawInput) {
       const input = createTestGapInputSchema.parse(rawInput);
       const created = await store.run(
@@ -120,7 +311,9 @@ export function createTestGaps(store: TestGapStore): TestGapsAccess {
           }
           const now = new Date().toISOString();
           const stored: TestGapStoredRecord = {
+            caseBinds: [],
             createdAt: now,
+            handoffBinds: [],
             id: crypto.randomUUID(),
             projectId: input.projectId,
             rationale: input.rationale,
@@ -128,6 +321,8 @@ export function createTestGaps(store: TestGapStore): TestGapsAccess {
               transaction.resolver,
               input.relations,
             ),
+            state: "Open",
+            stateChangedAt: now,
             title: input.title,
             updatedAt: now,
           };

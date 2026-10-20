@@ -274,11 +274,15 @@ describe("Test Gap is not a coverage figure, a Bug, a Risk or a Product Gap", ()
     await harness.testGaps.create(accountId, gap);
 
     expect(Object.keys([...harness.gaps.values()][0] ?? {}).sort()).toEqual([
+      "caseBinds",
       "createdAt",
+      "handoffBinds",
       "id",
       "projectId",
       "rationale",
       "relations",
+      "state",
+      "stateChangedAt",
       "title",
       "updatedAt",
     ]);
@@ -355,13 +359,17 @@ describe("The product never files a Test Gap on its own", () => {
     );
   });
 
-  test("the seam exposes a manual create and reads, and no automatic filing operation", () => {
+  test("the seam exposes a manual create, reads and manual planning, and no automatic filing operation", () => {
     const { testGaps } = setup();
 
     expect(Object.keys(testGaps).sort()).toEqual([
+      "bindCase",
+      "bindHandoff",
       "create",
       "list",
       "relationTargets",
+      "unbindCase",
+      "unbindHandoff",
     ]);
   });
 });

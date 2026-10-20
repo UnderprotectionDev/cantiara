@@ -506,6 +506,8 @@ import {
 } from "../technical-diagrams";
 import {
   createTestGapInputSchema,
+  testGapCaseBindInputSchema,
+  testGapHandoffBindInputSchema,
   testGapProjectInputSchema,
   testGapRelationTargetsInputSchema,
 } from "../test-gaps";
@@ -3212,6 +3214,22 @@ interface TestGapFailure {
 }
 
 const TEST_GAP_FAILURES: Record<string, TestGapFailure> = {
+  TEST_GAP_CASE_VERSION_NOT_FOUND: {
+    message: "Planned Test Case version is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_GAP_HANDOFF_NOT_FOUND: {
+    message: "Test Handoff is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_GAP_NOT_FOUND: {
+    message: "Test Gap is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_GAP_STATE_CONFLICT: {
+    message: "Test Gap changed since it was loaded. Reload and try again.",
+    status: "PRECONDITION_FAILED",
+  },
   TEST_GAP_PROJECT_NOT_FOUND: {
     message: "Project is unavailable.",
     status: "NOT_FOUND",
@@ -6176,6 +6194,34 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runTestGapOperation(() =>
         requireTestGaps(context).create(context.session.user.id, input),
+      ),
+    ),
+  bindTestGapCase: protectedProcedure
+    .input(testGapCaseBindInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).bindCase(context.session.user.id, input),
+      ),
+    ),
+  unbindTestGapCase: protectedProcedure
+    .input(testGapCaseBindInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).unbindCase(context.session.user.id, input),
+      ),
+    ),
+  bindTestGapHandoff: protectedProcedure
+    .input(testGapHandoffBindInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).bindHandoff(context.session.user.id, input),
+      ),
+    ),
+  unbindTestGapHandoff: protectedProcedure
+    .input(testGapHandoffBindInputSchema)
+    .handler(({ context, input }) =>
+      runTestGapOperation(() =>
+        requireTestGaps(context).unbindHandoff(context.session.user.id, input),
       ),
     ),
   testGapRelationTargets: protectedProcedure

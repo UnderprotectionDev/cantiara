@@ -49,6 +49,68 @@ describe("Test Gaps RPC seam", () => {
     ).toMatchObject([{ targetId: "r1" }]);
   });
 
+  test("plans a Gap with a case version and a Handoff, at most Planned", async () => {
+    const harness = createGapHarness();
+    const context = {
+      session: { session: { id: "session" }, user: { id: accountId } },
+      plannedTests: harness.planned.plannedTests,
+      testGaps: harness.testGaps,
+    } as Context;
+    const client = createRouterClient(appRouter, { context });
+    const scenario = await client.createPlannedTestCase({
+      expectedBehavior: "The order is confirmed.",
+      preconditions: "A signed-in customer.",
+      projectId,
+      purpose: "Confirm checkout completes.",
+      scope: "Card payment only.",
+      title: "Checkout",
+    });
+    const handoff = await client.createTestHandoff({
+      projectId,
+      purpose: "Mobile pass",
+      scenarios: [{ caseId: scenario.id, version: 1 }],
+      title: "Mobile pass",
+    });
+    const created = await client.createTestGap(gap);
+
+    const withCase = await client.bindTestGapCase({
+      caseId: scenario.id,
+      gapId: created.id,
+      projectId,
+      version: 1,
+    });
+    const withHandoff = await client.bindTestGapHandoff({
+      gapId: created.id,
+      handoffId: handoff.id,
+      projectId,
+    });
+    const unbound = await client.unbindTestGapCase({
+      caseId: scenario.id,
+      gapId: created.id,
+      projectId,
+      version: 1,
+    });
+
+    expect(withCase.state).toBe("Planned");
+    expect(withHandoff.state).toBe("Planned");
+    expect(unbound.state).toBe("Planned");
+    await expect(
+      client.bindTestGapCase({
+        caseId: scenario.id,
+        gapId: created.id,
+        projectId,
+        version: 9,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      client.bindTestGapHandoff({
+        gapId: "missing",
+        handoffId: handoff.id,
+        projectId,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
   test("maps refusals to named errors without leaking record content", async () => {
     const { client } = setup();
 
@@ -76,9 +138,13 @@ describe("Test Gaps RPC seam", () => {
       TEST_GAP_PROCEDURE.test(name),
     );
     expect(procedures.sort()).toEqual([
+      "bindTestGapCase",
+      "bindTestGapHandoff",
       "createTestGap",
       "projectTestGaps",
       "testGapRelationTargets",
+      "unbindTestGapCase",
+      "unbindTestGapHandoff",
     ]);
   });
 });

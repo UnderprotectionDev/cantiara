@@ -5,10 +5,12 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
 
+import { plannedTestCaseVersion, testHandoff } from "./planned-test";
 import { project } from "./project";
 
 /**
@@ -27,11 +29,17 @@ export const testGap = pgTable(
       .notNull()
       .references(() => project.id, { onDelete: "cascade" }),
     rationale: text("rationale").notNull(),
+    state: text("state").default("Open").notNull(),
+    stateChangedAt: timestamp("state_changed_at").defaultNow().notNull(),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
     index("project_test_gap_project_idx").on(table.projectId),
+    check(
+      "project_test_gap_state_check",
+      sql`${table.state} in ('Open', 'Planned', 'Met by result', 'Not needed')`,
+    ),
     check(
       "project_test_gap_title_check",
       sql`length(btrim(${table.title})) between 1 and 255`,
@@ -77,5 +85,70 @@ export const testGapRelation = pgTable(
       "project_test_gap_relation_document_check",
       sql`(${table.targetType} = 'Document' and ${table.documentRevision} is not null and ${table.documentRevision} >= 0) or (${table.targetType} <> 'Document' and ${table.documentRevision} is null and ${table.sectionId} is null)`,
     ),
+  ],
+);
+
+/**
+ * Exact Planned Test Case versions a Gap is planned against. The composite
+ * foreign key names one immutable version row, so a bind never means "latest"
+ * and no case edit moves it. A bind is planning: it can lift a Gap to at most
+ * `Planned` and is never a result.
+ */
+export const testGapCaseBind = pgTable(
+  "project_test_gap_case_bind",
+  {
+    caseId: text("case_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    gapId: text("gap_id").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.gapId, table.caseId, table.version],
+      name: "project_test_gap_case_bind_pk",
+    }),
+    foreignKey({
+      columns: [table.gapId],
+      foreignColumns: [testGap.id],
+      name: "project_test_gap_case_bind_gap_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.caseId, table.version],
+      foreignColumns: [
+        plannedTestCaseVersion.caseId,
+        plannedTestCaseVersion.version,
+      ],
+      name: "project_test_gap_case_bind_version_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+/**
+ * Test Handoffs a Gap is planned against. Like a case bind, a Handoff bind is
+ * planning only: no Handoff state, Session Test or arriving report writes this
+ * row or the Gap's state.
+ */
+export const testGapHandoffBind = pgTable(
+  "project_test_gap_handoff_bind",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    gapId: text("gap_id").notNull(),
+    handoffId: text("handoff_id").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.gapId, table.handoffId],
+      name: "project_test_gap_handoff_bind_pk",
+    }),
+    foreignKey({
+      columns: [table.gapId],
+      foreignColumns: [testGap.id],
+      name: "project_test_gap_handoff_bind_gap_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.handoffId],
+      foreignColumns: [testHandoff.id],
+      name: "project_test_gap_handoff_bind_handoff_fk",
+    }).onDelete("cascade"),
   ],
 );
