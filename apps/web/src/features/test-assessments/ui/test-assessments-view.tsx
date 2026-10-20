@@ -12,7 +12,7 @@ import {
 } from "@cantiara/api/test-assessments";
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import {
   EMPTY_TEST_ASSESSMENT_FORM,
   type TestAssessmentFormValues,
@@ -41,20 +41,29 @@ function RecordForm({
 }) {
   const [values, setValues] = useState(EMPTY_TEST_ASSESSMENT_FORM);
   const [targets, setTargets] = useState<TestAssessmentContextCandidate[]>([]);
+  const [targetsError, setTargetsError] = useState<string>();
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
   const set = (patch: Partial<TestAssessmentFormValues>) =>
     setValues((current) => ({ ...current, ...patch }));
 
+  const loadTargets = useCallback(
+    () =>
+      loadContextTargets(values.contextKind)
+        .then((loaded) => {
+          setTargets(loaded);
+          setTargetsError(undefined);
+        })
+        .catch(() => {
+          setTargets([]);
+          setTargetsError(`The ${values.contextKind} list is unavailable.`);
+        }),
+    [loadContextTargets, values.contextKind],
+  );
+
   useEffect(() => {
-    let current = true;
-    loadContextTargets(values.contextKind)
-      .then((loaded) => current && setTargets(loaded))
-      .catch(() => current && setTargets([]));
-    return () => {
-      current = false;
-    };
-  }, [loadContextTargets, values.contextKind]);
+    loadTargets();
+  }, [loadTargets]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,6 +133,23 @@ function RecordForm({
             </option>
           ))}
         </select>
+        {targetsError ? (
+          <div className="flex items-center gap-2">
+            <p className="text-destructive text-sm" role="alert">
+              {targetsError}
+            </p>
+            <Button
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                loadTargets();
+              }}
+              type="button"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : null}
       </div>
       {(
         [

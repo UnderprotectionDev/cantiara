@@ -114,6 +114,31 @@ test("shows the new-context notice with exact sources and keeps the decision", a
   expect(host?.textContent).toContain("Decision at the time: Acceptable");
 });
 
+test("shows an alert with a retry action when the context list fails to load", async () => {
+  const onRecord = vi.fn().mockResolvedValue(undefined);
+  const load = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("down"))
+    .mockResolvedValue([{ id: "f1", kind: "Feature", label: "Checkout" }]);
+  await mount({ assessments: [], loadContextTargets: load, onRecord });
+  expect(host?.querySelector('p[role="alert"]')?.textContent).toContain(
+    "The Feature list is unavailable.",
+  );
+  await act(async () => {
+    (
+      host?.querySelector('form button[type="button"]') as HTMLButtonElement
+    )?.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(load).toHaveBeenCalledTimes(2);
+  expect(host?.querySelector('p[role="alert"]')).toBeNull();
+  expect(
+    (host?.querySelector("#test-assessment-context") as HTMLSelectElement)
+      ?.textContent,
+  ).toContain("Checkout");
+  expect(onRecord).not.toHaveBeenCalled();
+});
+
 test("records a snapshot from the keyboard-operable form", async () => {
   const onRecord = vi.fn().mockResolvedValue(undefined);
   await mount({ assessments: [], onRecord });

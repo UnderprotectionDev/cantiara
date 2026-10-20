@@ -171,6 +171,25 @@ export const testAssessmentRecordSchema = z
   .strict();
 export type TestAssessmentRecord = z.infer<typeof testAssessmentRecordSchema>;
 
+/** One selectable Feature, Handoff or Project Release context target. */
+export const testAssessmentCandidateSchema = z
+  .object({
+    id: identifierSchema,
+    kind: contextKindSchema,
+    label: z.string(),
+  })
+  .strict();
+
+export const testAssessmentListOutputSchema = z
+  .object({
+    assessments: z.array(testAssessmentRecordSchema),
+  })
+  .strict();
+
+export const testAssessmentContextTargetsOutputSchema = z.array(
+  testAssessmentCandidateSchema,
+);
+
 export function toTestAssessmentRecord(
   stored: TestAssessmentStoredRecord,
   contextLabel: string | null,

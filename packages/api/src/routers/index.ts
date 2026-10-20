@@ -507,7 +507,10 @@ import {
 import {
   recordTestAssessmentInputSchema,
   testAssessmentContextTargetsInputSchema,
+  testAssessmentContextTargetsOutputSchema,
+  testAssessmentListOutputSchema,
   testAssessmentProjectInputSchema,
+  testAssessmentRecordSchema,
 } from "../test-assessments";
 import {
   convertUserFlowNodeInputSchema,
@@ -6004,6 +6007,7 @@ export const appRouter = {
     ),
   projectTestAssessments: protectedProcedure
     .input(testAssessmentProjectInputSchema)
+    .output(testAssessmentListOutputSchema)
     .handler(({ context, input }) =>
       runTestAssessmentOperation(() =>
         requireTestAssessments(context).list(
@@ -6014,6 +6018,7 @@ export const appRouter = {
     ),
   recordTestAssessment: protectedProcedure
     .input(recordTestAssessmentInputSchema)
+    .output(testAssessmentRecordSchema)
     .handler(({ context, input }) =>
       runTestAssessmentOperation(() =>
         requireTestAssessments(context).record(context.session.user.id, input),
@@ -6021,6 +6026,7 @@ export const appRouter = {
     ),
   testAssessmentContextTargets: protectedProcedure
     .input(testAssessmentContextTargetsInputSchema)
+    .output(testAssessmentContextTargetsOutputSchema)
     .handler(({ context, input }) =>
       runTestAssessmentOperation(() =>
         requireTestAssessments(context).contextTargets(
