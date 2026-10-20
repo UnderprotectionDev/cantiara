@@ -327,6 +327,11 @@ import {
   setProjectWallGroupCollapsedInputSchema,
   unbindProjectWallLinkInputSchema,
 } from "../project-wall";
+import {
+  exportProjectWallSnapshotInputSchema,
+  previewProjectWallSnapshotInputSchema,
+  setProjectWallFocusOrderInputSchema,
+} from "../project-wall-presentation";
 import type { RecordActionsAccess } from "../record-actions";
 import {
   applyRecordActionInputSchema,
@@ -1098,8 +1103,11 @@ const PROJECT_WALL_REJECTED_MESSAGES: Record<string, string> = {
     "Review the current relation preview before confirming.",
   PROJECT_WALL_SKELETON_NOT_SELECTED:
     "This skeleton is not selected for this Project.",
+  PROJECT_WALL_RELATION_UNAVAILABLE:
+    "A Smart Collection block cannot be a relation endpoint.",
+  PROJECT_WALL_SNAPSHOT_FAILED: "The Project Wall snapshot could not be taken.",
   PROJECT_WALL_SOURCE_UNAVAILABLE:
-    "The record is not an active Work, Decision or Risk of this Project.",
+    "The record is not an active Work, Decision, Risk, Technical Diagram or Smart Collection of this Project.",
 };
 
 async function runProjectWallOperation<T>(
@@ -4045,6 +4053,36 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runProjectWallOperation(() =>
         requireProjectWall(context).setGroupCollapsed(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setProjectWallFocusOrder: protectedProcedure
+    .input(setProjectWallFocusOrderInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setFocusOrder(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewProjectWallSnapshot: protectedProcedure
+    .input(previewProjectWallSnapshotInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).previewSnapshot(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  exportProjectWallSnapshot: protectedProcedure
+    .input(exportProjectWallSnapshotInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).exportSnapshot(
           context.session.user.id,
           input,
         ),

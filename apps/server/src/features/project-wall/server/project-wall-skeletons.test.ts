@@ -103,6 +103,7 @@ describe("Project Wall: Sitemap and Customer Journey skeletons", () => {
     expect(Object.keys(wall).sort()).toEqual([
       "cards",
       "createdAt",
+      "focusOrder",
       "groups",
       "id",
       "links",

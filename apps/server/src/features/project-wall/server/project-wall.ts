@@ -14,15 +14,23 @@ import {
   drawProjectWallLinkInputSchema,
   type MoveProjectWallCardsInput,
   moveProjectWallCardsInputSchema,
+  PROJECT_WALL_DIAGRAM_PREVIEW_NODE_LIMIT,
   type PreviewProjectWallPersistentRelationInput,
   type ProjectWallAccess,
+  type ProjectWallCollections,
+  type ProjectWallDiagrams,
   type ProjectWallGroupInput,
+  type ProjectWallItemRecord,
   type ProjectWallRecord,
   type ProjectWallRelations,
+  type ProjectWallSourceLookup,
+  type ProjectWallSourceOption,
   type ProjectWallStore,
   previewProjectWallPersistentRelationInputSchema,
   projectWallCardEndpoint,
+  projectWallExtraSourcePath,
   projectWallGroupInputSchema,
+  projectWallLookupKey,
   projectWallSkeletonHeadings,
   type RemoveProjectWallCardInput,
   type RenameProjectWallInput,
@@ -41,7 +49,18 @@ import {
   type UnbindProjectWallLinkInput,
   unbindProjectWallLinkInputSchema,
 } from "@cantiara/api/project-wall";
-import { recordLookupKey } from "@cantiara/api/user-flow";
+import {
+  buildProjectWallSnapshotData,
+  buildProjectWallSnapshotPreview,
+  type ExportProjectWallSnapshotInput,
+  exportProjectWallSnapshotInputSchema,
+  PROJECT_WALL_SNAPSHOT_CARD_LIMIT,
+  type PreviewProjectWallSnapshotInput,
+  type ProjectWallSnapshotRenderer,
+  previewProjectWallSnapshotInputSchema,
+  type SetProjectWallFocusOrderInput,
+  setProjectWallFocusOrderInputSchema,
+} from "@cantiara/api/project-wall-presentation";
 
 export class ProjectWallProjectNotFoundError extends Error {
   readonly code = "PROJECT_WALL_PROJECT_NOT_FOUND" as const;
@@ -85,7 +104,7 @@ export class ProjectWallSourceUnavailableError extends Error {
 
   constructor() {
     super(
-      "The record is not an active Work, Decision or Risk of this Project.",
+      "The record is not an active Work, Decision, Risk, Technical Diagram or Smart Collection of this Project.",
     );
     this.name = "ProjectWallSourceUnavailableError";
   }
@@ -139,7 +158,42 @@ export class ProjectWallRelationPreviewRequiredError extends Error {
   }
 }
 
+/** A Smart Collection block summarizes records; it is not a relation endpoint. */
+export class ProjectWallRelationUnavailableError extends Error {
+  readonly code = "PROJECT_WALL_RELATION_UNAVAILABLE" as const;
+
+  constructor() {
+    super("A Smart Collection block cannot be a relation endpoint.");
+    this.name = "ProjectWallRelationUnavailableError";
+  }
+}
+
+/** A snapshot cannot be taken: nothing selected, too large, or no renderer. */
+export class ProjectWallSnapshotError extends Error {
+  readonly code = "PROJECT_WALL_SNAPSHOT_FAILED" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectWallSnapshotError";
+  }
+}
+
+function slug(value: string) {
+  const text = value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "");
+  return text === "" ? "project-wall" : text.slice(0, 40);
+}
+
 export interface ProjectWallOptions {
+  /**
+   * Read-only Smart Collections seam. The wall reads the collection's own
+   * result and keeps no query or membership of its own.
+   */
+  collections?: ProjectWallCollections;
+  /** Read-only Technical Diagrams seam: a card previews, never edits. */
+  diagrams?: ProjectWallDiagrams;
   generateId?: () => string;
   now?: () => Date;
   /**
@@ -147,6 +201,8 @@ export interface ProjectWallOptions {
    * previews and then asks this seam, and only on an explicit confirmation.
    */
   relations?: ProjectWallRelations;
+  /** Static PNG/PDF renderer of the internal `Frozen copy` snapshot. */
+  renderer?: ProjectWallSnapshotRenderer;
 }
 
 /**
@@ -161,19 +217,150 @@ export function createProjectWall(
 ): ProjectWallAccess {
   const generateId = options.generateId ?? (() => crypto.randomUUID());
   const now = options.now ?? (() => new Date());
-  const { relations } = options;
+  const { collections, diagrams, relations, renderer } = options;
+
+  async function lookupDiagram(
+    accountId: string,
+    ref: Pick<ProjectWallItemRecord, "diagramViewId" | "sourceId">,
+  ): Promise<ProjectWallSourceLookup | null> {
+    const diagram = await diagrams?.get(
+      accountId,
+      ref.sourceId,
+      ref.diagramViewId ?? undefined,
+    );
+    if (!diagram) {
+      return null;
+    }
+    const selected = diagram.view?.selectedNodeIds ?? [];
+    const nodes = (
+      selected.length > 0
+        ? diagram.model.nodes.filter(({ id }) => selected.includes(id))
+        : diagram.model.nodes
+    ).slice(0, PROJECT_WALL_DIAGRAM_PREVIEW_NODE_LIMIT);
+    const shown = new Set(nodes.map(({ id }) => id));
+    return {
+      archived: false,
+      kind: "found",
+      preview: {
+        diagramType: diagram.type,
+        kind: "Technical Diagram",
+        links: diagram.model.links.filter(
+          (link) => shown.has(link.from) && shown.has(link.to),
+        ),
+        nodes,
+        pin: "Live",
+        viewName: diagram.view?.name ?? null,
+      },
+      projectId: diagram.projectId,
+      status: null,
+      title: diagram.title,
+      values: {},
+    };
+  }
+
+  async function lookupCollection(
+    accountId: string,
+    ref: Pick<ProjectWallItemRecord, "sourceId">,
+  ): Promise<ProjectWallSourceLookup | null> {
+    // Read-only: the result and its membership are the collection's own.
+    const collection = await collections?.getView(accountId, ref.sourceId, {
+      readOnly: true,
+    });
+    if (!collection) {
+      return null;
+    }
+    const records = [
+      ...collection.works.map((entry) => ({
+        id: entry.id,
+        recordType: "Work",
+        status: entry.status,
+        title: entry.title,
+      })),
+      ...collection.projectSourceRecords.map((entry) => ({
+        id: entry.id,
+        recordType: entry.sourceType as string,
+        status: entry.status,
+        title: entry.title,
+      })),
+      ...collection.documents.map((entry) => ({
+        id: entry.id,
+        recordType: "Document",
+        status: null,
+        title: entry.title,
+      })),
+    ];
+    return {
+      archived: false,
+      kind: "found",
+      preview: {
+        collectionName: collection.collectionName,
+        kind: "Smart Collection",
+        openAllPath: projectWallExtraSourcePath(
+          collection.projectId,
+          "Smart Collection",
+          ref.sourceId,
+        ),
+        records,
+        total: records.length,
+      },
+      projectId: collection.projectId,
+      status: null,
+      title: collection.collectionName,
+      values: {},
+    };
+  }
+
+  /**
+   * Resolves every card source live. Work, Decision and Risk come from the
+   * wall store's read-only lookup; a diagram and a collection are read through
+   * their own feature's read seam, so the wall owns no diagram model, no
+   * collection query and no membership.
+   */
+  async function lookupSources(
+    accountId: string,
+    refs: Pick<
+      ProjectWallItemRecord,
+      "diagramViewId" | "sourceId" | "sourceType"
+    >[],
+  ) {
+    const lookups = new Map<string, ProjectWallSourceLookup>();
+    const records = refs.flatMap(({ sourceId, sourceType }) =>
+      sourceType === "Technical Diagram" || sourceType === "Smart Collection"
+        ? []
+        : [{ id: sourceId, sourceType }],
+    );
+    if (records.length > 0) {
+      for (const [key, value] of await store.lookupSources(
+        accountId,
+        records,
+      )) {
+        lookups.set(key, value);
+      }
+    }
+    await Promise.all(
+      refs.map(async (ref) => {
+        let found: ProjectWallSourceLookup | null = null;
+        if (ref.sourceType === "Technical Diagram") {
+          found = await lookupDiagram(accountId, ref);
+        } else if (ref.sourceType === "Smart Collection") {
+          found = await lookupCollection(accountId, ref);
+        }
+        if (found) {
+          lookups.set(
+            projectWallLookupKey(ref.sourceType, ref.sourceId),
+            found,
+          );
+        }
+      }),
+    );
+    return lookups;
+  }
 
   async function view(accountId: string, record: ProjectWallRecord) {
     const lookups =
       record.items.length === 0
         ? new Map()
-        : await store.lookupSources(
-            accountId,
-            record.items.map(({ sourceId, sourceType }) => ({
-              id: sourceId,
-              sourceType,
-            })),
-          );
+        : await lookupSources(accountId, record.items);
     return buildProjectWallView(record, lookups);
   }
 
@@ -251,7 +438,11 @@ export function createProjectWall(
       if (!card) {
         throw new ProjectWallCardNotFoundError(cardId);
       }
-      return projectWallCardEndpoint(card);
+      const endpointOfCard = projectWallCardEndpoint(card);
+      if (!endpointOfCard) {
+        throw new ProjectWallRelationUnavailableError();
+      }
+      return endpointOfCard;
     };
     const source = endpoint(link.fromCardId);
     const target = endpoint(link.toCardId);
@@ -261,6 +452,94 @@ export function createProjectWall(
       target,
     });
     return { link, relation, relations, source, target };
+  }
+
+  async function diagramOptions(accountId: string, projectId: string) {
+    const listed = (await diagrams?.list(accountId, projectId)) ?? [];
+    const perDiagram = await Promise.all(
+      listed.map(async (diagram) => {
+        const views = (await diagrams?.listViews(accountId, diagram.id)) ?? [];
+        if (views.length === 0) {
+          return [
+            {
+              id: diagram.id,
+              sourceType: "Technical Diagram",
+              title: diagram.title,
+            },
+          ] satisfies ProjectWallSourceOption[];
+        }
+        return views.map(
+          (diagramView): ProjectWallSourceOption => ({
+            diagramViewId: diagramView.id,
+            id: diagram.id,
+            sourceType: "Technical Diagram",
+            title: `${diagram.title} · ${diagramView.name}`,
+          }),
+        );
+      }),
+    );
+    return perDiagram.flat();
+  }
+
+  async function collectionOptions(accountId: string, projectId: string) {
+    const views = (await collections?.listViews(accountId, projectId)) ?? [];
+    return views.map(
+      (collection): ProjectWallSourceOption => ({
+        id: collection.id,
+        sourceType: "Smart Collection",
+        title:
+          collection.name === collection.collectionName
+            ? collection.collectionName
+            : `${collection.collectionName} · ${collection.name}`,
+      }),
+    );
+  }
+
+  /**
+   * Reads the live wall once and freezes the selected group or region into
+   * plain data. It never writes: no lock, no share grant, no wall change.
+   */
+  async function freeze(
+    accountId: string,
+    input: PreviewProjectWallSnapshotInput,
+  ) {
+    const wall = await reload(accountId, input.projectId, input.wallId);
+    let { cards } = wall;
+    let scopeLabel: string;
+    let scope: "group" | "region";
+    if (input.groupId === undefined) {
+      const known = new Set(wall.cards.map(({ id }) => id));
+      for (const cardId of input.cardIds ?? []) {
+        if (!known.has(cardId)) {
+          throw new ProjectWallCardNotFoundError(cardId);
+        }
+      }
+      const selected = new Set(input.cardIds);
+      cards = wall.cards.filter(({ id }) => selected.has(id));
+      scope = "region";
+      scopeLabel = `Region of ${cards.length} card${cards.length === 1 ? "" : "s"}`;
+    } else {
+      const group = wall.groups.find(({ id }) => id === input.groupId);
+      if (!group) {
+        throw new ProjectWallGroupNotFoundError(input.groupId);
+      }
+      cards = wall.cards.filter(({ groupId }) => groupId === group.id);
+      scope = "group";
+      scopeLabel = `Group: ${group.title}`;
+    }
+    if (cards.length === 0) {
+      throw new ProjectWallSnapshotError("Select at least one card.");
+    }
+    if (cards.length > PROJECT_WALL_SNAPSHOT_CARD_LIMIT) {
+      throw new ProjectWallSnapshotError(
+        `Select at most ${PROJECT_WALL_SNAPSHOT_CARD_LIMIT} cards per snapshot.`,
+      );
+    }
+    return {
+      data: buildProjectWallSnapshotData(wall, cards, scopeLabel, now()),
+      scope,
+      wallTitle: wall.title,
+    };
   }
 
   return {
@@ -276,11 +555,15 @@ export function createProjectWall(
       ) {
         throw new ProjectWallCardDuplicateError();
       }
-      const lookups = await store.lookupSources(accountId, [
-        { id: input.sourceId, sourceType: input.sourceType },
+      const lookups = await lookupSources(accountId, [
+        {
+          diagramViewId: input.diagramViewId ?? null,
+          sourceId: input.sourceId,
+          sourceType: input.sourceType,
+        },
       ]);
       const lookup = lookups.get(
-        recordLookupKey(input.sourceType, input.sourceId),
+        projectWallLookupKey(input.sourceType, input.sourceId),
       );
       if (
         !(
@@ -294,6 +577,7 @@ export function createProjectWall(
       }
       const added = await store.addCard(accountId, {
         density: input.density,
+        diagramViewId: input.diagramViewId ?? null,
         id: generateId(),
         placedAt: now().toISOString(),
         position: input.position,
@@ -564,7 +848,61 @@ export function createProjectWall(
       if (!sources) {
         throw new ProjectWallProjectNotFoundError(projectId);
       }
-      return sources;
+      return [
+        ...sources,
+        ...(await diagramOptions(accountId, projectId)),
+        ...(await collectionOptions(accountId, projectId)),
+      ];
+    },
+
+    async setFocusOrder(accountId, rawInput: SetProjectWallFocusOrderInput) {
+      const input = setProjectWallFocusOrderInputSchema.parse(rawInput);
+      // View metadata only: it lists existing cards and copies no content.
+      await requireCard(
+        accountId,
+        input.projectId,
+        input.wallId,
+        input.cardIds,
+      );
+      if (!(await store.setFocusOrder(accountId, input))) {
+        throw new ProjectWallNotFoundError(input.wallId);
+      }
+      return reload(accountId, input.projectId, input.wallId);
+    },
+
+    async previewSnapshot(
+      accountId,
+      rawInput: PreviewProjectWallSnapshotInput,
+    ) {
+      const input = previewProjectWallSnapshotInputSchema.parse(rawInput);
+      const { data, scope } = await freeze(accountId, input);
+      return buildProjectWallSnapshotPreview(data, scope);
+    },
+
+    async exportSnapshot(accountId, rawInput: ExportProjectWallSnapshotInput) {
+      const input = exportProjectWallSnapshotInputSchema.parse(rawInput);
+      if (!renderer) {
+        throw new ProjectWallSnapshotError("Snapshot export is unavailable.");
+      }
+      const { data, scope, wallTitle } = await freeze(accountId, input);
+      const preview = buildProjectWallSnapshotPreview(data, scope);
+      const stem = `${slug(wallTitle)}-${data.generatedOn}-snapshot`;
+      const png = input.format === "PNG";
+      const bytes = png ? await renderer.png(data) : await renderer.pdf(data);
+      return {
+        files: [
+          {
+            base64: Buffer.from(bytes).toString("base64"),
+            fileName: `${stem}.${png ? "png" : "pdf"}`,
+            mimeType: png
+              ? ("image/png" as const)
+              : ("application/pdf" as const),
+          },
+        ],
+        format: input.format,
+        generatedAt: data.generatedAt,
+        preview,
+      };
     },
 
     async unbindLink(accountId, rawInput: UnbindProjectWallLinkInput) {

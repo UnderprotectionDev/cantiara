@@ -55,6 +55,14 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Grubu sil | `Delete group` | Yalnız grubu silme; kartlar gruptan çıkar, kaynak kayıtlar değişmez |
 | Sitemap iskeletinden oluştur | `Create from Sitemap` | Kabuğun `Sitemap` seçtiği Projede `Primary Navigation`, `Secondary Navigation`, `Utility`, `External` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
 | Customer Journey iskeletinden oluştur | `Create from Customer Journey` | Kabuğun `Customer Journey` seçtiği Projede `Awareness`, `Consideration`, `Onboarding`, `Core Use`, `Retention` boş gruplarıyla normal Proje Duvarı kurma; örnek içerik üretmez |
+| Sunum Kipi (duvar) | `Presentation Mode` | Proje Duvarı düzenleme araçlarını gizleyen salt okunur kip; çıkışta aynı duvar görünümüne döner, içerik kopyası üretmez |
+| Odak sırası | `Focus order` | Proje Duvarı Sunum Kipi'nde isteğe bağlı kart sırası; görünüm üstverisidir, ikinci dosya veya içerik kopyası değildir |
+| Duvar snapshot'ı | `Snapshot` | Seçili grup veya bölgenin tarihli PNG/PDF iç çıktısı; `Preview` ile okunur |
+| Donmuş kopya | `Frozen copy` | Snapshot'ın adı; paylaşım izni değildir, paylaşım kapsamını genişletmez, duvarı kilitlemez |
+| Canlı önizleme | `Live` | Teknik Diyagram kartının seçili Diyagram Görünümünü güncel gösterdiği etiket |
+| Kesin önizleme | `Exact` | Teknik Diyagram kartının açıkça seçilmiş Diyagram Sürümüne sabitlendiği etiket |
+| Hepsini kaynakta aç | `Open all in source` | Akıllı Koleksiyon bloğunun sınırlı özetinden tüm sonucu koleksiyonun kendisinde açma |
+| Ortak kaynak | `Shared source` | Aynı kaydın duvarda hem kart hem Akıllı Koleksiyon özeti içinde göründüğünü belirten not; iki kayıt değildir |
 | Moodboard | `Moodboard` | Proje veya özellik için görsel referans ve seçilen tasarım yönünü toplayan tasarım türü; Kullanıcı Akışı, Wireframe veya tasarım sistemi değildir |
 | Moodboard oluştur | `Create Moodboard` | Başlıkla Moodboard açma |
 | Moodboard yok | `No Moodboards yet.` | Henüz Moodboard açılmamış boş durum |

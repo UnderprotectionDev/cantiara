@@ -23,6 +23,10 @@ import {
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 const EDITABLE_CONTENT = /<textarea|type="file"|contenteditable/i;
+const NODE_EDIT = /Add node|Edit node|Delete node|Rename node/i;
+const QUERY_EDIT = /Add filter|Edit query|Add condition/i;
+const SHARING_UI =
+  /Share link|Copy link|Publish|Build in Public|External Surface/i;
 const FOREIGN_SURFACES = /Wireframe|Moodboard|Wiki/;
 const NESTED_OR_WORKSPACE = /Workspace wall|Sub-wall|Nested|Parent wall/i;
 const NOW = "2026-10-20T09:00:00.000Z";
@@ -51,6 +55,8 @@ function card(
     locked: false,
     placedAt: NOW,
     position: { x: 0, y: 0 },
+    preview: null,
+    sharedSource: false,
     source: {
       broken: null,
       kind: "Work",
@@ -68,6 +74,7 @@ function wall(cards: ProjectWallCardView[]): ProjectWallView {
   return {
     cards,
     createdAt: NOW,
+    focusOrder: [],
     groups: [],
     id: "wall-1",
     links: [],
@@ -87,6 +94,9 @@ function actions(): ProjectWallActions {
     onDelete: vi.fn(async () => undefined),
     onDeleteGroup: vi.fn(async () => undefined),
     onDrawLink: vi.fn(async () => undefined),
+    onExportSnapshot: vi.fn(async () => []),
+    onPreviewSnapshot: vi.fn(async () => undefined),
+    onSetFocusOrder: vi.fn(async () => undefined),
     onPreviewRelation: vi.fn(async () => undefined),
     onToggleGroup: vi.fn(async () => undefined),
     onUnbindLink: vi.fn(async () => undefined),
@@ -492,5 +502,264 @@ describe("Project Wall: Visual links, groups and Lock Position", () => {
     expect(handlers.onCreateFromSkeleton).toHaveBeenCalledWith(
       "Customer Journey",
     );
+  });
+});
+
+const CARD_ACTIONS = {
+  onDensity: vi.fn(),
+  onGroup: vi.fn(),
+  onHighlight: vi.fn(),
+  onLock: vi.fn(),
+  onRemove: vi.fn(),
+};
+
+function diagramCard(): ProjectWallCardView {
+  return card({
+    fields: [],
+    id: "card-d",
+    preview: {
+      diagramType: "Technical Architecture",
+      kind: "Technical Diagram",
+      links: [{ from: "api", label: "reads", to: "db" }],
+      nodes: [
+        { id: "api", kind: "Service", label: "API" },
+        { id: "db", kind: "Datastore", label: "Postgres" },
+      ],
+      pin: "Live",
+      viewName: "Core",
+    },
+    source: {
+      broken: null,
+      kind: "Technical Diagram",
+      openPath: "/projects/p1#technical-diagram-diagram-1",
+      recordId: "diagram-1",
+      status: null,
+      title: "Platform architecture",
+    },
+    sourceType: "Technical Diagram",
+  });
+}
+
+function collectionCard(): ProjectWallCardView {
+  return card({
+    fields: [],
+    id: "card-c",
+    preview: {
+      collectionName: "Open work",
+      items: [
+        {
+          id: "w1",
+          recordType: "Work",
+          sharedWithCard: true,
+          status: "In Progress",
+          title: "Ship onboarding",
+        },
+      ],
+      kind: "Smart Collection",
+      limit: 5,
+      openAllPath: "/projects/p1#smart-collection-view-view-open",
+      total: 8,
+    },
+    source: {
+      broken: null,
+      kind: "Smart Collection",
+      openPath: "/projects/p1#smart-collection-view-view-open",
+      recordId: "view-open",
+      status: null,
+      title: "Open work",
+    },
+    sourceType: "Smart Collection",
+  });
+}
+
+describe("Project Wall read-only previews", () => {
+  test("a Technical Diagram card previews the Diagram View as Live and offers no node edit", () => {
+    const html = renderToStaticMarkup(
+      <ProjectWallCard actions={CARD_ACTIONS} card={diagramCard()} />,
+    );
+    expect(html).toContain("Live");
+    expect(html).toContain("Core view");
+    expect(html).toContain("Service: API");
+    expect(html).toContain("Open Source Record");
+    expect(html).not.toMatch(EDITABLE_CONTENT);
+    expect(html).not.toMatch(NODE_EDIT);
+  });
+
+  test("an exact Diagram Version pin is labeled Exact", () => {
+    const base = diagramCard();
+    const html = renderToStaticMarkup(
+      <ProjectWallCard
+        card={{
+          ...base,
+          preview:
+            base.preview &&
+            ({
+              ...(base.preview as object),
+              pin: "Exact",
+            } as never),
+        }}
+      />,
+    );
+    expect(html).toContain("Exact");
+  });
+
+  test("a Smart Collection block is a limited summary with Open all in source and a Shared source callout", () => {
+    const html = renderToStaticMarkup(
+      <ProjectWallCard card={{ ...collectionCard(), sharedSource: false }} />,
+    );
+    expect(html).toContain("8 results");
+    expect(html).toContain("Open all in source");
+    expect(html).toContain(
+      'href="/projects/p1#smart-collection-view-view-open"',
+    );
+    expect(html).toContain("Shared source");
+    expect(html).not.toMatch(EDITABLE_CONTENT);
+    expect(html).not.toMatch(QUERY_EDIT);
+  });
+
+  test("a card whose record is inside a collection block says Shared source", () => {
+    const html = renderToStaticMarkup(
+      <ProjectWallCard card={card({ sharedSource: true })} />,
+    );
+    expect(html).toContain("Shared source");
+  });
+});
+
+describe("Project Wall Presentation Mode", () => {
+  function mountLayout(selected: ProjectWallView) {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() =>
+      root?.render(
+        <ProjectWallLayout
+          actions={actions()}
+          canvas={<p>canvas</p>}
+          options={options}
+          selected={selected}
+          walls={[summary]}
+        />,
+      ),
+    );
+    return host;
+  }
+
+  function button(name: string) {
+    return [...(host?.querySelectorAll("button") ?? [])].find(
+      (candidate) => candidate.textContent === name,
+    );
+  }
+
+  test("hides editing tools and Exit Presentation Mode returns to the same wall", () => {
+    const view = mountLayout(wall([card()]));
+    expect(view.textContent).toContain("Place live card");
+    expect(view.textContent).toContain("Focus order");
+
+    act(() => button("Presentation Mode")?.click());
+    expect(view.textContent).toContain("Ship onboarding");
+    expect(view.textContent).not.toContain("Place live card");
+    expect(view.textContent).not.toContain("Lock Position");
+    expect(view.textContent).not.toContain("Delete Project Wall");
+    expect(view.querySelector("input, textarea")).toBeNull();
+
+    act(() => button("Exit Presentation Mode")?.click());
+    expect(view.textContent).toContain("Place live card");
+    expect(view.textContent).toContain("Launch story");
+  });
+
+  test("walks the Focus order and changing it reports card ids only", () => {
+    const second = card({
+      id: "card-2",
+      source: {
+        broken: null,
+        kind: "Work",
+        openPath: "/projects/p1#work-w2",
+        recordId: "w2",
+        status: "Not Started",
+        title: "Write the launch note",
+      },
+    });
+    const ordered = {
+      ...wall([card(), second]),
+      focusOrder: ["card-2", "card-1"],
+    };
+    const view = mountLayout(ordered);
+    act(() => button("Presentation Mode")?.click());
+    expect(view.textContent).toContain("Write the launch note");
+    expect(view.textContent).toContain("1 of 2");
+    act(() => button("Next")?.click());
+    expect(view.textContent).toContain("Ship onboarding");
+  });
+
+  test("Focus order edits call onSetFocusOrder with existing card ids", () => {
+    const handlers = actions();
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const second = card({ id: "card-2" });
+    act(() =>
+      root?.render(
+        <ProjectWallLayout
+          actions={handlers}
+          canvas={null}
+          options={options}
+          selected={wall([card(), second])}
+          walls={[summary]}
+        />,
+      ),
+    );
+    const down = host.querySelector('[aria-label^="Move down"]');
+    act(() => (down as HTMLButtonElement | null)?.click());
+    expect(handlers.onSetFocusOrder).toHaveBeenCalledWith(["card-2", "card-1"]);
+  });
+});
+
+describe("Project Wall Snapshot panel", () => {
+  test("the Preview names a Frozen copy that is not a share grant and opens no sharing UI", async () => {
+    const handlers = actions();
+    handlers.onPreviewSnapshot = vi.fn(async () => ({
+      cardCount: 1,
+      generatedAt: NOW,
+      linkCount: 0,
+      moment: "Launch story - Region of 1 card as of 2026-10-20",
+      notices: [
+        "Frozen copy. It is not a share grant and does not widen share scope.",
+      ],
+      scope: "region" as const,
+      scopeLabel: "Region of 1 card",
+    }));
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() =>
+      root?.render(
+        <ProjectWallLayout
+          actions={handlers}
+          canvas={null}
+          options={options}
+          selected={wall([card()])}
+          walls={[summary]}
+        />,
+      ),
+    );
+    const checkbox = host.querySelector('input[type="checkbox"]');
+    act(() => (checkbox as HTMLInputElement | null)?.click());
+    const preview = [...host.querySelectorAll("button")].find(
+      (candidate) =>
+        candidate.textContent === "Preview" &&
+        !candidate.hasAttribute("aria-pressed"),
+    );
+    await act(() => {
+      preview?.click();
+      return Promise.resolve();
+    });
+    expect(handlers.onPreviewSnapshot).toHaveBeenCalledWith({
+      cardIds: ["card-1"],
+    });
+    expect(host.textContent).toContain("Frozen copy");
+    expect(host.textContent).toContain("not a share grant");
+    expect(host.textContent).not.toMatch(SHARING_UI);
+    expect(host.textContent).toContain("PNG");
+    expect(host.textContent).toContain("PDF");
   });
 });
