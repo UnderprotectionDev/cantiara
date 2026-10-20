@@ -1316,6 +1316,20 @@ Aynı Test Handoff dışa aktarmasının artan tarihsel numarası; üretilmiş k
 UI: `Package version`.
 _Avoid_: en güncel sürüm, canlı paket sürümü
 
+**Test Handoff paket bağlamı**:
+Kurucunun bir Test Handoff'una paket için eklediği, kesin sürümlü bağlam: serbest metin `Ad hoc scope` (senaryo, sürüm ya da kimlik üretmez), `Environment preconditions` metni ve kesin `Package context` kayıtları (İş, Özellik, belirli revision/bölümde Belge, kesin sürümde Wireframe). Teknik Diyagramın sürümü olmadığından seçilemez; seçilmeyen ya da erişilemeyen kayıt pakete girmez.
+UI: `Ad hoc scope`, `Environment preconditions`, `Package context`.
+_Avoid_: en güncel belge, otomatik bağlam, tahmin edilen ortam, ilişki hedefi
+
+**Test Handoff paket önizlemesi**:
+Test Handoff dışa aktarmasının kapalı-dünya önizleme ve onay adımı; hiçbir şey yazmadan pakete girecekleri ve hiç girmeyecekleri listeler, engel varsa (secret, erişilemeyen kayıt, paylaşıma hazır olmayan durum) Markdown ve JSON gösterimini hiç vermez. Onay önizlenen sürümü ve parmak izini taşır; yalnız `Ready to share` veya `Shared` durumda paket üretilir ve üretmek durumu değiştirmez, hiçbir aracı başlatmaz ve yetki vermez.
+UI: `Preview package`, `Produce package version …`, `Never included`.
+_Avoid_: dışa aktarmayı otomatik onaylama, üretince Shared yapma, paketi gönderme, test başlatma, yazma yetkisi
+
+**Paket secret taraması**:
+Kurucunun yazdığı Handoff metninde ve pakete kopyalanacak her dizgede özel anahtar, token, API anahtarı, kimlik bilgili URL veya `password = …` benzeri değeri tanıyan savunma amaçlı tarama; kaydı ya da paketi engeller, türü ve yolu söyler, değeri asla yansıtmaz. Secret'sızlığın kanıtı değildir.
+_Avoid_: secret yönetimi, redaksiyon, sızıntı temizliği
+
 **Test raporu**:
 Bir test yürütücüsünün Test Report Acceptance seam'ine sunduğu, `test-report/1` sürümlü zarf; Test Oturumu ve Oturum Testlerini üretmek için taşınabilir rapor içeriğidir, bağımsız ana kayıt veya Ürün kabul kanıtı değildir.
 _Avoid_: Test Oturumu, Test Handoff'u, Ürün kabul kanıtı, genel MCP yazma kanalı
