@@ -1,5 +1,5 @@
 {
-  "id": "231a6850-b025-496c-bd41-c311d2828a1c",
+  "id": "dad9edd7-9f3f-4c42-b895-1aec91bd49b0",
   "prevId": "132be71f-60f6-4313-9d81-dd982ecc103d",
   "version": "7",
   "dialect": "postgresql",
@@ -7335,8 +7335,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.project_planned_test_case": {
-      "name": "project_planned_test_case",
+    "public.spec_change_review": {
+      "name": "spec_change_review",
       "schema": "",
       "columns": {
         "created_at": {
@@ -7346,12 +7346,17 @@
           "notNull": true,
           "default": "now()"
         },
-        "current_version": {
-          "name": "current_version",
-          "type": "integer",
+        "document_id": {
+          "name": "document_id",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 1
+          "notNull": true
+        },
+        "feature_id": {
+          "name": "feature_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "id": {
           "name": "id",
@@ -7359,26 +7364,64 @@
           "primaryKey": true,
           "notNull": true
         },
+        "next_revision": {
+          "name": "next_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_revision": {
+          "name": "previous_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "project_id": {
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {
-        "project_planned_test_case_project_idx": {
-          "name": "project_planned_test_case_project_idx",
+        "spec_change_review_pair_uidx": {
+          "name": "spec_change_review_pair_uidx",
+          "columns": [
+            {
+              "expression": "feature_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_revision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "spec_change_review_project_idx": {
+          "name": "spec_change_review_project_idx",
           "columns": [
             {
               "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7391,9 +7434,27 @@
         }
       },
       "foreignKeys": {
-        "project_planned_test_case_project_id_project_id_fk": {
-          "name": "project_planned_test_case_project_id_project_id_fk",
-          "tableFrom": "project_planned_test_case",
+        "spec_change_review_document_id_document_id_fk": {
+          "name": "spec_change_review_document_id_document_id_fk",
+          "tableFrom": "spec_change_review",
+          "tableTo": "document",
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "spec_change_review_feature_id_work_id_fk": {
+          "name": "spec_change_review_feature_id_work_id_fk",
+          "tableFrom": "spec_change_review",
+          "tableTo": "work",
+          "columnsFrom": ["feature_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "spec_change_review_project_id_project_id_fk": {
+          "name": "spec_change_review_project_id_project_id_fk",
+          "tableFrom": "spec_change_review",
           "tableTo": "project",
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
@@ -7405,231 +7466,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "project_planned_test_case_version_check": {
-          "name": "project_planned_test_case_version_check",
-          "value": "\"project_planned_test_case\".\"current_version\" >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_planned_test_case_relation": {
-      "name": "project_planned_test_case_relation",
-      "schema": "",
-      "columns": {
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "document_revision": {
-          "name": "document_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "section_id": {
-          "name": "section_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "target_id": {
-          "name": "target_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_type": {
-          "name": "target_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version_id": {
-          "name": "version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "project_planned_test_case_relation_version_idx": {
-          "name": "project_planned_test_case_relation_version_idx",
-          "columns": [
-            {
-              "expression": "version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_planned_test_case_relation_version_fk": {
-          "name": "project_planned_test_case_relation_version_fk",
-          "tableFrom": "project_planned_test_case_relation",
-          "tableTo": "project_planned_test_case_version",
-          "columnsFrom": ["version_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_planned_test_case_relation_type_check": {
-          "name": "project_planned_test_case_relation_type_check",
-          "value": "\"project_planned_test_case_relation\".\"target_type\" in ('Work', 'Feature', 'Document', 'Decision', 'Risk', 'Project Goal', 'Milestone', 'Source', 'Screen')"
-        },
-        "project_planned_test_case_relation_document_check": {
-          "name": "project_planned_test_case_relation_document_check",
-          "value": "(\"project_planned_test_case_relation\".\"target_type\" = 'Document' and \"project_planned_test_case_relation\".\"document_revision\" is not null and \"project_planned_test_case_relation\".\"document_revision\" >= 0) or (\"project_planned_test_case_relation\".\"target_type\" <> 'Document' and \"project_planned_test_case_relation\".\"document_revision\" is null and \"project_planned_test_case_relation\".\"section_id\" is null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.project_planned_test_case_version": {
-      "name": "project_planned_test_case_version",
-      "schema": "",
-      "columns": {
-        "case_id": {
-          "name": "case_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "change_kind": {
-          "name": "change_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expected_behavior": {
-          "name": "expected_behavior",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "preconditions": {
-          "name": "preconditions",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scope": {
-          "name": "scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "project_planned_test_case_version_uidx": {
-          "name": "project_planned_test_case_version_uidx",
-          "columns": [
-            {
-              "expression": "case_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "project_planned_test_case_version_case_fk": {
-          "name": "project_planned_test_case_version_case_fk",
-          "tableFrom": "project_planned_test_case_version",
-          "tableTo": "project_planned_test_case",
-          "columnsFrom": ["case_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "project_planned_test_case_version_number_check": {
-          "name": "project_planned_test_case_version_number_check",
-          "value": "\"project_planned_test_case_version\".\"version\" >= 1"
-        },
-        "project_planned_test_case_version_kind_check": {
-          "name": "project_planned_test_case_version_kind_check",
-          "value": "\"project_planned_test_case_version\".\"change_kind\" in ('Initial version', 'Meaningful change', 'Editorial change')"
-        },
-        "project_planned_test_case_version_title_check": {
-          "name": "project_planned_test_case_version_title_check",
-          "value": "length(btrim(\"project_planned_test_case_version\".\"title\")) between 1 and 255"
+        "spec_change_review_revision_check": {
+          "name": "spec_change_review_revision_check",
+          "value": "\"spec_change_review\".\"previous_revision\" >= 1 and \"spec_change_review\".\"next_revision\" > \"spec_change_review\".\"previous_revision\""
         }
       },
       "isRLSEnabled": false

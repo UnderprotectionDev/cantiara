@@ -105,6 +105,9 @@ import {
   sweepSmartCollectionSubscriptionSignals,
 } from "./features/smart-collections/server/smart-collections-database";
 import { createDatabaseSourcesAndFreshness } from "./features/sources-and-freshness/server/sources-database";
+import { createSpecChangeReview } from "./features/spec-change-review/server/spec-change-review";
+import { createDatabaseSpecChangeReviewStore } from "./features/spec-change-review/server/spec-change-review-database";
+import { createDatabaseSpecChangeReviewMutationContracts } from "./features/spec-change-review/server/spec-change-review-mark-database";
 import {
   createDatabaseTagMutationContracts,
   createDatabaseTags,
@@ -241,6 +244,12 @@ export const contacts = createDatabaseContacts(db);
 export const feedback = createDatabaseFeedbackWithFeed(db);
 export const screens = createDatabaseScreens(db);
 export const plannedTests = createDatabasePlannedTests(db);
+export const specChangeReview = createSpecChangeReview(
+  createDatabaseSpecChangeReviewStore(db),
+  documents,
+);
+export const specChangeReviewMutationContracts =
+  createDatabaseSpecChangeReviewMutationContracts(db);
 export const customFields = createDatabaseCustomFields(db);
 export const customFieldMutationContracts =
   createDatabaseCustomFieldMutationContracts(db);

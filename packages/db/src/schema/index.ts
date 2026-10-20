@@ -38,6 +38,7 @@ export * from "./roadmap-horizon";
 export * from "./screen";
 export * from "./smart-collection";
 export * from "./source";
+export * from "./spec-change-review";
 export * from "./tags";
 export * from "./technical-diagram";
 export * from "./user-flow";

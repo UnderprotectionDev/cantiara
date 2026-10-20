@@ -181,6 +181,7 @@
         "@orpc/zod": "catalog:",
         "canonicalize": "^5.0.0",
         "date-fns": "^4.4.0",
+        "diff": "^8.0.4",
         "zod": "catalog:",
       },
       "devDependencies": {

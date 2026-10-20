@@ -80,6 +80,8 @@ import type { SmartLinkPreviewAccess } from "@cantiara/api/smart-link-preview";
 import type { SourceEvidenceAccess } from "@cantiara/api/source-evidence";
 import type { SourceRecheckAccess } from "@cantiara/api/source-recheck";
 import type { SourcesAndFreshnessAccess } from "@cantiara/api/sources-and-freshness";
+import type { SpecChangeReviewAccess } from "@cantiara/api/spec-change-review";
+import type { SpecChangeReviewMutationContracts } from "@cantiara/api/spec-change-review-candidates";
 import type { TagMutationContracts, TagsAccess } from "@cantiara/api/tags";
 import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
@@ -155,6 +157,8 @@ export interface CreateContextOptions {
   sourceEvidence?: SourceEvidenceAccess;
   sourceRecheck?: SourceRecheckAccess;
   sourcesAndFreshness?: SourcesAndFreshnessAccess;
+  specChangeReview?: SpecChangeReviewAccess;
+  specChangeReviewMutationContracts?: SpecChangeReviewMutationContracts;
   tagMutationContracts?: TagMutationContracts;
   tags?: TagsAccess;
   technicalDiagrams?: TechnicalDiagramsAccess;
@@ -238,6 +242,8 @@ export async function createContext({
   feedback,
   screens,
   plannedTests,
+  specChangeReview,
+  specChangeReviewMutationContracts,
   relations,
   tagMutationContracts,
   trustedProxyIps,
@@ -324,6 +330,8 @@ export async function createContext({
     feedback,
     screens,
     plannedTests,
+    specChangeReview,
+    specChangeReviewMutationContracts,
     relations,
     auth: null,
     session,

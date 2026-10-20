@@ -438,6 +438,26 @@ import {
   sourceSelectionSchema,
 } from "../sources-and-freshness";
 import {
+  specChangeReviewInputSchema,
+  specChangeReviewProjectInputSchema,
+} from "../spec-change-review";
+import {
+  markSpecChangeReviewCandidateInputSchema,
+  type SpecChangeReviewMark,
+  type SpecChangeReviewMarkValue,
+  specCandidateKey,
+  specChangeReviewMarkId,
+  specChangeReviewMarkPayloadSchema,
+} from "../spec-change-review-candidates";
+import {
+  createSpecChangeReviewFollowUpInputSchema,
+  previewSpecChangeReviewFollowUpInputSchema,
+  type SpecChangeReviewFollowUp,
+  type SpecChangeReviewFollowUpValue,
+  specChangeReviewFollowUpId,
+  specChangeReviewFollowUpPayloadSchema,
+} from "../spec-change-review-follow-up";
+import {
   applyTagInputSchema,
   createTagInputSchema,
   removeTagInputSchema,
@@ -1077,6 +1097,20 @@ function requirePlannedTests(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.plannedTests;
+}
+
+function requireSpecChangeReview(context: Context) {
+  if (!context.specChangeReview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.specChangeReview;
+}
+
+function requireSpecChangeReviewMutationContracts(context: Context) {
+  if (!context.specChangeReviewMutationContracts) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.specChangeReviewMutationContracts;
 }
 
 function requireUserFlow(context: Context) {
@@ -3045,6 +3079,45 @@ async function runPlannedTestOperation<T>(
         failure.message ??
         (error instanceof Error ? error.message : "Package refused."),
     });
+  }
+}
+
+const SPEC_CHANGE_REVIEW_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SPEC_CHANGE_REVIEW_NOT_FOUND: "Spec Change Review is unavailable.",
+  SPEC_CHANGE_REVIEW_CANDIDATE_UNAVAILABLE:
+    "Spec Change Review candidate is unavailable.",
+  SPEC_CHANGE_REVIEW_PROJECT_NOT_FOUND: "Project is unavailable.",
+  SPEC_CHANGE_REVIEW_VERSION_UNAVAILABLE:
+    "The Document version of this Spec Change Review is unavailable.",
+};
+
+async function runSpecChangeReviewOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    if (error.code === "SPEC_CHANGE_REVIEW_FOLLOW_UP_EXISTS") {
+      throw new ORPCError("PRECONDITION_FAILED", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message: "This candidate already has follow-up Work.",
+      });
+    }
+    const message = SPEC_CHANGE_REVIEW_UNAVAILABLE_MESSAGES[error.code];
+    if (message) {
+      throw new ORPCError("NOT_FOUND", {
+        cause: error,
+        data: { code: error.code },
+        defined: true,
+        message,
+      });
+    }
+    throw error;
   }
 }
 
@@ -5850,6 +5923,181 @@ export const appRouter = {
         requireScreens(context).resolveTarget(context.session.user.id, input),
       ),
     ),
+  projectSpecChangeReviews: protectedProcedure
+    .input(specChangeReviewProjectInputSchema)
+    .handler(({ context, input }) =>
+      runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  specChangeReview: protectedProcedure
+    .input(specChangeReviewInputSchema)
+    .handler(({ context, input }) =>
+      runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).get(context.session.user.id, input),
+      ),
+    ),
+  previewSpecChangeReviewFollowUp: protectedProcedure
+    .input(previewSpecChangeReviewFollowUpInputSchema)
+    .handler(({ context, input }) =>
+      runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).previewFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  createSpecChangeReviewFollowUp: protectedProcedure
+    .input(createSpecChangeReviewFollowUpInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = specChangeReviewFollowUpPayloadSchema.parse(payloadInput);
+      const accountId = context.session.user.id;
+      const targetId = await specChangeReviewFollowUpId(
+        payload.reviewId,
+        payload.candidate,
+      );
+      const mutation =
+        requireSpecChangeReviewMutationContracts(context).followUp(accountId);
+      const command = {
+        actor: { actorId: accountId, type: "User" as const },
+        baseRevision,
+        clientIdempotencyKey,
+        kind: "human" as const,
+        payload,
+        targetId,
+      };
+      // A retry of a confirmed command returns its receipt before any preview check.
+      try {
+        const replay = await mutation.replay(command);
+        if (replay?.nextValue.followUp) {
+          return replay.nextValue.followUp;
+        }
+      } catch (error) {
+        rethrowUsageLinkMutationError(error, targetId);
+      }
+      // Confirm needs the exact preview the founder saw, re-derived now.
+      const preview = await runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).previewFollowUp(accountId, {
+          candidate: payload.candidate,
+          reviewId: payload.reviewId,
+          title: payload.title,
+          workType: payload.workType,
+        }),
+      );
+      if (preview.fingerprint !== payload.previewFingerprint) {
+        throw new ORPCError("PRECONDITION_FAILED", {
+          data: { code: "SPEC_CHANGE_REVIEW_FOLLOW_UP_STALE" },
+          defined: true,
+          message:
+            "The follow-up preview is out of date. Preview Create Follow-up Work again.",
+        });
+      }
+      try {
+        const receipt = await mutation.mutate(
+          command,
+          ({ committedAt, payload: mutationPayload }) =>
+            ({
+              followUp: {
+                candidate: mutationPayload.candidate,
+                createdAt: committedAt,
+                id: targetId,
+                reviewId: mutationPayload.reviewId,
+                revision: 1,
+                workId: mutationPayload.workId,
+                workKey: null,
+                workTitle: preview.plan.work.title,
+              } satisfies SpecChangeReviewFollowUp,
+              plan: preview.plan,
+            }) satisfies SpecChangeReviewFollowUpValue,
+        );
+        if (!receipt.nextValue.followUp) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.followUp;
+      } catch (error) {
+        if (isRecord(error) && error.code === "TARGET_NOT_FOUND") {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            defined: true,
+            message: "Spec Change Review candidate is unavailable.",
+          });
+        }
+        rethrowUsageLinkMutationError(error, targetId);
+      }
+    }),
+  markSpecChangeReviewCandidate: protectedProcedure
+    .input(markSpecChangeReviewCandidateInputSchema)
+    .handler(async ({ context, input }) => {
+      const { baseRevision, clientIdempotencyKey, ...payloadInput } = input;
+      const payload = specChangeReviewMarkPayloadSchema.parse({
+        ...payloadInput,
+        note: payloadInput.note === "" ? null : payloadInput.note,
+      });
+      const accountId = context.session.user.id;
+      // Only a candidate of the recorded-link closure of this exact pair can be marked.
+      const detail = await runSpecChangeReviewOperation(() =>
+        requireSpecChangeReview(context).get(accountId, {
+          reviewId: payload.reviewId,
+        }),
+      );
+      if (
+        !detail.candidates.some(
+          ({ key }) => key === specCandidateKey(payload.candidate),
+        )
+      ) {
+        throw new ORPCError("NOT_FOUND", {
+          defined: true,
+          message: "Spec Change Review candidate is unavailable.",
+        });
+      }
+      const targetId = await specChangeReviewMarkId(
+        payload.reviewId,
+        payload.candidate,
+      );
+      const mutation =
+        requireSpecChangeReviewMutationContracts(context).mark(accountId);
+      try {
+        const receipt = await mutation.mutate(
+          {
+            actor: { actorId: accountId, type: "User" },
+            baseRevision,
+            clientIdempotencyKey,
+            kind: "human",
+            payload,
+            targetId,
+          },
+          ({ committedAt, currentRevision, payload: mutationPayload }) =>
+            ({
+              mark: {
+                candidate: mutationPayload.candidate,
+                id: targetId,
+                note: mutationPayload.note,
+                reviewId: mutationPayload.reviewId,
+                revision: currentRevision + 1,
+                state: mutationPayload.state,
+                updatedAt: committedAt,
+              } satisfies SpecChangeReviewMark,
+            }) satisfies SpecChangeReviewMarkValue,
+        );
+        if (!receipt.nextValue.mark) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return receipt.nextValue.mark;
+      } catch (error) {
+        if (isRecord(error) && error.code === "TARGET_NOT_FOUND") {
+          throw new ORPCError("NOT_FOUND", {
+            cause: error,
+            defined: true,
+            message: "Spec Change Review candidate is unavailable.",
+          });
+        }
+        rethrowUsageLinkMutationError(error, targetId);
+      }
+    }),
   contacts: protectedProcedure.handler(({ context }) =>
     runContactOperation(() =>
       requireContacts(context).listContacts(context.session.user.id),

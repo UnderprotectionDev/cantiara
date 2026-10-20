@@ -66,6 +66,7 @@ import {
   type MutationDatabaseTargetAdapter,
 } from "../../mutation-and-undo/server/mutation-contract-database";
 import { createDatabaseDocumentDiscovery } from "../../record-discovery/server/document-discovery-database";
+import { openSpecChangeReviews } from "../../spec-change-review/server/spec-change-review-database";
 import { assertDocumentSectionAcyclic } from "./document-live-section-database";
 import {
   findOwnedDocument,
@@ -805,6 +806,13 @@ function updateDocumentTarget(
           updated.id,
           updated.body,
         );
+        await openSpecChangeReviews(executor, {
+          createdAt: input.committedAt,
+          documentId: updated.id,
+          nextRevision: updated.revision,
+          previousRevision: input.expectedRevision,
+          projectId: updated.projectId,
+        });
       }
       return updated ? toTarget(updated) : null;
     },
