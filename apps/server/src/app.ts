@@ -70,6 +70,7 @@ import type {
   ProjectShellMutationContracts,
 } from "@cantiara/api/project-shell";
 import type { ProjectSourceRecordsAccess } from "@cantiara/api/project-source-records";
+import type { ProjectWallAccess } from "@cantiara/api/project-wall";
 import type { RecordActionsAccess } from "@cantiara/api/record-actions";
 import type {
   RecordTableAccess,
@@ -207,6 +208,7 @@ export interface AppDependencies {
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
   projectSourceRecords?: ProjectSourceRecordsAccess;
+  projectWall?: ProjectWallAccess;
   recordActions?: RecordActionsAccess;
   recordTable?: RecordTableAccess;
   redactSecrets: (value: unknown) => unknown;
@@ -1206,6 +1208,7 @@ export function createApp(dependencies: AppDependencies) {
       moodboardSnapshots: dependencies.moodboardSnapshots,
       moodboards: dependencies.moodboards,
       technicalDiagrams: dependencies.technicalDiagrams,
+      projectWall: dependencies.projectWall,
       userFlow: dependencies.userFlow,
       universalSearch: dependencies.universalSearch,
       focusPeriod: dependencies.focusPeriod,
