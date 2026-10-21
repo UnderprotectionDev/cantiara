@@ -114,6 +114,53 @@ describe("Technical Diagram canvas", () => {
     vi.unstubAllGlobals();
   });
 
+  test("reapplies the saved center with the measured frame, not the nominal one", () => {
+    const width = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "clientWidth",
+    );
+    const height = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "clientHeight",
+    );
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get() {
+        return 1400;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get() {
+        return 320;
+      },
+    });
+    try {
+      act(() =>
+        root.render(
+          <TechnicalDiagramCanvas
+            diagram={boundary}
+            savedView={{
+              center: { x: 100, y: 50 },
+              collapsed: [],
+              zoom: 1.5,
+            }}
+          />,
+        ),
+      );
+      // x = 1400/2 - 100*1.5 = 550 (the nominal 800px frame would give 250).
+      expect(viewportTransform()).toContain("translate(550px,85px)");
+      expect(viewportTransform()).toContain("scale(1.5)");
+    } finally {
+      if (width) {
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
+      }
+      if (height) {
+        Object.defineProperty(HTMLElement.prototype, "clientHeight", height);
+      }
+    }
+  });
+
   test("a saved position over an empty region fits content instead of restoring", () => {
     act(() =>
       root.render(

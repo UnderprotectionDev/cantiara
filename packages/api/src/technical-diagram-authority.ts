@@ -33,7 +33,8 @@ export type CreatableAuthorityMode = z.infer<
   typeof creatableAuthorityModeSchema
 >;
 
-const httpsUrlSchema = z
+/** Exact HTTPS URL without credentials; the client forms share this refine. */
+export const externalSourceUrlSchema = z
   .string()
   .trim()
   .min(1)
@@ -55,7 +56,7 @@ const httpsUrlSchema = z
 /** Exact HTTPS target, optional known revision, source tool and last check. */
 export const externalSourceLinkInputSchema = z
   .object({
-    url: httpsUrlSchema,
+    url: externalSourceUrlSchema,
     revision: z.string().trim().min(1).max(255).nullable(),
     tool: z.string().trim().min(1).max(120),
     lastCheckedAt: z.iso.datetime(),

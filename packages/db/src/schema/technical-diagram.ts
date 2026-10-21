@@ -361,6 +361,7 @@ export const technicalDiagramViewport = pgTable(
       .notNull(),
   },
   (table) => [
+    index("technical_diagram_viewport_diagram_idx").on(table.diagramId),
     primaryKey({
       columns: [table.accountId, table.diagramId, table.viewId],
       name: "technical_diagram_viewport_pk",

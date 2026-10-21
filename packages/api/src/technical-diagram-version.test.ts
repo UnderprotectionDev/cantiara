@@ -1,5 +1,5 @@
+import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
 import { describe, expect, test } from "vitest";
-
 import {
   assertVersionBind,
   createCheckpoint,
@@ -7,6 +7,7 @@ import {
   DIAGRAM_VERSION_LABELS,
   DiagramVersionError,
   diagramVersionReference,
+  pruneDiagramViewSelection,
   restoreDiagramVersionInputSchema,
   restoreFromCheckpoint,
   type VersionedDiagram,
@@ -205,5 +206,60 @@ describe("exact Sequence lifeline bind", () => {
         bind,
       ),
     ).toThrow(DiagramVersionError);
+  });
+});
+
+describe("pruneDiagramViewSelection", () => {
+  const layout = {
+    api: { x: 1, y: 2 },
+    gone: { x: 3, y: 4 },
+    queue: { x: 5, y: 6 },
+  };
+  const architecture: DiagramModel = {
+    links: [],
+    nodes: [
+      { id: "api", kind: "Service", label: "API" },
+      { id: "queue", kind: "Queue/Event Bus", label: "Queue" },
+    ],
+  };
+
+  test("the Default view follows the whole live model: additions join, deletions leave", () => {
+    const pruned = pruneDiagramViewSelection(
+      {
+        layout,
+        name: "Default",
+        selectedNodeIds: ["api", "gone"],
+      },
+      architecture,
+    );
+    expect(pruned.selectedNodeIds).toEqual(["api", "queue"]);
+    expect(pruned.layout).toEqual({
+      api: { x: 1, y: 2 },
+      queue: { x: 5, y: 6 },
+    });
+  });
+
+  test("a named view keeps the elements its author selected and only prunes deleted ones", () => {
+    const pruned = pruneDiagramViewSelection(
+      {
+        layout,
+        name: "Edge services",
+        selectedNodeIds: ["api", "gone"],
+      },
+      architecture,
+    );
+    expect(pruned.selectedNodeIds).toEqual(["api"]);
+    expect(pruned.layout).toEqual({
+      api: { x: 1, y: 2 },
+      queue: { x: 5, y: 6 },
+    });
+  });
+
+  test("an empty live model selects nothing anywhere", () => {
+    const pruned = pruneDiagramViewSelection(
+      { layout, name: "Default", selectedNodeIds: ["api"] },
+      { relations: [], tables: [] },
+    );
+    expect(pruned).toEqual({ layout: {}, selectedNodeIds: [] });
   });
 });

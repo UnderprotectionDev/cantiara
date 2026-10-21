@@ -154,6 +154,7 @@ function DiagramCard({
       runOnlineOnlyWrite(() =>
         client.moveDiagramRecordCard({ diagramId: diagram.id, ...input }),
       ),
+    onError: compositionFailure("The record card could not be moved."),
     onSuccess: invalidate,
   });
   const removeCard = useMutation({
@@ -223,6 +224,12 @@ function DiagramCard({
           viewId: diagram.view?.id,
         }),
       ),
+    onError: (failure) =>
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Element position could not be saved.",
+      ),
     onSuccess: invalidate,
   });
   const create = useMutation({
@@ -246,7 +253,9 @@ function DiagramCard({
     onSuccess: async () => {
       pendingKey.current = null;
       setError(null);
-      await queryClient.invalidateQueries({ queryKey: options.queryKey });
+      // A new Diagram View can become the diagram's current view (a view named
+      // "Default"), so the diagram query is invalidated with the views list.
+      await invalidate();
     },
     onError: (failure) =>
       setError(
@@ -274,6 +283,9 @@ function DiagramCard({
     },
     validators: { onChange: diagramViewSchema },
   });
+  const versionNames = Object.fromEntries(
+    (versions.data ?? []).map((version) => [version.id, version.name]),
+  );
   return (
     <article className="space-y-3 rounded-lg border p-4">
       <h3 className="font-medium">{diagram.title}</h3>
@@ -284,7 +296,7 @@ function DiagramCard({
       {diagram.externalSource ? (
         <ExternalSourceLinkDetails source={diagram.externalSource} />
       ) : null}
-      <TechnicalDiagramOutline diagram={diagram} />
+      <TechnicalDiagramOutline diagram={diagram} versionNames={versionNames} />
       {diagram.authorityMode === "External Source Link" ||
       !personalView.isReady ? null : (
         <TechnicalDiagramCanvas

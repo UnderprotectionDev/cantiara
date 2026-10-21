@@ -17,7 +17,7 @@ import {
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { useForm } from "@tanstack/react-form";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { z } from "zod";
 
 import {
@@ -751,6 +751,7 @@ function AddStepForms({
     onSubmitMeta: "message" as "group" | "message",
   });
   const participants = [CHOOSE, ...ids(model.participants)];
+  const groupHelpId = useId();
   const submitAs =
     (meta: "group" | "message") => (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -800,6 +801,10 @@ function AddStepForms({
         </form.Subscribe>
       </EditForm>
       <EditForm label="Add control group" onSubmit={submitAs("group")}>
+        <p className="text-muted-foreground text-sm" id={groupHelpId}>
+          A control group wraps the drafted message: fill Message from, Message
+          to and Message label in the Add message form first.
+        </p>
         <form.Field name="groupKind">
           {(field) => (
             <SelectField
@@ -815,6 +820,7 @@ function AddStepForms({
         <form.Subscribe selector={(state) => state.values}>
           {(values) => (
             <EditSubmit
+              describedBy={groupHelpId}
               disabled={disabled || !groupSchema.safeParse(values).success}
               label="Add control group"
             />

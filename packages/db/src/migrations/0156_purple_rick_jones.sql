@@ -1,0 +1,1 @@
+CREATE INDEX "technical_diagram_viewport_diagram_idx" ON "technical_diagram_viewport" USING btree ("diagram_id");

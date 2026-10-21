@@ -20,6 +20,7 @@ import {
 import {
   assertVersionBind,
   createCheckpoint,
+  pruneDiagramViewSelection,
   restoreFromCheckpoint,
   type TechnicalDiagramVersion,
 } from "@cantiara/api/technical-diagram-version";
@@ -109,6 +110,10 @@ function createFixture() {
       return present(created.id);
     },
     create: (_account, input) => {
+      const createdModel =
+        input.authorityMode === "Product-authored Model"
+          ? (input.model ?? emptyStructuralModel(input.type))
+          : emptyStructuralModel(input.type);
       const created: TechnicalDiagramSource = {
         authorityMode: input.authorityMode,
         externalSource:
@@ -116,16 +121,18 @@ function createFixture() {
             ? input.externalSource
             : null,
         id: input.clientIdempotencyKey,
-        model:
-          input.authorityMode === "Product-authored Model"
-            ? (input.model ?? emptyStructuralModel(input.type))
-            : emptyStructuralModel(input.type),
+        model: createdModel,
         origins: [],
         projectId: input.projectId,
         revision: 1,
         title: input.title,
         type: input.type,
-        view: null,
+        view: {
+          id: `${input.clientIdempotencyKey}:default`,
+          layout: {},
+          name: "Default",
+          selectedNodeIds: diagramGraph(createdModel).nodes.map(({ id }) => id),
+        },
       };
       diagrams.set(created.id, created);
       return Promise.resolve(present(created.id));
@@ -157,6 +164,16 @@ function createFixture() {
       }
       diagram.model = model;
       diagram.revision += 1;
+      if (diagram.view) {
+        // Mirrors the adapter: the built-in Default view is re-derived from the
+        // live model on every save, so a no-view Live card keeps following it.
+        const pruned = pruneDiagramViewSelection(diagram.view, model);
+        diagram.view = {
+          ...diagram.view,
+          layout: pruned.layout,
+          selectedNodeIds: pruned.selectedNodeIds,
+        };
+      }
       return Promise.resolve(present(diagram.id));
     },
     createVersion: (_account, input) => {
@@ -787,6 +804,33 @@ describe("Diagram Versions", () => {
         .map(({ label }) => label);
     expect(labels(live.model)).toEqual(["Gateway"]);
     expect(labels(version.model)).toEqual(["API"]);
+  });
+
+  test("the built-in Default view keeps following added elements, so a no-view Live card stays live", async () => {
+    const { client, diagrams } = createFixture();
+    const diagramKey = keys[0] as string;
+    await create(client, diagramKey);
+    expect(diagrams.get(diagramKey)?.view?.selectedNodeIds).toEqual([
+      "api",
+      "db",
+    ]);
+    await client.saveTechnicalDiagramStructure({
+      diagramId: diagramKey,
+      model: {
+        links: [{ from: "api", kind: "Calls", label: null, to: "db" }],
+        nodes: [
+          { id: "api", kind: "Service", label: "API" },
+          { id: "db", kind: "Datastore", label: "Database" },
+          { id: "gateway", kind: "Service", label: "Gateway" },
+        ],
+      },
+    });
+    // An element added after the card was embedded still shows on it.
+    expect(diagrams.get(diagramKey)?.view?.selectedNodeIds).toEqual([
+      "api",
+      "db",
+      "gateway",
+    ]);
   });
 });
 

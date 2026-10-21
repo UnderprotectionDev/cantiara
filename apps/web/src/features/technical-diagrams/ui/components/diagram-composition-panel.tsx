@@ -284,6 +284,9 @@ export function DiagramCompositionPanel({
                       onChange={(event) => {
                         field.handleChange(event.target.value);
                         convertForm.setFieldValue("nodeId", "");
+                        // The selects changed while the plan stays shown; the
+                        // previewed plan belongs to the previous selection.
+                        onCancelConvert();
                       }}
                       value={field.state.value}
                     >
@@ -316,9 +319,10 @@ export function DiagramCompositionPanel({
                           <Label htmlFor={nodeId}>Node</Label>
                           <NativeSelect
                             id={nodeId}
-                            onChange={(event) =>
-                              field.handleChange(event.target.value)
-                            }
+                            onChange={(event) => {
+                              field.handleChange(event.target.value);
+                              onCancelConvert();
+                            }}
                             value={field.state.value}
                           >
                             <NativeSelectOption value="">
@@ -342,9 +346,10 @@ export function DiagramCompositionPanel({
                     <Label htmlFor={targetId}>Target type</Label>
                     <NativeSelect
                       id={targetId}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value as Target)
-                      }
+                      onChange={(event) => {
+                        field.handleChange(event.target.value as Target);
+                        onCancelConvert();
+                      }}
                       value={field.state.value}
                     >
                       {USER_FLOW_CONVERT_TARGETS.map((item) => (
@@ -365,12 +370,13 @@ export function DiagramCompositionPanel({
                           <Label htmlFor={workTypeId}>Work type</Label>
                           <NativeSelect
                             id={workTypeId}
-                            onChange={(event) =>
+                            onChange={(event) => {
                               field.handleChange(
                                 event.target
                                   .value as (typeof WORK_TYPES)[number],
-                              )
-                            }
+                              );
+                              onCancelConvert();
+                            }}
                             value={field.state.value}
                           >
                             {WORK_TYPES.map((item) => (

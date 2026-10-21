@@ -124,14 +124,21 @@ export function EditForm({
 }
 
 export function EditSubmit({
+  describedBy,
   disabled,
   label,
 }: {
+  describedBy?: string;
   disabled: boolean;
   label: string;
 }) {
   return (
-    <Button disabled={disabled} size="sm" type="submit">
+    <Button
+      aria-describedby={describedBy}
+      disabled={disabled}
+      size="sm"
+      type="submit"
+    >
       {label}
     </Button>
   );

@@ -98,8 +98,10 @@ function DataModelOutline({
 
 function SequenceOutline({
   model,
+  versionNames,
 }: {
   model: Extract<TechnicalDiagramSource["model"], { participants: unknown }>;
+  versionNames: Readonly<Record<string, string>>;
 }) {
   const name = (id: string) =>
     model.participants.find((item) => item.id === id)?.label ?? id;
@@ -113,7 +115,10 @@ function SequenceOutline({
             {participant.bind
               ? ` · bound to ${participant.bind.boundLabel} (${
                   participant.bind.versionId
-                    ? `Diagram Version ${participant.bind.versionId}`
+                    ? `Diagram Version ${
+                        versionNames[participant.bind.versionId] ??
+                        participant.bind.versionId
+                      }`
                     : "node only, no Diagram Version pinned"
                 })`
               : ""}
@@ -149,8 +154,11 @@ function SequenceOutline({
 
 export function TechnicalDiagramOutline({
   diagram,
+  versionNames = {},
 }: {
   diagram: Pick<TechnicalDiagramSource, "model" | "title" | "type">;
+  /** Sequence lifeline `versionId` to the version's name; ids fall back. */
+  versionNames?: Readonly<Record<string, string>>;
 }) {
   const { model } = diagram;
   return (
@@ -166,7 +174,9 @@ export function TechnicalDiagramOutline({
       </h3>
       {"nodes" in model ? <ArchitectureOutline model={model} /> : null}
       {"tables" in model ? <DataModelOutline model={model} /> : null}
-      {"participants" in model ? <SequenceOutline model={model} /> : null}
+      {"participants" in model ? (
+        <SequenceOutline model={model} versionNames={versionNames} />
+      ) : null}
     </section>
   );
 }

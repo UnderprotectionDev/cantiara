@@ -21,7 +21,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { autoPosition } from "../../lib/technical-diagram-edit";
 import "@xyflow/react/dist/style.css";
@@ -68,19 +68,64 @@ function Canvas({
   };
   // A saved position is restored only if it still shows content; otherwise the
   // canvas fits visible content and never opens on an empty region.
+  const content = {
+    groups,
+    nodes: graph.nodes.map((node, index) => ({
+      id: node.id,
+      position: layout[node.id] ?? autoPosition(index),
+    })),
+  };
   const [opening] = useState(() =>
     resolveTechnicalDiagramViewport({
-      content: {
-        groups,
-        nodes: graph.nodes.map((node, index) => ({
-          id: node.id,
-          position: layout[node.id] ?? autoPosition(index),
-        })),
-      },
+      content,
       frame: NOMINAL_FRAME,
       saved: savedView,
     }),
   );
+  // React Flow paints before the real frame is measured, and the canvas is a
+  // fluid-width pane that may not be the nominal 800x320, so the mount re-applies
+  // the restore with the measured frame to keep the saved center exact.
+  const expectedRestore = useRef({
+    content,
+    saved: savedView,
+  });
+  const expectedOpening = useRef(opening.mode);
+  // The restore is applied once, from mount-time values only: later prop
+  // changes are the user's own moves or a refetch, never a surprise re-center.
+  useEffect(() => {
+    const box = frameRef.current;
+    const width = box?.clientWidth ?? 0;
+    const height = box?.clientHeight ?? 0;
+    if (!(width && height)) {
+      // Unmeasured (tests, zero size): the default viewport already used the
+      // nominal frame.
+      return;
+    }
+    const frame = { height, width };
+    const restore = expectedRestore.current;
+    const resolution = resolveTechnicalDiagramViewport({
+      content: restore.content,
+      frame,
+      saved: restore.saved,
+    });
+    if (resolution.mode === "restore") {
+      reactFlow.setViewport({
+        x:
+          frame.width / 2 -
+          resolution.viewport.center.x * resolution.viewport.zoom,
+        y:
+          frame.height / 2 -
+          resolution.viewport.center.y * resolution.viewport.zoom,
+        zoom: resolution.viewport.zoom,
+      });
+      return;
+    }
+    if (expectedOpening.current === "restore") {
+      // The measured frame no longer shows content where the nominal one did;
+      // fall back to the fit the plain save would have taken.
+      reactFlow.fitView({ duration: 0 });
+    }
+  }, [reactFlow]);
   const [collapsed, setCollapsed] = useState(opening.collapsed);
   const hidden = useMemo(
     () => hiddenDiagramNodeIds(groups, collapsed),
@@ -128,8 +173,14 @@ function Canvas({
       ...recordCards.map((card) => ({
         connectable: false,
         data: {
+          // The broken-reference presentation: an archived source is not
+          // broken, the other reasons name the broken card.
           label: card.broken
-            ? `${card.sourceType} · Broken — ${card.broken.reason}`
+            ? `${card.sourceType} · ${
+                card.broken.reason === "Archived"
+                  ? "Archived"
+                  : `Broken — ${card.broken.reason}`
+              }`
             : `${card.sourceType} · ${card.title ?? ""}${card.status ? ` · ${card.status}` : ""} (read-only)`,
         },
         id: `${RECORD_CARD_PREFIX}${card.id}`,

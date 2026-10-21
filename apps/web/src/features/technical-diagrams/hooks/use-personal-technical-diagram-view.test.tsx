@@ -87,7 +87,10 @@ describe("personal Technical Diagram view save", () => {
       await Promise.resolve();
     });
     expect(save).toHaveBeenCalledTimes(1);
-    expect(save.mock.calls[0]?.[0]).toMatchObject({ viewport: view(3) });
+    expect(save.mock.calls[0]?.[0]).toMatchObject({
+      diagramId: "diagram-1",
+      viewport: view(3),
+    });
     root = createRoot(container);
   });
 
@@ -99,6 +102,9 @@ describe("personal Technical Diagram view save", () => {
       await Promise.resolve();
     });
     expect(save).toHaveBeenCalledTimes(1);
-    expect(save.mock.calls[0]?.[0]).toMatchObject({ viewport: view(4) });
+    expect(save.mock.calls[0]?.[0]).toMatchObject({
+      diagramId: "diagram-1",
+      viewport: view(4),
+    });
   });
 });

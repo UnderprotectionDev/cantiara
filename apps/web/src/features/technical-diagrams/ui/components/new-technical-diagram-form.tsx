@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each form binds its own field state.
+import { externalSourceUrlSchema } from "@cantiara/api/technical-diagram-authority";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
@@ -35,7 +36,8 @@ const newDiagramSchema = z
   .refine(
     (value) =>
       value.mode !== "External Source Link" ||
-      (z.url().safeParse(value.url).success && value.tool.trim().length > 0),
+      (externalSourceUrlSchema.safeParse(value.url).success &&
+        value.tool.trim().length > 0),
   );
 type NewDiagramValues = z.infer<typeof newDiagramSchema>;
 

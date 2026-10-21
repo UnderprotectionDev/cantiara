@@ -4,6 +4,7 @@ import type {
   CreatableAuthorityMode,
   ExternalSourceLink,
 } from "@cantiara/api/technical-diagram-authority";
+import { externalSourceUrlSchema } from "@cantiara/api/technical-diagram-authority";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -33,7 +34,8 @@ const conversionSchema = z
   .refine(
     (value) =>
       value.targetMode !== "External Source Link" ||
-      (z.url().safeParse(value.url).success && value.tool.trim().length > 0),
+      (externalSourceUrlSchema.safeParse(value.url).success &&
+        value.tool.trim().length > 0),
   );
 type ConversionValues = z.infer<typeof conversionSchema>;
 
@@ -141,7 +143,19 @@ export function DiagramAuthorityConversion({
     },
     onError: (failure) =>
       setError(failure instanceof Error ? failure.message : "Preview failed."),
-    onSuccess: (result) => {
+    onSuccess: (result, values) => {
+      // An edit resets the preview; an in-flight response for the superseded
+      // values must not repopulate it.
+      const current = form.state.values;
+      if (
+        current.targetMode !== values.targetMode ||
+        current.title !== values.title ||
+        current.tool !== values.tool ||
+        current.url !== values.url ||
+        current.revision !== values.revision
+      ) {
+        return;
+      }
       setError(null);
       setPreview(result);
     },

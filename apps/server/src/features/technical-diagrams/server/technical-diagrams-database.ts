@@ -42,6 +42,7 @@ import {
   type CreateDiagramVersionInput,
   createCheckpoint,
   DiagramVersionError,
+  pruneDiagramViewSelection,
   type RestoreDiagramVersionInput,
   restoreFromCheckpoint,
   type TechnicalDiagramVersion,
@@ -345,8 +346,9 @@ export function createDatabaseTechnicalDiagrams(
       return repeated;
     }
     const preview = await assertPreviewedConversion(source, input);
+    let inserted = false;
     await database.transaction(async (tx) => {
-      const inserted = await insertDiagram(tx, {
+      inserted = await insertDiagram(tx, {
         authorityMode: preview.targetMode,
         externalSource: input.externalSource ?? null,
         id: targetId,
@@ -358,19 +360,42 @@ export function createDatabaseTechnicalDiagrams(
         title: input.title,
         type: source.type,
       });
-      if (!inserted) {
-        throw new MermaidConversionConflictError(
-          "This confirmation key was used for another Technical Diagram.",
-        );
+      if (inserted) {
+        await tx.insert(diagramAuthorityOrigin).values({
+          loss: preview.loss,
+          sourceDiagramId: source.id,
+          sourceMode: source.authorityMode,
+          targetDiagramId: targetId,
+          targetMode: preview.targetMode,
+        });
       }
-      await tx.insert(diagramAuthorityOrigin).values({
-        loss: preview.loss,
-        sourceDiagramId: source.id,
-        sourceMode: source.authorityMode,
-        targetDiagramId: targetId,
-        targetMode: preview.targetMode,
-      });
     });
+    if (!inserted) {
+      // A concurrent twin with the same confirmation key minted this identity
+      // first: an identical retry finds and returns it, a different input is
+      // the explicit conflict.
+      const [origin] = await database
+        .select()
+        .from(diagramAuthorityOrigin)
+        .where(eq(diagramAuthorityOrigin.targetDiagramId, targetId))
+        .limit(1);
+      const repeated = await get(accountId, targetId);
+      if (
+        origin &&
+        origin.sourceDiagramId === source.id &&
+        repeated?.title === input.title &&
+        repeated.authorityMode === input.targetMode &&
+        sameExternalSource(
+          repeated.externalSource,
+          input.externalSource ?? null,
+        )
+      ) {
+        return repeated;
+      }
+      throw new MermaidConversionConflictError(
+        "This confirmation key was used for another conversion.",
+      );
+    }
     return get(accountId, targetId);
   }
   async function get(
@@ -559,23 +584,39 @@ export function createDatabaseTechnicalDiagrams(
       .from(diagramRecordLink)
       .where(eq(diagramRecordLink.id, recordId))
       .limit(1);
-    if (prior) {
+    // An existing link for the confirmation key is the prior result only when
+    // it converted exactly the previewed plan to the same record type.
+    const repeatedConversion = (
+      link: typeof prior | undefined,
+    ): {
+      nodeId: string;
+      recordId: string;
+      recordType: typeof plan.record.type;
+      version: typeof plan.version;
+    } | null => {
       if (
-        prior.diagramId !== plan.diagram.id ||
-        prior.versionId !== plan.version.versionId ||
-        prior.nodeId !== plan.node.id ||
-        prior.recordType !== plan.record.type
+        link?.diagramId !== plan.diagram.id ||
+        link.versionId !== plan.version.versionId ||
+        link.nodeId !== plan.node.id ||
+        link.recordType !== plan.record.type
       ) {
-        throw new DiagramConversionError(
-          "This confirmation key was used for another conversion.",
-        );
+        return null;
       }
       return {
-        nodeId: prior.nodeId,
+        nodeId: link.nodeId,
         recordId,
         recordType: plan.record.type,
         version: plan.version,
       };
+    };
+    const repeated = repeatedConversion(prior);
+    if (prior) {
+      if (!repeated) {
+        throw new DiagramConversionError(
+          "This confirmation key was used for another conversion.",
+        );
+      }
+      return repeated;
     }
     const derived = await previewConvertToRecord(accountId, {
       diagramId: plan.diagram.id,
@@ -596,38 +637,63 @@ export function createDatabaseTechnicalDiagrams(
       operation: "convertDiagramNodeToRecord",
       ...JSON.parse(JSON.stringify(plan)),
     });
-    await database.transaction(async (tx) => {
-      const [owner] = await tx
-        .select()
-        .from(project)
-        .where(eq(project.id, plan.targetProject.id))
-        .for("update");
-      if (!owner || owner.archivedAt) {
-        throw new DiagramConversionError("The Project is archived.");
+    try {
+      await database.transaction(async (tx) => {
+        const [owner] = await tx
+          .select()
+          .from(project)
+          .where(eq(project.id, plan.targetProject.id))
+          .for("update");
+        if (!owner || owner.archivedAt) {
+          throw new DiagramConversionError("The Project is archived.");
+        }
+        await insertConvertedRecord(tx, owner, {
+          body: plan.record.body,
+          committedAt: new Date(),
+          idempotencyKey: recordId,
+          origin: {
+            componentId: plan.originLocation.nodeId,
+            ownerRecordId: plan.originLocation.diagramId,
+            sourceVersion: plan.originLocation.versionId,
+          },
+          payloadFingerprint,
+          recordId,
+          title: plan.record.title,
+          type: plan.record.type,
+          workType: plan.record.workType,
+        });
+        await tx.insert(diagramRecordLink).values({
+          diagramId: plan.diagram.id,
+          id: recordId,
+          nodeId: plan.node.id,
+          recordType: plan.record.type,
+          versionId: plan.version.versionId,
+        });
+      });
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        (error as { code?: unknown }).code !== "23505"
+      ) {
+        throw error;
       }
-      await insertConvertedRecord(tx, owner, {
-        body: plan.record.body,
-        committedAt: new Date(),
-        idempotencyKey: recordId,
-        origin: {
-          componentId: plan.originLocation.nodeId,
-          ownerRecordId: plan.originLocation.diagramId,
-          sourceVersion: plan.originLocation.versionId,
-        },
-        payloadFingerprint,
-        recordId,
-        title: plan.record.title,
-        type: plan.record.type,
-        workType: plan.record.workType,
-      });
-      await tx.insert(diagramRecordLink).values({
-        diagramId: plan.diagram.id,
-        id: recordId,
-        nodeId: plan.node.id,
-        recordType: plan.record.type,
-        versionId: plan.version.versionId,
-      });
-    });
+      // A concurrent twin converted first and hit a unique constraint. An
+      // identical retry finds its link instead of surfacing the raw error.
+      const [link] = await database
+        .select()
+        .from(diagramRecordLink)
+        .where(eq(diagramRecordLink.id, recordId))
+        .limit(1);
+      const afterConflict = repeatedConversion(link);
+      if (afterConflict) {
+        return afterConflict;
+      }
+      throw new DiagramConversionError(
+        "This confirmation key is already used. Try again.",
+        { cause: error },
+      );
+    }
     return {
       nodeId: plan.node.id,
       recordId,
@@ -794,13 +860,12 @@ export function createDatabaseTechnicalDiagrams(
         : undefined;
     return node?.label === bind.boundLabel;
   }
-  /** A view keeps only elements that still exist in the live model. */
+  /** A view stays in step with the live model; the Default view follows it whole. */
   async function pruneViews(
     tx: Pick<Database, "select" | "update">,
     diagramId: string,
     model: TechnicalDiagramSource["model"],
   ) {
-    const ids = new Set(diagramGraph(model).nodes.map(({ id }) => id));
     const views = await tx
       .select()
       .from(diagramView)
@@ -809,12 +874,7 @@ export function createDatabaseTechnicalDiagrams(
       views.map((view) =>
         tx
           .update(diagramView)
-          .set({
-            layout: Object.fromEntries(
-              Object.entries(view.layout).filter(([id]) => ids.has(id)),
-            ),
-            selectedNodeIds: view.selectedNodeIds.filter((id) => ids.has(id)),
-          })
+          .set(pruneDiagramViewSelection(view, model))
           .where(eq(diagramView.id, view.id)),
       ),
     );
@@ -940,6 +1000,12 @@ export function createDatabaseTechnicalDiagrams(
       return created?.id ?? null;
     });
     if (!createdId) {
+      // A concurrent twin with the same confirmation key created this
+      // checkpoint first: an identical retry finds it instead of erroring.
+      const repeated = await getVersion(accountId, input.clientIdempotencyKey);
+      if (repeated?.diagramId === current.id && repeated.name === input.name) {
+        return repeated;
+      }
       throw new DiagramVersionError(
         "Diagram Version name or confirmation key is already used.",
       );

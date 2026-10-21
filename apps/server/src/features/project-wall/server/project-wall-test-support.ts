@@ -563,7 +563,6 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
     };
   }
   const access: ProjectWallDiagrams = {
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async get(accountId, diagramId, viewId) {
       const diagram = diagrams.get(diagramId);
       const view = viewId
@@ -574,7 +573,6 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
       }
       return source(accountId, diagram, view);
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async getVersion(accountId, versionId) {
       for (const diagram of diagrams.values()) {
         const version = diagram.versions?.find(({ id }) => id === versionId);
@@ -584,13 +582,11 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
       }
       return null;
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async list(accountId, projectId) {
       return [...diagrams.values()]
         .filter((diagram) => diagram.projectId === projectId)
         .flatMap((diagram) => source(accountId, diagram, null) ?? []);
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async listViews(accountId, diagramId) {
       const diagram = diagrams.get(diagramId);
       return diagram?.ownerAccountId === accountId
@@ -669,13 +665,11 @@ export function createFakeProjectWallCollections(input: FakeCollection[]) {
     } as unknown as SmartCollectionViewSource;
   }
   const access: ProjectWallCollections = {
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async getView(accountId, viewId, options) {
       calls.push({ readOnly: options?.readOnly === true, viewId });
       const collection = collections.get(viewId);
       return collection?.ownerAccountId === accountId ? view(collection) : null;
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async listViews(accountId, projectId) {
       return [...collections.values()]
         .filter(
@@ -702,12 +696,10 @@ export function createFakeProjectWallCollections(input: FakeCollection[]) {
 export function createFakeSnapshotRenderer() {
   const rendered: ProjectWallSnapshotData[] = [];
   const renderer: ProjectWallSnapshotRenderer = {
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async pdf(data) {
       rendered.push(structuredClone(data));
       return new TextEncoder().encode("%PDF fake");
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async png(data) {
       rendered.push(structuredClone(data));
       return new Uint8Array([137, 80, 78, 71]);

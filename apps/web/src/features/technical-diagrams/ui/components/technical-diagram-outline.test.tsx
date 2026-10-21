@@ -186,6 +186,65 @@ describe("Technical Diagram structured outline", () => {
       "bound to API (node only, no Diagram Version pinned)",
     );
   });
+
+  test("names a pinned Diagram Version instead of its raw id", () => {
+    render(
+      <TechnicalDiagramOutline
+        diagram={{
+          model: {
+            participants: [
+              {
+                bind: {
+                  boundLabel: "API",
+                  diagramId: "d0",
+                  nodeId: "api",
+                  versionId: "v-9",
+                },
+                id: "a",
+                kind: "Component",
+                label: "API",
+              },
+            ],
+            steps: [],
+          },
+          title: "Open project",
+          type: "Technical Sequence",
+        }}
+        versionNames={{ "v-9": "Before split" }}
+      />,
+    );
+    expect(container.textContent).toContain(
+      "bound to API (Diagram Version Before split)",
+    );
+  });
+
+  test("falls back to the version id when no name is known", () => {
+    render(
+      <TechnicalDiagramOutline
+        diagram={{
+          model: {
+            participants: [
+              {
+                bind: {
+                  boundLabel: "API",
+                  diagramId: "d0",
+                  nodeId: "api",
+                  versionId: "v-9",
+                },
+                id: "a",
+                kind: "Component",
+                label: "API",
+              },
+            ],
+            steps: [],
+          },
+          title: "Open project",
+          type: "Technical Sequence",
+        }}
+      />,
+    );
+    expect(container.textContent).toContain("Diagram Version v-9");
+  });
 });
 
 describe("Technical Diagram editor", () => {

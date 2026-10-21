@@ -1,8 +1,8 @@
 import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
 import { z } from "zod";
-
 import type { CreatableAuthorityMode } from "./technical-diagram-authority";
 import type { TechnicalDiagramType } from "./technical-diagram-structure";
+import { diagramGraph } from "./technical-diagram-structure";
 
 /**
  * `Diagram View` and `Diagram Version` (spec 59 #422). A view is a named,
@@ -169,4 +169,35 @@ export function assertVersionBind(
       "The pinned Diagram Version has no such Architecture node.",
     );
   }
+}
+
+/** The view facts a save or restore keeps in step with the live model. */
+export interface PrunableDiagramView {
+  /** Element id to canvas coordinates; never canonical. */
+  layout: Record<string, { x: number; y: number }>;
+  name: string;
+  selectedNodeIds: readonly string[];
+}
+
+/**
+ * Keeps a `Diagram View` consistent with the live model without copying it.
+ * A named view keeps the elements its author selected and only prunes the ones
+ * the model deleted; the built-in `Default` view is the bare diagram, so it
+ * always selects the whole live element set and a Live card keeps following it.
+ */
+export function pruneDiagramViewSelection(
+  view: PrunableDiagramView,
+  model: DiagramModel,
+): { layout: PrunableDiagramView["layout"]; selectedNodeIds: string[] } {
+  const nodeIds = diagramGraph(model).nodes.map(({ id }) => id);
+  const ids = new Set(nodeIds);
+  return {
+    layout: Object.fromEntries(
+      Object.entries(view.layout).filter(([id]) => ids.has(id)),
+    ),
+    selectedNodeIds:
+      view.name === "Default"
+        ? nodeIds
+        : view.selectedNodeIds.filter((id) => ids.has(id)),
+  };
 }
