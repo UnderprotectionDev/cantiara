@@ -2,8 +2,10 @@
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { z } from "zod";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client } from "@/utils/orpc";
@@ -21,16 +23,35 @@ const TYPES: DiagramType[] = [
 ];
 const MODES: CreateMode[] = ["Product-authored Model", "External Source Link"];
 
+const newDiagramSchema = z
+  .object({
+    mode: z.enum(MODES),
+    revision: z.string(),
+    title: z.string().trim().min(1),
+    tool: z.string(),
+    type: z.enum(TYPES),
+    url: z.string(),
+  })
+  .refine(
+    (value) =>
+      value.mode !== "External Source Link" ||
+      (z.url().safeParse(value.url).success && value.tool.trim().length > 0),
+  );
+type NewDiagramValues = z.infer<typeof newDiagramSchema>;
+
 export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState<DiagramType>("Technical Architecture");
-  const [mode, setMode] = useState<CreateMode>("Product-authored Model");
-  const [link, setLink] = useState({ revision: "", tool: "", url: "" });
   const [error, setError] = useState<string | null>(null);
   const pendingKey = useRef<string | null>(null);
   const create = useMutation({
-    mutationFn: () => {
+    mutationFn: ({
+      mode,
+      revision,
+      title,
+      tool,
+      type,
+      url,
+    }: NewDiagramValues) => {
       pendingKey.current ??= crypto.randomUUID();
       const base = {
         clientIdempotencyKey: pendingKey.current,
@@ -45,9 +66,9 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
               authorityMode: mode,
               externalSource: {
                 lastCheckedAt: new Date().toISOString(),
-                revision: link.revision.trim() || null,
-                tool: link.tool,
-                url: link.url,
+                revision: revision.trim() || null,
+                tool,
+                url,
               },
             })
           : client.createTechnicalDiagram({ ...base, authorityMode: mode }),
@@ -62,9 +83,31 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
     onSuccess: async () => {
       pendingKey.current = null;
       setError(null);
-      setTitle("");
       await queryClient.invalidateQueries();
     },
+  });
+  const form = useForm({
+    defaultValues: {
+      mode: "Product-authored Model",
+      revision: "",
+      title: "",
+      tool: "",
+      type: "Technical Architecture",
+      url: "",
+    } as NewDiagramValues,
+    // Any edit starts a new create attempt, so it gets a fresh idempotency key.
+    listeners: {
+      onChange: () => {
+        pendingKey.current = null;
+      },
+    },
+    onSubmit: async ({ value, formApi }) => {
+      await create
+        .mutateAsync(value)
+        .then(() => formApi.setFieldValue("title", ""))
+        .catch(() => undefined);
+    },
+    validators: { onChange: newDiagramSchema },
   });
   return (
     <form
@@ -72,83 +115,118 @@ export function NewTechnicalDiagramForm({ projectId }: { projectId: string }) {
       className="space-y-2 rounded-lg border p-4"
       onSubmit={(event) => {
         event.preventDefault();
-        create.mutate();
+        form.handleSubmit().catch(() => undefined);
       }}
     >
       <h3 className="font-medium">New Technical Diagram</h3>
-      <Label htmlFor="new-diagram-title">Title</Label>
-      <Input
-        id="new-diagram-title"
-        onChange={(event) => {
-          pendingKey.current = null;
-          setTitle(event.target.value);
-        }}
-        required
-        value={title}
-      />
-      <Label htmlFor="new-diagram-type">Type</Label>
-      <select
-        id="new-diagram-type"
-        onChange={(event) => setType(event.target.value as DiagramType)}
-        value={type}
-      >
-        {TYPES.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <Label htmlFor="new-diagram-mode">Diagram Authority Mode</Label>
-      <select
-        id="new-diagram-mode"
-        onChange={(event) => {
-          pendingKey.current = null;
-          setMode(event.target.value as CreateMode);
-        }}
-        value={mode}
-      >
-        {MODES.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      {mode === "External Source Link" ? (
-        <>
-          <Label htmlFor="new-diagram-url">HTTPS URL</Label>
-          <Input
-            id="new-diagram-url"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setLink({ ...link, url: event.target.value });
-            }}
-            required
-            type="url"
-            value={link.url}
-          />
-          <Label htmlFor="new-diagram-tool">Source tool</Label>
-          <Input
-            id="new-diagram-tool"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setLink({ ...link, tool: event.target.value });
-            }}
-            required
-            value={link.tool}
-          />
-          <Label htmlFor="new-diagram-revision">
-            Known revision (optional)
-          </Label>
-          <Input
-            id="new-diagram-revision"
-            onChange={(event) => {
-              pendingKey.current = null;
-              setLink({ ...link, revision: event.target.value });
-            }}
-            value={link.revision}
-          />
-        </>
-      ) : null}
+      <form.Field name="title">
+        {(field) => (
+          <>
+            <Label htmlFor="new-diagram-title">Title</Label>
+            <Input
+              id="new-diagram-title"
+              onChange={(event) => field.handleChange(event.target.value)}
+              required
+              value={field.state.value}
+            />
+          </>
+        )}
+      </form.Field>
+      <form.Field name="type">
+        {(field) => (
+          <>
+            <Label htmlFor="new-diagram-type">Type</Label>
+            <select
+              id="new-diagram-type"
+              onChange={(event) =>
+                field.handleChange(event.target.value as DiagramType)
+              }
+              value={field.state.value}
+            >
+              {TYPES.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </form.Field>
+      <form.Field name="mode">
+        {(field) => (
+          <>
+            <Label htmlFor="new-diagram-mode">Diagram Authority Mode</Label>
+            <select
+              id="new-diagram-mode"
+              onChange={(event) =>
+                field.handleChange(event.target.value as CreateMode)
+              }
+              value={field.state.value}
+            >
+              {MODES.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </form.Field>
+      <form.Subscribe selector={(state) => state.values.mode}>
+        {(mode) =>
+          mode === "External Source Link" ? (
+            <>
+              <form.Field name="url">
+                {(field) => (
+                  <>
+                    <Label htmlFor="new-diagram-url">HTTPS URL</Label>
+                    <Input
+                      id="new-diagram-url"
+                      onChange={(event) =>
+                        field.handleChange(event.target.value)
+                      }
+                      required
+                      type="url"
+                      value={field.state.value}
+                    />
+                  </>
+                )}
+              </form.Field>
+              <form.Field name="tool">
+                {(field) => (
+                  <>
+                    <Label htmlFor="new-diagram-tool">Source tool</Label>
+                    <Input
+                      id="new-diagram-tool"
+                      onChange={(event) =>
+                        field.handleChange(event.target.value)
+                      }
+                      required
+                      value={field.state.value}
+                    />
+                  </>
+                )}
+              </form.Field>
+              <form.Field name="revision">
+                {(field) => (
+                  <>
+                    <Label htmlFor="new-diagram-revision">
+                      Known revision (optional)
+                    </Label>
+                    <Input
+                      id="new-diagram-revision"
+                      onChange={(event) =>
+                        field.handleChange(event.target.value)
+                      }
+                      value={field.state.value}
+                    />
+                  </>
+                )}
+              </form.Field>
+            </>
+          ) : null
+        }
+      </form.Subscribe>
       <Button disabled={create.isPending} type="submit">
         Create
       </Button>

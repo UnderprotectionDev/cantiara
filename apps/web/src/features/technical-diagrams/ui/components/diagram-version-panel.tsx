@@ -4,7 +4,11 @@ import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useId, useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useId } from "react";
+import { z } from "zod";
+
+const versionNameSchema = z.object({ name: z.string().trim().min(1) });
 
 interface Props {
   diagram: Pick<TechnicalDiagramSource, "authorityMode" | "id" | "revision">;
@@ -28,7 +32,14 @@ export function DiagramVersionPanel({
   versions,
 }: Props) {
   const nameId = useId();
-  const [name, setName] = useState("");
+  const form = useForm({
+    defaultValues: { name: "" },
+    onSubmit: ({ value, formApi }) => {
+      onCreate(value.name.trim());
+      formApi.reset();
+    },
+    validators: { onChange: versionNameSchema },
+  });
   if (diagram.authorityMode === "External Source Link") {
     return (
       <section aria-label="Diagram Version" className="space-y-2">
@@ -77,20 +88,29 @@ export function DiagramVersionPanel({
         className="space-y-2"
         onSubmit={(event) => {
           event.preventDefault();
-          onCreate(name.trim());
-          setName("");
+          form.handleSubmit().catch(() => undefined);
         }}
       >
-        <Label htmlFor={nameId}>Diagram Version name</Label>
-        <Input
-          id={nameId}
-          onChange={(event) => setName(event.target.value)}
-          required
-          value={name}
-        />
-        <Button disabled={disabled || !name.trim()} type="submit">
-          Create Diagram Version
-        </Button>
+        <form.Field name="name">
+          {(field) => (
+            <>
+              <Label htmlFor={nameId}>Diagram Version name</Label>
+              <Input
+                id={nameId}
+                onChange={(event) => field.handleChange(event.target.value)}
+                required
+                value={field.state.value}
+              />
+            </>
+          )}
+        </form.Field>
+        <form.Subscribe selector={(state) => state.values.name}>
+          {(name) => (
+            <Button disabled={disabled || !name.trim()} type="submit">
+              Create Diagram Version
+            </Button>
+          )}
+        </form.Subscribe>
       </form>
       {error ? <p role="alert">{error}</p> : null}
     </section>

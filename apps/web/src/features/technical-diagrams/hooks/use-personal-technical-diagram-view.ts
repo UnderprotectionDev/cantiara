@@ -1,6 +1,7 @@
 import type { TechnicalDiagramViewport } from "@cantiara/api/technical-diagram-viewport";
+import { LiteDebouncer } from "@tanstack/pacer-lite";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { client, orpc } from "@/utils/orpc";
 
@@ -31,40 +32,27 @@ export function usePersonalTechnicalDiagramView(
         saved,
       ),
   });
-  const pending = useRef<TechnicalDiagramViewport | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { mutate } = save;
-
-  const flush = useCallback(() => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (pending.current) {
-      mutate(pending.current);
-      pending.current = null;
-    }
-  }, [mutate]);
-
-  const schedule = useCallback(
-    (view: TechnicalDiagramViewport) => {
-      pending.current = view;
-      if (timer.current) {
-        clearTimeout(timer.current);
-      }
-      timer.current = setTimeout(flush, SAVE_DELAY_MS);
-    },
-    [flush],
+  const mutateRef = useRef(mutate);
+  mutateRef.current = mutate;
+  // The last viewport wins; leaving or switching flushes it instead of dropping it.
+  const debouncer = useMemo(
+    () =>
+      new LiteDebouncer(
+        (view: TechnicalDiagramViewport) => mutateRef.current(view),
+        { wait: SAVE_DELAY_MS },
+      ),
+    [],
   );
 
   // Switching or leaving a diagram keeps its last position.
   // biome-ignore lint/correctness/useExhaustiveDependencies: A new diagram or view is the trigger to flush the old one's pending save.
-  useEffect(() => flush, [flush, diagramId, viewId]);
+  useEffect(() => () => debouncer.flush(), [debouncer, diagramId, viewId]);
 
   return {
     isReady: query.isSuccess || query.isError,
     saveError,
     saved: query.data ?? null,
-    schedule,
+    schedule: debouncer.maybeExecute,
   };
 }

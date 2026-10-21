@@ -53,3 +53,24 @@ test("refuses unsupported Mermaid syntax instead of losing source lines", async 
     parseMermaidArchitecture("graph TD\nclassDef danger fill:red"),
   ).rejects.toThrow("Unsupported Mermaid line 2");
 });
+
+test("a Mermaid syntax error is a non-convertible preview with a reason, not a throw", async () => {
+  const preview = await previewMermaidArchitecture(
+    "graph TD\nweb --> api\nthis is not valid !!",
+  );
+  expect(preview.canConvert).toBe(false);
+  expect(preview.model).toEqual({ nodes: [], links: [] });
+  expect(preview.unparseableLines).toHaveLength(1);
+  expect(preview.unparseableLines[0]).toMatchObject({ line: 3 });
+  expect(preview.unparseableLines[0]?.reason).toContain(
+    "Mermaid could not parse this diagram",
+  );
+});
+
+test("labelled edges still convert when Mermaid cannot sanitize labels on the server", async () => {
+  const preview = await previewMermaidArchitecture(
+    "graph TD\nweb[Web] --> api[API]",
+  );
+  expect(preview.canConvert).toBe(true);
+  expect(preview.unparseableLines).toEqual([]);
+});

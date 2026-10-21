@@ -225,7 +225,7 @@ describe("Technical Diagram editor", () => {
     expect(container.textContent).toContain("stays in the external tool");
   });
 
-  test("saves an added Architecture node through the typed model", () => {
+  test("saves an added Architecture node through the typed model", async () => {
     const saved: unknown[] = [];
     render(
       <TechnicalDiagramEditor
@@ -251,12 +251,13 @@ describe("Technical Diagram editor", () => {
       setter?.call(label, "Jobs");
       label?.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    act(() => {
+    await act(async () => {
       container
         .querySelector('form[aria-label="Add node"]')
         ?.dispatchEvent(
           new Event("submit", { bubbles: true, cancelable: true }),
         );
+      await Promise.resolve();
     });
     expect(saved).toHaveLength(1);
     expect(saved[0]).toMatchObject({

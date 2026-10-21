@@ -43,6 +43,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { z } from "zod";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
@@ -1582,6 +1583,11 @@ export default function DocumentsSurface({
   );
 }
 
+const diagramConversionFormSchema = z.object({
+  originalBlock: z.enum(["Keep independent", "Replace with live reference"]),
+  title: z.string(),
+});
+
 function DocumentDiagramConversionDialog({
   setConversionSelection,
   conversionKey,
@@ -1621,6 +1627,22 @@ function DocumentDiagramConversionDialog({
     unknown
   >;
 }) {
+  const form = useForm({
+    defaultValues: {
+      originalBlock: originalBlockOutcome,
+      title: conversionTitle,
+    },
+    validators: { onChange: diagramConversionFormSchema },
+  });
+  // The parent resets the title and outcome when a selection opens or closes.
+  useEffect(() => {
+    if (form.getFieldValue("title") !== conversionTitle) {
+      form.setFieldValue("title", conversionTitle);
+    }
+    if (form.getFieldValue("originalBlock") !== originalBlockOutcome) {
+      form.setFieldValue("originalBlock", originalBlockOutcome);
+    }
+  }, [conversionTitle, form, originalBlockOutcome]);
   const previewMatchesSelection = matchesDiagramConversionPreview(
     conversionPreview.data,
     conversionSelection,
@@ -1644,40 +1666,63 @@ function DocumentDiagramConversionDialog({
           <DialogDescription>Imported Independent Copy</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="converted-diagram-title">Title</Label>
-          <Input
-            id="converted-diagram-title"
-            onChange={(event) => {
-              const nextTitle = event.target.value;
-              if (nextTitle !== conversionTitle) {
-                conversionKey.current = null;
-              }
-              setConversionTitle(nextTitle);
+          <form.Field
+            listeners={{
+              onChange: ({ value }) => {
+                if (value !== conversionTitle) {
+                  conversionKey.current = null;
+                }
+                setConversionTitle(value);
+              },
             }}
-            value={conversionTitle}
-          />
-          <Label htmlFor="converted-diagram-original-block">
-            Original Mermaid block
-          </Label>
-          <NativeSelect
-            id="converted-diagram-original-block"
-            onChange={(event) => {
-              conversionKey.current = null;
-              setOriginalBlockOutcome(
-                event.target.value as
-                  | "Keep independent"
-                  | "Replace with live reference",
-              );
-            }}
-            value={originalBlockOutcome}
+            name="title"
           >
-            <NativeSelectOption value="Keep independent">
-              Keep independent
-            </NativeSelectOption>
-            <NativeSelectOption value="Replace with live reference">
-              Replace with live reference
-            </NativeSelectOption>
-          </NativeSelect>
+            {(field) => (
+              <>
+                <Label htmlFor="converted-diagram-title">Title</Label>
+                <Input
+                  id="converted-diagram-title"
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </>
+            )}
+          </form.Field>
+          <form.Field
+            listeners={{
+              onChange: ({ value }) => {
+                conversionKey.current = null;
+                setOriginalBlockOutcome(value);
+              },
+            }}
+            name="originalBlock"
+          >
+            {(field) => (
+              <>
+                <Label htmlFor="converted-diagram-original-block">
+                  Original Mermaid block
+                </Label>
+                <NativeSelect
+                  id="converted-diagram-original-block"
+                  onChange={(event) =>
+                    field.handleChange(
+                      event.target.value as
+                        | "Keep independent"
+                        | "Replace with live reference",
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  <NativeSelectOption value="Keep independent">
+                    Keep independent
+                  </NativeSelectOption>
+                  <NativeSelectOption value="Replace with live reference">
+                    Replace with live reference
+                  </NativeSelectOption>
+                </NativeSelect>
+              </>
+            )}
+          </form.Field>
           {conversionPreview.data &&
           !conversionPreview.isFetching &&
           previewMatchesSelection ? (

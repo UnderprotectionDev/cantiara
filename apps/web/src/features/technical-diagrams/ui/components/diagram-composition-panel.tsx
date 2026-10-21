@@ -14,7 +14,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@cantiara/ui/components/native-select";
-import { useId, useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useId } from "react";
 
 type Target = (typeof USER_FLOW_CONVERT_TARGETS)[number];
 const WORK_TYPES = ["Task", "Bug", "Research", "Improvement"] as const;
@@ -173,19 +174,33 @@ export function DiagramCompositionPanel({
   const nodeId = useId();
   const targetId = useId();
   const workTypeId = useId();
-  const [choice, setChoice] = useState("");
-  const [selectedVersion, setSelectedVersion] = useState("");
-  const [selectedNode, setSelectedNode] = useState("");
-  const [target, setTarget] = useState<Target>("Work");
-  const [workType, setWorkType] = useState<(typeof WORK_TYPES)[number]>("Task");
+  const placeForm = useForm({
+    defaultValues: { choice: "" },
+    onSubmit: ({ value, formApi }) => {
+      const picked = free.find(
+        ({ id, sourceType }) => `${sourceType}:${id}` === value.choice,
+      );
+      if (picked) {
+        onPlace(picked);
+        formApi.reset();
+      }
+    },
+  });
+  const convertForm = useForm({
+    defaultValues: {
+      nodeId: "",
+      target: "Work" as Target,
+      versionId: "",
+      workType: "Task" as (typeof WORK_TYPES)[number],
+    },
+    onSubmit: ({ value }) => onPreviewConvert(value),
+  });
   const placed = new Set(
     cards.map((card) => `${card.sourceType}:${card.sourceId}`),
   );
   const free = options.filter(
     ({ id, sourceType }) => !placed.has(`${sourceType}:${id}`),
   );
-  const version = versions.find(({ id }) => id === selectedVersion);
-  const nodes = version ? diagramGraph(version.model).nodes : [];
   const external = diagram.authorityMode === "External Source Link";
   return (
     <section aria-label="Diagram composition" className="space-y-4">
@@ -209,37 +224,41 @@ export function DiagramCompositionPanel({
           </ul>
         ) : null}
         <div className="flex flex-wrap items-end gap-2">
-          <Label htmlFor={placeId}>Existing record</Label>
-          <NativeSelect
-            id={placeId}
-            onChange={(event) => setChoice(event.target.value)}
-            value={choice}
-          >
-            <NativeSelectOption value="">Choose a record</NativeSelectOption>
-            {free.map((option) => (
-              <NativeSelectOption
-                key={`${option.sourceType}:${option.id}`}
-                value={`${option.sourceType}:${option.id}`}
+          <placeForm.Field name="choice">
+            {(field) => (
+              <>
+                <Label htmlFor={placeId}>Existing record</Label>
+                <NativeSelect
+                  id={placeId}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                >
+                  <NativeSelectOption value="">
+                    Choose a record
+                  </NativeSelectOption>
+                  {free.map((option) => (
+                    <NativeSelectOption
+                      key={`${option.sourceType}:${option.id}`}
+                      value={`${option.sourceType}:${option.id}`}
+                    >
+                      {option.sourceType} · {option.title}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </>
+            )}
+          </placeForm.Field>
+          <placeForm.Subscribe selector={(state) => state.values.choice}>
+            {(choice) => (
+              <Button
+                disabled={disabled || !choice}
+                onClick={() => placeForm.handleSubmit()}
+                type="button"
               >
-                {option.sourceType} · {option.title}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <Button
-            disabled={disabled || !choice}
-            onClick={() => {
-              const picked = free.find(
-                ({ id, sourceType }) => `${sourceType}:${id}` === choice,
-              );
-              if (picked) {
-                onPlace(picked);
-                setChoice("");
-              }
-            }}
-            type="button"
-          >
-            Place live card
-          </Button>
+                Place live card
+              </Button>
+            )}
+          </placeForm.Subscribe>
         </div>
       </section>
       <section aria-label={DIAGRAM_CARD_LABELS.convert} className="space-y-2">
@@ -256,84 +275,128 @@ export function DiagramCompositionPanel({
               Version. Nothing is written before you confirm the preview.
             </p>
             <div className="flex flex-wrap items-end gap-2">
-              <Label htmlFor={versionId}>Diagram Version</Label>
-              <NativeSelect
-                id={versionId}
-                onChange={(event) => {
-                  setSelectedVersion(event.target.value);
-                  setSelectedNode("");
-                }}
-                value={selectedVersion}
-              >
-                <NativeSelectOption value="">
-                  Choose a Diagram Version
-                </NativeSelectOption>
-                {versions.map((item) => (
-                  <NativeSelectOption key={item.id} value={item.id}>
-                    {item.name} · version {item.number}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <Label htmlFor={nodeId}>Node</Label>
-              <NativeSelect
-                id={nodeId}
-                onChange={(event) => setSelectedNode(event.target.value)}
-                value={selectedNode}
-              >
-                <NativeSelectOption value="">Choose a node</NativeSelectOption>
-                {nodes.map((node) => (
-                  <NativeSelectOption key={node.id} value={node.id}>
-                    {node.kind} · {node.label}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <Label htmlFor={targetId}>Target type</Label>
-              <NativeSelect
-                id={targetId}
-                onChange={(event) => setTarget(event.target.value as Target)}
-                value={target}
-              >
-                {USER_FLOW_CONVERT_TARGETS.map((item) => (
-                  <NativeSelectOption key={item} value={item}>
-                    {item}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              {target === "Work" ? (
-                <>
-                  <Label htmlFor={workTypeId}>Work type</Label>
-                  <NativeSelect
-                    id={workTypeId}
-                    onChange={(event) =>
-                      setWorkType(
-                        event.target.value as (typeof WORK_TYPES)[number],
-                      )
-                    }
-                    value={workType}
-                  >
-                    {WORK_TYPES.map((item) => (
-                      <NativeSelectOption key={item} value={item}>
-                        {item}
+              <convertForm.Field name="versionId">
+                {(field) => (
+                  <>
+                    <Label htmlFor={versionId}>Diagram Version</Label>
+                    <NativeSelect
+                      id={versionId}
+                      onChange={(event) => {
+                        field.handleChange(event.target.value);
+                        convertForm.setFieldValue("nodeId", "");
+                      }}
+                      value={field.state.value}
+                    >
+                      <NativeSelectOption value="">
+                        Choose a Diagram Version
                       </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </>
-              ) : null}
-              <Button
-                disabled={disabled || !(selectedVersion && selectedNode)}
-                onClick={() =>
-                  onPreviewConvert({
-                    nodeId: selectedNode,
-                    target,
-                    versionId: selectedVersion,
-                    workType,
-                  })
-                }
-                type="button"
-                variant="outline"
+                      {versions.map((item) => (
+                        <NativeSelectOption key={item.id} value={item.id}>
+                          {item.name} · version {item.number}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </>
+                )}
+              </convertForm.Field>
+              <convertForm.Subscribe
+                selector={(state) => state.values.versionId}
               >
-                Preview conversion
-              </Button>
+                {(selectedVersion) => {
+                  const version = versions.find(
+                    ({ id }) => id === selectedVersion,
+                  );
+                  const nodes = version
+                    ? diagramGraph(version.model).nodes
+                    : [];
+                  return (
+                    <convertForm.Field name="nodeId">
+                      {(field) => (
+                        <>
+                          <Label htmlFor={nodeId}>Node</Label>
+                          <NativeSelect
+                            id={nodeId}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            value={field.state.value}
+                          >
+                            <NativeSelectOption value="">
+                              Choose a node
+                            </NativeSelectOption>
+                            {nodes.map((node) => (
+                              <NativeSelectOption key={node.id} value={node.id}>
+                                {node.kind} · {node.label}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </>
+                      )}
+                    </convertForm.Field>
+                  );
+                }}
+              </convertForm.Subscribe>
+              <convertForm.Field name="target">
+                {(field) => (
+                  <>
+                    <Label htmlFor={targetId}>Target type</Label>
+                    <NativeSelect
+                      id={targetId}
+                      onChange={(event) =>
+                        field.handleChange(event.target.value as Target)
+                      }
+                      value={field.state.value}
+                    >
+                      {USER_FLOW_CONVERT_TARGETS.map((item) => (
+                        <NativeSelectOption key={item} value={item}>
+                          {item}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </>
+                )}
+              </convertForm.Field>
+              <convertForm.Subscribe selector={(state) => state.values.target}>
+                {(target) =>
+                  target === "Work" ? (
+                    <convertForm.Field name="workType">
+                      {(field) => (
+                        <>
+                          <Label htmlFor={workTypeId}>Work type</Label>
+                          <NativeSelect
+                            id={workTypeId}
+                            onChange={(event) =>
+                              field.handleChange(
+                                event.target
+                                  .value as (typeof WORK_TYPES)[number],
+                              )
+                            }
+                            value={field.state.value}
+                          >
+                            {WORK_TYPES.map((item) => (
+                              <NativeSelectOption key={item} value={item}>
+                                {item}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </>
+                      )}
+                    </convertForm.Field>
+                  ) : null
+                }
+              </convertForm.Subscribe>
+              <convertForm.Subscribe selector={(state) => state.values}>
+                {(values) => (
+                  <Button
+                    disabled={disabled || !(values.versionId && values.nodeId)}
+                    onClick={() => convertForm.handleSubmit()}
+                    type="button"
+                    variant="outline"
+                  >
+                    Preview conversion
+                  </Button>
+                )}
+              </convertForm.Subscribe>
             </div>
             {versions.length === 0 ? (
               <p className="text-muted-foreground text-sm">

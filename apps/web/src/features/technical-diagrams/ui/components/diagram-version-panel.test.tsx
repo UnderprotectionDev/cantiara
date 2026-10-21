@@ -57,7 +57,7 @@ const diagram = {
 } as const;
 
 describe("Diagram Version panel", () => {
-  test("creates a named Diagram Version from a labelled form", () => {
+  test("creates a named Diagram Version from a labelled form", async () => {
     const created: string[] = [];
     render(
       <DiagramVersionPanel
@@ -78,12 +78,13 @@ describe("Diagram Version panel", () => {
       container.querySelector(`label[for="${input?.id}"]`)?.textContent,
     ).toBe("Diagram Version name");
     typeInto(input, "Before split");
-    act(() => {
+    await act(async () => {
       container
         .querySelector("form")
         ?.dispatchEvent(
           new Event("submit", { bubbles: true, cancelable: true }),
         );
+      await Promise.resolve();
     });
     expect(created).toEqual(["Before split"]);
   });
@@ -144,7 +145,7 @@ describe("Diagram Version panel", () => {
 });
 
 describe("Sequence lifeline bind with a Diagram Version", () => {
-  test("saves the exact Diagram Version the founder chose", () => {
+  test("saves the exact Diagram Version the founder chose", async () => {
     const saved: unknown[] = [];
     const sequence: TechnicalDiagramSource = {
       authorityMode: "Product-authored Model",
@@ -198,10 +199,11 @@ describe("Sequence lifeline bind with a Diagram Version", () => {
         select.dispatchEvent(new Event("change", { bubbles: true }));
       }
     });
-    act(() => {
+    await act(async () => {
       form?.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
       );
+      await Promise.resolve();
     });
     expect(saved[0]).toMatchObject({
       participants: [

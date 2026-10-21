@@ -8,8 +8,10 @@ import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
+import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { z } from "zod";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client } from "@/utils/orpc";
@@ -19,6 +21,21 @@ const TARGET_MODES: CreatableAuthorityMode[] = [
   "Imported Independent Copy",
   "External Source Link",
 ];
+
+const conversionSchema = z
+  .object({
+    revision: z.string(),
+    targetMode: z.string().min(1),
+    title: z.string().trim().min(1),
+    tool: z.string(),
+    url: z.string(),
+  })
+  .refine(
+    (value) =>
+      value.targetMode !== "External Source Link" ||
+      (z.url().safeParse(value.url).success && value.tool.trim().length > 0),
+  );
+type ConversionValues = z.infer<typeof conversionSchema>;
 
 export function ExternalSourceLinkDetails({
   source,
@@ -76,11 +93,6 @@ export function DiagramAuthorityConversion({
         diagram.authorityMode === "External Source Link"
       ),
   );
-  const [targetMode, setTargetMode] = useState<CreatableAuthorityMode | "">(
-    targets[0] ?? "",
-  );
-  const [title, setTitle] = useState(`${diagram.title} (converted)`);
-  const [link, setLink] = useState({ url: "", tool: "", revision: "" });
   const [preview, setPreview] = useState<AuthorityConversionPreview | null>(
     null,
   );
@@ -88,31 +100,44 @@ export function DiagramAuthorityConversion({
   const pendingKey = useRef<string | null>(null);
   const checkedAt = useRef(new Date().toISOString());
 
-  const request = () => {
+  const request = (values: ConversionValues) => {
     const externalSource: ExternalSourceLink | undefined =
-      targetMode === "External Source Link"
+      values.targetMode === "External Source Link"
         ? {
             lastCheckedAt: checkedAt.current,
-            revision: link.revision.trim() || null,
-            tool: link.tool,
-            url: link.url,
+            revision: values.revision.trim() || null,
+            tool: values.tool,
+            url: values.url,
           }
         : undefined;
     return {
       ...(externalSource ? { externalSource } : {}),
       sourceDiagramId: diagram.id,
-      targetMode: targetMode as CreatableAuthorityMode,
-      title,
+      targetMode: values.targetMode as CreatableAuthorityMode,
+      title: values.title,
     };
   };
   const reset = () => {
     pendingKey.current = null;
     setPreview(null);
   };
+  const form = useForm({
+    defaultValues: {
+      revision: "",
+      targetMode: targets[0] ?? "",
+      title: `${diagram.title} (converted)`,
+      tool: "",
+      url: "",
+    } as ConversionValues,
+    // Any edit invalidates the previewed conversion and its idempotency key.
+    listeners: { onChange: reset },
+    onSubmit: ({ value }) => previewMutation.mutate(value),
+    validators: { onChange: conversionSchema },
+  });
   const previewMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (values: ConversionValues) => {
       checkedAt.current = new Date().toISOString();
-      return client.previewDiagramAuthorityConversion(request());
+      return client.previewDiagramAuthorityConversion(request(values));
     },
     onError: (failure) =>
       setError(failure instanceof Error ? failure.message : "Preview failed."),
@@ -126,7 +151,7 @@ export function DiagramAuthorityConversion({
       pendingKey.current ??= crypto.randomUUID();
       return runOnlineOnlyWrite(() =>
         client.convertDiagramAuthority({
-          ...request(),
+          ...request(form.state.values),
           clientIdempotencyKey: pendingKey.current as string,
           previewToken: (preview as AuthorityConversionPreview).previewToken,
         }),
@@ -157,72 +182,105 @@ export function DiagramAuthorityConversion({
         className="space-y-2"
         onSubmit={(event) => {
           event.preventDefault();
-          previewMutation.mutate();
+          form.handleSubmit().catch(() => undefined);
         }}
       >
-        <Label htmlFor={`authority-target-${diagram.id}`}>
-          Diagram Authority Mode
-        </Label>
-        <select
-          id={`authority-target-${diagram.id}`}
-          onChange={(event) => {
-            reset();
-            setTargetMode(event.target.value as CreatableAuthorityMode);
-          }}
-          value={targetMode}
-        >
-          {targets.map((mode) => (
-            <option key={mode} value={mode}>
-              {mode}
-            </option>
-          ))}
-        </select>
-        <Label htmlFor={`authority-title-${diagram.id}`}>Title</Label>
-        <Input
-          id={`authority-title-${diagram.id}`}
-          onChange={(event) => {
-            reset();
-            setTitle(event.target.value);
-          }}
-          required
-          value={title}
-        />
-        {targetMode === "External Source Link" ? (
-          <>
-            <Label htmlFor={`authority-url-${diagram.id}`}>HTTPS URL</Label>
-            <Input
-              id={`authority-url-${diagram.id}`}
-              onChange={(event) => {
-                reset();
-                setLink({ ...link, url: event.target.value });
-              }}
-              required
-              type="url"
-              value={link.url}
-            />
-            <Label htmlFor={`authority-tool-${diagram.id}`}>Source tool</Label>
-            <Input
-              id={`authority-tool-${diagram.id}`}
-              onChange={(event) => {
-                reset();
-                setLink({ ...link, tool: event.target.value });
-              }}
-              required
-              value={link.tool}
-            />
-            <Label htmlFor={`authority-revision-${diagram.id}`}>
-              Known revision (optional)
-            </Label>
-            <Input
-              id={`authority-revision-${diagram.id}`}
-              onChange={(event) => {
-                reset();
-                setLink({ ...link, revision: event.target.value });
-              }}
-              value={link.revision}
-            />
-          </>
-        ) : null}
+        <form.Field name="targetMode">
+          {(field) => (
+            <>
+              <Label htmlFor={`authority-target-${diagram.id}`}>
+                Diagram Authority Mode
+              </Label>
+              <select
+                id={`authority-target-${diagram.id}`}
+                onChange={(event) =>
+                  field.handleChange(
+                    event.target.value as CreatableAuthorityMode,
+                  )
+                }
+                value={field.state.value}
+              >
+                {targets.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </form.Field>
+        <form.Field name="title">
+          {(field) => (
+            <>
+              <Label htmlFor={`authority-title-${diagram.id}`}>Title</Label>
+              <Input
+                id={`authority-title-${diagram.id}`}
+                onChange={(event) => field.handleChange(event.target.value)}
+                required
+                value={field.state.value}
+              />
+            </>
+          )}
+        </form.Field>
+        <form.Subscribe selector={(state) => state.values.targetMode}>
+          {(targetMode) =>
+            targetMode === "External Source Link" ? (
+              <>
+                <form.Field name="url">
+                  {(field) => (
+                    <>
+                      <Label htmlFor={`authority-url-${diagram.id}`}>
+                        HTTPS URL
+                      </Label>
+                      <Input
+                        id={`authority-url-${diagram.id}`}
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        required
+                        type="url"
+                        value={field.state.value}
+                      />
+                    </>
+                  )}
+                </form.Field>
+                <form.Field name="tool">
+                  {(field) => (
+                    <>
+                      <Label htmlFor={`authority-tool-${diagram.id}`}>
+                        Source tool
+                      </Label>
+                      <Input
+                        id={`authority-tool-${diagram.id}`}
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        required
+                        value={field.state.value}
+                      />
+                    </>
+                  )}
+                </form.Field>
+                <form.Field name="revision">
+                  {(field) => (
+                    <>
+                      <Label htmlFor={`authority-revision-${diagram.id}`}>
+                        Known revision (optional)
+                      </Label>
+                      <Input
+                        id={`authority-revision-${diagram.id}`}
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        value={field.state.value}
+                      />
+                    </>
+                  )}
+                </form.Field>
+              </>
+            ) : null
+          }
+        </form.Subscribe>
         <Button disabled={previewMutation.isPending} type="submit">
           Preview conversion
         </Button>

@@ -117,6 +117,14 @@ function click(element: Element | undefined) {
   act(() => element?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 
+/** TanStack Form submits asynchronously, so form-backed buttons settle in an async act. */
+async function clickAndSettle(element: Element | undefined) {
+  await act(async () => {
+    element?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 function renderPanel(
   props: Partial<Parameters<typeof DiagramCompositionPanel>[0]> = {},
 ) {
@@ -174,7 +182,7 @@ describe("DiagramCompositionPanel", () => {
     expect(container.querySelector("a")).toBeNull();
   });
 
-  test("places an existing record and offers only records not yet placed", () => {
+  test("places an existing record and offers only records not yet placed", async () => {
     const { onPlace } = renderPanel({
       cards: [card({ sourceId: "risk-1" })],
       options: [
@@ -188,7 +196,7 @@ describe("DiagramCompositionPanel", () => {
     expect(optionTexts).toContain("Risk · Second risk");
     expect(optionTexts).not.toContain("Risk · Vendor lock-in");
     choose("Existing record", "Risk:risk-2");
-    click(button(container, "Place live card"));
+    await clickAndSettle(button(container, "Place live card"));
     expect(onPlace).toHaveBeenCalledWith({
       id: "risk-2",
       sourceType: "Risk",
@@ -196,13 +204,13 @@ describe("DiagramCompositionPanel", () => {
     });
   });
 
-  test("previews Convert to record and link from an exact version before anything is written", () => {
+  test("previews Convert to record and link from an exact version before anything is written", async () => {
     const { onConfirmConvert, onPreviewConvert } = renderPanel();
     expect(button(container, "Preview conversion")?.disabled).toBe(true);
     choose("Diagram Version", "version-1");
     choose("Node", "api");
     choose("Target type", "Decision");
-    click(button(container, "Preview conversion"));
+    await clickAndSettle(button(container, "Preview conversion"));
     expect(onPreviewConvert).toHaveBeenCalledWith({
       nodeId: "api",
       target: "Decision",

@@ -8,6 +8,7 @@ import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
+import { useForm } from "@tanstack/react-form";
 import {
   useMutation,
   useQueries,
@@ -15,6 +16,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { z } from "zod";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
@@ -36,6 +38,11 @@ import {
 } from "./technical-diagram-editor";
 import { TechnicalDiagramOutline } from "./technical-diagram-outline";
 
+const diagramViewSchema = z.object({
+  name: z.string().trim().min(1),
+  selectedNodeIds: z.array(z.string()).min(1),
+});
+
 function DiagramCard({
   bindOptions,
   diagram,
@@ -47,10 +54,6 @@ function DiagramCard({
 }) {
   const graph = diagramGraph(diagram.model);
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>(() =>
-    graph.nodes.map(({ id }) => id),
-  );
   const [error, setError] = useState<string | null>(null);
   const pendingKey = useRef<string | null>(null);
   const options = orpc.technicalDiagramViews.queryOptions({
@@ -223,7 +226,13 @@ function DiagramCard({
     onSuccess: invalidate,
   });
   const create = useMutation({
-    mutationFn: () => {
+    mutationFn: ({
+      name,
+      selectedNodeIds,
+    }: {
+      name: string;
+      selectedNodeIds: string[];
+    }) => {
       pendingKey.current ??= crypto.randomUUID();
       return runOnlineOnlyWrite(() =>
         client.createDiagramView({
@@ -236,7 +245,6 @@ function DiagramCard({
     },
     onSuccess: async () => {
       pendingKey.current = null;
-      setName("");
       setError(null);
       await queryClient.invalidateQueries({ queryKey: options.queryKey });
     },
@@ -246,6 +254,25 @@ function DiagramCard({
           ? failure.message
           : "Diagram View could not be saved.",
       ),
+  });
+  const form = useForm({
+    defaultValues: {
+      name: "",
+      selectedNodeIds: graph.nodes.map(({ id }) => id),
+    },
+    // Any edit starts a new save attempt, so it gets a fresh idempotency key.
+    listeners: {
+      onChange: () => {
+        pendingKey.current = null;
+      },
+    },
+    onSubmit: async ({ value, formApi }) => {
+      await create
+        .mutateAsync(value)
+        .then(() => formApi.setFieldValue("name", ""))
+        .catch(() => undefined);
+    },
+    validators: { onChange: diagramViewSchema },
   });
   return (
     <article className="space-y-3 rounded-lg border p-4">
@@ -325,44 +352,60 @@ function DiagramCard({
           className="space-y-2"
           onSubmit={(event) => {
             event.preventDefault();
-            create.mutate();
+            form.handleSubmit().catch(() => undefined);
           }}
         >
-          <Label htmlFor={`diagram-view-name-${diagram.id}`}>Name</Label>
-          <Input
-            id={`diagram-view-name-${diagram.id}`}
-            onChange={(event) => {
-              pendingKey.current = null;
-              setName(event.target.value);
-            }}
-            required
-            value={name}
-          />
-          <fieldset aria-label="Diagram View" className="flex flex-wrap gap-3">
-            {graph.nodes.map((node) => (
-              <label className="inline-flex items-center gap-1" key={node.id}>
-                <input
-                  checked={selectedNodeIds.includes(node.id)}
-                  onChange={(event) => {
-                    pendingKey.current = null;
-                    setSelectedNodeIds((current) =>
-                      event.target.checked
-                        ? [...current, node.id]
-                        : current.filter((id) => id !== node.id),
-                    );
-                  }}
-                  type="checkbox"
+          <form.Field name="name">
+            {(field) => (
+              <>
+                <Label htmlFor={`diagram-view-name-${diagram.id}`}>Name</Label>
+                <Input
+                  id={`diagram-view-name-${diagram.id}`}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  required
+                  value={field.state.value}
                 />
-                {node.label}
-              </label>
-            ))}
-          </fieldset>
-          <Button
-            disabled={create.isPending || selectedNodeIds.length === 0}
-            type="submit"
-          >
-            Save
-          </Button>
+              </>
+            )}
+          </form.Field>
+          <form.Field name="selectedNodeIds">
+            {(field) => (
+              <fieldset
+                aria-label="Diagram View"
+                className="flex flex-wrap gap-3"
+              >
+                {graph.nodes.map((node) => (
+                  <label
+                    className="inline-flex items-center gap-1"
+                    key={node.id}
+                  >
+                    <input
+                      checked={field.state.value.includes(node.id)}
+                      onChange={(event) =>
+                        field.handleChange(
+                          event.target.checked
+                            ? [...field.state.value, node.id]
+                            : field.state.value.filter((id) => id !== node.id),
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    {node.label}
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          </form.Field>
+          <form.Subscribe selector={(state) => state.values.selectedNodeIds}>
+            {(selectedNodeIds) => (
+              <Button
+                disabled={create.isPending || selectedNodeIds.length === 0}
+                type="submit"
+              >
+                Save
+              </Button>
+            )}
+          </form.Subscribe>
         </form>
         {error ? <p role="alert">{error}</p> : null}
       </section>
