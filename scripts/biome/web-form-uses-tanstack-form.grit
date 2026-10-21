@@ -1,0 +1,10 @@
+language js(typescript, jsx)
+
+// A feature hook named use...Form wraps TanStack Form useForm.
+file($body) where {
+  $body <: contains JsxOpeningElement(name=$name) as $form where {
+    $name <: `form`
+  },
+  not $body <: contains r"use[A-Za-z]*Form",
+  register_diagnostic(span=$form, message="Render <form> with TanStack Form useForm. docs/tech-stack.md TanStack Form is binding; keep form state out of raw useState.")
+}

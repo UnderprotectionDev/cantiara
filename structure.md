@@ -2,6 +2,10 @@
 
 > This tree records source-backed ownership boundaries. Future feature names remain in specs until source exists, and generated files are omitted.
 
+## Web feature layout
+
+Each `apps/web/src/features/<feature>/` keeps a form in `ui/forms/<name>-form.tsx`, shared UI parts in `ui/components/`, and pure helpers and Zod schemas in `lib/`. The first example is `apps/web/src/features/account-preferences/ui/forms/account-preferences-form.tsx`; form technology follows the TanStack Form entry in [`docs/tech-stack.md`](docs/tech-stack.md).
+
 ```text
 .
 ├── .github/
@@ -672,6 +676,9 @@
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
+│   ├── biome/
+│   │   ├── web-control-uses-cantiara-ui.grit
+│   │   └── web-form-uses-tanstack-form.grit
 │   ├── ci-workflow.test.ts
 │   ├── dev-database-mode.test.ts
 │   ├── dev-database-mode.ts
@@ -684,7 +691,8 @@
 │   ├── local-dev.test.ts
 │   ├── local-dev.ts
 │   ├── neon-local-proxy.ts
-│   └── tsconfig.json
+│   ├── tsconfig.json
+│   └── web-form-conventions.test.ts
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock

@@ -1,0 +1,13 @@
+language js(typescript, jsx)
+
+or {
+  JsxSelfClosingElement(name=$control),
+  JsxOpeningElement(name=$control)
+} as $element where {
+  $control <: or {
+    `input`,
+    `textarea`,
+    `select`
+  },
+  register_diagnostic(span=$element, message="Use the @cantiara/ui form control (Input, Textarea, NativeSelect, Select, Checkbox, RadioGroup) instead of a raw <input>, <textarea> or <select>. docs/tech-stack.md TanStack Form is binding.")
+}
