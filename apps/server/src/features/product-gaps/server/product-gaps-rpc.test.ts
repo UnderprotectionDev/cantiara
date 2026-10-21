@@ -242,15 +242,26 @@ describe("Tool Escape close over RPC", () => {
     });
   });
 
-  test("an escape that never held parallel truth is a bad request and a signed-out call is refused", async () => {
+  test("closes with a `Never held parallel truth` judgement and no proof, and a signed-out call is refused", async () => {
     const { client, made } = await recorded();
 
+    const closed = await client.closeToolEscape({
+      escapeId: made.id,
+      impact: "Never held parallel truth",
+    });
+    expect(closed.close).toMatchObject({
+      candidateBuild: null,
+      impact: "Never held parallel truth",
+      records: [],
+    });
     await expect(
       client.closeToolEscape({
+        ...closeProof,
         escapeId: made.id,
-        impact: "Never held parallel truth",
       }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    ).rejects.toMatchObject({
+      data: { code: "TOOL_ESCAPE_ALREADY_CLOSED" },
+    });
     await expect(
       setup(false).client.closeToolEscape({
         ...closeProof,

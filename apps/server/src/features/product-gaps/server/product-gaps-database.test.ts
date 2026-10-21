@@ -651,6 +651,24 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
       const db = requireDatabase();
       const access = createDatabaseProductGaps(db, proof);
       const { escape: closable } = await recordEscape(access);
+
+      await access.closeToolEscape(accountId, {
+        escapeId: closable.id,
+        impact: "Never held parallel truth",
+      });
+      const stored = await db
+        .select()
+        .from(toolEscapeClose)
+        .where(eq(toolEscapeClose.escapeId, closable.id));
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({
+        candidateBuild: null,
+        externalCopyHow: null,
+        impact: "Never held parallel truth",
+        restoreMethod: null,
+        workflowRef: null,
+      });
+
       const row = {
         candidateBuild: build,
         escapeId: closable.id,
@@ -660,11 +678,7 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
         restoreMethod: "Manual recreate",
         workflowRef: "run-ok",
       };
-
-      await db
-        .insert(toolEscapeClose)
-        .values({ ...row, id: crypto.randomUUID() });
-      for (const bad of [{}, { impact: "Never held parallel truth" }]) {
+      for (const bad of [{}, { impact: "Never held" }]) {
         await expect(
           (async () => {
             await db

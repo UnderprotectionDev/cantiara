@@ -3409,11 +3409,6 @@ const PRODUCT_GAP_FAILURES: Record<string, ProductGapFailure> = {
     message: "This Tool Escape is already closed.",
     status: "PRECONDITION_FAILED",
   },
-  TOOL_ESCAPE_CLOSE_NOT_HIGH_IMPACT: {
-    message:
-      "An escape that never held parallel truth has no high-impact close.",
-    status: "BAD_REQUEST",
-  },
   TOOL_ESCAPE_CLOSE_REFUSED: {
     message:
       "A high-impact close needs all four conditions; at least one is unmet.",

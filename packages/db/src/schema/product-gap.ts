@@ -151,23 +151,26 @@ export const toolEscape = pgTable(
  * escape (`escape_id` is unique, so a double close is refused by the database
  * too). High impact is judged only when closing, so `impact` lives here and not
  * on the event; there is no severity flag, count, threshold or duration column.
- * The four conditions are stored as the evidence they were checked against: the
- * candidate build, the workflow run reference, the restore method with its exact
- * records (`workspace_tool_escape_close_record`) and how the external copy
- * stopped being a parallel source of truth.
+ * A `Never held parallel truth` judgement is the close: it stores the impact
+ * alone, so the proof columns are nullable, and PostgreSQL check constraints
+ * pass a row whose checked columns are NULL. A high-impact close stores the
+ * four conditions as the evidence they were checked against: the candidate
+ * build, the workflow run reference, the restore method with its exact records
+ * (`workspace_tool_escape_close_record`) and how the external copy stopped
+ * being a parallel source of truth.
  */
 export const toolEscapeClose = pgTable(
   "workspace_tool_escape_close",
   {
-    candidateBuild: text("candidate_build").notNull(),
+    candidateBuild: text("candidate_build"),
     closedAt: timestamp("closed_at").defaultNow().notNull(),
     escapeId: text("escape_id").notNull(),
-    externalCopyHow: text("external_copy_how").notNull(),
+    externalCopyHow: text("external_copy_how"),
     gapId: text("gap_id").notNull(),
     id: text("id").primaryKey(),
     impact: text("impact").notNull(),
-    restoreMethod: text("restore_method").notNull(),
-    workflowRef: text("workflow_ref").notNull(),
+    restoreMethod: text("restore_method"),
+    workflowRef: text("workflow_ref"),
   },
   (table) => [
     foreignKey({
@@ -184,7 +187,7 @@ export const toolEscapeClose = pgTable(
     index("workspace_tool_escape_close_gap_idx").on(table.gapId),
     check(
       "workspace_tool_escape_close_impact_check",
-      sql`${table.impact} in ('Canonical truth moved out', 'Lasting parallel source of truth')`,
+      sql`${table.impact} in ('Canonical truth moved out', 'Lasting parallel source of truth', 'Never held parallel truth')`,
     ),
     check(
       "workspace_tool_escape_close_restore_method_check",

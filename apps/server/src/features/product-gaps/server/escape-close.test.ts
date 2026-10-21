@@ -11,11 +11,11 @@ import {
   ToolEscapeAlreadyClosedError,
   ToolEscapeCloseRefusedError,
   ToolEscapeNotFoundError,
-  ToolEscapeNotHighImpactError,
 } from "./product-gaps";
 import {
   accountId,
   createProductGapHarness,
+  type ProductGapCloseFixture,
 } from "./product-gaps-memory-store";
 
 const catalog = [
@@ -43,6 +43,7 @@ const catalog = [
 const MIGRATIONS = [
   "0152_tool_escape_event.sql",
   "0153_high_impact_escape_close.sql",
+  "0154_tool_escape_close_never_held.sql",
 ];
 const SEVERITY_COLUMN = /severity|high_impact|threshold|duration|waiting/i;
 
@@ -92,7 +93,7 @@ const validClose = (escapeId: string): CloseToolEscapeInput => ({
   workflow: { runRef: "run-ok" },
 });
 
-async function setup(candidate = fixture) {
+async function setup(candidate: ProductGapCloseFixture = fixture) {
   const harness = createProductGapHarness(catalog, candidate);
   const { escape: tracked, gap } = await harness.productGaps.recordToolEscape(
     accountId,
@@ -251,7 +252,40 @@ describe("High-impact Tool Escape close", () => {
     );
   });
 
-  test("an escape that never held parallel truth does not use this close", async () => {
+  test("a `Never held parallel truth` close is its own close without the four conditions", async () => {
+    const { closes, tracked, productGaps } = await setup();
+
+    const closed = await productGaps.closeToolEscape(accountId, {
+      escapeId: tracked.id,
+      impact: "Never held parallel truth",
+    });
+
+    expect(closed.close).toMatchObject({
+      candidateBuild: null,
+      escapeId: tracked.id,
+      externalCopyHow: null,
+      impact: "Never held parallel truth",
+      records: [],
+      restoreMethod: null,
+      workflowRef: null,
+    });
+    expect(closes).toHaveLength(1);
+    expect(tracked.tool).toBe("Spreadsheet");
+    expect(
+      (await productGaps.listEscapes(accountId, { gapId: tracked.gapId }))[0]
+        ?.close?.impact,
+    ).toBe("Never held parallel truth");
+
+    await expect(
+      productGaps.closeToolEscape(accountId, {
+        escapeId: tracked.id,
+        impact: "Never held parallel truth",
+      }),
+    ).rejects.toBeInstanceOf(ToolEscapeAlreadyClosedError);
+    expect(closes).toHaveLength(1);
+  });
+
+  test("a close whose escape never held parallel truth carries no proof fields", async () => {
     const { closes, tracked, productGaps } = await setup();
 
     await expect(
@@ -259,7 +293,7 @@ describe("High-impact Tool Escape close", () => {
         ...validClose(tracked.id),
         impact: "Never held parallel truth",
       }),
-    ).rejects.toBeInstanceOf(ToolEscapeNotHighImpactError);
+    ).rejects.toThrow();
     expect(closes).toEqual([]);
   });
 

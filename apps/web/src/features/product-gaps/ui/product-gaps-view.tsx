@@ -348,6 +348,7 @@ function FollowUpPanel({
 
 export function ProductGapsView({
   filter = EMPTY_GAP_FILTER,
+  formatDateTime,
   gaps,
   loadEscapes,
   loadTargets,
@@ -360,6 +361,8 @@ export function ProductGapsView({
   tools,
 }: {
   filter?: GapFilterValues;
+  /** Formats event and close times with the account `Locale`/`Date format`. */
+  formatDateTime: (value: string) => string;
   gaps: ProductGapRecord[];
   loadEscapes: LoadEscapes;
   loadTargets: LoadProductGapTargets;
@@ -421,6 +424,7 @@ export function ProductGapsView({
                 )}
                 <ToolEscapesPanel
                   filter={filter}
+                  formatDateTime={formatDateTime}
                   key={`${record.id}:${record.escapeCount}:${JSON.stringify(filter)}`}
                   loadEscapes={loadEscapes}
                   loadTargets={loadTargets}

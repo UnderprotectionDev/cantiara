@@ -120,18 +120,6 @@ export class ToolEscapeNotFoundError extends Error {
   }
 }
 
-/** An escape that never held parallel truth does not use the four-condition close. */
-export class ToolEscapeNotHighImpactError extends Error {
-  readonly code = "TOOL_ESCAPE_CLOSE_NOT_HIGH_IMPACT" as const;
-
-  constructor(escapeId: string) {
-    super(
-      `Tool Escape ${escapeId} never held parallel truth, so it has no high-impact close.`,
-    );
-    this.name = "ToolEscapeNotHighImpactError";
-  }
-}
-
 /** The escape already has its one close; a close is never repeated or replaced. */
 export class ToolEscapeAlreadyClosedError extends Error {
   readonly code = "TOOL_ESCAPE_ALREADY_CLOSED" as const;
@@ -567,13 +555,29 @@ export function createProductGaps(
           if (!found) {
             throw new ToolEscapeNotFoundError(input.escapeId);
           }
-          // Gap status, including `Conscious boundary`, is never read here.
-          if (input.impact === "Never held parallel truth") {
-            throw new ToolEscapeNotHighImpactError(found.id);
-          }
           if ((await transaction.listEscapeCloses([found.id])).length > 0) {
             throw new ToolEscapeAlreadyClosedError(found.id);
           }
+          // A judgement of `Never held parallel truth` is the founder's own
+          // close: it writes the one close row with no proof and no bound
+          // records, and never reads the Gap status.
+          if (input.impact === "Never held parallel truth") {
+            const stored: ToolEscapeCloseStored = {
+              candidateBuild: null,
+              closedAt: new Date().toISOString(),
+              escapeId: found.id,
+              externalCopyHow: null,
+              gapId: found.gapId,
+              id: crypto.randomUUID(),
+              impact: input.impact,
+              records: [],
+              restoreMethod: null,
+              workflowRef: null,
+            };
+            await transaction.insertEscapeClose(stored);
+            return await toEscapeRecord(transaction.resolver, found, stored);
+          }
+          // Gap status, including `Conscious boundary`, is never read here.
           const proven = await verifyCloseConditions(
             transaction.resolver,
             proof,

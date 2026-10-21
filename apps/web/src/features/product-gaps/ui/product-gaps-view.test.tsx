@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { DEFAULT_ACCOUNT_PREFERENCES } from "@cantiara/api/account-preferences";
 import type {
   ProductGapFollowUpPlan,
   ProductGapRecord,
@@ -7,6 +8,7 @@ import type {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, test, vi } from "vitest";
+import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { ProductGapsView } from "./product-gaps-view";
 
 (
@@ -88,6 +90,10 @@ const loadTargets = (type: string) =>
     },
   ]);
 
+function computeTestDateTime(value: string) {
+  return formatAccountDateTime(value, DEFAULT_ACCOUNT_PREFERENCES);
+}
+
 function mount(props: Partial<Parameters<typeof ProductGapsView>[0]> = {}) {
   host = document.createElement("div");
   document.body.append(host);
@@ -95,6 +101,7 @@ function mount(props: Partial<Parameters<typeof ProductGapsView>[0]> = {}) {
   act(() => {
     root?.render(
       <ProductGapsView
+        formatDateTime={computeTestDateTime}
         gaps={[]}
         loadEscapes={vi.fn().mockResolvedValue([])}
         loadTargets={loadTargets}
@@ -527,6 +534,39 @@ test("shows the stored close evidence with its bound records and offers no secon
   expect(text).toContain("candidate build build-1 (run run-1)");
   expect(text).toContain("Work: Fix export");
   expect(text).toContain("Spreadsheet archived.");
+  expect(
+    document.querySelector('button[aria-label^="Close Tool Escape"]'),
+  ).toBeNull();
+});
+
+test("shows the Never held parallel truth close without proof lines", async () => {
+  const loadEscapes = vi.fn().mockResolvedValue([
+    {
+      ...closableEvent,
+      close: {
+        candidateBuild: null,
+        closedAt: timestamp,
+        escapeId: "e1",
+        externalCopyHow: null,
+        gapId: "g1",
+        id: "c2",
+        impact: "Never held parallel truth",
+        records: [],
+        restoreMethod: null,
+        workflowRef: null,
+      },
+    },
+  ]);
+  mount({
+    gaps: [record],
+    loadEscapes,
+    onCloseEscape: vi.fn().mockResolvedValue(undefined),
+  });
+  await click("Open 2 Tool Escapes of Bulk edit across projects");
+
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Impact judged: Never held parallel truth");
+  expect(text).not.toContain("candidate build");
   expect(
     document.querySelector('button[aria-label^="Close Tool Escape"]'),
   ).toBeNull();

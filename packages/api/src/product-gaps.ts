@@ -637,10 +637,11 @@ export interface ToolEscapeRecord extends Omit<ToolEscapeStored, "source"> {
 export const TOOL_ESCAPE_CLOSE_LABEL = "Close Tool Escape";
 
 /**
- * PRD 01 definition of a high-impact escape, judged only when closing: the
- * canonical truth moved out, or a lasting parallel source of truth. It is a
- * claim made at close, never a stored severity of the event. An escape that
- * never held parallel truth does not use the four-condition close.
+ * The close-time judgement of an escape, per the PRD `What the escape held`
+ * label: the canonical truth moved out, a lasting parallel source of truth,
+ * or never held parallel truth. It is a claim made at close, never a stored
+ * severity of the event. A `Never held parallel truth` close carries its
+ * judgement alone; the four conditions belong to the two high-impact closes.
  */
 export const TOOL_ESCAPE_IMPACTS = [
   "Canonical truth moved out",
@@ -658,6 +659,7 @@ export const TOOL_ESCAPE_RESTORE_METHODS = [
   "Manual recreate",
   "Supported import",
 ] as const;
+
 export const toolEscapeRestoreMethodSchema = z.enum(
   TOOL_ESCAPE_RESTORE_METHODS,
 );
@@ -684,7 +686,9 @@ export const EXTERNAL_COPY_STATES = [
  * Every proof field is optional on purpose: a missing one is not a malformed
  * request but a missing condition, and the close is refused fail-closed with
  * the conditions that are not met. There is no note, screenshot, count,
- * duration or severity field that could stand in for a condition.
+ * duration or severity field that could stand in for a condition. A
+ * `Never held parallel truth` close carries its judgement alone: no proof
+ * field travels with it.
  */
 export const closeToolEscapeInputSchema = z
   .object({
@@ -721,23 +725,36 @@ export const closeToolEscapeInputSchema = z
       .strict()
       .nullish(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (
+      input.impact === "Never held parallel truth" &&
+      (input.candidate || input.externalCopy || input.restore || input.workflow)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "A close whose escape never held parallel truth carries no proof fields.",
+        path: ["impact"],
+      });
+    }
+  });
 export type CloseToolEscapeInput = z.input<typeof closeToolEscapeInputSchema>;
 export type ParsedCloseToolEscapeInput = z.output<
   typeof closeToolEscapeInputSchema
 >;
 
 export interface ToolEscapeCloseStored {
-  candidateBuild: string;
+  candidateBuild: string | null;
   closedAt: string;
   escapeId: string;
-  externalCopyHow: string;
+  externalCopyHow: string | null;
   gapId: string;
   id: string;
-  impact: ToolEscapeHighImpact;
+  impact: ToolEscapeImpact;
   records: ProductGapLinkInput[];
-  restoreMethod: ToolEscapeRestoreMethod;
-  workflowRef: string;
+  restoreMethod: ToolEscapeRestoreMethod | null;
+  workflowRef: string | null;
 }
 
 export interface ToolEscapeCloseRecord
@@ -753,16 +770,13 @@ export interface ToolEscapeCloseRecord
 
 export const toolEscapeCloseRecordSchema = z
   .object({
-    candidateBuild: z.string().min(1),
+    candidateBuild: z.string().min(1).nullable(),
     closedAt: z.string(),
     escapeId: identifierSchema,
-    externalCopyHow: z.string().min(1),
+    externalCopyHow: z.string().min(1).nullable(),
     gapId: identifierSchema,
     id: identifierSchema,
-    impact: z.enum([
-      "Canonical truth moved out",
-      "Lasting parallel source of truth",
-    ]),
+    impact: toolEscapeImpactSchema,
     records: z.array(
       z
         .object({
@@ -774,8 +788,8 @@ export const toolEscapeCloseRecordSchema = z
         })
         .strict(),
     ),
-    restoreMethod: toolEscapeRestoreMethodSchema,
-    workflowRef: z.string().min(1),
+    restoreMethod: toolEscapeRestoreMethodSchema.nullable(),
+    workflowRef: z.string().min(1).nullable(),
   })
   .strict();
 
@@ -850,8 +864,10 @@ export interface ProductGapStore {
 
 export interface ProductGapsAccess {
   /**
-   * Closes a high-impact Tool Escape only when all four conditions hold.
-   * Fail-closed: any missing condition refuses, nothing is written.
+   * Closes a Tool Escape as its one close. A `Never held parallel truth`
+   * judgement writes the close with no proof and no bound records; a
+   * high-impact judgement is refused unless all four conditions hold.
+   * Fail-closed: an unmet condition refuses, nothing is written.
    */
   closeToolEscape: (
     accountId: string,

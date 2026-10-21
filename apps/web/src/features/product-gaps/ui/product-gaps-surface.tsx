@@ -1,4 +1,9 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the Workspace.
+
+import {
+  type AccountPreferences,
+  DEFAULT_ACCOUNT_PREFERENCES,
+} from "@cantiara/api/account-preferences";
 import type { ProductGapLinkTargetType } from "@cantiara/api/product-gaps";
 import { Button } from "@cantiara/ui/components/button";
 import {
@@ -7,6 +12,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
+import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import {
@@ -19,12 +25,33 @@ import {
 import { ProductGapsView } from "./product-gaps-view";
 
 /**
+ * Formats a stored instant with the account `Locale`, `Time zone` and
+ * `Date format`; the browser default stands in when preferences have not
+ * loaded or a value cannot be formatted.
+ */
+export function gapDateTimeFormatter(
+  preferences: AccountPreferences | undefined,
+): (value: string) => string {
+  return (value: string) => {
+    try {
+      return formatAccountDateTime(
+        value,
+        preferences ?? DEFAULT_ACCOUNT_PREFERENCES,
+      );
+    } catch {
+      return new Date(value).toLocaleString();
+    }
+  };
+}
+
+/**
  * The Workspace's Product Gap list and dogfooding summary. It records, relates
  * and converts nothing by itself: every write is the founder's explicit action.
  */
 export default function ProductGapsSurface() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<GapFilterValues>(EMPTY_GAP_FILTER);
+  const preferences = useQuery(orpc.accountPreferences.queryOptions());
   const options = orpc.productGaps.queryOptions({
     input: toListFilter(filter),
   });
@@ -63,6 +90,7 @@ export default function ProductGapsSurface() {
   return (
     <ProductGapsView
       filter={filter}
+      formatDateTime={gapDateTimeFormatter(preferences.data)}
       gaps={gaps.data.gaps}
       loadEscapes={loadEscapes}
       loadTargets={loadTargets}

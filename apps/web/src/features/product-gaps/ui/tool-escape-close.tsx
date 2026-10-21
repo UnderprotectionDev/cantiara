@@ -47,9 +47,12 @@ export type CloseEscape = (
 /** The stored close as readable text. A note or screenshot is never shown as proof. */
 export function ToolEscapeCloseEvidence({
   close,
+  formatDateTime,
 }: {
   close: ToolEscapeCloseRecord;
+  formatDateTime: (value: string) => string;
 }) {
+  const highImpact = close.impact !== "Never held parallel truth";
   return (
     <section
       aria-label="Close evidence"
@@ -57,32 +60,34 @@ export function ToolEscapeCloseEvidence({
     >
       <h4 className="font-medium">
         Closed{" "}
-        <time dateTime={close.closedAt}>
-          {new Date(close.closedAt).toLocaleString()}
-        </time>
+        <time dateTime={close.closedAt}>{formatDateTime(close.closedAt)}</time>
       </h4>
       <p>{`Impact judged: ${close.impact}`}</p>
-      <p>{`Workflow succeeded on candidate build ${close.candidateBuild} (run ${close.workflowRef}).`}</p>
-      <p>{`Truth restored by ${close.restoreMethod} in:`}</p>
-      <ul aria-label="Restored product records" className="list-disc pl-5">
-        {close.records.map((record) => (
-          <li key={`${record.targetType}:${record.targetId}`}>
-            {record.state === "resolved"
-              ? `${record.targetType}: ${record.label ?? ""}`
-              : `${record.targetType}: unavailable (${record.brokenReason ?? "No access"})`}
-          </li>
-        ))}
-      </ul>
-      <p className="whitespace-pre-wrap">{`External copy closed: ${close.externalCopyHow}`}</p>
+      {highImpact ? (
+        <>
+          <p>{`Workflow succeeded on candidate build ${close.candidateBuild} (run ${close.workflowRef}).`}</p>
+          <p>{`Truth restored by ${close.restoreMethod} in:`}</p>
+          <ul aria-label="Restored product records" className="list-disc pl-5">
+            {close.records.map((record) => (
+              <li key={`${record.targetType}:${record.targetId}`}>
+                {record.state === "resolved"
+                  ? `${record.targetType}: ${record.label ?? ""}`
+                  : `${record.targetType}: unavailable (${record.brokenReason ?? "No access"})`}
+              </li>
+            ))}
+          </ul>
+          <p className="whitespace-pre-wrap">{`External copy closed: ${close.externalCopyHow}`}</p>
+        </>
+      ) : null}
     </section>
   );
 }
 
 /**
  * Close of a Tool Escape. What the escape held is chosen here, at close, and
- * never stored on the event. Every field is a labelled native control. The
- * seam refuses a close with an unmet condition and the refusal is shown as
- * text.
+ * never stored on the event. `Never held parallel truth` is its one close and
+ * carries no proof; a high-impact close needs all four conditions and the
+ * seam refuses with the unmet ones named, shown as text.
  */
 export function ToolEscapeCloseForm({
   event,
@@ -166,10 +171,11 @@ export function ToolEscapeCloseForm({
         )}
       </form.Field>
       <p className="text-muted-foreground">
-        A high-impact close needs all four: the same workflow succeeded on the
-        current candidate, the truth is back in product records, the external
-        copy is no longer a parallel source, and the evidence names those
-        records. A note or a screenshot does not close it.
+        Choosing Never held parallel truth closes without proof, and only you
+        judge it. A high-impact close needs all four: the same workflow
+        succeeded on the current candidate, the truth is back in product
+        records, the external copy is no longer a parallel source, and the
+        evidence names those records. A note or a screenshot does not close it.
       </p>
       <form.Field name="build">
         {(field) => (

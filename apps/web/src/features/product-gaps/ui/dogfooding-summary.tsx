@@ -27,7 +27,7 @@ export type LoadEscapes = (
 
 /**
  * Dogfooding summary filters. They only select Gaps (and the events counted
- * under them); the list keeps the order of recording.
+ * under them); the list keeps the order of occurrence, newest first.
  */
 export function GapFilterBar({
   filter,
@@ -140,12 +140,14 @@ export function GapFilterBar({
  */
 export function ToolEscapesPanel({
   filter,
+  formatDateTime,
   loadEscapes,
   loadTargets,
   onCloseEscape,
   record,
 }: {
   filter: GapFilterValues;
+  formatDateTime: (value: string) => string;
   loadEscapes: LoadEscapes;
   loadTargets?: LoadProductGapTargets;
   onCloseEscape?: CloseEscape;
@@ -189,7 +191,7 @@ export function ToolEscapesPanel({
             <li className="space-y-1 rounded-md bg-muted/40 p-3" key={event.id}>
               <p className="font-medium">
                 <time dateTime={event.occurredAt}>
-                  {new Date(event.occurredAt).toLocaleString()}
+                  {formatDateTime(event.occurredAt)}
                 </time>
                 {` - ${event.tool}`}
               </p>
@@ -204,7 +206,10 @@ export function ToolEscapesPanel({
                 <p className="whitespace-pre-wrap text-muted-foreground">{`Note: ${event.note}`}</p>
               ) : null}
               {event.close ? (
-                <ToolEscapeCloseEvidence close={event.close} />
+                <ToolEscapeCloseEvidence
+                  close={event.close}
+                  formatDateTime={formatDateTime}
+                />
               ) : null}
               {!event.close && onCloseEscape && loadTargets ? (
                 <ToolEscapeCloseForm
