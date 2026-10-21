@@ -5,10 +5,17 @@ import {
   previewAuthorityConversion,
 } from "@cantiara/api/technical-diagram-authority";
 import {
+  diagramGraph,
   emptyStructuralModel,
   resolveStructuralModel,
   StructuralModelError,
 } from "@cantiara/api/technical-diagram-structure";
+import {
+  assertVersionBind,
+  createCheckpoint,
+  restoreFromCheckpoint,
+  type TechnicalDiagramVersion,
+} from "@cantiara/api/technical-diagram-version";
 import type {
   TechnicalDiagramSource,
   TechnicalDiagramsAccess,
@@ -16,6 +23,7 @@ import type {
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
 
+const DIAGRAM_VERSION_COMMAND = /diagramversion/i;
 const AUTHORITY_COMMAND =
   /diagram.*(authority|mode|reclassif)|(authority|mode|reclassif).*diagram/i;
 const accountId = "account-1";
@@ -29,6 +37,7 @@ const externalSource = {
 /** In-memory Technical Diagrams store applying the shared authority rules. */
 function createFixture() {
   const diagrams = new Map<string, TechnicalDiagramSource>();
+  const versions = new Map<string, TechnicalDiagramVersion>();
   const present = (id: string): TechnicalDiagramSource | null => {
     const diagram = diagrams.get(id);
     return diagram ? { ...diagram, origins: [...diagram.origins] } : null;
@@ -57,6 +66,7 @@ function createFixture() {
           },
         ],
         projectId: source.projectId,
+        revision: 1,
         title: input.title,
         type: source.type,
         view: null,
@@ -84,6 +94,7 @@ function createFixture() {
             : emptyStructuralModel(input.type),
         origins: [],
         projectId: input.projectId,
+        revision: 1,
         title: input.title,
         type: input.type,
         view: null,
@@ -100,7 +111,67 @@ function createFixture() {
       if (diagram.authorityMode === "External Source Link") {
         throw new StructuralModelError("External content stays external.");
       }
-      diagram.model = resolveStructuralModel(diagram.type, input.model);
+      const model = resolveStructuralModel(diagram.type, input.model);
+      if ("participants" in model) {
+        // Mirrors the adapter: a pinned lifeline is checked against the
+        // checkpoint, never the live source.
+        for (const { bind } of model.participants) {
+          if (bind?.versionId) {
+            try {
+              assertVersionBind(versions.get(bind.versionId) ?? null, bind);
+            } catch (error) {
+              throw new StructuralModelError((error as Error).message, {
+                cause: error,
+              });
+            }
+          }
+        }
+      }
+      diagram.model = model;
+      diagram.revision += 1;
+      return Promise.resolve(present(diagram.id));
+    },
+    createVersion: (_account, input) => {
+      const diagram = diagrams.get(input.diagramId);
+      if (!diagram) {
+        return Promise.resolve(null);
+      }
+      const existing = versions.get(input.clientIdempotencyKey);
+      if (existing) {
+        return Promise.resolve(existing);
+      }
+      const ofDiagram = [...versions.values()].filter(
+        ({ diagramId }) => diagramId === diagram.id,
+      );
+      const version = createCheckpoint(diagram, {
+        createdAt: "2026-10-21T08:00:00.000Z",
+        id: input.clientIdempotencyKey,
+        name: input.name,
+        number: ofDiagram.length + 1,
+      });
+      versions.set(version.id, version);
+      return Promise.resolve(version);
+    },
+    getVersion: (_account, id) => Promise.resolve(versions.get(id) ?? null),
+    listVersions: (_account, id) =>
+      Promise.resolve(
+        diagrams.has(id)
+          ? [...versions.values()].filter(({ diagramId }) => diagramId === id)
+          : null,
+      ),
+    restoreVersion: (_account, input) => {
+      const diagram = diagrams.get(input.diagramId);
+      const version = versions.get(input.versionId);
+      if (!(diagram && version)) {
+        return Promise.resolve(null);
+      }
+      const restored = restoreFromCheckpoint(
+        diagram,
+        version,
+        input.expectedRevision,
+      );
+      diagram.model = restored.model;
+      diagram.revision = restored.revision;
       return Promise.resolve(present(diagram.id));
     },
     previewAuthorityConversion: (_account, input) => {
@@ -119,7 +190,11 @@ function createFixture() {
     } as Context["session"],
     technicalDiagrams: access,
   } as unknown as Context;
-  return { client: createRouterClient(appRouter, { context }), diagrams };
+  return {
+    client: createRouterClient(appRouter, { context }),
+    diagrams,
+    versions,
+  };
 }
 
 const create = (
@@ -414,6 +489,227 @@ describe("Technical Diagrams three types", () => {
       client.saveTechnicalDiagramStructure({
         diagramId: keys[0] as string,
         model: dataModel,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+describe("Diagram Versions", () => {
+  const versionKeys = [
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  ];
+  const renamed = {
+    links: [],
+    nodes: [{ id: "api", kind: "Service" as const, label: "Gateway" }],
+  };
+
+  test("a checkpoint is immutable while the live diagram keeps editing", async () => {
+    const { client } = createFixture();
+    await create(client, keys[0] as string);
+    const version = await client.createDiagramVersion({
+      clientIdempotencyKey: versionKeys[0] as string,
+      diagramId: keys[0] as string,
+      name: "Before rename",
+    });
+    await client.saveTechnicalDiagramStructure({
+      diagramId: keys[0] as string,
+      model: renamed,
+    });
+    const reread = await client.technicalDiagramVersion({
+      versionId: version.id,
+    });
+    expect(reread).toEqual(version);
+    expect(reread.model).toMatchObject({ nodes: [{ label: "API" }, {}] });
+    expect(reread.authorityMode).toBe("Product-authored Model");
+    const live = await client.technicalDiagram({
+      diagramId: keys[0] as string,
+    });
+    expect(live.revision).toBe(2);
+    expect(live.model).toMatchObject({ nodes: [{ label: "Gateway" }] });
+  });
+
+  test("a retried confirmation key returns the same checkpoint", async () => {
+    const { client, versions } = createFixture();
+    await create(client, keys[0] as string);
+    const input = {
+      clientIdempotencyKey: versionKeys[0] as string,
+      diagramId: keys[0] as string,
+      name: "Baseline",
+    };
+    const first = await client.createDiagramVersion(input);
+    expect(await client.createDiagramVersion(input)).toEqual(first);
+    expect(versions.size).toBe(1);
+  });
+
+  test("an External Source Link has no Diagram Version", async () => {
+    const { client, versions } = createFixture();
+    await client.createTechnicalDiagram({
+      authorityMode: "External Source Link",
+      clientIdempotencyKey: keys[0] as string,
+      externalSource,
+      projectId: "project-1",
+      title: "Board",
+      type: "Technical Architecture",
+    });
+    await expect(
+      client.createDiagramVersion({
+        clientIdempotencyKey: versionKeys[0] as string,
+        diagramId: keys[0] as string,
+        name: "Board v1",
+      }),
+    ).rejects.toThrow();
+    expect(versions.size).toBe(0);
+  });
+
+  test("restore writes a new live revision and never rewrites the checkpoint", async () => {
+    const { client, versions } = createFixture();
+    await create(client, keys[0] as string);
+    const version = await client.createDiagramVersion({
+      clientIdempotencyKey: versionKeys[0] as string,
+      diagramId: keys[0] as string,
+      name: "Before rename",
+    });
+    const edited = await client.saveTechnicalDiagramStructure({
+      diagramId: keys[0] as string,
+      model: renamed,
+    });
+    const restored = await client.restoreDiagramVersion({
+      diagramId: keys[0] as string,
+      expectedRevision: edited.revision,
+      versionId: version.id,
+    });
+    expect(restored.revision).toBe(edited.revision + 1);
+    expect(restored.model).toEqual(version.model);
+    expect(versions.size).toBe(1);
+    expect(
+      await client.technicalDiagramVersion({ versionId: version.id }),
+    ).toEqual(version);
+    // A stale view of the pre-restore revision is refused.
+    await expect(
+      client.restoreDiagramVersion({
+        diagramId: keys[0] as string,
+        expectedRevision: edited.revision,
+        versionId: version.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("exposes no command that edits or deletes a checkpoint", () => {
+    const commands = Object.keys(appRouter).filter((name) =>
+      DIAGRAM_VERSION_COMMAND.test(name),
+    );
+    expect(commands.sort()).toEqual([
+      "createDiagramVersion",
+      "restoreDiagramVersion",
+      "technicalDiagramVersion",
+      "technicalDiagramVersions",
+    ]);
+  });
+
+  test("a Diagram View stores ids and layout only, so it follows the live source while a version does not", async () => {
+    const { client } = createFixture();
+    await create(client, keys[0] as string);
+    const version = await client.createDiagramVersion({
+      clientIdempotencyKey: versionKeys[0] as string,
+      diagramId: keys[0] as string,
+      name: "Before rename",
+    });
+    await client.saveTechnicalDiagramStructure({
+      diagramId: keys[0] as string,
+      model: renamed,
+    });
+    const view = { selectedNodeIds: ["api"] };
+    const live = await client.technicalDiagram({
+      diagramId: keys[0] as string,
+    });
+    const labels = (model: Parameters<typeof diagramGraph>[0]) =>
+      diagramGraph(model)
+        .nodes.filter(({ id }) => view.selectedNodeIds.includes(id))
+        .map(({ label }) => label);
+    expect(labels(live.model)).toEqual(["Gateway"]);
+    expect(labels(version.model)).toEqual(["API"]);
+  });
+});
+
+describe("Sequence lifeline bound to an exact Diagram Version", () => {
+  const sequenceWith = (versionId: string | null, label = "API") => ({
+    participants: [
+      {
+        bind: {
+          boundLabel: label,
+          diagramId: keys[0] as string,
+          nodeId: "api",
+          versionId,
+        },
+        id: "svc",
+        kind: "Component" as const,
+        label: "Service",
+      },
+    ],
+    steps: [],
+  });
+
+  async function setup() {
+    const fixture = createFixture();
+    await create(fixture.client, keys[0] as string);
+    await fixture.client.createTechnicalDiagram({
+      authorityMode: "Product-authored Model",
+      clientIdempotencyKey: keys[1] as string,
+      projectId: "project-1",
+      title: "Flow",
+      type: "Technical Sequence",
+    });
+    const version = await fixture.client.createDiagramVersion({
+      clientIdempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      diagramId: keys[0] as string,
+      name: "Baseline",
+    });
+    return { ...fixture, version };
+  }
+
+  test("stores a validated exact version and keeps it when the source moves on", async () => {
+    const { client, version } = await setup();
+    const saved = await client.saveTechnicalDiagramStructure({
+      diagramId: keys[1] as string,
+      model: sequenceWith(version.id),
+    });
+    expect(saved.model).toMatchObject({
+      participants: [{ bind: { versionId: version.id } }],
+    });
+    // The source renames its node and gets a newer version: no retargeting.
+    await client.saveTechnicalDiagramStructure({
+      diagramId: keys[0] as string,
+      model: {
+        links: [],
+        nodes: [{ id: "api", kind: "Service", label: "Gateway" }],
+      },
+    });
+    await client.createDiagramVersion({
+      clientIdempotencyKey: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      diagramId: keys[0] as string,
+      name: "Newer",
+    });
+    const after = await client.technicalDiagram({
+      diagramId: keys[1] as string,
+    });
+    expect(after.model).toMatchObject({
+      participants: [{ bind: { boundLabel: "API", versionId: version.id } }],
+    });
+  });
+
+  test("refuses an unknown version and a node the version does not hold", async () => {
+    const { client, version } = await setup();
+    await expect(
+      client.saveTechnicalDiagramStructure({
+        diagramId: keys[1] as string,
+        model: sequenceWith("missing-version"),
+      }),
+    ).rejects.toThrow();
+    await expect(
+      client.saveTechnicalDiagramStructure({
+        diagramId: keys[1] as string,
+        model: sequenceWith(version.id, "Gateway"),
       }),
     ).rejects.toThrow();
   });

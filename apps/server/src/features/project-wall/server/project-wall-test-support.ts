@@ -541,6 +541,7 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
       model: structuredClone(diagram.model),
       origins: [],
       projectId: diagram.projectId,
+      revision: 1,
       title: diagram.title,
       type: "Technical Architecture",
       view: view ? { ...structuredClone(view), layout: {} } : null,

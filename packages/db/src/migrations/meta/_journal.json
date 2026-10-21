@@ -1072,6 +1072,13 @@
       "when": 1792566127540,
       "tag": "0152_bright_roxanne_simpson",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1792566991404,
+      "tag": "0153_narrow_kronos",
+      "breakpoints": true
     }
   ]
 }

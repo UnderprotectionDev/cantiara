@@ -4,7 +4,12 @@ import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
 import { Label } from "@cantiara/ui/components/label";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
@@ -13,6 +18,7 @@ import {
   DiagramOrigins,
   ExternalSourceLinkDetails,
 } from "./diagram-authority-controls";
+import { DiagramVersionPanel } from "./diagram-version-panel";
 import { NewTechnicalDiagramForm } from "./new-technical-diagram-form";
 import { TechnicalDiagramCanvas } from "./technical-diagram-canvas";
 import {
@@ -40,7 +46,59 @@ function DiagramCard({
     input: { diagramId: diagram.id },
   });
   const views = useQuery(options);
+  const versionOptions = orpc.technicalDiagramVersions.queryOptions({
+    input: { diagramId: diagram.id },
+  });
+  const versions = useQuery({
+    ...versionOptions,
+    enabled: diagram.authorityMode !== "External Source Link",
+  });
+  const versionKey = useRef<string | null>(null);
+  const [versionError, setVersionError] = useState<string | null>(null);
   const invalidate = () => queryClient.invalidateQueries();
+  const createVersion = useMutation({
+    mutationFn: (versionName: string) => {
+      versionKey.current ??= crypto.randomUUID();
+      return runOnlineOnlyWrite(() =>
+        client.createDiagramVersion({
+          clientIdempotencyKey: versionKey.current as string,
+          diagramId: diagram.id,
+          name: versionName,
+        }),
+      );
+    },
+    onError: (failure) =>
+      setVersionError(
+        failure instanceof Error
+          ? failure.message
+          : "Diagram Version could not be created.",
+      ),
+    onSuccess: async () => {
+      versionKey.current = null;
+      setVersionError(null);
+      await invalidate();
+    },
+  });
+  const restoreVersion = useMutation({
+    mutationFn: (versionId: string) =>
+      runOnlineOnlyWrite(() =>
+        client.restoreDiagramVersion({
+          diagramId: diagram.id,
+          expectedRevision: diagram.revision,
+          versionId,
+        }),
+      ),
+    onError: (failure) =>
+      setVersionError(
+        failure instanceof Error
+          ? failure.message
+          : "Diagram Version could not be restored.",
+      ),
+    onSuccess: async () => {
+      setVersionError(null);
+      await invalidate();
+    },
+  });
   const saveStructure = useMutation({
     mutationFn: (model: TechnicalDiagramSource["model"]) =>
       runOnlineOnlyWrite(() =>
@@ -116,6 +174,14 @@ function DiagramCard({
         disabled={saveStructure.isPending}
         onSave={(model) => saveStructure.mutate(model)}
       />
+      <DiagramVersionPanel
+        diagram={diagram}
+        disabled={createVersion.isPending || restoreVersion.isPending}
+        error={versionError}
+        onCreate={(versionName) => createVersion.mutate(versionName)}
+        onRestore={(version) => restoreVersion.mutate(version.id)}
+        versions={versions.data ?? []}
+      />
       <DiagramAuthorityConversion diagram={diagram} />
       <section aria-label="Diagram View" className="space-y-2">
         <h4 className="font-medium">Diagram View</h4>
@@ -186,20 +252,38 @@ export default function ProjectTechnicalDiagramsSurface({
   const visible = selectedDiagramId
     ? diagrams.data?.filter(({ id }) => id === selectedDiagramId)
     : diagrams.data;
-  const bindOptions: ArchitectureBindOption[] = (diagrams.data ?? [])
-    .filter(
-      (item) =>
-        item.type === "Technical Architecture" &&
-        item.authorityMode !== "External Source Link",
-    )
-    .flatMap((item) =>
-      diagramGraph(item.model).nodes.map((node) => ({
+  const architectures = (diagrams.data ?? []).filter(
+    (item) =>
+      item.type === "Technical Architecture" &&
+      item.authorityMode !== "External Source Link",
+  );
+  const architectureVersions = useQueries({
+    queries: architectures.map((item) =>
+      orpc.technicalDiagramVersions.queryOptions({
+        input: { diagramId: item.id },
+      }),
+    ),
+  });
+  const bindOptions: ArchitectureBindOption[] = architectures.flatMap(
+    (item, index) => [
+      ...diagramGraph(item.model).nodes.map((node) => ({
         boundLabel: node.label,
         diagramId: item.id,
         diagramTitle: item.title,
         nodeId: node.id,
       })),
-    );
+      ...(architectureVersions[index]?.data ?? []).flatMap((version) =>
+        diagramGraph(version.model).nodes.map((node) => ({
+          boundLabel: node.label,
+          diagramId: item.id,
+          diagramTitle: item.title,
+          nodeId: node.id,
+          versionId: version.id,
+          versionName: version.name,
+        })),
+      ),
+    ],
+  );
   return (
     <section aria-label="Technical Diagram" className="space-y-5">
       <h2 className="font-semibold text-2xl">Technical Diagram</h2>

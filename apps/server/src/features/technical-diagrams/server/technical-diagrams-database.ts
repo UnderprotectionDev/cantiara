@@ -14,6 +14,15 @@ import {
   resolveStructuralModel,
   StructuralModelError,
 } from "@cantiara/api/technical-diagram-structure";
+import {
+  assertVersionBind,
+  type CreateDiagramVersionInput,
+  createCheckpoint,
+  DiagramVersionError,
+  type RestoreDiagramVersionInput,
+  restoreFromCheckpoint,
+  type TechnicalDiagramVersion,
+} from "@cantiara/api/technical-diagram-version";
 import type {
   MermaidConversionInput,
   SaveDiagramLayoutInput,
@@ -30,10 +39,11 @@ import { usageLink } from "@cantiara/db/schema/relation";
 import {
   diagramAuthorityOrigin,
   diagramDocumentOrigin,
+  diagramVersion,
   diagramView,
   technicalDiagram,
 } from "@cantiara/db/schema/technical-diagram";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import { previewMermaidArchitecture } from "./mermaid-conversion";
 
@@ -377,6 +387,7 @@ export function createDatabaseTechnicalDiagrams(
             }
           : null,
       model: parsedModel,
+      revision: diagram.revision,
       origins: await originsOf(diagramId),
       view: view
         ? {
@@ -392,8 +403,7 @@ export function createDatabaseTechnicalDiagrams(
    * A Sequence lifeline may bind an exact Architecture node of the same
    * Project. A new or changed bind must name an existing node and its current
    * label; an unchanged bind is kept as written, so a moved or deleted source
-   * node never retargets it. Diagram Versions do not exist yet (#422), so a
-   * pinned `versionId` is refused until it can be validated.
+   * node, or a newer version, never retargets it.
    */
   async function assertSequenceBinds(
     accountId: string,
@@ -413,31 +423,242 @@ export function createDatabaseTechnicalDiagrams(
       ({ bind, id }) =>
         bind && JSON.stringify(before.get(id)) !== JSON.stringify(bind),
     );
-    if (
-      model.participants.some(({ bind }) => bind && bind.versionId !== null)
-    ) {
-      throw new StructuralModelError(
-        "Pinned Diagram Version binds are available once Diagram Versions exist.",
-      );
-    }
     await Promise.all(
-      changed.map(async (participant) => {
-        const { bind } = participant;
-        const target = bind ? await get(accountId, bind.diagramId) : null;
-        const node =
-          bind &&
-          target?.projectId === projectId &&
-          target.type === "Technical Architecture" &&
-          "nodes" in target.model
-            ? target.model.nodes.find(({ id }) => id === bind.nodeId)
-            : undefined;
-        if (!node || node.label !== bind?.boundLabel) {
+      changed.map(async ({ bind, label }) => {
+        if (bind && !(await bindIsValid(accountId, projectId, bind))) {
           throw new StructuralModelError(
-            `Lifeline ${participant.label} must bind an existing Architecture node of this Project.`,
+            `Lifeline ${label} must bind an existing Architecture node of this Project.`,
           );
         }
       }),
     );
+  }
+  async function bindIsValid(
+    accountId: string,
+    projectId: string,
+    bind: {
+      boundLabel: string;
+      diagramId: string;
+      nodeId: string;
+      versionId: string | null;
+    },
+  ) {
+    if (bind.versionId !== null) {
+      const version = await getVersion(accountId, bind.versionId);
+      const owner = version ? await get(accountId, version.diagramId) : null;
+      if (owner?.projectId !== projectId) {
+        return false;
+      }
+      try {
+        assertVersionBind(version, bind);
+      } catch (error) {
+        if (error instanceof DiagramVersionError) {
+          return false;
+        }
+        throw error;
+      }
+      return true;
+    }
+    const target = await get(accountId, bind.diagramId);
+    const node =
+      target?.projectId === projectId &&
+      target.type === "Technical Architecture" &&
+      "nodes" in target.model
+        ? target.model.nodes.find(({ id }) => id === bind.nodeId)
+        : undefined;
+    return node?.label === bind.boundLabel;
+  }
+  /** A view keeps only elements that still exist in the live model. */
+  async function pruneViews(
+    tx: Pick<Database, "select" | "update">,
+    diagramId: string,
+    model: TechnicalDiagramSource["model"],
+  ) {
+    const ids = new Set(diagramGraph(model).nodes.map(({ id }) => id));
+    const views = await tx
+      .select()
+      .from(diagramView)
+      .where(eq(diagramView.diagramId, diagramId));
+    await Promise.all(
+      views.map((view) =>
+        tx
+          .update(diagramView)
+          .set({
+            layout: Object.fromEntries(
+              Object.entries(view.layout).filter(([id]) => ids.has(id)),
+            ),
+            selectedNodeIds: view.selectedNodeIds.filter((id) => ids.has(id)),
+          })
+          .where(eq(diagramView.id, view.id)),
+      ),
+    );
+  }
+  function toVersion(
+    row: typeof diagramVersion.$inferSelect,
+  ): TechnicalDiagramVersion | null {
+    const type = technicalDiagramTypeSchema.safeParse(row.type);
+    const mode = creatableAuthorityModeSchema.safeParse(row.authorityMode);
+    const model = type.success
+      ? parseStoredStructuralModel(type.data, row.model)
+      : null;
+    if (!(type.success && mode.success && model)) {
+      return null;
+    }
+    return {
+      authorityMode: mode.data,
+      createdAt: row.createdAt.toISOString(),
+      diagramId: row.diagramId,
+      id: row.id,
+      model,
+      name: row.name,
+      number: row.number,
+      revision: row.revision,
+      type: type.data,
+    };
+  }
+  async function getVersion(accountId: string, versionId: string) {
+    const [row] = await database
+      .select({ version: diagramVersion })
+      .from(diagramVersion)
+      .innerJoin(
+        technicalDiagram,
+        eq(diagramVersion.diagramId, technicalDiagram.id),
+      )
+      .innerJoin(project, eq(technicalDiagram.projectId, project.id))
+      .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .where(
+        and(
+          eq(diagramVersion.id, versionId),
+          eq(workspace.ownerAccountId, accountId),
+        ),
+      )
+      .limit(1);
+    return row ? toVersion(row.version) : null;
+  }
+  async function listVersions(accountId: string, diagramId: string) {
+    if (!(await get(accountId, diagramId))) {
+      return null;
+    }
+    const rows = await database
+      .select()
+      .from(diagramVersion)
+      .where(eq(diagramVersion.diagramId, diagramId))
+      .orderBy(asc(diagramVersion.number));
+    return rows
+      .map(toVersion)
+      .filter((value): value is TechnicalDiagramVersion => value !== null);
+  }
+  async function createVersion(
+    accountId: string,
+    input: CreateDiagramVersionInput,
+  ) {
+    const current = await get(accountId, input.diagramId);
+    if (!current) {
+      return null;
+    }
+    const prior = await getVersion(accountId, input.clientIdempotencyKey);
+    if (prior) {
+      if (prior.diagramId !== current.id || prior.name !== input.name) {
+        throw new DiagramVersionError(
+          "This confirmation key was used for another Diagram Version.",
+        );
+      }
+      return prior;
+    }
+    const createdId = await database.transaction(async (tx) => {
+      // Serialize numbering per diagram, then checkpoint the locked live row.
+      const [locked] = await tx
+        .select({
+          model: technicalDiagram.model,
+          revision: technicalDiagram.revision,
+        })
+        .from(technicalDiagram)
+        .where(eq(technicalDiagram.id, current.id))
+        .for("update")
+        .limit(1);
+      const model = locked
+        ? parseStoredStructuralModel(current.type, locked.model)
+        : null;
+      if (!(locked && model)) {
+        throw new DiagramVersionError("The Technical Diagram is unavailable.");
+      }
+      const [last] = await tx
+        .select({
+          number: sql<number>`coalesce(max(${diagramVersion.number}), 0)`,
+        })
+        .from(diagramVersion)
+        .where(eq(diagramVersion.diagramId, current.id));
+      const checkpoint = createCheckpoint(
+        { ...current, model, revision: locked.revision },
+        {
+          createdAt: new Date().toISOString(),
+          id: input.clientIdempotencyKey,
+          name: input.name,
+          number: Number(last?.number ?? 0) + 1,
+        },
+      );
+      const [created] = await tx
+        .insert(diagramVersion)
+        .values({
+          authorityMode: checkpoint.authorityMode,
+          diagramId: checkpoint.diagramId,
+          id: checkpoint.id,
+          model: checkpoint.model,
+          name: checkpoint.name,
+          number: checkpoint.number,
+          revision: checkpoint.revision,
+          type: checkpoint.type,
+        })
+        .onConflictDoNothing()
+        .returning({ id: diagramVersion.id });
+      return created?.id ?? null;
+    });
+    if (!createdId) {
+      throw new DiagramVersionError(
+        "Diagram Version name or confirmation key is already used.",
+      );
+    }
+    return getVersion(accountId, createdId);
+  }
+  async function restoreVersion(
+    accountId: string,
+    input: RestoreDiagramVersionInput,
+  ) {
+    const current = await get(accountId, input.diagramId);
+    const version = await getVersion(accountId, input.versionId);
+    if (!(current && version)) {
+      return null;
+    }
+    // The checkpoint's binds were validated when it was taken and are exact,
+    // so restore writes the checkpoint as it was and re-resolves nothing.
+    const restored = restoreFromCheckpoint(
+      current,
+      version,
+      input.expectedRevision,
+    );
+    await database.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(technicalDiagram)
+        .set({
+          model: restored.model,
+          revision: restored.revision,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(technicalDiagram.id, current.id),
+            eq(technicalDiagram.revision, input.expectedRevision),
+          ),
+        )
+        .returning({ id: technicalDiagram.id });
+      if (!updated) {
+        throw new DiagramVersionError(
+          "The Technical Diagram changed after it was shown. Reload before restoring.",
+        );
+      }
+      await pruneViews(tx, current.id, restored.model);
+    });
+    return get(accountId, current.id);
   }
   async function saveModel(
     accountId: string,
@@ -462,26 +683,13 @@ export function createDatabaseTechnicalDiagrams(
     await database.transaction(async (tx) => {
       await tx
         .update(technicalDiagram)
-        .set({ model, updatedAt: new Date() })
+        .set({
+          model,
+          revision: sql`${technicalDiagram.revision} + 1`,
+          updatedAt: new Date(),
+        })
         .where(eq(technicalDiagram.id, input.diagramId));
-      const ids = new Set(diagramGraph(model).nodes.map(({ id }) => id));
-      const views = await tx
-        .select()
-        .from(diagramView)
-        .where(eq(diagramView.diagramId, input.diagramId));
-      await Promise.all(
-        views.map((view) =>
-          tx
-            .update(diagramView)
-            .set({
-              layout: Object.fromEntries(
-                Object.entries(view.layout).filter(([id]) => ids.has(id)),
-              ),
-              selectedNodeIds: view.selectedNodeIds.filter((id) => ids.has(id)),
-            })
-            .where(eq(diagramView.id, view.id)),
-        ),
-      );
+      await pruneViews(tx, input.diagramId, model);
     });
     return get(accountId, input.diagramId);
   }
@@ -503,7 +711,11 @@ export function createDatabaseTechnicalDiagrams(
   return {
     convertAuthority,
     create,
+    createVersion,
     get,
+    getVersion,
+    listVersions,
+    restoreVersion,
     previewAuthorityConversion: previewAuthority,
     previewConversion,
     saveLayout,

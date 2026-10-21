@@ -117,6 +117,7 @@ test("renders named collection and Diagram View blocks from their resolved sourc
             id: "diagram-1",
             title: "Architecture",
             projectId: "project-1",
+            revision: 1,
             type: "Technical Architecture",
             authorityMode: "Imported Independent Copy",
             externalSource: null,

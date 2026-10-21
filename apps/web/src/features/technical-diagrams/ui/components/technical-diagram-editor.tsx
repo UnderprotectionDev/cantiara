@@ -41,7 +41,13 @@ export interface ArchitectureBindOption {
   diagramId: string;
   diagramTitle: string;
   nodeId: string;
+  /** Set when the node belongs to an exact Diagram Version; null is the live node. */
+  versionId?: string | null;
+  versionName?: string;
 }
+
+const bindKey = (option: ArchitectureBindOption) =>
+  `${option.diagramId}:${option.nodeId}:${option.versionId ?? ""}`;
 
 interface EditorProps {
   /** Exact Architecture nodes a Sequence lifeline may bind. */
@@ -513,9 +519,7 @@ function SequenceEditor({
         disabled={disabled || !label.trim()}
         label="Add participant"
         onSubmit={() => {
-          const option = bindOptions.find(
-            ({ diagramId, nodeId }) => `${diagramId}:${nodeId}` === bind,
-          );
+          const option = bindOptions.find((item) => bindKey(item) === bind);
           onSave(
             addParticipant(model, {
               bind: option
@@ -523,7 +527,7 @@ function SequenceEditor({
                     boundLabel: option.boundLabel,
                     diagramId: option.diagramId,
                     nodeId: option.nodeId,
-                    versionId: null,
+                    versionId: option.versionId ?? null,
                   }
                 : null,
               kind: kind as SequenceModel["participants"][number]["kind"],
@@ -551,8 +555,12 @@ function SequenceEditor({
           options={[
             { label: "No bind", value: "" },
             ...bindOptions.map((option) => ({
-              label: `${option.diagramTitle} / ${option.boundLabel}`,
-              value: `${option.diagramId}:${option.nodeId}`,
+              label: `${option.diagramTitle} / ${option.boundLabel}${
+                option.versionId
+                  ? ` (Diagram Version ${option.versionName ?? option.versionId})`
+                  : " (live node, no Diagram Version)"
+              }`,
+              value: bindKey(option),
             })),
           ]}
           value={bind}

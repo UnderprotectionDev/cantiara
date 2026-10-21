@@ -16,6 +16,11 @@ import {
   structuralModelSchema,
   TECHNICAL_DIAGRAM_TYPES,
 } from "./technical-diagram-structure";
+import type {
+  CreateDiagramVersionInput,
+  RestoreDiagramVersionInput,
+  TechnicalDiagramVersion,
+} from "./technical-diagram-version";
 
 export const technicalDiagramTypeSchema = z.enum(TECHNICAL_DIAGRAM_TYPES);
 
@@ -107,6 +112,8 @@ export interface TechnicalDiagramSource {
     title: string;
   }>;
   projectId: string;
+  /** Live revision. A restore writes the next one; checkpoints never change. */
+  revision: number;
   title: string;
   type: z.infer<typeof technicalDiagramTypeSchema>;
   view: {
@@ -131,6 +138,11 @@ export interface TechnicalDiagramsAccess {
     accountId: string,
     input: CreateTechnicalDiagramInput,
   ) => Promise<TechnicalDiagramSource | null>;
+  /** Appends an immutable checkpoint of the live model; idempotent by key. */
+  createVersion: (
+    accountId: string,
+    input: CreateDiagramVersionInput,
+  ) => Promise<TechnicalDiagramVersion | null>;
   createView: (
     accountId: string,
     input: CreateDiagramViewInput,
@@ -140,10 +152,19 @@ export interface TechnicalDiagramsAccess {
     diagramId: string,
     viewId?: string,
   ) => Promise<TechnicalDiagramSource | null>;
+  /** Exact read of one checkpoint by its identity, never the live record. */
+  getVersion: (
+    accountId: string,
+    versionId: string,
+  ) => Promise<TechnicalDiagramVersion | null>;
   list: (
     accountId: string,
     projectId: string,
   ) => Promise<TechnicalDiagramSource[]>;
+  listVersions: (
+    accountId: string,
+    diagramId: string,
+  ) => Promise<TechnicalDiagramVersion[] | null>;
   listViews: (
     accountId: string,
     diagramId: string,
@@ -174,11 +195,16 @@ export interface TechnicalDiagramsAccess {
     model: ArchitectureModel;
     unparseableLines: Array<{ line: number; reason: string; text: string }>;
   } | null>;
-  /** Edits an authored or imported canonical model; never an External Source Link. */
+  /** Writes a new live revision from a checkpoint; the checkpoint is untouched. */
+  restoreVersion: (
+    accountId: string,
+    input: RestoreDiagramVersionInput,
+  ) => Promise<TechnicalDiagramSource | null>;
   saveLayout: (
     accountId: string,
     input: SaveDiagramLayoutInput,
   ) => Promise<TechnicalDiagramSource | null>;
+  /** Edits an authored or imported canonical model; never an External Source Link. */
   saveModel: (
     accountId: string,
     input: SaveTechnicalDiagramModelInput,

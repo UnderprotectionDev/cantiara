@@ -33,8 +33,9 @@ const base = {
   authorityMode: "Product-authored Model",
   externalSource: null,
   id: "d1",
-  origins: [],
+  origins: [] as TechnicalDiagramSource["origins"],
   projectId: "p1",
+  revision: 1,
   view: null,
 } as const;
 

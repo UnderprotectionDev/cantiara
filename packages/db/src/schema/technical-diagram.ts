@@ -138,6 +138,8 @@ export const technicalDiagram = pgTable(
     externalRevision: text("external_revision"),
     externalTool: text("external_tool"),
     externalCheckedAt: timestamp("external_checked_at"),
+    /** Live revision: model saves and restores write the next one. */
+    revision: integer("revision").notNull().default(1),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -209,6 +211,43 @@ export const diagramView = pgTable(
     check(
       "diagram_view_name_check",
       sql`length(btrim(${table.name})) between 1 and 255`,
+    ),
+  ],
+);
+
+/**
+ * Immutable `Diagram Version` checkpoint: append-only, written once with a copy
+ * of the canonical model and never updated. Other records pin `id` exactly.
+ */
+export const diagramVersion = pgTable(
+  "diagram_version",
+  {
+    id: text("id").primaryKey(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    authorityMode: text("authority_mode").notNull(),
+    model: jsonb("model").$type<DiagramModel>().notNull(),
+    revision: integer("revision").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("diagram_version_number_unique").on(table.diagramId, table.number),
+    unique("diagram_version_name_unique").on(table.diagramId, table.name),
+    check(
+      "diagram_version_name_check",
+      sql`length(btrim(${table.name})) between 1 and 255`,
+    ),
+    check(
+      "diagram_version_number_check",
+      sql`${table.number} >= 1 and ${table.revision} >= 1`,
+    ),
+    check(
+      "diagram_version_authority_mode_check",
+      sql`${table.authorityMode} in ('Product-authored Model', 'Imported Independent Copy')`,
     ),
   ],
 );
