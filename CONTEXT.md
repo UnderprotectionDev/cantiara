@@ -1344,6 +1344,41 @@ Bir Test Oturumu içinde bağımsız olarak denendiği bildirilen davranışı, 
 UI: `Session Test`.
 _Avoid_: Planlı Test Senaryosu, Test Oturumu özeti, GitHub check'i
 
+**Test incelemesi**:
+Kurucunun bir Test Oturumu ile her Oturum Testi üzerinde ayrı ayrı yürüttüğü yönetim kararı; her kayıt kendi inceleme durumunu taşır (`Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`), biri diğerini örtük değiştirmez ve bildirilen ham ya da normalize sonucu yazmaz. Yayın kapısı, Proje Sürümü sonucu, yeni test koşusu veya Handoff geçişi değildir; Oturum Testi tek başına arşivlenmez veya Çöp'e alınmaz (tarihsel bütün Test Oturumudur). Kalan `Unreviewed` ya da `Follow-up needed` maddelerle oturum kapatılabilir; kalan kesin kayıtlar ve isteğe bağlı gerekçe korunur. Açık toplu eylem `Mark session and selected results as reviewed` değişecek kesin kayıtları önizler, tek atomik ve idempotent işlemle uygular. İnceleme ve kapanış Kayıt geçmişidir, Denetim kaydı değildir.
+UI: `Test Review`; durumlar `Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`; toplu eylem `Mark session and selected results as reviewed`.
+_Avoid_: Onay, yayın kapısı, sürüm kanıtı, test skoru, otomatik kapanış, Denetim kaydı
+
+**Düzeltme / geri çekme / redaksiyon olayı**:
+Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli ve eklemeli olay; ham ve normalize bildirilen sonuç yerinde düzenlenmez veya silinmez. `Correction` güncel görünümde öne çıkan yeni sonucu, `Withdrawal` sonucun güncel kanıt olmaktan çıktığını kaydeder; zincir ve gerekçe Kayıt geçmişinde okunur kalır. Güvenlik redaksiyonu (`Redact value`) hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör koyar; redakte kanıt güncel değerlendirmede veya dışa aktarmada kullanılamaz, secret arama, dışa aktarma ve loglara girmez. Çöp Kutusu, hesap kapatma redaksiyon UI'si veya yerinde yeniden yazma değildir; yalnız redaksiyon içeriksiz Denetim kaydı işareti bırakabilir. Hatalı tek Oturum Testi Çöp'e alınmaz; `Correction` ya da `Withdrawal` kullanılır. Sonradan gelen olay mevcut inceleme durumunu sessizce geri almaz; kapanmış kayıtta `New context after close` görünür.
+UI: `Correction`, `Withdrawal`, `Redact value`, `New context after close`.
+_Avoid_: geriye dönük düzenleme, sessiz yeniden açma, Çöp Kutusu, kısmi silme, son yazan kazanır
+
+**Oturum Testi yerine geçme**:
+Kurucunun kesin Oturum Testleri arasında kurduğu yönlü, döngüsüz `Yerine geçer` / `Yerine geçildi` ilişkisi; yalnız aynı uzman türdeki (Oturum Testi) kayıtlar bağlanır, yeni sonuç eskisini silmez veya yazmaz, güncel görünüm zinciri, iki tarihsel sonucu ve teknik bağlam farkını özetler. Doğrulama yeni Test Oturumu ve isteğe bağlı bu ilişki ister.
+UI: `Supersedes`, `Superseded`.
+_Avoid_: son yazan kazanır, otomatik kazanan, sonucu yeniden yazma, başlık benzerliğiyle eşleme
+
+**Çelişen sonuç**:
+Aynı kesin Planlı Test Senaryosu sürümünde farklı normalize sonuç bulunup açık yerine-geçme ilişkisi olmadığında türetilen `test-result-conflict` Dikkat sinyali (`Action Required`); metin benzerliğiyle eşlenmez, kazananı ürün seçmez ve kullanıcı `Bind valid result` ile geçerli sonucu bağlayınca kapanır; sonradan gelen ayrışan sonuç yeniden açar. Test Açığı üretmez.
+UI: `test-result-conflict`, `Bind valid result`.
+_Avoid_: son tarih kazanır, otomatik çözüm, otomatik Test Açığı
+
+**Bağlam değişti**:
+Bağlı Birincil spec sürümü değiştiğinde ya da kayıtlı branch/commit/build hedef bağlamla uyuşmadığında Oturum Testi sonucunun yanında görünen açıklanabilir sinyal; yalnız zaman geçmesi veya ilgisiz commit staleness değildir, girilmemiş teknik bağlam "unknown" gösterilir, eski sonuç failed/stale sayılmaz ve Test Açığı ya da Handoff oluşmaz.
+UI: `Context changed`.
+_Avoid_: stale, geçersiz sonuç, semantik kod etki analizi, otomatik Handoff
+
+**Test takip işi**:
+Oturum Testinden kullanıcının açıkça başlattığı, önizlemeli `Create follow-up work` eylemiyle açılan İş ya da sonucun mevcut tek İşe bağlanması; `Kökeni` sahip Test Oturumuna, değişmez `Köken konumu` kesin Oturum Testi öğesine bağlanır. `Failed`/`Blocked`/`Inconclusive` otomatik Bug, İş, Risk, Açık Soru, Karar, bildirim veya öncelik üretmez; İşin kapanışı tarihsel sonucu `Passed` yapmaz.
+UI: `Create follow-up work`, `Originates from`, `Origin Location`.
+_Avoid_: otomatik Bug, sonuç yazma, toplu takip, sessiz kapanış
+
+**Test özeti**:
+Bir Özellik ya da Proje Sürümü detayında açık ilişkilerle bağlı Planlı Test Senaryosu, Handoff, Test Oturumu/Oturum Testi, açık Test Açığı, takip işi ve son Test değerlendirmesini canlı bir araya getiren türetilmiş nötr manzara; ikinci kayıt yazmaz, her sayı onu üreten kesin kayıt kümesini ve filtreleri açar. Bildirilen ham ve normalize sonucu, kaynak oturumu, yürütücüyü, raporlayanı, zamanı ve teknik bağlamı korur; GitHub check'i dış gerçek olarak ayrı kalır ve Test Oturumuna dönüşmez. Eksik test, bağlam değişikliği, çelişki, `Failed`/`Blocked`/`Inconclusive`/`Skipped`, incelenmemiş rapor, açık Test Açığı ve değerlendirme sonrası yeni bağlam yalnız kaynaklı nötr dikkat bilgisidir.
+UI: `Test Summary`, `Attention`; Testler alanındaki türetilmiş bölümler `Tests overview`.
+_Avoid_: coverage, kalite puanı, genel geçti/kaldı, test istisnası, yayın kapısı, Sürüm Kanıt Paketi, canlı test panosu, faz, CI panosu, ikinci özet kaydı
+
 **Yürüten**:
 Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
 UI: `Executor type`, `Executor`.

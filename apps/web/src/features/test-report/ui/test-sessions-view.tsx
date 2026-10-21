@@ -354,8 +354,8 @@ function TestSessionItem({ session }: { session: TestSessionRecord }) {
 
 /**
  * Test Sessions of a Project. Recording and importing both write the same
- * Test Session and Session Test model; a new session shows `Unreviewed`. There
- * is no review, approve, verify or release control here: a reported result is
+ * Test Session and Session Test model; a new session shows `Unreviewed`. Review lives in
+ * Test Review (spec 57). There is no approve, verify or release control here: a reported result is
  * history, not Product acceptance evidence.
  */
 export function TestSessionsView({

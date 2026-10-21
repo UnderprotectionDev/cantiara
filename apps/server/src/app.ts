@@ -65,6 +65,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "@cantiara/api/priority-metrics";
+import type { ProductGapsAccess } from "@cantiara/api/product-gaps";
 import type { ProjectGoalsAccess } from "@cantiara/api/project-goals";
 import type {
   ProjectShellAccess,
@@ -100,6 +101,7 @@ import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { TestAssessmentsAccess } from "@cantiara/api/test-assessments";
 import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
+import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import {
   type WebCaptureAccess,
@@ -211,6 +213,7 @@ export interface AppDependencies {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  productGaps?: ProductGapsAccess;
   projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
@@ -238,6 +241,7 @@ export interface AppDependencies {
   testAssessments?: TestAssessmentsAccess;
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
+  testReview?: TestReviewAccess;
   trustedProxyIps: readonly string[];
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -1264,6 +1268,8 @@ export function createApp(dependencies: AppDependencies) {
       screens: dependencies.screens,
       plannedTests: dependencies.plannedTests,
       testGaps: dependencies.testGaps,
+      testReview: dependencies.testReview,
+      productGaps: dependencies.productGaps,
       testReports: dependencies.testReports,
       testAssessments: dependencies.testAssessments,
       specChangeReview: dependencies.specChangeReview,

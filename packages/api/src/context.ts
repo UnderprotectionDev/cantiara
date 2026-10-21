@@ -43,6 +43,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "./priority-metrics";
+import type { ProductGapsAccess } from "./product-gaps";
 import type { ProjectGoalsAccess } from "./project-goals";
 import type {
   ProjectShellAccess,
@@ -76,6 +77,7 @@ import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { TestAssessmentsAccess } from "./test-assessments";
 import type { TestGapsAccess } from "./test-gaps";
 import type { TestReportAcceptanceAccess } from "./test-report";
+import type { TestReviewAccess } from "./test-review";
 import type { UserFlowAccess } from "./user-flow";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
@@ -206,6 +208,7 @@ export interface Context {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  productGaps?: ProductGapsAccess;
   projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;
@@ -234,6 +237,7 @@ export interface Context {
   testAssessments?: TestAssessmentsAccess;
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
+  testReview?: TestReviewAccess;
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;

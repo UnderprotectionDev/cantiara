@@ -1,6 +1,6 @@
 {
-  "id": "236d9a66-ecdc-486d-b7cb-732bfd91b9a4",
-  "prevId": "8f683306-9446-409a-8975-bccdfd986256",
+  "id": "ae47aa25-4a04-4e62-a1e7-1da7be0e00f0",
+  "prevId": "10a72aec-21b5-4731-ab90-d31c8fe7f17b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4527,100 +4527,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.diagram_authority_origin": {
-      "name": "diagram_authority_origin",
-      "schema": "",
-      "columns": {
-        "target_diagram_id": {
-          "name": "target_diagram_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_diagram_id": {
-          "name": "source_diagram_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_mode": {
-          "name": "source_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_mode": {
-          "name": "target_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "loss": {
-          "name": "loss",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "diagram_authority_origin_source_idx": {
-          "name": "diagram_authority_origin_source_idx",
-          "columns": [
-            {
-              "expression": "source_diagram_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "diagram_authority_origin_target_diagram_id_technical_diagram_id_fk": {
-          "name": "diagram_authority_origin_target_diagram_id_technical_diagram_id_fk",
-          "tableFrom": "diagram_authority_origin",
-          "tableTo": "technical_diagram",
-          "columnsFrom": ["target_diagram_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "diagram_authority_origin_source_diagram_id_technical_diagram_id_fk": {
-          "name": "diagram_authority_origin_source_diagram_id_technical_diagram_id_fk",
-          "tableFrom": "diagram_authority_origin",
-          "tableTo": "technical_diagram",
-          "columnsFrom": ["source_diagram_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "diagram_authority_origin_distinct_check": {
-          "name": "diagram_authority_origin_distinct_check",
-          "value": "\"diagram_authority_origin\".\"source_diagram_id\" <> \"diagram_authority_origin\".\"target_diagram_id\" and \"diagram_authority_origin\".\"source_mode\" <> \"diagram_authority_origin\".\"target_mode\""
-        },
-        "diagram_authority_origin_modes_check": {
-          "name": "diagram_authority_origin_modes_check",
-          "value": "\"diagram_authority_origin\".\"source_mode\" in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link') and \"diagram_authority_origin\".\"target_mode\" in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.diagram_document_origin": {
       "name": "diagram_document_origin",
       "schema": "",
@@ -4711,13 +4617,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
-        },
-        "layout": {
-          "name": "layout",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
         }
       },
       "indexes": {},
@@ -4788,30 +4687,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "external_url": {
-          "name": "external_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "external_revision": {
-          "name": "external_revision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "external_tool": {
-          "name": "external_tool",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "external_checked_at": {
-          "name": "external_checked_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -9914,6 +9789,379 @@
         "project_test_gap_relation_document_check": {
           "name": "project_test_gap_relation_document_check",
           "value": "(\"project_test_gap_relation\".\"target_type\" = 'Document' and \"project_test_gap_relation\".\"document_revision\" is not null and \"project_test_gap_relation\".\"document_revision\" >= 0) or (\"project_test_gap_relation\".\"target_type\" <> 'Document' and \"project_test_gap_relation\".\"document_revision\" is null and \"project_test_gap_relation\".\"section_id\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workspace_product_gap": {
+      "name": "workspace_product_gap",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Open'"
+        },
+        "status_changed_at": {
+          "name": "status_changed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unmet_need": {
+          "name": "unmet_need",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "workspace_product_gap_workspace_idx": {
+          "name": "workspace_product_gap_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_product_gap_workspace_id_workspace_id_fk": {
+          "name": "workspace_product_gap_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_product_gap",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_product_gap_status_check": {
+          "name": "workspace_product_gap_status_check",
+          "value": "\"workspace_product_gap\".\"status\" in ('Open', 'Evaluating', 'Met', 'Conscious boundary')"
+        },
+        "workspace_product_gap_title_check": {
+          "name": "workspace_product_gap_title_check",
+          "value": "length(btrim(\"workspace_product_gap\".\"title\")) between 1 and 255"
+        },
+        "workspace_product_gap_unmet_need_check": {
+          "name": "workspace_product_gap_unmet_need_check",
+          "value": "length(btrim(\"workspace_product_gap\".\"unmet_need\")) >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workspace_product_gap_link": {
+      "name": "workspace_product_gap_link",
+      "schema": "",
+      "columns": {
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "gap_id": {
+          "name": "gap_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Related'"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "workspace_product_gap_link_gap_idx": {
+          "name": "workspace_product_gap_link_gap_idx",
+          "columns": [
+            {
+              "expression": "gap_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_product_gap_link_target_unique": {
+          "name": "workspace_product_gap_link_target_unique",
+          "columns": [
+            {
+              "expression": "gap_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_product_gap_link_gap_fk": {
+          "name": "workspace_product_gap_link_gap_fk",
+          "tableFrom": "workspace_product_gap_link",
+          "tableTo": "workspace_product_gap",
+          "columnsFrom": ["gap_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_product_gap_link_type_check": {
+          "name": "workspace_product_gap_link_type_check",
+          "value": "\"workspace_product_gap_link\".\"target_type\" in ('Project', 'Work', 'Feature', 'Decision')"
+        },
+        "workspace_product_gap_link_kind_check": {
+          "name": "workspace_product_gap_link_kind_check",
+          "value": "\"workspace_product_gap_link\".\"kind\" in ('Related', 'Follow-up')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workspace_tool_escape": {
+      "name": "workspace_tool_escape",
+      "schema": "",
+      "columns": {
+        "gap_id": {
+          "name": "gap_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "intended_job": {
+          "name": "intended_job",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reasons": {
+          "name": "reasons",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tool": {
+          "name": "tool",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "workspace_tool_escape_gap_idx": {
+          "name": "workspace_tool_escape_gap_idx",
+          "columns": [
+            {
+              "expression": "gap_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workspace_tool_escape_project_idx": {
+          "name": "workspace_tool_escape_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_tool_escape_gap_fk": {
+          "name": "workspace_tool_escape_gap_fk",
+          "tableFrom": "workspace_tool_escape",
+          "tableTo": "workspace_product_gap",
+          "columnsFrom": ["gap_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_tool_escape_source_type_check": {
+          "name": "workspace_tool_escape_source_type_check",
+          "value": "\"workspace_tool_escape\".\"source_type\" in ('Project', 'Work', 'Feature', 'Decision')"
+        },
+        "workspace_tool_escape_reasons_check": {
+          "name": "workspace_tool_escape_reasons_check",
+          "value": "cardinality(\"workspace_tool_escape\".\"reasons\") between 1 and 5 and \"workspace_tool_escape\".\"reasons\" <@ array['Missing capability', 'Faster', 'More reliable', 'Usability', 'Habit']::text[]"
+        },
+        "workspace_tool_escape_tool_check": {
+          "name": "workspace_tool_escape_tool_check",
+          "value": "length(btrim(\"workspace_tool_escape\".\"tool\")) between 1 and 120"
+        },
+        "workspace_tool_escape_intended_job_check": {
+          "name": "workspace_tool_escape_intended_job_check",
+          "value": "length(btrim(\"workspace_tool_escape\".\"intended_job\")) >= 1"
         }
       },
       "isRLSEnabled": false

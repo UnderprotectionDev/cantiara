@@ -324,7 +324,25 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Yürüten | `Executor` | Testi yürüten kullanıcı ya da araç adı ve sürümü; tarihsel atıf |
 | Raporlayan | `Reporter` | Raporu teslim eden doğrulanmış kullanıcı ya da entegrasyon |
 | Giriş yolu | `Ingress` | `Application`, `File import` veya `MCP`; saklanan olgu, puan değildir |
-| İncelenmedi | `Unreviewed` | Yeni Test Oturumunun başlangıç inceleme durumu; inceleme yaşam döngüsü 57'dedir |
+| Test incelemesi | `Test Review` | Test Oturumu ve Oturum Testi inceleme bölümü; sonuç, yayın kapısı veya Proje Sürümü sonucu değildir |
+| İncelenmedi | `Unreviewed` | Test Oturumunun ve her Oturum Testinin başlangıç inceleme durumu |
+| İncelendi | `Reviewed` | Kullanıcının oturum ya da maddeye verdiği inceleme durumu; bildirilen sonucu değiştirmez |
+| Takip gerekli | `Follow-up needed` | Oturum ya da madde için inceleme durumu; otomatik İş, Bug veya Test Açığı üretmez |
+| Kapatıldı | `Closed` | Test Oturumu ya da Oturum Testi inceleme durumu; kalan açık maddeler kapıyı engellemez, alt maddeleri kapatmaz |
+| Oturumu ve seçili sonuçları incelendi işaretle | `Mark session and selected results as reviewed` | Önizleme gerektiren, tek atomik ve idempotent toplu inceleme eylemi |
+| Düzeltme | `Correction` | Önceki Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli yeni olay; güncel görünümde öne çıkar, özgün bildirim yerinde kalır |
+| Geri çekme | `Withdrawal` | Önceki kayda bağlı, gerekçeli yeni olay; sonucu güncel kanıt olmaktan çıkarır, özgün bildirim silinmez |
+| Güvenlik redaksiyonu işareti | `Redact value` | Hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör gösterir; Çöp Kutusu veya yerinde yeniden yazma değildir |
+| Kapanıştan sonra yeni bağlam | `New context after close` | Kapalı kayda sonradan gelen düzeltme, geri çekme veya redaksiyon sinyali; inceleme durumunu geri almaz |
+| Yerine geçer (Oturum Testi) | `Supersedes` | Aynı uzman türdeki kesin Oturum Testleri arasında yönlü, döngüsüz ilişki; iki tarihsel sonucu ve teknik bağlam farkını korur, hiçbirini yazmaz |
+| Yerine geçildi (Oturum Testi) | `Superseded` | `Supersedes` ilişkisinin eski ucu; sonuç silinmez, çelişki karşılaştırmasından çıkar |
+| Çelişen sonuç sinyali | `test-result-conflict` | Aynı kesin senaryo sürümünde farklı normalize sonuç ve yerine-geçme yokluğundan türetilen Dikkat sinyali; kazananı sistem seçmez, kullanıcı geçerli sonucu bağlayınca kapanır |
+| Bağlam değişti | `Context changed` | Bağlı Birincil spec sürümü ya da kayıtlı branch/commit/build hedef bağlamla uyuşmadığında görünen açıklanabilir sinyal; sonucu geçersiz, eski veya başarısız saymaz |
+| Takip işi oluştur (Test İnceleme) | `Create follow-up work` | Oturum Testinden önizlemeli takip İşi; hedefi, `Originates from` (Test Oturumu) ve değişmez `Origin Location` (kesin Oturum Testi) bağını onaydan önce gösterir, sonucu yazmaz |
+| Geçerli sonucu bağla | `Bind valid result` | Çelişen sonuçlardan kullanıcının geçerli saydığı kesin Oturum Testini kaydeder; çelişki sinyalini kapatır |
+| Test özeti | `Test Summary` | Özellik ve Proje Sürümü detayındaki canlı, türetilmiş, nötr test manzarası; skor, coverage, genel geçti/kaldı, istisna, yayın kapısı veya Sürüm Kanıt Paketi değildir ve ikinci kayıt yazmaz |
+| Dikkat (test özeti) | `Attention` | Test özetinde eksik test, bağlam değişikliği, çelişki, `Failed`/`Blocked`/`Inconclusive`/`Skipped`, incelenmemiş rapor, açık Test Açığı ve değerlendirme sonrası yeni bağlamı kaynaklarıyla listeleyen nötr bilgi; hüküm veya sıra taşımaz |
+| Testler genel görünümü | `Tests overview` | Testler alanındaki canlı türetilmiş bölümler: `Unreviewed reports`, `Follow-up needed results`, `Open and planned Test Gaps`, `Conflicting or awaiting-supersede results`, `Context-changed results`, `Active Handoffs`, `Recent sessions`, `Recent assessments`; her sayı kesin kümeyi açar, faz veya CI panosu değildir |
 | Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
 | Kaldı | `Failed` | Normalize bildirilen sonuç |
 | Bloke | `Blocked` | Normalize bildirilen sonuç |
@@ -1288,6 +1306,37 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Eşleşen komut yok | `No matching command` | Palet süzgecinin komut döndürmediği durum |
 | Burada çalışmaz | `Can’t run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
 | Kapat | `Close` | Paleti kapatma eylemi |
+| Ürün boşluğu kaydet | `Record Product Gap` | Kurucunun açıkça başlattığı Çalışma Alanı Ürün Boşluğu kaydı; otomatik telemetry, benzer başlık birleştirmesi veya İş dönüşümü değildir |
+| Ürün Boşluğu | `Product Gap` | Karşılanmayan ihtiyaç için Çalışma Alanı ana kaydı; İş veya özellik isteği değildir |
+| Karşılanmayan ihtiyaç | `Unmet need` | Ürün Boşluğunun zorunlu metni |
+| Kapsam | `Scope` | Ürün Boşluğunun isteğe bağlı kapsam açıklaması |
+| İlgili kayıtlar | `Related records` | Ürün Boşluğuna bağlı Proje, İş, Özellik ve Karar ilişkileri; ilişki bağlı kaydın yaşam döngüsüne yazmaz |
+| Açık | `Open` | Ürün Boşluğu durumu `Açık`; kurucu seçer, tekrar sayısı yazmaz |
+| Değerlendiriliyor | `Evaluating` | Ürün Boşluğu durumu `Değerlendiriliyor` |
+| Karşılandı | `Met` | Ürün Boşluğu durumu `Karşılandı` |
+| Bilinçli sınır | `Conscious boundary` | Ürün Boşluğu durumu `Bilinçli sınır`; yüksek etkili kaçışın kapanış kanıtını kaldırmaz |
+| Takip İşi oluştur | `Create follow-up work` | Ürün Boşluğundan açık önizleme ve onayla tek İş açar veya mevcut Özellik ilişkisi kurar; kendiliğinden dönüşmez |
+| Dış Araca Kaçış | `Tool Escape` | Ürün Boşluğuna bağlı tarihli, eklemeli olay; GitHub bağlantısı, Test Handoff'u veya Dış yürütme devri değildir; şiddet veya `High-impact` bayrağı taşımaz; sayısı yalnız kayıtlı olaylardan türetilir ve sıralama ya da öncelik üretmez |
+| Gerçekleşme zamanı | `Occurred at` | Dış Araca Kaçışın gerçekleştiği zaman |
+| Dış araç | `External tool` | Kullanıcının geçtiği aracın adı; dış içerik veya oturum kopyası değildir |
+| Kaynak | `Source` | Dış Araca Kaçışın kaynak Proje, İş, Özellik veya Karar bağlamı |
+| Yapılmak istenen iş | `Intended job` | Kullanıcının dış araçta bitirmek istediği iş |
+| Nedenler | `Reasons` | Dış Araca Kaçış için bir veya daha fazla kapalı neden |
+| Eksik yetenek | `Missing capability` | Dış Araca Kaçış nedeni `Eksik yetenek` |
+| Daha hızlı | `Faster` | Dış Araca Kaçış nedeni `Daha hızlı` |
+| Daha güvenilir | `More reliable` | Dış Araca Kaçış nedeni `Daha güvenilir` |
+| Kullanılabilirlik | `Usability` | Dış Araca Kaçış nedeni `Kullanılabilirlik` |
+| Alışkanlık | `Habit` | Dış Araca Kaçış nedeni `Alışkanlık` |
+| Dış Araca Kaçışı kapat | `Close Tool Escape` | Dış Araca Kaçışa ayrı, eklemeli kapanış kaydı yazar; olayı yeniden yazmaz, bir kaçış için yalnız bir kez yapılır; hesap kapatma veya Dış yüzey iptali değildir |
+| Kaçışın taşıdığı | `What the escape held` | Kapanışta yapılan yüksek etki yargısı: `Canonical truth moved out` (`Kanonik gerçek dışarı taşındı`), `Lasting parallel source of truth` (`Kalıcı paralel doğruluk kaynağı`) veya `Never held parallel truth` (`Paralel doğruluk taşımadı`); son seçenek dört koşullu kapanışı kullanmaz; saklanan şiddet bayrağı değildir |
+| Aday build | `Candidate build` | Aynı akışın başarıyla çalıştığı güncel Ürün sürüm adayının kesin build'i |
+| İş akışı çalıştırması | `Workflow run` | Aynı gerçek iş akışının aday üzerindeki doğrulanabilir çalıştırma başvurusu; serbest not veya dış ekran görüntüsü değildir |
+| Gerçeğin dönüş yolu | `How the truth returned` | `Manual recreate` (`Manuel yeniden oluşturma`) veya `Supported import` (`Desteklenen import`) |
+| Geri dönen ürün kayıtları | `Restored product records` | Etkilenen güncel gerçeğin döndüğü kesin Proje, İş, Özellik veya Karar kayıtları; kanıt bu kayıtlara bağlanır |
+| Dış kopya | `External copy` | `Closed` (`Kapandı`) veya `Active parallel source` (`Aktif paralel kaynak`); yalnız `Closed` koşulu karşılar |
+| Dış kopya nasıl kapatıldı | `How the external copy was closed` | Dış kopyanın paralel doğruluk kaynağı olmaktan çıkışının okunur açıklaması |
+| Kapanış kanıtı | `Close evidence` | Kapanmış Dış Araca Kaçışın görünür kanıtı: aday build, çalıştırma, dönüş yolu, bağlı kayıtlar ve dış kopya açıklaması |
+| Araca, nedene, Projeye veya duruma göre süz | `Filter by external tool`, `Filter by reason`, `Filter by Project`, `Filter by status` | Dogfooding özetinin yalnız seçen süzgeçleri; sıralama veya puan üretmez |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 

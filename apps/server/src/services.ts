@@ -80,6 +80,7 @@ import {
   createDatabasePriorityMetricPermanentDeleteEvents,
   createDatabasePriorityMetricTrashMaintenance,
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
+import { createDatabaseProductGaps } from "./features/product-gaps/server/product-gaps-database";
 import { createDatabaseProjectGoals } from "./features/project-goals/server/project-goals-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -118,6 +119,7 @@ import { createDatabaseTechnicalDiagrams } from "./features/technical-diagrams/s
 import { createDatabaseTestAssessments } from "./features/test-assessments/server/test-assessments-database";
 import { createDatabaseTestGaps } from "./features/test-gaps/server/test-gaps-database";
 import { createDatabaseTestReports } from "./features/test-report/server/test-report-database";
+import { createDatabaseTestReview } from "./features/test-review/server/test-review-database";
 import { createDatabaseUserFlow } from "./features/user-flow/server/user-flow-database";
 import { createWorkContextAccess } from "./features/work-context/server/work-context";
 import { createDatabaseWorkDrafts } from "./features/work-drafts/server/work-drafts-database";
@@ -255,6 +257,8 @@ export const feedback = createDatabaseFeedbackWithFeed(db);
 export const screens = createDatabaseScreens(db);
 export const plannedTests = createDatabasePlannedTests(db);
 export const testGaps = createDatabaseTestGaps(db);
+export const testReview = createDatabaseTestReview(db);
+export const productGaps = createDatabaseProductGaps(db);
 export const testReports = createDatabaseTestReports(db);
 export const testAssessments = createDatabaseTestAssessments(db);
 export const specChangeReview = createSpecChangeReview(
