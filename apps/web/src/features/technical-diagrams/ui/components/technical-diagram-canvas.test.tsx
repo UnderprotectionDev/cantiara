@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { TechnicalDiagramCanvas } from "./technical-diagram-canvas";
 
@@ -67,5 +67,90 @@ describe("Technical Diagram canvas", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("Fit view");
     expect(container.textContent).toContain("Founder (Actor)");
+  });
+
+  const boundary = {
+    model: {
+      links: [{ from: "b", kind: "Contains" as const, label: null, to: "api" }],
+      nodes: [
+        { id: "b", kind: "Boundary" as const, label: "Backend" },
+        { id: "api", kind: "Service" as const, label: "API" },
+      ],
+    },
+    title: "Platform",
+    type: "Technical Architecture" as const,
+    view: {
+      id: "v",
+      layout: { api: { x: 50, y: 50 }, b: { x: 0, y: 0 } },
+      name: "Default",
+      selectedNodeIds: [],
+    },
+  };
+  const viewportTransform = () =>
+    container
+      .querySelector<HTMLElement>(".react-flow__viewport")
+      ?.style.transform.replace(/\s/g, "");
+
+  test("restores the saved zoom and collapse, and Fit view returns neutral and expands groups", async () => {
+    act(() =>
+      root.render(
+        <TechnicalDiagramCanvas
+          diagram={boundary}
+          savedView={{ center: { x: 100, y: 50 }, collapsed: ["b"], zoom: 1.5 }}
+        />,
+      ),
+    );
+    expect(viewportTransform()).toContain("scale(1.5)");
+    expect(container.textContent).toContain("Backend (Boundary)");
+    expect(container.textContent).not.toContain("API (Service)");
+    expect(container.textContent).toContain("Expand group: Backend");
+    vi.stubGlobal("requestAnimationFrame", (run: () => void) => run());
+    const fit = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "Fit view",
+    );
+    await act(async () => fit?.click());
+    expect(container.textContent).toContain("API (Service)");
+    expect(container.textContent).toContain("Collapse group: Backend");
+    vi.unstubAllGlobals();
+  });
+
+  test("a saved position over an empty region fits content instead of restoring", () => {
+    act(() =>
+      root.render(
+        <TechnicalDiagramCanvas
+          diagram={boundary}
+          savedView={{
+            center: { x: 90_000, y: 90_000 },
+            collapsed: [],
+            zoom: 1.5,
+          }}
+        />,
+      ),
+    );
+    expect(viewportTransform()).not.toContain("scale(1.5)");
+  });
+
+  test("collapsing a group reports only the personal view", () => {
+    const onViewChange = vi.fn();
+    act(() =>
+      root.render(
+        <TechnicalDiagramCanvas
+          diagram={boundary}
+          onViewChange={onViewChange}
+        />,
+      ),
+    );
+    const toggle = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.startsWith("Collapse group"),
+    );
+    act(() => toggle?.click());
+    expect(onViewChange).toHaveBeenCalledWith(
+      expect.objectContaining({ collapsed: ["b"] }),
+    );
+    expect(Object.keys(onViewChange.mock.calls[0]?.[0]).sort()).toEqual([
+      "center",
+      "collapsed",
+      "zoom",
+    ]);
   });
 });

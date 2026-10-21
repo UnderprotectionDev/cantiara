@@ -521,6 +521,10 @@ import {
   restoreDiagramVersionInputSchema,
 } from "../technical-diagram-version";
 import {
+  saveTechnicalDiagramViewportInputSchema,
+  technicalDiagramViewportInputSchema,
+} from "../technical-diagram-viewport";
+import {
   confirmMermaidConversionInputSchema,
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
@@ -5480,6 +5484,36 @@ export const appRouter = {
           { cause: error },
         );
       }
+    }),
+  technicalDiagramViewport: protectedProcedure
+    .input(technicalDiagramViewportInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const result = await context.technicalDiagrams.viewport(
+        context.session.user.id,
+        input,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return result.viewport;
+    }),
+  saveTechnicalDiagramViewport: protectedProcedure
+    .input(saveTechnicalDiagramViewportInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const saved = await context.technicalDiagrams.saveViewport(
+        context.session.user.id,
+        input,
+      );
+      if (!saved) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return saved;
     }),
   technicalDiagramViews: protectedProcedure
     .input(z.object({ diagramId: z.string().min(1) }).strict())

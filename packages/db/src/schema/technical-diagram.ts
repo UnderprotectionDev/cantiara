@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -330,5 +331,39 @@ export const diagramRecordLink = pgTable(
       "diagram_record_link_record_type_check",
       sql`${table.recordType} in ('Work', 'Decision', 'Risk', 'Open Question')`,
     ),
+  ],
+);
+
+/**
+ * The account's personal viewport of one Technical Diagram and `Diagram View`
+ * (center, zoom and view-local group collapse). Deliberately outside the
+ * diagram, its model hash, versions, views, cards, share Snapshots and exports,
+ * and keyed by account so it is never another user's view. `view_id` is empty
+ * for the default view. Selection and unsaved edits have no field.
+ */
+export interface TechnicalDiagramViewportState {
+  center: { x: number; y: number };
+  collapsed: string[];
+  zoom: number;
+}
+
+export const technicalDiagramViewport = pgTable(
+  "technical_diagram_viewport",
+  {
+    accountId: text("account_id").notNull(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    viewId: text("view_id").notNull().default(""),
+    viewport: jsonb("viewport")
+      .$type<TechnicalDiagramViewportState>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.accountId, table.diagramId, table.viewId],
+      name: "technical_diagram_viewport_pk",
+    }),
   ],
 );

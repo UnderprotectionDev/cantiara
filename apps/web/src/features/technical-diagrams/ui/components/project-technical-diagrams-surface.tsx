@@ -17,6 +17,7 @@ import {
 import { useRef, useState } from "react";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
 import {
   DiagramAuthorityConversion,
   DiagramOrigins,
@@ -113,6 +114,10 @@ function DiagramCard({
   const [compositionError, setCompositionError] = useState<string | null>(null);
   const placeKey = useRef<string | null>(null);
   const convertKey = useRef<string | null>(null);
+  const personalView = usePersonalTechnicalDiagramView(
+    diagram.id,
+    diagram.view?.id,
+  );
   const recordCards = useQuery(
     orpc.technicalDiagramRecordCards.queryOptions({
       input: { diagramId: diagram.id },
@@ -253,16 +258,25 @@ function DiagramCard({
         <ExternalSourceLinkDetails source={diagram.externalSource} />
       ) : null}
       <TechnicalDiagramOutline diagram={diagram} />
-      {diagram.authorityMode === "External Source Link" ? null : (
+      {diagram.authorityMode === "External Source Link" ||
+      !personalView.isReady ? null : (
         <TechnicalDiagramCanvas
           diagram={diagram}
+          key={`${diagram.id}:${diagram.view?.id ?? ""}`}
           onMove={(id, position) => saveLayout.mutate({ id, ...position })}
           onMoveRecordCard={(cardId, position) =>
             moveCard.mutate({ cardId, ...position })
           }
+          onViewChange={personalView.schedule}
           recordCards={recordCards.data ?? []}
+          savedView={personalView.saved}
         />
       )}
+      {personalView.saveError ? (
+        <p className="text-destructive text-sm" role="alert">
+          {personalView.saveError}
+        </p>
+      ) : null}
       <TechnicalDiagramEditor
         bindOptions={bindOptions}
         diagram={diagram}

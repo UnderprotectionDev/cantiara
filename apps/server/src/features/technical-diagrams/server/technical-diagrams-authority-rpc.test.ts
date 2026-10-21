@@ -23,6 +23,11 @@ import {
   restoreFromCheckpoint,
   type TechnicalDiagramVersion,
 } from "@cantiara/api/technical-diagram-version";
+import {
+  diagramGroups,
+  liveCollapsedGroups,
+  type TechnicalDiagramViewport,
+} from "@cantiara/api/technical-diagram-viewport";
 import type {
   TechnicalDiagramSource,
   TechnicalDiagramsAccess,
@@ -30,6 +35,7 @@ import type {
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, test } from "vitest";
 
+const VIEWPORT_WORDS = /zoom|collapsed|center/;
 const DIAGRAM_VERSION_COMMAND = /diagramversion/i;
 const DIAGRAM_RECORD_CARD_COMMAND = /diagramrecordcard/i;
 const AUTHORITY_COMMAND =
@@ -56,6 +62,10 @@ function createFixture() {
     string,
     { diagramId: string; nodeId: string; versionId: string }
   >();
+  /** Personal viewports keyed by account, diagram and view; nothing else holds them. */
+  const viewports = new Map<string, TechnicalDiagramViewport>();
+  const viewportKey = (account: string, diagramId: string, viewId?: string) =>
+    JSON.stringify([account, diagramId, viewId ?? ""]);
   const present = (id: string): TechnicalDiagramSource | null => {
     const diagram = diagrams.get(id);
     return diagram ? { ...diagram, origins: [...diagram.origins] } : null;
@@ -289,6 +299,35 @@ function createFixture() {
         version: input.plan.version,
       };
     },
+    viewport: (account, input) =>
+      Promise.resolve(
+        diagrams.has(input.diagramId)
+          ? {
+              viewport:
+                viewports.get(
+                  viewportKey(account, input.diagramId, input.viewId),
+                ) ?? null,
+            }
+          : null,
+      ),
+    saveViewport: (account, input) => {
+      const diagram = diagrams.get(input.diagramId);
+      if (!diagram) {
+        return Promise.resolve(null);
+      }
+      const viewport = {
+        ...input.viewport,
+        collapsed: liveCollapsedGroups(
+          diagramGroups(diagram.model),
+          input.viewport.collapsed ?? [],
+        ),
+      };
+      viewports.set(
+        viewportKey(account, input.diagramId, input.viewId),
+        viewport,
+      );
+      return Promise.resolve(viewport);
+    },
     previewAuthorityConversion: (_account, input) => {
       const source = diagrams.get(input.sourceDiagramId);
       return source
@@ -306,6 +345,7 @@ function createFixture() {
     technicalDiagrams: access,
   } as unknown as Context;
   return {
+    access,
     cards,
     client: createRouterClient(appRouter, { context }),
     diagrams,
@@ -1013,5 +1053,93 @@ describe("Live cards and composition", () => {
         },
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe("Personal viewport (#425)", () => {
+  const saved = { center: { x: 120, y: 40 }, collapsed: [], zoom: 1.5 };
+
+  test("an Account's last viewport is restored per diagram and view, and writes no diagram data", async () => {
+    const { client, diagrams } = createFixture();
+    const diagram = await create(client, keys[0] as string);
+    const before = JSON.stringify(diagrams.get(diagram.id));
+    expect(
+      await client.technicalDiagramViewport({ diagramId: diagram.id }),
+    ).toBe(null);
+    await client.saveTechnicalDiagramViewport({
+      diagramId: diagram.id,
+      viewport: saved,
+    });
+    await client.saveTechnicalDiagramViewport({
+      diagramId: diagram.id,
+      viewId: "view-2",
+      viewport: { ...saved, zoom: 0.5 },
+    });
+    expect(
+      await client.technicalDiagramViewport({ diagramId: diagram.id }),
+    ).toEqual(saved);
+    expect(
+      (
+        await client.technicalDiagramViewport({
+          diagramId: diagram.id,
+          viewId: "view-2",
+        })
+      )?.zoom,
+    ).toBe(0.5);
+    // Not content: the model, revision and view are untouched.
+    expect(JSON.stringify(diagrams.get(diagram.id))).toBe(before);
+  });
+
+  test("never serves another Account's viewport", async () => {
+    const { access, client } = createFixture();
+    const diagram = await create(client, keys[0] as string);
+    await client.saveTechnicalDiagramViewport({
+      diagramId: diagram.id,
+      viewport: saved,
+    });
+    expect(
+      await access.viewport("account-2", { diagramId: diagram.id }),
+    ).toEqual({ viewport: null });
+  });
+
+  test("drops collapsed ids of groups the diagram no longer has", async () => {
+    const { client } = createFixture();
+    const diagram = await create(client, keys[0] as string);
+    const result = await client.saveTechnicalDiagramViewport({
+      diagramId: diagram.id,
+      viewport: { ...saved, collapsed: ["deleted-boundary"] },
+    });
+    expect(result.collapsed).toEqual([]);
+  });
+
+  test("rejects selection, search and out-of-range fields; unknown diagram is not found", async () => {
+    const { client } = createFixture();
+    const diagram = await create(client, keys[0] as string);
+    await expect(
+      client.saveTechnicalDiagramViewport({
+        diagramId: diagram.id,
+        viewport: { ...saved, search: "api" } as never,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      client.saveTechnicalDiagramViewport({
+        diagramId: diagram.id,
+        viewport: { ...saved, zoom: 40 },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      client.technicalDiagramViewport({ diagramId: "missing" }),
+    ).rejects.toThrow();
+  });
+
+  test("the structural model, snapshot and export surface carry no viewport", async () => {
+    const { client } = createFixture();
+    const diagram = await create(client, keys[0] as string);
+    await client.saveTechnicalDiagramViewport({
+      diagramId: diagram.id,
+      viewport: saved,
+    });
+    const read = await client.technicalDiagram({ diagramId: diagram.id });
+    expect(JSON.stringify(read)).not.toMatch(VIEWPORT_WORDS);
   });
 });

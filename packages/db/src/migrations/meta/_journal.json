@@ -1086,6 +1086,13 @@
       "when": 1792567920690,
       "tag": "0154_useful_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1792569288089,
+      "tag": "0155_supreme_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

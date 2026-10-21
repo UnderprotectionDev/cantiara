@@ -45,6 +45,11 @@ import {
   restoreFromCheckpoint,
   type TechnicalDiagramVersion,
 } from "@cantiara/api/technical-diagram-version";
+import {
+  diagramGroups,
+  liveCollapsedGroups,
+  saveTechnicalDiagramViewportInputSchema,
+} from "@cantiara/api/technical-diagram-viewport";
 import type {
   MermaidConversionInput,
   SaveDiagramLayoutInput,
@@ -71,6 +76,7 @@ import {
   diagramVersion,
   diagramView,
   technicalDiagram,
+  technicalDiagramViewport,
 } from "@cantiara/db/schema/technical-diagram";
 import { and, asc, eq, sql } from "drizzle-orm";
 
@@ -424,6 +430,14 @@ export function createDatabaseTechnicalDiagrams(
           }
         : null,
     };
+  }
+  /** The Account's own diagram (and view, when named); null otherwise. */
+  async function ownedViewKey(
+    accountId: string,
+    diagramId: string,
+    viewId?: string,
+  ) {
+    return await get(accountId, diagramId, viewId);
   }
   async function ownedLiveDiagram(accountId: string, diagramId: string) {
     return await get(accountId, diagramId);
@@ -1267,6 +1281,61 @@ export function createDatabaseTechnicalDiagrams(
         await Promise.all(rows.map(({ id }) => get(accountId, id)))
       ).filter((value): value is TechnicalDiagramSource => value !== null);
     },
+    async viewport(accountId, { diagramId, viewId }) {
+      if (!(await ownedViewKey(accountId, diagramId, viewId))) {
+        return null;
+      }
+      const [row] = await database
+        .select({ viewport: technicalDiagramViewport.viewport })
+        .from(technicalDiagramViewport)
+        .where(
+          and(
+            eq(technicalDiagramViewport.accountId, accountId),
+            eq(technicalDiagramViewport.diagramId, diagramId),
+            eq(technicalDiagramViewport.viewId, viewId ?? ""),
+          ),
+        )
+        .limit(1);
+      return { viewport: row?.viewport ?? null };
+    },
+
+    async saveViewport(accountId, rawInput) {
+      const input = saveTechnicalDiagramViewportInputSchema.parse(rawInput);
+      const diagram = await ownedViewKey(
+        accountId,
+        input.diagramId,
+        input.viewId,
+      );
+      if (!diagram) {
+        return null;
+      }
+      // Personal metadata only: no diagram, view, version or card is written.
+      const viewport = {
+        ...input.viewport,
+        collapsed: liveCollapsedGroups(
+          diagramGroups(diagram.model),
+          input.viewport.collapsed,
+        ),
+      };
+      await database
+        .insert(technicalDiagramViewport)
+        .values({
+          accountId,
+          diagramId: input.diagramId,
+          viewId: input.viewId ?? "",
+          viewport,
+        })
+        .onConflictDoUpdate({
+          set: { updatedAt: new Date(), viewport },
+          target: [
+            technicalDiagramViewport.accountId,
+            technicalDiagramViewport.diagramId,
+            technicalDiagramViewport.viewId,
+          ],
+        });
+      return viewport;
+    },
+
     async listViews(accountId, diagramId) {
       if (!(await get(accountId, diagramId))) {
         return null;

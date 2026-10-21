@@ -36,6 +36,10 @@ import type {
   RestoreDiagramVersionInput,
   TechnicalDiagramVersion,
 } from "./technical-diagram-version";
+import type {
+  SaveTechnicalDiagramViewportInput,
+  TechnicalDiagramViewport,
+} from "./technical-diagram-viewport";
 
 export const technicalDiagramTypeSchema = z.enum(TECHNICAL_DIAGRAM_TYPES);
 
@@ -264,4 +268,18 @@ export interface TechnicalDiagramsAccess {
     accountId: string,
     input: SaveTechnicalDiagramModelInput,
   ) => Promise<TechnicalDiagramSource | null>;
+  /**
+   * Saves the Account's own viewport for one diagram view (spec 59 #425). Writes
+   * no diagram, view, version or card; stale collapsed group ids are dropped.
+   * Null when the diagram (or view) is not the Account's.
+   */
+  saveViewport: (
+    accountId: string,
+    input: SaveTechnicalDiagramViewportInput,
+  ) => Promise<TechnicalDiagramViewport | null>;
+  /** The Account's own saved viewport; `viewport` is null when none was saved. Null when the diagram is not the Account's. */
+  viewport: (
+    accountId: string,
+    input: { diagramId: string; viewId?: string },
+  ) => Promise<{ viewport: TechnicalDiagramViewport | null } | null>;
 }
