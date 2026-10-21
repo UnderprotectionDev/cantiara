@@ -43,6 +43,7 @@ import type {
   PriorityMetricMutationContracts,
   PriorityMetricsAccess,
 } from "./priority-metrics";
+import type { ProductGapsAccess } from "./product-gaps";
 import type { ProjectGoalsAccess } from "./project-goals";
 import type {
   ProjectShellAccess,
@@ -206,6 +207,7 @@ export interface Context {
   prioritizationSessions?: PrioritizationSessionsAccess;
   priorityMetricMutationContracts?: PriorityMetricMutationContracts;
   priorityMetrics?: PriorityMetricsAccess;
+  productGaps?: ProductGapsAccess;
   projectGoals?: ProjectGoalsAccess;
   projectShell?: ProjectShellAccess;
   projectShellMutationContracts?: ProjectShellMutationContracts;

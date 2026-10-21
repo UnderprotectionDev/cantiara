@@ -1058,6 +1058,34 @@
       "when": 1792503718566,
       "tag": "0150_test_gap_met_position",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1792565495389,
+      "tag": "0151_product_gap_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1792566566773,
+      "tag": "0152_tool_escape_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1792567280397,
+      "tag": "0153_high_impact_escape_close",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1792570817543,
+      "tag": "0154_tool_escape_close_never_held",
+      "breakpoints": true
     }
   ]
 }
