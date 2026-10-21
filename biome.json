@@ -62,14 +62,6 @@
       "javascript": {
         "globals": ["Bun"]
       }
-    },
-    {
-      "includes": ["apps/web/src/features/**", "!**/*.test.tsx"],
-      "plugins": ["./scripts/biome/web-form-uses-tanstack-form.grit"]
-    },
-    {
-      "includes": ["apps/web/src/features/**", "!**/*.test.tsx"],
-      "plugins": ["./scripts/biome/web-control-uses-cantiara-ui.grit"]
     }
   ]
 }

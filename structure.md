@@ -676,9 +676,6 @@ Each `apps/web/src/features/<feature>/` keeps a form in `ui/forms/<name>-form.ts
 │       ├── postcss.config.mjs
 │       └── tsconfig.json
 ├── scripts/
-│   ├── biome/
-│   │   ├── web-control-uses-cantiara-ui.grit
-│   │   └── web-form-uses-tanstack-form.grit
 │   ├── ci-workflow.test.ts
 │   ├── dev-database-mode.test.ts
 │   ├── dev-database-mode.ts
@@ -691,8 +688,7 @@ Each `apps/web/src/features/<feature>/` keeps a form in `ui/forms/<name>-form.ts
 │   ├── local-dev.test.ts
 │   ├── local-dev.ts
 │   ├── neon-local-proxy.ts
-│   ├── tsconfig.json
-│   └── web-form-conventions.test.ts
+│   └── tsconfig.json
 ├── biome.base.json
 ├── biome.json
 ├── bun.lock
