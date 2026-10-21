@@ -23,7 +23,8 @@ function setup(authenticated = true) {
   return createRouterClient(appRouter, { context });
 }
 
-const REVIEW_PROCEDURE = /^projectTestReview$|Review(Session|Item|Close|Bulk)/;
+const REVIEW_PROCEDURE =
+  /^projectTestReview$|Review(Session|Item|Close|Bulk|Correction|Withdrawal|Redaction)/;
 const FORBIDDEN_PROCEDURE = /archive|trash|delete|gate|release/i;
 
 describe("Test Review RPC seam", () => {
@@ -74,6 +75,49 @@ describe("Test Review RPC seam", () => {
     ).rejects.toMatchObject({ data: { code: "TEST_REVIEW_RECORD_NOT_FOUND" } });
   });
 
+  test("records a Correction, Withdrawal and redaction and maps refusals", async () => {
+    const client = setup();
+    const { event } = await client.recordReviewCorrection({
+      correctedResult: "failed",
+      projectId,
+      reason: "Wrong build.",
+      sessionId: "s1",
+      sessionTestId: "t1",
+    });
+    await client.recordReviewWithdrawal({
+      projectId,
+      reason: "Duplicate.",
+      sessionId: "s1",
+      sessionTestId: "t1",
+    });
+    await expect(
+      client.recordReviewWithdrawal({
+        projectId,
+        reason: "Again.",
+        sessionId: "s1",
+        sessionTestId: "t1",
+      }),
+    ).rejects.toMatchObject({
+      data: { code: "TEST_REVIEW_ALREADY_WITHDRAWN" },
+    });
+    await client.recordReviewRedaction({
+      eventId: event.id,
+      projectId,
+      reason: "Secret.",
+      sessionId: "s1",
+    });
+    await expect(
+      client.recordReviewRedaction({
+        eventId: event.id,
+        projectId,
+        reason: "Again.",
+        sessionId: "s1",
+      }),
+    ).rejects.toMatchObject({ data: { code: "TEST_REVIEW_ALREADY_REDACTED" } });
+    const listed = await client.projectTestReview({ projectId });
+    expect(listed.resultEvents).toHaveLength(3);
+  });
+
   test("exposes no archive, trash, delete or gate procedure for a Session Test", () => {
     const names = Object.keys(appRouter).filter((name) =>
       REVIEW_PROCEDURE.test(name),
@@ -87,6 +131,9 @@ describe("Test Review RPC seam", () => {
         "previewReviewClose",
         "previewReviewBulk",
         "commitReviewBulk",
+        "recordReviewCorrection",
+        "recordReviewWithdrawal",
+        "recordReviewRedaction",
       ]),
     );
   });

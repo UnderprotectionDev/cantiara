@@ -330,6 +330,10 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Takip gerekli | `Follow-up needed` | Oturum ya da madde için inceleme durumu; otomatik İş, Bug veya Test Açığı üretmez |
 | Kapatıldı | `Closed` | Test Oturumu ya da Oturum Testi inceleme durumu; kalan açık maddeler kapıyı engellemez, alt maddeleri kapatmaz |
 | Oturumu ve seçili sonuçları incelendi işaretle | `Mark session and selected results as reviewed` | Önizleme gerektiren, tek atomik ve idempotent toplu inceleme eylemi |
+| Düzeltme | `Correction` | Önceki Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli yeni olay; güncel görünümde öne çıkar, özgün bildirim yerinde kalır |
+| Geri çekme | `Withdrawal` | Önceki kayda bağlı, gerekçeli yeni olay; sonucu güncel kanıt olmaktan çıkarır, özgün bildirim silinmez |
+| Güvenlik redaksiyonu işareti | `Redact value` | Hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör gösterir; Çöp Kutusu veya yerinde yeniden yazma değildir |
+| Kapanıştan sonra yeni bağlam | `New context after close` | Kapalı kayda sonradan gelen düzeltme, geri çekme veya redaksiyon sinyali; inceleme durumunu geri almaz |
 | Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
 | Kaldı | `Failed` | Normalize bildirilen sonuç |
 | Bloke | `Blocked` | Normalize bildirilen sonuç |

@@ -1,7 +1,15 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Handlers bind to the session and item being reviewed.
+
+import {
+  TEST_REPORT_RESULT_LABELS,
+  TEST_REPORT_RESULTS,
+} from "@cantiara/api/test-report";
 import {
   TEST_REVIEW_BULK_LABEL,
+  TEST_REVIEW_NEW_CONTEXT_LABEL,
   TEST_REVIEW_SETTABLE_STATES,
+  type TestResultEvent,
+  type TestResultEventKind,
   type TestReviewBulkPreview,
   type TestReviewClosePreview,
   type TestReviewEvent,
@@ -12,6 +20,15 @@ import {
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useEffect, useRef, useState } from "react";
+
+export interface TestResultEventDraft {
+  correctedResult: (typeof TEST_REPORT_RESULTS)[number] | null;
+  eventId: string | null;
+  kind: TestResultEventKind;
+  note: string;
+  reason: string;
+  sessionTestId: string | null;
+}
 
 export interface TestReviewActions {
   commitBulk: (
@@ -24,6 +41,10 @@ export interface TestReviewActions {
     sessionTestIds: string[],
   ) => Promise<TestReviewBulkPreview>;
   previewClose: (sessionId: string) => Promise<TestReviewClosePreview>;
+  recordEvent: (
+    sessionId: string,
+    draft: TestResultEventDraft,
+  ) => Promise<unknown>;
   setItem: (
     sessionId: string,
     sessionTestId: string,
@@ -224,11 +245,38 @@ function BulkPanel({
   );
 }
 
+function resultLabel(result: string | null) {
+  if (result === null) {
+    return "No result";
+  }
+  return (
+    (TEST_REPORT_RESULT_LABELS as Record<string, string>)[result] ?? result
+  );
+}
+
+function CurrentResult({ item }: { item: TestReviewItem }) {
+  const { current } = item;
+  if (current.source === "Reported" && !item.rawResultRedacted) {
+    return null;
+  }
+  let text = `Current result: ${resultLabel(current.result)} (${current.source})`;
+  if (current.source === "Withdrawal") {
+    text = "Current result: withdrawn (Withdrawal)";
+  }
+  return (
+    <p className="text-sm">
+      {text}
+      {current.usable ? "" : ". Not usable as current evidence or export."}
+    </p>
+  );
+}
+
 function ItemRow({
   actions,
   checked,
   disabled,
   item,
+  onEvent,
   onToggle,
   sessionId,
   run,
@@ -237,6 +285,7 @@ function ItemRow({
   checked: boolean;
   disabled: boolean;
   item: TestReviewItem;
+  onEvent: (kind: TestResultEventKind) => void;
   onToggle: () => void;
   run: (work: () => Promise<unknown>) => void;
   sessionId: string;
@@ -255,10 +304,49 @@ function ItemRow({
         <span className="text-muted-foreground">
           {`Reported: ${item.normalizedResult ?? "Not reported"}`}
           {item.rawResult ? ` (${item.rawResult})` : ""}
+          {item.rawResultRedacted ? " (value redacted)" : ""}
         </span>
         <span className="rounded-full border border-border px-2 py-0.5 text-xs">
           {item.reviewState}
         </span>
+        {item.newContextAfterClose ? (
+          <span className="rounded-full border border-amber-600 px-2 py-0.5 text-xs">
+            {TEST_REVIEW_NEW_CONTEXT_LABEL}
+          </span>
+        ) : null}
+      </div>
+      <CurrentResult item={item} />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          aria-label={`Correction for ${item.title}`}
+          className="h-8 px-3 text-xs"
+          disabled={disabled}
+          onClick={() => onEvent("Correction")}
+          type="button"
+          variant="outline"
+        >
+          Correction
+        </Button>
+        <Button
+          aria-label={`Withdrawal for ${item.title}`}
+          className="h-8 px-3 text-xs"
+          disabled={disabled || item.current.source === "Withdrawal"}
+          onClick={() => onEvent("Withdrawal")}
+          type="button"
+          variant="outline"
+        >
+          Withdrawal
+        </Button>
+        <Button
+          aria-label={`Redact reported result of ${item.title}`}
+          className="h-8 px-3 text-xs"
+          disabled={disabled || item.rawResultRedacted}
+          onClick={() => onEvent("Redaction")}
+          type="button"
+          variant="outline"
+        >
+          Redact value
+        </Button>
       </div>
       <StateButtons
         current={item.reviewState}
@@ -272,17 +360,223 @@ function ItemRow({
   );
 }
 
+const EVENT_COPY: Record<TestResultEventKind, { done: string; title: string }> =
+  {
+    Correction: {
+      done: "Correction recorded. The original report stays in history.",
+      title: "Correction",
+    },
+    Redaction: {
+      done: "Redaction mark recorded. The value was replaced.",
+      title: "Redact a sensitive value",
+    },
+    Withdrawal: {
+      done: "Withdrawal recorded. The original report stays in history.",
+      title: "Withdrawal",
+    },
+  };
+
+function EventPanel({
+  eventId,
+  kind,
+  onCancel,
+  onConfirm,
+  pending,
+  sessionTestId,
+  title,
+}: {
+  eventId: string | null;
+  kind: TestResultEventKind;
+  onCancel: () => void;
+  onConfirm: (draft: TestResultEventDraft) => void;
+  pending: boolean;
+  sessionTestId: string | null;
+  title: string;
+}) {
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [result, setResult] = useState<
+    (typeof TEST_REPORT_RESULTS)[number] | ""
+  >("");
+  const headingRef = usePanelFocus(true);
+  const needsResult = kind === "Correction" && sessionTestId !== null;
+  const needsNote = kind === "Correction" && sessionTestId === null;
+  const ready =
+    reason.trim() !== "" &&
+    (!needsResult || result !== "") &&
+    (!needsNote || note.trim() !== "");
+  return (
+    <section
+      aria-labelledby="test-review-event-heading"
+      className="space-y-3 rounded-md border border-border p-3 text-sm"
+    >
+      <h5
+        className="font-medium outline-none"
+        id="test-review-event-heading"
+        ref={headingRef}
+        tabIndex={-1}
+      >
+        {title}
+      </h5>
+      <p className="text-muted-foreground">
+        {kind === "Redaction"
+          ? "The value is replaced by a mark with time, reason and actor. It cannot be used as current evidence or export. This is not Trash."
+          : "This adds a new event. The original report is not edited or deleted."}
+      </p>
+      {needsResult ? (
+        <div className="grid gap-2">
+          <label htmlFor="test-review-event-result">Corrected result</label>
+          <select
+            className="h-9 rounded-md border border-border bg-background px-2"
+            disabled={pending}
+            id="test-review-event-result"
+            onChange={(event) =>
+              setResult(
+                event.target.value as (typeof TEST_REPORT_RESULTS)[number],
+              )
+            }
+            value={result}
+          >
+            <option value="">Choose a result</option>
+            {TEST_REPORT_RESULTS.map((value) => (
+              <option key={value} value={value}>
+                {TEST_REPORT_RESULT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {kind === "Correction" ? (
+        <div className="grid gap-2">
+          <label htmlFor="test-review-event-note">
+            {needsNote ? "Corrected summary" : "Note (optional)"}
+          </label>
+          <Textarea
+            disabled={pending}
+            id="test-review-event-note"
+            onChange={(event) => setNote(event.target.value)}
+            rows={2}
+            value={note}
+          />
+        </div>
+      ) : null}
+      <div className="grid gap-2">
+        <label htmlFor="test-review-event-reason">Reason (required)</label>
+        <Textarea
+          disabled={pending}
+          id="test-review-event-reason"
+          onChange={(event) => setReason(event.target.value)}
+          rows={2}
+          value={reason}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button
+          disabled={pending || !ready}
+          onClick={() =>
+            onConfirm({
+              correctedResult: result === "" ? null : result,
+              eventId,
+              kind,
+              note,
+              reason,
+              sessionTestId,
+            })
+          }
+          type="button"
+        >
+          {`Record ${kind === "Redaction" ? "redaction" : kind}`}
+        </Button>
+        <Button
+          disabled={pending}
+          onClick={onCancel}
+          type="button"
+          variant="outline"
+        >
+          Cancel
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function eventLine(entry: TestResultEvent, session: TestReviewSession) {
+  const item = session.items.find(({ id }) => id === entry.sessionTestId);
+  const target = item ? `Session Test ${item.title}` : "Test Session";
+  const when = new Date(entry.recordedAt).toLocaleString();
+  if (entry.kind === "Redaction") {
+    return `${when}: Redaction of ${entry.redactedField?.toLowerCase()} on ${target}. Value replaced. Reason: ${entry.reason ?? "none"}. Actor: ${entry.actorAccountId}`;
+  }
+  if (entry.redacted) {
+    return `${when}: ${entry.kind} on ${target}. Content redacted.`;
+  }
+  const result =
+    entry.correctedResult === null
+      ? ""
+      : ` to ${resultLabel(entry.correctedResult)}`;
+  const note = entry.note ? `. Note: ${entry.note}` : "";
+  return `${when}: ${entry.kind}${result} on ${target}. Reason: ${entry.reason}${note}`;
+}
+
+function ResultChain({
+  disabled,
+  events,
+  onRedact,
+  session,
+}: {
+  disabled: boolean;
+  events: TestResultEvent[];
+  onRedact: (eventId: string) => void;
+  session: TestReviewSession;
+}) {
+  if (events.length === 0) {
+    return null;
+  }
+  return (
+    <section aria-label="Correction history" className="space-y-1 text-sm">
+      <h5 className="font-medium">Correction history</h5>
+      <ul className="space-y-1">
+        {events.map((entry) => (
+          <li className="flex flex-wrap items-center gap-2" key={entry.id}>
+            <span>{eventLine(entry, session)}</span>
+            {entry.kind !== "Redaction" && !entry.redacted ? (
+              <Button
+                aria-label={`Redact content of ${entry.kind} ${new Date(entry.recordedAt).toLocaleString()}`}
+                className="h-7 px-2 text-xs"
+                disabled={disabled}
+                onClick={() => onRedact(entry.id)}
+                type="button"
+                variant="outline"
+              >
+                Redact value
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 type Panel =
+  | {
+      eventId: string | null;
+      kind: "event";
+      mode: TestResultEventKind;
+      sessionTestId: string | null;
+    }
   | { kind: "close"; preview: TestReviewClosePreview }
   | { ids: string[]; kind: "bulk"; preview: TestReviewBulkPreview };
 
 function SessionReview({
   actions,
   readOnly,
+  resultEvents,
   session,
 }: {
   actions: TestReviewActions;
   readOnly: boolean;
+  resultEvents: TestResultEvent[];
   session: TestReviewSession;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -330,7 +624,22 @@ function SessionReview({
         <span className="rounded-full border border-border px-2 py-0.5 text-xs">
           {`Session review state: ${session.reviewState}`}
         </span>
+        {session.newContextAfterClose ? (
+          <span className="rounded-full border border-amber-600 px-2 py-0.5 text-xs">
+            {TEST_REVIEW_NEW_CONTEXT_LABEL}
+          </span>
+        ) : null}
+        {session.withdrawn ? (
+          <span className="rounded-full border border-border px-2 py-0.5 text-xs">
+            Withdrawal
+          </span>
+        ) : null}
       </div>
+      {session.summaryRedacted ? (
+        <p className="text-muted-foreground text-sm">
+          The summary was redacted.
+        </p>
+      ) : null}
       <p className="text-muted-foreground text-sm">
         Session and Session Test states are separate. Changing one never changes
         the other.
@@ -378,6 +687,14 @@ function SessionReview({
               disabled={disabled}
               item={item}
               key={item.id}
+              onEvent={(mode) =>
+                setPanel({
+                  eventId: null,
+                  kind: "event",
+                  mode,
+                  sessionTestId: item.id,
+                })
+              }
               onToggle={() =>
                 setSelected((current) =>
                   current.includes(item.id)
@@ -393,6 +710,58 @@ function SessionReview({
           ))}
         </ul>
       )}
+      <div className="flex flex-wrap gap-2">
+        {(["Correction", "Withdrawal"] as const).map((mode) => (
+          <Button
+            aria-label={`${mode} for this Test Session`}
+            className="h-8 px-3 text-xs"
+            disabled={disabled || (mode === "Withdrawal" && session.withdrawn)}
+            key={mode}
+            onClick={() =>
+              setPanel({
+                eventId: null,
+                kind: "event",
+                mode,
+                sessionTestId: null,
+              })
+            }
+            type="button"
+            variant="outline"
+          >
+            {mode}
+          </Button>
+        ))}
+        <Button
+          aria-label="Redact the summary of this Test Session"
+          className="h-8 px-3 text-xs"
+          disabled={disabled || session.summaryRedacted}
+          onClick={() =>
+            setPanel({
+              eventId: null,
+              kind: "event",
+              mode: "Redaction",
+              sessionTestId: null,
+            })
+          }
+          type="button"
+          variant="outline"
+        >
+          Redact value
+        </Button>
+      </div>
+      <ResultChain
+        disabled={disabled}
+        events={resultEvents}
+        onRedact={(eventId) =>
+          setPanel({
+            eventId,
+            kind: "event",
+            mode: "Redaction",
+            sessionTestId: null,
+          })
+        }
+        session={session}
+      />
       <Button
         disabled={disabled}
         onClick={() =>
@@ -407,6 +776,22 @@ function SessionReview({
       >
         {TEST_REVIEW_BULK_LABEL}
       </Button>
+      {panel?.kind === "event" ? (
+        <EventPanel
+          eventId={panel.eventId}
+          kind={panel.mode}
+          onCancel={() => setPanel(null)}
+          onConfirm={(draft) =>
+            run(
+              () => actions.recordEvent(session.id, draft),
+              EVENT_COPY[panel.mode].done,
+            )
+          }
+          pending={pending}
+          sessionTestId={panel.sessionTestId}
+          title={EVENT_COPY[panel.mode].title}
+        />
+      ) : null}
       {panel?.kind === "close" ? (
         <ClosePanel
           onCancel={() => setPanel(null)}
@@ -497,11 +882,13 @@ export function TestReviewView({
   actions,
   events,
   readOnly,
+  resultEvents,
   sessions,
 }: {
   actions: TestReviewActions;
   events: TestReviewEvent[];
   readOnly: boolean;
+  resultEvents: TestResultEvent[];
   sessions: TestReviewSession[];
 }) {
   return (
@@ -528,6 +915,9 @@ export function TestReviewView({
               actions={actions}
               key={session.id}
               readOnly={readOnly}
+              resultEvents={resultEvents.filter(
+                (entry) => entry.sessionId === session.id,
+              )}
               session={session}
             />
           ))}

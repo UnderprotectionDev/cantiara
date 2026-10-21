@@ -1349,6 +1349,11 @@ Kurucunun bir Test Oturumu ile her Oturum Testi üzerinde ayrı ayrı yürüttü
 UI: `Test Review`; durumlar `Unreviewed`, `Reviewed`, `Follow-up needed`, `Closed`; toplu eylem `Mark session and selected results as reviewed`.
 _Avoid_: Onay, yayın kapısı, sürüm kanıtı, test skoru, otomatik kapanış, Denetim kaydı
 
+**Düzeltme / geri çekme / redaksiyon olayı**:
+Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli ve eklemeli olay; ham ve normalize bildirilen sonuç yerinde düzenlenmez veya silinmez. `Correction` güncel görünümde öne çıkan yeni sonucu, `Withdrawal` sonucun güncel kanıt olmaktan çıktığını kaydeder; zincir ve gerekçe Kayıt geçmişinde okunur kalır. Güvenlik redaksiyonu (`Redact value`) hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör koyar; redakte kanıt güncel değerlendirmede veya dışa aktarmada kullanılamaz, secret arama, dışa aktarma ve loglara girmez. Çöp Kutusu, hesap kapatma redaksiyon UI'si veya yerinde yeniden yazma değildir; yalnız redaksiyon içeriksiz Denetim kaydı işareti bırakabilir. Hatalı tek Oturum Testi Çöp'e alınmaz; `Correction` ya da `Withdrawal` kullanılır. Sonradan gelen olay mevcut inceleme durumunu sessizce geri almaz; kapanmış kayıtta `New context after close` görünür.
+UI: `Correction`, `Withdrawal`, `Redact value`, `New context after close`.
+_Avoid_: geriye dönük düzenleme, sessiz yeniden açma, Çöp Kutusu, kısmi silme, son yazan kazanır
+
 **Yürüten**:
 Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
 UI: `Executor type`, `Executor`.

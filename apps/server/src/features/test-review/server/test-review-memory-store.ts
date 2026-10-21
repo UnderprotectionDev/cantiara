@@ -1,4 +1,5 @@
 import type {
+  TestResultStoredEvent,
   TestReviewStore,
   TestReviewStoredEvent,
   TestReviewStoredSession,
@@ -11,7 +12,12 @@ export const projectId = "project-1";
 export const archivedProjectId = "project-archived";
 
 /** What the harness lets the tests observe about every write the seam made. */
-export type WriteKind = "event" | "item-state" | "session-state";
+export type WriteKind =
+  | "event"
+  | "item-state"
+  | "result-event"
+  | "result-erase"
+  | "session-state";
 
 /**
  * In-memory Test Review harness. Test Sessions and Session Tests are seeded as
@@ -26,6 +32,7 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
     sessions.map((session) => [session.id, structuredClone(session)]),
   );
   let events: TestReviewStoredEvent[] = [];
+  let resultEvents: TestResultStoredEvent[] = [];
   const writes: WriteKind[] = [];
   const faults = { failAfterItemWrite: false as boolean };
 
@@ -39,6 +46,7 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
       }
       const snapshot = {
         events: [...events],
+        resultEvents: structuredClone(resultEvents),
         sessions: structuredClone(state),
         writes: writes.length,
       };
@@ -47,6 +55,20 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
           appendEvents: (appended) => {
             writes.push("event");
             events.push(...structuredClone(appended));
+            return Promise.resolve();
+          },
+          appendResultEvents: (appended) => {
+            writes.push("result-event");
+            resultEvents.push(...structuredClone(appended));
+            return Promise.resolve();
+          },
+          eraseResultEventContent: (eventId) => {
+            writes.push("result-erase");
+            resultEvents = resultEvents.map((entry) =>
+              entry.id === eventId
+                ? { ...entry, correctedResult: null, note: null, reason: null }
+                : entry,
+            );
             return Promise.resolve();
           },
           findSession: (sessionId) => {
@@ -64,6 +86,18 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
                   (session) =>
                     session.id === event.sessionId &&
                     session.projectId === scopeProjectId,
+                ),
+              ),
+            ),
+          listResultEvents: () =>
+            Promise.resolve(
+              structuredClone(
+                resultEvents.filter((event) =>
+                  [...state.values()].some(
+                    (session) =>
+                      session.id === event.sessionId &&
+                      session.projectId === scopeProjectId,
+                  ),
                 ),
               ),
             ),
@@ -99,7 +133,7 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
         });
       } catch (error) {
         state = snapshot.sessions;
-        ({ events } = snapshot);
+        ({ events, resultEvents } = snapshot);
         writes.length = snapshot.writes;
         throw error;
       }
@@ -110,6 +144,9 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
     faults,
     get events() {
       return events;
+    },
+    get resultEvents() {
+      return resultEvents;
     },
     get sessions() {
       return state;

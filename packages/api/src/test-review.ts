@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { TEST_REPORT_RESULTS } from "./test-report";
+
 /**
  * Test Review seam (spec 57), independent lifecycle of session and item review.
  *
@@ -10,6 +12,16 @@ import { z } from "zod";
  * The access has no archive, Trash or delete operation for a single Session
  * Test: the session and its items are one historical unit (spec 77).
  * Review and close are Kayıt geçmişi (record history), never Denetim kaydı.
+ *
+ * Correction, Withdrawal and security redaction are additive events bound to
+ * the original Test Session or Session Test (spec 57 #414). The reported raw
+ * and normalized result are never edited or deleted: the current view promotes
+ * the newest chain entry while the original stays in history. A redaction
+ * shows a contentless mark, time, reason and actor instead of the value, and
+ * redacted evidence is not usable for current evaluation or export. None of
+ * this is Trash, an account-closure card, or an in-place rewrite, and a later
+ * event never rewinds a review state: a Closed record shows
+ * `New context after close` instead.
  */
 
 const identifierSchema = z.string().trim().min(1).max(255);
@@ -142,12 +154,137 @@ export const testReviewRemainingSchema = z
   .strict();
 export type TestReviewRemaining = z.infer<typeof testReviewRemainingSchema>;
 
+export const TEST_RESULT_EVENT_KINDS = [
+  "Correction",
+  "Withdrawal",
+  "Redaction",
+] as const;
+export type TestResultEventKind = (typeof TEST_RESULT_EVENT_KINDS)[number];
+
+/** What a redaction mark replaced; the value itself is never kept. */
+export const TEST_RESULT_REDACTED_FIELDS = [
+  "Reported result",
+  "Session summary",
+  "Event content",
+] as const;
+export type TestResultRedactedField =
+  (typeof TEST_RESULT_REDACTED_FIELDS)[number];
+
+export const TEST_REVIEW_NEW_CONTEXT_LABEL = "New context after close";
+export const TEST_REVIEW_NOTE_MAX = 5000;
+
+const requiredReasonSchema = z
+  .string()
+  .trim()
+  .min(1, "A reason is required.")
+  .max(TEST_REVIEW_REASON_MAX);
+const optionalIdSchema = identifierSchema
+  .nullish()
+  .transform((value) => value ?? null);
+const correctedResultSchema = z.enum(TEST_REPORT_RESULTS);
+
+const eventTargetFields = {
+  projectId: identifierSchema,
+  /** Required reason: a result is never changed without a stated cause. */
+  reason: requiredReasonSchema,
+  sessionId: identifierSchema,
+  /** `null` binds the event to the Test Session itself. */
+  sessionTestId: optionalIdSchema,
+};
+
+export const recordCorrectionInputSchema = z
+  .object({
+    ...eventTargetFields,
+    correctedResult: correctedResultSchema
+      .nullish()
+      .transform((value) => value ?? null),
+    note: z
+      .string()
+      .trim()
+      .max(TEST_REVIEW_NOTE_MAX)
+      .nullish()
+      .transform((value) => (value ? value : null)),
+  })
+  .strict()
+  .refine(
+    (input) => input.sessionTestId === null || input.correctedResult !== null,
+    {
+      message: "A corrected result is required for a Session Test.",
+      path: ["correctedResult"],
+    },
+  )
+  .refine((input) => input.sessionTestId !== null || input.note !== null, {
+    message: "A note is required to correct a Test Session.",
+    path: ["note"],
+  });
+export type RecordCorrectionInput = z.input<typeof recordCorrectionInputSchema>;
+
+export const recordWithdrawalInputSchema = z.object(eventTargetFields).strict();
+export type RecordWithdrawalInput = z.input<typeof recordWithdrawalInputSchema>;
+
+/**
+ * Redacts one value: a Correction or Withdrawal (`eventId`), the reported
+ * result of a Session Test (`sessionTestId`) or the Test Session summary.
+ */
+export const recordRedactionInputSchema = z
+  .object({
+    ...eventTargetFields,
+    eventId: optionalIdSchema,
+  })
+  .strict()
+  .refine((input) => input.eventId === null || input.sessionTestId === null, {
+    message: "Name either an event or a Session Test, not both.",
+    path: ["eventId"],
+  });
+export type RecordRedactionInput = z.input<typeof recordRedactionInputSchema>;
+
+export const testResultEventSchema = z
+  .object({
+    actorAccountId: identifierSchema,
+    correctedResult: correctedResultSchema.nullable(),
+    id: identifierSchema,
+    kind: z.enum(TEST_RESULT_EVENT_KINDS),
+    /** `null` once the content was redacted; the mark remains. */
+    note: z.string().nullable(),
+    /** The chain entry this one follows; `null` follows the original report. */
+    previousEventId: z.string().nullable(),
+    /** `null` once the content was redacted; a Redaction keeps its reason. */
+    reason: z.string().nullable(),
+    recordedAt: z.string().datetime({ offset: true }),
+    /** True when a Redaction replaced this event's content. */
+    redacted: z.boolean(),
+    redactedEventId: z.string().nullable(),
+    redactedField: z.enum(TEST_RESULT_REDACTED_FIELDS).nullable(),
+    sessionId: identifierSchema,
+    sessionTestId: z.string().nullable(),
+  })
+  .strict();
+export type TestResultEvent = z.infer<typeof testResultEventSchema>;
+export type TestResultStoredEvent = Omit<TestResultEvent, "redacted">;
+
+export const testResultCurrentSchema = z
+  .object({
+    /** The Correction or Withdrawal that is the head of the chain. */
+    eventId: z.string().nullable(),
+    result: z.string().nullable(),
+    source: z.enum(["Reported", "Correction", "Withdrawal"]),
+    /** False for a withdrawn or redacted result: not current evidence or export. */
+    usable: z.boolean(),
+  })
+  .strict();
+export type TestResultCurrent = z.infer<typeof testResultCurrentSchema>;
+
 export const testReviewItemSchema = z
   .object({
+    current: testResultCurrentSchema,
     id: identifierSchema,
+    /** Set while this item is Closed and a later event arrived. */
+    newContextAfterClose: z.boolean(),
     normalizedResult: z.string().nullable(),
     position: z.number().int().nullable(),
+    /** `null` when the reported value was redacted. */
     rawResult: z.string().nullable(),
+    rawResultRedacted: z.boolean(),
     reviewState: stateSchema,
     title: z.string(),
   })
@@ -183,10 +320,15 @@ export const testReviewSessionSchema = z
     executorName: z.string(),
     id: identifierSchema,
     items: z.array(testReviewItemSchema),
+    /** Set while the session is Closed and a later event arrived. */
+    newContextAfterClose: z.boolean(),
     projectId: identifierSchema,
     reportedAt: z.string().datetime({ offset: true }),
     reviewState: stateSchema,
+    /** `null` when the summary was redacted. */
     summary: z.string().nullable(),
+    summaryRedacted: z.boolean(),
+    withdrawn: z.boolean(),
   })
   .strict();
 export type TestReviewSession = z.infer<typeof testReviewSessionSchema>;
@@ -196,6 +338,8 @@ export const testReviewListOutputSchema = z
     events: z.array(testReviewEventSchema),
     /** Archived Projects are read-only. */
     readOnly: z.boolean(),
+    /** Correction, Withdrawal and Redaction chain (Kayıt geçmişi), newest first. */
+    resultEvents: z.array(testResultEventSchema),
     sessions: z.array(testReviewSessionSchema),
   })
   .strict();
@@ -238,6 +382,13 @@ export const testReviewBulkReceiptSchema = z
   .strict();
 export type TestReviewBulkReceipt = z.infer<typeof testReviewBulkReceiptSchema>;
 
+export const testResultEventReceiptSchema = z
+  .object({ event: testResultEventSchema })
+  .strict();
+export type TestResultEventReceipt = z.infer<
+  typeof testResultEventReceiptSchema
+>;
+
 export interface TestReviewStoredItem {
   id: string;
   normalizedResult: string | null;
@@ -261,8 +412,16 @@ export type TestReviewStoredEvent = TestReviewEvent;
 
 export interface TestReviewTransaction {
   appendEvents: (events: TestReviewStoredEvent[]) => Promise<void>;
+  appendResultEvents: (events: TestResultStoredEvent[]) => Promise<void>;
+  /**
+   * The narrow security-redaction exception: clears the content of one
+   * Correction or Withdrawal. The event, its time and actor stay.
+   */
+  eraseResultEventContent: (eventId: string) => Promise<void>;
   findSession: (sessionId: string) => Promise<TestReviewStoredSession | null>;
   listEvents: () => Promise<TestReviewStoredEvent[]>;
+  /** Oldest first, in the order the events were appended. */
+  listResultEvents: () => Promise<TestResultStoredEvent[]>;
   listSessions: () => Promise<TestReviewStoredSession[]>;
   readOnly: boolean;
   /** Writes only the review state of the given Session Tests. */
@@ -299,6 +458,18 @@ export interface TestReviewAccess {
     accountId: string,
     input: PreviewSessionCloseInput,
   ) => Promise<TestReviewClosePreview>;
+  recordCorrection: (
+    accountId: string,
+    input: RecordCorrectionInput,
+  ) => Promise<TestResultEventReceipt>;
+  recordRedaction: (
+    accountId: string,
+    input: RecordRedactionInput,
+  ) => Promise<TestResultEventReceipt>;
+  recordWithdrawal: (
+    accountId: string,
+    input: RecordWithdrawalInput,
+  ) => Promise<TestResultEventReceipt>;
   setItemReviewState: (
     accountId: string,
     input: SetItemReviewStateInput,
@@ -307,6 +478,178 @@ export interface TestReviewAccess {
     accountId: string,
     input: SetSessionReviewStateInput,
   ) => Promise<TestReviewReceipt>;
+}
+
+function eventHead(
+  events: TestResultStoredEvent[],
+  sessionId: string,
+  sessionTestId: string | null,
+) {
+  const chain = events.filter(
+    (entry) =>
+      entry.kind !== "Redaction" &&
+      entry.sessionId === sessionId &&
+      entry.sessionTestId === sessionTestId,
+  );
+  const followed = new Set(chain.map((entry) => entry.previousEventId));
+  return chain.findLast((entry) => !followed.has(entry.id)) ?? null;
+}
+
+/** The newest Correction or Withdrawal of one record, `null` for the original. */
+export function resultChainHead(
+  events: TestResultStoredEvent[],
+  sessionId: string,
+  sessionTestId: string | null,
+) {
+  return eventHead(events, sessionId, sessionTestId);
+}
+
+export function redactedEventIds(events: TestResultStoredEvent[]) {
+  return new Set(
+    events.flatMap((entry) =>
+      entry.kind === "Redaction" && entry.redactedEventId
+        ? [entry.redactedEventId]
+        : [],
+    ),
+  );
+}
+
+function isRedacted(
+  events: TestResultStoredEvent[],
+  field: TestResultRedactedField,
+  sessionId: string,
+  sessionTestId: string | null,
+) {
+  return events.some(
+    (entry) =>
+      entry.kind === "Redaction" &&
+      entry.redactedField === field &&
+      entry.sessionId === sessionId &&
+      entry.sessionTestId === sessionTestId,
+  );
+}
+
+/** `recordedAt` of the newest event that moved this record to `Closed`. */
+function closedAt(
+  reviewEvents: TestReviewStoredEvent[],
+  sessionId: string,
+  sessionTestId: string | null,
+) {
+  let latest: string | null = null;
+  for (const entry of reviewEvents) {
+    if (
+      entry.sessionId === sessionId &&
+      entry.sessionTestId === sessionTestId &&
+      entry.toState === "Closed" &&
+      (latest === null || entry.recordedAt > latest)
+    ) {
+      latest = entry.recordedAt;
+    }
+  }
+  return latest;
+}
+
+/**
+ * The review view of one stored session: the original report stays intact
+ * and the chain head is promoted as the current result. Redacted values are
+ * replaced by the mark and never leave this function. A Closed record that
+ * received a Correction, Withdrawal or Redaction after it was closed carries
+ * `newContextAfterClose`; its review state is never changed here.
+ */
+export function viewSession(
+  session: TestReviewStoredSession,
+  reviewEvents: TestReviewStoredEvent[],
+  resultEvents: TestResultStoredEvent[],
+): TestReviewSession {
+  const sessionClosedAt =
+    session.reviewState === "Closed"
+      ? closedAt(reviewEvents, session.id, null)
+      : null;
+  const ownEvents = resultEvents.filter(
+    (entry) => entry.sessionId === session.id,
+  );
+  const erased = redactedEventIds(ownEvents);
+  const laterThan = (since: string | null, scope: TestResultStoredEvent[]) =>
+    since !== null && scope.some((entry) => entry.recordedAt > since);
+  const sessionHead = eventHead(ownEvents, session.id, null);
+  return {
+    executorName: session.executorName,
+    id: session.id,
+    items: session.items.map((item) => {
+      const rawResultRedacted = isRedacted(
+        ownEvents,
+        "Reported result",
+        session.id,
+        item.id,
+      );
+      const head = eventHead(ownEvents, session.id, item.id);
+      const itemEvents = ownEvents.filter(
+        (entry) => entry.sessionTestId === item.id,
+      );
+      let current: TestResultCurrent = {
+        eventId: null,
+        result: item.normalizedResult,
+        source: "Reported",
+        usable: !rawResultRedacted,
+      };
+      if (head?.kind === "Withdrawal") {
+        current = {
+          eventId: head.id,
+          result: null,
+          source: "Withdrawal",
+          usable: false,
+        };
+      } else if (head) {
+        const result = erased.has(head.id) ? null : head.correctedResult;
+        current = {
+          eventId: head.id,
+          result,
+          source: "Correction",
+          usable: result !== null,
+        };
+      }
+      return {
+        current,
+        id: item.id,
+        newContextAfterClose:
+          item.reviewState === "Closed" &&
+          laterThan(closedAt(reviewEvents, session.id, item.id), itemEvents),
+        normalizedResult: item.normalizedResult,
+        position: item.position,
+        rawResult: rawResultRedacted ? null : item.rawResult,
+        rawResultRedacted,
+        reviewState: item.reviewState,
+        title: item.title,
+      };
+    }),
+    newContextAfterClose: laterThan(sessionClosedAt, ownEvents),
+    projectId: session.projectId,
+    reportedAt: session.reportedAt,
+    reviewState: session.reviewState,
+    summary: isRedacted(ownEvents, "Session summary", session.id, null)
+      ? null
+      : session.summary,
+    summaryRedacted: isRedacted(ownEvents, "Session summary", session.id, null),
+    withdrawn: sessionHead?.kind === "Withdrawal",
+  };
+}
+
+/** The chain as shown: redacted content replaced by the mark. */
+export function viewResultEvents(
+  resultEvents: TestResultStoredEvent[],
+): TestResultEvent[] {
+  const erased = redactedEventIds(resultEvents);
+  return resultEvents.map((entry) =>
+    erased.has(entry.id)
+      ? {
+          ...entry,
+          correctedResult: null,
+          note: null,
+          reason: null,
+          redacted: true,
+        }
+      : { ...entry, redacted: false },
+  );
 }
 
 /** Items a closing session leaves behind, in report order. */

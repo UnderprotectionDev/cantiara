@@ -1,4 +1,5 @@
 import type {
+  TestResultStoredEvent,
   TestReviewState,
   TestReviewStore,
   TestReviewStoredEvent,
@@ -8,6 +9,7 @@ import type { Database } from "@cantiara/db";
 import { sessionTest, testSession } from "@cantiara/db/schema/planned-test";
 import {
   sessionTestReview,
+  testResultEvent,
   testReviewEvent,
 } from "@cantiara/db/schema/test-review";
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
@@ -107,10 +109,31 @@ function toEvent(
   };
 }
 
+function toResultEvent(
+  row: typeof testResultEvent.$inferSelect,
+): TestResultStoredEvent {
+  return {
+    actorAccountId: row.actorAccountId,
+    correctedResult:
+      row.correctedResult as TestResultStoredEvent["correctedResult"],
+    id: row.id,
+    kind: row.kind as TestResultStoredEvent["kind"],
+    note: row.note,
+    previousEventId: row.previousEventId,
+    reason: row.reason,
+    recordedAt: row.recordedAt.toISOString(),
+    redactedEventId: row.redactedEventId,
+    redactedField: row.redactedField as TestResultStoredEvent["redactedField"],
+    sessionId: row.sessionId,
+    sessionTestId: row.sessionTestId,
+  };
+}
+
 /**
  * PostgreSQL Test Review store. It writes only `project_test_session.review_state`,
- * `project_session_test_review` and `project_test_review_event`; the reported
- * result columns, Handoffs, Project Releases and Test Gaps are never touched.
+ * `project_session_test_review`, `project_test_review_event` and the
+ * insert-only `project_test_result_event` (whose only update is clearing the
+ * content of an event a security redaction replaced); the reported result columns, Handoffs, Project Releases and Test Gaps are never touched.
  */
 export function createDatabaseTestReviewStore(
   database: Database,
@@ -147,6 +170,39 @@ export function createDatabaseTestReviewStore(
               })),
             );
           },
+          appendResultEvents: async (events) => {
+            if (events.length === 0) {
+              return;
+            }
+            await executor.insert(testResultEvent).values(
+              events.map((entry) => ({
+                actorAccountId: entry.actorAccountId,
+                correctedResult: entry.correctedResult,
+                id: entry.id,
+                kind: entry.kind,
+                note: entry.note,
+                previousEventId: entry.previousEventId,
+                projectId: owned.id,
+                reason: entry.reason,
+                recordedAt: new Date(entry.recordedAt),
+                redactedEventId: entry.redactedEventId,
+                redactedField: entry.redactedField,
+                sessionId: entry.sessionId,
+                sessionTestId: entry.sessionTestId,
+              })),
+            );
+          },
+          eraseResultEventContent: async (eventId) => {
+            await executor
+              .update(testResultEvent)
+              .set({ correctedResult: null, note: null, reason: null })
+              .where(
+                and(
+                  eq(testResultEvent.id, eventId),
+                  eq(testResultEvent.projectId, owned.id),
+                ),
+              );
+          },
           findSession: async (sessionId) =>
             (await readSessions(executor, owned.id, sessionId))[0] ?? null,
           listEvents: async () =>
@@ -161,6 +217,17 @@ export function createDatabaseTestReviewStore(
                 )
                 .limit(EVENT_LIMIT)
             ).map(toEvent),
+          listResultEvents: async () =>
+            (
+              await executor
+                .select()
+                .from(testResultEvent)
+                .where(eq(testResultEvent.projectId, owned.id))
+                .orderBy(
+                  asc(testResultEvent.recordedAt),
+                  asc(testResultEvent.id),
+                )
+            ).map(toResultEvent),
           listSessions: () => readSessions(executor, owned.id),
           readOnly: owned.archivedAt !== null,
           writeItemStates: async (ids, state) => {

@@ -3,11 +3,22 @@ import {
   commitBulkReviewInputSchema,
   previewBulkReviewInputSchema,
   previewSessionCloseInputSchema,
+  type RecordCorrectionInput,
+  type RecordRedactionInput,
+  type RecordWithdrawalInput,
+  recordCorrectionInputSchema,
+  recordRedactionInputSchema,
+  recordWithdrawalInputSchema,
+  redactedEventIds,
   remainingOpenItems,
+  resultChainHead,
   type SetItemReviewStateInput,
   type SetSessionReviewStateInput,
   setItemReviewStateInputSchema,
   setSessionReviewStateInputSchema,
+  type TestResultEventReceipt,
+  type TestResultRedactedField,
+  type TestResultStoredEvent,
   type TestReviewAccess,
   type TestReviewChange,
   type TestReviewState,
@@ -16,6 +27,8 @@ import {
   type TestReviewStoredSession,
   type TestReviewTransaction,
   testReviewProjectInputSchema,
+  viewResultEvents,
+  viewSession,
 } from "@cantiara/api/test-review";
 
 export class TestReviewProjectNotFoundError extends Error {
@@ -43,6 +56,26 @@ export class TestReviewRecordNotFoundError extends Error {
   constructor(id: string) {
     super(`Record ${id} was not found in this Test Session.`);
     this.name = "TestReviewRecordNotFoundError";
+  }
+}
+
+/** The record's reported value or event content is already redacted. */
+export class TestReviewAlreadyRedactedError extends Error {
+  readonly code = "TEST_REVIEW_ALREADY_REDACTED" as const;
+
+  constructor() {
+    super("This value was already redacted.");
+    this.name = "TestReviewAlreadyRedactedError";
+  }
+}
+
+/** The record was already withdrawn; only a Correction can follow. */
+export class TestReviewAlreadyWithdrawnError extends Error {
+  readonly code = "TEST_REVIEW_ALREADY_WITHDRAWN" as const;
+
+  constructor() {
+    super("This record was already withdrawn.");
+    this.name = "TestReviewAlreadyWithdrawnError";
   }
 }
 
@@ -131,6 +164,108 @@ function bulkChanges(
   };
 }
 
+/**
+ * Resolves the record a Correction or Withdrawal binds to and the chain entry
+ * it follows. The reported result itself is never written.
+ */
+async function resolveResultTarget(
+  transaction: TestReviewTransaction,
+  input: { sessionId: string; sessionTestId: string | null },
+) {
+  const session = await requireSession(transaction, input.sessionId);
+  if (
+    input.sessionTestId !== null &&
+    !session.items.some((item) => item.id === input.sessionTestId)
+  ) {
+    throw new TestReviewRecordNotFoundError(input.sessionTestId);
+  }
+  const head = resultChainHead(
+    await transaction.listResultEvents(),
+    session.id,
+    input.sessionTestId,
+  );
+  return { head, session };
+}
+
+/** What a redaction replaces, refusing a value that is already a mark. */
+function redactionTarget(
+  session: TestReviewStoredSession,
+  existing: TestResultStoredEvent[],
+  input: { eventId: string | null; sessionTestId: string | null },
+): { field: TestResultRedactedField; sessionTestId: string | null } {
+  if (input.eventId !== null) {
+    const target = existing.find(
+      (entry) =>
+        entry.id === input.eventId &&
+        entry.sessionId === session.id &&
+        entry.kind !== "Redaction",
+    );
+    if (!target) {
+      throw new TestReviewRecordNotFoundError(input.eventId);
+    }
+    if (redactedEventIds(existing).has(target.id)) {
+      throw new TestReviewAlreadyRedactedError();
+    }
+    return { field: "Event content", sessionTestId: target.sessionTestId };
+  }
+  const { sessionTestId } = input;
+  if (
+    sessionTestId !== null &&
+    !session.items.some((item) => item.id === sessionTestId)
+  ) {
+    throw new TestReviewRecordNotFoundError(sessionTestId);
+  }
+  const field: TestResultRedactedField =
+    sessionTestId === null ? "Session summary" : "Reported result";
+  if (
+    existing.some(
+      (entry) =>
+        entry.kind === "Redaction" &&
+        entry.redactedField === field &&
+        entry.sessionId === session.id &&
+        entry.sessionTestId === sessionTestId,
+    )
+  ) {
+    throw new TestReviewAlreadyRedactedError();
+  }
+  return { field, sessionTestId };
+}
+
+function resultEvent(
+  accountId: string,
+  fields: Pick<
+    TestResultStoredEvent,
+    | "correctedResult"
+    | "kind"
+    | "note"
+    | "previousEventId"
+    | "reason"
+    | "redactedEventId"
+    | "redactedField"
+    | "sessionId"
+    | "sessionTestId"
+  >,
+): TestResultStoredEvent {
+  return {
+    ...fields,
+    actorAccountId: accountId,
+    id: crypto.randomUUID(),
+    recordedAt: new Date().toISOString(),
+  };
+}
+
+async function receipt(
+  transaction: TestReviewTransaction,
+  id: string,
+): Promise<TestResultEventReceipt> {
+  const events = viewResultEvents(await transaction.listResultEvents());
+  const found = events.find((entry) => entry.id === id);
+  if (!found) {
+    throw new TestReviewRecordNotFoundError(id);
+  }
+  return { event: found };
+}
+
 function sameChange(a: TestReviewChange, b: TestReviewChange) {
   return a.id === b.id && a.kind === b.kind && a.from === b.from;
 }
@@ -217,19 +352,26 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
       const { projectId } = testReviewProjectInputSchema.parse({
         projectId: rawProjectId,
       });
-      return await read(accountId, projectId, async (transaction) => ({
-        events: [...(await transaction.listEvents())].sort(
-          (a, b) =>
-            b.recordedAt.localeCompare(a.recordedAt) ||
-            b.id.localeCompare(a.id),
-        ),
-        readOnly: transaction.readOnly,
-        sessions: [...(await transaction.listSessions())].sort(
-          (a, b) =>
-            b.reportedAt.localeCompare(a.reportedAt) ||
-            a.id.localeCompare(b.id),
-        ),
-      }));
+      return await read(accountId, projectId, async (transaction) => {
+        const reviewEvents = await transaction.listEvents();
+        const resultEvents = await transaction.listResultEvents();
+        return {
+          events: [...reviewEvents].sort(
+            (a, b) =>
+              b.recordedAt.localeCompare(a.recordedAt) ||
+              b.id.localeCompare(a.id),
+          ),
+          readOnly: transaction.readOnly,
+          resultEvents: viewResultEvents(resultEvents).reverse(),
+          sessions: [...(await transaction.listSessions())]
+            .sort(
+              (a, b) =>
+                b.reportedAt.localeCompare(a.reportedAt) ||
+                a.id.localeCompare(b.id),
+            )
+            .map((session) => viewSession(session, reviewEvents, resultEvents)),
+        };
+      });
     },
 
     async previewBulkReview(accountId, rawInput) {
@@ -250,6 +392,77 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           remaining: remainingOpenItems(session),
           sessionState: session.reviewState,
         };
+      });
+    },
+
+    async recordCorrection(accountId, rawInput: RecordCorrectionInput) {
+      const input = recordCorrectionInputSchema.parse(rawInput);
+      return await write(accountId, input.projectId, async (transaction) => {
+        const { head, session } = await resolveResultTarget(transaction, input);
+        const added = resultEvent(accountId, {
+          correctedResult: input.correctedResult,
+          kind: "Correction",
+          note: input.note,
+          previousEventId: head?.id ?? null,
+          reason: input.reason,
+          redactedEventId: null,
+          redactedField: null,
+          sessionId: session.id,
+          sessionTestId: input.sessionTestId,
+        });
+        await transaction.appendResultEvents([added]);
+        return await receipt(transaction, added.id);
+      });
+    },
+
+    async recordRedaction(accountId, rawInput: RecordRedactionInput) {
+      const input = recordRedactionInputSchema.parse(rawInput);
+      return await write(accountId, input.projectId, async (transaction) => {
+        const session = await requireSession(transaction, input.sessionId);
+        const { field, sessionTestId } = redactionTarget(
+          session,
+          await transaction.listResultEvents(),
+          input,
+        );
+        const added = resultEvent(accountId, {
+          correctedResult: null,
+          kind: "Redaction",
+          note: null,
+          previousEventId: null,
+          reason: input.reason,
+          redactedEventId: input.eventId,
+          redactedField: field,
+          sessionId: session.id,
+          sessionTestId,
+        });
+        await transaction.appendResultEvents([added]);
+        if (input.eventId !== null) {
+          await transaction.eraseResultEventContent(input.eventId);
+        }
+        return await receipt(transaction, added.id);
+      });
+    },
+
+    async recordWithdrawal(accountId, rawInput: RecordWithdrawalInput) {
+      const input = recordWithdrawalInputSchema.parse(rawInput);
+      return await write(accountId, input.projectId, async (transaction) => {
+        const { head, session } = await resolveResultTarget(transaction, input);
+        if (head?.kind === "Withdrawal") {
+          throw new TestReviewAlreadyWithdrawnError();
+        }
+        const added = resultEvent(accountId, {
+          correctedResult: null,
+          kind: "Withdrawal",
+          note: null,
+          previousEventId: head?.id ?? null,
+          reason: input.reason,
+          redactedEventId: null,
+          redactedField: null,
+          sessionId: session.id,
+          sessionTestId: input.sessionTestId,
+        });
+        await transaction.appendResultEvents([added]);
+        return await receipt(transaction, added.id);
       });
     },
 
