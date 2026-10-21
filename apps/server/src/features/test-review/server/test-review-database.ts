@@ -48,6 +48,7 @@ import {
   findReadableProject,
 } from "../../feedback/server/feedback-database";
 import { createTestReview } from "./test-review";
+import { readSummaryFacts } from "./test-review-summary-database";
 
 type Executor = FeedbackExecutor;
 
@@ -228,6 +229,10 @@ async function readSessions(
       })),
     projectId: row.projectId,
     reportedAt: row.reportedAt.toISOString(),
+    reporter:
+      row.reporterKind === "user"
+        ? "User"
+        : `${row.reporterKind} ${row.reporterId}`,
     reviewState: row.reviewState as TestReviewState,
     summary: row.summary,
     targetContext: row.handoffId ? (targets.get(row.handoffId) ?? null) : null,
@@ -522,6 +527,8 @@ export function createDatabaseTestReviewStore(
             ).map(toResultEvent),
           listSessions: () => readSessions(executor, owned.id),
           readOnly: owned.archivedAt !== null,
+          readSummaryFacts: (scope) =>
+            readSummaryFacts(executor, owned.id, owned.project.name, scope),
           writeItemStates: async (ids, state) => {
             if (ids.length === 0) {
               return;

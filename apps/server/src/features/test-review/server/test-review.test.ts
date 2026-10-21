@@ -539,6 +539,7 @@ describe("Test Review: what review never does", () => {
       "recordWithdrawal",
       "setItemReviewState",
       "setSessionReviewState",
+      "summary",
       "supersede",
     ]);
   });

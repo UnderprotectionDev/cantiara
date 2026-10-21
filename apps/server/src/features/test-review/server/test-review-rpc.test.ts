@@ -118,6 +118,33 @@ describe("Test Review RPC seam", () => {
     expect(listed.resultEvents).toHaveLength(3);
   });
 
+  test("serves the Project Tests overview and refuses a Feature outside the Project", async () => {
+    const client = setup();
+    const overview = await client.projectTestSummary({
+      projectId,
+      scope: { kind: "Project" },
+    });
+    expect(overview.sections.map((entry) => entry.key)).toContain(
+      "unreviewed-reports",
+    );
+    expect(
+      overview.sections.find((entry) => entry.key === "unreviewed-reports")
+        ?.records,
+    ).toHaveLength(1);
+    await expect(
+      client.projectTestSummary({
+        projectId,
+        scope: { id: "missing", kind: "Feature" },
+      }),
+    ).rejects.toMatchObject({ data: { code: "TEST_REVIEW_RECORD_NOT_FOUND" } });
+    await expect(
+      setup(false).projectTestSummary({
+        projectId,
+        scope: { kind: "Project" },
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   test("exposes no archive, trash, delete or gate procedure for a Session Test", () => {
     const names = Object.keys(appRouter).filter((name) =>
       REVIEW_PROCEDURE.test(name),

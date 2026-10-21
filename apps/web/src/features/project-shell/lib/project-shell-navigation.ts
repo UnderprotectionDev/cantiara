@@ -174,6 +174,30 @@ export function testGapRecordFromHash(hash: string): string | null {
   }
 }
 
+// Planned Test Cases, Test Handoffs, Test Sessions and Test Assessments also
+// own the Tests area: their anchored hash opens it, like a Test Gap does.
+export const TESTS_AREA_RECORD_HASH_PREFIXES = {
+  "Planned Test Case": "planned-test-case-",
+  "Test Assessment": "test-assessment-",
+  "Test Handoff": "test-handoff-",
+  "Test Session": "test-session-",
+} as const;
+
+export type TestsAreaRecordType = keyof typeof TESTS_AREA_RECORD_HASH_PREFIXES;
+
+export function testsAreaRecordHash(
+  recordType: TestsAreaRecordType,
+  recordId: string,
+) {
+  return `${TESTS_AREA_RECORD_HASH_PREFIXES[recordType]}${encodeURIComponent(recordId)}`;
+}
+
+export function isTestsAreaRecordHash(hash: string) {
+  return Object.values(TESTS_AREA_RECORD_HASH_PREFIXES).some((prefix) =>
+    hash.startsWith(prefix),
+  );
+}
+
 export function documentRecordHash(documentId: string) {
   return `${DOCUMENT_RECORD_HASH_PREFIX}${encodeURIComponent(documentId)}`;
 }

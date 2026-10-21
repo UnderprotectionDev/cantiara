@@ -1374,6 +1374,11 @@ Oturum Testinden kullanıcının açıkça başlattığı, önizlemeli `Create f
 UI: `Create follow-up work`, `Originates from`, `Origin Location`.
 _Avoid_: otomatik Bug, sonuç yazma, toplu takip, sessiz kapanış
 
+**Test özeti**:
+Bir Özellik ya da Proje Sürümü detayında açık ilişkilerle bağlı Planlı Test Senaryosu, Handoff, Test Oturumu/Oturum Testi, açık Test Açığı, takip işi ve son Test değerlendirmesini canlı bir araya getiren türetilmiş nötr manzara; ikinci kayıt yazmaz, her sayı onu üreten kesin kayıt kümesini ve filtreleri açar. Bildirilen ham ve normalize sonucu, kaynak oturumu, yürütücüyü, raporlayanı, zamanı ve teknik bağlamı korur; GitHub check'i dış gerçek olarak ayrı kalır ve Test Oturumuna dönüşmez. Eksik test, bağlam değişikliği, çelişki, `Failed`/`Blocked`/`Inconclusive`/`Skipped`, incelenmemiş rapor, açık Test Açığı ve değerlendirme sonrası yeni bağlam yalnız kaynaklı nötr dikkat bilgisidir.
+UI: `Test Summary`, `Attention`; Testler alanındaki türetilmiş bölümler `Tests overview`.
+_Avoid_: coverage, kalite puanı, genel geçti/kaldı, test istisnası, yayın kapısı, Sürüm Kanıt Paketi, canlı test panosu, faz, CI panosu, ikinci özet kaydı
+
 **Yürüten**:
 Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
 UI: `Executor type`, `Executor`.

@@ -14,6 +14,8 @@ import type {
   TestSupersessionStored,
 } from "@cantiara/api/test-review-signals";
 
+import type { TestSummaryFacts } from "@cantiara/api/test-review-summary";
+
 import { createTestReview } from "./test-review";
 
 export const accountId = "account-1";
@@ -43,6 +45,7 @@ export type WriteKind =
 export function createMemoryHarness(
   sessions: TestReviewStoredSession[] = [],
   existingWorks: TestReviewFollowUpWork[] = [],
+  summaryFacts: Record<string, TestSummaryFacts> = {},
 ) {
   let state = new Map(
     sessions.map((session) => [session.id, structuredClone(session)]),
@@ -192,6 +195,15 @@ export function createMemoryHarness(
                 .map((session) => structuredClone(session)),
             ),
           readOnly: scopeProjectId === archivedProjectId,
+          readSummaryFacts: (scope) =>
+            Promise.resolve(
+              structuredClone(
+                summaryFacts[summaryFactsKey(scope)] ??
+                  (scope.kind === "Project"
+                    ? emptySummaryFacts("Project", null, "Project One")
+                    : null),
+              ),
+            ),
           writeItemStates: (ids, next) => {
             writes.push("item-state");
             for (const session of state.values()) {
@@ -250,6 +262,29 @@ export function createMemoryHarness(
     },
     testReview: createTestReview(store),
     writes,
+  };
+}
+
+export function summaryFactsKey(scope: { id?: string; kind: string }) {
+  return scope.kind === "Project" ? "Project" : `${scope.kind}:${scope.id}`;
+}
+
+/** Facts of a scope that has no related records yet. */
+export function emptySummaryFacts(
+  kind: TestSummaryFacts["scope"]["kind"],
+  id: string | null,
+  label: string,
+  overrides: Partial<TestSummaryFacts> = {},
+): TestSummaryFacts {
+  return {
+    assessments: [],
+    gaps: [],
+    handoffs: [],
+    scenarios: [],
+    scope: { id, kind, label },
+    sessionIds: [],
+    sessionTestIds: [],
+    ...overrides,
   };
 }
 
