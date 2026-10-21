@@ -527,15 +527,19 @@ describe("Test Review: what review never does", () => {
   test("the seam has no archive, trash, delete, gate, release, Handoff or Gap operation", () => {
     const { testReview } = setup();
     expect(Object.keys(testReview).sort()).toEqual([
+      "bindValidResult",
       "commitBulkReview",
+      "commitFollowUp",
       "list",
       "previewBulkReview",
+      "previewFollowUp",
       "previewSessionClose",
       "recordCorrection",
       "recordRedaction",
       "recordWithdrawal",
       "setItemReviewState",
       "setSessionReviewState",
+      "supersede",
     ]);
   });
 

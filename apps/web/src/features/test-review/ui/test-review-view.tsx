@@ -17,9 +17,15 @@ import {
   type TestReviewSession,
   type TestReviewSettableState,
 } from "@cantiara/api/test-review";
+import { technicalContextUnknown } from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
 import { useEffect, useRef, useState } from "react";
+import {
+  type TestReviewSignalActions,
+  type TestReviewSignalData,
+  TestReviewSignals,
+} from "./test-review-signals";
 
 export interface TestResultEventDraft {
   correctedResult: (typeof TEST_REPORT_RESULTS)[number] | null;
@@ -644,6 +650,17 @@ function SessionReview({
         Session and Session Test states are separate. Changing one never changes
         the other.
       </p>
+      <p className="text-muted-foreground text-sm">
+        {technicalContextUnknown(session.context)
+          ? "Technical context: unknown (no branch, commit or build recorded)."
+          : `Technical context: ${["branch", "commit", "build"]
+              .flatMap((key) =>
+                session.context?.[key]
+                  ? [`${key} ${session.context[key]}`]
+                  : [],
+              )
+              .join(", ")}`}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         {(["Reviewed", "Follow-up needed"] as const).map((state) => (
           <Button
@@ -884,12 +901,14 @@ export function TestReviewView({
   readOnly,
   resultEvents,
   sessions,
+  signals,
 }: {
   actions: TestReviewActions;
   events: TestReviewEvent[];
   readOnly: boolean;
   resultEvents: TestResultEvent[];
   sessions: TestReviewSession[];
+  signals?: { actions: TestReviewSignalActions; data: TestReviewSignalData };
 }) {
   return (
     <section
@@ -923,6 +942,14 @@ export function TestReviewView({
           ))}
         </ul>
       )}
+      {signals ? (
+        <TestReviewSignals
+          actions={signals.actions}
+          data={signals.data}
+          readOnly={readOnly}
+          sessions={sessions}
+        />
+      ) : null}
       <HistoryList events={events} sessions={sessions} />
     </section>
   );

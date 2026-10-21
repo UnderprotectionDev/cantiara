@@ -2,6 +2,7 @@ import { createDb } from "@cantiara/db";
 import { user, workspace } from "@cantiara/db/schema/auth";
 import { sessionTest, testSession } from "@cantiara/db/schema/planned-test";
 import { project } from "@cantiara/db/schema/project";
+import { work } from "@cantiara/db/schema/work";
 import { eq } from "drizzle-orm";
 import {
   afterAll,
@@ -181,6 +182,67 @@ describeDatabase("Test Review PostgreSQL integration", () => {
     ]);
     expect(JSON.stringify(list)).not.toContain("secret-note");
     expect(list.resultEvents).toHaveLength(3);
+  });
+
+  test("Supersedes is acyclic, follow-up work carries the exact origin and no result is written", async () => {
+    const access = createDatabaseTestReview(requireDatabase());
+    const receipt = await access.supersede(accountId, {
+      newerSessionTestId: itemB,
+      olderSessionTestId: itemA,
+      projectId,
+    });
+    expect(receipt.supersession.older.rawResult).toBe("FAIL");
+    await expect(
+      access.supersede(accountId, {
+        newerSessionTestId: itemA,
+        olderSessionTestId: itemB,
+        projectId,
+      }),
+    ).rejects.toMatchObject({ code: "TEST_REVIEW_SUPERSEDE_CYCLE" });
+
+    const target = { mode: "new" as const, workType: "Bug" as const };
+    const preview = await access.previewFollowUp(accountId, {
+      projectId,
+      sessionTestIds: [itemA],
+      target,
+    });
+    const workId = `work-${suffix}`;
+    const created = await access.commitFollowUp(accountId, {
+      previewFingerprint: preview.fingerprint,
+      projectId,
+      sessionTestIds: [itemA],
+      target,
+      workId,
+    });
+    expect(created.links[0]?.workKey?.endsWith("-1")).toBe(true);
+    const [row] = await requireDatabase()
+      .select({
+        component: work.originComponentId,
+        owner: work.originOwnerRecordId,
+      })
+      .from(work)
+      .where(eq(work.id, workId));
+    expect(row).toEqual({ component: itemA, owner: sessionId });
+
+    const attached = await access.commitFollowUp(accountId, {
+      projectId,
+      sessionTestIds: [itemB],
+      previewFingerprint: (
+        await access.previewFollowUp(accountId, {
+          projectId,
+          sessionTestIds: [itemB],
+          target: { mode: "existing", workId },
+        })
+      ).fingerprint,
+      target: { mode: "existing", workId },
+      workId: "ignored",
+    });
+    expect(attached.links[0]?.mode).toBe("Attached");
+    const list = await access.list(accountId, projectId);
+    expect(list.followUps).toHaveLength(2);
+    expect(
+      list.sessions[0]?.items.map((item) => item.normalizedResult),
+    ).toEqual(["Failed", "Passed"]);
   });
 
   test("the bulk commit is atomic and idempotent", async () => {
