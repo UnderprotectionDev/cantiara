@@ -1,9 +1,11 @@
 import {
   buildProductGapFollowUpPlan,
+  closeToolEscapeInputSchema,
   confirmProductGapFollowUpInputSchema,
   duplicateProductGapLink,
   isSameProductGapFollowUpPlan,
   listToolEscapesInputSchema,
+  type ParsedCloseToolEscapeInput,
   type ProductGapLinkInput,
   type ProductGapRecord,
   type ProductGapStore,
@@ -17,6 +19,12 @@ import {
   recordProductGapInputSchema,
   recordToolEscapeInputSchema,
   setProductGapStatusInputSchema,
+  TOOL_ESCAPE_CLOSE_CONDITIONS,
+  type ToolEscapeCloseCondition,
+  type ToolEscapeCloseProof,
+  type ToolEscapeCloseRecord,
+  type ToolEscapeCloseStored,
+  type ToolEscapeHighImpact,
   type ToolEscapeRecord,
   type ToolEscapeStored,
 } from "@cantiara/api/product-gaps";
@@ -102,13 +110,80 @@ export class ToolEscapeSourceError extends Error {
   }
 }
 
+/** The escape does not exist in this Workspace. */
+export class ToolEscapeNotFoundError extends Error {
+  readonly code = "TOOL_ESCAPE_NOT_FOUND" as const;
+
+  constructor(escapeId: string) {
+    super(`Tool Escape ${escapeId} was not found.`);
+    this.name = "ToolEscapeNotFoundError";
+  }
+}
+
+/** An escape that never held parallel truth does not use the four-condition close. */
+export class ToolEscapeNotHighImpactError extends Error {
+  readonly code = "TOOL_ESCAPE_CLOSE_NOT_HIGH_IMPACT" as const;
+
+  constructor(escapeId: string) {
+    super(
+      `Tool Escape ${escapeId} never held parallel truth, so it has no high-impact close.`,
+    );
+    this.name = "ToolEscapeNotHighImpactError";
+  }
+}
+
+/** The escape already has its one close; a close is never repeated or replaced. */
+export class ToolEscapeAlreadyClosedError extends Error {
+  readonly code = "TOOL_ESCAPE_ALREADY_CLOSED" as const;
+
+  constructor(escapeId: string) {
+    super(`Tool Escape ${escapeId} is already closed.`);
+    this.name = "ToolEscapeAlreadyClosedError";
+  }
+}
+
+/** Fail-closed: at least one of the four conditions is not met. */
+export class ToolEscapeCloseRefusedError extends Error {
+  readonly code = "TOOL_ESCAPE_CLOSE_REFUSED" as const;
+  readonly conditions: ToolEscapeCloseCondition[];
+
+  constructor(escapeId: string, conditions: ToolEscapeCloseCondition[]) {
+    super(
+      `Tool Escape ${escapeId} cannot close; unmet: ${conditions.join(", ")}.`,
+    );
+    this.name = "ToolEscapeCloseRefusedError";
+    this.conditions = conditions;
+  }
+}
+
+async function toCloseRecord(
+  resolver: ProductGapTargetResolver,
+  stored: ToolEscapeCloseStored,
+): Promise<ToolEscapeCloseRecord> {
+  const records = await Promise.all(
+    stored.records.map(async (record) => {
+      const live = await resolver.read(record);
+      return {
+        brokenReason: live.state === "broken" ? live.reason : null,
+        label: live.state === "resolved" ? live.label : null,
+        state: live.state,
+        targetId: record.targetId,
+        targetType: record.targetType,
+      };
+    }),
+  );
+  return { ...stored, records };
+}
+
 async function toEscapeRecord(
   resolver: ProductGapTargetResolver,
   stored: ToolEscapeStored,
+  close: ToolEscapeCloseStored | null = null,
 ): Promise<ToolEscapeRecord> {
   const live = await resolver.read(stored.source);
   return {
     ...stored,
+    close: close ? await toCloseRecord(resolver, close) : null,
     source: {
       brokenReason: live.state === "broken" ? live.reason : null,
       label: live.state === "resolved" ? live.label : null,
@@ -179,6 +254,107 @@ async function bindLinks(
   );
 }
 
+/**
+ * The restored records must each resolve live in this Workspace and be named
+ * once. `null` when any is missing, unavailable or repeated, so the condition
+ * is simply unmet; nothing is saved from a title or placeholder id.
+ */
+async function bindCloseRecords(
+  resolver: ProductGapTargetResolver,
+  records: readonly ProductGapLinkInput[],
+) {
+  if (records.length === 0 || duplicateProductGapLink(records)) {
+    return null;
+  }
+  const bound = await Promise.all(
+    records.map((record) => resolver.bind(record)),
+  );
+  return bound.every(Boolean) ? [...records] : null;
+}
+
+interface CloseProof {
+  candidate: { build: string };
+  externalCopy: { how: string };
+  ok: true;
+  records: ProductGapLinkInput[];
+  restore: { method: ToolEscapeCloseStored["restoreMethod"] };
+  workflow: { runRef: string };
+}
+
+/**
+ * The four conditions, checked together and fail-closed. Anything missing,
+ * unverifiable or contradicted leaves its condition unmet; a free-text note
+ * never satisfies one.
+ */
+async function verifyCloseConditions(
+  resolver: ProductGapTargetResolver,
+  proof: ToolEscapeCloseProof | undefined,
+  input: ParsedCloseToolEscapeInput,
+): Promise<CloseProof | { ok: false; unmet: ToolEscapeCloseCondition[] }> {
+  const records = await bindCloseRecords(
+    resolver,
+    input.restore?.records ?? [],
+  );
+  const run = input.workflow
+    ? await proof?.workflowRun(input.workflow.runRef)
+    : null;
+  const candidate = (await proof?.currentCandidate()) ?? null;
+  const met = new Set<ToolEscapeCloseCondition>();
+  if (
+    candidate !== null &&
+    input.candidate?.build === candidate &&
+    run?.succeeded &&
+    run.build === candidate
+  ) {
+    met.add("Workflow succeeded on candidate");
+  }
+  if (records) {
+    met.add("Truth restored in product records");
+  }
+  if (input.externalCopy?.state === "Closed") {
+    met.add("External copy closed");
+  }
+  if (
+    records &&
+    run?.records &&
+    records.every((record) =>
+      run.records.some(
+        (exercised) =>
+          exercised.targetType === record.targetType &&
+          exercised.targetId === record.targetId,
+      ),
+    )
+  ) {
+    met.add("Evidence bound to records");
+  }
+  const unmet = TOOL_ESCAPE_CLOSE_CONDITIONS.filter(
+    (condition) => !met.has(condition),
+  );
+  if (
+    unmet.length > 0 ||
+    !(
+      input.candidate &&
+      input.workflow &&
+      input.restore &&
+      input.externalCopy
+    ) ||
+    !records
+  ) {
+    return {
+      ok: false,
+      unmet: unmet.length > 0 ? unmet : [...TOOL_ESCAPE_CLOSE_CONDITIONS],
+    };
+  }
+  return {
+    candidate: input.candidate,
+    externalCopy: input.externalCopy,
+    ok: true,
+    records,
+    restore: input.restore,
+    workflow: input.workflow,
+  };
+}
+
 /** Distinct tool names, first spelling wins, ordered for a stable filter list. */
 function distinctTools(escapes: readonly ToolEscapeStored[]) {
   const seen = new Map<string, string>();
@@ -198,7 +374,10 @@ function distinctTools(escapes: readonly ToolEscapeStored[]) {
  * `setStatus` writes the Gap row alone; the escape events (#418) and every
  * linked Project, Work, Feature and Decision keep their own lifecycles.
  */
-export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
+export function createProductGaps(
+  store: ProductGapStore,
+  proof?: ToolEscapeCloseProof,
+): ProductGapsAccess {
   async function readSource(
     accountId: string,
     input: Parameters<ProductGapStore["readFollowUpSource"]>[1],
@@ -287,9 +466,17 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
         if (!(await transaction.findGap(input.gapId, false))) {
           throw new ProductGapNotFoundError(input.gapId);
         }
+        const events = await transaction.listEscapes(input);
+        const closes = await transaction.listEscapeCloses(
+          events.map((event) => event.id),
+        );
         return await Promise.all(
-          (await transaction.listEscapes(input)).map((event) =>
-            toEscapeRecord(transaction.resolver, event),
+          events.map((event) =>
+            toEscapeRecord(
+              transaction.resolver,
+              event,
+              closes.find((close) => close.escapeId === event.id) ?? null,
+            ),
           ),
         );
       });
@@ -367,6 +554,56 @@ export function createProductGaps(store: ProductGapStore): ProductGapsAccess {
         throw new ProductGapWorkspaceNotFoundError();
       }
       return recorded;
+    },
+
+    async closeToolEscape(accountId, rawInput) {
+      const input = closeToolEscapeInputSchema.parse(rawInput);
+      const closed = await store.run(
+        accountId,
+        "write",
+        async (transaction) => {
+          // The escape row is held, so two closes cannot both pass the check.
+          const found = await transaction.findEscape(input.escapeId, true);
+          if (!found) {
+            throw new ToolEscapeNotFoundError(input.escapeId);
+          }
+          // Gap status, including `Conscious boundary`, is never read here.
+          if (input.impact === "Never held parallel truth") {
+            throw new ToolEscapeNotHighImpactError(found.id);
+          }
+          if ((await transaction.listEscapeCloses([found.id])).length > 0) {
+            throw new ToolEscapeAlreadyClosedError(found.id);
+          }
+          const proven = await verifyCloseConditions(
+            transaction.resolver,
+            proof,
+            input,
+          );
+          if (!proven.ok) {
+            throw new ToolEscapeCloseRefusedError(found.id, proven.unmet);
+          }
+          const { candidate, externalCopy, records, restore, workflow } =
+            proven;
+          const stored: ToolEscapeCloseStored = {
+            candidateBuild: candidate.build,
+            closedAt: new Date().toISOString(),
+            escapeId: found.id,
+            externalCopyHow: externalCopy.how,
+            gapId: found.gapId,
+            id: crypto.randomUUID(),
+            impact: input.impact satisfies ToolEscapeHighImpact,
+            records,
+            restoreMethod: restore.method,
+            workflowRef: workflow.runRef,
+          };
+          await transaction.insertEscapeClose(stored);
+          return await toEscapeRecord(transaction.resolver, found, stored);
+        },
+      );
+      if (!closed) {
+        throw new ProductGapWorkspaceNotFoundError();
+      }
+      return closed;
     },
 
     async setStatus(accountId, rawInput) {

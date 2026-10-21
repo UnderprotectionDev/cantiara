@@ -22,11 +22,14 @@ export type LoadProductGapTargets = (
  */
 export function ProductGapLinksField({
   idPrefix,
+  legend = "Related records",
   loadTargets,
   onChange,
   value,
 }: {
   idPrefix: string;
+  /** Names the group; the close form names it for the restored records. */
+  legend?: string;
   loadTargets: LoadProductGapTargets;
   onChange: (links: LinkDraft[]) => void;
   value: LinkDraft[];
@@ -96,7 +99,7 @@ export function ProductGapLinksField({
 
   return (
     <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
-      <legend className="px-1 text-sm">Related records</legend>
+      <legend className="px-1 text-sm">{legend}</legend>
       {value.length === 0 ? (
         <p className="text-muted-foreground text-sm">No related records.</p>
       ) : (

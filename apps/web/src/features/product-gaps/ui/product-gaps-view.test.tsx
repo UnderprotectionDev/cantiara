@@ -456,3 +456,115 @@ test("lets the founder discard a preview without writing", async () => {
   expect(document.body.textContent).not.toContain("Create 1 Task");
   expect(onConfirmFollowUp).not.toHaveBeenCalled();
 });
+
+const closableEvent = {
+  close: null,
+  gapId: "g1",
+  id: "e1",
+  intendedJob: "Keep the release plan",
+  note: null,
+  occurredAt: timestamp,
+  reasons: ["Missing capability"],
+  recordedAt: timestamp,
+  source: {
+    brokenReason: null,
+    label: "Checkout",
+    projectId: "p1",
+    state: "resolved",
+    targetId: "p1",
+    targetType: "Project",
+  },
+  tool: "Spreadsheet",
+};
+
+function idOfLabel(text: string) {
+  const label = [...document.querySelectorAll("label")].find(
+    (item) => item.textContent === text,
+  );
+  if (!label?.htmlFor) {
+    throw new Error(`No label ${text}`);
+  }
+  return label.htmlFor;
+}
+
+test("shows the stored close evidence with its bound records and offers no second close", async () => {
+  const loadEscapes = vi.fn().mockResolvedValue([
+    {
+      ...closableEvent,
+      close: {
+        candidateBuild: "build-1",
+        closedAt: timestamp,
+        escapeId: "e1",
+        externalCopyHow: "Spreadsheet archived.",
+        gapId: "g1",
+        id: "c1",
+        impact: "Lasting parallel source of truth",
+        records: [
+          {
+            brokenReason: null,
+            label: "Fix export",
+            state: "resolved",
+            targetId: "w1",
+            targetType: "Work",
+          },
+        ],
+        restoreMethod: "Manual recreate",
+        workflowRef: "run-1",
+      },
+    },
+  ]);
+  mount({
+    gaps: [record],
+    loadEscapes,
+    onCloseEscape: vi.fn().mockResolvedValue(undefined),
+  });
+  await click("Open 2 Tool Escapes of Bulk edit across projects");
+
+  const text = document.body.textContent ?? "";
+  expect(
+    document.querySelector('[aria-label="Close evidence"]'),
+  ).not.toBeNull();
+  expect(text).toContain("candidate build build-1 (run run-1)");
+  expect(text).toContain("Work: Fix export");
+  expect(text).toContain("Spreadsheet archived.");
+  expect(
+    document.querySelector('button[aria-label^="Close Tool Escape"]'),
+  ).toBeNull();
+});
+
+test("closes through labelled controls and reads the unmet conditions of a refusal", async () => {
+  const onCloseEscape = vi.fn().mockRejectedValue({
+    data: {
+      conditions: ["External copy closed", "Evidence bound to records"],
+    },
+  });
+  mount({
+    gaps: [record],
+    loadEscapes: vi.fn().mockResolvedValue([closableEvent]),
+    onCloseEscape,
+  });
+  await click("Open 2 Tool Escapes of Bulk edit across projects");
+  await click("Close Tool Escape Spreadsheet, Keep the release plan");
+
+  await click("Close Tool Escape");
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+    "Choose what the escape held",
+  );
+  expect(onCloseEscape).not.toHaveBeenCalled();
+
+  setValue(
+    idOfLabel("What the escape held"),
+    "Lasting parallel source of truth",
+  );
+  setValue(idOfLabel("Candidate build"), "build-1");
+  await click("Close Tool Escape");
+
+  expect(onCloseEscape).toHaveBeenCalledWith(
+    closableEvent,
+    expect.objectContaining({ build: "build-1" }),
+    "Lasting parallel source of truth",
+  );
+  expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+    "The Tool Escape was not closed. Unmet: External copy closed; Evidence bound to records.",
+  );
+});

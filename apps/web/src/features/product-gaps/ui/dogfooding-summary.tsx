@@ -12,6 +12,11 @@ import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useEffect, useState } from "react";
 import { errorText, type GapFilterValues } from "../lib/product-gap-form";
 import type { LoadProductGapTargets } from "./product-gap-links-field";
+import {
+  type CloseEscape,
+  ToolEscapeCloseEvidence,
+  ToolEscapeCloseForm,
+} from "./tool-escape-close";
 
 export type LoadEscapes = (
   gap: ProductGapRecord,
@@ -126,10 +131,14 @@ export function GapFilterBar({
 export function ToolEscapesPanel({
   filter,
   loadEscapes,
+  loadTargets,
+  onCloseEscape,
   record,
 }: {
   filter: GapFilterValues;
   loadEscapes: LoadEscapes;
+  loadTargets?: LoadProductGapTargets;
+  onCloseEscape?: CloseEscape;
   record: ProductGapRecord;
 }) {
   const [events, setEvents] = useState<ToolEscapeRecord[] | null>(null);
@@ -187,6 +196,19 @@ export function ToolEscapesPanel({
               </p>
               {event.note ? (
                 <p className="whitespace-pre-wrap text-muted-foreground">{`Note: ${event.note}`}</p>
+              ) : null}
+              {event.close ? (
+                <ToolEscapeCloseEvidence close={event.close} />
+              ) : null}
+              {!event.close && onCloseEscape && loadTargets ? (
+                <ToolEscapeCloseForm
+                  event={event}
+                  loadTargets={loadTargets}
+                  onClose={async (closing, values, impact) => {
+                    await onCloseEscape(closing, values, impact);
+                    await open();
+                  }}
+                />
               ) : null}
             </li>
           ))}

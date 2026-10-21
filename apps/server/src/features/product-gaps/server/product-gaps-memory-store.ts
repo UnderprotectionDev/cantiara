@@ -4,6 +4,8 @@ import type {
   ProductGapStore,
   ProductGapStoredRecord,
   ProductGapTargetResolver,
+  ToolEscapeCloseProof,
+  ToolEscapeCloseStored,
   ToolEscapeStored,
 } from "@cantiara/api/product-gaps";
 
@@ -30,8 +32,26 @@ export interface ProductGapCatalogEntry {
  * record other than a Gap, so a test can prove a status change or a similar
  * title touches no Project, Work, Feature or Decision.
  */
+export interface ProductGapCloseFixture {
+  /** Build of the current Ürün sürüm adayı; `null` stands for none. */
+  candidate: string | null;
+  /** Recorded workflow runs and the product records each exercised. */
+  runs: Record<
+    string,
+    {
+      build: string;
+      records: {
+        targetId: string;
+        targetType: ProductGapCatalogEntry["targetType"];
+      }[];
+      succeeded: boolean;
+    }
+  >;
+}
+
 export function createProductGapHarness(
   entries: ProductGapCatalogEntry[] = [],
+  closeFixture: ProductGapCloseFixture = { candidate: null, runs: {} },
 ) {
   const catalog = new Map<string, ProductGapCatalogEntry>();
   const key = (type: string, id: string) => `${type}:${id}`;
@@ -40,6 +60,11 @@ export function createProductGapHarness(
   }
   const gaps = new Map<string, ProductGapStoredRecord>();
   const escapes: ToolEscapeStored[] = [];
+  const closes: ToolEscapeCloseStored[] = [];
+  const proof: ToolEscapeCloseProof = {
+    currentCandidate: () => Promise.resolve(closeFixture.candidate),
+    workflowRun: (runRef) => Promise.resolve(closeFixture.runs[runRef] ?? null),
+  };
   const writes: string[] = [];
   const receipts = new Map<
     string,
@@ -217,6 +242,18 @@ export function createProductGapHarness(
       }
       return work({
         findGap: (gapId) => Promise.resolve(gaps.get(gapId) ?? null),
+        findEscape: (escapeId) =>
+          Promise.resolve(
+            escapes.find((event) => event.id === escapeId) ?? null,
+          ),
+        insertEscapeClose: (close) => {
+          closes.push(close);
+          return Promise.resolve();
+        },
+        listEscapeCloses: (escapeIds) =>
+          Promise.resolve(
+            closes.filter((close) => escapeIds.includes(close.escapeId)),
+          ),
         insertEscape: (event) => {
           escapes.push(event);
           return Promise.resolve();
@@ -269,9 +306,10 @@ export function createProductGapHarness(
 
   return {
     catalog,
+    closes,
     escapes,
     gaps,
-    productGaps: createProductGaps(store),
+    productGaps: createProductGaps(store, proof),
     writes,
   };
 }

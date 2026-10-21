@@ -492,6 +492,7 @@ describe("Product Gaps stay free of telemetry", () => {
     const { productGaps } = setup();
 
     expect(Object.keys(productGaps).sort()).toEqual([
+      "closeToolEscape",
       "confirmFollowUp",
       "linkTargets",
       "list",

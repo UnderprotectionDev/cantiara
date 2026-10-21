@@ -11,10 +11,22 @@ import {
 const PRODUCT_GAP_PROCEDURE = /product ?gap|tool ?escape/i;
 
 function setup(authenticated = true) {
-  const harness = createProductGapHarness([
-    { label: "Checkout", targetId: "p1", targetType: "Project" },
-    { label: "Offline mode", targetId: "f1", targetType: "Feature" },
-  ]);
+  const harness = createProductGapHarness(
+    [
+      { label: "Checkout", targetId: "p1", targetType: "Project" },
+      { label: "Offline mode", targetId: "f1", targetType: "Feature" },
+    ],
+    {
+      candidate: "build-1",
+      runs: {
+        "run-1": {
+          build: "build-1",
+          records: [{ targetId: "f1", targetType: "Feature" }],
+          succeeded: true,
+        },
+      },
+    },
+  );
   const context = {
     productGaps: harness.productGaps,
     session: authenticated
@@ -163,6 +175,7 @@ describe("Product Gaps RPC seam", () => {
       PRODUCT_GAP_PROCEDURE.test(name),
     );
     expect(names.sort()).toEqual([
+      "closeToolEscape",
       "confirmProductGapFollowUp",
       "previewProductGapFollowUp",
       "productGapEscapes",
@@ -172,5 +185,77 @@ describe("Product Gaps RPC seam", () => {
       "recordToolEscape",
       "setProductGapStatus",
     ]);
+  });
+});
+
+describe("Tool Escape close over RPC", () => {
+  const closeProof = {
+    candidate: { build: "build-1" },
+    externalCopy: { how: "Sheet archived.", state: "Closed" as const },
+    impact: "Canonical truth moved out" as const,
+    restore: {
+      method: "Supported import" as const,
+      records: [{ targetId: "f1", targetType: "Feature" as const }],
+    },
+    workflow: { runRef: "run-1" },
+  };
+
+  async function recorded() {
+    const { client } = setup();
+    const { escape: made } = await client.recordToolEscape({
+      escape: {
+        intendedJob: "Keep the plan",
+        occurredAt: "2026-10-01T09:30:00.000Z",
+        reasons: ["Habit"],
+        source: { targetId: "p1", targetType: "Project" },
+        tool: "Spreadsheet",
+      },
+      gap: { kind: "New", ...gap },
+    });
+    return { client, made };
+  }
+
+  test("refuses an unmet condition with the conditions named, then closes with all four", async () => {
+    const { client, made } = await recorded();
+
+    await expect(
+      client.closeToolEscape({
+        escapeId: made.id,
+        impact: "Canonical truth moved out",
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      data: {
+        code: "TOOL_ESCAPE_CLOSE_REFUSED",
+        conditions: expect.arrayContaining(["External copy closed"]),
+      },
+    });
+    const closed = await client.closeToolEscape({
+      ...closeProof,
+      escapeId: made.id,
+    });
+    expect(closed.close).toMatchObject({ workflowRef: "run-1" });
+    await expect(
+      client.closeToolEscape({ ...closeProof, escapeId: made.id }),
+    ).rejects.toMatchObject({
+      data: { code: "TOOL_ESCAPE_ALREADY_CLOSED" },
+    });
+  });
+
+  test("an escape that never held parallel truth is a bad request and a signed-out call is refused", async () => {
+    const { client, made } = await recorded();
+
+    await expect(
+      client.closeToolEscape({
+        escapeId: made.id,
+        impact: "Never held parallel truth",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      setup(false).client.closeToolEscape({
+        ...closeProof,
+        escapeId: made.id,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

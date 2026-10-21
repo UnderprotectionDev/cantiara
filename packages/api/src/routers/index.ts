@@ -292,6 +292,7 @@ import {
   updatePriorityMetricMutationInputSchema,
 } from "../priority-metrics";
 import {
+  closeToolEscapeInputSchema,
   confirmProductGapFollowUpInputSchema,
   listToolEscapesInputSchema,
   previewProductGapFollowUpInputSchema,
@@ -307,6 +308,7 @@ import {
   recordToolEscapeResultSchema,
   setProductGapStatusInputSchema,
   toolEscapeListSchema,
+  toolEscapeRecordSchema,
 } from "../product-gaps";
 import {
   createProjectGoalInputSchema,
@@ -3403,6 +3405,24 @@ interface ProductGapFailure {
 }
 
 const PRODUCT_GAP_FAILURES: Record<string, ProductGapFailure> = {
+  TOOL_ESCAPE_ALREADY_CLOSED: {
+    message: "This Tool Escape is already closed.",
+    status: "PRECONDITION_FAILED",
+  },
+  TOOL_ESCAPE_CLOSE_NOT_HIGH_IMPACT: {
+    message:
+      "An escape that never held parallel truth has no high-impact close.",
+    status: "BAD_REQUEST",
+  },
+  TOOL_ESCAPE_CLOSE_REFUSED: {
+    message:
+      "A high-impact close needs all four conditions; at least one is unmet.",
+    status: "PRECONDITION_FAILED",
+  },
+  TOOL_ESCAPE_NOT_FOUND: {
+    message: "Tool Escape is unavailable.",
+    status: "NOT_FOUND",
+  },
   TOOL_ESCAPE_SOURCE_UNAVAILABLE: {
     message:
       "The escape source is not an existing, active record of this Workspace.",
@@ -3456,7 +3476,12 @@ async function runProductGapOperation<T>(
     }
     throw new ORPCError(failure.status, {
       cause: error,
-      data: { code: error.code },
+      data: {
+        code: error.code,
+        ...(Array.isArray(error.conditions)
+          ? { conditions: error.conditions }
+          : {}),
+      },
       defined: true,
       message: failure.message,
     });
@@ -6527,6 +6552,18 @@ export const appRouter = {
         ),
       ),
     ),
+  closeToolEscape: protectedProcedure
+    .input(closeToolEscapeInputSchema)
+    .output(toolEscapeRecordSchema)
+    .handler(({ context, input }) =>
+      runProductGapOperation(() =>
+        requireProductGaps(context).closeToolEscape(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+
   productGapEscapes: protectedProcedure
     .input(listToolEscapesInputSchema)
     .output(toolEscapeListSchema)
