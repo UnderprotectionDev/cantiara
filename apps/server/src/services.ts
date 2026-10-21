@@ -80,6 +80,7 @@ import {
   createDatabasePriorityMetricPermanentDeleteEvents,
   createDatabasePriorityMetricTrashMaintenance,
 } from "./features/priority-metrics/server/priority-metrics-trash-database";
+import { createDatabaseProductGaps } from "./features/product-gaps/server/product-gaps-database";
 import { createDatabaseProjectGoals } from "./features/project-goals/server/project-goals-database";
 import { createDatabaseProjectShell } from "./features/project-shell/server/project-shell-database";
 import { createDatabaseProjectShellMutationContracts } from "./features/project-shell/server/project-shell-mutation-database";
@@ -255,6 +256,7 @@ export const feedback = createDatabaseFeedbackWithFeed(db);
 export const screens = createDatabaseScreens(db);
 export const plannedTests = createDatabasePlannedTests(db);
 export const testGaps = createDatabaseTestGaps(db);
+export const productGaps = createDatabaseProductGaps(db);
 export const testReports = createDatabaseTestReports(db);
 export const testAssessments = createDatabaseTestAssessments(db);
 export const specChangeReview = createSpecChangeReview(
