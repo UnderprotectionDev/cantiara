@@ -546,6 +546,70 @@ describe("Create follow-up work", () => {
     expect(harness.works).toHaveLength(2);
   });
 
+  test("a Supersedes relation or follow-up link added after close is New context after close", async () => {
+    const harness = setup();
+    const close = async (sessionId: string, sessionTestId: string) => {
+      await harness.testReview.setItemReviewState(accountId, {
+        projectId,
+        sessionId,
+        sessionTestId,
+        state: "Closed",
+      });
+      await harness.testReview.setSessionReviewState(accountId, {
+        projectId,
+        sessionId,
+        state: "Closed",
+      });
+    };
+    await close("s1", "pass");
+    await close("s2", "fail");
+    const flags = async () => {
+      const list = await view(harness);
+      const item = (sessionId: string, id: string) =>
+        list.sessions
+          .find((session) => session.id === sessionId)
+          ?.items.find((entry) => entry.id === id)?.newContextAfterClose;
+      return [
+        list.sessions.find((session) => session.id === "s1")
+          ?.newContextAfterClose,
+        item("s1", "pass"),
+        item("s2", "fail"),
+      ];
+    };
+    expect(await flags()).toEqual([false, false, false]);
+    tick();
+    await supersede(harness, "fail", "pass");
+    expect(await flags()).toEqual([true, true, true]);
+
+    const linked = setup();
+    await linked.testReview.setItemReviewState(accountId, {
+      projectId,
+      sessionId: "s2",
+      sessionTestId: "fail",
+      state: "Closed",
+    });
+    tick();
+    const target = { mode: "existing" as const, workId: "work-1" };
+    const preview = await linked.testReview.previewFollowUp(accountId, {
+      projectId,
+      sessionTestIds: ["fail"],
+      target,
+    });
+    await linked.testReview.commitFollowUp(accountId, {
+      previewFingerprint: preview.fingerprint,
+      projectId,
+      sessionTestIds: ["fail"],
+      target,
+      workId: "ignored",
+    });
+    const list = await view(linked);
+    expect(
+      list.sessions
+        .find((session) => session.id === "s2")
+        ?.items.find((entry) => entry.id === "fail")?.newContextAfterClose,
+    ).toBe(true);
+  });
+
   test("committing creates exactly the previewed Work with the exact origin", async () => {
     const harness = setup();
     const preview = await harness.testReview.previewFollowUp(accountId, {

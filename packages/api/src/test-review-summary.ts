@@ -389,6 +389,10 @@ function projectSections(
         .map(gapRecord),
       [{ label: "State", value: "Open, Planned" }],
     ),
+    // PRD 10 gives "awaiting-supersede" no separate definition: a result awaits
+    // a `Supersedes` relation exactly while it is an active member of a
+    // `test-result-conflict` (no Supersedes edge settles it), so the section
+    // lists those members.
     section(
       "conflicting-results",
       "Conflicting or awaiting-supersede results",

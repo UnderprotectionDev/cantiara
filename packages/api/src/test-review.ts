@@ -157,9 +157,8 @@ export type TestReviewChange = z.infer<typeof testReviewChangeSchema>;
 
 export const commitBulkReviewInputSchema = z
   .object({
-    previewed: z
-      .array(testReviewChangeSchema)
-      .max(TEST_REVIEW_ITEM_SELECTION_MAX + 1),
+    /** Server fingerprint of the changes the founder saw in the preview. */
+    previewFingerprint: z.string().trim().length(64),
     projectId: identifierSchema,
     sessionId: identifierSchema,
     sessionTestIds: selectionSchema,
@@ -405,6 +404,8 @@ export type TestReviewClosePreview = z.infer<
 export const testReviewBulkPreviewSchema = z
   .object({
     changes: z.array(testReviewChangeSchema),
+    /** Identifies exactly these changes; the commit is stale when it differs. */
+    fingerprint: z.string(),
     /** Selected or parent records already `Reviewed`; the commit leaves them. */
     unchanged: z.array(testReviewChangeSchema),
   })
@@ -756,6 +757,16 @@ function closedAt(
   return latest;
 }
 
+/** Relations and links recorded for Session Tests; they can follow a close. */
+export interface TestReviewLinkedEvents {
+  followUps: { recordedAt: string; sessionTestId: string }[];
+  supersessions: {
+    newerSessionTestId: string;
+    olderSessionTestId: string;
+    recordedAt: string;
+  }[];
+}
+
 /**
  * The review view of one stored session: the original report stays intact
  * and the chain head is promoted as the current result. Redacted values are
@@ -767,6 +778,7 @@ export function viewSession(
   session: TestReviewStoredSession,
   reviewEvents: TestReviewStoredEvent[],
   resultEvents: TestResultStoredEvent[],
+  linked: TestReviewLinkedEvents = { followUps: [], supersessions: [] },
 ): TestReviewSession {
   const sessionClosedAt =
     session.reviewState === "Closed"
@@ -779,6 +791,23 @@ export function viewSession(
   const laterThan = (since: string | null, scope: TestResultStoredEvent[]) =>
     since !== null && scope.some((entry) => entry.recordedAt > since);
   const sessionHead = eventHead(ownEvents, session.id, null);
+  const itemIds = new Set(session.items.map((item) => item.id));
+  // A Supersedes relation or follow-up link added after close is new context
+  // for each Session Test it touches (and so for the session), spec 57 #415.
+  const linkTimes = (id: string) => [
+    ...linked.supersessions
+      .filter(
+        (edge) =>
+          edge.newerSessionTestId === id || edge.olderSessionTestId === id,
+      )
+      .map((edge) => edge.recordedAt),
+    ...linked.followUps
+      .filter((link) => link.sessionTestId === id)
+      .map((link) => link.recordedAt),
+  ];
+  const laterLink = (since: string | null, ids: Iterable<string>) =>
+    since !== null &&
+    [...ids].some((id) => linkTimes(id).some((time) => time > since));
   return {
     executorName: session.executorName,
     id: session.id,
@@ -794,9 +823,10 @@ export function viewSession(
       const itemEvents = ownEvents.filter(
         (entry) => entry.sessionTestId === item.id,
       );
+      const normalizedResult = rawResultRedacted ? null : item.normalizedResult;
       let current: TestResultCurrent = {
         eventId: null,
-        result: item.normalizedResult,
+        result: normalizedResult,
         source: "Reported",
         usable: !rawResultRedacted,
       };
@@ -822,8 +852,9 @@ export function viewSession(
         id: item.id,
         newContextAfterClose:
           item.reviewState === "Closed" &&
-          laterThan(closedAt(reviewEvents, session.id, item.id), itemEvents),
-        normalizedResult: item.normalizedResult,
+          (laterThan(closedAt(reviewEvents, session.id, item.id), itemEvents) ||
+            laterLink(closedAt(reviewEvents, session.id, item.id), [item.id])),
+        normalizedResult,
         position: item.position,
         rawResult: rawResultRedacted ? null : item.rawResult,
         rawResultRedacted,
@@ -833,7 +864,9 @@ export function viewSession(
         title: item.title,
       };
     }),
-    newContextAfterClose: laterThan(sessionClosedAt, ownEvents),
+    newContextAfterClose:
+      laterThan(sessionClosedAt, ownEvents) ||
+      laterLink(sessionClosedAt, itemIds),
     projectId: session.projectId,
     reportedAt: session.reportedAt,
     reporter: session.reporter ?? null,

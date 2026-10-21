@@ -17,10 +17,14 @@ import {
   type TestReviewSession,
   type TestReviewSettableState,
 } from "@cantiara/api/test-review";
-import { technicalContextUnknown } from "@cantiara/api/test-review-signals";
+import {
+  resultLabel,
+  technicalContextUnknown,
+} from "@cantiara/api/test-review-signals";
 import { Button } from "@cantiara/ui/components/button";
 import { Textarea } from "@cantiara/ui/components/textarea";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { errorText, usePanelFocus } from "./test-review-panel";
 import {
   type TestReviewSignalActions,
   type TestReviewSignalData,
@@ -63,23 +67,8 @@ export interface TestReviewActions {
   ) => Promise<unknown>;
 }
 
-function errorText(error: unknown, fallback: string) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 function sessionTitle(session: TestReviewSession) {
   return session.summary ?? `Test Session by ${session.executorName}`;
-}
-
-/** Moves focus to the heading of a panel that just opened, for keyboard and screen readers. */
-function usePanelFocus(open: boolean) {
-  const ref = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (open) {
-      ref.current?.focus();
-    }
-  }, [open]);
-  return ref;
 }
 
 function StateButtons({
@@ -251,13 +240,8 @@ function BulkPanel({
   );
 }
 
-function resultLabel(result: string | null) {
-  if (result === null) {
-    return "No result";
-  }
-  return (
-    (TEST_REPORT_RESULT_LABELS as Record<string, string>)[result] ?? result
-  );
+function currentResultLabel(result: string | null) {
+  return result === null ? "No result" : resultLabel(result);
 }
 
 function CurrentResult({ item }: { item: TestReviewItem }) {
@@ -265,7 +249,7 @@ function CurrentResult({ item }: { item: TestReviewItem }) {
   if (current.source === "Reported" && !item.rawResultRedacted) {
     return null;
   }
-  let text = `Current result: ${resultLabel(current.result)} (${current.source})`;
+  let text = `Current result: ${currentResultLabel(current.result)} (${current.source})`;
   if (current.source === "Withdrawal") {
     text = "Current result: withdrawn (Withdrawal)";
   }
@@ -519,7 +503,7 @@ function eventLine(entry: TestResultEvent, session: TestReviewSession) {
   const result =
     entry.correctedResult === null
       ? ""
-      : ` to ${resultLabel(entry.correctedResult)}`;
+      : ` to ${currentResultLabel(entry.correctedResult)}`;
   const note = entry.note ? `. Note: ${entry.note}` : "";
   return `${when}: ${entry.kind}${result} on ${target}. Reason: ${entry.reason}${note}`;
 }

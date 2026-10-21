@@ -31,6 +31,7 @@ import {
   type TestResultStoredEvent,
   type TestReviewAccess,
   type TestReviewChange,
+  type TestReviewSession,
   type TestReviewState,
   type TestReviewStore,
   type TestReviewStoredEvent,
@@ -150,7 +151,10 @@ export class TestReviewBindingInvalidError extends Error {
 
 const REVIEWED: TestReviewState = "Reviewed";
 
-function sessionLabel(session: TestReviewStoredSession) {
+/** Only the viewed session is labelled: a redacted summary never leaks. */
+function sessionLabel(
+  session: Pick<TestReviewSession, "executorName" | "reportedAt" | "summary">,
+) {
   return (
     session.summary?.trim() || `${session.executorName}, ${session.reportedAt}`
   );
@@ -184,11 +188,40 @@ async function requireSession(
   return session;
 }
 
-/** The records a bulk action would change, in the order they are shown. */
-function bulkChanges(
-  session: TestReviewStoredSession,
-  sessionTestIds: string[],
+/** Every session of the Project as the review shows it, links included. */
+async function viewAll(transaction: TestReviewTransaction) {
+  const [sessions, reviewEvents, resultEvents, supersessions, followUps] =
+    await Promise.all([
+      transaction.listSessions(),
+      transaction.listEvents(),
+      transaction.listResultEvents(),
+      transaction.listSupersessions(),
+      transaction.listFollowUps(),
+    ]);
+  return sessions.map((session) =>
+    viewSession(session, reviewEvents, resultEvents, {
+      followUps,
+      supersessions,
+    }),
+  );
+}
+
+async function requireViewedSession(
+  transaction: TestReviewTransaction,
+  sessionId: string,
 ) {
+  await requireSession(transaction, sessionId);
+  const found = (await viewAll(transaction)).find(
+    (session) => session.id === sessionId,
+  );
+  if (!found) {
+    throw new TestReviewRecordNotFoundError(sessionId);
+  }
+  return found;
+}
+
+/** The records a bulk action would change, in the order they are shown. */
+function bulkChanges(session: TestReviewSession, sessionTestIds: string[]) {
   const selected = new Set(sessionTestIds);
   for (const id of selected) {
     if (!session.items.some((item) => item.id === id)) {
@@ -325,23 +358,24 @@ async function receipt(
   return { event: found };
 }
 
-function sameChange(a: TestReviewChange, b: TestReviewChange) {
-  return a.id === b.id && a.kind === b.kind && a.from === b.from;
+function bulkFingerprint(changes: TestReviewChange[]) {
+  return fingerprintMutationPayload(
+    changes.map(({ from, id, kind }) => ({
+      from,
+      id,
+      kind,
+    })) as unknown as Parameters<typeof fingerprintMutationPayload>[0],
+  );
 }
 
-interface LocatedItem {
-  item: TestReviewStoredSession["items"][number];
-  session: TestReviewStoredSession;
-}
-
-function locateItem(
-  sessions: TestReviewStoredSession[],
+function locateItem<S extends { items: { id: string }[] }>(
+  sessions: S[],
   sessionTestId: string,
-) {
+): { item: S["items"][number]; session: S } {
   for (const session of sessions) {
     const item = session.items.find(({ id }) => id === sessionTestId);
     if (item) {
-      return { item, session } satisfies LocatedItem;
+      return { item, session };
     }
   }
   throw new TestReviewRecordNotFoundError(sessionTestId);
@@ -354,23 +388,15 @@ async function followUpPlan(
   projectId: string,
 ): Promise<TestFollowUpPlan> {
   const parsed = previewFollowUpInputSchema.parse(input);
-  const sessions = await transaction.listSessions();
-  const resultEvents = await transaction.listResultEvents();
-  const reviewEvents = await transaction.listEvents();
-  const viewed = new Map(
-    sessions.flatMap((session) =>
-      viewSession(session, reviewEvents, resultEvents).items.map(
-        (item) => [item.id, item] as const,
-      ),
-    ),
-  );
+  // Only viewed values are derived: a redacted value never reaches a plan.
+  const sessions = await viewAll(transaction);
   const located = parsed.sessionTestIds.map((id) => locateItem(sessions, id));
   const results = located.map(({ item, session }) => {
-    const current = viewed.get(item.id)?.current;
+    const { current } = item;
     return {
-      currentResult: current?.usable ? current.result : null,
+      currentResult: current.usable ? current.result : null,
       normalizedResult: item.normalizedResult,
-      rawResult: viewed.get(item.id)?.rawResult ?? null,
+      rawResult: item.rawResult,
       sessionId: session.id,
       sessionTestId: item.id,
       title: item.title,
@@ -480,10 +506,7 @@ async function followUpLinks(
   if (alreadyLinked(result.sessionTestId, input.workId)) {
     return [];
   }
-  const { item } = locateItem(
-    await transaction.listSessions(),
-    result.sessionTestId,
-  );
+  const { item } = locateItem(await viewAll(transaction), result.sessionTestId);
   await transaction.createFollowUpWork({
     description: plan.target.work.description,
     originComponentId: originLocation.id,
@@ -509,12 +532,10 @@ function signalSessions(
 async function listOf(transaction: TestReviewTransaction) {
   const reviewEvents = await transaction.listEvents();
   const resultEvents = await transaction.listResultEvents();
-  const sessions = [...(await transaction.listSessions())]
-    .sort(
-      (a, b) =>
-        b.reportedAt.localeCompare(a.reportedAt) || a.id.localeCompare(b.id),
-    )
-    .map((session) => viewSession(session, reviewEvents, resultEvents));
+  const sessions = [...(await viewAll(transaction))].sort(
+    (a, b) =>
+      b.reportedAt.localeCompare(a.reportedAt) || a.id.localeCompare(b.id),
+  );
   const edges = await transaction.listSupersessions();
   const bindings = await transaction.listBindings();
   return {
@@ -574,12 +595,7 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async bindValidResult(accountId, rawInput: BindValidResultInput) {
       const input = bindValidResultInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
-        const sessions = await transaction.listSessions();
-        const reviewEvents = await transaction.listEvents();
-        const resultEvents = await transaction.listResultEvents();
-        const viewed = sessions.map((session) =>
-          viewSession(session, reviewEvents, resultEvents),
-        );
+        const viewed = await viewAll(transaction);
         const members = viewed.flatMap((session) =>
           session.items.filter(
             (item) =>
@@ -646,17 +662,19 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
     async commitBulkReview(accountId, rawInput: CommitBulkReviewInput) {
       const input = commitBulkReviewInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
-        const session = await requireSession(transaction, input.sessionId);
+        const session = await requireViewedSession(
+          transaction,
+          input.sessionId,
+        );
         const { changes } = bulkChanges(session, input.sessionTestIds);
-        // Every record that still needs a change must be one the founder saw
-        // with the same state; records already Reviewed are simply left.
-        for (const change of changes) {
-          if (!input.previewed.some((seen) => sameChange(seen, change))) {
-            throw new TestReviewPreviewStaleError();
-          }
-        }
+        // Nothing left to change (a retry): records already Reviewed are left.
         if (changes.length === 0) {
           return { changed: [], outcome: "unchanged" as const };
+        }
+        // The changes are re-derived here and must be exactly the ones the
+        // founder saw, by server fingerprint, never by client-sent state.
+        if ((await bulkFingerprint(changes)) !== input.previewFingerprint) {
+          throw new TestReviewPreviewStaleError();
         }
         const batchId = crypto.randomUUID();
         const itemIds = changes
@@ -694,12 +712,17 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
 
     async previewBulkReview(accountId, rawInput) {
       const input = previewBulkReviewInputSchema.parse(rawInput);
-      return await read(accountId, input.projectId, async (transaction) =>
-        bulkChanges(
-          await requireSession(transaction, input.sessionId),
+      return await read(accountId, input.projectId, async (transaction) => {
+        const { changes, unchanged } = bulkChanges(
+          await requireViewedSession(transaction, input.sessionId),
           input.sessionTestIds,
-        ),
-      );
+        );
+        return {
+          changes,
+          fingerprint: await bulkFingerprint(changes),
+          unchanged,
+        };
+      });
     },
 
     async previewFollowUp(accountId, rawInput: PreviewFollowUpInput) {
@@ -899,14 +922,8 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
         if (!existing) {
           await transaction.appendSupersession(edge);
         }
-        const reviewEvents = await transaction.listEvents();
-        const resultEvents = await transaction.listResultEvents();
         const [supersession] = viewSupersessions(
-          signalSessions(
-            sessions.map((session) =>
-              viewSession(session, reviewEvents, resultEvents),
-            ),
-          ),
+          signalSessions(await viewAll(transaction)),
           [edge],
         );
         if (!supersession) {

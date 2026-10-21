@@ -158,7 +158,7 @@ describe("Test Review: independent session and item state", () => {
       sessionTestIds: ["u1"],
     });
     await harness.testReview.commitBulkReview(accountId, {
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
       projectId,
       sessionId: "s2",
       sessionTestIds: ["u1"],
@@ -280,7 +280,7 @@ describe("Test Review: bulk Mark session and selected results as reviewed", () =
       ...selection,
     });
     const receipt = await harness.testReview.commitBulkReview(accountId, {
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
       projectId,
       sessionId: "s1",
       ...selection,
@@ -303,7 +303,7 @@ describe("Test Review: bulk Mark session and selected results as reviewed", () =
       ...selection,
     });
     await harness.testReview.commitBulkReview(accountId, {
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
       projectId,
       sessionId: "s1",
       ...selection,
@@ -323,7 +323,7 @@ describe("Test Review: bulk Mark session and selected results as reviewed", () =
     const harness = setup();
     await expect(
       harness.testReview.commitBulkReview(accountId, {
-        previewed: [],
+        previewFingerprint: "0".repeat(64),
         projectId,
         sessionId: "s1",
         sessionTestIds: ["t1"],
@@ -350,7 +350,7 @@ describe("Test Review: bulk Mark session and selected results as reviewed", () =
     const writes = harness.writes.length;
     await expect(
       harness.testReview.commitBulkReview(accountId, {
-        previewed: preview.changes,
+        previewFingerprint: preview.fingerprint,
         projectId,
         sessionId: "s1",
         ...selection,
@@ -369,7 +369,7 @@ describe("Test Review: bulk Mark session and selected results as reviewed", () =
       ...selection,
     });
     const input = {
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
       projectId,
       sessionId: "s1",
       ...selection,
@@ -394,7 +394,7 @@ describe("Test Review: bulk Mark session and selected results as reviewed", () =
     harness.faults.failAfterItemWrite = true;
     await expect(
       harness.testReview.commitBulkReview(accountId, {
-        previewed: preview.changes,
+        previewFingerprint: preview.fingerprint,
         projectId,
         sessionId: "s1",
         ...selection,

@@ -34,7 +34,7 @@ export default function TestReviewSurface({
     commitBulk: async (sessionId, sessionTestIds, preview) => {
       await runOnlineOnlyWrite(() =>
         client.commitReviewBulk({
-          previewed: preview.changes,
+          previewFingerprint: preview.fingerprint,
           projectId,
           sessionId,
           sessionTestIds,

@@ -43,7 +43,7 @@ describe("Test Review RPC seam", () => {
     });
     expect(preview.changes).toHaveLength(2);
     await client.commitReviewBulk({
-      previewed: preview.changes,
+      previewFingerprint: preview.fingerprint,
       projectId,
       sessionId: "s1",
       sessionTestIds: ["t1"],
@@ -60,7 +60,7 @@ describe("Test Review RPC seam", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
       setup().commitReviewBulk({
-        previewed: [],
+        previewFingerprint: "0".repeat(64),
         projectId,
         sessionId: "s1",
         sessionTestIds: ["t1"],
