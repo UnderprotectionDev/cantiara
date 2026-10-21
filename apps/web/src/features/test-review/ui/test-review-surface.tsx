@@ -3,6 +3,7 @@ import { Button } from "@cantiara/ui/components/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
+import type { TestReviewSignalActions } from "./test-review-signals";
 import { type TestReviewActions, TestReviewView } from "./test-review-view";
 
 /** The Tests area's Test Review section; it gates and archives nothing. */
@@ -93,6 +94,43 @@ export default function TestReviewSurface({
       await refresh();
     },
   };
+  const signalActions: TestReviewSignalActions = {
+    bindResult: async (scenarioId, scenarioVersion, sessionTestId) => {
+      await runOnlineOnlyWrite(() =>
+        client.bindReviewResult({
+          projectId,
+          scenarioId,
+          scenarioVersion,
+          sessionTestId,
+        }),
+      );
+      await refresh();
+    },
+    commitFollowUp: async (sessionTestIds, target, preview) => {
+      await runOnlineOnlyWrite(() =>
+        client.commitReviewFollowUp({
+          previewFingerprint: preview.fingerprint,
+          projectId,
+          sessionTestIds,
+          target,
+          workId: crypto.randomUUID(),
+        }),
+      );
+      await refresh();
+    },
+    previewFollowUp: (sessionTestIds, target) =>
+      client.previewReviewFollowUp({ projectId, sessionTestIds, target }),
+    supersede: async (newerId, olderId) => {
+      await runOnlineOnlyWrite(() =>
+        client.supersedeReviewResult({
+          newerSessionTestId: newerId,
+          olderSessionTestId: olderId,
+          projectId,
+        }),
+      );
+      await refresh();
+    },
+  };
   return (
     <TestReviewView
       actions={actions}
@@ -100,6 +138,7 @@ export default function TestReviewSurface({
       readOnly={review.data.readOnly}
       resultEvents={review.data.resultEvents}
       sessions={review.data.sessions}
+      signals={{ actions: signalActions, data: review.data }}
     />
   );
 }

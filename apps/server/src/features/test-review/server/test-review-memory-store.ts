@@ -1,9 +1,18 @@
 import type {
+  TestFollowUpLinkStored,
   TestResultStoredEvent,
+  TestReviewCreateWorkInput,
+  TestReviewFollowUpWork,
   TestReviewStore,
   TestReviewStoredEvent,
   TestReviewStoredSession,
 } from "@cantiara/api/test-review";
+import type {
+  BoundSpec,
+  TestFollowUpLink,
+  TestResultBindingStored,
+  TestSupersessionStored,
+} from "@cantiara/api/test-review-signals";
 
 import { createTestReview } from "./test-review";
 
@@ -13,11 +22,15 @@ export const archivedProjectId = "project-archived";
 
 /** What the harness lets the tests observe about every write the seam made. */
 export type WriteKind =
+  | "binding"
   | "event"
+  | "follow-up-link"
   | "item-state"
   | "result-event"
   | "result-erase"
-  | "session-state";
+  | "session-state"
+  | "supersession"
+  | "work";
 
 /**
  * In-memory Test Review harness. Test Sessions and Session Tests are seeded as
@@ -27,12 +40,21 @@ export type WriteKind =
  * member). A unit of work that throws is rolled back, and
  * `faults.failAfterItemWrite` fails a step AFTER the item states were written.
  */
-export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
+export function createMemoryHarness(
+  sessions: TestReviewStoredSession[] = [],
+  existingWorks: TestReviewFollowUpWork[] = [],
+) {
   let state = new Map(
     sessions.map((session) => [session.id, structuredClone(session)]),
   );
   let events: TestReviewStoredEvent[] = [];
   let resultEvents: TestResultStoredEvent[] = [];
+  let supersessions: TestSupersessionStored[] = [];
+  let bindings: TestResultBindingStored[] = [];
+  let links: TestFollowUpLinkStored[] = [];
+  let works: (TestReviewFollowUpWork & {
+    origin: TestReviewCreateWorkInput | null;
+  })[] = existingWorks.map((entry) => ({ ...entry, origin: null }));
   const writes: WriteKind[] = [];
   const faults = { failAfterItemWrite: false as boolean };
 
@@ -46,12 +68,74 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
       }
       const snapshot = {
         events: [...events],
+        bindings: [...bindings],
+        links: [...links],
         resultEvents: structuredClone(resultEvents),
         sessions: structuredClone(state),
+        supersessions: [...supersessions],
+        works: [...works],
         writes: writes.length,
       };
       try {
         return await work({
+          appendBinding: (binding) => {
+            writes.push("binding");
+            bindings.push(structuredClone(binding));
+            return Promise.resolve();
+          },
+          appendFollowUpLinks: (appended) => {
+            writes.push("follow-up-link");
+            links.push(...structuredClone(appended));
+            return Promise.resolve();
+          },
+          appendSupersession: (edge) => {
+            writes.push("supersession");
+            supersessions.push(structuredClone(edge));
+            return Promise.resolve();
+          },
+          createFollowUpWork: (input) => {
+            writes.push("work");
+            const key = `PRJ-${works.length + 1}`;
+            works.push({
+              id: input.workId,
+              key,
+              origin: structuredClone(input),
+              status: "Not Started",
+              title: input.title,
+              type: input.type,
+            });
+            return Promise.resolve(key);
+          },
+          findFollowUpWork: (workId) => {
+            const found = works.find((entry) => entry.id === workId);
+            return Promise.resolve(
+              found && found.type !== "Feature"
+                ? {
+                    id: found.id,
+                    key: found.key,
+                    status: found.status,
+                    title: found.title,
+                    type: found.type,
+                  }
+                : null,
+            );
+          },
+          listBindings: () => Promise.resolve(structuredClone(bindings)),
+          listFollowUps: () =>
+            Promise.resolve(
+              links.map((link): TestFollowUpLink => {
+                const found = works.find((entry) => entry.id === link.workId);
+                return {
+                  ...link,
+                  workKey: found?.key ?? null,
+                  workStatus: found?.status ?? null,
+                  workTitle: found?.title ?? null,
+                };
+              }),
+            ),
+          listSupersessions: () =>
+            Promise.resolve(structuredClone(supersessions)),
+          projectName: "Project One",
           appendEvents: (appended) => {
             writes.push("event");
             events.push(...structuredClone(appended));
@@ -134,6 +218,7 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
       } catch (error) {
         state = snapshot.sessions;
         ({ events, resultEvents } = snapshot);
+        ({ bindings, links, supersessions, works } = snapshot);
         writes.length = snapshot.writes;
         throw error;
       }
@@ -144,6 +229,18 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
     faults,
     get events() {
       return events;
+    },
+    get bindings() {
+      return bindings;
+    },
+    get followUpLinks() {
+      return links;
+    },
+    get supersessions() {
+      return supersessions;
+    },
+    get works() {
+      return works;
     },
     get resultEvents() {
       return resultEvents;
@@ -159,24 +256,36 @@ export function createMemoryHarness(sessions: TestReviewStoredSession[] = []) {
 /** A reported session as acceptance leaves it: Unreviewed, items Unreviewed. */
 export function fixtureSession(
   id: string,
-  items: { id: string; normalized?: string; raw?: string; title: string }[],
+  items: {
+    boundSpecs?: BoundSpec[];
+    id: string;
+    normalized?: string;
+    raw?: string;
+    scenario?: [string, number];
+    title: string;
+  }[],
   overrides: Partial<TestReviewStoredSession> = {},
 ): TestReviewStoredSession {
   return {
     executorName: "Codex",
     id,
+    context: null,
     items: items.map((item, position) => ({
+      boundSpecs: item.boundSpecs ?? [],
       id: item.id,
       normalizedResult: item.normalized ?? "Passed",
       position,
       rawResult: item.raw ?? "pass",
       reviewState: "Unreviewed",
+      scenarioId: item.scenario?.[0] ?? null,
+      scenarioVersion: item.scenario?.[1] ?? null,
       title: item.title,
     })),
     projectId,
     reportedAt: "2026-10-01T09:00:00.000Z",
     reviewState: "Unreviewed",
     summary: null,
+    targetContext: null,
     ...overrides,
   };
 }

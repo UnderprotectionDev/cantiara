@@ -334,6 +334,12 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Geri çekme | `Withdrawal` | Önceki kayda bağlı, gerekçeli yeni olay; sonucu güncel kanıt olmaktan çıkarır, özgün bildirim silinmez |
 | Güvenlik redaksiyonu işareti | `Redact value` | Hassas değerin yerine içeriksiz işaret, zaman, gerekçe ve aktör gösterir; Çöp Kutusu veya yerinde yeniden yazma değildir |
 | Kapanıştan sonra yeni bağlam | `New context after close` | Kapalı kayda sonradan gelen düzeltme, geri çekme veya redaksiyon sinyali; inceleme durumunu geri almaz |
+| Yerine geçer (Oturum Testi) | `Supersedes` | Aynı uzman türdeki kesin Oturum Testleri arasında yönlü, döngüsüz ilişki; iki tarihsel sonucu ve teknik bağlam farkını korur, hiçbirini yazmaz |
+| Yerine geçildi (Oturum Testi) | `Superseded` | `Supersedes` ilişkisinin eski ucu; sonuç silinmez, çelişki karşılaştırmasından çıkar |
+| Çelişen sonuç sinyali | `test-result-conflict` | Aynı kesin senaryo sürümünde farklı normalize sonuç ve yerine-geçme yokluğundan türetilen Dikkat sinyali; kazananı sistem seçmez, kullanıcı geçerli sonucu bağlayınca kapanır |
+| Bağlam değişti | `Context changed` | Bağlı Birincil spec sürümü ya da kayıtlı branch/commit/build hedef bağlamla uyuşmadığında görünen açıklanabilir sinyal; sonucu geçersiz, eski veya başarısız saymaz |
+| Takip işi oluştur (Test İnceleme) | `Create follow-up work` | Oturum Testinden önizlemeli takip İşi; hedefi, `Originates from` (Test Oturumu) ve değişmez `Origin Location` (kesin Oturum Testi) bağını onaydan önce gösterir, sonucu yazmaz |
+| Geçerli sonucu bağla | `Bind valid result` | Çelişen sonuçlardan kullanıcının geçerli saydığı kesin Oturum Testini kaydeder; çelişki sinyalini kapatır |
 | Geçti | `Passed` | Normalize bildirilen sonuç; Ürün kabul kanıtı değildir |
 | Kaldı | `Failed` | Normalize bildirilen sonuç |
 | Bloke | `Blocked` | Normalize bildirilen sonuç |

@@ -1354,6 +1354,26 @@ Test Oturumu ya da Oturum Testi kaydına bağlı, gerekçeli ve eklemeli olay; h
 UI: `Correction`, `Withdrawal`, `Redact value`, `New context after close`.
 _Avoid_: geriye dönük düzenleme, sessiz yeniden açma, Çöp Kutusu, kısmi silme, son yazan kazanır
 
+**Oturum Testi yerine geçme**:
+Kurucunun kesin Oturum Testleri arasında kurduğu yönlü, döngüsüz `Yerine geçer` / `Yerine geçildi` ilişkisi; yalnız aynı uzman türdeki (Oturum Testi) kayıtlar bağlanır, yeni sonuç eskisini silmez veya yazmaz, güncel görünüm zinciri, iki tarihsel sonucu ve teknik bağlam farkını özetler. Doğrulama yeni Test Oturumu ve isteğe bağlı bu ilişki ister.
+UI: `Supersedes`, `Superseded`.
+_Avoid_: son yazan kazanır, otomatik kazanan, sonucu yeniden yazma, başlık benzerliğiyle eşleme
+
+**Çelişen sonuç**:
+Aynı kesin Planlı Test Senaryosu sürümünde farklı normalize sonuç bulunup açık yerine-geçme ilişkisi olmadığında türetilen `test-result-conflict` Dikkat sinyali (`Action Required`); metin benzerliğiyle eşlenmez, kazananı ürün seçmez ve kullanıcı `Bind valid result` ile geçerli sonucu bağlayınca kapanır; sonradan gelen ayrışan sonuç yeniden açar. Test Açığı üretmez.
+UI: `test-result-conflict`, `Bind valid result`.
+_Avoid_: son tarih kazanır, otomatik çözüm, otomatik Test Açığı
+
+**Bağlam değişti**:
+Bağlı Birincil spec sürümü değiştiğinde ya da kayıtlı branch/commit/build hedef bağlamla uyuşmadığında Oturum Testi sonucunun yanında görünen açıklanabilir sinyal; yalnız zaman geçmesi veya ilgisiz commit staleness değildir, girilmemiş teknik bağlam "unknown" gösterilir, eski sonuç failed/stale sayılmaz ve Test Açığı ya da Handoff oluşmaz.
+UI: `Context changed`.
+_Avoid_: stale, geçersiz sonuç, semantik kod etki analizi, otomatik Handoff
+
+**Test takip işi**:
+Oturum Testinden kullanıcının açıkça başlattığı, önizlemeli `Create follow-up work` eylemiyle açılan İş ya da sonucun mevcut tek İşe bağlanması; `Kökeni` sahip Test Oturumuna, değişmez `Köken konumu` kesin Oturum Testi öğesine bağlanır. `Failed`/`Blocked`/`Inconclusive` otomatik Bug, İş, Risk, Açık Soru, Karar, bildirim veya öncelik üretmez; İşin kapanışı tarihsel sonucu `Passed` yapmaz.
+UI: `Create follow-up work`, `Originates from`, `Origin Location`.
+_Avoid_: otomatik Bug, sonuç yazma, toplu takip, sessiz kapanış
+
 **Yürüten**:
 Bir Test Oturumunu gerçekte yürüten kullanıcı ya da Codex, Claude Code, Playwright CI gibi araç; `Yürüten türü` (`Kullanıcı`, `AI ajanı`, `Harici araç`), adı ve varsa sürümüyle yalnız kullanıcıya gösterilen tarihsel atıftır, idempotency anahtarına girmez ve güven puanı değildir.
 UI: `Executor type`, `Executor`.

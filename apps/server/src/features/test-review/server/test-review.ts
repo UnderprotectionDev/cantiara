@@ -1,7 +1,14 @@
+import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
 import {
+  type BindValidResultInput,
+  bindValidResultInputSchema,
   type CommitBulkReviewInput,
+  type CommitFollowUpInput,
   commitBulkReviewInputSchema,
+  commitFollowUpInputSchema,
+  type PreviewFollowUpInput,
   previewBulkReviewInputSchema,
+  previewFollowUpInputSchema,
   previewSessionCloseInputSchema,
   type RecordCorrectionInput,
   type RecordRedactionInput,
@@ -14,8 +21,11 @@ import {
   resultChainHead,
   type SetItemReviewStateInput,
   type SetSessionReviewStateInput,
+  type SupersedeInput,
   setItemReviewStateInputSchema,
   setSessionReviewStateInputSchema,
+  supersedeInputSchema,
+  type TestFollowUpLinkStored,
   type TestResultEventReceipt,
   type TestResultRedactedField,
   type TestResultStoredEvent,
@@ -30,6 +40,20 @@ import {
   viewResultEvents,
   viewSession,
 } from "@cantiara/api/test-review";
+import {
+  deriveConflicts,
+  deriveContextChanges,
+  FOLLOW_UP_STARTING_STATUS,
+  followUpDescription,
+  followUpTitle,
+  resultKey,
+  type SignalSession,
+  supersedeClosesCycle,
+  type TestFollowUpPlan,
+  type TestFollowUpPreview,
+  type TestResultBindingStored,
+  viewSupersessions,
+} from "@cantiara/api/test-review-signals";
 
 export class TestReviewProjectNotFoundError extends Error {
   readonly code = "TEST_REVIEW_PROJECT_NOT_FOUND" as const;
@@ -86,6 +110,36 @@ export class TestReviewPreviewStaleError extends Error {
   constructor() {
     super("The records changed since the preview. Preview again to confirm.");
     this.name = "TestReviewPreviewStaleError";
+  }
+}
+
+/** The two ends are not the same specialist type, or not a Session Test. */
+export class TestReviewSupersedeTypeMismatchError extends Error {
+  readonly code = "TEST_REVIEW_SUPERSEDE_TYPE_MISMATCH" as const;
+
+  constructor() {
+    super("Supersedes relates two Session Tests of the same specialist type.");
+    this.name = "TestReviewSupersedeTypeMismatchError";
+  }
+}
+
+/** The relation would close a cycle; Supersedes is directed and acyclic. */
+export class TestReviewSupersedeCycleError extends Error {
+  readonly code = "TEST_REVIEW_SUPERSEDE_CYCLE" as const;
+
+  constructor() {
+    super("This Supersedes relation would close a cycle.");
+    this.name = "TestReviewSupersedeCycleError";
+  }
+}
+
+/** The bound result is not a usable result of that exact scenario version. */
+export class TestReviewBindingInvalidError extends Error {
+  readonly code = "TEST_REVIEW_BINDING_INVALID" as const;
+
+  constructor() {
+    super("Bind a usable result of the same exact scenario version.");
+    this.name = "TestReviewBindingInvalidError";
   }
 }
 
@@ -270,6 +324,183 @@ function sameChange(a: TestReviewChange, b: TestReviewChange) {
   return a.id === b.id && a.kind === b.kind && a.from === b.from;
 }
 
+interface LocatedItem {
+  item: TestReviewStoredSession["items"][number];
+  session: TestReviewStoredSession;
+}
+
+function locateItem(
+  sessions: TestReviewStoredSession[],
+  sessionTestId: string,
+) {
+  for (const session of sessions) {
+    const item = session.items.find(({ id }) => id === sessionTestId);
+    if (item) {
+      return { item, session } satisfies LocatedItem;
+    }
+  }
+  throw new TestReviewRecordNotFoundError(sessionTestId);
+}
+
+/** What the founder sees before `Create follow-up work` writes anything. */
+async function followUpPlan(
+  transaction: TestReviewTransaction,
+  input: PreviewFollowUpInput,
+  projectId: string,
+): Promise<TestFollowUpPlan> {
+  const parsed = previewFollowUpInputSchema.parse(input);
+  const sessions = await transaction.listSessions();
+  const resultEvents = await transaction.listResultEvents();
+  const reviewEvents = await transaction.listEvents();
+  const viewed = new Map(
+    sessions.flatMap((session) =>
+      viewSession(session, reviewEvents, resultEvents).items.map(
+        (item) => [item.id, item] as const,
+      ),
+    ),
+  );
+  const located = parsed.sessionTestIds.map((id) => locateItem(sessions, id));
+  const results = located.map(({ item, session }) => {
+    const current = viewed.get(item.id)?.current;
+    return {
+      currentResult: current?.usable ? current.result : null,
+      normalizedResult: item.normalizedResult,
+      rawResult: viewed.get(item.id)?.rawResult ?? null,
+      sessionId: session.id,
+      sessionTestId: item.id,
+      title: item.title,
+    };
+  });
+  if (parsed.target.mode === "existing") {
+    const found = await transaction.findFollowUpWork(parsed.target.workId);
+    if (!found) {
+      throw new TestReviewRecordNotFoundError(parsed.target.workId);
+    }
+    return {
+      automaticRecords: "None",
+      originatesFrom: null,
+      originLocation: null,
+      results,
+      target: { mode: "existing", work: found },
+    };
+  }
+  const [first] = located;
+  if (!first) {
+    throw new TestReviewRecordNotFoundError(parsed.sessionTestIds.join(","));
+  }
+  const label = sessionLabel(first.session);
+  return {
+    automaticRecords: "None",
+    originatesFrom: {
+      id: first.session.id,
+      label,
+      recordType: "Test Session",
+    },
+    originLocation: {
+      id: first.item.id,
+      recordType: "Session Test",
+      sessionId: first.session.id,
+      title: first.item.title,
+    },
+    results,
+    target: {
+      mode: "new",
+      project: { id: projectId, name: transaction.projectName },
+      work: {
+        description:
+          parsed.target.description?.trim() ||
+          followUpDescription(label, results),
+        startingStatus: FOLLOW_UP_STARTING_STATUS,
+        title: parsed.target.title ?? followUpTitle(first.item),
+        type: parsed.target.workType ?? "Task",
+      },
+    },
+  };
+}
+
+async function previewOf(plan: TestFollowUpPlan): Promise<TestFollowUpPreview> {
+  return {
+    fingerprint: await fingerprintMutationPayload(
+      plan as unknown as Parameters<typeof fingerprintMutationPayload>[0],
+    ),
+    plan,
+  };
+}
+
+/**
+ * Writes the one new Work when the target is new (Origin Location in its own
+ * columns) and returns the links still to record; a retry yields none.
+ */
+async function followUpLinks(
+  transaction: TestReviewTransaction,
+  input: {
+    accountId: string;
+    fingerprint: string;
+    plan: TestFollowUpPlan;
+    workId: string;
+  },
+) {
+  const { accountId, fingerprint, plan } = input;
+  const existingLinks = await transaction.listFollowUps();
+  const now = new Date().toISOString();
+  const linkFor = (
+    entry: TestFollowUpPlan["results"][number],
+    toWorkId: string,
+    mode: "Attached" | "Created",
+  ): TestFollowUpLinkStored => ({
+    actorAccountId: accountId,
+    id: crypto.randomUUID(),
+    mode,
+    recordedAt: now,
+    sessionId: entry.sessionId,
+    sessionTestId: entry.sessionTestId,
+    workId: toWorkId,
+  });
+  const alreadyLinked = (sessionTestId: string, linkedWorkId: string) =>
+    existingLinks.some(
+      (link) =>
+        link.sessionTestId === sessionTestId && link.workId === linkedWorkId,
+    );
+  if (plan.target.mode === "existing") {
+    const existingWorkId = plan.target.work.id;
+    return plan.results
+      .filter((entry) => !alreadyLinked(entry.sessionTestId, existingWorkId))
+      .map((entry) => linkFor(entry, existingWorkId, "Attached"));
+  }
+  const [result] = plan.results;
+  const { originatesFrom, originLocation } = plan;
+  if (!(result && originatesFrom && originLocation)) {
+    throw new TestReviewRecordNotFoundError(input.workId);
+  }
+  if (alreadyLinked(result.sessionTestId, input.workId)) {
+    return [];
+  }
+  const { item } = locateItem(
+    await transaction.listSessions(),
+    result.sessionTestId,
+  );
+  await transaction.createFollowUpWork({
+    description: plan.target.work.description,
+    originComponentId: originLocation.id,
+    originOwnerRecordId: originatesFrom.id,
+    originSourceVersion:
+      item.scenarioId && item.scenarioVersion
+        ? `${item.scenarioId}@${item.scenarioVersion}`
+        : null,
+    payloadFingerprint: fingerprint,
+    title: plan.target.work.title,
+    type: plan.target.work.type,
+    workId: input.workId,
+  });
+  return [linkFor(result, input.workId, "Created")];
+}
+
+function signalSessions(
+  sessions: ReturnType<typeof viewSession>[],
+): SignalSession[] {
+  return sessions;
+}
+
 export function createTestReview(store: TestReviewStore): TestReviewAccess {
   async function read<T>(
     accountId: string,
@@ -306,6 +537,78 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
   }
 
   return {
+    async bindValidResult(accountId, rawInput: BindValidResultInput) {
+      const input = bindValidResultInputSchema.parse(rawInput);
+      return await write(accountId, input.projectId, async (transaction) => {
+        const sessions = await transaction.listSessions();
+        const reviewEvents = await transaction.listEvents();
+        const resultEvents = await transaction.listResultEvents();
+        const viewed = sessions.map((session) =>
+          viewSession(session, reviewEvents, resultEvents),
+        );
+        const members = viewed.flatMap((session) =>
+          session.items.filter(
+            (item) =>
+              item.scenarioId === input.scenarioId &&
+              item.scenarioVersion === input.scenarioVersion &&
+              item.current.usable &&
+              resultKey(item.current.result) !== null,
+          ),
+        );
+        if (!members.some((item) => item.id === input.sessionTestId)) {
+          throw new TestReviewBindingInvalidError();
+        }
+        const binding: TestResultBindingStored = {
+          actorAccountId: accountId,
+          id: crypto.randomUUID(),
+          judgedSessionTestIds: members.map((item) => item.id),
+          reason: input.reason,
+          recordedAt: new Date().toISOString(),
+          scenarioId: input.scenarioId,
+          scenarioVersion: input.scenarioVersion,
+          sessionTestId: input.sessionTestId,
+        };
+        await transaction.appendBinding(binding);
+        return { binding };
+      });
+    },
+
+    async commitFollowUp(accountId, rawInput: CommitFollowUpInput) {
+      const input = commitFollowUpInputSchema.parse(rawInput);
+      return await write(accountId, input.projectId, async (transaction) => {
+        const plan = await followUpPlan(
+          transaction,
+          {
+            projectId: input.projectId,
+            sessionTestIds: input.sessionTestIds,
+            target: input.target,
+          },
+          input.projectId,
+        );
+        const { fingerprint } = await previewOf(plan);
+        if (fingerprint !== input.previewFingerprint) {
+          throw new TestReviewPreviewStaleError();
+        }
+        const links = await followUpLinks(transaction, {
+          accountId,
+          fingerprint,
+          plan,
+          workId: input.workId,
+        });
+        if (links.length === 0) {
+          return { links: [], outcome: "unchanged" as const };
+        }
+        await transaction.appendFollowUpLinks(links);
+        const ids = new Set(links.map((link) => link.id));
+        return {
+          links: (await transaction.listFollowUps()).filter((link) =>
+            ids.has(link.id),
+          ),
+          outcome: "applied" as const,
+        };
+      });
+    },
+
     async commitBulkReview(accountId, rawInput: CommitBulkReviewInput) {
       const input = commitBulkReviewInputSchema.parse(rawInput);
       return await write(accountId, input.projectId, async (transaction) => {
@@ -355,21 +658,31 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
       return await read(accountId, projectId, async (transaction) => {
         const reviewEvents = await transaction.listEvents();
         const resultEvents = await transaction.listResultEvents();
+        const sessions = [...(await transaction.listSessions())]
+          .sort(
+            (a, b) =>
+              b.reportedAt.localeCompare(a.reportedAt) ||
+              a.id.localeCompare(b.id),
+          )
+          .map((session) => viewSession(session, reviewEvents, resultEvents));
+        const edges = await transaction.listSupersessions();
+        const bindings = await transaction.listBindings();
         return {
+          bindings: [...bindings].sort((a, b) =>
+            b.recordedAt.localeCompare(a.recordedAt),
+          ),
+          conflicts: deriveConflicts(signalSessions(sessions), edges, bindings),
+          contextChanges: deriveContextChanges(signalSessions(sessions), edges),
           events: [...reviewEvents].sort(
             (a, b) =>
               b.recordedAt.localeCompare(a.recordedAt) ||
               b.id.localeCompare(a.id),
           ),
+          followUps: await transaction.listFollowUps(),
           readOnly: transaction.readOnly,
           resultEvents: viewResultEvents(resultEvents).reverse(),
-          sessions: [...(await transaction.listSessions())]
-            .sort(
-              (a, b) =>
-                b.reportedAt.localeCompare(a.reportedAt) ||
-                a.id.localeCompare(b.id),
-            )
-            .map((session) => viewSession(session, reviewEvents, resultEvents)),
+          sessions,
+          supersessions: viewSupersessions(signalSessions(sessions), edges),
         };
       });
     },
@@ -381,6 +694,13 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           await requireSession(transaction, input.sessionId),
           input.sessionTestIds,
         ),
+      );
+    },
+
+    async previewFollowUp(accountId, rawInput: PreviewFollowUpInput) {
+      const input = previewFollowUpInputSchema.parse(rawInput);
+      return await read(accountId, input.projectId, async (transaction) =>
+        previewOf(await followUpPlan(transaction, input, input.projectId)),
       );
     },
 
@@ -519,6 +839,65 @@ export function createTestReview(store: TestReviewStore): TestReviewAccess {
           }),
         ]);
         return { outcome: "applied" as const, remaining };
+      });
+    },
+
+    async supersede(accountId, rawInput: SupersedeInput) {
+      const input = supersedeInputSchema.parse(rawInput);
+      return await write(accountId, input.projectId, async (transaction) => {
+        if (
+          input.newerRecordType !== input.olderRecordType ||
+          input.newerRecordType !== "Session Test"
+        ) {
+          throw new TestReviewSupersedeTypeMismatchError();
+        }
+        const sessions = await transaction.listSessions();
+        locateItem(sessions, input.newerSessionTestId);
+        locateItem(sessions, input.olderSessionTestId);
+        const edges = await transaction.listSupersessions();
+        const existing = edges.find(
+          (candidate) =>
+            candidate.newerSessionTestId === input.newerSessionTestId &&
+            candidate.olderSessionTestId === input.olderSessionTestId,
+        );
+        const edge = existing ?? {
+          actorAccountId: accountId,
+          id: crypto.randomUUID(),
+          newerSessionTestId: input.newerSessionTestId,
+          olderSessionTestId: input.olderSessionTestId,
+          reason: input.reason,
+          recordedAt: new Date().toISOString(),
+        };
+        if (
+          !existing &&
+          supersedeClosesCycle(
+            edges,
+            input.newerSessionTestId,
+            input.olderSessionTestId,
+          )
+        ) {
+          throw new TestReviewSupersedeCycleError();
+        }
+        if (!existing) {
+          await transaction.appendSupersession(edge);
+        }
+        const reviewEvents = await transaction.listEvents();
+        const resultEvents = await transaction.listResultEvents();
+        const [supersession] = viewSupersessions(
+          signalSessions(
+            sessions.map((session) =>
+              viewSession(session, reviewEvents, resultEvents),
+            ),
+          ),
+          [edge],
+        );
+        if (!supersession) {
+          throw new TestReviewRecordNotFoundError(edge.id);
+        }
+        return {
+          outcome: existing ? ("unchanged" as const) : ("applied" as const),
+          supersession,
+        };
       });
     },
   };

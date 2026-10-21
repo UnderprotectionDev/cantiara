@@ -527,14 +527,20 @@ import {
   testSessionProjectInputSchema,
 } from "../test-report";
 import {
+  bindValidResultInputSchema,
+  bindValidResultReceiptSchema,
   commitBulkReviewInputSchema,
+  commitFollowUpInputSchema,
   previewBulkReviewInputSchema,
+  previewFollowUpInputSchema,
   previewSessionCloseInputSchema,
   recordCorrectionInputSchema,
   recordRedactionInputSchema,
   recordWithdrawalInputSchema,
   setItemReviewStateInputSchema,
   setSessionReviewStateInputSchema,
+  supersedeInputSchema,
+  supersedeReceiptSchema,
   testResultEventReceiptSchema,
   testReviewBulkPreviewSchema,
   testReviewBulkReceiptSchema,
@@ -543,6 +549,10 @@ import {
   testReviewProjectInputSchema,
   testReviewReceiptSchema,
 } from "../test-review";
+import {
+  followUpPreviewSchema,
+  followUpReceiptSchema,
+} from "../test-review-signals";
 import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
@@ -3409,6 +3419,19 @@ const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
   },
   TEST_REVIEW_ALREADY_WITHDRAWN: {
     message: "This record was already withdrawn.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_BINDING_INVALID: {
+    message: "Bind a usable result of the same exact scenario version.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_SUPERSEDE_CYCLE: {
+    message: "This Supersedes relation would close a cycle.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_SUPERSEDE_TYPE_MISMATCH: {
+    message:
+      "Supersedes relates two Session Tests of the same specialist type.",
     status: "BAD_REQUEST",
   },
   TEST_REVIEW_PREVIEW_STALE: {
@@ -6515,6 +6538,47 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runTestReviewOperation(() =>
         requireTestReview(context).recordRedaction(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  supersedeReviewResult: protectedProcedure
+    .input(supersedeInputSchema)
+    .output(supersedeReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).supersede(context.session.user.id, input),
+      ),
+    ),
+  bindReviewResult: protectedProcedure
+    .input(bindValidResultInputSchema)
+    .output(bindValidResultReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).bindValidResult(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewReviewFollowUp: protectedProcedure
+    .input(previewFollowUpInputSchema)
+    .output(followUpPreviewSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).previewFollowUp(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  commitReviewFollowUp: protectedProcedure
+    .input(commitFollowUpInputSchema)
+    .output(followUpReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).commitFollowUp(
           context.session.user.id,
           input,
         ),

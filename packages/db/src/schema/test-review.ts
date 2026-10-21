@@ -2,14 +2,17 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 import { sessionTest, testSession } from "./planned-test";
 import { project } from "./project";
+import { work } from "./work";
 
 const REVIEW_STATES = "'Unreviewed', 'Reviewed', 'Follow-up needed', 'Closed'";
 
@@ -134,6 +137,122 @@ export const testResultEvent = pgTable(
     check(
       "project_test_result_event_redacted_field_check",
       sql`${table.redactedField} is null or ${table.redactedField} in ('Reported result', 'Session summary', 'Event content')`,
+    ),
+  ],
+);
+
+/**
+ * `Supersedes` / `Superseded` between two exact Session Tests (spec 57 #415).
+ * An insert-only, directed edge: the newer result supersedes the older one and
+ * neither result row is written. Acyclicity and same-type are checked by the
+ * Test Review access before the insert. This is the Session Test side of the
+ * standard relation; it never holds a Work, a Decision or a score.
+ */
+export const sessionTestSupersession = pgTable(
+  "project_session_test_supersession",
+  {
+    actorAccountId: text("actor_account_id").notNull(),
+    id: text("id").primaryKey(),
+    newerSessionTestId: text("newer_session_test_id")
+      .notNull()
+      .references(() => sessionTest.id, { onDelete: "cascade" }),
+    olderSessionTestId: text("older_session_test_id")
+      .notNull()
+      .references(() => sessionTest.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("project_session_test_supersession_pair_uidx").on(
+      table.newerSessionTestId,
+      table.olderSessionTestId,
+    ),
+    index("project_session_test_supersession_project_idx").on(table.projectId),
+    check(
+      "project_session_test_supersession_distinct_check",
+      sql`${table.newerSessionTestId} <> ${table.olderSessionTestId}`,
+    ),
+  ],
+);
+
+/**
+ * The founder's judgment of which result stands for one exact scenario
+ * version. Insert-only; `judged_session_test_ids` keeps the exact Session
+ * Tests that were weighed, so a later differing result reopens the
+ * `test-result-conflict` signal instead of being silently absorbed.
+ */
+export const testResultBinding = pgTable(
+  "project_test_result_binding",
+  {
+    actorAccountId: text("actor_account_id").notNull(),
+    id: text("id").primaryKey(),
+    judgedSessionTestIds: jsonb("judged_session_test_ids")
+      .$type<string[]>()
+      .notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+    scenarioId: text("scenario_id").notNull(),
+    scenarioVersion: integer("scenario_version").notNull(),
+    sessionTestId: text("session_test_id")
+      .notNull()
+      .references(() => sessionTest.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("project_test_result_binding_scenario_idx").on(
+      table.projectId,
+      table.scenarioId,
+      table.scenarioVersion,
+    ),
+    check(
+      "project_test_result_binding_version_check",
+      sql`${table.scenarioVersion} >= 1`,
+    ),
+  ],
+);
+
+/**
+ * Links a Session Test to the Work opened or chosen for it by `Create
+ * follow-up work`. A result may link one existing İş with others of the same
+ * root cause; the link never writes the result and closing the Work never
+ * changes it. The Work's own Origin Location columns hold the immutable origin
+ * of a Work this action created.
+ */
+export const testFollowUpLink = pgTable(
+  "project_test_follow_up_link",
+  {
+    actorAccountId: text("actor_account_id").notNull(),
+    id: text("id").primaryKey(),
+    mode: text("mode").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => testSession.id, { onDelete: "cascade" }),
+    sessionTestId: text("session_test_id")
+      .notNull()
+      .references(() => sessionTest.id, { onDelete: "cascade" }),
+    workId: text("work_id")
+      .notNull()
+      .references(() => work.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("project_test_follow_up_link_pair_uidx").on(
+      table.sessionTestId,
+      table.workId,
+    ),
+    index("project_test_follow_up_link_work_idx").on(table.workId),
+    index("project_test_follow_up_link_project_idx").on(table.projectId),
+    check(
+      "project_test_follow_up_link_mode_check",
+      sql`${table.mode} in ('Created', 'Attached')`,
     ),
   ],
 );

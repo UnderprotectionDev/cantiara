@@ -1,6 +1,23 @@
 import { z } from "zod";
 
 import { TEST_REPORT_RESULTS } from "./test-report";
+import {
+  type BoundSpec,
+  boundSpecSchema,
+  contextChangeSchema,
+  FOLLOW_UP_SELECTION_MAX,
+  followUpLinkSchema,
+  followUpTargetInputSchema,
+  resultBindingSchema,
+  resultConflictSchema,
+  supersedeRecordTypeSchema,
+  supersessionSchema,
+  type TestFollowUpLink,
+  type TestFollowUpPreview,
+  type TestFollowUpReceipt,
+  type TestResultBindingStored,
+  type TestSupersessionStored,
+} from "./test-review-signals";
 
 /**
  * Test Review seam (spec 57), independent lifecycle of session and item review.
@@ -276,6 +293,7 @@ export type TestResultCurrent = z.infer<typeof testResultCurrentSchema>;
 
 export const testReviewItemSchema = z
   .object({
+    boundSpecs: z.array(boundSpecSchema),
     current: testResultCurrentSchema,
     id: identifierSchema,
     /** Set while this item is Closed and a later event arrived. */
@@ -286,6 +304,9 @@ export const testReviewItemSchema = z
     rawResult: z.string().nullable(),
     rawResultRedacted: z.boolean(),
     reviewState: stateSchema,
+    /** Exact Planned Test Scenario version this result was bound to, if any. */
+    scenarioId: z.string().nullable(),
+    scenarioVersion: z.number().int().nullable(),
     title: z.string(),
   })
   .strict();
@@ -317,6 +338,8 @@ export type TestReviewEvent = z.infer<typeof testReviewEventSchema>;
 
 export const testReviewSessionSchema = z
   .object({
+    /** Recorded technical context; `null` is shown as unknown, never guessed. */
+    context: z.record(z.string(), z.string()).nullable(),
     executorName: z.string(),
     id: identifierSchema,
     items: z.array(testReviewItemSchema),
@@ -328,6 +351,8 @@ export const testReviewSessionSchema = z
     /** `null` when the summary was redacted. */
     summary: z.string().nullable(),
     summaryRedacted: z.boolean(),
+    /** Branch/commit/build the bound Handoff targeted; `null` when none. */
+    targetContext: z.record(z.string(), z.string()).nullable(),
     withdrawn: z.boolean(),
   })
   .strict();
@@ -335,12 +360,17 @@ export type TestReviewSession = z.infer<typeof testReviewSessionSchema>;
 
 export const testReviewListOutputSchema = z
   .object({
+    bindings: z.array(resultBindingSchema),
+    conflicts: z.array(resultConflictSchema),
+    contextChanges: z.array(contextChangeSchema),
     events: z.array(testReviewEventSchema),
+    followUps: z.array(followUpLinkSchema),
     /** Archived Projects are read-only. */
     readOnly: z.boolean(),
     /** Correction, Withdrawal and Redaction chain (Kayıt geçmişi), newest first. */
     resultEvents: z.array(testResultEventSchema),
     sessions: z.array(testReviewSessionSchema),
+    supersessions: z.array(supersessionSchema),
   })
   .strict();
 export type TestReviewList = z.infer<typeof testReviewListOutputSchema>;
@@ -389,16 +419,142 @@ export type TestResultEventReceipt = z.infer<
   typeof testResultEventReceiptSchema
 >;
 
+/**
+ * `Supersedes` between exact Session Tests (spec 57 #415). Both ends must be
+ * Session Tests of this Project: a mismatched specialist type is refused, a
+ * cycle is refused, and neither historical result is written.
+ */
+export const supersedeInputSchema = z
+  .object({
+    newerRecordType: supersedeRecordTypeSchema.default("Session Test"),
+    newerSessionTestId: identifierSchema,
+    olderRecordType: supersedeRecordTypeSchema.default("Session Test"),
+    olderSessionTestId: identifierSchema,
+    projectId: identifierSchema,
+    reason: reasonSchema,
+  })
+  .strict();
+export type SupersedeInput = z.input<typeof supersedeInputSchema>;
+
+export const supersedeReceiptSchema = z
+  .object({
+    outcome: z.enum(["applied", "unchanged"]),
+    supersession: supersessionSchema,
+  })
+  .strict();
+export type SupersedeReceipt = z.infer<typeof supersedeReceiptSchema>;
+
+/** Binds the valid result of one exact scenario version; closes the conflict. */
+export const bindValidResultInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    reason: reasonSchema,
+    scenarioId: identifierSchema,
+    scenarioVersion: z.number().int().min(1),
+    sessionTestId: identifierSchema,
+  })
+  .strict();
+export type BindValidResultInput = z.input<typeof bindValidResultInputSchema>;
+
+export const bindValidResultReceiptSchema = z
+  .object({ binding: resultBindingSchema })
+  .strict();
+export type BindValidResultReceipt = z.infer<
+  typeof bindValidResultReceiptSchema
+>;
+
+const followUpSelectionSchema = z
+  .array(identifierSchema)
+  .min(1)
+  .max(FOLLOW_UP_SELECTION_MAX)
+  .transform((ids) => [...new Set(ids)]);
+
+/**
+ * `Create follow-up work`. A new Work takes exactly one result (it originates
+ * from that result); an existing Work takes several results of one root cause.
+ */
+export const previewFollowUpInputSchema = z
+  .object({
+    projectId: identifierSchema,
+    sessionTestIds: followUpSelectionSchema,
+    target: followUpTargetInputSchema,
+  })
+  .strict()
+  .refine(
+    (input) =>
+      input.target.mode === "existing" || input.sessionTestIds.length === 1,
+    {
+      message: "New follow-up work originates from exactly one result.",
+      path: ["sessionTestIds"],
+    },
+  );
+export type PreviewFollowUpInput = z.input<typeof previewFollowUpInputSchema>;
+
+export const commitFollowUpInputSchema = z
+  .object({
+    previewFingerprint: z.string().trim().length(64),
+    projectId: identifierSchema,
+    sessionTestIds: followUpSelectionSchema,
+    target: followUpTargetInputSchema,
+    /** Identity of the one new Work; a retry with the same id creates nothing new. */
+    workId: identifierSchema,
+  })
+  .strict()
+  .refine(
+    (input) =>
+      input.target.mode === "existing" || input.sessionTestIds.length === 1,
+    {
+      message: "New follow-up work originates from exactly one result.",
+      path: ["sessionTestIds"],
+    },
+  );
+export type CommitFollowUpInput = z.input<typeof commitFollowUpInputSchema>;
+
+/** An existing Work a result can attach to. */
+export interface TestReviewFollowUpWork {
+  id: string;
+  key: string;
+  status: string;
+  title: string;
+  type: string;
+}
+
+export interface TestFollowUpLinkStored {
+  actorAccountId: string;
+  id: string;
+  mode: "Created" | "Attached";
+  recordedAt: string;
+  sessionId: string;
+  sessionTestId: string;
+  workId: string;
+}
+
+export interface TestReviewCreateWorkInput {
+  description: string;
+  originComponentId: string;
+  originOwnerRecordId: string;
+  originSourceVersion: string | null;
+  payloadFingerprint: string;
+  title: string;
+  type: string;
+  workId: string;
+}
+
 export interface TestReviewStoredItem {
+  /** Primary spec revisions the scenario version was bound to, live head beside. */
+  boundSpecs: BoundSpec[];
   id: string;
   normalizedResult: string | null;
   position: number | null;
   rawResult: string | null;
   reviewState: TestReviewState;
+  scenarioId: string | null;
+  scenarioVersion: number | null;
   title: string;
 }
 
 export interface TestReviewStoredSession {
+  context: Record<string, string> | null;
   executorName: string;
   id: string;
   items: TestReviewStoredItem[];
@@ -406,23 +562,39 @@ export interface TestReviewStoredSession {
   reportedAt: string;
   reviewState: TestReviewState;
   summary: string | null;
+  targetContext: Record<string, string> | null;
 }
 
 export type TestReviewStoredEvent = TestReviewEvent;
 
 export interface TestReviewTransaction {
+  appendBinding: (binding: TestResultBindingStored) => Promise<void>;
   appendEvents: (events: TestReviewStoredEvent[]) => Promise<void>;
+  appendFollowUpLinks: (links: TestFollowUpLinkStored[]) => Promise<void>;
   appendResultEvents: (events: TestResultStoredEvent[]) => Promise<void>;
+  appendSupersession: (edge: TestSupersessionStored) => Promise<void>;
+  /**
+   * Opens the one new Work of `Create follow-up work` with its Origin
+   * Location. The only Work write this seam has; resolves to the Work key.
+   */
+  createFollowUpWork: (input: TestReviewCreateWorkInput) => Promise<string>;
   /**
    * The narrow security-redaction exception: clears the content of one
    * Correction or Withdrawal. The event, its time and actor stay.
    */
   eraseResultEventContent: (eventId: string) => Promise<void>;
+  /** An existing, open İş of this Project; Features and trashed Works excluded. */
+  findFollowUpWork: (workId: string) => Promise<TestReviewFollowUpWork | null>;
   findSession: (sessionId: string) => Promise<TestReviewStoredSession | null>;
+  listBindings: () => Promise<TestResultBindingStored[]>;
   listEvents: () => Promise<TestReviewStoredEvent[]>;
+  /** Links with the live Work key, title and status beside them. */
+  listFollowUps: () => Promise<TestFollowUpLink[]>;
   /** Oldest first, in the order the events were appended. */
   listResultEvents: () => Promise<TestResultStoredEvent[]>;
   listSessions: () => Promise<TestReviewStoredSession[]>;
+  listSupersessions: () => Promise<TestSupersessionStored[]>;
+  projectName: string;
   readOnly: boolean;
   /** Writes only the review state of the given Session Tests. */
   writeItemStates: (ids: string[], state: TestReviewState) => Promise<void>;
@@ -445,15 +617,27 @@ export interface TestReviewStore {
  * Project Release, Handoff or Test Gap operation on this seam.
  */
 export interface TestReviewAccess {
+  bindValidResult: (
+    accountId: string,
+    input: BindValidResultInput,
+  ) => Promise<BindValidResultReceipt>;
   commitBulkReview: (
     accountId: string,
     input: CommitBulkReviewInput,
   ) => Promise<TestReviewBulkReceipt>;
+  commitFollowUp: (
+    accountId: string,
+    input: CommitFollowUpInput,
+  ) => Promise<TestFollowUpReceipt>;
   list: (accountId: string, projectId: string) => Promise<TestReviewList>;
   previewBulkReview: (
     accountId: string,
     input: PreviewBulkReviewInput,
   ) => Promise<TestReviewBulkPreview>;
+  previewFollowUp: (
+    accountId: string,
+    input: PreviewFollowUpInput,
+  ) => Promise<TestFollowUpPreview>;
   previewSessionClose: (
     accountId: string,
     input: PreviewSessionCloseInput,
@@ -478,6 +662,10 @@ export interface TestReviewAccess {
     accountId: string,
     input: SetSessionReviewStateInput,
   ) => Promise<TestReviewReceipt>;
+  supersede: (
+    accountId: string,
+    input: SupersedeInput,
+  ) => Promise<SupersedeReceipt>;
 }
 
 function eventHead(
@@ -575,6 +763,7 @@ export function viewSession(
   return {
     executorName: session.executorName,
     id: session.id,
+    context: session.context,
     items: session.items.map((item) => {
       const rawResultRedacted = isRedacted(
         ownEvents,
@@ -609,6 +798,7 @@ export function viewSession(
         };
       }
       return {
+        boundSpecs: item.boundSpecs,
         current,
         id: item.id,
         newContextAfterClose:
@@ -619,6 +809,8 @@ export function viewSession(
         rawResult: rawResultRedacted ? null : item.rawResult,
         rawResultRedacted,
         reviewState: item.reviewState,
+        scenarioId: item.scenarioId,
+        scenarioVersion: item.scenarioVersion,
         title: item.title,
       };
     }),
@@ -630,6 +822,7 @@ export function viewSession(
       ? null
       : session.summary,
     summaryRedacted: isRedacted(ownEvents, "Session summary", session.id, null),
+    targetContext: session.targetContext,
     withdrawn: sessionHead?.kind === "Withdrawal",
   };
 }

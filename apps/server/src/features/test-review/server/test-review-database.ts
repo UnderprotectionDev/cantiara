@@ -1,19 +1,47 @@
 import type {
+  TestFollowUpLinkStored,
   TestResultStoredEvent,
   TestReviewState,
   TestReviewStore,
   TestReviewStoredEvent,
   TestReviewStoredSession,
 } from "@cantiara/api/test-review";
+import type {
+  BoundSpec,
+  TestFollowUpLink,
+  TestResultBindingStored,
+  TestSupersessionStored,
+} from "@cantiara/api/test-review-signals";
 import type { Database } from "@cantiara/db";
-import { sessionTest, testSession } from "@cantiara/db/schema/planned-test";
+import { document } from "@cantiara/db/schema/document";
+import {
+  plannedTestCaseRelation,
+  plannedTestCaseVersion,
+  sessionTest,
+  testHandoff,
+  testSession,
+} from "@cantiara/db/schema/planned-test";
 import {
   sessionTestReview,
+  sessionTestSupersession,
+  testFollowUpLink,
+  testResultBinding,
   testResultEvent,
   testReviewEvent,
 } from "@cantiara/db/schema/test-review";
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { work } from "@cantiara/db/schema/work";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+} from "drizzle-orm";
 
+import { insertWorkWithKeyAllocation } from "../../evidence/server/evidence-record-creation";
 import {
   type FeedbackExecutor,
   findOwnedProject,
@@ -24,6 +52,72 @@ import { createTestReview } from "./test-review";
 type Executor = FeedbackExecutor;
 
 const EVENT_LIMIT = 500;
+
+/**
+ * Primary spec revisions each exact scenario version was bound to, beside the
+ * live Document head. Only a Document that is some Work's Primary spec counts;
+ * any other Document relation is not a Birincil spec binding.
+ */
+async function readBoundSpecs(
+  executor: Executor,
+  projectId: string,
+  pairs: { scenarioId: string; scenarioVersion: number }[],
+) {
+  const bound = new Map<string, BoundSpec[]>();
+  if (pairs.length === 0) {
+    return bound;
+  }
+  const primary = await executor
+    .select({ id: work.primarySpecId })
+    .from(work)
+    .where(and(eq(work.projectId, projectId), isNotNull(work.primarySpecId)));
+  const primaryIds = [
+    ...new Set(primary.flatMap(({ id }) => (id ? [id] : []))),
+  ];
+  if (primaryIds.length === 0) {
+    return bound;
+  }
+  const rows = await executor
+    .select({
+      boundRevision: plannedTestCaseRelation.documentRevision,
+      caseId: plannedTestCaseVersion.caseId,
+      currentRevision: document.revision,
+      documentId: document.id,
+      title: document.title,
+      version: plannedTestCaseVersion.version,
+    })
+    .from(plannedTestCaseRelation)
+    .innerJoin(
+      plannedTestCaseVersion,
+      eq(plannedTestCaseVersion.id, plannedTestCaseRelation.versionId),
+    )
+    .innerJoin(document, eq(document.id, plannedTestCaseRelation.targetId))
+    .where(
+      and(
+        eq(plannedTestCaseRelation.targetType, "Document"),
+        inArray(document.id, primaryIds),
+        inArray(plannedTestCaseVersion.caseId, [
+          ...new Set(pairs.map((pair) => pair.scenarioId)),
+        ]),
+      ),
+    );
+  for (const row of rows) {
+    if (row.boundRevision === null) {
+      continue;
+    }
+    const key = `${row.caseId}@${row.version}`;
+    bound.set(key, [
+      ...(bound.get(key) ?? []),
+      {
+        boundRevision: row.boundRevision,
+        currentRevision: row.currentRevision,
+        documentId: row.documentId,
+        title: row.title,
+      },
+    ]);
+  }
+  return bound;
+}
 
 async function readSessions(
   executor: Executor,
@@ -52,6 +146,8 @@ async function readSessions(
       position: sessionTest.position,
       rawResult: sessionTest.rawResult,
       reviewState: sessionTestReview.reviewState,
+      scenarioId: sessionTest.scenarioId,
+      scenarioVersion: sessionTest.scenarioVersion,
       sessionId: sessionTest.sessionId,
       title: sessionTest.title,
     })
@@ -71,23 +167,70 @@ async function readSessions(
       ),
     )
     .orderBy(asc(sessionTest.position), asc(sessionTest.id));
+  const handoffs = await executor
+    .select({
+      buildBranch: testHandoff.buildBranch,
+      buildCommit: testHandoff.buildCommit,
+      buildName: testHandoff.buildName,
+      id: testHandoff.id,
+    })
+    .from(testHandoff)
+    .where(eq(testHandoff.projectId, projectId));
+  const targets = new Map(
+    handoffs.map((handoff) => {
+      const target: Record<string, string> = {};
+      if (handoff.buildBranch) {
+        target.branch = handoff.buildBranch;
+      }
+      if (handoff.buildCommit) {
+        target.commit = handoff.buildCommit;
+      }
+      if (handoff.buildName) {
+        target.build = handoff.buildName;
+      }
+      return [
+        handoff.id,
+        Object.keys(target).length > 0 ? target : null,
+      ] as const;
+    }),
+  );
+  const bound = await readBoundSpecs(
+    executor,
+    projectId,
+    items.flatMap((item) =>
+      item.scenarioId && item.scenarioVersion
+        ? [
+            {
+              scenarioId: item.scenarioId,
+              scenarioVersion: item.scenarioVersion,
+            },
+          ]
+        : [],
+    ),
+  );
   return sessions.map((row) => ({
+    context: row.context,
     executorName: row.executorName,
     id: row.id,
     items: items
       .filter((item) => item.sessionId === row.id)
       .map((item) => ({
+        boundSpecs:
+          bound.get(`${item.scenarioId}@${item.scenarioVersion}`) ?? [],
         id: item.id,
         normalizedResult: item.normalizedResult,
         position: item.position,
         rawResult: item.rawResult,
         reviewState: (item.reviewState ?? "Unreviewed") as TestReviewState,
+        scenarioId: item.scenarioId,
+        scenarioVersion: item.scenarioVersion,
         title: item.title,
       })),
     projectId: row.projectId,
     reportedAt: row.reportedAt.toISOString(),
     reviewState: row.reviewState as TestReviewState,
     summary: row.summary,
+    targetContext: row.handoffId ? (targets.get(row.handoffId) ?? null) : null,
   }));
 }
 
@@ -129,6 +272,34 @@ function toResultEvent(
   };
 }
 
+function toSupersession(
+  row: typeof sessionTestSupersession.$inferSelect,
+): TestSupersessionStored {
+  return {
+    actorAccountId: row.actorAccountId,
+    id: row.id,
+    newerSessionTestId: row.newerSessionTestId,
+    olderSessionTestId: row.olderSessionTestId,
+    reason: row.reason,
+    recordedAt: row.recordedAt.toISOString(),
+  };
+}
+
+function toBinding(
+  row: typeof testResultBinding.$inferSelect,
+): TestResultBindingStored {
+  return {
+    actorAccountId: row.actorAccountId,
+    id: row.id,
+    judgedSessionTestIds: row.judgedSessionTestIds,
+    reason: row.reason,
+    recordedAt: row.recordedAt.toISOString(),
+    scenarioId: row.scenarioId,
+    scenarioVersion: row.scenarioVersion,
+    sessionTestId: row.sessionTestId,
+  };
+}
+
 /**
  * PostgreSQL Test Review store. It writes only `project_test_session.review_state`,
  * `project_session_test_review`, `project_test_review_event` and the
@@ -149,6 +320,127 @@ export function createDatabaseTestReviewStore(
           return null;
         }
         return await unitOfWork({
+          appendBinding: async (binding) => {
+            await executor.insert(testResultBinding).values({
+              actorAccountId: binding.actorAccountId,
+              id: binding.id,
+              judgedSessionTestIds: binding.judgedSessionTestIds,
+              projectId: owned.id,
+              reason: binding.reason,
+              recordedAt: new Date(binding.recordedAt),
+              scenarioId: binding.scenarioId,
+              scenarioVersion: binding.scenarioVersion,
+              sessionTestId: binding.sessionTestId,
+            });
+          },
+          appendFollowUpLinks: async (links: TestFollowUpLinkStored[]) => {
+            if (links.length === 0) {
+              return;
+            }
+            await executor.insert(testFollowUpLink).values(
+              links.map((link) => ({
+                actorAccountId: link.actorAccountId,
+                id: link.id,
+                mode: link.mode,
+                projectId: owned.id,
+                recordedAt: new Date(link.recordedAt),
+                sessionId: link.sessionId,
+                sessionTestId: link.sessionTestId,
+                workId: link.workId,
+              })),
+            );
+          },
+          appendSupersession: async (edge) => {
+            await executor.insert(sessionTestSupersession).values({
+              actorAccountId: edge.actorAccountId,
+              id: edge.id,
+              newerSessionTestId: edge.newerSessionTestId,
+              olderSessionTestId: edge.olderSessionTestId,
+              projectId: owned.id,
+              reason: edge.reason,
+              recordedAt: new Date(edge.recordedAt),
+            });
+          },
+          createFollowUpWork: (input) =>
+            insertWorkWithKeyAllocation(executor, owned.project, {
+              committedAt: new Date(),
+              description: input.description,
+              idempotencyKey: `test-review-follow-up:${input.workId}`,
+              originComponentId: input.originComponentId,
+              originOwnerRecordId: input.originOwnerRecordId,
+              originSourceVersion: input.originSourceVersion,
+              payloadFingerprint: input.payloadFingerprint,
+              title: input.title,
+              type: input.type,
+              workId: input.workId,
+            }),
+          findFollowUpWork: async (workId) => {
+            const [found] = await executor
+              .select({
+                id: work.id,
+                key: work.key,
+                status: work.status,
+                title: work.title,
+                type: work.type,
+              })
+              .from(work)
+              .where(
+                and(
+                  eq(work.id, workId),
+                  eq(work.projectId, owned.id),
+                  ne(work.type, "Feature"),
+                  isNull(work.trashedAt),
+                  isNull(work.archivedAt),
+                ),
+              )
+              .limit(1);
+            return found ?? null;
+          },
+          listBindings: async () =>
+            (
+              await executor
+                .select()
+                .from(testResultBinding)
+                .where(eq(testResultBinding.projectId, owned.id))
+                .orderBy(asc(testResultBinding.recordedAt))
+            ).map(toBinding),
+          listFollowUps: async (): Promise<TestFollowUpLink[]> =>
+            (
+              await executor
+                .select({
+                  link: testFollowUpLink,
+                  workKey: work.key,
+                  workStatus: work.status,
+                  workTitle: work.title,
+                })
+                .from(testFollowUpLink)
+                .leftJoin(work, eq(work.id, testFollowUpLink.workId))
+                .where(eq(testFollowUpLink.projectId, owned.id))
+                .orderBy(
+                  asc(testFollowUpLink.recordedAt),
+                  asc(testFollowUpLink.id),
+                )
+            ).map((row) => ({
+              actorAccountId: row.link.actorAccountId,
+              id: row.link.id,
+              mode: row.link.mode as TestFollowUpLink["mode"],
+              recordedAt: row.link.recordedAt.toISOString(),
+              sessionId: row.link.sessionId,
+              sessionTestId: row.link.sessionTestId,
+              workId: row.link.workId,
+              workKey: row.workKey,
+              workStatus: row.workStatus,
+              workTitle: row.workTitle,
+            })),
+          listSupersessions: async () =>
+            (
+              await executor
+                .select()
+                .from(sessionTestSupersession)
+                .where(eq(sessionTestSupersession.projectId, owned.id))
+                .orderBy(asc(sessionTestSupersession.recordedAt))
+            ).map(toSupersession),
+          projectName: owned.project.name,
           appendEvents: async (events) => {
             if (events.length === 0) {
               return;
