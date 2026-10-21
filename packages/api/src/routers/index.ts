@@ -527,6 +527,19 @@ import {
   testSessionProjectInputSchema,
 } from "../test-report";
 import {
+  commitBulkReviewInputSchema,
+  previewBulkReviewInputSchema,
+  previewSessionCloseInputSchema,
+  setItemReviewStateInputSchema,
+  setSessionReviewStateInputSchema,
+  testReviewBulkPreviewSchema,
+  testReviewBulkReceiptSchema,
+  testReviewClosePreviewSchema,
+  testReviewListOutputSchema,
+  testReviewProjectInputSchema,
+  testReviewReceiptSchema,
+} from "../test-review";
+import {
   convertUserFlowNodeInputSchema,
   createUserFlowFromTemplateInputSchema,
   createUserFlowInputSchema,
@@ -1238,6 +1251,13 @@ function requirePlannedTests(context: Context) {
     throw new ORPCError("INTERNAL_SERVER_ERROR");
   }
   return context.plannedTests;
+}
+
+function requireTestReview(context: Context) {
+  if (!context.testReview) {
+    throw new ORPCError("INTERNAL_SERVER_ERROR");
+  }
+  return context.testReview;
 }
 
 function requireTestGaps(context: Context) {
@@ -3360,6 +3380,54 @@ async function runTestGapOperation<T>(operation: () => Promise<T>): Promise<T> {
     }
     const failure = Object.hasOwn(TEST_GAP_FAILURES, error.code)
       ? TEST_GAP_FAILURES[error.code]
+      : undefined;
+    if (!failure) {
+      throw error;
+    }
+    throw new ORPCError(failure.status, {
+      cause: error,
+      data: { code: error.code },
+      defined: true,
+      message: failure.message,
+    });
+  }
+}
+
+interface TestReviewFailure {
+  message: string;
+  status: "BAD_REQUEST" | "NOT_FOUND";
+}
+
+const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
+  TEST_REVIEW_PREVIEW_STALE: {
+    message: "The records changed since the preview. Preview again to confirm.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_PROJECT_NOT_FOUND: {
+    message: "Project is unavailable.",
+    status: "NOT_FOUND",
+  },
+  TEST_REVIEW_PROJECT_READ_ONLY: {
+    message: "Archived Projects are read-only.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_RECORD_NOT_FOUND: {
+    message: "Test Session or Session Test is unavailable.",
+    status: "NOT_FOUND",
+  },
+};
+
+async function runTestReviewOperation<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRecord(error) || typeof error.code !== "string") {
+      throw error;
+    }
+    const failure = Object.hasOwn(TEST_REVIEW_FAILURES, error.code)
+      ? TEST_REVIEW_FAILURES[error.code]
       : undefined;
     if (!failure) {
       throw error;
@@ -6336,6 +6404,72 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runPlannedTestOperation(() =>
         requirePlannedTests(context).relationTargets(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  projectTestReview: protectedProcedure
+    .input(testReviewProjectInputSchema)
+    .output(testReviewListOutputSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).list(
+          context.session.user.id,
+          input.projectId,
+        ),
+      ),
+    ),
+  setReviewSessionState: protectedProcedure
+    .input(setSessionReviewStateInputSchema)
+    .output(testReviewReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).setSessionReviewState(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  setReviewItemState: protectedProcedure
+    .input(setItemReviewStateInputSchema)
+    .output(testReviewReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).setItemReviewState(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewReviewClose: protectedProcedure
+    .input(previewSessionCloseInputSchema)
+    .output(testReviewClosePreviewSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).previewSessionClose(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  previewReviewBulk: protectedProcedure
+    .input(previewBulkReviewInputSchema)
+    .output(testReviewBulkPreviewSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).previewBulkReview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  commitReviewBulk: protectedProcedure
+    .input(commitBulkReviewInputSchema)
+    .output(testReviewBulkReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).commitBulkReview(
           context.session.user.id,
           input,
         ),

@@ -100,6 +100,7 @@ import type { TechnicalDiagramsAccess } from "@cantiara/api/technical-diagrams";
 import type { TestAssessmentsAccess } from "@cantiara/api/test-assessments";
 import type { TestGapsAccess } from "@cantiara/api/test-gaps";
 import type { TestReportAcceptanceAccess } from "@cantiara/api/test-report";
+import type { TestReviewAccess } from "@cantiara/api/test-review";
 import type { UserFlowAccess } from "@cantiara/api/user-flow";
 import {
   type WebCaptureAccess,
@@ -238,6 +239,7 @@ export interface AppDependencies {
   testAssessments?: TestAssessmentsAccess;
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
+  testReview?: TestReviewAccess;
   trustedProxyIps: readonly string[];
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
@@ -1264,6 +1266,7 @@ export function createApp(dependencies: AppDependencies) {
       screens: dependencies.screens,
       plannedTests: dependencies.plannedTests,
       testGaps: dependencies.testGaps,
+      testReview: dependencies.testReview,
       testReports: dependencies.testReports,
       testAssessments: dependencies.testAssessments,
       specChangeReview: dependencies.specChangeReview,

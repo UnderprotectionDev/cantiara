@@ -76,6 +76,7 @@ import type { TechnicalDiagramsAccess } from "./technical-diagrams";
 import type { TestAssessmentsAccess } from "./test-assessments";
 import type { TestGapsAccess } from "./test-gaps";
 import type { TestReportAcceptanceAccess } from "./test-report";
+import type { TestReviewAccess } from "./test-review";
 import type { UserFlowAccess } from "./user-flow";
 import type { WebCaptureAccess } from "./web-capture";
 import type { WorkContextAccess } from "./work-context";
@@ -234,6 +235,7 @@ export interface Context {
   testAssessments?: TestAssessmentsAccess;
   testGaps?: TestGapsAccess;
   testReports?: TestReportAcceptanceAccess;
+  testReview?: TestReviewAccess;
   universalSearch?: UniversalSearchAccess;
   usageLinkMutationContracts?: UsageLinkMutationContracts;
   usageLinks?: UsageLinksAccess;
