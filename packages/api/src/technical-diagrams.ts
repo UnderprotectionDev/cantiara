@@ -1,58 +1,82 @@
-import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
+import type {
+  ArchitectureModel,
+  DiagramModel,
+} from "@cantiara/db/schema/technical-diagram";
 import { z } from "zod";
+import type {
+  AuthorityConversionInput,
+  AuthorityConversionPreview,
+  ConfirmAuthorityConversionInput,
+  CreatableAuthorityMode,
+  CreateTechnicalDiagramInput,
+  ExternalSourceLink,
+} from "./technical-diagram-authority";
+import type {
+  ConfirmConvertToRecordInput,
+  ConvertToRecordPlan,
+  DiagramRecordCardRecord,
+  DiagramRecordCardView,
+  DiagramRecordLinkResult,
+  MoveDiagramRecordCardInput,
+  PlaceDiagramRecordCardInput,
+  PreviewConvertToRecordInput,
+  RemoveDiagramRecordCardInput,
+} from "./technical-diagram-card";
+import type {
+  MermaidConversionEffects,
+  MermaidConversionSource,
+} from "./technical-diagram-mermaid";
+import {
+  structuralModelSchema,
+  TECHNICAL_DIAGRAM_TYPES,
+} from "./technical-diagram-structure";
+import type {
+  CreateDiagramVersionInput,
+  DiagramVersionReference,
+  RestoreDiagramVersionInput,
+  TechnicalDiagramVersion,
+} from "./technical-diagram-version";
+import type {
+  SaveTechnicalDiagramViewportInput,
+  TechnicalDiagramViewport,
+} from "./technical-diagram-viewport";
 
-export const technicalDiagramTypeSchema = z.enum([
-  "Technical Architecture",
-  "Data Model",
-  "Technical Sequence",
-]);
+export const technicalDiagramTypeSchema = z.enum(TECHNICAL_DIAGRAM_TYPES);
 
-export const diagramModelSchema = z
+/** Typed canonical structural model of any of the three types. */
+export const diagramModelSchema = structuralModelSchema;
+
+/** Replaces the whole canonical model; the stored type picks the schema. */
+export const saveTechnicalDiagramModelInputSchema = z
   .object({
-    nodes: z.array(
-      z
-        .object({
-          id: z.string().min(1),
-          label: z.string().min(1),
-          kind: z.enum([
-            "Component",
-            "Service",
-            "Datastore",
-            "Queue/Event Bus",
-            "External System",
-            "Boundary",
-          ]),
-        })
-        .strict(),
-    ),
-    links: z.array(
-      z
-        .object({
-          from: z.string().min(1),
-          to: z.string().min(1),
-          label: z.string().nullable(),
-        })
-        .strict(),
-    ),
+    diagramId: z.string().min(1),
+    model: structuralModelSchema,
   })
-  .strict()
-  .superRefine((model, context) => {
-    const ids = new Set(model.nodes.map(({ id }) => id));
-    if (ids.size !== model.nodes.length) {
-      context.addIssue({
-        code: "custom",
-        message: "Duplicate diagram node ID.",
-      });
-    }
-    for (const link of model.links) {
-      if (!(ids.has(link.from) && ids.has(link.to))) {
-        context.addIssue({
-          code: "custom",
-          message: "Diagram link target is missing.",
-        });
-      }
-    }
-  });
+  .strict();
+
+/** Coordinates are `Diagram View` metadata, never canonical content. */
+export const saveDiagramLayoutInputSchema = z
+  .object({
+    diagramId: z.string().min(1),
+    positions: z.record(
+      z.string().min(1),
+      z
+        .object({
+          x: z.number().finite().min(-100_000).max(100_000),
+          y: z.number().finite().min(-100_000).max(100_000),
+        })
+        .strict(),
+    ),
+    viewId: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type SaveTechnicalDiagramModelInput = z.infer<
+  typeof saveTechnicalDiagramModelInputSchema
+>;
+export type SaveDiagramLayoutInput = z.infer<
+  typeof saveDiagramLayoutInputSchema
+>;
 
 export const mermaidConversionInputSchema = z
   .object({
@@ -70,6 +94,7 @@ export const mermaidConversionInputSchema = z
 export const confirmMermaidConversionInputSchema = mermaidConversionInputSchema
   .extend({
     clientIdempotencyKey: z.string().uuid(),
+    previewToken: z.string().min(1),
   })
   .strict();
 
@@ -94,13 +119,34 @@ export type ConfirmMermaidConversionInput = z.infer<
 >;
 
 export interface TechnicalDiagramSource {
-  authorityMode: "Imported Independent Copy" | "Product-authored Model";
+  authorityMode: CreatableAuthorityMode;
+  /**
+   * Set only when a card reads one exact checkpoint: `model`, `revision` and
+   * the view selection are then that Diagram Version's. Absent means `Live`.
+   */
+  exactVersion?: DiagramVersionReference | null;
+  /** Set only for `External Source Link`; content stays in the external tool. */
+  externalSource: ExternalSourceLink | null;
   id: string;
   model: DiagramModel;
+  /** Two-way authority-conversion origin: `Originates from` / `Derived`. */
+  origins: Array<{
+    authorityMode: CreatableAuthorityMode;
+    diagramId: string;
+    relation: "Originates from" | "Derived";
+    title: string;
+  }>;
   projectId: string;
+  /** Live revision. A restore writes the next one; checkpoints never change. */
+  revision: number;
   title: string;
   type: z.infer<typeof technicalDiagramTypeSchema>;
-  view: { id: string; name: string; selectedNodeIds: string[] } | null;
+  view: {
+    id: string;
+    layout: Record<string, { x: number; y: number }>;
+    name: string;
+    selectedNodeIds: string[];
+  } | null;
 }
 
 export interface TechnicalDiagramsAccess {
@@ -108,6 +154,29 @@ export interface TechnicalDiagramsAccess {
     accountId: string,
     input: ConfirmMermaidConversionInput,
   ) => Promise<TechnicalDiagramSource | null>;
+  convertAuthority: (
+    accountId: string,
+    input: ConfirmAuthorityConversionInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  /** Writes only after the matching preview; mints a new identity. */
+  /**
+   * Writes exactly one İş, Karar, Risk or Açık Soru from a node of an exact
+   * Diagram Version after the matching preview, plus its link to that version.
+   * Never touches the diagram or its authority mode. Idempotent by key.
+   */
+  convertToRecord: (
+    accountId: string,
+    input: ConfirmConvertToRecordInput,
+  ) => Promise<DiagramRecordLinkResult | null>;
+  create: (
+    accountId: string,
+    input: CreateTechnicalDiagramInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  /** Appends an immutable checkpoint of the live model; idempotent by key. */
+  createVersion: (
+    accountId: string,
+    input: CreateDiagramVersionInput,
+  ) => Promise<TechnicalDiagramVersion | null>;
   createView: (
     accountId: string,
     input: CreateDiagramViewInput,
@@ -117,33 +186,102 @@ export interface TechnicalDiagramsAccess {
     diagramId: string,
     viewId?: string,
   ) => Promise<TechnicalDiagramSource | null>;
+  getVersion: (
+    accountId: string,
+    versionId: string,
+  ) => Promise<TechnicalDiagramVersion | null>;
   list: (
     accountId: string,
     projectId: string,
   ) => Promise<TechnicalDiagramSource[]>;
+  /** Exact read of one checkpoint by its identity, never the live record. */
+  /** Read-only live cards of existing records placed on one diagram canvas. */
+  listRecordCards: (
+    accountId: string,
+    diagramId: string,
+  ) => Promise<DiagramRecordCardView[] | null>;
+  listVersions: (
+    accountId: string,
+    diagramId: string,
+  ) => Promise<TechnicalDiagramVersion[] | null>;
   listViews: (
     accountId: string,
     diagramId: string,
   ) => Promise<Array<{
     id: string;
+    layout: Record<string, { x: number; y: number }>;
     name: string;
     selectedNodeIds: string[];
   }> | null>;
+  moveRecordCard: (
+    accountId: string,
+    input: MoveDiagramRecordCardInput,
+  ) => Promise<DiagramRecordCardRecord | null>;
+  /** Stores the source identity and position only; the record is never written. */
+  placeRecordCard: (
+    accountId: string,
+    input: PlaceDiagramRecordCardInput,
+  ) => Promise<DiagramRecordCardRecord | null>;
+  previewAuthorityConversion: (
+    accountId: string,
+    input: AuthorityConversionInput,
+  ) => Promise<AuthorityConversionPreview | null>;
   previewConversion: (
     accountId: string,
     input: MermaidConversionInput,
-  ) => Promise<{
-    title: string;
-    projectId: string;
-    documentId: string;
-    documentRevision: number;
-    blockStart: number;
-    blockEnd: number;
-    type: "Technical Architecture";
-    authorityMode: "Imported Independent Copy";
-    originalBlock: "Keep independent" | "Replace with live reference";
-    canConvert: boolean;
-    model: TechnicalDiagramSource["model"];
-    unparseableLines: Array<{ line: number; reason: string; text: string }>;
-  } | null>;
+  ) => Promise<
+    | (MermaidConversionEffects & {
+        previewToken: string;
+        source: MermaidConversionSource;
+        title: string;
+        projectId: string;
+        documentId: string;
+        documentRevision: number;
+        blockStart: number;
+        blockEnd: number;
+        type: "Technical Architecture";
+        authorityMode: "Imported Independent Copy";
+        originalBlock: "Keep independent" | "Replace with live reference";
+        canConvert: boolean;
+        model: ArchitectureModel;
+        unparseableLines: Array<{ line: number; reason: string; text: string }>;
+      })
+    | null
+  >;
+  previewConvertToRecord: (
+    accountId: string,
+    input: PreviewConvertToRecordInput,
+  ) => Promise<ConvertToRecordPlan | null>;
+  removeRecordCard: (
+    accountId: string,
+    input: RemoveDiagramRecordCardInput,
+  ) => Promise<boolean>;
+  /** Writes a new live revision from a checkpoint; the checkpoint is untouched. */
+  restoreVersion: (
+    accountId: string,
+    input: RestoreDiagramVersionInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  saveLayout: (
+    accountId: string,
+    input: SaveDiagramLayoutInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  /** Edits an authored or imported canonical model; never an External Source Link. */
+  saveModel: (
+    accountId: string,
+    input: SaveTechnicalDiagramModelInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  /**
+   * Saves the Account's own viewport for one diagram view (spec 59 #425). Writes
+   * no diagram, view, version or card; stale collapsed group ids are dropped.
+   * Null when the diagram (or view) is not the Account's.
+   */
+  saveViewport: (
+    accountId: string,
+    input: SaveTechnicalDiagramViewportInput,
+  ) => Promise<TechnicalDiagramViewport | null>;
+  /** The Account's own saved viewport; `viewport` is null when none was saved. Null when the diagram is not the Account's. */
+  viewport: (
+    accountId: string,
+    input: { diagramId: string; viewId?: string },
+  ) => Promise<{ viewport: TechnicalDiagramViewport | null } | null>;
 }

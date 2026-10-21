@@ -438,7 +438,7 @@ const liveWorkDirectivePattern = /^:::live-work\{workId="([^"]{1,255})"\}$/;
 const liveCollectionDirectivePattern =
   /^:::live-collection\{viewId="([^"]{1,255})"\}$/;
 const liveDiagramDirectivePattern =
-  /^:::live-diagram\{diagramId="([^"]{1,255})"(?: viewId="([^"]{1,255})")?\}$/;
+  /^:::live-diagram\{diagramId="([^"]{1,255})"(?: viewId="([^"]{1,255})")?(?: versionId="([^"]{1,255})")?\}$/;
 const liveSectionDirectivePattern =
   /^:::live-section\{documentId="([^"]{1,255})" sectionId="([^"]{1,255})"\}$/;
 const documentSectionHeadingPattern =
@@ -467,6 +467,8 @@ export interface DocumentLiveDirective {
   kind: "Work" | "Smart Collection" | "Technical Diagram" | "Document section";
   sectionId?: string;
   start: number;
+  /** Exact `Diagram Version` pin of a Technical Diagram card; absent means `Live`. */
+  versionId?: string;
   viewId?: string;
 }
 
@@ -485,6 +487,7 @@ function liveDirectiveFromLine(line: string) {
     return {
       id: diagramId,
       kind: "Technical Diagram" as const,
+      versionId: diagramMatch[3],
       viewId: diagramMatch[2],
     };
   }

@@ -1,10 +1,12 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -12,20 +14,116 @@ import {
 
 import { project } from "./project";
 
-export interface DiagramModel {
-  links: Array<{ from: string; to: string; label: string | null }>;
-  nodes: Array<{
+/** Typed canonical structural models. React Flow positions are not here. */
+export type ArchitectureNodeKind =
+  | "Component"
+  | "Service"
+  | "Datastore"
+  | "Queue/Event Bus"
+  | "External System"
+  | "Boundary";
+
+export type ArchitectureLinkKind =
+  | "Calls"
+  | "Reads from"
+  | "Writes to"
+  | "Publishes to"
+  | "Subscribes to"
+  | "Depends on"
+  | "Contains";
+
+export interface ArchitectureModel {
+  links: Array<{
+    from: string;
+    kind: ArchitectureLinkKind;
+    label: string | null;
+    to: string;
+  }>;
+  nodes: Array<{ id: string; kind: ArchitectureNodeKind; label: string }>;
+}
+
+export type ReferentialAction =
+  | "NO ACTION"
+  | "RESTRICT"
+  | "CASCADE"
+  | "SET NULL"
+  | "SET DEFAULT";
+
+/** Designed PostgreSQL schema; never a live database or a Drizzle sync. */
+export interface DataModelModel {
+  relations: Array<{
+    cardinality: "One to one" | "One to many";
+    fromColumnId: string;
+    fromTableId: string;
     id: string;
-    label: string;
-    kind:
-      | "Component"
-      | "Service"
-      | "Datastore"
-      | "Queue/Event Bus"
-      | "External System"
-      | "Boundary";
+    onDelete: ReferentialAction;
+    onUpdate: ReferentialAction;
+    toColumnId: string;
+    toTableId: string;
+  }>;
+  tables: Array<{
+    columns: Array<{
+      default: string | null;
+      id: string;
+      name: string;
+      nullable: boolean;
+      primaryKey: boolean;
+      type: string;
+      unique: boolean;
+    }>;
+    id: string;
+    indexes: Array<{
+      columnIds: string[];
+      id: string;
+      name: string;
+      unique: boolean;
+    }>;
+    name: string;
   }>;
 }
+
+/**
+ * Optional exact bind of a lifeline to an Architecture node. `versionId` is the
+ * explicit pinned `Diagram Version` reference; it stays null until Diagram
+ * Versions exist and is never filled by following the source's newest state.
+ */
+export interface SequenceParticipantBind {
+  boundLabel: string;
+  diagramId: string;
+  nodeId: string;
+  versionId: string | null;
+}
+
+export type SequenceMessageKind = "Sync" | "Async" | "Event" | "Return";
+
+export interface SequenceMessageStep {
+  from: string;
+  id: string;
+  kind: "Message";
+  label: string;
+  messageKind: SequenceMessageKind;
+  to: string;
+}
+
+export interface SequenceGroupStep {
+  condition: string;
+  groupKind: "Alt" | "Opt" | "Loop";
+  id: string;
+  kind: "Group";
+  steps: SequenceMessageStep[];
+}
+
+export interface SequenceModel {
+  participants: Array<{
+    bind: SequenceParticipantBind | null;
+    id: string;
+    kind: "Actor" | "Component";
+    label: string;
+  }>;
+  steps: Array<SequenceMessageStep | SequenceGroupStep>;
+}
+
+export type DiagramModel = ArchitectureModel | DataModelModel | SequenceModel;
 
 export const technicalDiagram = pgTable(
   "technical_diagram",
@@ -38,6 +136,12 @@ export const technicalDiagram = pgTable(
     type: text("type").notNull(),
     authorityMode: text("authority_mode").notNull(),
     model: jsonb("model").$type<DiagramModel>().notNull(),
+    externalUrl: text("external_url"),
+    externalRevision: text("external_revision"),
+    externalTool: text("external_tool"),
+    externalCheckedAt: timestamp("external_checked_at"),
+    /** Live revision: model saves and restores write the next one. */
+    revision: integer("revision").notNull().default(1),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -58,6 +162,34 @@ export const technicalDiagram = pgTable(
   ],
 );
 
+/** Authority conversion: the target `Originates from` the source (inverse `Derived`). */
+export const diagramAuthorityOrigin = pgTable(
+  "diagram_authority_origin",
+  {
+    targetDiagramId: text("target_diagram_id")
+      .primaryKey()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    sourceDiagramId: text("source_diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    sourceMode: text("source_mode").notNull(),
+    targetMode: text("target_mode").notNull(),
+    loss: jsonb("loss").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("diagram_authority_origin_source_idx").on(table.sourceDiagramId),
+    check(
+      "diagram_authority_origin_distinct_check",
+      sql`${table.sourceDiagramId} <> ${table.targetDiagramId} and ${table.sourceMode} <> ${table.targetMode}`,
+    ),
+    check(
+      "diagram_authority_origin_modes_check",
+      sql`${table.sourceMode} in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link') and ${table.targetMode} in ('Product-authored Model', 'Imported Independent Copy', 'External Source Link')`,
+    ),
+  ],
+);
+
 export const diagramView = pgTable(
   "diagram_view",
   {
@@ -70,12 +202,54 @@ export const diagramView = pgTable(
       .$type<string[]>()
       .notNull()
       .default([]),
+    /** View metadata only: element id to canvas coordinates. Not canonical. */
+    layout: jsonb("layout")
+      .$type<Record<string, { x: number; y: number }>>()
+      .notNull()
+      .default({}),
   },
   (table) => [
     unique("diagram_view_name_unique").on(table.diagramId, table.name),
     check(
       "diagram_view_name_check",
       sql`length(btrim(${table.name})) between 1 and 255`,
+    ),
+  ],
+);
+
+/**
+ * Immutable `Diagram Version` checkpoint: append-only, written once with a copy
+ * of the canonical model and never updated. Other records pin `id` exactly.
+ */
+export const diagramVersion = pgTable(
+  "diagram_version",
+  {
+    id: text("id").primaryKey(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    authorityMode: text("authority_mode").notNull(),
+    model: jsonb("model").$type<DiagramModel>().notNull(),
+    revision: integer("revision").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("diagram_version_number_unique").on(table.diagramId, table.number),
+    unique("diagram_version_name_unique").on(table.diagramId, table.name),
+    check(
+      "diagram_version_name_check",
+      sql`length(btrim(${table.name})) between 1 and 255`,
+    ),
+    check(
+      "diagram_version_number_check",
+      sql`${table.number} >= 1 and ${table.revision} >= 1`,
+    ),
+    check(
+      "diagram_version_authority_mode_check",
+      sql`${table.authorityMode} in ('Product-authored Model', 'Imported Independent Copy')`,
     ),
   ],
 );
@@ -97,5 +271,100 @@ export const diagramDocumentOrigin = pgTable(
       "diagram_origin_block_check",
       sql`${table.blockStart} >= 0 and ${table.blockEnd} > ${table.blockStart}`,
     ),
+  ],
+);
+
+/**
+ * Read-only live card of an existing İş, Karar, Risk or Açık Soru on a diagram
+ * canvas. It holds the source identity and the card position only; the source
+ * has no foreign key on purpose (a permanently deleted source stays a broken
+ * target), and nothing here is ever written back to the record.
+ */
+export const diagramRecordCard = pgTable(
+  "diagram_record_card",
+  {
+    id: text("id").primaryKey(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    x: doublePrecision("x").notNull().default(0),
+    y: doublePrecision("y").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique("diagram_record_card_source_unique").on(
+      table.diagramId,
+      table.sourceType,
+      table.sourceId,
+    ),
+    check(
+      "diagram_record_card_source_type_check",
+      sql`${table.sourceType} in ('Work', 'Decision', 'Risk', 'Open Question')`,
+    ),
+  ],
+);
+
+/**
+ * `Convert to record and link`: the record opened from a node of one exact
+ * `Diagram Version`. `id` is the new record's id, so one conversion links one
+ * record and a retry cannot mint a second.
+ */
+export const diagramRecordLink = pgTable(
+  "diagram_record_link",
+  {
+    id: text("id").primaryKey(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    versionId: text("version_id")
+      .notNull()
+      .references(() => diagramVersion.id, { onDelete: "cascade" }),
+    nodeId: text("node_id").notNull(),
+    recordType: text("record_type").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("diagram_record_link_diagram_idx").on(table.diagramId),
+    check(
+      "diagram_record_link_record_type_check",
+      sql`${table.recordType} in ('Work', 'Decision', 'Risk', 'Open Question')`,
+    ),
+  ],
+);
+
+/**
+ * The account's personal viewport of one Technical Diagram and `Diagram View`
+ * (center, zoom and view-local group collapse). Deliberately outside the
+ * diagram, its model hash, versions, views, cards, share Snapshots and exports,
+ * and keyed by account so it is never another user's view. `view_id` is empty
+ * for the default view. Selection and unsaved edits have no field.
+ */
+export interface TechnicalDiagramViewportState {
+  center: { x: number; y: number };
+  collapsed: string[];
+  zoom: number;
+}
+
+export const technicalDiagramViewport = pgTable(
+  "technical_diagram_viewport",
+  {
+    accountId: text("account_id").notNull(),
+    diagramId: text("diagram_id")
+      .notNull()
+      .references(() => technicalDiagram.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    viewId: text("view_id").notNull().default(""),
+    viewport: jsonb("viewport")
+      .$type<TechnicalDiagramViewportState>()
+      .notNull(),
+  },
+  (table) => [
+    index("technical_diagram_viewport_diagram_idx").on(table.diagramId),
+    primaryKey({
+      columns: [table.accountId, table.diagramId, table.viewId],
+      name: "technical_diagram_viewport_pk",
+    }),
   ],
 );

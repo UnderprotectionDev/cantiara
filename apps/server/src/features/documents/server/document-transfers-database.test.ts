@@ -578,8 +578,8 @@ describeDatabase("Documents transfer database seam", () => {
           { id: "hidden", label: "Hidden storage", kind: "Datastore" },
         ],
         links: [
-          { from: "web", to: "api", label: "requests" },
-          { from: "api", to: "hidden", label: "persists" },
+          { from: "web", kind: "Calls", to: "api", label: "requests" },
+          { from: "api", kind: "Writes to", to: "hidden", label: "persists" },
         ],
       },
     });

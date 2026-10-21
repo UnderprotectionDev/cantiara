@@ -120,6 +120,7 @@ type WallRow = typeof projectWall.$inferSelect;
 function toItem(row: ItemRow): ProjectWallItemRecord {
   return {
     density: row.density as ProjectWallDensity,
+    diagramVersionId: row.diagramVersionId,
     diagramViewId: row.diagramViewId,
     groupId: row.groupId,
     highlight: row.highlight as ProjectWallHighlight | null,
@@ -297,6 +298,7 @@ export function createDatabaseProjectWallStore(
           .insert(projectWallItem)
           .values({
             density: input.density,
+            diagramVersionId: input.diagramVersionId,
             diagramViewId: input.diagramViewId,
             id: input.id,
             placedAt: new Date(input.placedAt),
@@ -575,6 +577,37 @@ export function createDatabaseProjectWallStore(
               wallId: input.wallId,
             })),
           );
+        }
+        await touchWall(tx, input.wallId);
+        return true;
+      });
+    },
+
+    async setCardDiagramVersion(accountId, input) {
+      return await database.transaction(async (tx) => {
+        if (
+          !(await findWritableWall(
+            tx,
+            accountId,
+            input.projectId,
+            input.wallId,
+          ))
+        ) {
+          return false;
+        }
+        // Only the wall item row: the pin is wall view state, never the diagram.
+        const changed = await tx
+          .update(projectWallItem)
+          .set({ diagramVersionId: input.diagramVersionId })
+          .where(
+            and(
+              eq(projectWallItem.id, input.cardId),
+              eq(projectWallItem.wallId, input.wallId),
+            ),
+          )
+          .returning({ id: projectWallItem.id });
+        if (changed.length === 0) {
+          return false;
         }
         await touchWall(tx, input.wallId);
         return true;

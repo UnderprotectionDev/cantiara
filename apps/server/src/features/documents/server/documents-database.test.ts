@@ -21,6 +21,7 @@ import {
   workPriorityMetricValue,
 } from "@cantiara/db/schema/priority-metrics";
 import { project } from "@cantiara/db/schema/project";
+import { usageLink } from "@cantiara/db/schema/relation";
 import { workspaceTag } from "@cantiara/db/schema/tags";
 import {
   diagramDocumentOrigin,
@@ -2382,7 +2383,9 @@ describeDatabase("Documents database boundary", () => {
       .set({
         model: {
           nodes: [],
-          links: [{ from: "missing", to: "missing", label: null }],
+          links: [
+            { from: "missing", kind: "Calls", to: "missing", label: null },
+          ],
         },
       })
       .where(eq(technicalDiagram.id, "diagram-source"));
@@ -2447,7 +2450,19 @@ describeDatabase("Documents database boundary", () => {
     ).toMatchObject({
       model: { nodes: [{ label: "Web" }, { label: "API" }] },
     });
-    const confirmed = { ...command, clientIdempotencyKey: crypto.randomUUID() };
+    const confirmed = {
+      ...command,
+      clientIdempotencyKey: crypto.randomUUID(),
+      previewToken: preview.previewToken,
+    };
+    await expect(
+      api.convertMermaidToTechnicalDiagram({
+        ...confirmed,
+        clientIdempotencyKey: crypto.randomUUID(),
+        previewToken: "stale",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(0);
     const concurrentConversions = await Promise.all([
       api.convertMermaidToTechnicalDiagram(confirmed),
       api.convertMermaidToTechnicalDiagram(confirmed),
@@ -2499,6 +2514,113 @@ describeDatabase("Documents database boundary", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(await api.technicalDiagrams({ projectId })).toHaveLength(1);
   });
+  it("replaces a Mermaid block atomically, retries without a second diagram and rolls back a stale confirmation", async () => {
+    if (!database) {
+      throw new Error("ACCOUNT_ACCESS_DATABASE_URL is required");
+    }
+    const api = client();
+    const block =
+      "```mermaid\ngraph TD\nweb[Web] --> api[API]\nclassDef x fill:red\n```";
+    const saved = await api.createDocument({
+      baseRevision: 0,
+      body: `# Design\n\n${block}\n\nAfter`,
+      clientIdempotencyKey: crypto.randomUUID(),
+      projectId,
+      title: "Design",
+      type: "General",
+    });
+    const command = {
+      documentId: saved.id,
+      documentRevision: saved.revision,
+      blockStart: saved.body.indexOf(block),
+      blockEnd: saved.body.indexOf(block) + block.length,
+      originalBlock: "Replace with live reference" as const,
+      title: "Replaced architecture",
+    };
+    const preview = await api.previewMermaidConversion(command);
+    expect(preview).toMatchObject({
+      documentRevisionAfter: saved.revision + 1,
+      originRelation: `Originates from Design, version ${saved.revision}, line 3`,
+      roundTripSync: false,
+      unparseableLines: [{ line: 3, text: "classDef x fill:red" }],
+    });
+
+    const stale = {
+      ...command,
+      clientIdempotencyKey: crypto.randomUUID(),
+      previewToken: preview.previewToken,
+    };
+    await api.updateDocument({
+      baseRevision: saved.revision,
+      body: `${saved.body}\nEdited`,
+      clientIdempotencyKey: crypto.randomUUID(),
+      documentId: saved.id,
+      title: "Design",
+    });
+    await expect(
+      api.convertMermaidToTechnicalDiagram(stale),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(0);
+    expect(
+      await database
+        .select()
+        .from(diagramDocumentOrigin)
+        .where(eq(diagramDocumentOrigin.documentId, saved.id)),
+    ).toHaveLength(0);
+
+    const current = await api.document({ documentId: saved.id });
+    const freshRange = {
+      ...command,
+      documentRevision: current.revision,
+      blockStart: current.body.indexOf(block),
+      blockEnd: current.body.indexOf(block) + block.length,
+    };
+    const freshPreview = await api.previewMermaidConversion(freshRange);
+    await expect(
+      api.convertMermaidToTechnicalDiagram({
+        ...freshRange,
+        clientIdempotencyKey: crypto.randomUUID(),
+        previewToken: preview.previewToken,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(
+      api.convertMermaidToTechnicalDiagram({
+        ...freshRange,
+        clientIdempotencyKey: crypto.randomUUID(),
+        originalBlock: "Keep independent",
+        previewToken: freshPreview.previewToken,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(0);
+    const fresh = {
+      ...freshRange,
+      clientIdempotencyKey: crypto.randomUUID(),
+      previewToken: freshPreview.previewToken,
+    };
+    const [created] = await Promise.all([
+      api.convertMermaidToTechnicalDiagram(fresh),
+      api.convertMermaidToTechnicalDiagram(fresh),
+    ]);
+    expect(await api.convertMermaidToTechnicalDiagram(fresh)).toEqual(created);
+    expect(await api.technicalDiagrams({ projectId })).toHaveLength(1);
+    const after = await api.document({ documentId: saved.id });
+    expect(after.revision).toBe(current.revision + 1);
+    expect(after.body).toContain(`:::live-diagram{diagramId="${created.id}"}`);
+    expect(after.body).not.toContain("```mermaid");
+    expect(
+      await database
+        .select()
+        .from(usageLink)
+        .where(eq(usageLink.sourceRecordId, created.id)),
+    ).toMatchObject([
+      {
+        location: { documentLiveOrdinal: 0 },
+        surfaceRecordId: saved.id,
+        surfaceRecordType: "Document",
+      },
+    ]);
+  });
+
   it("compares product versions and restores a prior version as a new head", async () => {
     const documents = client();
     const created = await documents.createDocument({

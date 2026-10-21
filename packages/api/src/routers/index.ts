@@ -360,6 +360,7 @@ import {
   renameProjectWallInputSchema,
   reorderProjectWallCardsInputSchema,
   setProjectWallCardDensityInputSchema,
+  setProjectWallCardDiagramPinInputSchema,
   setProjectWallCardGroupInputSchema,
   setProjectWallCardHighlightInputSchema,
   setProjectWallCardLockInputSchema,
@@ -519,9 +520,35 @@ import {
   undoTagRenameInputSchema,
 } from "../tags";
 import {
+  authorityConversionInputSchema,
+  confirmAuthorityConversionInputSchema,
+  createTechnicalDiagramInputSchema,
+  DiagramAuthorityError,
+} from "../technical-diagram-authority";
+import {
+  confirmConvertToRecordInputSchema,
+  DiagramConversionError,
+  moveDiagramRecordCardInputSchema,
+  pinDiagramToVersion,
+  placeDiagramRecordCardInputSchema,
+  previewConvertToRecordInputSchema,
+  removeDiagramRecordCardInputSchema,
+} from "../technical-diagram-card";
+import { StructuralModelError } from "../technical-diagram-structure";
+import {
+  createDiagramVersionInputSchema,
+  restoreDiagramVersionInputSchema,
+} from "../technical-diagram-version";
+import {
+  saveTechnicalDiagramViewportInputSchema,
+  technicalDiagramViewportInputSchema,
+} from "../technical-diagram-viewport";
+import {
   confirmMermaidConversionInputSchema,
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
+  saveDiagramLayoutInputSchema,
+  saveTechnicalDiagramModelInputSchema,
 } from "../technical-diagrams";
 import {
   recordTestAssessmentInputSchema,
@@ -1635,13 +1662,21 @@ async function liveDocumentBlockSource(
       (await context.smartCollections?.getView(accountId, directive.id)) ?? null
     );
   }
-  return (
-    (await context.technicalDiagrams?.get(
-      accountId,
-      directive.id,
-      directive.viewId,
-    )) ?? null
+  const diagram = await context.technicalDiagrams?.get(
+    accountId,
+    directive.id,
+    directive.viewId,
   );
+  if (!(diagram && directive.versionId)) {
+    return diagram ?? null;
+  }
+  // An exact card reads its checkpoint, never the live model; a checkpoint
+  // that is gone or foreign is a broken reference, not the live diagram.
+  const version = await context.technicalDiagrams?.getVersion(
+    accountId,
+    directive.versionId,
+  );
+  return version ? pinDiagramToVersion(diagram, version) : null;
 }
 
 function rethrowFileAttachmentError(error: unknown): never {
@@ -4392,6 +4427,7 @@ export const appRouter = {
             id: directive.id,
             kind: directive.kind,
             sectionId: directive.sectionId ?? null,
+            versionId: directive.versionId ?? null,
             viewId: directive.viewId ?? null,
             source: await liveDocumentBlockSource(
               context,
@@ -4631,6 +4667,13 @@ export const appRouter = {
           context.session.user.id,
           input,
         ),
+      ),
+    ),
+  setProjectWallCardDiagramPin: protectedProcedure
+    .input(setProjectWallCardDiagramPinInputSchema)
+    .handler(({ context, input }) =>
+      runProjectWallOperation(() =>
+        requireProjectWall(context).setCardPin(context.session.user.id, input),
       ),
     ),
   setProjectWallCardHighlight: protectedProcedure
@@ -5333,6 +5376,78 @@ export const appRouter = {
       }
       return diagram;
     }),
+  createTechnicalDiagram: protectedProcedure
+    .input(createTechnicalDiagramInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.create(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof DiagramAuthorityError ||
+            error instanceof StructuralModelError
+            ? "BAD_REQUEST"
+            : "CONFLICT",
+          { cause: error },
+        );
+      }
+    }),
+  previewDiagramAuthorityConversion: protectedProcedure
+    .input(authorityConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const preview =
+        await context.technicalDiagrams.previewAuthorityConversion(
+          context.session.user.id,
+          input,
+        );
+      if (!preview) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return preview;
+    }),
+  convertDiagramAuthority: protectedProcedure
+    .input(confirmAuthorityConversionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.convertAuthority(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof DiagramAuthorityError ||
+            error instanceof StructuralModelError
+            ? "BAD_REQUEST"
+            : "CONFLICT",
+          { cause: error },
+        );
+      }
+    }),
   createDiagramView: protectedProcedure
     .input(createDiagramViewInputSchema)
     .handler(async ({ context, input }) => {
@@ -5354,6 +5469,272 @@ export const appRouter = {
         }
         throw new ORPCError("CONFLICT", { cause: error });
       }
+    }),
+  createDiagramVersion: protectedProcedure
+    .input(createDiagramVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const version = await context.technicalDiagrams.createVersion(
+          context.session.user.id,
+          input,
+        );
+        if (!version) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return version;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  technicalDiagramRecordCards: protectedProcedure
+    .input(z.object({ diagramId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const cards = await context.technicalDiagrams.listRecordCards(
+        context.session.user.id,
+        input.diagramId,
+      );
+      if (!cards) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return cards;
+    }),
+  placeDiagramRecordCard: protectedProcedure
+    .input(placeDiagramRecordCardInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const card = await context.technicalDiagrams.placeRecordCard(
+          context.session.user.id,
+          input,
+        );
+        if (!card) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return card;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  moveDiagramRecordCard: protectedProcedure
+    .input(moveDiagramRecordCardInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const card = await context.technicalDiagrams.moveRecordCard(
+        context.session.user.id,
+        input,
+      );
+      if (!card) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return card;
+    }),
+  removeDiagramRecordCard: protectedProcedure
+    .input(removeDiagramRecordCardInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      if (
+        !(await context.technicalDiagrams.removeRecordCard(
+          context.session.user.id,
+          input,
+        ))
+      ) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return { removed: true };
+    }),
+  previewDiagramNodeConversion: protectedProcedure
+    .input(previewConvertToRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const plan = await context.technicalDiagrams.previewConvertToRecord(
+          context.session.user.id,
+          input,
+        );
+        if (!plan) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return plan;
+      } catch (error) {
+        if (error instanceof DiagramConversionError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  convertDiagramNodeToRecord: protectedProcedure
+    .input(confirmConvertToRecordInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const linked = await context.technicalDiagrams.convertToRecord(
+          context.session.user.id,
+          input,
+        );
+        if (!linked) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return linked;
+      } catch (error) {
+        if (error instanceof DiagramConversionError) {
+          throw new ORPCError("CONFLICT", { cause: error });
+        }
+        throw error;
+      }
+    }),
+  technicalDiagramVersions: protectedProcedure
+    .input(z.object({ diagramId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const versions = await context.technicalDiagrams.listVersions(
+        context.session.user.id,
+        input.diagramId,
+      );
+      if (!versions) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return versions;
+    }),
+  technicalDiagramVersion: protectedProcedure
+    .input(z.object({ versionId: z.string().min(1) }).strict())
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const version = await context.technicalDiagrams.getVersion(
+        context.session.user.id,
+        input.versionId,
+      );
+      if (!version) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return version;
+    }),
+  restoreDiagramVersion: protectedProcedure
+    .input(restoreDiagramVersionInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.restoreVersion(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  saveTechnicalDiagramStructure: protectedProcedure
+    .input(saveTechnicalDiagramModelInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.saveModel(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof StructuralModelError ? "BAD_REQUEST" : "CONFLICT",
+          { cause: error },
+        );
+      }
+    }),
+  saveDiagramLayout: protectedProcedure
+    .input(saveDiagramLayoutInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.saveLayout(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof StructuralModelError ? "BAD_REQUEST" : "CONFLICT",
+          { cause: error },
+        );
+      }
+    }),
+  technicalDiagramViewport: protectedProcedure
+    .input(technicalDiagramViewportInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const result = await context.technicalDiagrams.viewport(
+        context.session.user.id,
+        input,
+      );
+      if (!result) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return result.viewport;
+    }),
+  saveTechnicalDiagramViewport: protectedProcedure
+    .input(saveTechnicalDiagramViewportInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      const saved = await context.technicalDiagrams.saveViewport(
+        context.session.user.id,
+        input,
+      );
+      if (!saved) {
+        throw new ORPCError("NOT_FOUND");
+      }
+      return saved;
     }),
   technicalDiagramViews: protectedProcedure
     .input(z.object({ diagramId: z.string().min(1) }).strict())

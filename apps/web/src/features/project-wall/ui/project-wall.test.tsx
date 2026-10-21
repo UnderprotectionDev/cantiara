@@ -527,6 +527,9 @@ function diagramCard(): ProjectWallCardView {
         { id: "db", kind: "Datastore", label: "Postgres" },
       ],
       pin: "Live",
+      versionId: null,
+      versionName: null,
+      versionNumber: null,
       viewName: "Core",
     },
     source: {
@@ -598,11 +601,37 @@ describe("Project Wall read-only previews", () => {
             ({
               ...(base.preview as object),
               pin: "Exact",
+              versionId: "version-1",
+              versionName: "Launch",
+              versionNumber: 1,
             } as never),
         }}
       />,
     );
-    expect(html).toContain("Exact");
+    expect(html).toContain("Exact · Launch");
+    expect(html).not.toContain("Live ·");
+  });
+
+  test("the pin control offers Live and each Diagram Version only when the surface provides it", () => {
+    const withoutPin = renderToStaticMarkup(
+      <ProjectWallCard actions={CARD_ACTIONS} card={diagramCard()} />,
+    );
+    expect(withoutPin).not.toContain("Pin exact Diagram Version");
+    const html = renderToStaticMarkup(
+      <ProjectWallCard
+        actions={{
+          ...CARD_ACTIONS,
+          diagramVersions: {
+            "diagram-1": [{ id: "version-1", name: "Launch", number: 1 }],
+          },
+          onDiagramPin: vi.fn(),
+        }}
+        card={diagramCard()}
+      />,
+    );
+    expect(html).toContain('aria-label="Pin exact Diagram Version"');
+    expect(html).toContain("Follow live diagram");
+    expect(html).toContain("Exact · Launch · v1");
   });
 
   test("a Smart Collection block is a limited summary with Open all in source and a Shared source callout", () => {

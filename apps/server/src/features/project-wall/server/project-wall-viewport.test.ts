@@ -292,6 +292,7 @@ describe("500 visible / 750 link hard scene and 2,000 / 3,000", () => {
     for (let index = 0; index < cards; index += 1) {
       await ctx.store.addCard(ACCOUNT, {
         density: "Compact",
+        diagramVersionId: null,
         diagramViewId: null,
         id: `c${index}`,
         placedAt: "2026-01-01T00:00:00.000Z",

@@ -834,7 +834,10 @@ test("converts saved Mermaid into an independent Technical Diagram and embeds it
     .getByRole("tabpanel", { name: "Preview" })
     .getByRole("link", { name: "Open source record" })
     .click();
-  const source = page.getByRole("region", { name: "Technical Diagram" });
+  const source = page.getByRole("region", {
+    exact: true,
+    name: "Technical Diagram",
+  });
   await source.getByLabel("Name", { exact: true }).fill("Web only");
   await source.getByRole("checkbox", { name: "API" }).uncheck();
   await source.getByRole("button", { name: "Save" }).click();

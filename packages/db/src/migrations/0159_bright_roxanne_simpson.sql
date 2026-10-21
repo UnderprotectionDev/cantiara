@@ -1,0 +1,1 @@
+ALTER TABLE "diagram_view" ADD COLUMN "layout" jsonb DEFAULT '{}'::jsonb NOT NULL;

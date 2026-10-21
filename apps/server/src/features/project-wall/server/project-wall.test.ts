@@ -450,6 +450,7 @@ describe("Project Wall: no wall-only content", () => {
     const [row] = wallRows();
     expect(Object.keys(row?.items[0] ?? {}).sort()).toEqual([
       "density",
+      "diagramVersionId",
       "diagramViewId",
       "groupId",
       "highlight",

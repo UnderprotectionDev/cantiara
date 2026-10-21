@@ -9,6 +9,7 @@ import {
   type ProjectWallHighlight,
 } from "@cantiara/api/project-wall";
 import { PROJECT_WALL_PRESENTATION_LABELS } from "@cantiara/api/project-wall-presentation";
+import { DIAGRAM_CARD_LABELS } from "@cantiara/api/technical-diagram-card";
 import { Button } from "@cantiara/ui/components/button";
 import {
   NativeSelect,
@@ -28,7 +29,14 @@ const HIGHLIGHT_BORDER: Record<ProjectWallHighlight, string> = {
 };
 
 export interface ProjectWallCardActions {
+  /** Diagram Versions per diagram id, offered by the pin control. */
+  diagramVersions?: Record<
+    string,
+    Array<{ id: string; name: string; number: number }>
+  >;
   onDensity: (cardId: string, density: ProjectWallDensity) => void;
+  /** Pins a Technical Diagram card to one exact version; `null` is `Live`. */
+  onDiagramPin?: (cardId: string, versionId: string | null) => void;
   onGroup: (cardId: string, groupId: string | null) => void;
   onHighlight: (cardId: string, highlight: ProjectWallHighlight | null) => void;
   onLock: (cardId: string, locked: boolean) => void;
@@ -58,7 +66,11 @@ function ProjectWallPreview({
         className="space-y-1 text-xs"
       >
         <p className="text-muted-foreground">
-          {label} · {preview.diagramType} · {preview.viewName ?? "Default"} view
+          {label}
+          {preview.pin === "Exact" && preview.versionName
+            ? ` · ${preview.versionName}`
+            : ""}{" "}
+          · {preview.diagramType} · {preview.viewName ?? "Default"} view
         </p>
         <ul className="space-y-0.5">
           {preview.nodes.map((node) => (
@@ -108,6 +120,41 @@ function ProjectWallPreview({
         {PROJECT_WALL_PRESENTATION_LABELS.openAllInSource}
       </a>
     </section>
+  );
+}
+
+function DiagramPinControl({
+  actions,
+  card,
+}: {
+  actions: ProjectWallCardActions;
+  card: ProjectWallCardView;
+}) {
+  const { onDiagramPin } = actions;
+  if (card.sourceType !== "Technical Diagram" || !onDiagramPin) {
+    return null;
+  }
+  const pinned =
+    card.preview?.kind === "Technical Diagram"
+      ? (card.preview.versionId ?? "")
+      : "";
+  return (
+    <NativeSelect
+      aria-label={DIAGRAM_CARD_LABELS.pin}
+      onChange={(event) => onDiagramPin(card.id, event.target.value || null)}
+      value={pinned}
+    >
+      <NativeSelectOption value="">
+        {DIAGRAM_CARD_LABELS.live} · {DIAGRAM_CARD_LABELS.unpin}
+      </NativeSelectOption>
+      {(actions.diagramVersions?.[card.source.recordId] ?? []).map(
+        (version) => (
+          <NativeSelectOption key={version.id} value={version.id}>
+            {DIAGRAM_CARD_LABELS.exact} · {version.name} · v{version.number}
+          </NativeSelectOption>
+        ),
+      )}
+    </NativeSelect>
   );
 }
 
@@ -214,6 +261,7 @@ export function ProjectWallCard({
               </NativeSelectOption>
             ))}
           </NativeSelect>
+          <DiagramPinControl actions={actions} card={card} />
           <NativeSelect
             aria-label="Group"
             onChange={(event) =>

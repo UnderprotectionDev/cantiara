@@ -43,6 +43,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { z } from "zod";
 import { formatAccountDateTime } from "@/features/account-preferences/lib/account-preferences-format";
 import FavoriteControl from "@/features/favorites/ui/components/favorite-control";
 import PersonalReminderControl from "@/features/personal-reminders/ui/components/personal-reminder-control";
@@ -319,6 +320,7 @@ function DocumentEditor({
     availableSections,
     diagrams,
     diagramViews,
+    diagramVersions,
     sourceRecords,
   } = useDocumentReferenceSources(
     record,
@@ -344,6 +346,17 @@ function DocumentEditor({
       if (!conversionSelection) {
         throw new Error("No Mermaid block selected.");
       }
+      if (
+        !matchesDiagramConversionPreview(
+          conversionPreview.data,
+          conversionSelection,
+          conversionTitle,
+          originalBlockOutcome,
+        )
+      ) {
+        throw new Error("Preview the Mermaid conversion again.");
+      }
+      const previewToken = conversionPreview.data?.previewToken as string;
       conversionKey.current ??= crypto.randomUUID();
       return runOnlineOnlyWrite(() =>
         client.convertMermaidToTechnicalDiagram({
@@ -353,6 +366,7 @@ function DocumentEditor({
           blockEnd: conversionSelection.end,
           originalBlock: originalBlockOutcome,
           title: conversionTitle,
+          previewToken,
           clientIdempotencyKey: conversionKey.current as string,
         }),
       );
@@ -1062,6 +1076,7 @@ function DocumentEditor({
                       bulkRows={bulkRows}
                       collectionViews={collectionViews}
                       diagrams={diagrams}
+                      diagramVersions={diagramVersions}
                       diagramViews={diagramViews}
                       documentsForSections={documentsForSections}
                       field={field}
@@ -1568,6 +1583,11 @@ export default function DocumentsSurface({
   );
 }
 
+const diagramConversionFormSchema = z.object({
+  originalBlock: z.enum(["Keep independent", "Replace with live reference"]),
+  title: z.string(),
+});
+
 function DocumentDiagramConversionDialog({
   setConversionSelection,
   conversionKey,
@@ -1607,6 +1627,22 @@ function DocumentDiagramConversionDialog({
     unknown
   >;
 }) {
+  const form = useForm({
+    defaultValues: {
+      originalBlock: originalBlockOutcome,
+      title: conversionTitle,
+    },
+    validators: { onChange: diagramConversionFormSchema },
+  });
+  // The parent resets the title and outcome when a selection opens or closes.
+  useEffect(() => {
+    if (form.getFieldValue("title") !== conversionTitle) {
+      form.setFieldValue("title", conversionTitle);
+    }
+    if (form.getFieldValue("originalBlock") !== originalBlockOutcome) {
+      form.setFieldValue("originalBlock", originalBlockOutcome);
+    }
+  }, [conversionTitle, form, originalBlockOutcome]);
   const previewMatchesSelection = matchesDiagramConversionPreview(
     conversionPreview.data,
     conversionSelection,
@@ -1630,63 +1666,90 @@ function DocumentDiagramConversionDialog({
           <DialogDescription>Imported Independent Copy</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="converted-diagram-title">Title</Label>
-          <Input
-            id="converted-diagram-title"
-            onChange={(event) => {
-              const nextTitle = event.target.value;
-              if (nextTitle !== conversionTitle) {
-                conversionKey.current = null;
-              }
-              setConversionTitle(nextTitle);
+          <form.Field
+            listeners={{
+              onChange: ({ value }) => {
+                if (value !== conversionTitle) {
+                  conversionKey.current = null;
+                }
+                setConversionTitle(value);
+              },
             }}
-            value={conversionTitle}
-          />
-          <Label htmlFor="converted-diagram-original-block">
-            Original Mermaid block
-          </Label>
-          <NativeSelect
-            id="converted-diagram-original-block"
-            onChange={(event) => {
-              conversionKey.current = null;
-              setOriginalBlockOutcome(
-                event.target.value as
-                  | "Keep independent"
-                  | "Replace with live reference",
-              );
-            }}
-            value={originalBlockOutcome}
+            name="title"
           >
-            <NativeSelectOption value="Keep independent">
-              Keep independent
-            </NativeSelectOption>
-            <NativeSelectOption value="Replace with live reference">
-              Replace with live reference
-            </NativeSelectOption>
-          </NativeSelect>
+            {(field) => (
+              <>
+                <Label htmlFor="converted-diagram-title">Title</Label>
+                <Input
+                  id="converted-diagram-title"
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  value={field.state.value}
+                />
+              </>
+            )}
+          </form.Field>
+          <form.Field
+            listeners={{
+              onChange: ({ value }) => {
+                conversionKey.current = null;
+                setOriginalBlockOutcome(value);
+              },
+            }}
+            name="originalBlock"
+          >
+            {(field) => (
+              <>
+                <Label htmlFor="converted-diagram-original-block">
+                  Original Mermaid block
+                </Label>
+                <NativeSelect
+                  id="converted-diagram-original-block"
+                  onChange={(event) =>
+                    field.handleChange(
+                      event.target.value as
+                        | "Keep independent"
+                        | "Replace with live reference",
+                    )
+                  }
+                  value={field.state.value}
+                >
+                  <NativeSelectOption value="Keep independent">
+                    Keep independent
+                  </NativeSelectOption>
+                  <NativeSelectOption value="Replace with live reference">
+                    Replace with live reference
+                  </NativeSelectOption>
+                </NativeSelect>
+              </>
+            )}
+          </form.Field>
           {conversionPreview.data &&
           !conversionPreview.isFetching &&
           previewMatchesSelection ? (
-            <div className="text-sm">
+            <section aria-label="Conversion preview" className="text-sm">
               <p>
                 Document: {record.title} · Version:{" "}
                 {conversionPreview.data.documentRevision}
               </p>
               <p>Technical Architecture · Imported Independent Copy</p>
               <p>
-                Mermaid block: {conversionPreview.data.blockStart}–
+                Mermaid block: line {conversionPreview.data.source.blockLine} ·
+                offsets {conversionPreview.data.blockStart}–
                 {conversionPreview.data.blockEnd}
               </p>
+              <p>{conversionPreview.data.originRelation}</p>
               <p>
-                Original Mermaid block: {conversionPreview.data.originalBlock}
+                Original Mermaid block: {conversionPreview.data.originalBlock}.{" "}
+                {conversionPreview.data.blockEffect}
               </p>
+              <p>No live round-trip: later edits never sync back.</p>
               <p>
                 {conversionPreview.data.model.nodes.length} nodes ·{" "}
                 {conversionPreview.data.model.links.length} links
               </p>
               {conversionPreview.data.unparseableLines.length > 0 ? (
                 <div>
-                  <p>Unparseable items</p>
+                  <p>Unparseable items (left out of the diagram)</p>
                   <ul className="list-inside list-disc">
                     {conversionPreview.data.unparseableLines.map((line) => (
                       <li key={`${line.line}-${line.text}`}>
@@ -1697,7 +1760,7 @@ function DocumentDiagramConversionDialog({
                   </ul>
                 </div>
               ) : null}
-            </div>
+            </section>
           ) : null}
           {conversionPreview.isError ? (
             <p role="alert">{conversionPreview.error.message}</p>
@@ -2347,6 +2410,7 @@ function DocumentMarkdownEditor({
   selectedDiagramId,
   diagrams,
   diagramViews,
+  diagramVersions,
   setRecordReferenceChoice,
   recordReferenceChoice,
   recordReferenceOptions,
@@ -2395,6 +2459,10 @@ function DocumentMarkdownEditor({
   >;
   diagramViews: import("@tanstack/react-query").UseQueryResult<
     { id: string; name: string; selectedNodeIds: string[] }[],
+    Error
+  >;
+  diagramVersions: import("@tanstack/react-query").UseQueryResult<
+    { id: string; name: string; number: number }[],
     Error
   >;
   setRecordReferenceChoice: import("react").Dispatch<
@@ -2572,6 +2640,29 @@ function DocumentMarkdownEditor({
             {diagramViews.data?.map((diagramView) => (
               <NativeSelectOption key={diagramView.id} value={diagramView.id}>
                 {diagramView.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <Label htmlFor="document-live-diagram-version">Diagram Version</Label>
+          <NativeSelect
+            id="document-live-diagram-version"
+            onChange={(event) => {
+              const versionId = event.target.value;
+              if (versionId) {
+                const spacer = field.state.value.trimEnd() ? "\n\n" : "";
+                field.handleChange(
+                  `${field.state.value.trimEnd()}${spacer}:::live-diagram{diagramId="${selectedDiagramId}" versionId="${versionId}"}\n`,
+                );
+              }
+            }}
+            value=""
+          >
+            <NativeSelectOption value="">
+              Pin exact Diagram Version
+            </NativeSelectOption>
+            {diagramVersions.data?.map((version) => (
+              <NativeSelectOption key={version.id} value={version.id}>
+                {version.name} · v{version.number}
               </NativeSelectOption>
             ))}
           </NativeSelect>
@@ -2829,6 +2920,12 @@ function useDocumentReferenceSources(
     }),
     enabled: view === "markdown" && selectedDiagramId.length > 0,
   });
+  const diagramVersions = useQuery({
+    ...orpc.technicalDiagramVersions.queryOptions({
+      input: { diagramId: selectedDiagramId },
+    }),
+    enabled: view === "markdown" && selectedDiagramId.length > 0,
+  });
   return {
     collectionViews,
     documentsForSections,
@@ -2836,6 +2933,7 @@ function useDocumentReferenceSources(
     availableSections,
     diagrams,
     diagramViews,
+    diagramVersions,
     sourceRecords,
   };
 }

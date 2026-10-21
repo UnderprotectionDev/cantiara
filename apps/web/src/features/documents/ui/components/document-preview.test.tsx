@@ -117,13 +117,21 @@ test("renders named collection and Diagram View blocks from their resolved sourc
             id: "diagram-1",
             title: "Architecture",
             projectId: "project-1",
+            revision: 1,
             type: "Technical Architecture",
             authorityMode: "Imported Independent Copy",
+            externalSource: null,
+            origins: [],
             model: {
               nodes: [{ id: "api", label: "API", kind: "Component" }],
               links: [],
             },
-            view: { id: "view-2", name: "Services", selectedNodeIds: ["api"] },
+            view: {
+              id: "view-2",
+              layout: {},
+              name: "Services",
+              selectedNodeIds: ["api"],
+            },
           },
         },
       ]}
@@ -137,6 +145,62 @@ test("renders named collection and Diagram View blocks from their resolved sourc
   expect(markup).toContain("Project: Product project");
   expect(markup).toContain("Services");
   expect(markup).toContain("API");
+  expect(markup).toContain("Open source record");
+});
+
+test("labels a live diagram card Live and an exact Diagram Version card Exact, each from its own source", () => {
+  const source = {
+    id: "diagram-1",
+    title: "Architecture",
+    projectId: "project-1",
+    revision: 1,
+    type: "Technical Architecture" as const,
+    authorityMode: "Product-authored Model" as const,
+    externalSource: null,
+    origins: [],
+    model: {
+      nodes: [{ id: "api", label: "Live API", kind: "Service" as const }],
+      links: [],
+    },
+    view: null,
+  };
+  const markup = renderToStaticMarkup(
+    <DocumentPreview
+      liveOtherBlocks={[
+        { id: "diagram-1", kind: "Technical Diagram", source, viewId: null },
+        {
+          id: "diagram-1",
+          kind: "Technical Diagram",
+          source: {
+            ...source,
+            exactVersion: {
+              diagramId: "diagram-1",
+              kind: "Diagram Version",
+              name: "Launch",
+              number: 3,
+              versionId: "version-3",
+            },
+            model: {
+              nodes: [
+                { id: "api", label: "Pinned API", kind: "Service" as const },
+              ],
+              links: [],
+            },
+          },
+          versionId: "version-3",
+          viewId: null,
+        },
+      ]}
+      source={
+        ':::live-diagram{diagramId="diagram-1"}\n\n:::live-diagram{diagramId="diagram-1" versionId="version-3"}'
+      }
+    />,
+  );
+  expect(markup).toContain("Technical Diagram · Live");
+  expect(markup).toContain("Technical Diagram · Exact");
+  expect(markup).toContain("Launch (v3)");
+  expect(markup).toContain("Live API");
+  expect(markup).toContain("Pinned API");
   expect(markup).toContain("Open source record");
 });
 

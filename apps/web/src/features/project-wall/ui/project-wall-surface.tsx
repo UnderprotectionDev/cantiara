@@ -10,7 +10,12 @@ import {
   type ProjectWallViewport,
   toggleCollapsedGroup,
 } from "@cantiara/api/project-wall-viewport";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
@@ -285,8 +290,46 @@ export default function ProjectWallSurface({
     onSelect: setChosenId,
   };
 
+  const diagramIds = useMemo(
+    () => [
+      ...new Set(
+        (wall.data?.cards ?? [])
+          .filter((card) => card.sourceType === "Technical Diagram")
+          .map((card) => card.source.recordId),
+      ),
+    ],
+    [wall.data],
+  );
+  const diagramVersions = useQueries({
+    queries: diagramIds.map((diagramId) =>
+      orpc.technicalDiagramVersions.queryOptions({ input: { diagramId } }),
+    ),
+    combine: (results) =>
+      Object.fromEntries(
+        results.map((result, index) => [
+          diagramIds[index] ?? "",
+          (result.data ?? []).map(({ id, name, number }) => ({
+            id,
+            name,
+            number,
+          })),
+        ]),
+      ),
+  });
+
   const cardActions = useMemo<ProjectWallCardActions>(
     () => ({
+      diagramVersions,
+      onDiagramPin: (cardId: string, diagramVersionId: string | null) => {
+        write(() =>
+          client.setProjectWallCardDiagramPin({
+            cardId,
+            diagramVersionId,
+            projectId,
+            wallId: wallId ?? "",
+          }),
+        );
+      },
       onDensity: (cardId: string, density: ProjectWallDensity) => {
         write(() =>
           client.setProjectWallCardDensity({
@@ -337,7 +380,7 @@ export default function ProjectWallSurface({
         );
       },
     }),
-    [projectId, wallId, write],
+    [diagramVersions, projectId, wallId, write],
   );
 
   async function onMove(

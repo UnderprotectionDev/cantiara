@@ -17,6 +17,7 @@ import type {
 } from "@cantiara/api/project-wall-presentation";
 import type { ProjectWallViewport } from "@cantiara/api/project-wall-viewport";
 import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import type { TechnicalDiagramVersion } from "@cantiara/api/technical-diagram-version";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 
 import { ProjectWallProjectReadOnlyError } from "./project-wall";
@@ -100,6 +101,7 @@ export function createFakeProjectWallStore(input: {
       }
       const added: ProjectWallItemRecord = {
         density: card.density,
+        diagramVersionId: card.diagramVersionId,
         diagramViewId: card.diagramViewId,
         groupId: null,
         highlight: null,
@@ -180,6 +182,17 @@ export function createFakeProjectWallStore(input: {
         return false;
       }
       card.groupId = change.groupId;
+      touch(wall);
+      return true;
+    },
+
+    async setCardDiagramVersion(accountId, change) {
+      const wall = ownedWall(accountId, change.projectId, change.wallId);
+      const card = wall ? item(wall, change.cardId) : undefined;
+      if (!(wall && card)) {
+        return false;
+      }
+      card.diagramVersionId = change.diagramVersionId;
       touch(wall);
       return true;
     },
@@ -517,6 +530,8 @@ export interface FakeDiagram {
   ownerAccountId: string;
   projectId: string;
   title: string;
+  /** Immutable checkpoints the fake reads; live edits never change them. */
+  versions?: TechnicalDiagramVersion[];
   views: Array<{ id: string; name: string; selectedNodeIds: string[] }>;
 }
 
@@ -536,16 +551,18 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
     }
     return {
       authorityMode: "Product-authored Model",
+      externalSource: null,
       id: diagram.id,
       model: structuredClone(diagram.model),
+      origins: [],
       projectId: diagram.projectId,
+      revision: 1,
       title: diagram.title,
       type: "Technical Architecture",
-      view: view ? structuredClone(view) : null,
+      view: view ? { ...structuredClone(view), layout: {} } : null,
     };
   }
   const access: ProjectWallDiagrams = {
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async get(accountId, diagramId, viewId) {
       const diagram = diagrams.get(diagramId);
       const view = viewId
@@ -556,22 +573,39 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
       }
       return source(accountId, diagram, view);
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
+    async getVersion(accountId, versionId) {
+      for (const diagram of diagrams.values()) {
+        const version = diagram.versions?.find(({ id }) => id === versionId);
+        if (version && diagram.ownerAccountId === accountId) {
+          return structuredClone(version);
+        }
+      }
+      return null;
+    },
     async list(accountId, projectId) {
       return [...diagrams.values()]
         .filter((diagram) => diagram.projectId === projectId)
         .flatMap((diagram) => source(accountId, diagram, null) ?? []);
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async listViews(accountId, diagramId) {
       const diagram = diagrams.get(diagramId);
       return diagram?.ownerAccountId === accountId
-        ? structuredClone(diagram.views)
+        ? diagram.views.map((view) => ({
+            ...structuredClone(view),
+            layout: {},
+          }))
         : null;
     },
   };
   return {
     access,
+    /** The owning feature's live edit: the model changes, checkpoints do not. */
+    editModel(id: string, model: TechnicalDiagramSource["model"]) {
+      const diagram = diagrams.get(id);
+      if (diagram) {
+        diagram.model = model;
+      }
+    },
     rename(id: string, title: string) {
       const diagram = diagrams.get(id);
       if (diagram) {
@@ -631,13 +665,11 @@ export function createFakeProjectWallCollections(input: FakeCollection[]) {
     } as unknown as SmartCollectionViewSource;
   }
   const access: ProjectWallCollections = {
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async getView(accountId, viewId, options) {
       calls.push({ readOnly: options?.readOnly === true, viewId });
       const collection = collections.get(viewId);
       return collection?.ownerAccountId === accountId ? view(collection) : null;
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async listViews(accountId, projectId) {
       return [...collections.values()]
         .filter(
@@ -664,12 +696,10 @@ export function createFakeProjectWallCollections(input: FakeCollection[]) {
 export function createFakeSnapshotRenderer() {
   const rendered: ProjectWallSnapshotData[] = [];
   const renderer: ProjectWallSnapshotRenderer = {
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async pdf(data) {
       rendered.push(structuredClone(data));
       return new TextEncoder().encode("%PDF fake");
     },
-    // biome-ignore lint/suspicious/useAwait: Seam methods are async.
     async png(data) {
       rendered.push(structuredClone(data));
       return new Uint8Array([137, 80, 78, 71]);
