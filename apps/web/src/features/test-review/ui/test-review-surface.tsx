@@ -45,6 +45,31 @@ export default function TestReviewSurface({
       client.previewReviewBulk({ projectId, sessionId, sessionTestIds }),
     previewClose: (sessionId) =>
       client.previewReviewClose({ projectId, sessionId }),
+    recordEvent: async (sessionId, draft) => {
+      const target = {
+        projectId,
+        reason: draft.reason,
+        sessionId,
+        sessionTestId: draft.sessionTestId,
+      };
+      await runOnlineOnlyWrite(() => {
+        if (draft.kind === "Correction") {
+          return client.recordReviewCorrection({
+            ...target,
+            correctedResult: draft.correctedResult,
+            note: draft.note,
+          });
+        }
+        if (draft.kind === "Withdrawal") {
+          return client.recordReviewWithdrawal(target);
+        }
+        return client.recordReviewRedaction({
+          ...target,
+          eventId: draft.eventId,
+        });
+      });
+      await refresh();
+    },
     setItem: async (sessionId, sessionTestId, state) => {
       await runOnlineOnlyWrite(() =>
         client.setReviewItemState({
@@ -73,6 +98,7 @@ export default function TestReviewSurface({
       actions={actions}
       events={review.data.events}
       readOnly={review.data.readOnly}
+      resultEvents={review.data.resultEvents}
       sessions={review.data.sessions}
     />
   );

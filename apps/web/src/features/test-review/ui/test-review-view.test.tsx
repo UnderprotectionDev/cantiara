@@ -1,6 +1,9 @@
 // @vitest-environment happy-dom
 
-import type { TestReviewSession } from "@cantiara/api/test-review";
+import type {
+  TestResultEvent,
+  TestReviewSession,
+} from "@cantiara/api/test-review";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, type Mock, test, vi } from "vitest";
@@ -15,26 +18,45 @@ const session: TestReviewSession = {
   id: "s1",
   items: [
     {
+      current: {
+        eventId: null,
+        result: "Failed",
+        source: "Reported",
+        usable: true,
+      },
       id: "t1",
+      newContextAfterClose: false,
       normalizedResult: "Failed",
       position: 0,
       rawResult: "FAIL",
+      rawResultRedacted: false,
       reviewState: "Unreviewed",
       title: "Login works",
     },
     {
+      current: {
+        eventId: null,
+        result: "Passed",
+        source: "Reported",
+        usable: true,
+      },
       id: "t2",
+      newContextAfterClose: false,
       normalizedResult: "Passed",
       position: 1,
       rawResult: "pass",
+      rawResultRedacted: false,
       reviewState: "Follow-up needed",
       title: "Logout works",
     },
   ],
+  newContextAfterClose: false,
   projectId: "p1",
   reportedAt: "2026-10-01T09:00:00.000Z",
   reviewState: "Unreviewed",
   summary: "Checkout run",
+  summaryRedacted: false,
+  withdrawn: false,
 };
 
 const FORBIDDEN_CONTROL = /archive|trash|delete|release|publish|gate/i;
@@ -74,6 +96,7 @@ function actionsMock(overrides: Partial<TestReviewActions> = {}) {
       ],
       sessionState: "Unreviewed",
     }),
+    recordEvent: vi.fn().mockResolvedValue(undefined),
     setItem: vi.fn().mockResolvedValue(undefined),
     setSession: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -82,7 +105,11 @@ function actionsMock(overrides: Partial<TestReviewActions> = {}) {
 
 async function mount(
   actions: TestReviewActions,
-  props: { readOnly?: boolean } = {},
+  props: {
+    readOnly?: boolean;
+    resultEvents?: TestResultEvent[];
+    session?: TestReviewSession;
+  } = {},
 ) {
   host = document.createElement("div");
   document.body.append(host);
@@ -93,7 +120,8 @@ async function mount(
         actions={actions}
         events={[]}
         readOnly={props.readOnly ?? false}
-        sessions={[session]}
+        resultEvents={props.resultEvents ?? []}
+        sessions={[props.session ?? session]}
       />,
     );
   });
@@ -219,4 +247,132 @@ test("a read-only Project disables every review control", async () => {
   for (const control of document.querySelectorAll("button, input")) {
     expect((control as HTMLButtonElement).disabled).toBe(true);
   }
+});
+
+function typeInto(element: HTMLElement | null, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    element instanceof HTMLSelectElement
+      ? HTMLSelectElement.prototype
+      : HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  act(() => {
+    setter?.call(element, value);
+    element?.dispatchEvent(
+      new Event(element instanceof HTMLSelectElement ? "change" : "input", {
+        bubbles: true,
+      }),
+    );
+  });
+}
+
+test("a Correction needs a result and a reason and sends only the new event", async () => {
+  const actions = actionsMock();
+  await mount(actions);
+  await click(byLabel("Correction for Login works"));
+  expect(document.body.textContent).toContain(
+    "The original report is not edited or deleted.",
+  );
+  const record = byText("Record Correction");
+  expect(record.disabled).toBe(true);
+  typeInto(document.getElementById("test-review-event-result"), "passed");
+  expect(byText("Record Correction").disabled).toBe(true);
+  typeInto(document.getElementById("test-review-event-reason"), "Wrong build.");
+  expect(byText("Record Correction").disabled).toBe(false);
+  await click(byText("Record Correction"));
+  expect(actions.recordEvent).toHaveBeenCalledWith(
+    "s1",
+    expect.objectContaining({
+      correctedResult: "passed",
+      kind: "Correction",
+      reason: "Wrong build.",
+      sessionTestId: "t1",
+    }),
+  );
+  expect(actions.setItem).not.toHaveBeenCalled();
+  expect(actions.setSession).not.toHaveBeenCalled();
+});
+
+test("shows the current Correction, the chain and the New context after close signal", async () => {
+  const corrected: TestReviewSession = {
+    ...session,
+    items: [
+      {
+        ...(session.items[0] as TestReviewSession["items"][number]),
+        current: {
+          eventId: "e1",
+          result: "passed",
+          source: "Correction",
+          usable: true,
+        },
+        newContextAfterClose: true,
+        reviewState: "Closed",
+      },
+    ],
+    newContextAfterClose: true,
+    reviewState: "Closed",
+  };
+  const event: TestResultEvent = {
+    actorAccountId: "account-1",
+    correctedResult: "passed",
+    id: "e1",
+    kind: "Correction",
+    note: null,
+    previousEventId: null,
+    reason: "Wrong build.",
+    recordedAt: "2026-10-02T09:00:00.000Z",
+    redacted: false,
+    redactedEventId: null,
+    redactedField: null,
+    sessionId: "s1",
+    sessionTestId: "t1",
+  };
+  await mount(actionsMock(), { resultEvents: [event], session: corrected });
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Current result: Passed (Correction)");
+  expect(text).toContain("Reported: Failed (FAIL)");
+  expect(text).toContain("Reason: Wrong build.");
+  expect(text.split("New context after close")).toHaveLength(3);
+  expect(text).toContain("Session review state: Closed");
+});
+
+test("a redacted value shows the mark and is not usable evidence", async () => {
+  const redacted: TestReviewSession = {
+    ...session,
+    items: [
+      {
+        ...(session.items[0] as TestReviewSession["items"][number]),
+        current: {
+          eventId: null,
+          result: "Failed",
+          source: "Reported",
+          usable: false,
+        },
+        rawResult: null,
+        rawResultRedacted: true,
+      },
+    ],
+  };
+  const mark: TestResultEvent = {
+    actorAccountId: "account-1",
+    correctedResult: null,
+    id: "r1",
+    kind: "Redaction",
+    note: null,
+    previousEventId: null,
+    reason: "Token pasted.",
+    recordedAt: "2026-10-02T09:00:00.000Z",
+    redacted: false,
+    redactedEventId: null,
+    redactedField: "Reported result",
+    sessionId: "s1",
+    sessionTestId: "t1",
+  };
+  await mount(actionsMock(), { resultEvents: [mark], session: redacted });
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("(value redacted)");
+  expect(text).toContain("Not usable as current evidence or export.");
+  expect(text).toContain("Reason: Token pasted.");
+  expect(text).not.toContain("FAIL)");
+  expect(byLabel("Redact reported result of Login works").disabled).toBe(true);
 });

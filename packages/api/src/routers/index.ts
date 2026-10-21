@@ -530,8 +530,12 @@ import {
   commitBulkReviewInputSchema,
   previewBulkReviewInputSchema,
   previewSessionCloseInputSchema,
+  recordCorrectionInputSchema,
+  recordRedactionInputSchema,
+  recordWithdrawalInputSchema,
   setItemReviewStateInputSchema,
   setSessionReviewStateInputSchema,
+  testResultEventReceiptSchema,
   testReviewBulkPreviewSchema,
   testReviewBulkReceiptSchema,
   testReviewClosePreviewSchema,
@@ -3399,6 +3403,14 @@ interface TestReviewFailure {
 }
 
 const TEST_REVIEW_FAILURES: Record<string, TestReviewFailure> = {
+  TEST_REVIEW_ALREADY_REDACTED: {
+    message: "This value was already redacted.",
+    status: "BAD_REQUEST",
+  },
+  TEST_REVIEW_ALREADY_WITHDRAWN: {
+    message: "This record was already withdrawn.",
+    status: "BAD_REQUEST",
+  },
   TEST_REVIEW_PREVIEW_STALE: {
     message: "The records changed since the preview. Preview again to confirm.",
     status: "BAD_REQUEST",
@@ -6470,6 +6482,39 @@ export const appRouter = {
     .handler(({ context, input }) =>
       runTestReviewOperation(() =>
         requireTestReview(context).commitBulkReview(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordReviewCorrection: protectedProcedure
+    .input(recordCorrectionInputSchema)
+    .output(testResultEventReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).recordCorrection(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordReviewWithdrawal: protectedProcedure
+    .input(recordWithdrawalInputSchema)
+    .output(testResultEventReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).recordWithdrawal(
+          context.session.user.id,
+          input,
+        ),
+      ),
+    ),
+  recordReviewRedaction: protectedProcedure
+    .input(recordRedactionInputSchema)
+    .output(testResultEventReceiptSchema)
+    .handler(({ context, input }) =>
+      runTestReviewOperation(() =>
+        requireTestReview(context).recordRedaction(
           context.session.user.id,
           input,
         ),

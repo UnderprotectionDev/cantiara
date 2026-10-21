@@ -140,6 +140,49 @@ describeDatabase("Test Review PostgreSQL integration", () => {
     ]);
   });
 
+  test("a Correction, Withdrawal and redaction are additive and the reported result stays", async () => {
+    const access = createDatabaseTestReview(requireDatabase());
+    await access.setSessionReviewState(accountId, {
+      projectId,
+      sessionId,
+      state: "Closed",
+    });
+    const corrected = await access.recordCorrection(accountId, {
+      correctedResult: "passed",
+      note: "secret-note",
+      projectId,
+      reason: "Wrong build.",
+      sessionId,
+      sessionTestId: itemA,
+    });
+    await access.recordWithdrawal(accountId, {
+      projectId,
+      reason: "Duplicate.",
+      sessionId,
+      sessionTestId: itemB,
+    });
+    await access.recordRedaction(accountId, {
+      eventId: corrected.event.id,
+      projectId,
+      reason: "Secret in the note.",
+      sessionId,
+    });
+    const list = await access.list(accountId, projectId);
+    const [session] = list.sessions;
+    expect(session?.reviewState).toBe("Closed");
+    expect(session?.newContextAfterClose).toBe(true);
+    expect(session?.items.map((item) => item.rawResult)).toEqual([
+      "FAIL",
+      "pass",
+    ]);
+    expect(session?.items.map((item) => item.current.usable)).toEqual([
+      false,
+      false,
+    ]);
+    expect(JSON.stringify(list)).not.toContain("secret-note");
+    expect(list.resultEvents).toHaveLength(3);
+  });
+
   test("the bulk commit is atomic and idempotent", async () => {
     const access = createDatabaseTestReview(requireDatabase());
     const selection = { projectId, sessionId, sessionTestIds: [itemA] };

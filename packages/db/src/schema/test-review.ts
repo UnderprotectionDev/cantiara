@@ -88,3 +88,52 @@ export const testReviewEvent = pgTable(
     ),
   ],
 );
+
+/**
+ * Correction, Withdrawal and security-redaction events (spec 57 #414): additive
+ * Kayıt geçmişi bound to the original Test Session (and Session Test), never an
+ * edit of the reported result columns. `previous_event_id` links the chain.
+ * A Redaction is a contentless mark (time, reason, actor); the only update
+ * any row ever receives is clearing `note`, `reason` and `corrected_result`
+ * of the event it redacts (the narrow security-redaction exception).
+ */
+export const testResultEvent = pgTable(
+  "project_test_result_event",
+  {
+    actorAccountId: text("actor_account_id").notNull(),
+    correctedResult: text("corrected_result"),
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    note: text("note"),
+    previousEventId: text("previous_event_id"),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => project.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+    redactedEventId: text("redacted_event_id"),
+    redactedField: text("redacted_field"),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => testSession.id, { onDelete: "cascade" }),
+    sessionTestId: text("session_test_id"),
+  },
+  (table) => [
+    index("project_test_result_event_session_idx").on(
+      table.sessionId,
+      table.recordedAt,
+    ),
+    index("project_test_result_event_project_idx").on(
+      table.projectId,
+      table.recordedAt,
+    ),
+    check(
+      "project_test_result_event_kind_check",
+      sql`${table.kind} in ('Correction', 'Withdrawal', 'Redaction')`,
+    ),
+    check(
+      "project_test_result_event_redacted_field_check",
+      sql`${table.redactedField} is null or ${table.redactedField} in ('Reported result', 'Session summary', 'Event content')`,
+    ),
+  ],
+);

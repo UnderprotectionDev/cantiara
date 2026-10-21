@@ -531,6 +531,9 @@ describe("Test Review: what review never does", () => {
       "list",
       "previewBulkReview",
       "previewSessionClose",
+      "recordCorrection",
+      "recordRedaction",
+      "recordWithdrawal",
       "setItemReviewState",
       "setSessionReviewState",
     ]);
