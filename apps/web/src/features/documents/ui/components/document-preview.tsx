@@ -7,6 +7,7 @@ import {
 } from "@cantiara/api/documents";
 import type { ProjectSourceType } from "@cantiara/api/project-source-records";
 import type { SmartCollectionViewSource } from "@cantiara/api/smart-collections";
+import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { defaultHighlighter } from "@tanstack/highlight";
@@ -660,13 +661,12 @@ function LiveOtherCard({
       </section>
     );
   }
+  const graph = diagramGraph(diagram.model);
   const selected =
-    diagram.view?.selectedNodeIds ?? diagram.model.nodes.map(({ id }) => id);
-  const selectedNodes = diagram.model.nodes.filter(({ id }) =>
-    selected.includes(id),
-  );
-  const nodesById = new Map(diagram.model.nodes.map((node) => [node.id, node]));
-  const selectedLinks = diagram.model.links.filter(
+    diagram.view?.selectedNodeIds ?? graph.nodes.map(({ id }) => id);
+  const selectedNodes = graph.nodes.filter(({ id }) => selected.includes(id));
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const selectedLinks = graph.links.filter(
     ({ from, to }) => selected.includes(from) && selected.includes(to),
   );
   return (
@@ -692,7 +692,7 @@ function LiveOtherCard({
             const from = nodesById.get(link.from);
             const to = nodesById.get(link.to);
             return (
-              <li key={JSON.stringify([link.from, link.to, link.label])}>
+              <li key={link.id}>
                 {from?.label ?? link.from} → {to?.label ?? link.to}
                 {link.label ? ` · ${link.label}` : null}
               </li>

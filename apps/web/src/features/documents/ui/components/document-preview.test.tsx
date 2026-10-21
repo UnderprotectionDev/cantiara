@@ -125,7 +125,12 @@ test("renders named collection and Diagram View blocks from their resolved sourc
               nodes: [{ id: "api", label: "API", kind: "Component" }],
               links: [],
             },
-            view: { id: "view-2", name: "Services", selectedNodeIds: ["api"] },
+            view: {
+              id: "view-2",
+              layout: {},
+              name: "Services",
+              selectedNodeIds: ["api"],
+            },
           },
         },
       ]}

@@ -5,15 +5,23 @@ import {
   type ConfirmAuthorityConversionInput,
   type CreateTechnicalDiagramInput,
   creatableAuthorityModeSchema,
-  EMPTY_DIAGRAM_MODEL,
   previewAuthorityConversion,
 } from "@cantiara/api/technical-diagram-authority";
+import {
+  diagramGraph,
+  emptyStructuralModel,
+  parseStoredStructuralModel,
+  resolveStructuralModel,
+  StructuralModelError,
+} from "@cantiara/api/technical-diagram-structure";
 import type {
   MermaidConversionInput,
+  SaveDiagramLayoutInput,
+  SaveTechnicalDiagramModelInput,
   TechnicalDiagramSource,
   TechnicalDiagramsAccess,
 } from "@cantiara/api/technical-diagrams";
-import { diagramModelSchema } from "@cantiara/api/technical-diagrams";
+import { technicalDiagramTypeSchema } from "@cantiara/api/technical-diagrams";
 import type { Database } from "@cantiara/db";
 import { workspace } from "@cantiara/db/schema/auth";
 import { document } from "@cantiara/db/schema/document";
@@ -192,7 +200,7 @@ export function createDatabaseTechnicalDiagrams(
         id: `${values.id}:default`,
         diagramId: values.id,
         name: "Default",
-        selectedNodeIds: values.model.nodes.map(({ id }) => id),
+        selectedNodeIds: diagramGraph(values.model).nodes.map(({ id }) => id),
       });
     }
     return Boolean(created);
@@ -209,8 +217,9 @@ export function createDatabaseTechnicalDiagrams(
         : null;
     const model =
       input.authorityMode === "Product-authored Model"
-        ? input.model
-        : EMPTY_DIAGRAM_MODEL;
+        ? resolveStructuralModel(input.type, input.model)
+        : emptyStructuralModel(input.type);
+    await assertSequenceBinds(accountId, projectId, model, null);
     const inserted = await database.transaction((tx) =>
       insertDiagram(tx, {
         authorityMode: input.authorityMode,
@@ -284,7 +293,7 @@ export function createDatabaseTechnicalDiagrams(
         id: targetId,
         model:
           preview.targetMode === "External Source Link"
-            ? EMPTY_DIAGRAM_MODEL
+            ? emptyStructuralModel(source.type)
             : source.model,
         projectId: source.projectId,
         title: input.title,
@@ -342,15 +351,18 @@ export function createDatabaseTechnicalDiagrams(
       return null;
     }
     const { diagram } = row;
-    const parsedModel = diagramModelSchema.safeParse(diagram.model);
-    if (!parsedModel.success) {
+    const type = technicalDiagramTypeSchema.safeParse(diagram.type);
+    const parsedModel = type.success
+      ? parseStoredStructuralModel(type.data, diagram.model)
+      : null;
+    if (!(type.success && parsedModel)) {
       return null;
     }
     return {
       id: diagram.id,
       projectId: diagram.projectId,
       title: diagram.title,
-      type: diagram.type as TechnicalDiagramSource["type"],
+      type: type.data,
       authorityMode: mode.data,
       externalSource:
         mode.data === "External Source Link" &&
@@ -364,16 +376,129 @@ export function createDatabaseTechnicalDiagrams(
               lastCheckedAt: diagram.externalCheckedAt.toISOString(),
             }
           : null,
-      model: parsedModel.data,
+      model: parsedModel,
       origins: await originsOf(diagramId),
       view: view
         ? {
             id: view.id,
+            layout: view.layout,
             name: view.name,
             selectedNodeIds: view.selectedNodeIds,
           }
         : null,
     };
+  }
+  /**
+   * A Sequence lifeline may bind an exact Architecture node of the same
+   * Project. A new or changed bind must name an existing node and its current
+   * label; an unchanged bind is kept as written, so a moved or deleted source
+   * node never retargets it. Diagram Versions do not exist yet (#422), so a
+   * pinned `versionId` is refused until it can be validated.
+   */
+  async function assertSequenceBinds(
+    accountId: string,
+    projectId: string,
+    model: TechnicalDiagramSource["model"],
+    previous: TechnicalDiagramSource["model"] | null,
+  ) {
+    if (!("participants" in model)) {
+      return;
+    }
+    const before = new Map(
+      previous && "participants" in previous
+        ? previous.participants.map(({ id, bind }) => [id, bind])
+        : [],
+    );
+    const changed = model.participants.filter(
+      ({ bind, id }) =>
+        bind && JSON.stringify(before.get(id)) !== JSON.stringify(bind),
+    );
+    if (
+      model.participants.some(({ bind }) => bind && bind.versionId !== null)
+    ) {
+      throw new StructuralModelError(
+        "Pinned Diagram Version binds are available once Diagram Versions exist.",
+      );
+    }
+    await Promise.all(
+      changed.map(async (participant) => {
+        const { bind } = participant;
+        const target = bind ? await get(accountId, bind.diagramId) : null;
+        const node =
+          bind &&
+          target?.projectId === projectId &&
+          target.type === "Technical Architecture" &&
+          "nodes" in target.model
+            ? target.model.nodes.find(({ id }) => id === bind.nodeId)
+            : undefined;
+        if (!node || node.label !== bind?.boundLabel) {
+          throw new StructuralModelError(
+            `Lifeline ${participant.label} must bind an existing Architecture node of this Project.`,
+          );
+        }
+      }),
+    );
+  }
+  async function saveModel(
+    accountId: string,
+    input: SaveTechnicalDiagramModelInput,
+  ) {
+    const current = await get(accountId, input.diagramId);
+    if (!current) {
+      return null;
+    }
+    if (current.authorityMode === "External Source Link") {
+      throw new StructuralModelError(
+        "An External Source Link keeps its content in the external tool.",
+      );
+    }
+    const model = resolveStructuralModel(current.type, input.model);
+    await assertSequenceBinds(
+      accountId,
+      current.projectId,
+      model,
+      current.model,
+    );
+    await database.transaction(async (tx) => {
+      await tx
+        .update(technicalDiagram)
+        .set({ model, updatedAt: new Date() })
+        .where(eq(technicalDiagram.id, input.diagramId));
+      const ids = new Set(diagramGraph(model).nodes.map(({ id }) => id));
+      const views = await tx
+        .select()
+        .from(diagramView)
+        .where(eq(diagramView.diagramId, input.diagramId));
+      await Promise.all(
+        views.map((view) =>
+          tx
+            .update(diagramView)
+            .set({
+              layout: Object.fromEntries(
+                Object.entries(view.layout).filter(([id]) => ids.has(id)),
+              ),
+              selectedNodeIds: view.selectedNodeIds.filter((id) => ids.has(id)),
+            })
+            .where(eq(diagramView.id, view.id)),
+        ),
+      );
+    });
+    return get(accountId, input.diagramId);
+  }
+  async function saveLayout(accountId: string, input: SaveDiagramLayoutInput) {
+    const current = await get(accountId, input.diagramId, input.viewId);
+    if (!current?.view) {
+      return null;
+    }
+    const ids = new Set(diagramGraph(current.model).nodes.map(({ id }) => id));
+    if (Object.keys(input.positions).some((id) => !ids.has(id))) {
+      throw new StructuralModelError("Layout names an unknown element.");
+    }
+    await database
+      .update(diagramView)
+      .set({ layout: { ...current.view.layout, ...input.positions } })
+      .where(eq(diagramView.id, current.view.id));
+    return get(accountId, input.diagramId, current.view.id);
   }
   return {
     convertAuthority,
@@ -381,12 +506,16 @@ export function createDatabaseTechnicalDiagrams(
     get,
     previewAuthorityConversion: previewAuthority,
     previewConversion,
+    saveLayout,
+    saveModel,
     async createView(accountId, input) {
       const diagram = await get(accountId, input.diagramId);
       if (!diagram) {
         return null;
       }
-      const allowed = new Set(diagram.model.nodes.map(({ id }) => id));
+      const allowed = new Set(
+        diagramGraph(diagram.model).nodes.map(({ id }) => id),
+      );
       if (
         new Set(input.selectedNodeIds).size !== input.selectedNodeIds.length ||
         input.selectedNodeIds.some((id) => !allowed.has(id))
@@ -620,6 +749,7 @@ export function createDatabaseTechnicalDiagrams(
       return database
         .select({
           id: diagramView.id,
+          layout: diagramView.layout,
           name: diagramView.name,
           selectedNodeIds: diagramView.selectedNodeIds,
         })

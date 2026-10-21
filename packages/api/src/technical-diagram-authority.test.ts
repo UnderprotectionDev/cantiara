@@ -21,7 +21,7 @@ const source = {
   authorityMode: "Product-authored Model" as const,
   id: "diagram-1",
   model: {
-    links: [{ from: "a", label: null, to: "b" }],
+    links: [{ from: "a", kind: "Calls" as const, label: null, to: "b" }],
     nodes: [
       { id: "a", kind: "Service" as const, label: "API" },
       { id: "b", kind: "Datastore" as const, label: "DB" },

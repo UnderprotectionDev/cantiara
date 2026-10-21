@@ -1,4 +1,4 @@
-import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
+import type { ArchitectureModel } from "@cantiara/db/schema/technical-diagram";
 import mermaid from "mermaid";
 
 const graphHeader = /^(?:graph|flowchart)\s+(?:TD|TB|LR|RL|BT)$/;
@@ -13,15 +13,15 @@ export interface MermaidUnparseableLine {
 
 export interface MermaidArchitecturePreview {
   canConvert: boolean;
-  model: DiagramModel;
+  model: ArchitectureModel;
   unparseableLines: MermaidUnparseableLine[];
 }
 
 function addMermaidEdge(
   raw: string,
   line: number,
-  nodes: Map<string, DiagramModel["nodes"][number]>,
-  links: DiagramModel["links"],
+  nodes: Map<string, ArchitectureModel["nodes"][number]>,
+  links: ArchitectureModel["links"],
   unparseableLines: MermaidUnparseableLine[],
 ) {
   const match = edgeLine.exec(raw.trim());
@@ -69,10 +69,13 @@ function addMermaidEdge(
       kind: "Component",
     });
   }
-  links.push({ from, to, label: null });
+  links.push({ from, kind: "Depends on", label: null, to });
 }
 
-async function validateGraph(header: string, links: DiagramModel["links"]) {
+async function validateGraph(
+  header: string,
+  links: ArchitectureModel["links"],
+) {
   // Mermaid's server parser requires a browser sanitizer for labels. Parse the
   // exact supported graph topology without labels, then retain labels above.
   const graph = [
@@ -110,8 +113,8 @@ export async function previewMermaidArchitecture(
       unparseableLines,
     };
   }
-  const nodes = new Map<string, DiagramModel["nodes"][number]>();
-  const links: DiagramModel["links"] = [];
+  const nodes = new Map<string, ArchitectureModel["nodes"][number]>();
+  const links: ArchitectureModel["links"] = [];
   for (const [index, raw] of lines.entries()) {
     if (index === 0 || !raw.trim()) {
       continue;
@@ -136,7 +139,7 @@ export async function previewMermaidArchitecture(
 /** Strict parser retained for callers that require a lossless conversion. */
 export async function parseMermaidArchitecture(
   source: string,
-): Promise<DiagramModel> {
+): Promise<ArchitectureModel> {
   const preview = await previewMermaidArchitecture(source);
   const [firstUnparseable] = preview.unparseableLines;
   if (firstUnparseable) {

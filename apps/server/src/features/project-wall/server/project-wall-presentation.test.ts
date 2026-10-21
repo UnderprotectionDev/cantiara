@@ -60,8 +60,8 @@ function setup() {
       id: "diagram-1",
       model: {
         links: [
-          { from: "api", label: "reads", to: "db" },
-          { from: "api", label: null, to: "queue" },
+          { from: "api", kind: "Reads from", label: "reads", to: "db" },
+          { from: "api", kind: "Publishes to", label: null, to: "queue" },
         ],
         nodes: [
           { id: "api", kind: "Service", label: "API" },

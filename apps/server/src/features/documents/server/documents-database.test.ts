@@ -2382,7 +2382,9 @@ describeDatabase("Documents database boundary", () => {
       .set({
         model: {
           nodes: [],
-          links: [{ from: "missing", to: "missing", label: null }],
+          links: [
+            { from: "missing", kind: "Calls", to: "missing", label: null },
+          ],
         },
       })
       .where(eq(technicalDiagram.id, "diagram-source"));

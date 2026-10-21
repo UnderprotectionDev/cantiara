@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import {
-  diagramModelSchema,
+  resolveStructuralModel,
+  StructuralModelError,
+  structuralModelSchema,
+} from "./technical-diagram-structure";
+import {
+  type diagramModelSchema,
   technicalDiagramTypeSchema,
 } from "./technical-diagrams";
 
@@ -27,8 +32,6 @@ export type DiagramAuthorityMode = z.infer<typeof diagramAuthorityModeSchema>;
 export type CreatableAuthorityMode = z.infer<
   typeof creatableAuthorityModeSchema
 >;
-
-export const EMPTY_DIAGRAM_MODEL = { links: [], nodes: [] };
 
 const httpsUrlSchema = z
   .string()
@@ -65,14 +68,13 @@ export type ExternalSourceLink = z.infer<typeof externalSourceLinkInputSchema>;
  * Create command. `Imported Independent Copy` is only reachable through an
  * explicit conversion; `Repository-derived View` is refused by the schema.
  */
-export const createTechnicalDiagramInputSchema = z.discriminatedUnion(
-  "authorityMode",
-  [
+export const createTechnicalDiagramInputSchema = z
+  .discriminatedUnion("authorityMode", [
     z
       .object({
         authorityMode: z.literal("Product-authored Model"),
         clientIdempotencyKey: z.uuid(),
-        model: diagramModelSchema.default(EMPTY_DIAGRAM_MODEL),
+        model: structuralModelSchema.optional(),
         projectId: z.string().min(1),
         title: z.string().trim().min(1).max(255),
         type: technicalDiagramTypeSchema,
@@ -88,8 +90,19 @@ export const createTechnicalDiagramInputSchema = z.discriminatedUnion(
         type: technicalDiagramTypeSchema,
       })
       .strict(),
-  ],
-);
+  ])
+  .superRefine((input, context) => {
+    if (input.authorityMode !== "Product-authored Model" || !input.model) {
+      return;
+    }
+    try {
+      resolveStructuralModel(input.type, input.model);
+    } catch (error) {
+      if (error instanceof StructuralModelError) {
+        context.addIssue({ code: "custom", message: error.message });
+      }
+    }
+  });
 
 export type CreateTechnicalDiagramInput = z.infer<
   typeof createTechnicalDiagramInputSchema

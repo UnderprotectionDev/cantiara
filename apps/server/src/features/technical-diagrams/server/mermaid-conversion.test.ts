@@ -14,8 +14,8 @@ test("converts a supported Mermaid flowchart into an independent structural mode
       { id: "db", label: "Database", kind: "Component" },
     ],
     links: [
-      { from: "web", to: "api", label: null },
-      { from: "api", to: "db", label: null },
+      { from: "web", kind: "Depends on", label: null, to: "api" },
+      { from: "api", kind: "Depends on", label: null, to: "db" },
     ],
   });
 });

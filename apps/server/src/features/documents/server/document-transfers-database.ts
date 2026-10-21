@@ -16,6 +16,7 @@ import {
   documentRecordReferences,
 } from "@cantiara/api/documents";
 import { fingerprintMutationPayload } from "@cantiara/api/mutation-and-undo";
+import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 import type { Database } from "@cantiara/db";
 import { document, documentConflictDraft } from "@cantiara/db/schema/document";
 import { externalSurface } from "@cantiara/db/schema/external-surface";
@@ -690,12 +691,13 @@ export function createDatabaseDocumentTransfers(
           if (!record) {
             return null;
           }
-          const nodes = record.model.nodes.filter(
+          const graph = diagramGraph(record.model);
+          const nodes = graph.nodes.filter(
             (node) =>
               !record.view || record.view.selectedNodeIds.includes(node.id),
           );
           const labels = new Map(nodes.map((node) => [node.id, node.label]));
-          const links = record.model.links
+          const links = graph.links
             .filter((link) => labels.has(link.from) && labels.has(link.to))
             .map(
               (link) =>

@@ -66,6 +66,7 @@ import {
   type SaveProjectWallViewportInput,
   saveProjectWallViewportInputSchema,
 } from "@cantiara/api/project-wall-viewport";
+import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 
 export class ProjectWallProjectNotFoundError extends Error {
   readonly code = "PROJECT_WALL_PROJECT_NOT_FOUND" as const;
@@ -240,10 +241,11 @@ export function createProjectWall(
       return null;
     }
     const selected = diagram.view?.selectedNodeIds ?? [];
+    const graph = diagramGraph(diagram.model);
     const nodes = (
       selected.length > 0
-        ? diagram.model.nodes.filter(({ id }) => selected.includes(id))
-        : diagram.model.nodes
+        ? graph.nodes.filter(({ id }) => selected.includes(id))
+        : graph.nodes
     ).slice(0, PROJECT_WALL_DIAGRAM_PREVIEW_NODE_LIMIT);
     const shown = new Set(nodes.map(({ id }) => id));
     return {
@@ -252,9 +254,9 @@ export function createProjectWall(
       preview: {
         diagramType: diagram.type,
         kind: "Technical Diagram",
-        links: diagram.model.links.filter(
-          (link) => shown.has(link.from) && shown.has(link.to),
-        ),
+        links: graph.links
+          .filter((link) => shown.has(link.from) && shown.has(link.to))
+          .map(({ from, label, to }) => ({ from, label, to })),
         nodes,
         pin: "Live",
         viewName: diagram.view?.name ?? null,

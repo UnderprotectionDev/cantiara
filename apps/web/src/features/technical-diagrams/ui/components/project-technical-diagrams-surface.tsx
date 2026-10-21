@@ -1,4 +1,5 @@
 // biome-ignore-all lint/performance/noJsxPropsBind: Each Diagram View form binds its own selected nodes.
+import { diagramGraph } from "@cantiara/api/technical-diagram-structure";
 import type { TechnicalDiagramSource } from "@cantiara/api/technical-diagrams";
 import { Button } from "@cantiara/ui/components/button";
 import { Input } from "@cantiara/ui/components/input";
@@ -13,12 +14,25 @@ import {
   ExternalSourceLinkDetails,
 } from "./diagram-authority-controls";
 import { NewTechnicalDiagramForm } from "./new-technical-diagram-form";
+import { TechnicalDiagramCanvas } from "./technical-diagram-canvas";
+import {
+  type ArchitectureBindOption,
+  TechnicalDiagramEditor,
+} from "./technical-diagram-editor";
+import { TechnicalDiagramOutline } from "./technical-diagram-outline";
 
-function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
+function DiagramCard({
+  bindOptions,
+  diagram,
+}: {
+  bindOptions: ArchitectureBindOption[];
+  diagram: TechnicalDiagramSource;
+}) {
+  const graph = diagramGraph(diagram.model);
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>(() =>
-    diagram.model.nodes.map(({ id }) => id),
+    graph.nodes.map(({ id }) => id),
   );
   const [error, setError] = useState<string | null>(null);
   const pendingKey = useRef<string | null>(null);
@@ -26,6 +40,34 @@ function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
     input: { diagramId: diagram.id },
   });
   const views = useQuery(options);
+  const invalidate = () => queryClient.invalidateQueries();
+  const saveStructure = useMutation({
+    mutationFn: (model: TechnicalDiagramSource["model"]) =>
+      runOnlineOnlyWrite(() =>
+        client.saveTechnicalDiagramStructure({ diagramId: diagram.id, model }),
+      ),
+    onError: (failure) =>
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Structural model could not be saved.",
+      ),
+    onSuccess: async () => {
+      setError(null);
+      await invalidate();
+    },
+  });
+  const saveLayout = useMutation({
+    mutationFn: (input: { id: string; x: number; y: number }) =>
+      runOnlineOnlyWrite(() =>
+        client.saveDiagramLayout({
+          diagramId: diagram.id,
+          positions: { [input.id]: { x: input.x, y: input.y } },
+          viewId: diagram.view?.id,
+        }),
+      ),
+    onSuccess: invalidate,
+  });
   const create = useMutation({
     mutationFn: () => {
       pendingKey.current ??= crypto.randomUUID();
@@ -61,13 +103,19 @@ function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
       {diagram.externalSource ? (
         <ExternalSourceLinkDetails source={diagram.externalSource} />
       ) : null}
-      <ol className="list-inside list-decimal">
-        {diagram.model.nodes.map((node) => (
-          <li key={node.id}>
-            {node.label} · {node.kind}
-          </li>
-        ))}
-      </ol>
+      <TechnicalDiagramOutline diagram={diagram} />
+      {diagram.authorityMode === "External Source Link" ? null : (
+        <TechnicalDiagramCanvas
+          diagram={diagram}
+          onMove={(id, position) => saveLayout.mutate({ id, ...position })}
+        />
+      )}
+      <TechnicalDiagramEditor
+        bindOptions={bindOptions}
+        diagram={diagram}
+        disabled={saveStructure.isPending}
+        onSave={(model) => saveStructure.mutate(model)}
+      />
       <DiagramAuthorityConversion diagram={diagram} />
       <section aria-label="Diagram View" className="space-y-2">
         <h4 className="font-medium">Diagram View</h4>
@@ -94,7 +142,7 @@ function DiagramCard({ diagram }: { diagram: TechnicalDiagramSource }) {
             value={name}
           />
           <fieldset aria-label="Diagram View" className="flex flex-wrap gap-3">
-            {diagram.model.nodes.map((node) => (
+            {graph.nodes.map((node) => (
               <label className="inline-flex items-center gap-1" key={node.id}>
                 <input
                   checked={selectedNodeIds.includes(node.id)}
@@ -138,6 +186,20 @@ export default function ProjectTechnicalDiagramsSurface({
   const visible = selectedDiagramId
     ? diagrams.data?.filter(({ id }) => id === selectedDiagramId)
     : diagrams.data;
+  const bindOptions: ArchitectureBindOption[] = (diagrams.data ?? [])
+    .filter(
+      (item) =>
+        item.type === "Technical Architecture" &&
+        item.authorityMode !== "External Source Link",
+    )
+    .flatMap((item) =>
+      diagramGraph(item.model).nodes.map((node) => ({
+        boundLabel: node.label,
+        diagramId: item.id,
+        diagramTitle: item.title,
+        nodeId: node.id,
+      })),
+    );
   return (
     <section aria-label="Technical Diagram" className="space-y-5">
       <h2 className="font-semibold text-2xl">Technical Diagram</h2>
@@ -146,7 +208,13 @@ export default function ProjectTechnicalDiagramsSurface({
       ) : null}
       <NewTechnicalDiagramForm projectId={projectId} />
       {visible?.map((diagram) => (
-        <DiagramCard diagram={diagram} key={diagram.id} />
+        <DiagramCard
+          bindOptions={bindOptions.filter(
+            ({ diagramId }) => diagramId !== diagram.id,
+          )}
+          diagram={diagram}
+          key={diagram.id}
+        />
       ))}
     </section>
   );

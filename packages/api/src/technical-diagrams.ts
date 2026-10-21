@@ -1,4 +1,7 @@
-import type { DiagramModel } from "@cantiara/db/schema/technical-diagram";
+import type {
+  ArchitectureModel,
+  DiagramModel,
+} from "@cantiara/db/schema/technical-diagram";
 import { z } from "zod";
 
 import type {
@@ -9,59 +12,47 @@ import type {
   CreateTechnicalDiagramInput,
   ExternalSourceLink,
 } from "./technical-diagram-authority";
+import {
+  structuralModelSchema,
+  TECHNICAL_DIAGRAM_TYPES,
+} from "./technical-diagram-structure";
 
-export const technicalDiagramTypeSchema = z.enum([
-  "Technical Architecture",
-  "Data Model",
-  "Technical Sequence",
-]);
+export const technicalDiagramTypeSchema = z.enum(TECHNICAL_DIAGRAM_TYPES);
 
-export const diagramModelSchema = z
+/** Typed canonical structural model of any of the three types. */
+export const diagramModelSchema = structuralModelSchema;
+
+/** Replaces the whole canonical model; the stored type picks the schema. */
+export const saveTechnicalDiagramModelInputSchema = z
   .object({
-    nodes: z.array(
-      z
-        .object({
-          id: z.string().min(1),
-          label: z.string().min(1),
-          kind: z.enum([
-            "Component",
-            "Service",
-            "Datastore",
-            "Queue/Event Bus",
-            "External System",
-            "Boundary",
-          ]),
-        })
-        .strict(),
-    ),
-    links: z.array(
-      z
-        .object({
-          from: z.string().min(1),
-          to: z.string().min(1),
-          label: z.string().nullable(),
-        })
-        .strict(),
-    ),
+    diagramId: z.string().min(1),
+    model: structuralModelSchema,
   })
-  .strict()
-  .superRefine((model, context) => {
-    const ids = new Set(model.nodes.map(({ id }) => id));
-    if (ids.size !== model.nodes.length) {
-      context.addIssue({
-        code: "custom",
-        message: "Duplicate diagram node ID.",
-      });
-    }
-    for (const link of model.links) {
-      if (!(ids.has(link.from) && ids.has(link.to))) {
-        context.addIssue({
-          code: "custom",
-          message: "Diagram link target is missing.",
-        });
-      }
-    }
-  });
+  .strict();
+
+/** Coordinates are `Diagram View` metadata, never canonical content. */
+export const saveDiagramLayoutInputSchema = z
+  .object({
+    diagramId: z.string().min(1),
+    positions: z.record(
+      z.string().min(1),
+      z
+        .object({
+          x: z.number().finite().min(-100_000).max(100_000),
+          y: z.number().finite().min(-100_000).max(100_000),
+        })
+        .strict(),
+    ),
+    viewId: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type SaveTechnicalDiagramModelInput = z.infer<
+  typeof saveTechnicalDiagramModelInputSchema
+>;
+export type SaveDiagramLayoutInput = z.infer<
+  typeof saveDiagramLayoutInputSchema
+>;
 
 export const mermaidConversionInputSchema = z
   .object({
@@ -118,7 +109,12 @@ export interface TechnicalDiagramSource {
   projectId: string;
   title: string;
   type: z.infer<typeof technicalDiagramTypeSchema>;
-  view: { id: string; name: string; selectedNodeIds: string[] } | null;
+  view: {
+    id: string;
+    layout: Record<string, { x: number; y: number }>;
+    name: string;
+    selectedNodeIds: string[];
+  } | null;
 }
 
 export interface TechnicalDiagramsAccess {
@@ -153,6 +149,7 @@ export interface TechnicalDiagramsAccess {
     diagramId: string,
   ) => Promise<Array<{
     id: string;
+    layout: Record<string, { x: number; y: number }>;
     name: string;
     selectedNodeIds: string[];
   }> | null>;
@@ -174,7 +171,16 @@ export interface TechnicalDiagramsAccess {
     authorityMode: "Imported Independent Copy";
     originalBlock: "Keep independent" | "Replace with live reference";
     canConvert: boolean;
-    model: TechnicalDiagramSource["model"];
+    model: ArchitectureModel;
     unparseableLines: Array<{ line: number; reason: string; text: string }>;
   } | null>;
+  /** Edits an authored or imported canonical model; never an External Source Link. */
+  saveLayout: (
+    accountId: string,
+    input: SaveDiagramLayoutInput,
+  ) => Promise<TechnicalDiagramSource | null>;
+  saveModel: (
+    accountId: string,
+    input: SaveTechnicalDiagramModelInput,
+  ) => Promise<TechnicalDiagramSource | null>;
 }

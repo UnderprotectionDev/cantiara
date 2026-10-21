@@ -505,10 +505,13 @@ import {
   createTechnicalDiagramInputSchema,
   DiagramAuthorityError,
 } from "../technical-diagram-authority";
+import { StructuralModelError } from "../technical-diagram-structure";
 import {
   confirmMermaidConversionInputSchema,
   createDiagramViewInputSchema,
   mermaidConversionInputSchema,
+  saveDiagramLayoutInputSchema,
+  saveTechnicalDiagramModelInputSchema,
 } from "../technical-diagrams";
 import {
   recordTestAssessmentInputSchema,
@@ -5138,7 +5141,10 @@ export const appRouter = {
           throw error;
         }
         throw new ORPCError(
-          error instanceof DiagramAuthorityError ? "BAD_REQUEST" : "CONFLICT",
+          error instanceof DiagramAuthorityError ||
+            error instanceof StructuralModelError
+            ? "BAD_REQUEST"
+            : "CONFLICT",
           { cause: error },
         );
       }
@@ -5179,7 +5185,10 @@ export const appRouter = {
           throw error;
         }
         throw new ORPCError(
-          error instanceof DiagramAuthorityError ? "BAD_REQUEST" : "CONFLICT",
+          error instanceof DiagramAuthorityError ||
+            error instanceof StructuralModelError
+            ? "BAD_REQUEST"
+            : "CONFLICT",
           { cause: error },
         );
       }
@@ -5204,6 +5213,56 @@ export const appRouter = {
           throw error;
         }
         throw new ORPCError("CONFLICT", { cause: error });
+      }
+    }),
+  saveTechnicalDiagramStructure: protectedProcedure
+    .input(saveTechnicalDiagramModelInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.saveModel(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof StructuralModelError ? "BAD_REQUEST" : "CONFLICT",
+          { cause: error },
+        );
+      }
+    }),
+  saveDiagramLayout: protectedProcedure
+    .input(saveDiagramLayoutInputSchema)
+    .handler(async ({ context, input }) => {
+      if (!context.technicalDiagrams) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+      try {
+        const diagram = await context.technicalDiagrams.saveLayout(
+          context.session.user.id,
+          input,
+        );
+        if (!diagram) {
+          throw new ORPCError("NOT_FOUND");
+        }
+        return diagram;
+      } catch (error) {
+        if (error instanceof ORPCError) {
+          throw error;
+        }
+        throw new ORPCError(
+          error instanceof StructuralModelError ? "BAD_REQUEST" : "CONFLICT",
+          { cause: error },
+        );
       }
     }),
   technicalDiagramViews: protectedProcedure

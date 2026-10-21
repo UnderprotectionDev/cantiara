@@ -543,7 +543,7 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
       projectId: diagram.projectId,
       title: diagram.title,
       type: "Technical Architecture",
-      view: view ? structuredClone(view) : null,
+      view: view ? { ...structuredClone(view), layout: {} } : null,
     };
   }
   const access: ProjectWallDiagrams = {
@@ -568,7 +568,10 @@ export function createFakeProjectWallDiagrams(input: FakeDiagram[]) {
     async listViews(accountId, diagramId) {
       const diagram = diagrams.get(diagramId);
       return diagram?.ownerAccountId === accountId
-        ? structuredClone(diagram.views)
+        ? diagram.views.map((view) => ({
+            ...structuredClone(view),
+            layout: {},
+          }))
         : null;
     },
   };
