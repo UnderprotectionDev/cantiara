@@ -6,7 +6,7 @@ import {
   type DocumentScopeFilter,
   documentScopeLabel,
   documentsInScope,
-} from "@/features/personal-wiki/document-scope";
+} from "@/features/personal-wiki/lib/document-scope";
 import DocumentScopeBadge from "@/features/personal-wiki/ui/components/document-scope-badge";
 import { documentRecordHash } from "@/features/project-shell/lib/project-shell-navigation";
 

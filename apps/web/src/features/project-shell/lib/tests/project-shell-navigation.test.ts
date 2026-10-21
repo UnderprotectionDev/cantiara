@@ -1,0 +1,127 @@
+import { describe, expect, test } from "vitest";
+
+import {
+  ALWAYS_REACHABLE_SURFACES,
+  BACKLOG_HASH,
+  CONFIGURATION_HOSTS,
+  configurationHostId,
+  documentRecordFromHash,
+  documentRecordHash,
+  documentSectionRecordHash,
+  isWorkRecordHash,
+  isWorkSurfaceHash,
+  navigationHash,
+  navigationSurfaceFromHash,
+  projectSourceRecordFromHash,
+  projectSourceRecordHash,
+  ROADMAP_HASH,
+  workRecordHash,
+  workRecordHref,
+  workRelationsHash,
+} from "../project-shell-navigation";
+
+describe("Project Shell Work navigation", () => {
+  test("round trips a Document section target and keeps legacy Document links", () => {
+    const hash = documentSectionRecordHash("document/1", "release:readiness");
+
+    expect(hash).toBe("document-section:document%2F1:release%3Areadiness");
+    expect(documentRecordFromHash(hash)).toEqual({
+      documentId: "document/1",
+      sectionId: "release:readiness",
+    });
+    expect(documentRecordFromHash(documentRecordHash("document/1"))).toEqual({
+      documentId: "document/1",
+    });
+  });
+
+  test("rejects a malformed Document section target without treating it as a Document id", () => {
+    expect(documentRecordFromHash("document-section:document-1:%E0%A4%A")).toBe(
+      null,
+    );
+  });
+
+  test("exposes Smart Collection and the enabled Technical Diagrams area", () => {
+    expect(ALWAYS_REACHABLE_SURFACES).toContain("Smart Collection");
+    expect(navigationHash("Smart Collection")).toBe("smart-collections");
+    expect(navigationSurfaceFromHash("smart-collections", [], [], [])).toBe(
+      "Smart Collection",
+    );
+    expect(
+      navigationSurfaceFromHash(
+        "technical-diagrams",
+        ["Technical Diagrams"],
+        [],
+        [],
+      ),
+    ).toBe("Technical Diagrams");
+  });
+  test("opens a Moodboard record under the Design area", () => {
+    expect(
+      navigationSurfaceFromHash("moodboard-board-1", ["Design"], [], []),
+    ).toBe("Design");
+  });
+  test("exposes Record Action as a Project configuration host", () => {
+    expect(CONFIGURATION_HOSTS.map((host) => host.label)).toContain(
+      "Record Action",
+    );
+    expect(configurationHostId("Record Action")).toBe(
+      "configuration-host-record-action",
+    );
+  });
+
+  test("keeps Work relation anchors on the Work surface", () => {
+    const hash = workRelationsHash("work-1");
+
+    expect(isWorkSurfaceHash(hash)).toBe(true);
+    expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
+  });
+
+  test("keeps the Priority Map on the Work surface", () => {
+    expect(isWorkSurfaceHash("priority-map")).toBe(true);
+    expect(navigationSurfaceFromHash("priority-map", ["Work"], [], [])).toBe(
+      "Work",
+    );
+  });
+
+  test("keeps Backlog and Work record links on the Work surface", () => {
+    expect(isWorkSurfaceHash(BACKLOG_HASH)).toBe(true);
+    expect(isWorkSurfaceHash(workRecordHash("work-1"))).toBe(true);
+    expect(navigationSurfaceFromHash(BACKLOG_HASH, ["Work"], [], [])).toBe(
+      "Work",
+    );
+  });
+
+  test("opens Roadmap within the Work surface", () => {
+    expect(isWorkSurfaceHash(ROADMAP_HASH)).toBe(true);
+    expect(navigationSurfaceFromHash(ROADMAP_HASH, ["Work"], [], [])).toBe(
+      "Work",
+    );
+  });
+
+  test("builds the Work record link used by copied context", () => {
+    expect(workRecordHash("work/2")).toBe("work-work%2F2");
+    expect(workRecordHref("project/1", "work/2")).toBe(
+      "/projects/project%2F1#work-work%2F2",
+    );
+  });
+
+  test("keeps source Work record links on the Work surface", () => {
+    const hash = workRecordHash("work-1");
+
+    expect(isWorkRecordHash(hash)).toBe(true);
+    expect(isWorkRecordHash(workRelationsHash("work-1"))).toBe(false);
+    expect(isWorkSurfaceHash(hash)).toBe(true);
+    expect(navigationSurfaceFromHash(hash, ["Work"], [], [])).toBe("Work");
+  });
+
+  test("round trips typed source record links without losing encoded IDs", () => {
+    const hash = projectSourceRecordHash("Production Incident", "incident/2");
+
+    expect(hash).toBe("source-production-incident-incident%2F2");
+    expect(projectSourceRecordFromHash(hash)).toEqual({
+      sourceId: "incident/2",
+      sourceType: "Production Incident",
+    });
+    expect(projectSourceRecordFromHash("source-decision-%E0%A4%A")).toBeNull();
+  });
+});

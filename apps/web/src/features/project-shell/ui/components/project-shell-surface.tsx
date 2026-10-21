@@ -25,10 +25,10 @@ import { ArrowLeft, CircleHelp, Settings2, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import ProjectBacklog from "@/features/backlog/ui/components/project-backlog";
 import ProjectDecisionsSurface from "@/features/decisions/ui/components/project-decisions-surface";
-import FeedSurface from "@/features/feedback/ui/feed-surface";
-import FeedbackSurface from "@/features/feedback/ui/feedback-surface";
+import FeedSurface from "@/features/feedback/ui/components/feed-surface";
+import FeedbackSurface from "@/features/feedback/ui/components/feedback-surface";
 import FileAttachmentsSurface from "@/features/file-attachments/ui/components/file-attachment-preview";
-import PlannedTestsSurface from "@/features/planned-tests/ui/planned-tests-surface";
+import PlannedTestsSurface from "@/features/planned-tests/ui/components/planned-tests-surface";
 import PrioritizationSurface from "@/features/prioritization-sessions/ui/components/prioritization-surface";
 import { ProjectGoalsRoute } from "@/features/project-goals/ui/components/project-goals-surface";
 import ProjectOverviewSurface from "@/features/project-overview/ui/components/project-overview-surface";
@@ -65,12 +65,12 @@ import {
 import ProjectAreaCatalog from "@/features/project-shell/ui/components/project-area-catalog";
 import ProjectConfigurationForm from "@/features/project-shell/ui/forms/project-configuration-form";
 import ProjectSourceRecordView from "@/features/project-source-records/ui/components/project-source-record-view";
-import ResearchSessionsSurface from "@/features/research-sessions/ui/research-sessions-surface";
-import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
+import ResearchSessionsSurface from "@/features/research-sessions/ui/components/research-sessions-surface";
+import ReturnToWork from "@/features/return-to-work/ui/components/return-to-work";
 import ProjectRisksSurface from "@/features/risks/ui/components/project-risks-surface";
 import { RoadmapSessionProvider } from "@/features/roadmap-horizon/store/roadmap-session";
 import ProjectRoadmap from "@/features/roadmap-horizon/ui/components/project-roadmap";
-import ScreensSurface from "@/features/screens/ui/screens-surface";
+import ScreensSurface from "@/features/screens/ui/components/screens-surface";
 import {
   clearSmartCollectionWorkPrefillSearch,
   type SmartCollectionWorkPrefillSearch,
@@ -80,14 +80,14 @@ import {
 } from "@/features/smart-collections/lib/smart-collection-work-prefill";
 import ProjectSourcesSurface from "@/features/sources-and-freshness/ui/components/project-sources-surface";
 import ProjectTagsSurface from "@/features/tags/ui/components/project-tags-surface";
-import TestAssessmentsSurface from "@/features/test-assessments/ui/test-assessments-surface";
-import TestGapsSurface from "@/features/test-gaps/ui/test-gaps-surface";
-import TestSessionsSurface from "@/features/test-report/ui/test-sessions-surface";
-import TestReviewSurface from "@/features/test-review/ui/test-review-surface";
-import TestSummarySurface from "@/features/test-review/ui/test-summary-surface";
+import TestAssessmentsSurface from "@/features/test-assessments/ui/components/test-assessments-surface";
+import TestGapsSurface from "@/features/test-gaps/ui/components/test-gaps-surface";
+import TestSessionsSurface from "@/features/test-report/ui/components/test-sessions-surface";
+import TestReviewSurface from "@/features/test-review/ui/components/test-review-surface";
+import TestSummarySurface from "@/features/test-review/ui/components/test-summary-surface";
+import OpenQuestionsSurface from "@/features/uncertainty-records/ui/components/open-questions-surface";
 import ProjectAssumptionsSurface from "@/features/uncertainty-records/ui/components/project-assumptions-surface";
-import OpenQuestionsSurface from "@/features/uncertainty-records/ui/open-questions-surface";
-import ValidationRecordsSurface from "@/features/validation-records/ui/validation-records-surface";
+import ValidationRecordsSurface from "@/features/validation-records/ui/components/validation-records-surface";
 import { ClientShellStatus } from "@/features/web-macos-client/ui/components/client-shell";
 import WorkDraftForm from "@/features/work-drafts/ui/forms/work-draft-form";
 import ProjectWorkList from "@/features/work-lifecycle/ui/components/project-work-list";
@@ -117,13 +117,16 @@ const ProjectTechnicalDiagramsSurface = lazy(
     ),
 );
 const ProjectWallSurface = lazy(
-  () => import("@/features/project-wall/ui/project-wall-surface"),
+  () => import("@/features/project-wall/ui/components/project-wall-surface"),
 );
 const UserFlowSurface = lazy(
-  () => import("@/features/user-flow/ui/user-flow-surface"),
+  () => import("@/features/user-flow/ui/components/user-flow-surface"),
 );
 const SpecChangeReviewSurface = lazy(
-  () => import("@/features/spec-change-review/ui/spec-change-review-surface"),
+  () =>
+    import(
+      "@/features/spec-change-review/ui/components/spec-change-review-surface"
+    ),
 );
 const ProjectWorkKanban = lazy(
   () => import("@/features/kanban/ui/components/project-work-kanban"),

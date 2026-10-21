@@ -47,7 +47,7 @@ import {
 } from "@/features/record-actions/ui/components/record-action-runner";
 import WorkRelations from "@/features/relations/ui/components/work-relations";
 import WorkNotNowControl from "@/features/roadmap-horizon/ui/components/work-not-now-control";
-import TestSummarySurface from "@/features/test-review/ui/test-summary-surface";
+import TestSummarySurface from "@/features/test-review/ui/components/test-summary-surface";
 import { useClientShellConnection } from "@/features/web-macos-client/hooks/use-client-shell";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import WorkChecklistEditor from "@/features/work-checklists/ui/components/work-checklist-editor";

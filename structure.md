@@ -16,6 +16,7 @@ apps/web/src/features/capture-triage/
   hooks/           use-<name>.ts
   lib/             no JSX: labels, mappers, Zod input and form schemas
   store/           feature-owned client state
+  <folder>/tests/  <file>.test.ts(x) of that folder, flat; imports the code from ../
 apps/server/src/features/capture-triage/server/
   capture-inbox.ts            behavior, named after the glossary term
   capture-inbox-database.ts   adapter: <behavior>-<boundary>.ts
@@ -45,7 +46,7 @@ Generated, never edited: `apps/web/src/routeTree.gen.ts`, `apps/web/src/env.ts`.
 ## Rules
 
 - **Feature:** a product capability whose UI, server, contract and schema change together. A table, route, migration, SDK, cron entry, toggle, filter state or future idea is not a feature by itself. A collection name is plural (`favorites`), a lifecycle takes its process name (`capture-triage`); a CRUD verb, `core`, `domain`, `management`, `resources`, `workspace` and `metadata` are not names. Add a new term to the glossary in the same change.
-- **Web folders:** `ui/` holds only `views/`, `components/`, `forms/`; nothing sits directly in `ui/` or the feature root. No `index.ts` barrels. Another folder needs a stated reason and an entry under Approved exceptions.
+- **Web folders:** `ui/` holds only `views/`, `components/`, `forms/`; nothing sits directly in `ui/` or the feature root. Web tests live in a `tests/` folder inside the folder of the code they test. No `index.ts` barrels. Another folder needs a stated reason and an entry under Approved exceptions.
 - **Promotion:** a component starts in its feature; a second consuming feature moves it to `apps/web/src/components/`, and dropping its product terms moves it to `packages/ui`. Server, contract or schema code two features need goes to the owning package.
 - **Imports:** a feature does not import another feature's `ui/`, `hooks/`, `store/` or `server/`. Allowed: another feature's pure `lib/` helper, and the shell features `web-macos-client` (Client Shell) and `project-shell` except their `ui/views/`. The web app never imports server source; it uses `@cantiara/api` through its oRPC client.
 - **Server:** HTTP and RPC entries are thin adapters; behavior lives in the feature's `server/` and depends on ports, not adapters.
@@ -56,9 +57,10 @@ Seams come from the owning spec's Testing Decisions; this says only where the fi
 
 | Test | Home | Name |
 |---|---|---|
-| Web | Next to the file | `<file>.test.ts(x)` |
+| Web | `tests/` inside the code's folder (`ui/components/tests/`, `lib/tests/`, `apps/web/src/utils/tests/`) | `<file>.test.ts(x)` |
 | Server unit, RPC entry | Feature's `server/tests/` | `<file>.test.ts`, `<behavior>-rpc.test.ts` |
 | Server with real database or infrastructure | Feature's `server/tests/` | `<file>.integration.test.ts`, skipped without its database URL |
+| Server root app, env and wiring | `apps/server/src/` (next to the file) | `<file>.test.ts`, `<file>.integration.test.ts` |
 | Package | Next to the file | `<file>.test.ts`, `<file>.integration.test.ts` |
 | Browser end-to-end | `apps/web/e2e/` | `<feature-or-flow>.e2e.ts` |
 
@@ -70,8 +72,6 @@ Seams come from the owning spec's Testing Decisions; this says only where the fi
 
 Never copy these. When a change touches one, move the touched files to the rule's home, update paths cited in specs or `docs/tech-stack.md`, and shrink this list.
 
-- Every existing server test sits next to its code, and database tests are named `*.test.ts`.
-- Files directly in `ui/`: `contacts`, `daily-focus`, `feedback`, `focus-period`, `planned-tests`, `product-gaps`, `project-wall`, `research-sessions`, `return-to-work`, `screens`, `spec-change-review`, `test-assessments`, `test-gaps`, `test-report`, `test-review`, `uncertainty-records`, `user-flow`, `validation-records`; feature root: `personal-wiki/document-scope.ts`.
 - Cross-feature imports outside the allowed list (`record-discovery/ui`, `priority-metrics/hooks` and others). Add none.
 - Thick routes: `routes/_auth/calendar.tsx`, `routes/_auth/route.tsx`.
 - Singular schema files (`contact.ts`, `decision.ts`, `work.ts`): keep them; add the feature's new tables there.
