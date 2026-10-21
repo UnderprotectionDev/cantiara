@@ -1,7 +1,7 @@
 import type { Document } from "@cantiara/api/documents";
 import { Badge } from "@cantiara/ui/components/badge";
 
-import { documentScopeLabel } from "../../document-scope";
+import { documentScopeLabel } from "../../lib/document-scope";
 
 export default function DocumentScopeBadge({
   document,

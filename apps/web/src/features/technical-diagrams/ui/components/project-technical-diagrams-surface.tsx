@@ -20,6 +20,7 @@ import { z } from "zod";
 import { runOnlineOnlyWrite } from "@/features/web-macos-client/store/client-shell";
 import { client, orpc } from "@/utils/orpc";
 import { usePersonalTechnicalDiagramView } from "../../hooks/use-personal-technical-diagram-view";
+import { NewTechnicalDiagramForm } from "../forms/new-technical-diagram-form";
 import {
   DiagramAuthorityConversion,
   DiagramOrigins,
@@ -30,7 +31,6 @@ import {
   type RecordCardOption,
 } from "./diagram-composition-panel";
 import { DiagramVersionPanel } from "./diagram-version-panel";
-import { NewTechnicalDiagramForm } from "./new-technical-diagram-form";
 import { TechnicalDiagramCanvas } from "./technical-diagram-canvas";
 import {
   type ArchitectureBindOption,

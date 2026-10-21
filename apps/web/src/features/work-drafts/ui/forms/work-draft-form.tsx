@@ -68,7 +68,7 @@ import {
   activeDraftCustomFieldValues,
   formatDraftCustomFieldDate,
   parseDraftNumberText,
-} from "./draft-custom-fields";
+} from "../../lib/draft-custom-fields";
 
 function draftNumberTextMatchesValue(
   parsedText: ReturnType<typeof parseDraftNumberText>,

@@ -36,7 +36,7 @@ import {
   workRecordHref,
   workRelationsHash,
 } from "@/features/project-shell/lib/project-shell-navigation";
-import ReturnToWork from "@/features/return-to-work/ui/return-to-work";
+import ReturnToWork from "@/features/return-to-work/ui/components/return-to-work";
 import { getWorkStatusLabel } from "@/features/work-lifecycle/ui/forms/work-status-form";
 import { orpc } from "@/utils/orpc";
 import {

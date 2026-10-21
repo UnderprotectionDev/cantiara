@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { z } from "zod";
-import DailyFocusView from "@/features/daily-focus/ui/daily-focus-view";
+import DailyFocusView from "@/features/daily-focus/ui/views/daily-focus-view";
 import { ClientShellContent } from "@/features/web-macos-client/ui/components/client-shell";
 
 export const Route = createFileRoute("/_auth/daily-focus")({
