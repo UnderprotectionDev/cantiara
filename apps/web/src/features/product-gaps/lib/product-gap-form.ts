@@ -1,10 +1,13 @@
 import type {
+  CloseToolEscapeInput,
   ProductGapLinkInput,
   ProductGapLinkTargetType,
   ProductGapLinkView,
   ProductGapStatus,
   RecordToolEscapeInput,
+  ToolEscapeImpact,
   ToolEscapeReason,
+  ToolEscapeRestoreMethod,
 } from "@cantiara/api/product-gaps";
 
 /** A related record as the form holds it: the label is display only and never sent. */
@@ -125,5 +128,54 @@ export function toRecordToolEscapeInput(
           title: values.title,
           unmetNeed: values.unmetNeed,
         },
+  };
+}
+
+/** The close form as the founder fills it; every proof field starts empty. */
+export interface CloseFormValues {
+  build: string;
+  externalCopyHow: string;
+  externalCopyState: "" | "Active parallel source" | "Closed";
+  impact: ToolEscapeImpact | "";
+  restored: LinkDraft[];
+  restoreMethod: ToolEscapeRestoreMethod | "";
+  runRef: string;
+}
+
+export const EMPTY_CLOSE_FORM: CloseFormValues = {
+  build: "",
+  externalCopyHow: "",
+  externalCopyState: "",
+  impact: "",
+  restoreMethod: "",
+  restored: [],
+  runRef: "",
+};
+
+/**
+ * Sends only what the founder filled in; an empty proof field stays absent so
+ * the seam names the unmet condition. The impact is required to pick a path.
+ */
+export function toCloseToolEscapeInput(
+  escapeId: string,
+  values: CloseFormValues,
+  impact: ToolEscapeImpact,
+): CloseToolEscapeInput {
+  return {
+    candidate: values.build.trim() ? { build: values.build } : null,
+    escapeId,
+    externalCopy:
+      values.externalCopyState && values.externalCopyHow.trim()
+        ? { how: values.externalCopyHow, state: values.externalCopyState }
+        : null,
+    impact,
+    restore:
+      values.restoreMethod && values.restored.length > 0
+        ? {
+            method: values.restoreMethod,
+            records: toLinkInputs(values.restored),
+          }
+        : null,
+    workflow: values.runRef.trim() ? { runRef: values.runRef } : null,
   };
 }

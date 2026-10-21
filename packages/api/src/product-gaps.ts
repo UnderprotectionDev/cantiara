@@ -262,13 +262,22 @@ export interface ProductGapTargetResolver {
 
 /** One Workspace-scoped unit of work. */
 export interface ProductGapTransaction {
+  /** The escape of this Workspace; held until the unit ends when `lock`. */
+  findEscape: (
+    escapeId: string,
+    lock: boolean,
+  ) => Promise<ToolEscapeStored | null>;
   /** When `lock` is true the Gap row is held until the unit of work ends. */
   findGap: (
     gapId: string,
     lock: boolean,
   ) => Promise<ProductGapStoredRecord | null>;
   insertEscape: (event: ToolEscapeStored) => Promise<void>;
+  /** Appends the close of an escape; never rewrites the escape itself. */
+  insertEscapeClose: (close: ToolEscapeCloseStored) => Promise<void>;
   insertGap: (record: ProductGapStoredRecord) => Promise<void>;
+  /** Closes of the named escapes, if any. */
+  listEscapeCloses: (escapeIds: string[]) => Promise<ToolEscapeCloseStored[]>;
   /** Events are append-only: there is no update or delete operation. */
   listEscapes: (filter: ToolEscapeFilter) => Promise<ToolEscapeStored[]>;
   listGaps: () => Promise<ProductGapStoredRecord[]>;
@@ -613,6 +622,8 @@ export interface ToolEscapeStored {
 }
 
 export interface ToolEscapeRecord extends Omit<ToolEscapeStored, "source"> {
+  /** Visible close evidence; `null` while the escape has no close. */
+  close: ToolEscapeCloseRecord | null;
   source: {
     brokenReason: BrokenReferenceReason | null;
     label: string | null;
@@ -623,8 +634,169 @@ export interface ToolEscapeRecord extends Omit<ToolEscapeStored, "source"> {
   };
 }
 
+export const TOOL_ESCAPE_CLOSE_LABEL = "Close Tool Escape";
+
+/**
+ * PRD 01 definition of a high-impact escape, judged only when closing: the
+ * canonical truth moved out, or a lasting parallel source of truth. It is a
+ * claim made at close, never a stored severity of the event. An escape that
+ * never held parallel truth does not use the four-condition close.
+ */
+export const TOOL_ESCAPE_IMPACTS = [
+  "Canonical truth moved out",
+  "Lasting parallel source of truth",
+  "Never held parallel truth",
+] as const;
+export const toolEscapeImpactSchema = z.enum(TOOL_ESCAPE_IMPACTS);
+export type ToolEscapeImpact = z.infer<typeof toolEscapeImpactSchema>;
+export type ToolEscapeHighImpact = Exclude<
+  ToolEscapeImpact,
+  "Never held parallel truth"
+>;
+
+export const TOOL_ESCAPE_RESTORE_METHODS = [
+  "Manual recreate",
+  "Supported import",
+] as const;
+export const toolEscapeRestoreMethodSchema = z.enum(
+  TOOL_ESCAPE_RESTORE_METHODS,
+);
+export type ToolEscapeRestoreMethod = z.infer<
+  typeof toolEscapeRestoreMethodSchema
+>;
+
+/** The four conditions of a high-impact close; all are required together. */
+export const TOOL_ESCAPE_CLOSE_CONDITIONS = [
+  "Workflow succeeded on candidate",
+  "Truth restored in product records",
+  "External copy closed",
+  "Evidence bound to records",
+] as const;
+export type ToolEscapeCloseCondition =
+  (typeof TOOL_ESCAPE_CLOSE_CONDITIONS)[number];
+
+export const EXTERNAL_COPY_STATES = [
+  "Closed",
+  "Active parallel source",
+] as const;
+
+/**
+ * Every proof field is optional on purpose: a missing one is not a malformed
+ * request but a missing condition, and the close is refused fail-closed with
+ * the conditions that are not met. There is no note, screenshot, count,
+ * duration or severity field that could stand in for a condition.
+ */
+export const closeToolEscapeInputSchema = z
+  .object({
+    /** The exact build of the current Ürün sürüm adayı the workflow ran on. */
+    candidate: z
+      .object({ build: requiredText("Build", 255) })
+      .strict()
+      .nullish(),
+    escapeId: identifierSchema,
+    externalCopy: z
+      .object({
+        how: requiredText(
+          "How the external copy was closed",
+          PRODUCT_GAP_TEXT_MAX,
+        ),
+        state: z.enum(EXTERNAL_COPY_STATES),
+      })
+      .strict()
+      .nullish(),
+    impact: toolEscapeImpactSchema,
+    restore: z
+      .object({
+        method: toolEscapeRestoreMethodSchema,
+        records: z
+          .array(productGapLinkInputSchema)
+          .min(1, "Name the restored product records.")
+          .max(PRODUCT_GAP_LINK_MAX),
+      })
+      .strict()
+      .nullish(),
+    /** Reference of the run of the same real workflow, verified, not asserted. */
+    workflow: z
+      .object({ runRef: requiredText("Workflow run", 255) })
+      .strict()
+      .nullish(),
+  })
+  .strict();
+export type CloseToolEscapeInput = z.input<typeof closeToolEscapeInputSchema>;
+export type ParsedCloseToolEscapeInput = z.output<
+  typeof closeToolEscapeInputSchema
+>;
+
+export interface ToolEscapeCloseStored {
+  candidateBuild: string;
+  closedAt: string;
+  escapeId: string;
+  externalCopyHow: string;
+  gapId: string;
+  id: string;
+  impact: ToolEscapeHighImpact;
+  records: ProductGapLinkInput[];
+  restoreMethod: ToolEscapeRestoreMethod;
+  workflowRef: string;
+}
+
+export interface ToolEscapeCloseRecord
+  extends Omit<ToolEscapeCloseStored, "records"> {
+  records: {
+    brokenReason: BrokenReferenceReason | null;
+    label: string | null;
+    state: "broken" | "resolved";
+    targetId: string;
+    targetType: ProductGapLinkTargetType;
+  }[];
+}
+
+export const toolEscapeCloseRecordSchema = z
+  .object({
+    candidateBuild: z.string().min(1),
+    closedAt: z.string(),
+    escapeId: identifierSchema,
+    externalCopyHow: z.string().min(1),
+    gapId: identifierSchema,
+    id: identifierSchema,
+    impact: z.enum([
+      "Canonical truth moved out",
+      "Lasting parallel source of truth",
+    ]),
+    records: z.array(
+      z
+        .object({
+          brokenReason: brokenReferenceReasonSchema.nullable(),
+          label: z.string().nullable(),
+          state: z.enum(["broken", "resolved"]),
+          targetId: identifierSchema,
+          targetType: productGapLinkTargetTypeSchema,
+        })
+        .strict(),
+    ),
+    restoreMethod: toolEscapeRestoreMethodSchema,
+    workflowRef: z.string().min(1),
+  })
+  .strict();
+
+/**
+ * Verifier of the candidate workflow evidence. Fixtures stand in for it in
+ * tests; without one every close is refused (fail-closed).
+ */
+export interface ToolEscapeCloseProof {
+  /** The build of the current Ürün sürüm adayı, or `null` when none exists. */
+  currentCandidate: () => Promise<string | null>;
+  /** A recorded run of a workflow, with the product records it exercised. */
+  workflowRun: (runRef: string) => Promise<{
+    build: string;
+    records: ProductGapLinkInput[];
+    succeeded: boolean;
+  } | null>;
+}
+
 export const toolEscapeRecordSchema = z
   .object({
+    close: toolEscapeCloseRecordSchema.nullable(),
     gapId: identifierSchema,
     id: identifierSchema,
     intendedJob: z.string().min(1),
@@ -677,6 +849,14 @@ export interface ProductGapStore {
 }
 
 export interface ProductGapsAccess {
+  /**
+   * Closes a high-impact Tool Escape only when all four conditions hold.
+   * Fail-closed: any missing condition refuses, nothing is written.
+   */
+  closeToolEscape: (
+    accountId: string,
+    input: CloseToolEscapeInput,
+  ) => Promise<ToolEscapeRecord>;
   /** Confirms the exact previewed plan. Never converts by itself. */
   confirmFollowUp: (
     accountId: string,

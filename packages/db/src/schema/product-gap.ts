@@ -144,3 +144,84 @@ export const toolEscape = pgTable(
     ),
   ],
 );
+
+/**
+ * Close of a high-impact Tool Escape (spec 58 #419). A separate append-only
+ * record: the escape event is never rewritten, and at most one close exists per
+ * escape (`escape_id` is unique, so a double close is refused by the database
+ * too). High impact is judged only when closing, so `impact` lives here and not
+ * on the event; there is no severity flag, count, threshold or duration column.
+ * The four conditions are stored as the evidence they were checked against: the
+ * candidate build, the workflow run reference, the restore method with its exact
+ * records (`workspace_tool_escape_close_record`) and how the external copy
+ * stopped being a parallel source of truth.
+ */
+export const toolEscapeClose = pgTable(
+  "workspace_tool_escape_close",
+  {
+    candidateBuild: text("candidate_build").notNull(),
+    closedAt: timestamp("closed_at").defaultNow().notNull(),
+    escapeId: text("escape_id").notNull(),
+    externalCopyHow: text("external_copy_how").notNull(),
+    gapId: text("gap_id").notNull(),
+    id: text("id").primaryKey(),
+    impact: text("impact").notNull(),
+    restoreMethod: text("restore_method").notNull(),
+    workflowRef: text("workflow_ref").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.escapeId],
+      foreignColumns: [toolEscape.id],
+      name: "workspace_tool_escape_close_escape_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.gapId],
+      foreignColumns: [productGap.id],
+      name: "workspace_tool_escape_close_gap_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("workspace_tool_escape_close_escape_unique").on(table.escapeId),
+    index("workspace_tool_escape_close_gap_idx").on(table.gapId),
+    check(
+      "workspace_tool_escape_close_impact_check",
+      sql`${table.impact} in ('Canonical truth moved out', 'Lasting parallel source of truth')`,
+    ),
+    check(
+      "workspace_tool_escape_close_restore_method_check",
+      sql`${table.restoreMethod} in ('Manual recreate', 'Supported import')`,
+    ),
+    check(
+      "workspace_tool_escape_close_evidence_check",
+      sql`length(btrim(${table.candidateBuild})) >= 1 and length(btrim(${table.workflowRef})) >= 1 and length(btrim(${table.externalCopyHow})) >= 1`,
+    ),
+  ],
+);
+
+/** The exact product records a close is bound to; polymorphic, no target FK. */
+export const toolEscapeCloseRecord = pgTable(
+  "workspace_tool_escape_close_record",
+  {
+    closeId: text("close_id").notNull(),
+    id: text("id").primaryKey(),
+    position: integer("position").notNull(),
+    targetId: text("target_id").notNull(),
+    targetType: text("target_type").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.closeId],
+      foreignColumns: [toolEscapeClose.id],
+      name: "workspace_tool_escape_close_record_close_fk",
+    }).onDelete("cascade"),
+    index("workspace_tool_escape_close_record_close_idx").on(table.closeId),
+    uniqueIndex("workspace_tool_escape_close_record_target_unique").on(
+      table.closeId,
+      table.targetType,
+      table.targetId,
+    ),
+    check(
+      "workspace_tool_escape_close_record_type_check",
+      sql`${table.targetType} in ('Project', 'Work', 'Feature', 'Decision')`,
+    ),
+  ],
+);

@@ -29,8 +29,11 @@ import {
   RecordProductGapForm,
 } from "./record-product-gap-form";
 
+import type { CloseEscape } from "./tool-escape-close";
+
 export type { LoadEscapes } from "./dogfooding-summary";
 export type { RecordGap } from "./record-product-gap-form";
+export type { CloseEscape } from "./tool-escape-close";
 
 export type FollowUpRequest =
   | { kind: "Feature relation"; featureId: string }
@@ -310,6 +313,7 @@ export function ProductGapsView({
   gaps,
   loadEscapes,
   loadTargets,
+  onCloseEscape,
   onConfirmFollowUp,
   onFilterChange,
   onPreviewFollowUp,
@@ -321,6 +325,7 @@ export function ProductGapsView({
   gaps: ProductGapRecord[];
   loadEscapes: LoadEscapes;
   loadTargets: LoadProductGapTargets;
+  onCloseEscape?: CloseEscape;
   onConfirmFollowUp: ConfirmFollowUp;
   onFilterChange: (filter: GapFilterValues) => void;
   onPreviewFollowUp: PreviewFollowUp;
@@ -380,6 +385,8 @@ export function ProductGapsView({
                   filter={filter}
                   key={`${record.id}:${record.escapeCount}:${JSON.stringify(filter)}`}
                   loadEscapes={loadEscapes}
+                  loadTargets={loadTargets}
+                  onCloseEscape={onCloseEscape}
                   record={record}
                 />
                 <StatusControl onSetStatus={onSetStatus} record={record} />

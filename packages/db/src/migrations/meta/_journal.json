@@ -1072,6 +1072,13 @@
       "when": 1792566566773,
       "tag": "0152_tool_escape_event",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1792567280397,
+      "tag": "0153_high_impact_escape_close",
+      "breakpoints": true
     }
   ]
 }

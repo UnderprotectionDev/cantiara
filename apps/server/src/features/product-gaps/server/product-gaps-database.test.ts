@@ -6,6 +6,8 @@ import {
   productGap,
   productGapLink,
   toolEscape,
+  toolEscapeClose,
+  toolEscapeCloseRecord,
 } from "@cantiara/db/schema/product-gap";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
@@ -26,6 +28,8 @@ import {
   ProductGapProjectReadOnlyError,
   ProductGapStatusConflictError,
   ProductGapWorkspaceNotFoundError,
+  ToolEscapeAlreadyClosedError,
+  ToolEscapeCloseRefusedError,
   ToolEscapeSourceError,
 } from "./product-gaps";
 import { createDatabaseProductGaps } from "./product-gaps-database";
@@ -533,5 +537,128 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
         }),
       ).rejects.toThrow();
     }
+  });
+
+  describe("high-impact close", () => {
+    const build = "build-test";
+    const proof = {
+      currentCandidate: () => Promise.resolve(build),
+      workflowRun: (runRef: string) =>
+        Promise.resolve(
+          runRef === "run-ok"
+            ? {
+                build,
+                records: [{ targetId: ids.task, targetType: "Work" as const }],
+                succeeded: true,
+              }
+            : null,
+        ),
+    };
+    const closeInput = (escapeId: string) => ({
+      candidate: { build },
+      escapeId,
+      externalCopy: { how: "Spreadsheet archived.", state: "Closed" as const },
+      impact: "Lasting parallel source of truth" as const,
+      restore: {
+        method: "Manual recreate" as const,
+        records: [{ targetId: ids.task, targetType: "Work" as const }],
+      },
+      workflow: { runRef: "run-ok" },
+    });
+
+    async function recordEscape(
+      access: ReturnType<typeof createDatabaseProductGaps>,
+    ) {
+      return await access.recordToolEscape(accountId, {
+        escape: {
+          intendedJob: "Keep the plan",
+          occurredAt: "2026-10-01T09:30:00.000Z",
+          reasons: ["Missing capability"],
+          source: { targetId: projectId, targetType: "Project" },
+          tool: "Spreadsheet",
+        },
+        gap: { kind: "New", ...gap },
+      });
+    }
+
+    test("refuses a missing condition, then appends one bound close and refuses a second", async () => {
+      const db = requireDatabase();
+      const access = createDatabaseProductGaps(db, proof);
+      const { escape: closable } = await recordEscape(access);
+
+      await expect(
+        access.closeToolEscape(accountId, {
+          ...closeInput(closable.id),
+          externalCopy: { how: "Still used.", state: "Active parallel source" },
+        }),
+      ).rejects.toBeInstanceOf(ToolEscapeCloseRefusedError);
+      expect(await db.select().from(toolEscapeClose)).toHaveLength(0);
+
+      const closed = await access.closeToolEscape(
+        accountId,
+        closeInput(closable.id),
+      );
+      expect(closed.close).toMatchObject({
+        candidateBuild: build,
+        records: [{ label: "Fix export", state: "resolved" }],
+        workflowRef: "run-ok",
+      });
+      await expect(
+        access.closeToolEscape(accountId, closeInput(closable.id)),
+      ).rejects.toBeInstanceOf(ToolEscapeAlreadyClosedError);
+      expect(await db.select().from(toolEscapeCloseRecord)).toHaveLength(1);
+      const [event] = await db
+        .select()
+        .from(toolEscape)
+        .where(eq(toolEscape.id, closable.id));
+      expect(event?.intendedJob).toBe("Keep the plan");
+      expect(
+        (await access.listEscapes(accountId, { gapId: closable.gapId }))[0]
+          ?.close?.id,
+      ).toBe(closed.close?.id);
+    });
+
+    test("fails closed with no verifier and never closes another Workspace's escape", async () => {
+      const db = requireDatabase();
+      const access = createDatabaseProductGaps(db, proof);
+      const { escape: closable } = await recordEscape(access);
+
+      await expect(
+        createDatabaseProductGaps(db).closeToolEscape(
+          accountId,
+          closeInput(closable.id),
+        ),
+      ).rejects.toBeInstanceOf(ToolEscapeCloseRefusedError);
+      await expect(
+        access.closeToolEscape(otherAccountId, closeInput(closable.id)),
+      ).rejects.toMatchObject({ code: "TOOL_ESCAPE_NOT_FOUND" });
+      expect(await db.select().from(toolEscapeClose)).toHaveLength(0);
+    });
+
+    test("the database holds one close per escape and a closed impact catalog", async () => {
+      const db = requireDatabase();
+      const access = createDatabaseProductGaps(db, proof);
+      const { escape: closable } = await recordEscape(access);
+      const row = {
+        candidateBuild: build,
+        escapeId: escape.id,
+        externalCopyHow: "Archived.",
+        gapId: closable.gapId,
+        impact: "Lasting parallel source of truth",
+        restoreMethod: "Manual recreate",
+        workflowRef: "run-ok",
+      };
+
+      await db
+        .insert(toolEscapeClose)
+        .values({ ...row, id: crypto.randomUUID() });
+      for (const bad of [{}, { impact: "Never held parallel truth" }]) {
+        await expect(
+          db
+            .insert(toolEscapeClose)
+            .values({ ...row, id: crypto.randomUUID(), ...bad }),
+        ).rejects.toThrow();
+      }
+    });
   });
 });

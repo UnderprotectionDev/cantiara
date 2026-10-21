@@ -15,6 +15,8 @@ import {
   type ProductGapStoredRecord,
   type ProductGapTargetLive,
   type ProductGapTargetResolver,
+  type ToolEscapeCloseProof,
+  type ToolEscapeCloseStored,
   type ToolEscapeFilter,
   type ToolEscapeReason,
   type ToolEscapeStored,
@@ -26,6 +28,8 @@ import {
   productGap,
   productGapLink,
   toolEscape,
+  toolEscapeClose,
+  toolEscapeCloseRecord,
 } from "@cantiara/db/schema/product-gap";
 import { project } from "@cantiara/db/schema/project";
 import { work } from "@cantiara/db/schema/work";
@@ -577,6 +581,91 @@ export function createDatabaseProductGapStore(
                 ? ((await toStoredGaps(executor, [row]))[0] ?? null)
                 : null;
             },
+            // A close is appended; the escape row it belongs to is only read.
+            findEscape: async (escapeId, lock) => {
+              const query = executor
+                .select({ event: toolEscape })
+                .from(toolEscape)
+                .innerJoin(productGap, eq(productGap.id, toolEscape.gapId))
+                .where(
+                  and(
+                    eq(toolEscape.id, escapeId),
+                    eq(productGap.workspaceId, workspaceId),
+                  ),
+                );
+              const [found] = await (lock ? query.for("update") : query);
+              return found ? toStoredEscape(found.event) : null;
+            },
+            insertEscapeClose: async (close) => {
+              await executor.insert(toolEscapeClose).values({
+                candidateBuild: close.candidateBuild,
+                closedAt: new Date(close.closedAt),
+                escapeId: close.escapeId,
+                externalCopyHow: close.externalCopyHow,
+                gapId: close.gapId,
+                id: close.id,
+                impact: close.impact,
+                restoreMethod: close.restoreMethod,
+                workflowRef: close.workflowRef,
+              });
+              for (const [position, record] of close.records.entries()) {
+                await executor.insert(toolEscapeCloseRecord).values({
+                  closeId: close.id,
+                  id: crypto.randomUUID(),
+                  position,
+                  targetId: record.targetId,
+                  targetType: record.targetType,
+                });
+              }
+            },
+            listEscapeCloses: async (escapeIds) => {
+              if (escapeIds.length === 0) {
+                return [];
+              }
+              const rows = await executor
+                .select({ close: toolEscapeClose })
+                .from(toolEscapeClose)
+                .innerJoin(productGap, eq(productGap.id, toolEscapeClose.gapId))
+                .where(
+                  and(
+                    inArray(toolEscapeClose.escapeId, escapeIds),
+                    eq(productGap.workspaceId, workspaceId),
+                  ),
+                );
+              if (rows.length === 0) {
+                return [];
+              }
+              const recordRows = await executor
+                .select()
+                .from(toolEscapeCloseRecord)
+                .where(
+                  inArray(
+                    toolEscapeCloseRecord.closeId,
+                    rows.map(({ close }) => close.id),
+                  ),
+                )
+                .orderBy(asc(toolEscapeCloseRecord.position));
+              return rows.map(
+                ({ close }): ToolEscapeCloseStored => ({
+                  candidateBuild: close.candidateBuild,
+                  closedAt: close.closedAt.toISOString(),
+                  escapeId: close.escapeId,
+                  externalCopyHow: close.externalCopyHow,
+                  gapId: close.gapId,
+                  id: close.id,
+                  impact: close.impact as ToolEscapeCloseStored["impact"],
+                  records: recordRows
+                    .filter((record) => record.closeId === close.id)
+                    .map((record) => ({
+                      targetId: record.targetId,
+                      targetType: record.targetType as ProductGapLinkTargetType,
+                    })),
+                  restoreMethod:
+                    close.restoreMethod as ToolEscapeCloseStored["restoreMethod"],
+                  workflowRef: close.workflowRef,
+                }),
+              );
+            },
             insertEscape: async (event) => {
               await executor.insert(toolEscape).values({
                 gapId: event.gapId,
@@ -682,6 +771,9 @@ export function createDatabaseProductGapStore(
   };
 }
 
-export function createDatabaseProductGaps(database: Database) {
-  return createProductGaps(createDatabaseProductGapStore(database));
+export function createDatabaseProductGaps(
+  database: Database,
+  proof?: ToolEscapeCloseProof,
+) {
+  return createProductGaps(createDatabaseProductGapStore(database), proof);
 }

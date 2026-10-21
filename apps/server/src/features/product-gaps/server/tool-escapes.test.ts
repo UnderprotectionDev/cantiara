@@ -151,6 +151,7 @@ describe("Tool Escape event", () => {
       input(),
     );
     expect(Object.keys(event).sort()).toEqual([
+      "close",
       "gapId",
       "id",
       "intendedJob",

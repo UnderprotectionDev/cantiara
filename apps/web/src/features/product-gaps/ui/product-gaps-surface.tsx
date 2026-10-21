@@ -12,6 +12,7 @@ import { client, orpc } from "@/utils/orpc";
 import {
   EMPTY_GAP_FILTER,
   type GapFilterValues,
+  toCloseToolEscapeInput,
   toListFilter,
   toRecordToolEscapeInput,
 } from "../lib/product-gap-form";
@@ -65,6 +66,17 @@ export default function ProductGapsSurface() {
       gaps={gaps.data.gaps}
       loadEscapes={loadEscapes}
       loadTargets={loadTargets}
+      onCloseEscape={async (event, values, impact) => {
+        try {
+          await runOnlineOnlyWrite(() =>
+            client.closeToolEscape(
+              toCloseToolEscapeInput(event.id, values, impact),
+            ),
+          );
+        } finally {
+          await refresh();
+        }
+      }}
       onConfirmFollowUp={async (gap, plan) => {
         try {
           await runOnlineOnlyWrite(() =>

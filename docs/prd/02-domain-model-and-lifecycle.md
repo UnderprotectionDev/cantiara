@@ -1309,6 +1309,15 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Daha güvenilir | `More reliable` | Dış Araca Kaçış nedeni `Daha güvenilir` |
 | Kullanılabilirlik | `Usability` | Dış Araca Kaçış nedeni `Kullanılabilirlik` |
 | Alışkanlık | `Habit` | Dış Araca Kaçış nedeni `Alışkanlık` |
+| Dış Araca Kaçışı kapat | `Close Tool Escape` | Dış Araca Kaçışa ayrı, eklemeli kapanış kaydı yazar; olayı yeniden yazmaz, bir kaçış için yalnız bir kez yapılır; hesap kapatma veya Dış yüzey iptali değildir |
+| Kaçışın taşıdığı | `What the escape held` | Kapanışta yapılan yüksek etki yargısı: `Canonical truth moved out` (`Kanonik gerçek dışarı taşındı`), `Lasting parallel source of truth` (`Kalıcı paralel doğruluk kaynağı`) veya `Never held parallel truth` (`Paralel doğruluk taşımadı`); son seçenek dört koşullu kapanışı kullanmaz; saklanan şiddet bayrağı değildir |
+| Aday build | `Candidate build` | Aynı akışın başarıyla çalıştığı güncel Ürün sürüm adayının kesin build'i |
+| İş akışı çalıştırması | `Workflow run` | Aynı gerçek iş akışının aday üzerindeki doğrulanabilir çalıştırma başvurusu; serbest not veya dış ekran görüntüsü değildir |
+| Gerçeğin dönüş yolu | `How the truth returned` | `Manual recreate` (`Manuel yeniden oluşturma`) veya `Supported import` (`Desteklenen import`) |
+| Geri dönen ürün kayıtları | `Restored product records` | Etkilenen güncel gerçeğin döndüğü kesin Proje, İş, Özellik veya Karar kayıtları; kanıt bu kayıtlara bağlanır |
+| Dış kopya | `External copy` | `Closed` (`Kapandı`) veya `Active parallel source` (`Aktif paralel kaynak`); yalnız `Closed` koşulu karşılar |
+| Dış kopya nasıl kapatıldı | `How the external copy was closed` | Dış kopyanın paralel doğruluk kaynağı olmaktan çıkışının okunur açıklaması |
+| Kapanış kanıtı | `Close evidence` | Kapanmış Dış Araca Kaçışın görünür kanıtı: aday build, çalıştırma, dönüş yolu, bağlı kayıtlar ve dış kopya açıklaması |
 | Araca, nedene, Projeye veya duruma göre süz | `Filter by external tool`, `Filter by reason`, `Filter by Project`, `Filter by status` | Dogfooding özetinin yalnız seçen süzgeçleri; sıralama veya puan üretmez |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
