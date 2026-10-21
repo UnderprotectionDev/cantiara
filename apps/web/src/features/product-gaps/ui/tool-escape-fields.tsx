@@ -8,6 +8,13 @@ import {
   TOOL_ESCAPE_TOOL_MAX,
   type ToolEscapeReason,
 } from "@cantiara/api/product-gaps";
+import { Checkbox } from "@cantiara/ui/components/checkbox";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
@@ -68,11 +75,13 @@ export function ToolEscapeFields({
   }
 
   return (
-    <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
-      <legend className="px-1 text-sm">{TOOL_ESCAPE_LABEL}</legend>
+    <FieldSet className="gap-3 rounded-md border border-border/70 p-3">
+      <FieldLegend className="mb-0 px-1 text-sm" variant="label">
+        {TOOL_ESCAPE_LABEL}
+      </FieldLegend>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="grid gap-1 text-sm">
-          <label htmlFor={`${idPrefix}-occurred`}>Occurred at</label>
+        <Field className="gap-1 text-sm">
+          <FieldLabel htmlFor={`${idPrefix}-occurred`}>Occurred at</FieldLabel>
           <Input
             disabled={disabled}
             id={`${idPrefix}-occurred`}
@@ -83,9 +92,9 @@ export function ToolEscapeFields({
             type="datetime-local"
             value={value.occurredAt}
           />
-        </div>
-        <div className="grid gap-1 text-sm">
-          <label htmlFor={`${idPrefix}-tool`}>External tool</label>
+        </Field>
+        <Field className="gap-1 text-sm">
+          <FieldLabel htmlFor={`${idPrefix}-tool`}>External tool</FieldLabel>
           <Input
             disabled={disabled}
             id={`${idPrefix}-tool`}
@@ -96,9 +105,11 @@ export function ToolEscapeFields({
             required
             value={value.tool}
           />
-        </div>
-        <div className="grid gap-1 text-sm">
-          <label htmlFor={`${idPrefix}-source-type`}>Source type</label>
+        </Field>
+        <Field className="gap-1 text-sm">
+          <FieldLabel htmlFor={`${idPrefix}-source-type`}>
+            Source type
+          </FieldLabel>
           <NativeSelect
             disabled={disabled}
             id={`${idPrefix}-source-type`}
@@ -114,9 +125,9 @@ export function ToolEscapeFields({
               </option>
             ))}
           </NativeSelect>
-        </div>
-        <div className="grid gap-1 text-sm">
-          <label htmlFor={`${idPrefix}-source`}>Source</label>
+        </Field>
+        <Field className="gap-1 text-sm">
+          <FieldLabel htmlFor={`${idPrefix}-source`}>Source</FieldLabel>
           <NativeSelect
             disabled={disabled}
             id={`${idPrefix}-source`}
@@ -148,10 +159,10 @@ export function ToolEscapeFields({
           {loadError ? (
             <span role="alert">{sourceType} records could not be loaded.</span>
           ) : null}
-        </div>
+        </Field>
       </div>
-      <div className="grid gap-1 text-sm">
-        <label htmlFor={`${idPrefix}-job`}>Intended job</label>
+      <Field className="gap-1 text-sm">
+        <FieldLabel htmlFor={`${idPrefix}-job`}>Intended job</FieldLabel>
         <Textarea
           disabled={disabled}
           id={`${idPrefix}-job`}
@@ -162,23 +173,29 @@ export function ToolEscapeFields({
           rows={2}
           value={value.intendedJob}
         />
-      </div>
-      <fieldset className="space-y-1 text-sm">
-        <legend>Reasons (choose at least one)</legend>
+      </Field>
+      <FieldSet className="gap-1 text-sm">
+        <FieldLegend className="mb-0 text-sm" variant="label">
+          Reasons (choose at least one)
+        </FieldLegend>
         {TOOL_ESCAPE_REASONS.map((reason) => (
-          <label className="flex items-center gap-2" key={reason}>
-            <input
+          <FieldLabel
+            className="items-center text-sm"
+            htmlFor={`${idPrefix}-reason-${reason}`}
+            key={reason}
+          >
+            <Checkbox
               checked={value.reasons.includes(reason)}
               disabled={disabled}
-              onChange={(event) => toggle(reason, event.target.checked)}
-              type="checkbox"
+              id={`${idPrefix}-reason-${reason}`}
+              onCheckedChange={(checked) => toggle(reason, checked)}
             />
             {reason}
-          </label>
+          </FieldLabel>
         ))}
-      </fieldset>
-      <div className="grid gap-1 text-sm">
-        <label htmlFor={`${idPrefix}-note`}>Note (optional)</label>
+      </FieldSet>
+      <Field className="gap-1 text-sm">
+        <FieldLabel htmlFor={`${idPrefix}-note`}>Note (optional)</FieldLabel>
         <Textarea
           disabled={disabled}
           id={`${idPrefix}-note`}
@@ -186,7 +203,7 @@ export function ToolEscapeFields({
           rows={2}
           value={value.note}
         />
-      </div>
-    </fieldset>
+      </Field>
+    </FieldSet>
   );
 }

@@ -5,15 +5,19 @@ import {
   RECORD_PRODUCT_GAP_LABEL,
   TOOL_ESCAPE_LABEL,
 } from "@cantiara/api/product-gaps";
+import { Alert } from "@cantiara/ui/components/alert";
 import { Button } from "@cantiara/ui/components/button";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { Input } from "@cantiara/ui/components/input";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { Textarea } from "@cantiara/ui/components/textarea";
+import { useForm } from "@tanstack/react-form";
 import { type FormEvent, useState } from "react";
 import {
   emptyGapForm,
   errorText,
   type GapFormValues,
+  gapFormError,
 } from "../lib/product-gap-form";
 import {
   type LoadProductGapTargets,
@@ -37,31 +41,28 @@ export function RecordProductGapForm({
   loadTargets: LoadProductGapTargets;
   onSubmit: RecordGap;
 }) {
-  const [values, setValues] = useState<GapFormValues>(() => emptyGapForm());
   const [error, setError] = useState<string>();
-  const [pending, setPending] = useState(false);
-  const attaching = values.existingGapId !== "";
+  const form = useForm({
+    defaultValues: emptyGapForm(),
+    onSubmit: async ({ value, formApi }) => {
+      setError(undefined);
+      const invalid = gapFormError(value);
+      if (invalid) {
+        setError(invalid);
+        return;
+      }
+      try {
+        await onSubmit(value);
+        formApi.reset(emptyGapForm());
+      } catch (caught) {
+        setError(errorText(caught, `${TOOL_ESCAPE_LABEL} was not saved.`));
+      }
+    },
+  });
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(undefined);
-    if (!values.escape.source) {
-      setError("Choose the source Project or record.");
-      return;
-    }
-    if (values.escape.reasons.length === 0) {
-      setError("Choose at least one reason.");
-      return;
-    }
-    setPending(true);
-    try {
-      await onSubmit(values);
-      setValues(emptyGapForm());
-    } catch (caught) {
-      setError(errorText(caught, `${TOOL_ESCAPE_LABEL} was not saved.`));
-    } finally {
-      setPending(false);
-    }
+    form.handleSubmit().catch(() => undefined);
   }
 
   return (
@@ -71,87 +72,127 @@ export function RecordProductGapForm({
       onSubmit={submit}
     >
       <h3 className="font-medium">{RECORD_PRODUCT_GAP_LABEL}</h3>
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="grid gap-2 text-sm">
-        <label htmlFor="product-gap-new-choice">{PRODUCT_GAP_LABEL}</label>
-        <NativeSelect
-          disabled={pending}
-          id="product-gap-new-choice"
-          onChange={(event) =>
-            setValues({ ...values, existingGapId: event.target.value })
-          }
-          value={values.existingGapId}
-        >
-          <option value="">New {PRODUCT_GAP_LABEL}</option>
-          {gaps.map((gap) => (
-            <option key={gap.id} value={gap.id}>
-              {gap.title}
-            </option>
-          ))}
-        </NativeSelect>
-      </div>
-      {attaching ? null : (
-        <>
-          <div className="grid gap-2 text-sm">
-            <label htmlFor="product-gap-new-title">Title</label>
-            <Input
-              disabled={pending}
-              id="product-gap-new-title"
-              maxLength={255}
-              onChange={(event) =>
-                setValues({ ...values, title: event.target.value })
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
+      <form.Subscribe selector={(state) => state.isSubmitting}>
+        {(pending) => (
+          <>
+            <form.Field name="existingGapId">
+              {(field) => (
+                <Field className="text-sm">
+                  <FieldLabel htmlFor="product-gap-new-choice">
+                    {PRODUCT_GAP_LABEL}
+                  </FieldLabel>
+                  <NativeSelect
+                    disabled={pending}
+                    id="product-gap-new-choice"
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    value={field.state.value}
+                  >
+                    <option value="">New {PRODUCT_GAP_LABEL}</option>
+                    {gaps.map((gap) => (
+                      <option key={gap.id} value={gap.id}>
+                        {gap.title}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              )}
+            </form.Field>
+            <form.Subscribe selector={(state) => state.values.existingGapId}>
+              {(existingGapId) =>
+                existingGapId === "" ? (
+                  <>
+                    <form.Field name="title">
+                      {(field) => (
+                        <Field className="text-sm">
+                          <FieldLabel htmlFor="product-gap-new-title">
+                            Title
+                          </FieldLabel>
+                          <Input
+                            disabled={pending}
+                            id="product-gap-new-title"
+                            maxLength={255}
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            value={field.state.value}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="unmetNeed">
+                      {(field) => (
+                        <Field className="text-sm">
+                          <FieldLabel htmlFor="product-gap-new-need">
+                            Unmet need
+                          </FieldLabel>
+                          <Textarea
+                            disabled={pending}
+                            id="product-gap-new-need"
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            required
+                            rows={3}
+                            value={field.state.value}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="scope">
+                      {(field) => (
+                        <Field className="text-sm">
+                          <FieldLabel htmlFor="product-gap-new-scope">
+                            Scope (optional)
+                          </FieldLabel>
+                          <Textarea
+                            disabled={pending}
+                            id="product-gap-new-scope"
+                            onBlur={field.handleBlur}
+                            onChange={(event) =>
+                              field.handleChange(event.target.value)
+                            }
+                            rows={2}
+                            value={field.state.value}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="links">
+                      {(field) => (
+                        <ProductGapLinksField
+                          idPrefix="product-gap-new"
+                          loadTargets={loadTargets}
+                          onChange={field.handleChange}
+                          value={field.state.value}
+                        />
+                      )}
+                    </form.Field>
+                  </>
+                ) : null
               }
-              required
-              value={values.title}
-            />
-          </div>
-          <div className="grid gap-2 text-sm">
-            <label htmlFor="product-gap-new-need">Unmet need</label>
-            <Textarea
-              disabled={pending}
-              id="product-gap-new-need"
-              onChange={(event) =>
-                setValues({ ...values, unmetNeed: event.target.value })
-              }
-              required
-              rows={3}
-              value={values.unmetNeed}
-            />
-          </div>
-          <div className="grid gap-2 text-sm">
-            <label htmlFor="product-gap-new-scope">Scope (optional)</label>
-            <Textarea
-              disabled={pending}
-              id="product-gap-new-scope"
-              onChange={(event) =>
-                setValues({ ...values, scope: event.target.value })
-              }
-              rows={2}
-              value={values.scope}
-            />
-          </div>
-          <ProductGapLinksField
-            idPrefix="product-gap-new"
-            loadTargets={loadTargets}
-            onChange={(links) => setValues({ ...values, links })}
-            value={values.links}
-          />
-        </>
-      )}
-      <ToolEscapeFields
-        disabled={pending}
-        idPrefix="product-gap-escape"
-        loadTargets={loadTargets}
-        onChange={(next) => setValues({ ...values, escape: next })}
-        value={values.escape}
-      />
-      <Button disabled={pending} type="submit">
-        {RECORD_PRODUCT_GAP_LABEL}
-      </Button>
+            </form.Subscribe>
+            <form.Field name="escape">
+              {(field) => (
+                <ToolEscapeFields
+                  disabled={pending}
+                  idPrefix="product-gap-escape"
+                  loadTargets={loadTargets}
+                  onChange={field.handleChange}
+                  value={field.state.value}
+                />
+              )}
+            </form.Field>
+            <Button disabled={pending} type="submit">
+              {RECORD_PRODUCT_GAP_LABEL}
+            </Button>
+          </>
+        )}
+      </form.Subscribe>
     </form>
   );
 }

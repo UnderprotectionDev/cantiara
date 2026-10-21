@@ -7,7 +7,9 @@ import {
   TOOL_ESCAPE_REASONS,
   type ToolEscapeRecord,
 } from "@cantiara/api/product-gaps";
+import { Alert } from "@cantiara/ui/components/alert";
 import { Button } from "@cantiara/ui/components/button";
+import { Field, FieldLabel } from "@cantiara/ui/components/field";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useEffect, useState } from "react";
 import { errorText, type GapFilterValues } from "../lib/product-gap-form";
@@ -60,8 +62,10 @@ export function GapFilterBar({
       className="grid gap-3 rounded-lg border border-border/70 p-4 text-sm sm:grid-cols-4"
       onSubmit={(event) => event.preventDefault()}
     >
-      <div className="grid gap-1">
-        <label htmlFor="product-gap-filter-tool">Filter by external tool</label>
+      <Field className="gap-1">
+        <FieldLabel htmlFor="product-gap-filter-tool">
+          Filter by external tool
+        </FieldLabel>
         <NativeSelect
           id="product-gap-filter-tool"
           onChange={(event) => set({ tool: event.target.value })}
@@ -74,9 +78,11 @@ export function GapFilterBar({
             </option>
           ))}
         </NativeSelect>
-      </div>
-      <div className="grid gap-1">
-        <label htmlFor="product-gap-filter-reason">Filter by reason</label>
+      </Field>
+      <Field className="gap-1">
+        <FieldLabel htmlFor="product-gap-filter-reason">
+          Filter by reason
+        </FieldLabel>
         <NativeSelect
           id="product-gap-filter-reason"
           onChange={(event) => set({ reason: event.target.value })}
@@ -89,9 +95,11 @@ export function GapFilterBar({
             </option>
           ))}
         </NativeSelect>
-      </div>
-      <div className="grid gap-1">
-        <label htmlFor="product-gap-filter-project">Filter by Project</label>
+      </Field>
+      <Field className="gap-1">
+        <FieldLabel htmlFor="product-gap-filter-project">
+          Filter by Project
+        </FieldLabel>
         <NativeSelect
           id="product-gap-filter-project"
           onChange={(event) => set({ projectId: event.target.value })}
@@ -104,9 +112,11 @@ export function GapFilterBar({
             </option>
           ))}
         </NativeSelect>
-      </div>
-      <div className="grid gap-1">
-        <label htmlFor="product-gap-status-filter">Filter by status</label>
+      </Field>
+      <Field className="gap-1">
+        <FieldLabel htmlFor="product-gap-status-filter">
+          Filter by status
+        </FieldLabel>
         <NativeSelect
           id="product-gap-status-filter"
           onChange={(event) => set({ status: event.target.value })}
@@ -119,7 +129,7 @@ export function GapFilterBar({
             </option>
           ))}
         </NativeSelect>
-      </div>
+      </Field>
     </form>
   );
 }
@@ -169,11 +179,7 @@ export function ToolEscapesPanel({
       >
         {label}
       </Button>
-      {error ? (
-        <p className="text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
       {events ? (
         <ul
           aria-label={`${TOOL_ESCAPE_LABEL}s of ${record.title}`}

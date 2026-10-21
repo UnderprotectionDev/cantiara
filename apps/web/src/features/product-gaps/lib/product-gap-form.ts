@@ -1,14 +1,17 @@
-import type {
-  CloseToolEscapeInput,
-  ProductGapLinkInput,
-  ProductGapLinkTargetType,
-  ProductGapLinkView,
-  ProductGapStatus,
-  RecordToolEscapeInput,
-  ToolEscapeImpact,
-  ToolEscapeReason,
-  ToolEscapeRestoreMethod,
+import {
+  type CloseToolEscapeInput,
+  type ProductGapLinkInput,
+  type ProductGapLinkTargetType,
+  type ProductGapLinkView,
+  type ProductGapStatus,
+  type RecordToolEscapeInput,
+  recordProductGapInputSchema,
+  TOOL_ESCAPE_IMPACTS,
+  type ToolEscapeImpact,
+  type ToolEscapeReason,
+  type ToolEscapeRestoreMethod,
 } from "@cantiara/api/product-gaps";
+import { z } from "zod";
 
 /** A related record as the form holds it: the label is display only and never sent. */
 export interface LinkDraft {
@@ -178,4 +181,45 @@ export function toCloseToolEscapeInput(
         : null,
     workflow: values.runRef.trim() ? { runRef: values.runRef } : null,
   };
+}
+
+/** The Tool Escape rules the form checks before the seam is called. */
+const escapeFormSchema = z.object({
+  source: z.custom<LinkDraft>(
+    (value) => typeof value === "object" && value !== null,
+    "Choose the source Project or record.",
+  ),
+  reasons: z.array(z.string()).min(1, "Choose at least one reason."),
+});
+
+/**
+ * First message the founder must fix before `Record Product Gap` is sent, else
+ * `undefined`. Source and reasons come first; a new Gap then follows the same
+ * schema as the seam, so the form and the API never disagree.
+ */
+export function gapFormError(values: GapFormValues): string | undefined {
+  const escapeCheck = escapeFormSchema.safeParse(values.escape);
+  if (!escapeCheck.success) {
+    return escapeCheck.error.issues[0]?.message;
+  }
+  if (values.existingGapId) {
+    return undefined;
+  }
+  const gap = recordProductGapInputSchema.safeParse({
+    links: toLinkInputs(values.links),
+    scope: values.scope,
+    title: values.title,
+    unmetNeed: values.unmetNeed,
+  });
+  return gap.success ? undefined : gap.error.issues[0]?.message;
+}
+
+const closeImpactSchema = z.enum(
+  TOOL_ESCAPE_IMPACTS,
+  "Choose what the escape held before closing it.",
+);
+
+/** The impact picks the close path; it is the one field the form requires. */
+export function closeImpact(values: CloseFormValues) {
+  return closeImpactSchema.safeParse(values.impact);
 }

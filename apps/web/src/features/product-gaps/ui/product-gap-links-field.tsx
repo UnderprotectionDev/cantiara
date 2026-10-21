@@ -7,6 +7,12 @@ import {
   type ProductGapLinkTargetType,
 } from "@cantiara/api/product-gaps";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@cantiara/ui/components/field";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
 import { useCallback, useEffect, useId, useState } from "react";
 import type { LinkDraft } from "../lib/product-gap-form";
@@ -98,8 +104,10 @@ export function ProductGapLinksField({
   }
 
   return (
-    <fieldset className="space-y-3 rounded-md border border-border/70 p-3">
-      <legend className="px-1 text-sm">{legend}</legend>
+    <FieldSet className="gap-3 rounded-md border border-border/70 p-3">
+      <FieldLegend className="mb-0 px-1 text-sm" variant="label">
+        {legend}
+      </FieldLegend>
       {value.length === 0 ? (
         <p className="text-muted-foreground text-sm">No related records.</p>
       ) : (
@@ -130,8 +138,10 @@ export function ProductGapLinksField({
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1 text-sm">
-            <label htmlFor={`${idPrefix}-link-type`}>Related record type</label>
+          <Field className="gap-1 text-sm">
+            <FieldLabel htmlFor={`${idPrefix}-link-type`}>
+              Related record type
+            </FieldLabel>
             <NativeSelect
               id={`${idPrefix}-link-type`}
               onChange={(event) =>
@@ -147,9 +157,11 @@ export function ProductGapLinksField({
                 </option>
               ))}
             </NativeSelect>
-          </div>
-          <div className="grid gap-1 text-sm">
-            <label htmlFor={`${idPrefix}-link-target`}>Related record</label>
+          </Field>
+          <Field className="gap-1 text-sm">
+            <FieldLabel htmlFor={`${idPrefix}-link-target`}>
+              Related record
+            </FieldLabel>
             <NativeSelect
               aria-describedby={statusId}
               id={`${idPrefix}-link-target`}
@@ -163,7 +175,7 @@ export function ProductGapLinksField({
                 </option>
               ))}
             </NativeSelect>
-          </div>
+          </Field>
           <div className="sm:col-span-2">
             <Button
               disabled={!selected}
@@ -185,6 +197,6 @@ export function ProductGapLinksField({
       >
         {message}
       </p>
-    </fieldset>
+    </FieldSet>
   );
 }

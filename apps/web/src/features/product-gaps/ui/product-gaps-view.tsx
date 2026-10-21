@@ -9,8 +9,16 @@ import {
   type ProductGapRecord,
   type ProductGapStatus,
 } from "@cantiara/api/product-gaps";
+import { Alert } from "@cantiara/ui/components/alert";
 import { Button } from "@cantiara/ui/components/button";
+import {
+  Field,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@cantiara/ui/components/field";
 import { NativeSelect } from "@cantiara/ui/components/native-select";
+import { useForm, useStore } from "@tanstack/react-form";
 import { useEffect, useId, useState } from "react";
 import {
   EMPTY_GAP_FILTER,
@@ -34,6 +42,8 @@ import type { CloseEscape } from "./tool-escape-close";
 export type { LoadEscapes } from "./dogfooding-summary";
 export type { RecordGap } from "./record-product-gap-form";
 export type { CloseEscape } from "./tool-escape-close";
+
+type FollowUpKind = "Feature relation" | "Work";
 
 export type FollowUpRequest =
   | { kind: "Feature relation"; featureId: string }
@@ -73,8 +83,10 @@ function StatusControl({
     }
   }
   return (
-    <div className="grid gap-1 text-sm">
-      <label htmlFor={`${id}-status`}>{`Status of ${record.title}`}</label>
+    <Field className="gap-1 text-sm">
+      <FieldLabel
+        htmlFor={`${id}-status`}
+      >{`Status of ${record.title}`}</FieldLabel>
       <NativeSelect
         id={`${id}-status`}
         onChange={(event) =>
@@ -88,15 +100,11 @@ function StatusControl({
           </option>
         ))}
       </NativeSelect>
-      {error ? (
-        <p className="text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
       <p aria-live="polite" className="text-muted-foreground" role="status">
         {message}
       </p>
-    </div>
+    </Field>
   );
 }
 
@@ -133,18 +141,43 @@ function FollowUpPanel({
   record: ProductGapRecord;
 }) {
   const id = useId();
-  const [kind, setKind] = useState<"Feature relation" | "Work">("Work");
-  const [workType, setWorkType] = useState<ProductGapFollowUpWorkType>("Task");
   const [targets, setTargets] = useState<ProductGapLinkTarget[]>([]);
-  const [targetId, setTargetId] = useState("");
   const [plan, setPlan] = useState<ProductGapFollowUpPlan | null>(null);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState("");
+  const form = useForm({
+    defaultValues: {
+      kind: "Work" as FollowUpKind,
+      targetId: "",
+      workType: "Task" as ProductGapFollowUpWorkType,
+    },
+    onSubmit: async ({ value }) => {
+      setError(undefined);
+      setMessage("");
+      try {
+        setPlan(
+          await onPreview(
+            record,
+            value.kind === "Work"
+              ? {
+                  kind: value.kind,
+                  projectId: value.targetId,
+                  workType: value.workType,
+                }
+              : { featureId: value.targetId, kind: value.kind },
+          ),
+        );
+      } catch (caught) {
+        setError(errorText(caught, "The follow-up preview is unavailable."));
+      }
+    },
+  });
+  const kind = useStore(form.store, (state) => state.values.kind);
 
   useEffect(() => {
     let current = true;
     setTargets([]);
-    setTargetId("");
+    form.setFieldValue("targetId", "");
     setPlan(null);
     loadTargets(kind === "Work" ? "Project" : "Feature")
       .then((loaded) => {
@@ -160,24 +193,7 @@ function FollowUpPanel({
     return () => {
       current = false;
     };
-  }, [kind, loadTargets]);
-
-  async function preview() {
-    setError(undefined);
-    setMessage("");
-    try {
-      setPlan(
-        await onPreview(
-          record,
-          kind === "Work"
-            ? { kind, projectId: targetId, workType }
-            : { featureId: targetId, kind },
-        ),
-      );
-    } catch (caught) {
-      setError(errorText(caught, "The follow-up preview is unavailable."));
-    }
-  }
+  }, [form, kind, loadTargets]);
 
   async function confirm() {
     if (!plan) {
@@ -187,7 +203,7 @@ function FollowUpPanel({
     try {
       await onConfirm(record, plan);
       setPlan(null);
-      setTargetId("");
+      form.setFieldValue("targetId", "");
       setMessage(
         plan.kind === "Work"
           ? "Follow-up Work created."
@@ -200,75 +216,101 @@ function FollowUpPanel({
   }
 
   return (
-    <fieldset className="space-y-3 rounded-md border border-border/70 p-3 text-sm">
-      <legend className="px-1">{`Follow-up for ${record.title}`}</legend>
+    <FieldSet className="gap-3 rounded-md border border-border/70 p-3 text-sm">
+      <FieldLegend
+        className="mb-0 px-1"
+        variant="label"
+      >{`Follow-up for ${record.title}`}</FieldLegend>
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="grid gap-1">
-          <label htmlFor={`${id}-kind`}>Follow-up kind</label>
-          <NativeSelect
-            id={`${id}-kind`}
-            onChange={(event) =>
-              setKind(event.target.value as "Feature relation" | "Work")
-            }
-            value={kind}
-          >
-            <option value="Work">Create follow-up work</option>
-            <option value="Feature relation">Relate a Feature</option>
-          </NativeSelect>
-        </div>
+        <form.Field name="kind">
+          {(field) => (
+            <Field className="gap-1">
+              <FieldLabel htmlFor={`${id}-kind`}>Follow-up kind</FieldLabel>
+              <NativeSelect
+                id={`${id}-kind`}
+                onBlur={field.handleBlur}
+                onChange={(event) =>
+                  field.handleChange(event.target.value as FollowUpKind)
+                }
+                value={field.state.value}
+              >
+                <option value="Work">Create follow-up work</option>
+                <option value="Feature relation">Relate a Feature</option>
+              </NativeSelect>
+            </Field>
+          )}
+        </form.Field>
         {kind === "Work" ? (
-          <div className="grid gap-1">
-            <label htmlFor={`${id}-type`}>Work type</label>
-            <NativeSelect
-              id={`${id}-type`}
-              onChange={(event) => {
-                setWorkType(event.target.value as ProductGapFollowUpWorkType);
-                setPlan(null);
-              }}
-              value={workType}
-            >
-              {PRODUCT_GAP_FOLLOW_UP_WORK_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
+          <form.Field name="workType">
+            {(field) => (
+              <Field className="gap-1">
+                <FieldLabel htmlFor={`${id}-type`}>Work type</FieldLabel>
+                <NativeSelect
+                  id={`${id}-type`}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => {
+                    field.handleChange(
+                      event.target.value as ProductGapFollowUpWorkType,
+                    );
+                    setPlan(null);
+                  }}
+                  value={field.state.value}
+                >
+                  {PRODUCT_GAP_FOLLOW_UP_WORK_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
+          </form.Field>
         ) : null}
-        <div className="grid gap-1">
-          <label htmlFor={`${id}-target`}>
-            {kind === "Work" ? "Target Project" : "Feature"}
-          </label>
-          <NativeSelect
-            id={`${id}-target`}
-            onChange={(event) => {
-              setTargetId(event.target.value);
-              setPlan(null);
-            }}
-            value={targetId}
-          >
-            <option value="">
-              {kind === "Work" ? "Choose a Project" : "Choose a Feature"}
-            </option>
-            {targets.map((target) => (
-              <option key={target.targetId} value={target.targetId}>
-                {target.label}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
+        <form.Field name="targetId">
+          {(field) => (
+            <Field className="gap-1">
+              <FieldLabel htmlFor={`${id}-target`}>
+                {kind === "Work" ? "Target Project" : "Feature"}
+              </FieldLabel>
+              <NativeSelect
+                id={`${id}-target`}
+                onBlur={field.handleBlur}
+                onChange={(event) => {
+                  field.handleChange(event.target.value);
+                  setPlan(null);
+                }}
+                value={field.state.value}
+              >
+                <option value="">
+                  {kind === "Work" ? "Choose a Project" : "Choose a Feature"}
+                </option>
+                {targets.map((target) => (
+                  <option key={target.targetId} value={target.targetId}>
+                    {target.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+          )}
+        </form.Field>
       </div>
-      <Button
-        disabled={!targetId}
-        onClick={() => {
-          preview().catch(() => undefined);
-        }}
-        size="sm"
-        type="button"
-        variant="outline"
+      <form.Subscribe
+        selector={(state) => [state.values.targetId, state.isSubmitting]}
       >
-        Preview follow-up
-      </Button>
+        {([targetId, pending]) => (
+          <Button
+            disabled={!targetId || pending === true}
+            onClick={() => {
+              form.handleSubmit().catch(() => undefined);
+            }}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Preview follow-up
+          </Button>
+        )}
+      </form.Subscribe>
       {plan ? (
         <section
           aria-label={`Follow-up preview for ${record.title}`}
@@ -296,15 +338,11 @@ function FollowUpPanel({
           </div>
         </section>
       ) : null}
-      {error ? (
-        <p className="text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
       <p aria-live="polite" className="text-muted-foreground" role="status">
         {message}
       </p>
-    </fieldset>
+    </FieldSet>
   );
 }
 
