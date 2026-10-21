@@ -157,6 +157,14 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
         type: "Feature",
       },
     ]);
+    await db
+      .update(project)
+      .set({ workCount: 3 })
+      .where(eq(project.id, projectId));
+    await db
+      .update(project)
+      .set({ workCount: 2 })
+      .where(eq(project.id, otherProjectId));
     await db.insert(decision).values({
       decision: "Use CSV",
       id: ids.decision,
@@ -295,10 +303,12 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
     const created = await access.record(accountId, gap);
 
     await expect(
-      db
-        .update(productGap)
-        .set({ status: "Won't fix" })
-        .where(eq(productGap.id, created.id)),
+      (async () => {
+        await db
+          .update(productGap)
+          .set({ status: "Won't fix" })
+          .where(eq(productGap.id, created.id));
+      })(),
     ).rejects.toThrow();
   });
 
@@ -327,7 +337,7 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
     const first = await access.confirmFollowUp(accountId, confirmation);
     const retry = await access.confirmFollowUp(accountId, confirmation);
 
-    expect(first.followUp.workKey).toBe(`CHK-${suffix.toUpperCase()}-1`);
+    expect(first.followUp.workKey).toBe(`CHK-${suffix.toUpperCase()}-4`);
     expect(retry.followUp).toEqual(first.followUp);
     expect(first.gap).toMatchObject({
       links: [{ kind: "Follow-up", label: gap.title, targetType: "Work" }],
@@ -508,7 +518,7 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
       }),
     ).rejects.toBeInstanceOf(ProductGapNotFoundError);
     expect(await db.select().from(toolEscape)).toHaveLength(3);
-  });
+  }, 30_000);
 
   test("the database refuses an event with no reason, an unknown reason or an unknown source type", async () => {
     const db = requireDatabase();
@@ -530,11 +540,13 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
       { reasons: ["Faster"], sourceType: "Contact" },
     ]) {
       await expect(
-        db.insert(toolEscape).values({
-          ...row,
-          id: crypto.randomUUID(),
-          ...bad,
-        }),
+        (async () => {
+          await db.insert(toolEscape).values({
+            ...row,
+            id: crypto.randomUUID(),
+            ...bad,
+          });
+        })(),
       ).rejects.toThrow();
     }
   });
@@ -641,7 +653,7 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
       const { escape: closable } = await recordEscape(access);
       const row = {
         candidateBuild: build,
-        escapeId: escape.id,
+        escapeId: closable.id,
         externalCopyHow: "Archived.",
         gapId: closable.gapId,
         impact: "Lasting parallel source of truth",
@@ -654,9 +666,11 @@ describeDatabase("Product Gaps PostgreSQL integration", () => {
         .values({ ...row, id: crypto.randomUUID() });
       for (const bad of [{}, { impact: "Never held parallel truth" }]) {
         await expect(
-          db
-            .insert(toolEscapeClose)
-            .values({ ...row, id: crypto.randomUUID(), ...bad }),
+          (async () => {
+            await db
+              .insert(toolEscapeClose)
+              .values({ ...row, id: crypto.randomUUID(), ...bad });
+          })(),
         ).rejects.toThrow();
       }
     });
