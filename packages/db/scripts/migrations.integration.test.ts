@@ -785,7 +785,7 @@ describeDatabase(
         });
         expect(result.status).toBe(1);
         expect(result.stdout).toContain(
-          "Development API could not start safely. No migration was applied.",
+          "Development API could not start safely. Automatic migration preparation did not make the databases ready.",
         );
         expect(result.stdout).toContain(
           "Run bun run db:doctor for a database diagnosis.",

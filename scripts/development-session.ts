@@ -76,3 +76,32 @@ export async function superviseDevelopmentProcess(
     await lease.close();
   }
 }
+
+export async function acquireLeaseWithPreparation<Lease>(
+  acquire: () => Promise<Lease>,
+  prepare: () => Promise<boolean>,
+): Promise<Lease> {
+  try {
+    return await acquire();
+  } catch (error) {
+    if (!(await prepare())) {
+      throw error;
+    }
+    return await acquire();
+  }
+}
+
+export function prepareDevelopmentDatabasesCommand() {
+  const child = spawn(
+    "bun",
+    ["run", "--cwd", "../../packages/db", "db:prepare"],
+    {
+      stdio: "inherit",
+      env: process.env,
+    },
+  );
+  return new Promise<boolean>((resolve) => {
+    child.once("error", () => resolve(false));
+    child.once("close", (code) => resolve(code === 0));
+  });
+}
