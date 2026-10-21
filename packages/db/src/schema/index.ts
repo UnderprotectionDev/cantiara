@@ -23,6 +23,7 @@ export * from "./personal-reminders";
 export * from "./planned-test";
 export * from "./prioritization-session";
 export * from "./priority-metrics";
+export * from "./product-gap";
 export * from "./production-incident";
 export * from "./project";
 export * from "./project-goal";

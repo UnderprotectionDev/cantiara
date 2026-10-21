@@ -1,5 +1,5 @@
 {
-  "id": "8dc85a30-eb84-4088-ab1c-9f92e540fb1f",
+  "id": "10a72aec-21b5-4731-ab90-d31c8fe7f17b",
   "prevId": "f5f01210-c71b-4756-964e-0a63f4bc66e0",
   "version": "7",
   "dialect": "postgresql",
@@ -9793,20 +9793,53 @@
       },
       "isRLSEnabled": false
     },
-    "public.project_session_test_review": {
-      "name": "project_session_test_review",
+    "public.workspace_product_gap": {
+      "name": "workspace_product_gap",
       "schema": "",
       "columns": {
-        "review_state": {
-          "name": "review_state",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Open'"
+        },
+        "status_changed_at": {
+          "name": "status_changed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "title": {
+          "name": "title",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "session_test_id": {
-          "name": "session_test_id",
+        "unmet_need": {
+          "name": "unmet_need",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "updated_at": {
@@ -9815,15 +9848,37 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "workspace_product_gap_workspace_idx": {
+          "name": "workspace_product_gap_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "project_session_test_review_session_test_id_project_session_test_id_fk": {
-          "name": "project_session_test_review_session_test_id_project_session_test_id_fk",
-          "tableFrom": "project_session_test_review",
-          "tableTo": "project_session_test",
-          "columnsFrom": ["session_test_id"],
+        "workspace_product_gap_workspace_id_workspace_id_fk": {
+          "name": "workspace_product_gap_workspace_id_workspace_id_fk",
+          "tableFrom": "workspace_product_gap",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -9833,37 +9888,34 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "project_session_test_review_state_check": {
-          "name": "project_session_test_review_state_check",
-          "value": "\"review_state\" in ('Unreviewed', 'Reviewed', 'Follow-up needed', 'Closed')"
+        "workspace_product_gap_status_check": {
+          "name": "workspace_product_gap_status_check",
+          "value": "\"workspace_product_gap\".\"status\" in ('Open', 'Evaluating', 'Met', 'Conscious boundary')"
+        },
+        "workspace_product_gap_title_check": {
+          "name": "workspace_product_gap_title_check",
+          "value": "length(btrim(\"workspace_product_gap\".\"title\")) between 1 and 255"
+        },
+        "workspace_product_gap_unmet_need_check": {
+          "name": "workspace_product_gap_unmet_need_check",
+          "value": "length(btrim(\"workspace_product_gap\".\"unmet_need\")) >= 1"
         }
       },
       "isRLSEnabled": false
     },
-    "public.project_test_review_event": {
-      "name": "project_test_review_event",
+    "public.workspace_product_gap_link": {
+      "name": "workspace_product_gap_link",
       "schema": "",
       "columns": {
-        "action": {
-          "name": "action",
-          "type": "text",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "now()"
         },
-        "actor_account_id": {
-          "name": "actor_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "batch_id": {
-          "name": "batch_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "from_state": {
-          "name": "from_state",
+        "gap_id": {
+          "name": "gap_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -9874,62 +9926,38 @@
           "primaryKey": true,
           "notNull": true
         },
-        "project_id": {
-          "name": "project_id",
+        "kind": {
+          "name": "kind",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "default": "'Related'"
         },
-        "remaining": {
-          "name": "remaining",
-          "type": "jsonb",
+        "position": {
+          "name": "position",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "session_id": {
-          "name": "session_id",
+        "target_id": {
+          "name": "target_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "session_test_id": {
-          "name": "session_test_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "to_state": {
-          "name": "to_state",
+        "target_type": {
+          "name": "target_type",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         }
       },
       "indexes": {
-        "project_test_review_event_session_idx": {
-          "name": "project_test_review_event_session_idx",
+        "workspace_product_gap_link_gap_idx": {
+          "name": "workspace_product_gap_link_gap_idx",
           "columns": [
             {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "recorded_at",
+              "expression": "gap_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9940,43 +9968,40 @@
           "method": "btree",
           "with": {}
         },
-        "project_test_review_event_project_idx": {
-          "name": "project_test_review_event_project_idx",
+        "workspace_product_gap_link_target_unique": {
+          "name": "workspace_product_gap_link_target_unique",
           "columns": [
             {
-              "expression": "project_id",
+              "expression": "gap_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "recorded_at",
+              "expression": "target_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
         }
       },
       "foreignKeys": {
-        "project_test_review_event_project_id_project_id_fk": {
-          "name": "project_test_review_event_project_id_project_id_fk",
-          "tableFrom": "project_test_review_event",
-          "tableTo": "project",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "project_test_review_event_session_id_project_test_session_id_fk": {
-          "name": "project_test_review_event_session_id_project_test_session_id_fk",
-          "tableFrom": "project_test_review_event",
-          "tableTo": "project_test_session",
-          "columnsFrom": ["session_id"],
+        "workspace_product_gap_link_gap_fk": {
+          "name": "workspace_product_gap_link_gap_fk",
+          "tableFrom": "workspace_product_gap_link",
+          "tableTo": "workspace_product_gap",
+          "columnsFrom": ["gap_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -9986,13 +10011,13 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "project_test_review_event_action_check": {
-          "name": "project_test_review_event_action_check",
-          "value": "\"project_test_review_event\".\"action\" in ('Review state set', 'Bulk review')"
+        "workspace_product_gap_link_type_check": {
+          "name": "workspace_product_gap_link_type_check",
+          "value": "\"workspace_product_gap_link\".\"target_type\" in ('Project', 'Work', 'Feature', 'Decision')"
         },
-        "project_test_review_event_state_check": {
-          "name": "project_test_review_event_state_check",
-          "value": "\"from_state\" in ('Unreviewed', 'Reviewed', 'Follow-up needed', 'Closed') and \"to_state\" in ('Unreviewed', 'Reviewed', 'Follow-up needed', 'Closed')"
+        "workspace_product_gap_link_kind_check": {
+          "name": "workspace_product_gap_link_kind_check",
+          "value": "\"workspace_product_gap_link\".\"kind\" in ('Related', 'Follow-up')"
         }
       },
       "isRLSEnabled": false

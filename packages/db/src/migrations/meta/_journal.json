@@ -1062,22 +1062,50 @@
     {
       "idx": 151,
       "version": "7",
-      "when": 1792565566029,
-      "tag": "0151_test_review_lifecycle",
+      "when": 1792565495389,
+      "tag": "0151_product_gap_lifecycle",
       "breakpoints": true
     },
     {
       "idx": 152,
       "version": "7",
-      "when": 1792566450351,
-      "tag": "0152_test_result_events",
+      "when": 1792566566773,
+      "tag": "0152_tool_escape_event",
       "breakpoints": true
     },
     {
       "idx": 153,
       "version": "7",
-      "when": 1792567392740,
-      "tag": "0153_test_supersession_follow_up",
+      "when": 1792567280397,
+      "tag": "0153_high_impact_escape_close",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1792570817543,
+      "tag": "0154_tool_escape_close_never_held",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1792570817544,
+      "tag": "0155_test_review_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1792570817545,
+      "tag": "0156_test_result_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1792570817546,
+      "tag": "0157_test_supersession_follow_up",
       "breakpoints": true
     }
   ]

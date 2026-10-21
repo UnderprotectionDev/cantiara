@@ -1306,6 +1306,37 @@ Bu belge bütün alan PRD'lerinin kullandığı kayıt, kapsam, kimlik, yaşam d
 | Eşleşen komut yok | `No matching command` | Palet süzgecinin komut döndürmediği durum |
 | Burada çalışmaz | `Can’t run this here` | Kapsam dışı veya desteklenmeyen palet komutunun görünür başarısızlığı |
 | Kapat | `Close` | Paleti kapatma eylemi |
+| Ürün boşluğu kaydet | `Record Product Gap` | Kurucunun açıkça başlattığı Çalışma Alanı Ürün Boşluğu kaydı; otomatik telemetry, benzer başlık birleştirmesi veya İş dönüşümü değildir |
+| Ürün Boşluğu | `Product Gap` | Karşılanmayan ihtiyaç için Çalışma Alanı ana kaydı; İş veya özellik isteği değildir |
+| Karşılanmayan ihtiyaç | `Unmet need` | Ürün Boşluğunun zorunlu metni |
+| Kapsam | `Scope` | Ürün Boşluğunun isteğe bağlı kapsam açıklaması |
+| İlgili kayıtlar | `Related records` | Ürün Boşluğuna bağlı Proje, İş, Özellik ve Karar ilişkileri; ilişki bağlı kaydın yaşam döngüsüne yazmaz |
+| Açık | `Open` | Ürün Boşluğu durumu `Açık`; kurucu seçer, tekrar sayısı yazmaz |
+| Değerlendiriliyor | `Evaluating` | Ürün Boşluğu durumu `Değerlendiriliyor` |
+| Karşılandı | `Met` | Ürün Boşluğu durumu `Karşılandı` |
+| Bilinçli sınır | `Conscious boundary` | Ürün Boşluğu durumu `Bilinçli sınır`; yüksek etkili kaçışın kapanış kanıtını kaldırmaz |
+| Takip İşi oluştur | `Create follow-up work` | Ürün Boşluğundan açık önizleme ve onayla tek İş açar veya mevcut Özellik ilişkisi kurar; kendiliğinden dönüşmez |
+| Dış Araca Kaçış | `Tool Escape` | Ürün Boşluğuna bağlı tarihli, eklemeli olay; GitHub bağlantısı, Test Handoff'u veya Dış yürütme devri değildir; şiddet veya `High-impact` bayrağı taşımaz; sayısı yalnız kayıtlı olaylardan türetilir ve sıralama ya da öncelik üretmez |
+| Gerçekleşme zamanı | `Occurred at` | Dış Araca Kaçışın gerçekleştiği zaman |
+| Dış araç | `External tool` | Kullanıcının geçtiği aracın adı; dış içerik veya oturum kopyası değildir |
+| Kaynak | `Source` | Dış Araca Kaçışın kaynak Proje, İş, Özellik veya Karar bağlamı |
+| Yapılmak istenen iş | `Intended job` | Kullanıcının dış araçta bitirmek istediği iş |
+| Nedenler | `Reasons` | Dış Araca Kaçış için bir veya daha fazla kapalı neden |
+| Eksik yetenek | `Missing capability` | Dış Araca Kaçış nedeni `Eksik yetenek` |
+| Daha hızlı | `Faster` | Dış Araca Kaçış nedeni `Daha hızlı` |
+| Daha güvenilir | `More reliable` | Dış Araca Kaçış nedeni `Daha güvenilir` |
+| Kullanılabilirlik | `Usability` | Dış Araca Kaçış nedeni `Kullanılabilirlik` |
+| Alışkanlık | `Habit` | Dış Araca Kaçış nedeni `Alışkanlık` |
+| Dış Araca Kaçışı kapat | `Close Tool Escape` | Dış Araca Kaçışa ayrı, eklemeli kapanış kaydı yazar; olayı yeniden yazmaz, bir kaçış için yalnız bir kez yapılır; hesap kapatma veya Dış yüzey iptali değildir |
+| Kaçışın taşıdığı | `What the escape held` | Kapanışta yapılan yüksek etki yargısı: `Canonical truth moved out` (`Kanonik gerçek dışarı taşındı`), `Lasting parallel source of truth` (`Kalıcı paralel doğruluk kaynağı`) veya `Never held parallel truth` (`Paralel doğruluk taşımadı`); son seçenek dört koşullu kapanışı kullanmaz; saklanan şiddet bayrağı değildir |
+| Aday build | `Candidate build` | Aynı akışın başarıyla çalıştığı güncel Ürün sürüm adayının kesin build'i |
+| İş akışı çalıştırması | `Workflow run` | Aynı gerçek iş akışının aday üzerindeki doğrulanabilir çalıştırma başvurusu; serbest not veya dış ekran görüntüsü değildir |
+| Gerçeğin dönüş yolu | `How the truth returned` | `Manual recreate` (`Manuel yeniden oluşturma`) veya `Supported import` (`Desteklenen import`) |
+| Geri dönen ürün kayıtları | `Restored product records` | Etkilenen güncel gerçeğin döndüğü kesin Proje, İş, Özellik veya Karar kayıtları; kanıt bu kayıtlara bağlanır |
+| Dış kopya | `External copy` | `Closed` (`Kapandı`) veya `Active parallel source` (`Aktif paralel kaynak`); yalnız `Closed` koşulu karşılar |
+| Dış kopya nasıl kapatıldı | `How the external copy was closed` | Dış kopyanın paralel doğruluk kaynağı olmaktan çıkışının okunur açıklaması |
+| Kapanış kanıtı | `Close evidence` | Kapanmış Dış Araca Kaçışın görünür kanıtı: aday build, çalıştırma, dönüş yolu, bağlı kayıtlar ve dış kopya açıklaması |
+| Araca, nedene, Projeye veya duruma göre süz | `Filter by external tool`, `Filter by reason`, `Filter by Project`, `Filter by status` | Dogfooding özetinin yalnız seçen süzgeçleri; sıralama veya puan üretmez |
 
 - **Türkçe PRD terimi ile İngilizce UI etiketi iki ürün etiketi değildir.** PRD açıklaması ve domain tartışması Türkçe terimi, arayüz ve kesin kullanıcı metni İngilizce etiketi kullanır. Backtick/kod biçimi tek başına kesin UI copy'si olduğunu göstermez; kesin kullanıcı metni sözlükte veya açık `UI:` işaretiyle İngilizce verilir. Ürün adı, protokol, dış sağlayıcı alanı ve wire değeri kod biçiminde özgün adını koruyabilir; aynı arayüz bağlamında aynı kavram için iki İngilizce etiket kullanılmaz.
 
